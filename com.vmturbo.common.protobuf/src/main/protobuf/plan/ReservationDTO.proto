@@ -118,6 +118,10 @@ message ReservationTemplateCollection {
                 repeated .topology.CommodityBoughtDTO commodity_bought = 3;
 
                 optional int64 placement_info_id = 4;
+
+                optional int64 cluster_id = 5;
+
+                repeated .topology.CommodityStats commodityStats = 6;
             }
         }
     }

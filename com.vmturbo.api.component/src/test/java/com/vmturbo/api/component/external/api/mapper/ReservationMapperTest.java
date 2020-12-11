@@ -52,6 +52,7 @@ import com.vmturbo.common.protobuf.plan.TemplateDTOMoles.TemplateServiceMole;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityStats;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason.FailedResources;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -221,11 +222,17 @@ public class ReservationMapperTest {
                 .setCount(1)
                 .addReservationInstance(ReservationInstance.newBuilder()
                         .setEntityId(1L)
-                        .addPlacementInfo(ReservationInstance.PlacementInfo.newBuilder()
+                        .addPlacementInfo(PlacementInfo.newBuilder()
                                 .setProviderId(2L)
                                 .addCommodityBought(cpuProvisionedCommodityBoughtDTO)
-                                .addCommodityBought(memProvisionedCommodityBoughtDTO))
-                        .addPlacementInfo(ReservationInstance.PlacementInfo.newBuilder()
+                                .addCommodityBought(memProvisionedCommodityBoughtDTO)
+                                .setClusterId(123L)
+                                .addCommodityStats(CommodityStats.newBuilder()
+                                        .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                                                .setType(CommodityType.MEM_PROVISIONED_VALUE))
+                                        .setTotalCapacity(300)
+                                        .setTotalUsed(200)))
+                        .addPlacementInfo(PlacementInfo.newBuilder()
                                 .setProviderId(3L)
                                 .addCommodityBought(storageProvisionedCommodityBoughtDTO)))
                 .build();
@@ -253,6 +260,13 @@ public class ReservationMapperTest {
                 .getPlacements().getComputeResources().get(0);
         final ResourceApiDTO storageResource = reservationApiDTO.getDemandEntities().get(0)
                 .getPlacements().getStorageResources().get(0);
+        final ResourceApiDTO clusterResource = reservationApiDTO.getDemandEntities().get(0)
+                .getPlacements().getClusterResources().get(0);
+        assertEquals("123", clusterResource.getProvider().getUuid());
+        assertEquals(300, Math.round(clusterResource.getStats().stream().filter(a -> a.getName()
+                .equals(CommodityTypeUnits.MEM_PROVISIONED.getMixedCase())).findFirst().get().getCapacity().getAvg()));
+        assertEquals(200, Math.round(clusterResource.getStats().stream().filter(a -> a.getName()
+                .equals(CommodityTypeUnits.MEM_PROVISIONED.getMixedCase())).findFirst().get().getValues().getAvg()));
         assertEquals(pmServiceEntity.getDisplayName(), computeResource.getProvider().getDisplayName());
         assertEquals(stServiceEntity.getDisplayName(), storageResource.getProvider().getDisplayName());
         assertEquals(1000L, Math.round(computeResource.getStats()

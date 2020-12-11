@@ -40,6 +40,7 @@ import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollec
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance.PlacementInfo;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo.Type;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateField;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
@@ -79,6 +80,8 @@ public class ReservationManager implements ReservationDeletedListener {
     private static final Object reservationSetLock = new Object();
 
     private Map<Long, ReservationConstraintInfo> constraintIDToCommodityTypeMap = new HashMap<>();
+
+    private Map<String, Long> clusterCommodityKeyToClusterID = new HashMap<>();
 
     private static final String DELETED_STATUS = "DELETED";
 
@@ -120,6 +123,12 @@ public class ReservationManager implements ReservationDeletedListener {
         synchronized (reservationSetLock) {
             this.constraintIDToCommodityTypeMap.clear();
             this.constraintIDToCommodityTypeMap.putAll(constraintIDToCommodityTypeMap);
+            constraintIDToCommodityTypeMap.entrySet().stream().forEach(entry -> {
+                if (entry.getValue().getType() == Type.CLUSTER
+                        || entry.getValue().getType() == Type.STORAGE_CLUSTER) {
+                    clusterCommodityKeyToClusterID.put(entry.getValue().getKey(), entry.getKey());
+                }
+            });
         }
     }
 
@@ -277,6 +286,19 @@ public class ReservationManager implements ReservationDeletedListener {
                         .setProviderId(
                                 initialPlacementBuyerPlacementInfo.getInitialPlacementSuccess()
                                         .getProviderOid());
+                if (initialPlacementBuyerPlacementInfo
+                        .getInitialPlacementSuccess().hasCluster()
+                        && clusterCommodityKeyToClusterID
+                                .containsKey(initialPlacementBuyerPlacementInfo
+                                        .getInitialPlacementSuccess()
+                                        .getCluster().getKey())) {
+                    placementInfo
+                            .setClusterId(clusterCommodityKeyToClusterID
+                                    .get(initialPlacementBuyerPlacementInfo
+                                            .getInitialPlacementSuccess().getCluster().getKey()));
+                    placementInfo.addAllCommodityStats(initialPlacementBuyerPlacementInfo
+                            .getInitialPlacementSuccess().getCommodityStatsList());
+                }
                 logger.info(logPrefix + "provider: " + initialPlacementBuyerPlacementInfo
                         .getInitialPlacementSuccess().getProviderOid()
                         + " found for entity: " + reservationInstance.getEntityId()
