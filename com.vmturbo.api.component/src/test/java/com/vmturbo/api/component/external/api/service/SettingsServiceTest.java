@@ -217,6 +217,33 @@ public class SettingsServiceTest {
     }
 
     /**
+     * Test settingMatchEntityType for container. Container spec settings will also be matched to
+     * container entity type.
+     */
+    @Test
+    public void testSettingMatchEntityTypeForContainer() {
+        final SettingSpec containerSpecSettingSpec = SettingSpec.newBuilder()
+            .setEntitySettingSpec(EntitySettingSpec.newBuilder()
+                .setEntitySettingScope(EntitySettingScope.newBuilder()
+                    .setEntityTypeSet(EntityTypeSet.newBuilder()
+                        .addEntityType(ApiEntityType.CONTAINER_SPEC.typeNumber()))))
+            .build();
+
+        assertTrue(SettingsService.settingMatchEntityType(containerSpecSettingSpec, ApiEntityType.CONTAINER_SPEC.apiStr()));
+        assertTrue(SettingsService.settingMatchEntityType(containerSpecSettingSpec, ApiEntityType.CONTAINER.apiStr()));
+
+        assertFalse(SettingsService.settingMatchEntityType(
+            SettingSpec.newBuilder()
+                .setGlobalSettingSpec(GlobalSettingSpec.getDefaultInstance())
+                .build(), ApiEntityType.CONTAINER.apiStr()));
+
+        assertFalse(SettingsService.settingMatchEntityType(
+            SettingSpec.newBuilder()
+                .setEntitySettingSpec(EntitySettingSpec.getDefaultInstance())
+                .build(), ApiEntityType.CONTAINER.apiStr()));
+    }
+
+    /**
      * Test the invocation of the getSettingsByUuid API.
      *
      * @throws Exception exception thrown if anything goes wrong
