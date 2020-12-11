@@ -223,6 +223,7 @@ public class DiscoveryBasedUnblock implements PipelineUnblock {
             if (enableDiscoveryResponsesCaching) {
                 try {
                     identityProvider.waitForInitializedStore();
+                    logger.info("Restoring discovery dumps from volume");
                     binaryDiscoveryDumper.restoreDiscoveryResponses(targetStore).forEach((key, discoveryResponse) -> {
                         long targetId = key;
                         Optional<Target> target = targetStore.getTarget(targetId);
@@ -238,7 +239,6 @@ public class DiscoveryBasedUnblock implements PipelineUnblock {
                             } catch (InterruptedException | ExecutionException | TimeoutException e) {
                                 logger.error("Error in notifying the discovery result for target "
                                     + "id:{} and probe id: {}", targetId, probeId);
-                                throw new RuntimeException(e);
                             }
 
                             TargetDiscoveryInfo info = targetDiscoveryInfoMap.computeIfAbsent(targetId,
