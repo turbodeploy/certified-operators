@@ -1,13 +1,16 @@
 package com.vmturbo.api.component.external.api.mapper;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -28,6 +31,9 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInst
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceScopeInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
@@ -212,5 +218,71 @@ public class ReservedInstanceMapperTest {
         Assert.assertEquals(50, (int)reservedInstanceApiDTO.getUndiscoveredAccountsCoveredCount());
         Assert.assertNull(reservedInstanceApiDTO.getAppliedScopes());
         Assert.assertEquals(AzureRIScopeType.UNKNOWN, reservedInstanceApiDTO.getScopeType());
+    }
+
+    @Test
+    public void testMapToReservedInstanceApiDTOwithTargetId() throws Exception {
+        final Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOMap = new HashMap<>();
+        final TargetApiDTO target = new TargetApiDTO();
+        target.setType(CloudType.AWS.name());
+        final ServiceEntityApiDTO mainAccount = new ServiceEntityApiDTO();
+        mainAccount.setDiscoveredBy(target);
+        mainAccount.setDisplayName("Account");
+        final ServiceEntityApiDTO siblingAccount = new ServiceEntityApiDTO();
+        siblingAccount.setDiscoveredBy(target);
+        siblingAccount.setDisplayName("Sibling Account");
+        ServiceEntityApiDTO availabilityZoneEntity = new ServiceEntityApiDTO();
+        availabilityZoneEntity.setUuid("22");
+        availabilityZoneEntity.setDisplayName("us-east-1a");
+        ServiceEntityApiDTO regionEntity = new ServiceEntityApiDTO();
+        regionEntity.setUuid("44");
+        regionEntity.setDisplayName("us-east-1");
+        regionEntity.setDiscoveredBy(target);
+        ServiceEntityApiDTO templateEntity = new ServiceEntityApiDTO();
+        templateEntity.setUuid("33");
+        templateEntity.setDisplayName("c3.xlarge");
+        serviceEntityApiDTOMap.put(ACCOUNT_1_ID, mainAccount);
+        serviceEntityApiDTOMap.put(ACCOUNT_2_ID, siblingAccount);
+        serviceEntityApiDTOMap.put(22L, availabilityZoneEntity);
+        serviceEntityApiDTOMap.put(33L, templateEntity);
+        serviceEntityApiDTOMap.put(44L, regionEntity);
+        riBought.getReservedInstanceBoughtInfoBuilder().setReservedInstanceScopeInfo(
+                ReservedInstanceScopeInfo.newBuilder()
+                        .setShared(false)
+                        .addApplicableBusinessAccountId(ACCOUNT_1_ID)
+                        .addApplicableBusinessAccountId(ACCOUNT_2_ID)
+                        .build());
+        long targetId = 123L;
+        List<TopologyEntityDTO> accountList = Lists.newArrayList();
+        TypeSpecificInfo accountInfo = TypeSpecificInfo.newBuilder()
+                .setBusinessAccount(TypeSpecificInfo.BusinessAccountInfo.newBuilder()
+                        .setAssociatedTargetId(targetId)
+                        .build())
+                .build();
+        accountList.add(TopologyEntityDTO.newBuilder()
+                .setOid(ACCOUNT_2_ID)
+                .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
+                .setTypeSpecificInfo(accountInfo)
+                .build());
+
+        // ACCOUNT_1_ID is not in the 'accountList', so we will not be able to populate the target id.
+        ReservedInstanceApiDTO reservedInstanceApiDTO =
+                reservedInstanceMapper.mapToReservedInstanceApiDTO(riBought.build(), riSpec,
+                        serviceEntityApiDTOMap, 50, null, accountList);
+        assertEquals("RI_ID", reservedInstanceApiDTO.getTrueID());
+        assertNull(reservedInstanceApiDTO.getTargetId());
+
+        accountList.add(TopologyEntityDTO.newBuilder()
+                .setOid(ACCOUNT_1_ID)
+                .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
+                .setTypeSpecificInfo(accountInfo)
+                .build());
+
+        // ACCOUNT_1_ID added to the 'accountList', so target id can be set.
+        reservedInstanceApiDTO =
+                reservedInstanceMapper.mapToReservedInstanceApiDTO(riBought.build(), riSpec,
+                        serviceEntityApiDTOMap, 50, null, accountList);
+        assertEquals("RI_ID", reservedInstanceApiDTO.getTrueID());
+        assertEquals(String.valueOf(targetId), reservedInstanceApiDTO.getTargetId());
     }
 }

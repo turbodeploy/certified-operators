@@ -113,8 +113,9 @@ public class ReservedInstanceMapper {
                 // RI will always have one associated business account/subscription
                 TopologyDTO.TopologyEntityDTO baTopologyEntityDTO =
                         relatedBusinessAccountsList.stream().filter(account -> account.getOid() == accountId)
-                                .collect(Collectors.toList()).get(0);
-                if (baTopologyEntityDTO.getTypeSpecificInfo().getBusinessAccount().hasAssociatedTargetId()) {
+                                .findFirst().orElse(null);
+                if (baTopologyEntityDTO != null
+                        && baTopologyEntityDTO.getTypeSpecificInfo().getBusinessAccount().hasAssociatedTargetId()) {
                     reservedInstanceApiDTO
                             .setTargetId(Long.toString(baTopologyEntityDTO.getTypeSpecificInfo()
                                     .getBusinessAccount().getAssociatedTargetId()));
