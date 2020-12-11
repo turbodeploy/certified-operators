@@ -1,7 +1,9 @@
 package com.vmturbo.history.ingesters.live.writers;
 
 import java.sql.Timestamp;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.function.Predicate;
 
@@ -12,12 +14,15 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.TimeFrame;
+import com.vmturbo.components.common.utils.MemReporter;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.RetentionPolicy;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
 import com.vmturbo.history.ingesters.common.IChunkProcessor;
+import com.vmturbo.history.ingesters.common.TopologyIngesterBase.IngesterState;
 import com.vmturbo.history.ingesters.common.writers.ProjectedTopologyWriterBase;
 import com.vmturbo.history.schema.HistoryVariety;
 import com.vmturbo.history.schema.abstraction.Tables;
@@ -28,29 +33,28 @@ import com.vmturbo.history.stats.priceindex.TopologyPriceIndices;
 /**
  * Writer that writes records price index data from a projected topology.
  */
-public class PriceIndexWriter extends ProjectedTopologyWriterBase {
-    private static Logger logger = LogManager.getLogger(PriceIndexWriter.class);
+public class PriceIndexWriter extends ProjectedTopologyWriterBase implements MemReporter {
+    private static final Logger logger = LogManager.getLogger(PriceIndexWriter.class);
 
     private final TopologyInfo topologyInfo;
-    private final SimpleBulkLoaderFactory loaders;
+    private final IngesterState state;
     private final DBPriceIndexVisitorFactory visitorFactory;
     private final TopologyPriceIndices.Builder indicesBuilder;
 
     /**
      * Create a new index.
-     *
-     * @param topologyInfo   topology info
-     * @param loaders        bulk loader factory
+     *  @param topologyInfo   topology info
+     * @param state        bulk loader factory
      * @param visitorFactory factory to create visitors over price index data
      * @param entitiesFilter entities filter
      */
     public PriceIndexWriter(@Nonnull TopologyInfo topologyInfo,
-            @Nonnull SimpleBulkLoaderFactory loaders,
+            @Nonnull IngesterState state,
             @Nonnull DBPriceIndexVisitorFactory visitorFactory,
-            @Nonnull Predicate<TopologyDTO.TopologyEntityDTO> entitiesFilter) {
+            @Nonnull Predicate<TopologyEntityDTO> entitiesFilter) {
         super(entitiesFilter);
         this.topologyInfo = topologyInfo;
-        this.loaders = loaders;
+        this.state = state;
         this.visitorFactory = visitorFactory;
         this.indicesBuilder = TopologyPriceIndices.builder(topologyInfo);
     }
@@ -67,6 +71,7 @@ public class PriceIndexWriter extends ProjectedTopologyWriterBase {
             throws InterruptedException {
 
         if (!expedite) {
+            final SimpleBulkLoaderFactory loaders = state.getLoaders();
             final TopologyPriceIndices priceIndices = indicesBuilder.build();
             priceIndices.visit(visitorFactory.newVisitor(topologyInfo, loaders));
             // assuming we wrote any records to entity_stats tables, record this topology's snapshot_time in
@@ -110,8 +115,20 @@ public class PriceIndexWriter extends ProjectedTopologyWriterBase {
         @Override
         public Optional<IChunkProcessor<ProjectedTopologyEntity>>
         getChunkProcessor(@Nonnull final TopologyInfo topologyInfo,
-                @Nonnull final SimpleBulkLoaderFactory loaders) {
-            return Optional.of(new PriceIndexWriter(topologyInfo, loaders, visitorFactory, entitiesFilter));
+                @Nonnull final IngesterState state) {
+            return Optional.of(new PriceIndexWriter(topologyInfo, state, visitorFactory, entitiesFilter));
         }
+    }
+
+    @Override
+    public Long getMemSize() {
+        return null;
+    }
+
+    @Override
+    public List<MemReporter> getNestedMemReporters() {
+        return Arrays.asList(
+                new SimpleMemReporter("indicesBuilder", indicesBuilder)
+        );
     }
 }

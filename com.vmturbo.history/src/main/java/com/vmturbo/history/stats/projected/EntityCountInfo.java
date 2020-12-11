@@ -1,7 +1,8 @@
 package com.vmturbo.history.stats.projected;
 
+import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -9,28 +10,32 @@ import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import it.unimi.dsi.fastutil.ints.Int2IntMap;
+import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap;
+
 import jdk.nashorn.internal.ir.annotations.Immutable;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.components.common.stats.StatsAccumulator;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.common.stats.StatsAccumulator;
+import com.vmturbo.components.common.utils.MemReporter;
 import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.utils.HistoryStatsUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Information about entity counts and ratios in a topology.
- * <p>
- * It's immutable, because for any given topology the entity counts don't change.
+ *
+ * <p>It's immutable, because for any given topology the entity counts don't change.</p>
  */
 @Immutable
-class EntityCountInfo {
+class EntityCountInfo implements MemReporter {
     /**
      * (entity type) -> (number of active entities of the type in the topology).
      */
-    private final Map<Integer, Long> entityCountsByType;
+    private final Map<Integer, Integer> entityCountsByType;
 
     /**
      * This constructor should only be used for testing. Otherwise, use
@@ -39,7 +44,7 @@ class EntityCountInfo {
      * @param entityCountsByType The map of entity counts.
      */
     @VisibleForTesting
-    EntityCountInfo(@Nonnull final Map<Integer, Long> entityCountsByType) {
+    EntityCountInfo(@Nonnull final Map<Integer, Integer> entityCountsByType) {
         this.entityCountsByType = Collections.unmodifiableMap(entityCountsByType);
     }
 
@@ -70,7 +75,7 @@ class EntityCountInfo {
 
     @VisibleForTesting
     long entityCount(@Nonnull final EntityType entityType) {
-        return entityCountsByType.getOrDefault(entityType.getNumber(), 0L);
+        return entityCountsByType.getOrDefault(entityType.getNumber(), 0);
     }
 
     @Nonnull
@@ -83,8 +88,8 @@ class EntityCountInfo {
     }
 
     boolean isCountStat(@Nonnull final String statName) {
-        return HistoryStatsUtils.countPerSEsMetrics.contains(statName) ||
-                HistoryStatsUtils.countSEsMetrics.containsValue(statName);
+        return HistoryStatsUtils.countPerSEsMetrics.contains(statName)
+                || HistoryStatsUtils.countSEsMetrics.containsValue(statName);
     }
 
     @Nonnull
@@ -123,21 +128,29 @@ class EntityCountInfo {
     /**
      * Builder class to construct an immutable {@link EntityCountInfo}.
      */
-    static class Builder {
-        private final Map<Integer, Long> entityCountsByType = new HashMap<>();
+    static class Builder implements MemReporter {
+        private final Int2IntMap entityCountsByType = new Int2IntOpenHashMap();
 
-        private Builder() {}
+        private Builder() {
+        }
 
         @Nonnull
         Builder addEntity(@Nonnull final TopologyEntityDTO entity) {
             entityCountsByType.put(entity.getEntityType(),
-                    entityCountsByType.getOrDefault(entity.getEntityType(), 0L) + 1);
+                    entityCountsByType.getOrDefault(entity.getEntityType(), 0) + 1);
             return this;
         }
 
         @Nonnull
         EntityCountInfo build() {
             return new EntityCountInfo(entityCountsByType);
+        }
+
+        @Override
+        public List<MemReporter> getNestedMemReporters() {
+            return Arrays.asList(
+                    new SimpleMemReporter("entityCountsByType", entityCountsByType)
+            );
         }
     }
 }

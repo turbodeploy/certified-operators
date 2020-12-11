@@ -50,6 +50,7 @@ import com.vmturbo.common.protobuf.memory.RelationshipMemoryWalker.MemoryReferen
  */
 public abstract class MemoryVisitor<T> {
     private final Set<Object> exclusions;
+    private final List<Class<?>> excludedClasses;
     final Map<Class<?>, Long> sizeCache;
     private final int exclusionDepth;
     private final int maxDepth;
@@ -69,7 +70,8 @@ public abstract class MemoryVisitor<T> {
      *                   another object you are not interested that may in turn have references to lots
      *                   of other things you don't care about, etc. Just insert the object(s) you don't
      *                   want to traverse in the exclusion list to prevent including them or their
-     *                   descendants in the results.
+     *                   descendants in the results. Class objects appearing here cause instances of
+     *                   matching classes to be excluded.
      * @param exclusionDepth The depth at which to start excluding objects in the exclusion list.
      * @param maxDepth The maximum depth to traverse during a walk.
      */
@@ -77,6 +79,10 @@ public abstract class MemoryVisitor<T> {
                          final int exclusionDepth,
                          final int maxDepth) {
         this.exclusions = Objects.requireNonNull(exclusions);
+        this.excludedClasses = exclusions.stream()
+                .filter(o -> o instanceof Class)
+                .map(o -> (Class<?>)o)
+                .collect(Collectors.toList());
         this.exclusionDepth = exclusionDepth < 0 ? Integer.MAX_VALUE : exclusionDepth;
         this.maxDepth = maxDepth < 0 ? Integer.MAX_VALUE : maxDepth;
         sizeCache = new HashMap<>();
@@ -86,15 +92,17 @@ public abstract class MemoryVisitor<T> {
      * Protected method that custom implementations should implement. Internally called by the
      * {@link #visit(Object, int, Object)} method.
      *
-     * @param klass The class of the object visited.
-     * @param size The "shallow" size of the object visited.
-     * @param depth The depth from the root set at which we reached this object.
-     * @param data Custom data. The data passed depends on which {@link MemoryWalker} is being
-     *             used to perform the memory walk.
+     * @param klass      The class of the object visited.
+     * @param size       The "shallow" size of the object visited.
+     * @param depth      The depth from the root set at which we reached this object.
+     * @param isExcluded True if this object is excluded; the traversal will not descend into this
+     *                   object's descendant's regardless of the return value
+     * @param data       Custom data. The data passed depends on which {@link MemoryWalker} is being
+     *                   used to perform the memory walk.
      * @return Whether or not to continue the walk to this object's descendants.
      */
     protected abstract boolean handleVisit(@Nonnull Class<?> klass, long size,
-                                           int depth, @Nullable T data);
+            int depth, boolean isExcluded, @Nullable T data);
 
     /**
      * Get the total count of objects visited by this visitor.
@@ -125,20 +133,24 @@ public abstract class MemoryVisitor<T> {
      * @return Whether or not to continue the walk to this object's descendants.
      */
     public boolean visit(@Nonnull Object obj, int depth,
-                         @Nullable final T data) {
+            @Nullable final T data) {
         final Class<?> klass = obj.getClass();
         final long size;
         if (klass.isArray()) {
             size = MemoryLayoutSpecification.sizeOfArray(obj, klass);
         } else {
             size = sizeCache.computeIfAbsent(obj.getClass(),
-                MemoryLayoutSpecification::sizeOfInstance);
+                    MemoryLayoutSpecification::sizeOfInstance);
         }
 
-        boolean shouldContinue = handleVisit(klass, size, depth, data);
-        return shouldContinue
-            && (depth < maxDepth)
-            && (depth <= exclusionDepth || !exclusions.contains(obj));
+        final boolean isExcluded = depth > exclusionDepth && isExcluded(obj);
+        boolean shouldContinue = handleVisit(klass, size, depth, isExcluded, data);
+        return shouldContinue && depth < maxDepth && !isExcluded;
+    }
+
+    private boolean isExcluded(final @Nonnull Object obj) {
+        return exclusions.contains(obj)
+                || excludedClasses.stream().anyMatch(cls -> cls.isAssignableFrom(obj.getClass()));
     }
 
     /**
@@ -211,9 +223,14 @@ public abstract class MemoryVisitor<T> {
         /**
          * Construct a new {@link TotalSizesAndCountsVisitor}.
          *
-         * @param exclusions The objects to exclude during the walk.
+         * <p>Any class object appearing in the exclusions causes all instances of that class to
+         * be excluded from the traversal. All non-class objects are excluded as individual objects
+         * (matched via object identity during the traversal, not by {@link
+         * Object#equals(Object)}</p>
+         *
+         * @param exclusions     The objects and classes to exclude during the walk.
          * @param exclusionDepth The depth at which to begin applying exclusions.
-         * @param maxDepth The maximum depth to traverse to.
+         * @param maxDepth       The maximum depth to traverse to.
          */
         public TotalSizesAndCountsVisitor(@Nonnull final Set<Object> exclusions,
                                           final int exclusionDepth,
@@ -223,9 +240,11 @@ public abstract class MemoryVisitor<T> {
 
         @Override
         public boolean handleVisit(@Nonnull final Class<?> klass, final long size,
-                                   final int depth, @Nullable final Object data) {
-            totalSize += size;
-            totalCount++;
+                final int depth, final boolean isExcluded, @Nullable final Object data) {
+            if (!isExcluded) {
+                totalSize += size;
+                totalCount++;
+            }
             return true;
         }
 
@@ -258,7 +277,7 @@ public abstract class MemoryVisitor<T> {
         /**
          * Construct a new {@link com.vmturbo.common.protobuf.memory.MemoryVisitor.ClassHistogramSizeVisitor}.
          *
-         * @param exclusions The objects to exclude during the walk.
+         * @param exclusions The objects and classes to exclude during the walk.
          * @param exclusionDepth The depth at which to begin applying exclusions.
          * @param maxDepth The maximum depth to traverse to.
          */
@@ -270,10 +289,11 @@ public abstract class MemoryVisitor<T> {
 
         @Override
         protected boolean handleVisit(@Nonnull final Class<?> klass, final long size,
-                                      final int depth, @Nullable final Object data) {
+                final int depth, final boolean isExcluded, @Nullable final Object data) {
+            final long includedSize = isExcluded ? 0L : size;
             classCounts.compute(klass, (k, v) -> v == null
-                ? new SizeAndCount(size)
-                : v.increment(size));
+                    ? new SizeAndCount(includedSize)
+                    : v.increment(includedSize));
             return true;
         }
 
@@ -468,9 +488,14 @@ public abstract class MemoryVisitor<T> {
     }
 
     /**
-     * A {@link MemoryVisitor} for computing the size of objects and their descendants
-     * visited during a memory walk. Retains information about individual objects
-     * so has more significant overhead. Use with {@link RelationshipMemoryWalker}.
+     * A {@link MemoryVisitor} for computing the size of objects and their descendants visited
+     * during a memory walk. Retains information about individual objects so has more significant
+     * overhead. Use with {@link RelationshipMemoryWalker}.
+     *
+     * <p>Note on excluded objects: If an object is excluded, it will be visited, but its
+     * descendants will not - as with all walkers. In this case, we will record a node for the
+     * visited object, with its reported size, but that size will not be incorporated into the sizes
+     * of ancestor objects.</p>
      */
     public static class MemoryGraphVisitor
         extends MemoryVisitor<MemoryReferenceNode> implements Iterable<MemoryReferenceNode> {
@@ -514,7 +539,7 @@ public abstract class MemoryVisitor<T> {
 
         @Override
         protected boolean handleVisit(@Nonnull Class<?> klass, long size, int depth,
-                                      @Nullable MemoryReferenceNode data) {
+                boolean isExcluded, @Nullable MemoryReferenceNode data) {
             if (depth != currentDepth) {
                 // Depth should be monotonically increasing across handleVisit calls.
                 assert (depth > currentDepth);
@@ -530,12 +555,12 @@ public abstract class MemoryVisitor<T> {
             // Build up subgraphs while at or above log depth
             if (depth <= logDepth) {
                 if (depth == 0) {
-                    final MemorySubgraph root = new MemorySubgraph(data, size);
+                    final MemorySubgraph root = new MemorySubgraph(data, size, isExcluded);
                     rootSubgraphs.add(root);
                     childSubgraphs.put(data, root);
                 } else {
                     final MemorySubgraph parentSubgraph = parentSubgraphs.get(data.getParent());
-                    final MemorySubgraph childSubgraph = new MemorySubgraph(data, size);
+                    final MemorySubgraph childSubgraph = new MemorySubgraph(data, size, isExcluded);
 
                     parentSubgraph.subgraphChildren.add(childSubgraph);
                     childSubgraphs.put(data, childSubgraph);
@@ -543,7 +568,7 @@ public abstract class MemoryVisitor<T> {
             } else {
                 // Append to existing subgraphs
                 final MemorySubgraph parentSubgraph = parentSubgraphs.get(data.getParent());
-                parentSubgraph.addDescendant(data, size, retainDescendents);
+                parentSubgraph.addDescendant(data, size, isExcluded, retainDescendents);
                 childSubgraphs.put(data, parentSubgraph);
             }
 
@@ -554,8 +579,9 @@ public abstract class MemoryVisitor<T> {
         public long totalSize() {
             if (memoizedSize < 0) {
                 memoizedSize = rootSubgraphs.stream()
-                    .mapToLong(MemorySubgraph::totalSize)
-                    .sum();
+                        .filter(child -> !child.isExcluded())
+                        .mapToLong(MemorySubgraph::totalSize)
+                        .sum();
             }
             return memoizedSize;
         }
@@ -719,6 +745,8 @@ public abstract class MemoryVisitor<T> {
      * A {@link MemoryVisitor} for finding the shortest path to instances of classes reachable from
      * a root set. Retains information about individual objects so has more significant overhead.
      * Use with {@link RelationshipMemoryWalker}.
+     *
+     * <p>Excluded objects are not considered as matches.</p>
      */
     public static class MemoryPathVisitor extends MemoryVisitor<MemoryReferenceNode> {
         private final Set<Class<?>> searchClasses;
@@ -755,10 +783,11 @@ public abstract class MemoryVisitor<T> {
 
         @Override
         protected boolean handleVisit(@Nonnull final Class<?> klass,
-                                      final long size,
-                                      final int depth,
-                                      @Nullable final MemoryReferenceNode data) {
-            if (totalCount() >= numInstancesToFind) {
+                final long size,
+                final int depth,
+                final boolean isExcluded,
+                @Nullable final MemoryReferenceNode data) {
+            if (totalCount() >= numInstancesToFind || isExcluded) {
                 return false;
             }
 
@@ -913,6 +942,7 @@ public abstract class MemoryVisitor<T> {
         private final List<MemorySubgraph> subgraphChildren;
         private final List<MemoryReferenceNode> descendants;
         private final SizeAndCount sizeAndCount;
+        private final boolean rootIsExcluded;
 
         long memoizedSize = -1L;
         long memoizedCount = -1L;
@@ -920,30 +950,36 @@ public abstract class MemoryVisitor<T> {
         /**
          * Construct a new {@link MemorySubgraph}.
          *
-         * @param subgraphRoot The object at the root of the subgraph.
-         * @param subgraphRootShallowSize The shallow size of the object at the root of the subgraph.
+         * @param subgraphRoot            The object at the root of the subgraph.
+         * @param subgraphRootShallowSize The shallow size of the object at the root of the
+         * @param rootIsExcluded          True if the subgraph root is an excluded object
          */
         public MemorySubgraph(@Nonnull final MemoryReferenceNode subgraphRoot,
-                              final long subgraphRootShallowSize) {
+                final long subgraphRootShallowSize, final boolean rootIsExcluded) {
             this.subgraphRoot = Objects.requireNonNull(subgraphRoot);
             subgraphChildren = new ArrayList<>();
             descendants = new ArrayList<>();
             sizeAndCount = new SizeAndCount(subgraphRootShallowSize);
+            this.rootIsExcluded = rootIsExcluded;
         }
 
         /**
-         * Add descendants to this subgraph. Only retain the actual {@link MemoryReferenceNode}
-         * if retainDescendants is true.
+         * Add descendants to this subgraph. Only retain the actual {@link MemoryReferenceNode} if
+         * retainDescendants is true.
          *
-         * @param descendant The {@link MemoryReferenceNode} of the descendant object.
-         * @param shallowSize The shallow size of the descendant object.
+         * @param descendant        The {@link MemoryReferenceNode} of the descendant object.
+         * @param shallowSize       The shallow size of the descendant object.
+         * @param isExcluded        true if the descendent is an excluded object
          * @param retainDescendants Whether or not to retain the full descendant object or just
          *                          track its size as part of this subgraph.
          */
         public void addDescendant(@Nonnull final MemoryReferenceNode descendant,
-                                  final long shallowSize,
-                                  final boolean retainDescendants) {
-            sizeAndCount.increment(shallowSize);
+                final long shallowSize,
+                final boolean isExcluded,
+                final boolean retainDescendants) {
+            if (!isExcluded) {
+                sizeAndCount.increment(shallowSize);
+            }
             if (retainDescendants) {
                 descendants.add(descendant);
             }
@@ -958,16 +994,25 @@ public abstract class MemoryVisitor<T> {
         public long totalSize() {
             if (memoizedSize < 0) {
                 memoizedSize = sizeAndCount.totalSize + subgraphChildren.stream()
-                    .mapToLong(MemorySubgraph::totalSize)
-                    .sum();
+                        .mapToLong(MemorySubgraph::totalSize)
+                        .sum();
             }
             return memoizedSize;
         }
 
         /**
-         * Compute the total count of descendant objects of this subgraph. The subgraph
-         * root counts as a member of the subgraph.  This count is memoized so subsequent
-         * calls will not have to recompute.
+         * Check whether this subgraph's root is an excluded object in the walk.
+         *
+         * @return true if this subgraph root is excluded
+         */
+        public boolean isExcluded() {
+            return rootIsExcluded;
+        }
+
+        /**
+         * Compute the total count of descendant objects of this subgraph. The subgraph root counts
+         * as a member of the subgraph.  This count is memoized so subsequent calls will not have to
+         * recompute.
          *
          * @return the total count of descendant objects of this subgraph
          */

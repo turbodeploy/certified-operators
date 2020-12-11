@@ -10,12 +10,12 @@ import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_STORAGES;
 import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_VMS;
 import static com.vmturbo.common.protobuf.utils.StringConstants.USED;
 import static com.vmturbo.history.schema.abstraction.tables.ClusterStatsLatest.CLUSTER_STATS_LATEST;
-import static gnu.trove.impl.Constants.DEFAULT_CAPACITY;
-import static gnu.trove.impl.Constants.DEFAULT_LOAD_FACTOR;
 
 import java.sql.Timestamp;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
@@ -24,12 +24,10 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableMap;
 
-import gnu.trove.map.hash.TLongObjectHashMap;
-import gnu.trove.set.TLongSet;
-import gnu.trove.set.hash.TLongHashSet;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
+import it.unimi.dsi.fastutil.longs.LongSet;
 
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
@@ -40,10 +38,10 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.history.db.HistorydbIO;
+import com.vmturbo.components.common.utils.MemReporter;
 import com.vmturbo.history.db.bulk.BulkLoader;
-import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
 import com.vmturbo.history.ingesters.common.IChunkProcessor;
+import com.vmturbo.history.ingesters.common.TopologyIngesterBase.IngesterState;
 import com.vmturbo.history.ingesters.common.writers.TopologyWriterBase;
 import com.vmturbo.history.schema.abstraction.tables.records.ClusterStatsLatestRecord;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -58,63 +56,50 @@ import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
  *
  * <p>Currently, only compute clusters are supported. Storage clusters are not processed.</p>
  */
-public class ClusterStatsWriter extends TopologyWriterBase {
-    private static final Logger logger = LogManager.getLogger();
-
-    private static final String COMPUTE_CLUSTER_MEMBER_MAP = "compute_cluster_member_map";
+public class ClusterStatsWriter extends TopologyWriterBase implements MemReporter {
 
     // timestamp fo the topology we're processing - will be used for all inserted records
     private final Timestamp recordTimestamp;
     // bulk loader factory to get record loaders for tables
     private final BulkLoader<ClusterStatsLatestRecord> loader;
-    // assorted database stuff - we use it for getting connections and jooq contexts
-    private final HistorydbIO historydbIO;
 
     /**
      * Create a new instance to process a newly arrived topology.
      *
      * @param topologyInfo metadata for this topology
-     * @param loaders      factory to get bulk loaders for tables
-     * @param historydbIO  assorted db stuff
+     * @param state        ingester state
      * @param groupService group service endpoint
      */
     public ClusterStatsWriter(
             TopologyInfo topologyInfo,
-            SimpleBulkLoaderFactory loaders,
-            HistorydbIO historydbIO,
+            IngesterState state,
             GroupServiceBlockingStub groupService) {
         this.recordTimestamp = new Timestamp(topologyInfo.getCreationTime());
-        this.loader = loaders.getLoader(CLUSTER_STATS_LATEST);
-        this.historydbIO = historydbIO;
+        this.loader = state.getLoaders().getLoader(CLUSTER_STATS_LATEST);
         // load cluster membership info so we'll know when we see an entity that belongs to or
         // is otherwise related to a cluster
         getClusterMemberships(groupService);
     }
 
     // Per-cluster aggregators
-    private TLongObjectHashMap<ClusterAggregator> clusterAggregators = new TLongObjectHashMap<>(
-            DEFAULT_CAPACITY, DEFAULT_LOAD_FACTOR, -1L);
+    private final Long2ObjectMap<ClusterAggregator> clusterAggregators = new Long2ObjectOpenHashMap<>();
 
     @Override
     public ChunkDisposition processEntities(@Nonnull Collection<TopologyEntityDTO> chunk, @Nonnull String infoSummary) {
         for (TopologyEntityDTO entity : chunk) {
-            clusterAggregators.forEachValue(aggregator -> {
-                aggregator.processEntity(entity);
-                return true;
-            });
+            clusterAggregators.values().forEach(aggregator -> aggregator.processEntity(entity));
         }
         return ChunkDisposition.SUCCESS;
     }
 
     @Override
-    public void finish(int objectCount, boolean expedite, String infoSummary) throws InterruptedException {
-        clusterAggregators.forEachValue(aggregator -> {
+    public void finish(int objectCount, boolean expedite, String infoSummary) {
+        clusterAggregators.values().forEach(aggregator -> {
             try {
-                aggregator.finish();
+                aggregator.finish(loader);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
-            return true;
         });
     }
 
@@ -135,15 +120,13 @@ public class ClusterStatsWriter extends TopologyWriterBase {
             final Iterator<Grouping> groups = groupService.getGroups(GetGroupsRequest.newBuilder()
                     .setGroupFilter(GroupFilter.newBuilder().setGroupType(clusterType))
                     .build());
-            groups.forEachRemaining(cluster -> {
-                clusterInitializers.get(clusterType).accept(cluster);
-            });
+            groups.forEachRemaining(cluster -> clusterInitializers.get(clusterType).accept(cluster));
         }
     }
 
     private void initComputeHostCluster(Grouping cluster) {
         clusterAggregators.put(cluster.getId(),
-                new ComputeClusterAggregator(cluster, loader, recordTimestamp));
+                new ComputeClusterAggregator(cluster, recordTimestamp));
     }
 
 
@@ -155,10 +138,7 @@ public class ClusterStatsWriter extends TopologyWriterBase {
         // oid of this cluster
         protected final long clusterId;
         // oids of hosts belonging to this cluster
-        protected final TLongSet members =
-                new TLongHashSet(DEFAULT_CAPACITY, DEFAULT_LOAD_FACTOR, -1L);
-        // bulk loader we'll use when it comes time to write cluster stats records
-        protected final BulkLoader<ClusterStatsLatestRecord> loader;
+        protected final LongSet members = new LongOpenHashSet();
         // topology creation time, to be used as `recorded_on` value in cluster_stats records
         protected final Timestamp recordTimestamp;
 
@@ -166,14 +146,11 @@ public class ClusterStatsWriter extends TopologyWriterBase {
          * Create a new instance for a cluster.
          *
          * @param cluster         {@link Grouping} structure with details of this cluster
-         * @param loader          bulk loader to create new cluster_stats records
          * @param recordTimestamp timestamp for inserted records
          */
-        ClusterAggregator(Grouping cluster,
-                BulkLoader<ClusterStatsLatestRecord> loader, Timestamp recordTimestamp) {
+        ClusterAggregator(Grouping cluster, Timestamp recordTimestamp) {
             this.clusterId = cluster.getId();
             this.members.addAll(GroupProtoUtil.getAllStaticMembers(cluster.getDefinition()));
-            this.loader = loader;
             this.recordTimestamp = recordTimestamp;
         }
 
@@ -181,7 +158,7 @@ public class ClusterStatsWriter extends TopologyWriterBase {
          * Update this aggregator with data from the given entity, encountered in the topology.
          *
          * <p>All entities will be presented to all aggregators, so in many cases a given
-         * aggregator will have no intrest in a presented entity and should simply return.</p>
+         * aggregator will have no interest in a presented entity and should simply return.</p>
          *
          * @param entity entity to be processed
          */
@@ -192,9 +169,10 @@ public class ClusterStatsWriter extends TopologyWriterBase {
          *
          * <p>This is where cluster_stats records are written.</p>
          *
+         * @param loader loader that will write records to db
          * @throws InterruptedException if interrupted
          */
-        abstract void finish() throws InterruptedException;
+        abstract void finish(BulkLoader<ClusterStatsLatestRecord> loader) throws InterruptedException;
     }
 
     /**
@@ -218,9 +196,8 @@ public class ClusterStatsWriter extends TopologyWriterBase {
         //
         private int storageCount = 0;
 
-        ComputeClusterAggregator(Grouping cluster,
-                BulkLoader<ClusterStatsLatestRecord> loader, Timestamp recordTimestamp) {
-            super(cluster, loader, recordTimestamp);
+        ComputeClusterAggregator(Grouping cluster, Timestamp recordTimestamp) {
+            super(cluster, recordTimestamp);
         }
 
         /**
@@ -300,7 +277,7 @@ public class ClusterStatsWriter extends TopologyWriterBase {
         private void processStorage(TopologyEntityDTO storage) {
             if (storage.getCommoditySoldListList().stream()
                 .filter(cs -> cs.getCommodityType().getType() == CommodityType.DSPM_ACCESS_VALUE)
-                .map(CommoditySoldDTO::getAccesses)
+                .mapToLong(CommoditySoldDTO::getAccesses)
                 .anyMatch(members::contains)) {
                 storageCount++;
             }
@@ -312,16 +289,16 @@ public class ClusterStatsWriter extends TopologyWriterBase {
          * @throws InterruptedException if interrupted
          */
         @Override
-        void finish() throws InterruptedException {
-            writeRecord(CPU, USED, cpuUsed);
-            writeRecord(CPU, CAPACITY, cpuCapacity);
-            writeRecord(NUM_CPUS, NUM_CPUS, numCpus);
-            writeRecord(NUM_SOCKETS, NUM_SOCKETS, numSockets);
-            writeRecord(MEM, USED, memUsed);
-            writeRecord(MEM, CAPACITY, memCapacity);
-            writeRecord(NUM_HOSTS, NUM_HOSTS, members.size());
-            writeRecord(NUM_VMS, NUM_VMS, vmCount);
-            writeRecord(NUM_STORAGES, NUM_STORAGES, storageCount);
+        void finish(BulkLoader<ClusterStatsLatestRecord> loader) throws InterruptedException {
+            writeRecord(CPU, USED, cpuUsed, loader);
+            writeRecord(CPU, CAPACITY, cpuCapacity, loader);
+            writeRecord(NUM_CPUS, NUM_CPUS, numCpus, loader);
+            writeRecord(NUM_SOCKETS, NUM_SOCKETS, numSockets, loader);
+            writeRecord(MEM, USED, memUsed, loader);
+            writeRecord(MEM, CAPACITY, memCapacity, loader);
+            writeRecord(NUM_HOSTS, NUM_HOSTS, members.size(), loader);
+            writeRecord(NUM_VMS, NUM_VMS, vmCount, loader);
+            writeRecord(NUM_STORAGES, NUM_STORAGES, storageCount, loader);
         }
 
         /**
@@ -330,10 +307,11 @@ public class ClusterStatsWriter extends TopologyWriterBase {
          * @param propertyType    value for `property_type` column
          * @param propertySubtype value for `property_subtype` column
          * @param value           stats value
+         * @param loader          loader for writing to db
          * @throws InterruptedException if interrupted
          */
-        void writeRecord(String propertyType, String propertySubtype, double value)
-                throws InterruptedException {
+        void writeRecord(String propertyType, String propertySubtype, double value,
+                BulkLoader<ClusterStatsLatestRecord> loader) throws InterruptedException {
             // create and populate a new record
             ClusterStatsLatestRecord record = CLUSTER_STATS_LATEST.newRecord();
             record.setRecordedOn(recordTimestamp);
@@ -352,25 +330,34 @@ public class ClusterStatsWriter extends TopologyWriterBase {
      */
     public static class Factory extends TopologyWriterBase.Factory {
 
-        private final HistorydbIO historydbIO;
         private final GroupServiceBlockingStub groupService;
 
         /**
          * Create a new factory.
          *
-         * @param historydbIO  db stuff
          * @param groupService group service endpoint
          */
-        public Factory(HistorydbIO historydbIO, GroupServiceBlockingStub groupService) {
-            this.historydbIO = historydbIO;
+        public Factory(GroupServiceBlockingStub groupService) {
             this.groupService = groupService;
         }
 
         @Override
         public Optional<IChunkProcessor<Topology.DataSegment>> getChunkProcessor(
                 TopologyInfo topologyInfo,
-                SimpleBulkLoaderFactory loaders) {
-            return Optional.of(new ClusterStatsWriter(topologyInfo, loaders, historydbIO, groupService));
+                IngesterState state) {
+            return Optional.of(new ClusterStatsWriter(topologyInfo, state, groupService));
         }
+    }
+
+    @Override
+    public Long getMemSize() {
+        return null;
+    }
+
+    @Override
+    public List<MemReporter> getNestedMemReporters() {
+        return Arrays.asList(
+                new SimpleMemReporter("clusterAggregators", clusterAggregators)
+        );
     }
 }

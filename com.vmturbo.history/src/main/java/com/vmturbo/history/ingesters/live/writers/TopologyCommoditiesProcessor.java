@@ -1,7 +1,9 @@
 package com.vmturbo.history.ingesters.live.writers;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -9,8 +11,11 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
+import com.vmturbo.components.common.utils.DataPacks.DataPack;
+import com.vmturbo.components.common.utils.DataPacks.IDataPack;
+import com.vmturbo.components.common.utils.MemReporter;
 import com.vmturbo.history.ingesters.common.IChunkProcessor;
+import com.vmturbo.history.ingesters.common.TopologyIngesterBase.IngesterState;
 import com.vmturbo.history.ingesters.common.writers.ProjectedTopologyWriterBase;
 import com.vmturbo.history.ingesters.live.ProjectedRealtimeTopologyIngester;
 import com.vmturbo.history.stats.projected.ProjectedStatsStore;
@@ -24,22 +29,28 @@ import com.vmturbo.history.stats.projected.TopologyCommoditiesSnapshot.Builder;
  * "writers" configured for {@link ProjectedRealtimeTopologyIngester}.
  * </p>
  */
-public class TopologyCommoditiesProcessor extends ProjectedTopologyWriterBase {
+public class TopologyCommoditiesProcessor extends ProjectedTopologyWriterBase implements MemReporter {
 
     private final ProjectedStatsStore projectedStatsStore;
 
     private final Map<Long, Double> projectedPriceIndexByEntity = new HashMap<>();
     private final Builder topologyCommoditiesSnapshotBuilder;
+    private final IngesterState state;
 
     /**
      * Create a new instance.
      *
      * @param projectedStatsStore projected stats store to update
+     * @param state               shared ingester state
      */
-    private TopologyCommoditiesProcessor(@Nonnull ProjectedStatsStore projectedStatsStore) {
+    private TopologyCommoditiesProcessor(@Nonnull ProjectedStatsStore projectedStatsStore, IngesterState state) {
         super();
         this.projectedStatsStore = projectedStatsStore;
-        this.topologyCommoditiesSnapshotBuilder = new TopologyCommoditiesSnapshot.Builder(projectedStatsStore.getExcludedCommodities());
+        IDataPack<String> commodityNamePack = new DataPack<>();
+        this.state = state;
+        this.topologyCommoditiesSnapshotBuilder = new TopologyCommoditiesSnapshot.Builder(
+                projectedStatsStore.getExcludedCommodities(), commodityNamePack,
+                state.getOidPack(), state.getKeyPack());
     }
 
     @Override
@@ -51,7 +62,10 @@ public class TopologyCommoditiesProcessor extends ProjectedTopologyWriterBase {
 
     @Override
     public void finish(int entityCount, final boolean expedite, final String infoSummary) {
-        projectedStatsStore.updateProjectedTopology(topologyCommoditiesSnapshotBuilder);
+        state.getOidPack().freeze(false); // we still need to look up long oids supplied b API
+        state.getKeyPack().freeze(true);
+        projectedStatsStore.updateProjectedTopology(topologyCommoditiesSnapshotBuilder,
+                state.getOidPack(), state.getKeyPack());
     }
 
     /**
@@ -73,8 +87,22 @@ public class TopologyCommoditiesProcessor extends ProjectedTopologyWriterBase {
         @Override
         public Optional<IChunkProcessor<ProjectedTopologyEntity>>
         getChunkProcessor(@Nonnull final TopologyInfo topologyInfo,
-                          @Nonnull final SimpleBulkLoaderFactory loaders) {
-            return Optional.of(new TopologyCommoditiesProcessor(projectedStatsStore));
+                          @Nonnull final IngesterState state) {
+            return Optional.of(new TopologyCommoditiesProcessor(projectedStatsStore, state));
         }
+    }
+
+    @Override
+    public Long getMemSize() {
+        return null;
+    }
+
+    @Override
+    public List<MemReporter> getNestedMemReporters() {
+        return Arrays.asList(
+                new SimpleMemReporter("projectedPriceIndexByEntity", projectedPriceIndexByEntity),
+                topologyCommoditiesSnapshotBuilder,
+                projectedStatsStore
+        );
     }
 }

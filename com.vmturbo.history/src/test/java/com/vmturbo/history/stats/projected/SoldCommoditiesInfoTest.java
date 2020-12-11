@@ -25,6 +25,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.common.stats.StatsAccumulator;
+import com.vmturbo.components.common.utils.DataPacks.DataPack;
+import com.vmturbo.components.common.utils.DataPacks.LongDataPack;
 import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.utils.HistoryStatsUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -56,7 +58,8 @@ public class SoldCommoditiesInfoTest {
 
     @Test
     public void testEmpty() {
-        SoldCommoditiesInfo info = SoldCommoditiesInfo.newBuilder(Collections.emptySet())
+        SoldCommoditiesInfo info = SoldCommoditiesInfo.newBuilder(Collections.emptySet(),
+                new LongDataPack(), new DataPack<>())
                 .build();
 
         assertFalse(info.getCapacity(COMMODITY, 1L).isPresent());
@@ -95,7 +98,8 @@ public class SoldCommoditiesInfoTest {
                 .addAllCommoditySoldList(soldDTOS)
                 .build();
 
-        final SoldCommoditiesInfo info = SoldCommoditiesInfo.newBuilder(Collections.emptySet())
+        final SoldCommoditiesInfo info = SoldCommoditiesInfo.newBuilder(Collections.emptySet(),
+                new LongDataPack(), new DataPack<>())
                 .addEntity(PM_1)
                 .build();
 
@@ -107,7 +111,9 @@ public class SoldCommoditiesInfoTest {
     @Test
     public void testSoldCommoditiesCapacity() {
 
-        SoldCommoditiesInfo info = SoldCommoditiesInfo.newBuilder(Collections.emptySet())
+        SoldCommoditiesInfo info = SoldCommoditiesInfo.newBuilder(
+                Collections.emptySet(),
+                new LongDataPack(), new DataPack<>())
                 .addEntity(PM_1)
                 .build();
 
@@ -118,7 +124,8 @@ public class SoldCommoditiesInfoTest {
     @Test
     public void testSoldCommoditiesWholeMarket() {
 
-        final SoldCommoditiesInfo info = SoldCommoditiesInfo.newBuilder(Collections.emptySet())
+        final SoldCommoditiesInfo info = SoldCommoditiesInfo.newBuilder(Collections.emptySet(),
+                new LongDataPack(), new DataPack<>())
                 .addEntity(PM_1)
                 .addEntity(PM_2)
                 .build();
@@ -144,7 +151,8 @@ public class SoldCommoditiesInfoTest {
 
     @Test
     public void testSoldCommoditiesEntities() {
-        final SoldCommoditiesInfo info = SoldCommoditiesInfo.newBuilder(Collections.emptySet())
+        final SoldCommoditiesInfo info = SoldCommoditiesInfo.newBuilder(Collections.emptySet(),
+                new LongDataPack(), new DataPack<>())
                 .addEntity(PM_1)
                 .addEntity(PM_2)
                 // Adding extra entity that won't be included in the search.
@@ -292,7 +300,8 @@ public class SoldCommoditiesInfoTest {
                         .setCapacity(7))
                 .build();
 
-        final SoldCommoditiesInfo info = SoldCommoditiesInfo.newBuilder(Collections.emptySet())
+        final SoldCommoditiesInfo info = SoldCommoditiesInfo.newBuilder(Collections.emptySet(),
+                new LongDataPack(), new DataPack<>())
                 .addEntity(pm)
                 .build();
 
@@ -301,7 +310,8 @@ public class SoldCommoditiesInfoTest {
 
     @Test
     public void testSoldCommodityEntityNotFound() {
-        final SoldCommoditiesInfo info = SoldCommoditiesInfo.newBuilder(Collections.emptySet())
+        final SoldCommoditiesInfo info = SoldCommoditiesInfo.newBuilder(Collections.emptySet(),
+                new LongDataPack(), new DataPack<>())
                 .addEntity(PM_1)
                 .addEntity(PM_2)
                 .build();
@@ -314,8 +324,8 @@ public class SoldCommoditiesInfoTest {
      */
     @Test
     public void testSoldCommodityExclusion() {
-        final int commType = CommodityDTO.CommodityType.CLUSTER_VALUE;
-        final String commodityName = HistoryStatsUtils.formatCommodityName(commType);
+        final CommodityDTO.CommodityType commType = CommodityDTO.CommodityType.CLUSTER;
+        final String commodityName = HistoryStatsUtils.formatCommodityName(commType.getNumber());
 
         final TopologyEntityDTO pm = TopologyEntityDTO.newBuilder()
                 .setEntityType(EntityType.PHYSICAL_MACHINE.getNumber())
@@ -328,12 +338,14 @@ public class SoldCommoditiesInfoTest {
                         .setCapacity(4))
                 .build();
 
-        final SoldCommoditiesInfo noExclusionInfo = SoldCommoditiesInfo.newBuilder(Collections.emptySet())
+        final SoldCommoditiesInfo noExclusionInfo = SoldCommoditiesInfo.newBuilder(Collections.emptySet(),
+                new LongDataPack(), new DataPack<>())
                 .addEntity(pm)
                 .build();
         assertThat(noExclusionInfo.getValue(pm.getOid(), commodityName), is(2.0));
 
-        final SoldCommoditiesInfo info = SoldCommoditiesInfo.newBuilder(Collections.singleton(commodityName))
+        final SoldCommoditiesInfo info = SoldCommoditiesInfo.newBuilder(Collections.singleton(commType),
+                new LongDataPack(), new DataPack<>())
                 .addEntity(pm)
                 .build();
         assertThat(info.getValue(pm.getOid(), commodityName), is(0.0));
@@ -341,7 +353,8 @@ public class SoldCommoditiesInfoTest {
 
     @Test
     public void testNotSoldCommodity() {
-        final SoldCommoditiesInfo info = SoldCommoditiesInfo.newBuilder(Collections.emptySet())
+        final SoldCommoditiesInfo info = SoldCommoditiesInfo.newBuilder(Collections.emptySet(),
+                new LongDataPack(), new DataPack<>())
                 .addEntity(PM_1)
                 .addEntity(PM_2)
                 .build();
@@ -351,7 +364,8 @@ public class SoldCommoditiesInfoTest {
 
     @Test
     public void testCommodityNotSoldByEntity() {
-        final SoldCommoditiesInfo info = SoldCommoditiesInfo.newBuilder(Collections.emptySet())
+        final SoldCommoditiesInfo info = SoldCommoditiesInfo.newBuilder(Collections.emptySet(),
+                new LongDataPack(), new DataPack<>())
                 .addEntity(PM_1)
                 // Suppose some other entity sells CPU, but PM1 doesn't.
                 .addEntity(TopologyEntityDTO.newBuilder()
@@ -378,7 +392,8 @@ public class SoldCommoditiesInfoTest {
                         .setCommodityType(COMMODITY_TYPE_WITH_KEY)
                         .setUsed(8))
                 .build();
-        final SoldCommoditiesInfo info = SoldCommoditiesInfo.newBuilder(Collections.emptySet())
+        final SoldCommoditiesInfo info = SoldCommoditiesInfo.newBuilder(Collections.emptySet(),
+                new LongDataPack(), new DataPack<>())
                 .addEntity(pm)
                 .build();
 
@@ -389,7 +404,8 @@ public class SoldCommoditiesInfoTest {
 
     @Test
     public void testSoldCommodityGetValueNoCommodity() {
-        final SoldCommoditiesInfo info = SoldCommoditiesInfo.newBuilder(Collections.emptySet())
+        final SoldCommoditiesInfo info = SoldCommoditiesInfo.newBuilder(Collections.emptySet(),
+                new LongDataPack(), new DataPack<>())
                 .addEntity(PM_1)
                 .build();
 
@@ -398,7 +414,8 @@ public class SoldCommoditiesInfoTest {
 
     @Test
     public void testSoldCommodityGetValueEntityNotFound() {
-        final SoldCommoditiesInfo info = SoldCommoditiesInfo.newBuilder(Collections.emptySet())
+        final SoldCommoditiesInfo info = SoldCommoditiesInfo.newBuilder(Collections.emptySet(),
+                new LongDataPack(), new DataPack<>())
                 .addEntity(PM_1)
                 .build();
 

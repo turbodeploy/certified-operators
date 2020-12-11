@@ -1,6 +1,8 @@
 package com.vmturbo.history.ingesters.plan.writers;
 
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
@@ -11,32 +13,33 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.components.common.utils.MemReporter;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
-import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
 import com.vmturbo.history.ingesters.common.IChunkProcessor;
+import com.vmturbo.history.ingesters.common.TopologyIngesterBase.IngesterState;
 import com.vmturbo.history.ingesters.common.writers.TopologyWriterBase;
 import com.vmturbo.history.stats.PlanStatsAggregator;
 
 /**
  * {@link PlanStatsWriter} records market stats data from plan topology broadcast by market.
  */
-public class PlanStatsWriter extends TopologyWriterBase {
-    private static Logger logger = LogManager.getLogger();
+public class PlanStatsWriter extends TopologyWriterBase implements MemReporter {
+    private static final Logger logger = LogManager.getLogger();
 
     private final PlanStatsAggregator aggregator;
     private boolean initFailed = false;
 
     private PlanStatsWriter(@Nonnull TopologyInfo topologyInfo,
                             @Nonnull HistorydbIO historydbIO,
-                            @Nonnull SimpleBulkLoaderFactory loaders) {
+                            @Nonnull IngesterState state) {
         try {
             historydbIO.addMktSnapshotRecord(topologyInfo);
         } catch (VmtDbException e) {
             logger.error("Failed to add market snapshot record; will skip stats collection", e);
             this.initFailed = true;
         }
-        this.aggregator = new PlanStatsAggregator(loaders, historydbIO, topologyInfo, true);
+        this.aggregator = new PlanStatsAggregator(state.getLoaders(), historydbIO, topologyInfo, true);
     }
 
     @Override
@@ -74,8 +77,18 @@ public class PlanStatsWriter extends TopologyWriterBase {
 
         @Override
         public Optional<IChunkProcessor<Topology.DataSegment>>
-        getChunkProcessor(final TopologyInfo topologyInfo, final SimpleBulkLoaderFactory loaders) {
-            return Optional.of(new PlanStatsWriter(topologyInfo, historydbIO, loaders));
+        getChunkProcessor(final TopologyInfo topologyInfo, final IngesterState state) {
+            return Optional.of(new PlanStatsWriter(topologyInfo, historydbIO, state));
         }
+    }
+
+    @Override
+    public Long getMemSize() {
+        return null;
+    }
+
+    @Override
+    public List<MemReporter> getNestedMemReporters() {
+        return Arrays.asList(aggregator);
     }
 }

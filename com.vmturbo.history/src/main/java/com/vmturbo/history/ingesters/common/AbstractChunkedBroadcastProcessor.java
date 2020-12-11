@@ -18,11 +18,13 @@ import javax.annotation.Nonnull;
 
 import com.google.common.base.Stopwatch;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
+import com.vmturbo.components.common.utils.MemReporter;
 import com.vmturbo.components.common.utils.MultiStageTimer;
 import com.vmturbo.components.common.utils.MultiStageTimer.AsyncTimer;
 import com.vmturbo.components.common.utils.MultiStageTimer.Detail;
@@ -55,7 +57,8 @@ public abstract class AbstractChunkedBroadcastProcessor<T, InfoT, StateT, Result
      * multiple broadcasts.
      *
      * <p>Each time a new broadcast is presented for processing, the supplied factories will be
-     * invoked to create the chunk processors that will be invoked for each chunk of that broadcast.
+     * invoked to create the chunk processors that will be invoked for each chunk of that
+     * broadcast.
      * </p>
      *
      * @param chunkProcessorFactories collection of factories that will create the chunk processors
@@ -81,9 +84,8 @@ public abstract class AbstractChunkedBroadcastProcessor<T, InfoT, StateT, Result
      * Given a topology chunk, return the number of objects processed from the chunk.
      *
      * <p>The default implementation is just the chunk size, but with the new topology
-     * extensions capabilities, an ingester can override this in order to count only
-     * entities, and not extensions, which may be intermingled in any given topology
-     * chunk.</p>
+     * extensions capabilities, an ingester can override this in order to count only entities, and
+     * not extensions, which may be intermingled in any given topology chunk.</p>
      *
      * @param chunk chunk to be counted
      * @return number of objects processed from the chunk
@@ -96,12 +98,13 @@ public abstract class AbstractChunkedBroadcastProcessor<T, InfoT, StateT, Result
      * Process a data broadcast.
      *
      * <p>Processing continues chunk-by-chunk as long as active chunk processors remain, by
-     * asking all active processors to process the current chunk in parallel. This is followed
-     * by asking each chunk processor to perform its finish processing.</p>
+     * asking all active processors to process the current chunk in parallel. This is followed by
+     * asking each chunk processor to perform its finish processing.</p>
      *
-     * <p>A processor becomes inactive by returning a {@link ChunkDisposition#DISCONTINUE} value for
-     * any single chunk. In addition, if any chunk processor ever returns
-     * {@link ChunkDisposition#TERMINATE}, all chunk processors will be immediately deactivated.</p>
+     * <p>A processor becomes inactive by returning a {@link ChunkDisposition#DISCONTINUE} value
+     * for
+     * any single chunk. In addition, if any chunk processor ever returns {@link
+     * ChunkDisposition#TERMINATE}, all chunk processors will be immediately deactivated.</p>
      *
      * <p>Finish processing is performed in all chunk processors, even those that are no longer
      * active by the time all chunks have been processed.</p>
@@ -223,7 +226,7 @@ public abstract class AbstractChunkedBroadcastProcessor<T, InfoT, StateT, Result
     /**
      * Nested class to perform processing of the chunks comprising a broadcast.
      */
-    private class ChunksProcessor {
+    private class ChunksProcessor implements MemReporter {
 
         public static final String RECEIVE_CHUNKS_TIMER_STAGE = "Receive Chunks";
         private final RemoteIterator<T> chunkIterator;
@@ -342,9 +345,9 @@ public abstract class AbstractChunkedBroadcastProcessor<T, InfoT, StateT, Result
         }
 
         // futures for tasks submitted for active chunk processors for current chunk
-        private Map<IChunkProcessor<T>, Future<ChunkDisposition>> futures = new HashMap<>();
+        private final Map<IChunkProcessor<T>, Future<ChunkDisposition>> futures = new HashMap<>();
         // dispositions returned by active chunk processors for current chunk
-        private Map<IChunkProcessor<T>, ChunkDisposition> dispositions = new HashMap<>();
+        private final Map<IChunkProcessor<T>, ChunkDisposition> dispositions = new HashMap<>();
 
         private void processChunk(Collection<T> chunk, int chunkNo) throws InterruptedException {
             final Stopwatch chunkTimer = Stopwatch.createStarted();
@@ -361,7 +364,8 @@ public abstract class AbstractChunkedBroadcastProcessor<T, InfoT, StateT, Result
         }
 
         /**
-         * Submit a task for each of our still-active chunk processors to process the current chunk.
+         * Submit a task for each of our still-active chunk processors to process the current
+         * chunk.
          *
          * @param chunk   the current chunk
          * @param chunkNo the chunk number, for use in logging
@@ -420,12 +424,12 @@ public abstract class AbstractChunkedBroadcastProcessor<T, InfoT, StateT, Result
                     dispositions.put(processor, processor.getDispositionOnTimeout());
                 } catch (InterruptedException e) {
                     logger.warn(
-                            "Chunk processor {} was interrupted procesing chunk #{} of {}; "
+                            "Chunk processor {} was interrupted processing chunk #{} of {}; "
                                     + "other processors that have not completed will be canceled.",
                             processor.getLabel(), chunkNo, infoSummary);
                     // don't hide the fact that this thread has been interrupted
                     Thread.currentThread().interrupt();
-                    // and stash the excption so we can rethrow after we've canceled all the
+                    // and stash the exception so we can rethrow after we've canceled all the
                     // other processors
                     interrupted = e;
                 }
@@ -436,7 +440,7 @@ public abstract class AbstractChunkedBroadcastProcessor<T, InfoT, StateT, Result
         }
 
         /**
-         * Handle dispositions reported by our chunk prcoessors.
+         * Handle dispositions reported by our chunk processors.
          */
         private void performDeactivations() {
             for (Entry<IChunkProcessor<T>, ChunkDisposition> entry : dispositions.entrySet()) {
@@ -488,6 +492,7 @@ public abstract class AbstractChunkedBroadcastProcessor<T, InfoT, StateT, Result
             // during finish processing; in either case, remaining processors are asked to
             // expedite their finish processing
             boolean interrupted = Thread.currentThread().isInterrupted();
+            MemReporter.logReport(ChunksProcessor.this, logger, Level.DEBUG, "Before Finish");
             for (IChunkProcessor<T> cp : chunkProcessors) {
                 try {
                     timer.start(cp.getLabel());
@@ -501,12 +506,13 @@ public abstract class AbstractChunkedBroadcastProcessor<T, InfoT, StateT, Result
                     Thread.currentThread().interrupt();
                 } catch (Exception e) {
                     logger.warn(
-                            "Chunk procesor {} failed during finish processing for {}",
+                            "Chunk processor {} failed during finish processing for {}",
                             cp.getLabel(), infoSummary, e);
                 } finally {
                     timer.stop();
                 }
             }
+            MemReporter.logReport(ChunksProcessor.this, logger, Level.DEBUG, "After Finish");
         }
 
         /**
@@ -527,6 +533,24 @@ public abstract class AbstractChunkedBroadcastProcessor<T, InfoT, StateT, Result
                     return processor.processChunk(chunk, infoSummary);
                 }
             });
+        }
+
+        @Override
+        public String getMemDescription() {
+            return AbstractChunkedBroadcastProcessor.this.getClass().getSimpleName();
+        }
+
+        @Override
+        public Long getMemSize() {
+            return null;
+        }
+
+        @Override
+        public List<MemReporter> getNestedMemReporters() {
+            return allProcessors.stream()
+                    .filter(cp -> cp instanceof MemReporter)
+                    .map(cp -> (MemReporter)cp)
+                    .collect(Collectors.toList());
         }
     }
 }
