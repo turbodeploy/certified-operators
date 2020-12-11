@@ -15,20 +15,19 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.BiMap;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
-import org.javatuples.Triplet;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.commons.analysis.CommodityResizeDependencyMap;
 import com.vmturbo.commons.analysis.RawMaterialsMap;
+import com.vmturbo.commons.analysis.RawMaterialsMap.RawMaterialInfo;
 import com.vmturbo.commons.analysis.UpdateFunction;
 import com.vmturbo.components.api.tracing.Tracing;
 import com.vmturbo.components.api.tracing.Tracing.TracingScope;
@@ -496,7 +495,7 @@ public class TopologyEntitiesHandler {
      * @param topology where to place the map
      */
     public static void populateRawMaterialsMap(Topology topology) {
-        for (Map.Entry<Integer, List<Triplet<Integer, Boolean, Boolean>>> entry : RawMaterialsMap.rawMaterialsMap.entrySet()) {
+        for (Map.Entry<Integer, RawMaterialInfo> entry : RawMaterialsMap.rawMaterialsMap.entrySet()) {
             topology.getModifiableRawCommodityMap().put(entry.getKey(), new RawMaterials(entry.getValue()));
         }
     }

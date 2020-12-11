@@ -1275,7 +1275,7 @@ public class TopologyEntitiesHandlerTest {
         assertEquals(e.getModifiableRawCommodityMap().size(), RawMaterialsMap.rawMaterialsMap.size());
         // check if the VMEM's rawMaterials are correctly stored
         assertEquals(e.getRawMaterials(CommonDTO.CommodityDTO.CommodityType.VMEM_VALUE).get().getMaterials().length,
-                 RawMaterialsMap.rawMaterialsMap.get(CommonDTO.CommodityDTO.CommodityType.VMEM_VALUE).size());
+                 RawMaterialsMap.rawMaterialsMap.get(CommonDTO.CommodityDTO.CommodityType.VMEM_VALUE).getRawMaterials().size());
 
     }
 
