@@ -1,7 +1,6 @@
 package com.vmturbo.topology.processor.rest;
 
 import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.mock;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -74,7 +73,6 @@ import com.vmturbo.topology.processor.api.impl.OperationRESTApi.ValidateAllRespo
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi.TargetSpec;
 import com.vmturbo.topology.processor.communication.RemoteMediation;
 import com.vmturbo.topology.processor.communication.RemoteMediationServer;
-import com.vmturbo.topology.processor.communication.queues.AggregatingDiscoveryQueue;
 import com.vmturbo.topology.processor.controllable.EntityActionDao;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
 import com.vmturbo.topology.processor.discoverydumper.BinaryDiscoveryDumper;
@@ -93,7 +91,6 @@ import com.vmturbo.topology.processor.operation.OperationListener;
 import com.vmturbo.topology.processor.operation.OperationManager;
 import com.vmturbo.topology.processor.operation.OperationMessageHandler;
 import com.vmturbo.topology.processor.operation.OperationTestUtilities;
-import com.vmturbo.topology.processor.operation.TestAggregatingDiscoveryQueue;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.validation.Validation;
 import com.vmturbo.topology.processor.probes.ProbeInfoCompatibilityChecker;
@@ -254,14 +251,6 @@ public class OperationControllerTest {
         }
 
         @Bean
-        AggregatingDiscoveryQueue discoveryQueue() {
-            @SuppressWarnings("unchecked")
-            final ITransport<MediationServerMessage, MediationClientMessage> transport =
-                    (ITransport<MediationServerMessage, MediationClientMessage>)mock(ITransport.class);
-            return new TestAggregatingDiscoveryQueue(transport);
-        }
-
-        @Bean
         OperationManager operationManager() {
             return new OperationManager(identityProvider(),
                                         targetStore(),
@@ -310,7 +299,6 @@ public class OperationControllerTest {
     private IdentityProvider identityProvider;
     private ProbeStore probeStore;
     private TargetStore targetStore;
-    private AggregatingDiscoveryQueue discoveryQueue;
 
     @SuppressWarnings("unchecked")
     private final ITransport<MediationServerMessage, MediationClientMessage> transport =
@@ -334,7 +322,6 @@ public class OperationControllerTest {
         mockScheduler = wac.getBean(Scheduler.class);
         mockRemoteMediation = wac.getBean(RemoteMediation.class);
         targetStore = wac.getBean(TargetStore.class);
-        discoveryQueue = wac.getBean(AggregatingDiscoveryQueue.class);
 
         probeId = addProbe("category", "type");
         target = addTarget(probeId);

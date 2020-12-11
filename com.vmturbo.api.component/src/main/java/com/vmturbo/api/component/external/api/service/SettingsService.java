@@ -1,7 +1,5 @@
 package com.vmturbo.api.component.external.api.service;
 
-import static com.vmturbo.api.component.external.api.mapper.SettingsMapper.SETTING_ENTITY_TYPE_MAP;
-
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -449,27 +447,7 @@ public class SettingsService implements ISettingsService {
         final int targetEntityType = ApiEntityType.fromString(entityType).typeNumber();
         EntitySettingScope scope = settingSpec.getEntitySettingSpec().getEntitySettingScope();
 
-        return scope.hasAllEntityType()
-            || scope.getEntityTypeSet().getEntityTypeList().contains(targetEntityType)
-            || hasMappedEntityType(scope, entityType);
-    }
-
-    /**
-     * Check if entity setting scope has corresponding mapped entity type from given entity type.
-     * Some settings of one entity type are configured on a different type, for example container
-     * resize setting is available for container spec entity type because container is ephemeral,
-     * while container spec is persistent. This method is to ensure correct settings can be returned
-     * for the given entity type.
-     *
-     * @param scope      Given {@link EntitySettingScope}.
-     * @param entityType Given entity type to be mapped from.
-     * @return True if entity setting scope contains mapped entity type from given entity type.
-     */
-    private static boolean hasMappedEntityType(@Nonnull final EntitySettingScope scope,
-                                               @Nonnull final String entityType) {
-        String mappedEntityType = SETTING_ENTITY_TYPE_MAP.get(entityType);
-        return mappedEntityType != null
-            && scope.getEntityTypeSet().getEntityTypeList()
-            .contains(ApiEntityType.fromString(mappedEntityType).typeNumber());
+        return scope.hasAllEntityType() ||
+            scope.getEntityTypeSet().getEntityTypeList().contains(targetEntityType);
     }
 }

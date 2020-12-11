@@ -105,7 +105,7 @@ public class ClientApiCallsTest extends AbstractApiCallsTest {
     /**
      * Initializes the tests.
      *
-     * @throws Exception on exceptions occurred
+     * @throws Exception on exceptinos occurred
      */
     @Before
     public void initClient() throws Exception {

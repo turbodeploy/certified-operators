@@ -116,17 +116,18 @@ public interface IOperationManager {
      * @param targetId The id of the target to discover.
      * @param discoveryType type of the discovery to trigger. Currently we only support FULL and
      *                      INCREMENTAL discovery
-     * @param runNow indicates that this discovery should be run immediately and we should wait
-     * for it to start before returning.
-     * @return The {link Optional} {@link Discovery} requested for the given target. If there is an
-     * existing in progress discovery for the target, we return it in an Optional.  If not, and
-     * runNow is true, we queue the discovery and wait for it to run.  If there is no in progress
-     * discovery and runNow is false, we queue a discovery and return Optional.empty().
-     *
+     * @return The {@link Discovery} requested for the given target. If there was no ongoing
+     * discovery
+     * for the target with the same type, a new one will be created. If there was an ongoing
+     * discovery
+     * for the target with the same type, the existing one is returned.
      * @throws TargetNotFoundException When the requested target cannot be found.
      * @throws ProbeException When the probe associated with the target is unavailable.
+     * @throws CommunicationException When the external probe cannot be reached.
+     * @throws InterruptedException when the attempt to send a request to the probe is interrupted.
      */
-    Optional<Discovery> startDiscovery(long targetId, DiscoveryType discoveryType, boolean runNow)
+    @Nonnull
+    Discovery startDiscovery(long targetId, DiscoveryType discoveryType)
             throws TargetNotFoundException, ProbeException, CommunicationException,
             InterruptedException;
 
@@ -169,24 +170,27 @@ public interface IOperationManager {
     Optional<Discovery> getLastDiscoveryForTarget(long targetId, DiscoveryType discoveryType);
 
     /**
-     * Queue a discovery of a target with the same contract as
-     * {@link #startDiscovery(long, DiscoveryType, boolean)}, with the following exceptions:
-     * 1. If a discovery is already in progress, instead of returning true,
-     * a pending discovery will be added for the target and false will be returned.
+     * Discover a target with the same contract as {@link #startDiscovery(long, DiscoveryType)},
+     * with the following exceptions:
+     * 1. If a discovery is already in progress, instead of returning the existing discovery,
+     * a pending discovery will be added for the target.
      * 2. If the probe associated with the target is not currently connected, a pending discovery
      * will be added for the target.
      * When a target's discovery completes or its probe connects, the pending discovery will
-     * be removed and a new discovery will be queued for the associated target.
+     * be removed and a new discovery will be initiated for the associated target.
      *
      * @param targetId The id of the target to discover.
      * @param discoveryType type of the discovery to add. Currently we only support FULL and
      *                      INCREMENTAL discovery
-     * @return true if there was no running discovery and we had to queue a discovery and false if
-     * there was a running discovery or the probe was disconnected.
+     * @return An {@link Optional<Discovery>}. If there was no in progress discovery
+     * for the target and the target's probe is connected, a new discovery will be initiated.
+     * If there was an in progress discovery for the target or the target's probe is disconnected,
+     * returns {@link Optional#empty()}.
      * @throws TargetNotFoundException When the requested target cannot be found.
      * @throws CommunicationException When the external probe cannot be reached.
      * @throws InterruptedException when the attempt to send a request to the probe is interrupted.
      */
+    @Nonnull
     Optional<Discovery> addPendingDiscovery(long targetId, DiscoveryType discoveryType)
             throws TargetNotFoundException, CommunicationException, InterruptedException;
 

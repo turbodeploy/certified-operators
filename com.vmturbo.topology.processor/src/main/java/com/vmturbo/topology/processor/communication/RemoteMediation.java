@@ -53,9 +53,9 @@ public interface RemoteMediation {
      * @throws InterruptedException if thread is interrupted while sending request.
      */
     int sendDiscoveryRequest(@Nonnull Target target,
-            @Nonnull DiscoveryRequest discoveryRequest,
-            @Nonnull IOperationMessageHandler<Discovery> responseHandler)
-            throws ProbeException, CommunicationException, InterruptedException;
+                              @Nonnull DiscoveryRequest discoveryRequest,
+                    @Nonnull IOperationMessageHandler<Discovery> responseHandler)
+                    throws ProbeException, CommunicationException, InterruptedException;
 
     /**
      * Sends validation request. Method returns after request is sent. Result of the request

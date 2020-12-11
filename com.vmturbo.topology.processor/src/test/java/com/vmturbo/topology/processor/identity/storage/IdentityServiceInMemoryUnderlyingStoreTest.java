@@ -320,7 +320,6 @@ public class IdentityServiceInMemoryUnderlyingStoreTest {
                     TimeUnit.MILLISECONDS, 10);
 
         verify(databaseStore, timeout(60000).atLeast(2)).getDescriptors();
-        store.waitForInitializedStore();
         assertTrue(store.containsOID(7L));
         store.checkInitialized();
     }

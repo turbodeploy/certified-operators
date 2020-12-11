@@ -222,7 +222,7 @@ public class SettingsMapper {
     /**
      * Map of entity types to allow showing settings from another entity type to current entity type.
      */
-    public static final Map<String, String> SETTING_ENTITY_TYPE_MAP =
+    private static final Map<String, String> SETTING_ENTITY_TYPE_MAP =
         ImmutableMap.<String, String>builder()
             .put(ApiEntityType.CONTAINER.apiStr(), ApiEntityType.CONTAINER_SPEC.apiStr())
             .build();

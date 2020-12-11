@@ -60,9 +60,9 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
 
     private final ProbePropertyStore probePropertyStore;
 
-    protected final ProbeStore probeStore;
+    private final ProbeStore probeStore;
 
-    protected final ProbeContainerChooser containerChooser;
+    private final ProbeContainerChooser containerChooser;
     // counter used to store the messageID that we need
     // to use when sending out a request
     // note: when the counter overflow, a negative number will be used
@@ -76,7 +76,7 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
      * as they assemble their response. If a keep-alive is not sent in time, the handler will
      * expire and will be removed from the map the next time it is accessed.
      */
-    protected final Map<Integer, MessageAnticipator> messageHandlers;
+    private final Map<Integer, MessageAnticipator> messageHandlers;
 
     /**
      * The clock used by the map of messageHandlers to expire its entries.
@@ -108,7 +108,7 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
      * Get the next message id to be used. Message ID can be a negative value.
      * @return The next message id to use when sending a message.
      */
-    protected int nextMessageId() {
+    private int nextMessageId() {
         return messageIDCounter.getAndIncrement();
     }
 
@@ -445,7 +445,7 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
     /**
      * Object, representing a structure, which will be used on any messages appear.
      */
-    protected class MessageAnticipator implements ExpiringValue {
+    private class MessageAnticipator implements ExpiringValue {
         private final ITransport<?, ?> transport;
         private final IOperationMessageHandler<?> messageHandler;
 

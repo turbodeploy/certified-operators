@@ -26,7 +26,6 @@ import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.topology.processor.actions.ActionMergeSpecsRepository;
 import com.vmturbo.topology.processor.communication.ProbeContainerChooserImpl;
 import com.vmturbo.topology.processor.communication.RemoteMediationServer;
-import com.vmturbo.topology.processor.communication.queues.AggregatingDiscoveryQueue;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityProviderException;
 import com.vmturbo.topology.processor.identity.IdentityProviderImpl;
@@ -56,7 +55,6 @@ public class ProbeRegistrationTest {
 
     private final StitchingOperationStore stitchingOperationStore = mock(StitchingOperationStore.class);
     private final KeyValueStore keyValueStore = mock(KeyValueStore.class);
-    private final AggregatingDiscoveryQueue discoveryQueue = mock(AggregatingDiscoveryQueue.class);
 
     @Before
     public final void init() {

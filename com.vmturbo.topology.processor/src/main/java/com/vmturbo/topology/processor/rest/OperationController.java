@@ -237,20 +237,14 @@ public class OperationController {
             if (!operationManager.getInProgressDiscoveryForTarget(targetId, DiscoveryType.FULL).isPresent()) {
                 scheduler.resetDiscoverySchedule(targetId, DiscoveryType.FULL);
             }
-            logger.info("Calling synchronous startDiscovery for target {}", targetId);
-            final Discovery discovery = operationManager.startDiscovery(targetId,
-                    DiscoveryType.FULL, true).orElseThrow(() ->
-                    new TargetNotFoundException(targetId));
+            final Discovery discovery = operationManager.startDiscovery(targetId, DiscoveryType.FULL);
             discovery.setUserInitiated(true);
-            logger.info("User initiated discovery succeeded for target {}", targetId);
             return new ResponseEntity<>(success(discovery), HttpStatus.OK);
         } catch (TargetNotFoundException e) {
-            logger.info("Failed to start user initiated discovery.", e);
             return new ResponseEntity<>(
                     OperationResponse.error("Unable to initiate discovery (" + e.getMessage() + ")", targetId),
                     HttpStatus.NOT_FOUND);
         } catch (CommunicationException | InterruptedException | ProbeException e) {
-            logger.info("Failed to start user initiated discovery.", e);
             return new ResponseEntity<>(
                     OperationResponse.error("Communication with remote probe failed: " +
                         e.getMessage(), targetId), HttpStatus.INTERNAL_SERVER_ERROR);
