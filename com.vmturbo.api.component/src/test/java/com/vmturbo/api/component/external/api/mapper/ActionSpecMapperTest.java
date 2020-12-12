@@ -106,8 +106,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeactivateExplan
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeleteExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation.CommodityNewCapacityEntry;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionBySupplyExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExplanation;
@@ -352,7 +350,6 @@ public class ActionSpecMapperTest {
 
         assertEquals(ActionType.MOVE, actionApiDTO.getActionType());
         assertEquals("default explanation", actionApiDTO.getRisk().getDescription());
-        assertEquals(ImmutableSet.of("Mem", "CPU"), actionApiDTO.getRisk().getReasonCommodities());
 
         // Validate that the importance value is 0
         assertEquals(0, actionApiDTO.getImportance(), 0.05);
@@ -402,7 +399,6 @@ public class ActionSpecMapperTest {
 
         assertEquals(ActionType.MOVE, actionApiDTO.getActionType());
         assertEquals("default explanation", actionApiDTO.getRisk().getDescription());
-        assertEquals(ImmutableSet.of("Mem", "CPU"), actionApiDTO.getRisk().getReasonCommodities());
     }
 
     /**
@@ -415,9 +411,7 @@ public class ActionSpecMapperTest {
         final Explanation explanation = Explanation.newBuilder()
             .setScale(ScaleExplanation.newBuilder()
                 .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
-                    .setEfficiency(Efficiency.newBuilder()
-                        .addUnderUtilizedCommodities(MEM)
-                        .addUnderUtilizedCommodities(CPU)))
+                    .setEfficiency(Efficiency.newBuilder()))
                 .build())
             .build();
 
@@ -428,7 +422,6 @@ public class ActionSpecMapperTest {
         assertEquals(TARGET, actionApiDTO.getTarget().getDisplayName());
         assertEquals("3", actionApiDTO.getTarget().getUuid());
         assertEquals("default explanation", actionApiDTO.getRisk().getDescription());
-        assertEquals(ImmutableSet.of("Mem", "CPU"), actionApiDTO.getRisk().getReasonCommodities());
 
         ActionApiDTO first = actionApiDTO.getCompoundActions().get(0);
         assertEquals(SOURCE, first.getCurrentEntity().getDisplayName());
@@ -612,7 +605,6 @@ public class ActionSpecMapperTest {
         assertEquals("3", actionApiDTO.getTarget().getUuid());
         assertEquals("4", actionApiDTO.getTemplate().getUuid());
         assertEquals("default explanation", actionApiDTO.getRisk().getDescription());
-        assertNull(actionApiDTO.getRisk().getReasonCommodities());
         assertEquals(0, actionApiDTO.getImportance(), 0.05);
     }
 
@@ -642,7 +634,6 @@ public class ActionSpecMapperTest {
         assertEquals(ActionType.START, actionApiDTO.getActionType());
         assertNull(actionApiDTO.getCurrentValue());
         assertEquals("default explanation", actionApiDTO.getRisk().getDescription());
-        assertEquals(Collections.emptySet(), actionApiDTO.getRisk().getReasonCommodities());
     }
 
     @Test
@@ -672,7 +663,6 @@ public class ActionSpecMapperTest {
 
         assertEquals(ActionType.MOVE, actionApiDTO.getActionType());
         assertEquals("default explanation", actionApiDTO.getRisk().getDescription());
-        assertEquals(ImmutableSet.of("Mem", "CPU"), actionApiDTO.getRisk().getReasonCommodities());
     }
 
     /**
@@ -706,7 +696,6 @@ public class ActionSpecMapperTest {
 
         assertEquals(ActionType.START, actionApiDTO.getActionType());
         assertEquals("default explanation", actionApiDTO.getRisk().getDescription());
-        assertEquals(ImmutableSet.of("Mem", "CPU"), actionApiDTO.getRisk().getReasonCommodities());
     }
 
     /**
@@ -740,7 +729,6 @@ public class ActionSpecMapperTest {
 
         assertEquals(ActionType.START, actionApiDTO.getActionType());
         assertEquals("default explanation", actionApiDTO.getRisk().getDescription());
-        assertEquals(ImmutableSet.of("Mem", "CPU"), actionApiDTO.getRisk().getReasonCommodities());
     }
 
     /**
@@ -839,9 +827,6 @@ public class ActionSpecMapperTest {
 
         assertEquals(DC1_NAME, actionApiDTO.getCurrentLocation().getDisplayName());
         assertEquals(DC2_NAME, actionApiDTO.getNewLocation().getDisplayName());
-
-        assertEquals(ImmutableSet.of("NetworkCommodity", "CPUAllocation"),
-            actionApiDTO.getRisk().getReasonCommodities());
     }
 
     @Test
@@ -928,7 +913,6 @@ public class ActionSpecMapperTest {
         assertEquals(ActionType.PROVISION, actionApiDTO.getActionType());
         assertEquals(DC2_NAME, actionApiDTO.getCurrentLocation().getDisplayName());
         assertEquals(DC2_NAME, actionApiDTO.getNewLocation().getDisplayName());
-        assertEquals(ImmutableSet.of("Mem"), actionApiDTO.getRisk().getReasonCommodities());
     }
 
     @Test
@@ -938,14 +922,12 @@ public class ActionSpecMapperTest {
                     .setProvision(Provision.newBuilder()
                         .setEntityToClone(ApiUtilsTest.createActionEntity(3))
                         .setProvisionedSeller(-1).build()).build();
-        Explanation provision = Explanation.newBuilder().setProvision(ProvisionExplanation.newBuilder()
-            .setProvisionByDemandExplanation(
-                ProvisionByDemandExplanation.newBuilder()
-                    .setBuyerId(11)
-                    .addCommodityNewCapacityEntry(
-                        CommodityNewCapacityEntry.newBuilder().setCommodityBaseType(21).setNewCapacity(10))
-                    .addCommodityNewCapacityEntry(
-                        CommodityNewCapacityEntry.newBuilder().setCommodityBaseType(40).setNewCapacity(10)))).build();
+        Explanation provision = Explanation.newBuilder().setProvision(ProvisionExplanation
+                        .newBuilder().setProvisionBySupplyExplanation(ProvisionBySupplyExplanation
+                                        .newBuilder().setMostExpensiveCommodityInfo(
+                                                ReasonCommodity.newBuilder().setCommodityType(
+                                                CommodityType.newBuilder().setType(21).build())
+                                                        .build())).build()).build();
 
         final MultiEntityRequest srcReq = ApiTestUtils.mockMultiEntityReq(Lists.newArrayList(
             topologyEntityDTO("EntityToClone", 3L, EntityType.VIRTUAL_MACHINE_VALUE)));
@@ -984,8 +966,6 @@ public class ActionSpecMapperTest {
         assertEquals(ActionType.PROVISION, actionApiDTO.getActionType());
         assertEquals(DC2_NAME, actionApiDTO.getCurrentLocation().getDisplayName());
         assertEquals(DC2_NAME, actionApiDTO.getNewLocation().getDisplayName());
-
-        assertEquals(ImmutableSet.of("Mem", "CPU"), actionApiDTO.getRisk().getReasonCommodities());
     }
 
     /**
@@ -1037,8 +1017,6 @@ public class ActionSpecMapperTest {
         assertEquals(vsanEntity.getUuid(), actionApiDTO.getNewEntity().getUuid());
         assertEquals(vsanEntity.getClassName(), actionApiDTO.getNewEntity().getClassName());
         assertEquals(vsanEntity.getDisplayName(), actionApiDTO.getNewEntity().getDisplayName());
-
-        assertEquals(ImmutableSet.of("StorageAmount"), actionApiDTO.getRisk().getReasonCommodities());
     }
 
     @Test
@@ -1246,8 +1224,6 @@ public class ActionSpecMapperTest {
                 actionApiDTO.getRisk().getReasonCommodities().iterator().next());
         assertEquals(DC1_NAME, actionApiDTO.getCurrentLocation().getDisplayName());
         assertEquals(DC1_NAME, actionApiDTO.getNewLocation().getDisplayName());
-
-        assertEquals(ImmutableSet.of("CPU"), actionApiDTO.getRisk().getReasonCommodities());
     }
 
     /**
@@ -1611,7 +1587,6 @@ public class ActionSpecMapperTest {
         assertEquals(filePath, actionApiDTO.getVirtualDisks().get(0).getDisplayName());
         assertEquals("2.0", actionApiDTO.getCurrentValue());
         assertEquals("MB", actionApiDTO.getValueUnits());
-        assertNull(actionApiDTO.getRisk().getReasonCommodities());
     }
 
     /**
@@ -1645,8 +1620,6 @@ public class ActionSpecMapperTest {
         assertEquals(ActionType.SUSPEND, actionApiDTO.getActionType());
         assertEquals(ImmutableSet.of(UICommodityType.CPU.apiStr(), UICommodityType.MEM.apiStr()),
             actionApiDTO.getRisk().getReasonCommodities());
-
-        assertEquals(ImmutableSet.of("Mem", "CPU"), actionApiDTO.getRisk().getReasonCommodities());
     }
 
     @Test
@@ -1709,7 +1682,6 @@ public class ActionSpecMapperTest {
 
         Assert.assertEquals("\"target\" doesn't comply with \"" + POLICY_NAME + "\"",
                         dtos.get(0).getRisk().getDescription());
-        assertEquals(ImmutableSet.of("SegmentationCommodity"), dtos.get(0).getRisk().getReasonCommodities());
     }
 
     @Test
@@ -1752,7 +1724,6 @@ public class ActionSpecMapperTest {
                 .setMove(moveExplanation1).build())), CONTEXT_ID);
         Assert.assertEquals("\"target\" doesn't comply with \"" + POLICY_NAME + "\"",
                 dtos1.get(0).getRisk().getDescription());
-        assertEquals(ImmutableSet.of("SegmentationCommodity"), dtos1.get(0).getRisk().getReasonCommodities());
 
         // Test that we do not modify the explanation if the primary explanation is not compliance.
         // We always go with the primary explanation if available
@@ -1767,7 +1738,6 @@ public class ActionSpecMapperTest {
             Arrays.asList(buildActionSpec(compoundMoveInfo, Explanation.newBuilder()
                 .setMove(moveExplanation2).build())), CONTEXT_ID);
         Assert.assertEquals(DEFAULT_EXPLANATION, dtos2.get(0).getRisk().getDescription());
-        assertEquals(ImmutableSet.of("SegmentationCommodity"), dtos2.get(0).getRisk().getReasonCommodities());
         Assert.assertEquals(Collections.singletonList(DEFAULT_PRE_REQUISITE_DESCRIPTION),
             dtos2.get(0).getPrerequisites());
     }
