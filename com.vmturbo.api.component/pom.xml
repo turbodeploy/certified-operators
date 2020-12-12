@@ -7,7 +7,7 @@
         <groupId>com.vmturbo</groupId>
         <artifactId>com.vmturbo.components</artifactId>
         <relativePath>../com.vmturbo.components/pom.xml</relativePath>
-        <version>8.0.5-SNAPSHOT</version>
+        <version>8.0.6-SNAPSHOT</version>
     </parent>
 
     <artifactId>com.vmturbo.api.component</artifactId>
