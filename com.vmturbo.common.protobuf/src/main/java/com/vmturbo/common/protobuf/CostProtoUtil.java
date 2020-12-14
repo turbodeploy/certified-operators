@@ -14,12 +14,9 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost;
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price;
-import com.vmturbo.platform.sdk.common.util.Units;
 
 /**
  * Utility methods for protobuf messages in Cost.proto.
@@ -155,19 +152,5 @@ public class CostProtoUtil {
             default:
                 throw new IllegalArgumentException("Unhandled unit: " + unit);
         }
-    }
-
-    /**
-     * This helper method is to check if caller shud convert storage amount between GB to MB and vice versa.
-     *
-     * @param commodityType          : CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE.
-     * @param actionTargetEntityType Eg: DATABASE or VIRTUAL_VOLUME.
-     * @return factor for dividing/ multiplication.
-     */
-
-    public static float calculateFactorForCommodityValues(final int commodityType, final int actionTargetEntityType) {
-        return (commodityType == CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE
-                && (actionTargetEntityType == EntityType.DATABASE_VALUE
-                || actionTargetEntityType == EntityType.VIRTUAL_VOLUME_VALUE)) ? Units.KBYTE : 1.0f;
     }
 }

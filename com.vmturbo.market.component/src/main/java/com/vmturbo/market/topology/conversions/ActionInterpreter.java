@@ -1,6 +1,6 @@
 package com.vmturbo.market.topology.conversions;
 
-import static com.vmturbo.common.protobuf.CostProtoUtil.calculateFactorForCommodityValues;
+import static com.vmturbo.market.topology.conversions.TopologyConversionUtils.calculateFactorForCommodityValues;
 import static com.vmturbo.trax.Trax.trax;
 
 import java.util.ArrayList;

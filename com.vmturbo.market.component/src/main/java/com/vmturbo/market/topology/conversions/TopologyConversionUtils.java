@@ -1,6 +1,7 @@
 package com.vmturbo.market.topology.conversions;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -8,6 +9,7 @@ import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableSet;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -24,6 +26,7 @@ import com.vmturbo.market.topology.TopologyConversionConstants;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderStateTO;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.StorageType;
@@ -33,6 +36,13 @@ public class TopologyConversionUtils {
     private static final float MAX_DESIRED_UTILIZATION_VALUE = 1.0f;
 
     private static final Logger logger = LogManager.getLogger();
+
+    /**
+     * Cloud volume entity StorageAmount is in MiB, while within M2 in GiB.
+     * Cloud volume entity IO_Throughput is in KiB/s, while within M2 in MiB/s.
+     */
+    public static final Set<Integer> CLOUD_VOLUME_COMMODITIES_UNIT_CONVERSION
+            = ImmutableSet.of(CommodityType.STORAGE_AMOUNT_VALUE, CommodityType.IO_THROUGHPUT_VALUE);
 
     /**
      * Return state of trader in market analysis based
@@ -81,7 +91,7 @@ public class TopologyConversionUtils {
                                                   @Nullable final TopologyEntityDTO entityDTO) {
         if (entityDTO != null && isEntityConsumingCloud(entityDTO)
             && entityDTO.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE
-            && commodityType == CommodityType.STORAGE_AMOUNT_VALUE) {
+            && CLOUD_VOLUME_COMMODITIES_UNIT_CONVERSION.contains(commodityType)) {
             return valueToConvert * Units.KBYTE;
         }
         return valueToConvert;
@@ -193,5 +203,23 @@ public class TopologyConversionUtils {
     public static float getTotalNumberOfCouponsCovered(@Nonnull EntityReservedInstanceCoverage riCoverage) {
         return (float)riCoverage.getCouponsCoveredByRiMap().values().stream()
             .mapToDouble(Double::new).sum();
+    }
+
+    /**
+     * This helper method is to check if caller should convert storageAmount between GB to MB,
+     * IO_Throughput between MBps to KBps and vice versa.
+     *
+     * @param commodityType CommodityDTO.CommodityType
+     * @param actionTargetEntityType entity type
+     * @return factor for dividing or multiplication.
+     */
+    public static float calculateFactorForCommodityValues(final int commodityType, final int actionTargetEntityType) {
+        if (actionTargetEntityType == EntityType.VIRTUAL_VOLUME_VALUE
+                && CLOUD_VOLUME_COMMODITIES_UNIT_CONVERSION.contains(commodityType)) {
+            return Units.KBYTE;
+        } else if (actionTargetEntityType == EntityType.DATABASE_VALUE && commodityType == CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE) {
+            return Units.KBYTE;
+        }
+        return 1.0f;
     }
 }
