@@ -109,12 +109,29 @@ public final class EdeCommon {
                     pricePeak);
         }
 
-        // calculate quote
-        // TODO: decide what to do if peakQuantity is less than quantity
-        double quoteUsed = (boughtQnty / effectiveCapacity) * priceUsed;
-        double quotePeak = excessQuantity > 0 ?
-                (excessQuantity / effectiveCapacity) * pricePeak : 0;
-        costCurrentMinMax[0] = quoteUsed + quotePeak;
+        double quoteUsed;
+        double quotePeak;
+        if (economy.getSettings().isFullPriceForQuote() && !forTraderIncomeStmt) {
+            // In some cases we may want to consider the quote that an entity gets for a commodity
+            // from its provider solely on the price for that commodity on the provider without considering
+            // the consumption of the consumer as a percentage of the provider.
+            // This is the case when there is a heterogeneous environment with providers of different
+            // capacities for commodities such as having a Super Cluster where hosts in some clusters
+            // can be be 5x bigger than hosts in other clusters. This would mean that the bigger
+            // providers can give cheaper quotes for consumers even if they are more highly utilized
+            // and lead to a discrepancy across providers' utilizations, making some highly utilized and some
+            // low utilized.
+            quoteUsed = priceUsed;
+            quotePeak = excessQuantity > 0 ? pricePeak : 0;
+            costCurrentMinMax[0] = quoteUsed + quotePeak;
+        } else {
+            // calculate quote
+            // TODO: decide what to do if peakQuantity is less than quantity
+            quoteUsed = (boughtQnty / effectiveCapacity) * priceUsed;
+            quotePeak = excessQuantity > 0
+                ? (excessQuantity / effectiveCapacity) * pricePeak : 0;
+            costCurrentMinMax[0] = quoteUsed + quotePeak;
+        }
         if (logger.isTraceEnabled()) {
             logger.trace("Buyer {} would pay (used) {} (peak) {} for commodity {}, bought qty {}",
                     shoppingList.getBuyer(), quoteUsed, quotePeak,

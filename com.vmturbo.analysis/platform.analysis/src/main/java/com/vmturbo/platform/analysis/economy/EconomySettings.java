@@ -57,6 +57,7 @@ public final class EconomySettings implements Serializable {
     private boolean useQuoteCacheDuringSNM_ = DEFAULT_USE_QUOTE_CACHE_DURING_SNM;
     private boolean sortShoppingLists_ = false;
     private float discountedComputeCostFactor = -1f;
+    private boolean fullPriceForQuote_ = false;
 
     // Constructors
     /**
@@ -136,6 +137,11 @@ public final class EconomySettings implements Serializable {
     }
 
     @Pure
+    public boolean isFullPriceForQuote(@ReadOnly EconomySettings this) {
+        return fullPriceForQuote_;
+    }
+
+    @Pure
     public double getRightSizeLower(@ReadOnly EconomySettings this) {
         return rightSizeLower_;
     }
@@ -153,6 +159,13 @@ public final class EconomySettings implements Serializable {
     @Pure
     public float getExpenseMetricFactor(@ReadOnly EconomySettings this) {
         return expenseMetricFactor_;
+    }
+
+    @Deterministic
+    public EconomySettings setFullPriceForQuote(
+                              boolean fullPriceForQuote) {
+        fullPriceForQuote_ = fullPriceForQuote;
+        return this;
     }
 
     @Deterministic

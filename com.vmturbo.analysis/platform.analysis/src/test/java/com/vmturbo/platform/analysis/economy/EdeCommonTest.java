@@ -184,4 +184,27 @@ public class EdeCommonTest {
 
     }
 
+    @Test
+    public void testFullPriceQuote() {
+        Economy e = new Economy();
+        Basket consumerBasketSold = new Basket(TestUtils.VMEM);
+        Basket consumerBasketBought = new Basket(TestUtils.MEM);
+        Basket providerBasketSold1 = new Basket(TestUtils.MEM);
+        Basket providerBasketSold2 = new Basket(TestUtils.MEM);
+        Trader consumer = e.addTrader(0, TraderState.ACTIVE, consumerBasketSold);
+        Trader provider1 = e.addTrader(1, TraderState.ACTIVE, providerBasketSold1);
+        Trader provider2 = e.addTrader(2, TraderState.ACTIVE, providerBasketSold2);
+        provider1.getCommoditiesSold().get(0).setCapacity(1000).setQuantity(200);
+        provider2.getCommoditiesSold().get(0).setCapacity(10).setQuantity(1);
+        ShoppingList consumerShoppingList = e.addBasketBought(consumer, consumerBasketBought);
+        consumerShoppingList.setQuantity(0, 1);
+        assertTrue(EdeCommon.computeCommodityCost(e, consumerShoppingList, provider1, 0, 0,
+                false)[0] < EdeCommon.computeCommodityCost(e, consumerShoppingList, provider2, 0, 0,
+                        false)[0]);
+        e.getSettings().setFullPriceForQuote(true);
+        assertTrue(EdeCommon.computeCommodityCost(e, consumerShoppingList, provider1, 0, 0,
+                false)[0] > EdeCommon.computeCommodityCost(e, consumerShoppingList, provider2, 0, 0,
+                        false)[0]);
+    }
+
 } // end class QuoteTest
