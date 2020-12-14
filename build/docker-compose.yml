@@ -1835,28 +1835,6 @@ services:
       JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_APPINSIGHTS_MEM_LIMIT_MB}M
 
-  mediation-customdata:
-    extends:
-      file: common-services.yml
-      service: dev-mediation-component
-    image: turbonomic/com.vmturbo.mediation.custom.data.component
-    depends_on: *clustermgrdep
-    ports:
-      - "${MEDIATION_CUSTOMDATA_PORT}"
-      - "${MEDIATION_CUSTOMDATA_DEBUG_PORT}"
-    environment:
-      component_type: mediation-customdata
-      instance_id: mediation-customdata-1
-      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_CUSTOMDATA_SYSTEM_PROPERTIES}"
-      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
-      JAVA_DEBUG: "${MEDIATION_CUSTOMDATA_DEBUG}${DEBUG_ALL}"
-      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
-      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
-      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
-      JAVA_OPTS: "${ALL_JAVA_OPTS}"
-      JVM_TYPE: "${JVM_TYPE}"
-    mem_limit: ${MEDIATION_CUSTOMDATA_MEM_LIMIT_MB}M
-
   mediation-dynatrace:
     extends:
       file: common-services.yml

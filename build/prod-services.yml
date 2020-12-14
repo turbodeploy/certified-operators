@@ -853,17 +853,6 @@ services:
       instance_id: mediation-appinsights-1
     restart: always
 
-  mediation-customdata-prod:
-    extends:
-      file: common-services.yml
-      service: prod-mediation-component
-    image: turbonomic/com.vmturbo.mediation.custom.data.component
-    environment:
-      consul_host: consul
-      component_type: mediation-customdata
-      instance_id: mediation-customdata-1
-    restart: always
-
   mediation-dynatrace-prod:
     extends:
       file: common-services.yml

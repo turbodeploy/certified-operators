@@ -193,8 +193,6 @@ cloudfoundry:
   enabled: false
 compellent:
   enabled: false
-customdata:
-  enabled: false
 dynatrace:
   enabled: false
 gcp:

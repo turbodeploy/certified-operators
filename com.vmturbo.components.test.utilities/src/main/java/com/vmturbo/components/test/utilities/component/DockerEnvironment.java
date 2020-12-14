@@ -219,8 +219,6 @@ public class DockerEnvironment {
             .put("MEDIATION_AZUREEA_DEBUG_PORT", "8000")
             .put("MEDIATION_AZURESP_PORT", "8080")
             .put("MEDIATION_AZURESP_DEBUG_PORT", "8000")
-            .put("MEDIATION_CUSTOMDATA_PORT", "8080")
-            .put("MEDIATION_CUSTOMDATA_DEBUG_PORT", "8000")
             .put("MEDIATION_NUTANIX_PORT", "8080")
             .put("MEDIATION_NUTANIX_DEBUG_PORT", "8000")
             .put("MEDIATION_ACTIONSTREAM_KAFKA_PORT", "8080")
