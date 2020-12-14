@@ -308,6 +308,7 @@ public class ReservationManager implements ReservationDeletedListener {
                         .addAllUnplacedReason(
                                 initialPlacementBuyerPlacementInfo.getInitialPlacementFailure()
                                         .getUnplacedReasonList());
+                placementInfo.clearProviderId();
                 logger.info(logPrefix + "entity: " + reservationInstance.getEntityId()
                         + " of reservation: " + updatedReservation.getId() + " failed to get placed.");
             }
@@ -344,6 +345,7 @@ public class ReservationManager implements ReservationDeletedListener {
                                                 .CommoditiesBoughtFromProvider.newBuilder()
                                                 .setProviderEntityType(placementInfo
                                                         .getProviderType())
+                                                .setProviderId(placementInfo.getProviderId())
                                                 .addAllCommodityBought(placementInfo
                                                         .getCommodityBoughtList())));
                     }
@@ -796,5 +798,27 @@ public class ReservationManager implements ReservationDeletedListener {
         RESERVATION_STATUS_COUNTER.labels(DELETED_STATUS).increment();
         deleteReservationFromMarketCache(Collections.singleton(reservation));
         checkAndStartReservationPlan();
+    }
+
+
+    /**
+     * Send existing to the market.
+     * @param reservations the reservations to be sent.
+     */
+    public void sendExistingReservationsToMarket(@Nonnull final Set<Reservation> reservations) {
+        Set<Reservation> updatedReservations = reservations;
+        try {
+            FindInitialPlacementRequest findInitialPlacementRequest =
+                    buildIntialPlacementRequest(reservations);
+            FindInitialPlacementResponse response =
+                initialPlacementServiceBlockingStub
+                        .existingInitialPlacement(findInitialPlacementRequest);
+            updatedReservations = updateProviderInfoForReservations(response,
+                reservations.stream().map(res -> res.getId()).collect(Collectors.toSet()));
+        } catch (Exception e) {
+            logger.warn(logPrefix + "Update existing InitialPlacement was not completed successfully");
+        } finally {
+            updateReservationResult(updatedReservations);
+        }
     }
 }

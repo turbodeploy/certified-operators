@@ -21,6 +21,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityStats;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.market.reservations.EconomyCaches.EconomyCachesState;
 import com.vmturbo.market.reservations.InitialPlacementFinderResult.FailureInfo;
@@ -50,6 +51,27 @@ public class InitialPlacementFinder {
     // Logger
     private static final Logger logger = LogManager.getLogger();
 
+    /**
+     * Find the InitialPlacementDecision corresponding to buyer.
+     *
+     * @param buyerID the buyerID of interest.
+     * @return InitialPlacementDecision associated with the buyer.
+     */
+    public List<InitialPlacementDecision> findExistingInitialPlacementDecisions(Long buyerID) {
+        if (buyerPlacements.containsKey(buyerID)) {
+            return buyerPlacements.get(buyerID);
+        } else {
+            return new ArrayList<>();
+        }
+    }
+
+    /**
+     * Method to check if market is ready.
+     * @return true if market is ready.
+     */
+    public boolean isMarketReady() {
+        return this.economyCaches.getState() == EconomyCachesState.READY;
+    }
 
     /**
      * Constructor.
@@ -236,14 +258,20 @@ public class InitialPlacementFinder {
             List<InitialPlacementDecision> placements = buyerPlacement.getValue();
             for (InitialPlacementDecision placement : placements) {
                 if (placement.supplier.isPresent()) { // the sl is successfully placed
+                    List<CommodityStats> clusterStats = new ArrayList();
+                    clusterUsedAndCapacity.get(placement.slOid).entrySet().forEach(e -> {
+                        clusterStats.add(CommodityStats.newBuilder().setCommodityType(e.getKey())
+                                .setTotalUsed(e.getValue().getKey())
+                                .setTotalCapacity(e.getValue().getValue()).build());
+                    });
                     placementResult.put(buyerOid, placement.slOid, new InitialPlacementFinderResult(
                             Optional.of(placement.supplier.get()),
                             Optional.ofNullable(slToClusterMap.get(placement.slOid)),
-                            clusterUsedAndCapacity.get(placement.slOid), new ArrayList()));
+                            clusterStats, new ArrayList()));
                 } else if (!placement.failureInfos.isEmpty()) { // the sl is unplaced, populate reason
                     placementResult.put(buyerOid, placement.slOid,
                             new InitialPlacementFinderResult(Optional.empty(), Optional.empty(),
-                                    new HashMap(), placement.failureInfos));
+                                    new ArrayList<>(), placement.failureInfos));
                     if (!placement.failureInfos.isEmpty()) {
                         logger.debug("Unplaced reservation entity id {}, sl id {} has the following"
                                 + " commodities", buyerPlacement.getKey(), placement.slOid);
@@ -258,7 +286,7 @@ public class InitialPlacementFinder {
                     // success reservation.
                     placementResult.put(buyerOid, placement.slOid,
                             new InitialPlacementFinderResult(Optional.empty(), Optional.empty(),
-                                    new HashMap(), new ArrayList()));
+                                    new ArrayList<>(), new ArrayList()));
                 }
             }
         }

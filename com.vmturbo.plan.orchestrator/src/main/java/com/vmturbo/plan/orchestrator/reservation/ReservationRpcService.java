@@ -230,6 +230,7 @@ public class ReservationRpcService extends ReservationServiceImplBase {
         try {
             final Set<Reservation> reservationsToStart = new HashSet<>();
             final Set<Reservation> reservationsToRemove = new HashSet<>();
+            final Set<Reservation> existingReservations = new HashSet<>();
             final Set<Reservation> reservationsToUpdateMarket = new HashSet<>();
             reservationDao.getAllReservations().forEach(reservation -> {
                 // Check for expiration first.
@@ -238,16 +239,18 @@ public class ReservationRpcService extends ReservationServiceImplBase {
                 } else if (reservation.getStatus() == ReservationStatus.FUTURE
                         && reservationManager.isReservationActiveNow(reservation)) {
                     reservationsToStart.add(reservation);
-                } else if (reservation.getStatus() == ReservationStatus.INVALID
-                        || reservation.getStatus() == ReservationStatus.PLACEMENT_FAILED) {
+                } else if (reservation.getStatus() == ReservationStatus.INVALID) {
                     // Reservations that are invalid may have become valid (e.g. if the entity
                     // they are constrained by was temporarily absent from the Topology).
                     // Also retry the failed reservations now.
                     reservationsToUpdateMarket.add(reservation);
                     reservationsToStart.add(reservation);
+                } else if (reservation.getStatus() == ReservationStatus.RESERVED) {
+                    existingReservations.add(reservation);
                 }
             });
             reservationManager.deleteReservationFromMarketCache(reservationsToUpdateMarket);
+            reservationManager.sendExistingReservationsToMarket(existingReservations);
             for (Reservation reservation : reservationsToRemove) {
                 reservationDao.deleteReservationById(reservation.getId());
                 logger.info(logPrefix + "Deleted Expired Reservation: " + reservation.getName());

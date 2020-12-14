@@ -8,6 +8,7 @@ import javax.annotation.Nonnull;
 
 import org.apache.commons.lang3.tuple.Pair;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityStats;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 
 /**
@@ -22,25 +23,26 @@ public class InitialPlacementFinderResult {
     private final Optional<CommodityType> clusterComm;
 
     // the commodity total used and capacity stats of the cluster sl chosen.
-    private final Map<CommodityType, Pair<Double, Double>> commUsedAndCapacityInCluster;
+    private final List<CommodityStats> clusterStats;
 
     // a list of failure data when placement failed
     private final List<FailureInfo> failureInfoList;
+
 
     /**
      * Constructor of InitialPlacementFinderResult.
      * @param providerOid provider oid if placement succeeded
      * @param clusterComm the cluster commodity type associated with provider.
-     * @param commUsedAndCapacityInCluster a commodity type to cluster total used and capacity mapping.
+     * @param clusterStats the cluster stats
      * @param failureInfoList failure information if placement failed
      */
     public InitialPlacementFinderResult(@Nonnull final Optional<Long> providerOid,
             @Nonnull final Optional<CommodityType> clusterComm,
-            @Nonnull final Map<CommodityType, Pair<Double, Double>> commUsedAndCapacityInCluster,
+            @Nonnull List<CommodityStats> clusterStats,
             @Nonnull List<FailureInfo> failureInfoList) {
         this.providerOid = providerOid;
         this.clusterComm = clusterComm;
-        this.commUsedAndCapacityInCluster = commUsedAndCapacityInCluster;
+        this.clusterStats = clusterStats;
         this.failureInfoList = failureInfoList;
     }
 
@@ -73,12 +75,12 @@ public class InitialPlacementFinderResult {
     }
 
     /**
-     * Returns a commodity type to cluster total used and capacity mapping.
+     * Returns the commodity total used and capacity stats of the cluster sl chosen.
      *
-     * @return a commodity type to cluster total used and capacity mapping.
+     * @return the clusterStats.
      */
-    public Map<CommodityType, Pair<Double, Double>> getCommUsedAndCapacityInCluster() {
-        return commUsedAndCapacityInCluster;
+    public List<CommodityStats> getClusterStats() {
+        return clusterStats;
     }
 
     /**

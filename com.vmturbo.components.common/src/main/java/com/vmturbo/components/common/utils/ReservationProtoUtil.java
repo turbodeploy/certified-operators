@@ -42,7 +42,11 @@ public class ReservationProtoUtil {
                 if (clearProvider) {
                     updatedReservationInstance.clearPlacementInfo();
                     for (PlacementInfo placementInfo : reservationInstance.getPlacementInfoList()) {
-                        updatedReservationInstance.addPlacementInfo(placementInfo.toBuilder().clearProviderId());
+                        updatedReservationInstance.addPlacementInfo(placementInfo
+                                .toBuilder()
+                                .clearProviderId()
+                                .clearClusterId()
+                                .clearCommodityStats());
                     }
                 }
                 if (clearFailureInfo) {

@@ -66,4 +66,5 @@ message DeleteInitialPlacementBuyerResponse {
 service InitialPlacementService {
     rpc FindInitialPlacement (FindInitialPlacementRequest) returns (FindInitialPlacementResponse);
     rpc DeleteInitialPlacementBuyer (DeleteInitialPlacementBuyerRequest) returns (DeleteInitialPlacementBuyerResponse);
+    rpc ExistingInitialPlacement (FindInitialPlacementRequest) returns (FindInitialPlacementResponse);
 }

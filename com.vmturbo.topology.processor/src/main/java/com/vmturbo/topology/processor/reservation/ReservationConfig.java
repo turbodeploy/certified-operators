@@ -36,6 +36,9 @@ public class ReservationConfig {
      */
     @Bean
     public ReservationManager reservationManager() {
-        return new ReservationManager(ReservationServiceGrpc.newBlockingStub(planClientConfig.planOrchestratorChannel()));
+        return new ReservationManager(ReservationServiceGrpc
+                .newBlockingStub(planClientConfig.planOrchestratorChannel()),
+                ReservationServiceGrpc
+                        .newStub(planClientConfig.planOrchestratorChannel()));
     }
 }

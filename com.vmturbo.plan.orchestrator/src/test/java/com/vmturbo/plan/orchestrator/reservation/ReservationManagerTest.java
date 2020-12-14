@@ -20,6 +20,7 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.Sets;
 
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -450,6 +451,33 @@ public class ReservationManagerTest {
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    /**
+     * test ExistingInitialPlacementBuyersRequest creation.
+     */
+    @Test
+    public void testSendExistingReservation() {
+        Reservation reservation = Reservation.newBuilder()
+                .setId(1003)
+                .setName("test-reservation")
+                .setStatus(ReservationStatus.INPROGRESS)
+                .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
+                        .addReservationTemplate(ReservationTemplate.newBuilder()
+                                .setCount(1L)
+                                .setTemplateId(234L)
+                                .addReservationInstance(ReservationInstance.newBuilder()
+                                        .addPlacementInfo(PlacementInfo
+                                                .newBuilder().setProviderId(789L).build()))))
+                .build();
+        Set<Reservation> reservations = new HashSet<>();
+        reservations.add(reservation);
+        FindInitialPlacementRequest existingInitialPlacementBuyersRequest =
+                reservationManager.buildIntialPlacementRequest(reservations);
+        Assert.assertEquals(789L, existingInitialPlacementBuyersRequest
+                .getInitialPlacementBuyer(0)
+                .getInitialPlacementCommoditiesBoughtFromProviderList()
+                .get(0).getCommoditiesBoughtFromProvider().getProviderId());
     }
 
     /**

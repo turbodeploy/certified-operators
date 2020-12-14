@@ -5,20 +5,20 @@ import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
+import io.grpc.stub.StreamObserver;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.GetAllReservationsRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.UpdateFutureAndExpiredReservationsRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.UpdateFutureAndExpiredReservationsResponse;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.common.pipeline.Pipeline.Status;
 import com.vmturbo.proactivesupport.DataMetricGauge;
-import com.vmturbo.stitching.TopologyEntity;
 
 /**
  * Check if there are any Reservation should become active (start day is today or before and
@@ -38,8 +38,17 @@ public class ReservationManager {
 
     private final ReservationServiceBlockingStub reservationService;
 
-    ReservationManager(@Nonnull final ReservationServiceBlockingStub reservationService) {
+    private final ReservationServiceStub reservationServiceNonBlocking;
+
+    /**
+     * Constructor for ReservationManager.
+     * @param reservationService blocking Stub
+     * @param reservationServiceNonBlocking non blocking stub
+     */
+    ReservationManager(@Nonnull final ReservationServiceBlockingStub reservationService,
+                       @Nonnull final ReservationServiceStub reservationServiceNonBlocking) {
         this.reservationService = Objects.requireNonNull(reservationService);
+        this.reservationServiceNonBlocking = Objects.requireNonNull(reservationServiceNonBlocking);
     }
 
     /**
@@ -60,13 +69,27 @@ public class ReservationManager {
 
         // update the future, expired and invalid reservations.
         if (topologyType == TopologyType.REALTIME) {
-            final UpdateFutureAndExpiredReservationsResponse resp = reservationService.updateFutureAndExpiredReservations(
-                UpdateFutureAndExpiredReservationsRequest.newBuilder()
-                .build());
-            if (resp.getActivatedReservations() > 0 || resp.getExpiredReservationsRemoved() > 0) {
-                logger.info("Activated {} reservations. Expired {} reservations.",
-                    resp.getActivatedReservations(), resp.getExpiredReservationsRemoved());
-            }
+            StreamObserver<UpdateFutureAndExpiredReservationsResponse> response =
+                    new StreamObserver<UpdateFutureAndExpiredReservationsResponse>() {
+
+                        @Override
+                        public void onNext(UpdateFutureAndExpiredReservationsResponse
+                                                   updateFutureAndExpiredReservationsResponse) {
+                        }
+
+                        @Override
+                        public void onError(Throwable throwable) {
+                        }
+
+                        @Override
+                        public void onCompleted() {
+                        }
+                    };
+            UpdateFutureAndExpiredReservationsRequest request =
+                    UpdateFutureAndExpiredReservationsRequest.newBuilder()
+                    .build();
+            reservationServiceNonBlocking.updateFutureAndExpiredReservations(request,
+                    response);
         }
         return Status.success();
     }
