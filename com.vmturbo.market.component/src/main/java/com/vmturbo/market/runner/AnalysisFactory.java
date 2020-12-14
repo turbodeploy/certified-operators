@@ -118,6 +118,8 @@ public interface AnalysisFactory {
 
         private final ReversibilitySettingFetcherFactory reversibilitySettingFetcherFactory;
 
+        private final boolean fullPriceForQuote;
+
         /**
          * The service that will perform cloud commitment (RI) buy analysis during a migrate to cloud plan.
          */
@@ -144,7 +146,8 @@ public interface AnalysisFactory {
                                       @Nonnull AnalysisRICoverageListener listener,
                                       @Nonnull final ConsistentScalingHelperFactory consistentScalingHelperFactory,
                                       @Nonnull final ReversibilitySettingFetcherFactory reversibilitySettingFetcherFactory,
-                                      @Nonnull MigratedWorkloadCloudCommitmentAnalysisService migratedWorkloadCloudCommitmentAnalysisService) {
+                                      @Nonnull MigratedWorkloadCloudCommitmentAnalysisService migratedWorkloadCloudCommitmentAnalysisService,
+                                      final boolean fullPriceForQuote) {
             Preconditions.checkArgument(alleviatePressureQuoteFactor >= 0f);
             Preconditions.checkArgument(alleviatePressureQuoteFactor <= 1.0f);
             Preconditions.checkArgument(standardQuoteFactor >= 0f);
@@ -162,6 +165,7 @@ public interface AnalysisFactory {
             this.standardQuoteFactor = standardQuoteFactor;
             this.marketMode = MarketMode.fromString(marketModeName);
             this.liveMarketMoveCostFactor = liveMarketMoveCostFactor;
+            this.fullPriceForQuote = fullPriceForQuote;
             this.cloudCostDataProvider = cloudCostDataProvider;
             this.suspensionsThrottlingConfig = suspensionThrottlingPerCluster ?
                     SuspensionsThrottlingConfig.CLUSTER : SuspensionsThrottlingConfig.DEFAULT;
@@ -185,7 +189,7 @@ public interface AnalysisFactory {
             final float quoteFactor = TopologyDTOUtil.isAlleviatePressurePlan(topologyInfo) ?
                     alleviatePressureQuoteFactor : standardQuoteFactor;
             final AnalysisConfig.Builder configBuilder = AnalysisConfig.newBuilderWithSMA(marketMode, quoteFactor,
-                liveMarketMoveCostFactor, this.suspensionsThrottlingConfig, globalSettings);
+                liveMarketMoveCostFactor, this.suspensionsThrottlingConfig, globalSettings, fullPriceForQuote);
             configCustomizer.customize(configBuilder);
             return new Analysis(topologyInfo, topologyEntities,
                 groupMemberRetriever, clock,
@@ -320,6 +324,7 @@ public interface AnalysisFactory {
          */
         private final float discountedComputeCostFactor;
 
+        private final boolean fullPriceForQuote;
         /**
          * Use {@link AnalysisConfig#newBuilder(float, float, SuspensionsThrottlingConfig, Map)}.
          *
@@ -335,6 +340,7 @@ public interface AnalysisFactory {
          * @param discountedComputeCostFactor The maximum ratio of the on-demand cost of new
          *                                    template to current template that is allowed for
          *                                    analysis engine to recommend resize up to utilize a RI.
+         * @param fullPriceForQuote if quote should be the full price of the provider.
          */
         private AnalysisConfig(final MarketMode marketMode,
                               final float quoteFactor,
@@ -347,7 +353,8 @@ public interface AnalysisFactory {
                               final boolean replayProvisionsForRealTime,
                               final float rightsizeLowerWatermark,
                               final float rightsizeUpperWatermark,
-                              final float discountedComputeCostFactor) {
+                              final float discountedComputeCostFactor,
+                              final boolean fullPriceForQuote) {
             this.quoteFactor = quoteFactor;
             this.liveMarketMoveCostFactor = liveMarketMoveCostFactor;
             this.suspensionsThrottlingConfig = suspensionsThrottlingConfig;
@@ -360,6 +367,7 @@ public interface AnalysisFactory {
             this.rightsizeUpperWatermark = rightsizeUpperWatermark;
             this.marketMode = marketMode;
             this.discountedComputeCostFactor = discountedComputeCostFactor;
+            this.fullPriceForQuote = fullPriceForQuote;
         }
 
         public float getQuoteFactor() {
@@ -380,6 +388,10 @@ public interface AnalysisFactory {
 
         public boolean isM2withSMAActions() {
             return marketMode == MarketMode.M2withSMAActions;
+        }
+
+        public boolean isFullPriceForQuote() {
+            return fullPriceForQuote;
         }
 
         public MarketMode getMarketMode() {
@@ -475,13 +487,14 @@ public interface AnalysisFactory {
          * @param liveMarketMoveCostFactor See {@link AnalysisConfig#liveMarketMoveCostFactor}
          * @param suspensionsThrottlingConfig See {@link AnalysisConfig#suspensionsThrottlingConfig}.
          * @param globalSettings See {@link AnalysisConfig#globalSettingsMap}
+         * @param fullPriceForQuote if quote should be the full price of the provider.
          * @return The builder, which can be further customized.
          */
         public static Builder newBuilder(final float quoteFactor, final float liveMarketMoveCostFactor,
                                          @Nonnull final SuspensionsThrottlingConfig suspensionsThrottlingConfig,
-                 @Nonnull final Map<String, Setting> globalSettings) {
+                 @Nonnull final Map<String, Setting> globalSettings, final boolean fullPriceForQuote) {
             return newBuilderWithSMA(MarketMode.M2Only, quoteFactor, liveMarketMoveCostFactor,
-                suspensionsThrottlingConfig, globalSettings);
+                suspensionsThrottlingConfig, globalSettings, fullPriceForQuote);
         }
 
         /**
@@ -496,13 +509,15 @@ public interface AnalysisFactory {
          * @param liveMarketMoveCostFactor See {@link AnalysisConfig#liveMarketMoveCostFactor}
          * @param suspensionsThrottlingConfig See {@link AnalysisConfig#suspensionsThrottlingConfig}.
          * @param globalSettings See {@link AnalysisConfig#globalSettingsMap}
+         * @param fullPriceForQuote if quote should be the full price of the provider.
          * @return The builder, which can be further customized.
          */
         public static Builder newBuilderWithSMA(final MarketMode marketMode, final float quoteFactor, final float liveMarketMoveCostFactor,
                                                 @Nonnull final SuspensionsThrottlingConfig suspensionsThrottlingConfig,
-                                                @Nonnull final Map<String, Setting> globalSettings) {
+                                                @Nonnull final Map<String, Setting> globalSettings,
+                                                final boolean fullPriceForQuote) {
             return new Builder(marketMode, quoteFactor, liveMarketMoveCostFactor,
-                    suspensionsThrottlingConfig, globalSettings);
+                    suspensionsThrottlingConfig, globalSettings, fullPriceForQuote);
         }
 
         public static class Builder {
@@ -530,16 +545,20 @@ public interface AnalysisFactory {
 
             private float discountedComputeCostFactor;
 
+            private final boolean fullPriceForQuote;
+
             private Builder(final MarketMode marketMode,
                             final float quoteFactor,
                             final float liveMarketMoveCostFactor,
                             final SuspensionsThrottlingConfig suspensionsThrottlingConfig,
-                            @Nonnull final Map<String, Setting> globalSettings) {
+                            @Nonnull final Map<String, Setting> globalSettings,
+                            final boolean fullPriceForQuote) {
                 this.quoteFactor = quoteFactor;
                 this.liveMarketMoveCostFactor = liveMarketMoveCostFactor;
                 this.suspensionsThrottlingConfig = suspensionsThrottlingConfig;
                 this.globalSettings = globalSettings;
                 this.marketMode = marketMode;
+                this.fullPriceForQuote = fullPriceForQuote;
             }
 
             /**
@@ -649,7 +668,7 @@ public interface AnalysisFactory {
                 return new AnalysisConfig(marketMode, quoteFactor, liveMarketMoveCostFactor,
                     suspensionsThrottlingConfig, globalSettings, includeVDC, maxPlacementsOverride,
                     useQuoteCacheDuringSNM, replayProvisionsForRealTime, rightsizeLowerWatermark,
-                    rightsizeUpperWatermark, discountedComputeCostFactor);
+                    rightsizeUpperWatermark, discountedComputeCostFactor, fullPriceForQuote);
             }
         }
     }

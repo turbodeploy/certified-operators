@@ -122,6 +122,9 @@ public class MarketRunnerConfig {
     @Value("${topologyProcessingGateType:concurrent}")
     private String topologyProcessingGateType;
 
+    @Value("${fullPriceForQuote:false}")
+    private boolean fullPriceForQuote;
+
     @Bean(destroyMethod = "shutdownNow")
     public ExecutorService marketRunnerThreadPool() {
         final ThreadFactory threadFactory =
@@ -189,7 +192,8 @@ public class MarketRunnerConfig {
                 analysisRICoverageListener(),
                 consistentResizerFactory(),
                 reversibilitySettingFetcherFactory(),
-                migratedWorkloadCloudCommitmentAnalysisService());
+                migratedWorkloadCloudCommitmentAnalysisService(),
+                fullPriceForQuote);
     }
 
 

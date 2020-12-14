@@ -503,6 +503,7 @@ public class TopologyEntitiesHandler {
     private static void setEconomySettings(@Nonnull EconomySettings economySettings,
                                            @Nonnull final AnalysisConfig analysisConfig) {
 
+        economySettings.setFullPriceForQuote(analysisConfig.isFullPriceForQuote());
         economySettings.setEstimatesEnabled(false);
         economySettings.setUseQuoteCacheDuringSNM(analysisConfig.getUseQuoteCacheDuringSNM());
         economySettings.setRightSizeLower(analysisConfig.getRightsizeLowerWatermark());
