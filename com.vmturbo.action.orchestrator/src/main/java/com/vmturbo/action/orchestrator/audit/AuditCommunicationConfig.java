@@ -6,22 +6,28 @@ import org.springframework.context.annotation.Import;
 
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
 import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionEvent;
+import com.vmturbo.action.orchestrator.topology.TopologyProcessorConfig;
 import com.vmturbo.action.orchestrator.workflow.config.WorkflowConfig;
 import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
 import com.vmturbo.components.api.server.IMessageSender;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 /**
  * Spring configuration to perform external audit functionality.
  */
 @Import({
         BaseKafkaProducerConfig.class,
-        WorkflowConfig.class
+        WorkflowConfig.class,
+        TopologyProcessorConfig.class
 })
 public class AuditCommunicationConfig {
     @Autowired
     private BaseKafkaProducerConfig kafkaProducerConfig;
     @Autowired
     private WorkflowConfig workflowConfig;
+
+    @Autowired
+    private TopologyProcessorConfig tpConfig;
 
     /**
      * Notifications sender to send action audit events.
@@ -41,6 +47,16 @@ public class AuditCommunicationConfig {
      */
     @Bean
     public ActionAuditSender actionAuditSender() {
-        return new ActionAuditSender(workflowConfig.workflowStore(), auditMessageSender());
+        return new ActionAuditSender(workflowConfig.workflowStore(), auditMessageSender(), thinTargetCache());
+    }
+
+    /**
+     * Thin target cache.
+     *
+     * @return the bean created
+     */
+    @Bean
+    public ThinTargetCache thinTargetCache() {
+        return new ThinTargetCache(tpConfig.topologyProcessor());
     }
 }
