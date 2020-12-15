@@ -36,6 +36,8 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
+import com.vmturbo.platform.sdk.common.CommonCost;
+
 import org.springframework.util.CollectionUtils;
 
 /**
@@ -229,14 +231,14 @@ public class ReservedInstanceMapper {
     }
 
     /**
-     * Convert {@link CloudCostDTO.ReservedInstanceType.PaymentOption} to {@link PaymentOption}.
+     * Convert {@link CommonCost.PaymentOption} to {@link PaymentOption}.
      *
-     * @param paymentOption a {@link CloudCostDTO.ReservedInstanceType.PaymentOption}.
+     * @param paymentOption a {@link CommonCost.PaymentOption}.
      * @return a {@link PaymentOption}.
      * @throws NotFoundMatchPaymentOptionException if can not find matched payment option.
      */
     private PaymentOption convertPaymentToApiDTO(
-            @Nonnull final CloudCostDTO.ReservedInstanceType.PaymentOption paymentOption)
+            @Nonnull final CommonCost.PaymentOption paymentOption)
         throws NotFoundMatchPaymentOptionException {
         switch (paymentOption) {
             case ALL_UPFRONT:

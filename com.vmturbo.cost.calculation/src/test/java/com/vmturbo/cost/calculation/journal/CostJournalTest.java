@@ -28,7 +28,7 @@ import com.vmturbo.cost.calculation.journal.entry.QualifiedJournalEntry;
 import com.vmturbo.cost.calculation.journal.entry.RIDiscountJournalEntry;
 import com.vmturbo.cost.calculation.journal.entry.RIJournalEntry;
 import com.vmturbo.cost.calculation.journal.entry.ReservedLicenseJournalEntry;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
+import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price.Unit;
 import com.vmturbo.trax.Trax;

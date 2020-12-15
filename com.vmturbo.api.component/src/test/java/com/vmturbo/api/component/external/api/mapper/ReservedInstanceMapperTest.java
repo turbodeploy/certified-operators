@@ -35,7 +35,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
+import com.vmturbo.platform.sdk.common.CommonCost;
+import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 
 /**
@@ -77,7 +78,7 @@ public class ReservedInstanceMapperTest {
             .setReservedInstanceSpecInfo(ReservedInstanceSpecInfo.newBuilder()
                     .setType(CloudCostDTO.ReservedInstanceType.newBuilder()
                             .setOfferingClass(CloudCostDTO.ReservedInstanceType.OfferingClass.STANDARD)
-                            .setPaymentOption(CloudCostDTO.ReservedInstanceType.PaymentOption.NO_UPFRONT)
+                            .setPaymentOption(CommonCost.PaymentOption.NO_UPFRONT)
                             .setTermYears(1))
                     .setTenancy(CloudCostDTO.Tenancy.DEFAULT)
                     .setOs(CloudCostDTO.OSType.LINUX)

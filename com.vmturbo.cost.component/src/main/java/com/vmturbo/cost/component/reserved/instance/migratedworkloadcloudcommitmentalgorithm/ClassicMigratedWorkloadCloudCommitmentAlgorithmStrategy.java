@@ -52,8 +52,8 @@ import com.vmturbo.cost.component.reserved.instance.migratedworkloadcloudcommitm
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTOREST;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
+import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.PricingDTO;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList.ComputeTierConfigPrice;
@@ -449,7 +449,7 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
                 .setExplanation(explanation)
                 .setDeprecatedImportance(0)
                 .setSupportingLevel(ActionDTO.Action.SupportLevel.SHOW_ONLY)
-                .setSavingsPerHour(CloudCostDTO.CurrencyAmount.newBuilder()
+                .setSavingsPerHour(CurrencyAmount.newBuilder()
                         .setAmount(costRecord.calculateSavingsPerHour())
                         .build())
                 .setExecutable(false)
@@ -546,22 +546,22 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
                                 .setNumberOfCouponsUsed(costRecord.getNumberOfCoupons())
                                 .build()) // Assume we're using all of the coupons.
                         .setReservedInstanceDerivedCost(Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceDerivedCost.newBuilder()
-                                .setAmortizedCostPerHour(CloudCostDTO.CurrencyAmount.newBuilder()
+                                .setAmortizedCostPerHour(CurrencyAmount.newBuilder()
                                         .setAmount(costRecord.getAmortizedHourlyCost())
                                         .build())
-                                .setOnDemandRatePerHour(CloudCostDTO.CurrencyAmount.newBuilder()
+                                .setOnDemandRatePerHour(CurrencyAmount.newBuilder()
                                         .setAmount(costRecord.getOnDemandPrice())
                                         .build())
                                 .build())
                         .setBusinessAccountId(masterBusinessAccountOid)
                         .setReservedInstanceBoughtCost(Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost.newBuilder()
-                                .setFixedCost(CloudCostDTO.CurrencyAmount.newBuilder()
+                                .setFixedCost(CurrencyAmount.newBuilder()
                                         .setAmount(costRecord.getUpFrontPrice())
                                         .build())
-                                .setUsageCostPerHour(CloudCostDTO.CurrencyAmount.newBuilder()
+                                .setUsageCostPerHour(CurrencyAmount.newBuilder()
                                         .setAmount(costRecord.getUsagePrice())
                                         .build())
-                                .setRecurringCostPerHour(CloudCostDTO.CurrencyAmount.newBuilder()
+                                .setRecurringCostPerHour(CurrencyAmount.newBuilder()
                                         .setAmount(costRecord.getRecurringPrice())
                                         .build())
                                 .build())

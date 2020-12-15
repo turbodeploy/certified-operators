@@ -6,6 +6,7 @@ option java_package = "com.vmturbo.common.protobuf.cost";
 import "CloudCostDTO.proto";
 import "common/Pagination.proto";
 import "CommonDTO.proto";
+import "CommonCost.proto";
 import "topology/TopologyDTO.proto";
 import "stats/Stats.proto";
 import "cca/CloudCommitmentAnalysis.proto";
@@ -1273,7 +1274,7 @@ message MigratedWorkloadCloudCommitmentAnalysisRequest {
     // The profile for the RIs to buy. TODO: need to flesh this out better
     message MigrationProfile {
         optional common_dto.ReservedInstanceType.OfferingClass preferred_offering_class = 1;
-        optional common_dto.ReservedInstanceType.PaymentOption preferred_payment_option = 2;
+        optional common_dto.PaymentOption preferred_payment_option = 2;
         optional int32 preferred_term = 3;
     }
 }

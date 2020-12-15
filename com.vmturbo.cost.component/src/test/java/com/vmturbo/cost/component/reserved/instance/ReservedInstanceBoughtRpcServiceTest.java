@@ -73,9 +73,8 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.cost.component.pricing.PriceTableStore;
 import com.vmturbo.cost.component.util.BusinessAccountHelper;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.sdk.common.CloudCostDTO;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
+import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList.ComputeTierConfigPrice;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price;
@@ -144,8 +143,8 @@ public class ReservedInstanceBoughtRpcServiceTest {
                     .setAvailabilityZoneId(100L)
                     .setNumBought(10)
                     .setReservedInstanceBoughtCost(ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost.newBuilder()
-                                    .setFixedCost(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(0))
-                                    .setRecurringCostPerHour(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(0.25)))
+                                    .setFixedCost(CurrencyAmount.newBuilder().setAmount(0))
+                                    .setRecurringCostPerHour(CurrencyAmount.newBuilder().setAmount(0.25)))
                     .setDisplayName("t101.small")
                     .build();
 
@@ -157,8 +156,8 @@ public class ReservedInstanceBoughtRpcServiceTest {
                     .setNumBought(20)
                     .setReservedInstanceBoughtCost(ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost
                                     .newBuilder()
-                                    .setFixedCost(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(15))
-                                    .setRecurringCostPerHour(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(0.25)))
+                                    .setFixedCost(CurrencyAmount.newBuilder().setAmount(15))
+                                    .setRecurringCostPerHour(CurrencyAmount.newBuilder().setAmount(0.25)))
                     .setDisplayName("t102.large")
                     .build();
 
@@ -170,8 +169,8 @@ public class ReservedInstanceBoughtRpcServiceTest {
                     .setNumBought(20)
                     .setReservedInstanceBoughtCost(ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost
                                     .newBuilder()
-                                    .setFixedCost(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(15))
-                                    .setRecurringCostPerHour(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(0.25)))
+                                    .setFixedCost(CurrencyAmount.newBuilder().setAmount(15))
+                                    .setRecurringCostPerHour(CurrencyAmount.newBuilder().setAmount(0.25)))
                     .setDisplayName("m3.large")
                     .build();
 
