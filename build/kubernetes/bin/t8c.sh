@@ -20,6 +20,7 @@ chartsFile="/opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_c
 # ip values set manually in /opt/local/etc/turbo.conf
 singleNodeIp=$(ip address show eth0 | egrep inet | egrep -v inet6 | awk '{print $2}' | awk -F/ '{print$1}')
 sed -i "s/10.0.2.15/${singleNodeIp}/g" /opt/local/etc/turbo.conf
+sed -i "s/10.0.2.15/${singleNodeIp}/g" /opt/local/etc/server.properties
 for i in $(ls /opt/turbonomic/kubernetes/operator/deploy/crds/)
 do 
   sed -i "s/10.0.2.15/${singleNodeIp}/g" /opt/turbonomic/kubernetes/operator/deploy/crds/$i
