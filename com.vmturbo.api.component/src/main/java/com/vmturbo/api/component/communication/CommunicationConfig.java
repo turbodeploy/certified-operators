@@ -294,6 +294,7 @@ public class CommunicationConfig {
             serviceEntityMapper(),
             businessAccountMapper(),
             mapperConfig.paginationMapper(),
+            mapperConfig.entityDetailsMapper(),
             realtimeTopologyContextId);
     }
 

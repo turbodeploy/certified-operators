@@ -139,6 +139,16 @@ public class MapperConfig {
     }
 
     /**
+     * A definition of 'bean': a mapper for entity details.
+     *
+     * @return an instance of  {@link EntityDetailsMapper}.
+     */
+    @Bean
+    public EntityDetailsMapper entityDetailsMapper() {
+        return new EntityDetailsMapper(communicationConfig.thinTargetCache());
+    }
+
+    /**
      * Gets a group mapper that uses the default dependencies.
      *
      * @return a group mapper that uses the default dependencies.
