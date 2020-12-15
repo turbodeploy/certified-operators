@@ -8,8 +8,6 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.google.common.collect.ImmutableSet;
-
 import com.vmturbo.api.dto.cluster.ClusterConfigurationDTO;
 import com.vmturbo.api.dto.cluster.ComponentInstanceDTO;
 import com.vmturbo.api.dto.cluster.ComponentPropertiesDTO;
@@ -19,6 +17,7 @@ import com.vmturbo.clustermgr.api.ClusterMgrRestClient;
 import com.vmturbo.clustermgr.api.ComponentInstanceInfo;
 import com.vmturbo.clustermgr.api.ComponentProperties;
 import com.vmturbo.clustermgr.api.ComponentPropertiesMap;
+import com.vmturbo.components.common.config.SensitiveDataUtil;
 
 /**
  * Implementation for the Cluster Manager Service API calls.
@@ -31,14 +30,6 @@ public class ClusterService implements IClusterService {
     public static final String ASTERISKS = "*****";
 
     private ClusterMgrRestClient clusterMgrApi;
-
-    // the sensitive keys that we need to mask the values.
-    // TODO centralized these keys, so we won't miss them if they are changed.
-    private static final Set<String> sensitiveKeySet = ImmutableSet.of(
-        "arangodbPass",
-        "userPassword",
-        "sslKeystorePassword",
-        "readonlyPassword");
 
     /**
      * Create a ClusterManagerClient instance, used to make requests to the ClusterMgrApi.
@@ -221,7 +212,7 @@ public class ClusterService implements IClusterService {
     @Override
     public String getComponentDefaultProperty(@Nonnull String componentType,
                                               @Nonnull String propertyName) {
-        if (sensitiveKeySet.contains(propertyName)) {
+        if (SensitiveDataUtil.hasSensitiveData(propertyName)) {
             return ASTERISKS;
         }
         return clusterMgrApi.getComponentDefaultProperty(componentType, propertyName);
@@ -380,7 +371,7 @@ public class ClusterService implements IClusterService {
      * @param propertiesMap the map of key/value pairs to be sanitized
      */
     private void sanitizeProperties(final ComponentPropertiesDTO propertiesMap) {
-        sensitiveKeySet.forEach((key -> {
+        SensitiveDataUtil.getSensitiveKey().forEach((key -> {
             if (propertiesMap.containsKey(key)) {
                 propertiesMap.put(key, ASTERISKS);
             }

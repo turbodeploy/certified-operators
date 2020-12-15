@@ -3,6 +3,8 @@ package com.vmturbo.sql.utils;
 import static junit.framework.TestCase.assertFalse;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -16,6 +18,8 @@ import org.jooq.SQLDialect;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.springframework.beans.factory.BeanCreationException;
+
+import com.vmturbo.auth.api.db.DBPasswordUtil;
 
 /**
  * unit test for {@link SQLDatabaseConfig}.
@@ -98,6 +102,41 @@ public class SQLDatabaseConfigTest {
         assertFalse(SQLDatabaseConfig.hasGrantPrivilege(
                 testSQLDataBseConfig.dataSource(EXPECTED_DB_URL_BASE, tmpuser, tmppass)
                         .getConnection(), tmpuser, "vmturbo", schemaName));
+    }
+
+    /**
+     * Verify getting DB root password.
+     * If DB password passed in from environment, use it;
+     * Next, if `isGettingPassFromAuth` is true, return from Auth component, otherwise
+     * return the default root DB password.
+     */
+    @Test
+    public void tesGetDBRootPassword() {
+        System.clearProperty("enableSecureDBConnection");
+        SQLDatabaseConfig testSQLDataBseConfig = new SQLDatabaseConfig() {
+            @Override
+            public String getDbSchemaName() {
+                return "test";
+            }
+        };
+        DBPasswordUtil dbPasswordUtil = mock(DBPasswordUtil.class);
+        testSQLDataBseConfig.setDbPasswordUtil(dbPasswordUtil);
+
+        // if root DB is not available in the context and `isGettingPassFromAuth` is false,
+        // get default root DB rootPass2
+        assertEquals("vmturbo", testSQLDataBseConfig.getDBRootPassword(false));
+
+        // if root DB is not available in the context and `isGettingPassFromAuth` is true,
+        // call auth for root rootPass2
+        final String rootPass = "pass1";
+        when(dbPasswordUtil.getSqlDbRootPassword()).thenReturn(rootPass);
+        assertEquals(rootPass, testSQLDataBseConfig.getDBRootPassword(true));
+
+        // if root DB is available in the context use it.
+        final String rootPass2 = "vmturbo";
+        testSQLDataBseConfig.setDbRootPassword(rootPass2);
+        assertEquals(rootPass2, testSQLDataBseConfig.getDBRootPassword(true));
+        assertEquals(rootPass2, testSQLDataBseConfig.getDBRootPassword(false));
     }
 
     /**
