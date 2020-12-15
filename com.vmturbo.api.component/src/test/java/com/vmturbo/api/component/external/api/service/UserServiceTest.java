@@ -139,6 +139,70 @@ public class UserServiceTest {
     }
 
     /**
+     * Test update AD.
+     *
+     * @throws Exception if something went wrong.
+     */
+    @Test
+    public void testUpdateActiveDirectory() throws Exception {
+        logon("admin");
+        setupGetAdGroup();
+        Mockito.when(restTemplate
+                .exchange(Matchers.eq(AD_REQUEST), Matchers.eq(HttpMethod.POST), Matchers.any(),
+                        Matchers.<Class<ActiveDirectoryDTO>>any())).thenReturn(new ResponseEntity<>(
+                new ActiveDirectoryDTO(CORP_VMTURBO_COM, LDAP_DELL_1_VMTURBO_COM, true),
+                HttpStatus.OK));
+        ActiveDirectoryApiDTO responseDto = usersService.updateActiveDirectory(
+                getCreateAdInputDto());
+        verifyAdResponse(responseDto);
+    }
+
+    /**
+     * Test update AD when api call to auth fails.
+     *
+     * @throws Exception if something went wrong.
+     */
+    @Test(expected = RuntimeException.class)
+    public void testUpdateActiveDirectoryWhenApiCallFails() throws Exception {
+        logon("admin");
+        setupGetAdGroup();
+        Mockito.when(restTemplate
+                .exchange(Matchers.eq(AD_REQUEST), Matchers.eq(HttpMethod.POST), Matchers.any(),
+                        Matchers.<Class<ActiveDirectoryDTO>>any())).thenThrow(
+                RuntimeException.class);
+        usersService.updateActiveDirectory(getCreateAdInputDto());
+    }
+
+    /**
+     * Test delete AD.
+     *
+     * @throws Exception if something went wrong
+     */
+    @Test
+    public void testDeleteActiveDirectory() throws Exception {
+        logon("admin");
+        Mockito.when(restTemplate
+                .exchange(Matchers.eq(AD_REQUEST), Matchers.eq(HttpMethod.POST), Matchers.any(),
+                        Matchers.<Class<Boolean>>any())).thenReturn(
+                new ResponseEntity<>(true, HttpStatus.OK));
+        assertTrue(usersService.deleteActiveDirectory());
+    }
+
+    /**
+     * Test delete AD when api call fails.
+     *
+     * @throws Exception if something went wrong
+     */
+    @Test
+    public void testDeleteActiveDirectoryWhenApiCallFails() throws Exception {
+        logon("admin");
+        Mockito.when(restTemplate
+                .exchange(Matchers.eq(AD_REQUEST), Matchers.eq(HttpMethod.POST), Matchers.any(),
+                        Matchers.<Class<Boolean>>any())).thenThrow(RuntimeException.class);
+        assertFalse(usersService.deleteActiveDirectory());
+    }
+
+    /**
      * Test convert AD info to AuthDTO. If domain name or server is null, the corresponding AuthDTO
      * will have null value, instead of "".
      */
