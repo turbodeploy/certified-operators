@@ -24,7 +24,7 @@ import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.util.AccountExpensesFilter;
 import com.vmturbo.cost.component.util.AccountExpensesFilter.AccountExpenseFilterBuilder;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
+import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
 import com.vmturbo.sql.utils.DbException;

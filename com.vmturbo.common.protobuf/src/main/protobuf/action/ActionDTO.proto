@@ -7,6 +7,7 @@ import "common/EnvironmentTypeEnum.proto";
 import "common/Pagination.proto";
 import "topology/TopologyDTO.proto";
 import "CloudCostDTO.proto";
+import "CommonCost.proto";
 
 // NB All messages in this set of declarations are serialized in rdbms.
 // They are not modifiable, only extendable.

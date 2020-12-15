@@ -47,7 +47,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
+import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 
 public class CombinedStatsBucketsTest {
 

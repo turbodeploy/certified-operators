@@ -21,7 +21,7 @@ import com.vmturbo.common.protobuf.cost.Cost.MigratedWorkloadCloudCommitmentAnal
 import com.vmturbo.common.protobuf.cost.Cost.MigratedWorkloadCloudCommitmentAnalysisResponse;
 import com.vmturbo.common.protobuf.cost.MigratedWorkloadCloudCommitmentAnalysisServiceGrpc;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.OfferingClass;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.PaymentOption;
+import com.vmturbo.platform.sdk.common.CommonCost.PaymentOption;
 
 /**
  * Service implementation that interacts with the cost component's migrated workload cloud commitment service.

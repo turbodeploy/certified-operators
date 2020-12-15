@@ -137,7 +137,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DemandType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.OfferingClass;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.PaymentOption;
+import com.vmturbo.platform.sdk.common.CommonCost.PaymentOption;
 
 public class ScenarioMapperTest {
     private static final String SCENARIO_NAME = "MyScenario";

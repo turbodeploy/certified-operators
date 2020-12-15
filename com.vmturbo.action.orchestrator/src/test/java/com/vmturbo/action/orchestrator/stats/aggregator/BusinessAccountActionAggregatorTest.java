@@ -38,7 +38,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.MutableFixedClock;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
+import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 
 /**
  * Unit tests for {@link BusinessAccountActionAggregator}.

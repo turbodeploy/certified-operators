@@ -48,7 +48,7 @@ import com.vmturbo.cost.calculation.journal.tabulator.RIDiscountTabulator;
 import com.vmturbo.cost.calculation.journal.tabulator.RIEntryTabulator;
 import com.vmturbo.cost.calculation.journal.tabulator.ReservedLicenseTabulator;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
+import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price;
 import com.vmturbo.trax.TraxCollectors;
 import com.vmturbo.trax.TraxNumber;
