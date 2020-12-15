@@ -53,9 +53,11 @@ public class TopologyUtils {
         final int storageCount = calculator.apply(STORAGE_RATIO);
         final int clusterCount = calculator.apply(CLUSTER_RATIO);
         final int datacenterCount = 1;
+        final int desktopPoolsCount = 0;
+        final int buCount = 0;
 
-        return new StressAccount("STRESS", vmCount, appCount, hostCount,
-            storageCount, clusterCount, datacenterCount, RANDOM_SEED);
+        return new StressAccount("STRESS", vmCount, appCount, hostCount, storageCount, clusterCount,
+                datacenterCount, buCount, desktopPoolsCount, RANDOM_SEED);
     }
 
     /**
