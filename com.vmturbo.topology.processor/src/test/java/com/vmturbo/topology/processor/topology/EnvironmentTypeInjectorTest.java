@@ -59,6 +59,8 @@ public class EnvironmentTypeInjectorTest {
     private static final long CONTAINER_SPEC_OID = 11L;
     private static final long CONTAINER_POD_OID = 12L;
     private static final long SERVICE_OID = 13L;
+    private static final long CONTAINER_PLATFORM_CLUSTER_OID = 14L;
+    private static final long VM2_OID = 15L;
 
     private TargetStore targetStore = mock(TargetStore.class);
 
@@ -177,7 +179,7 @@ public class EnvironmentTypeInjectorTest {
      * AWS_VM <-- k8s_ContainerPod --> k8s_WorkloadController --> k8s_Namespace
      */
     @Test
-    public void testWorkloadControllerNamespaceTraversal() {
+    public void testWorkloadControllerTraversal() {
         Map<Long, TopologyEntity.Builder> topologyEntitiesMap = new HashMap<>();
         TopologyEntity.Builder vm1 = TopologyEntity
             .newBuilder(TopologyEntityDTO.newBuilder()
@@ -186,11 +188,8 @@ public class EnvironmentTypeInjectorTest {
                 .setOrigin(Origin.newBuilder().setDiscoveryOrigin(DiscoveryOrigin
                     .newBuilder().putDiscoveredTargetData(AWS_TARGET_ID,
                         PerTargetEntityInformation.getDefaultInstance()))));
-        TopologyEntity.Builder namespace = TopologyEntity.newBuilder(newEntityBuilder(K8S_TARGET_ID)
-            .setEntityType(EntityType.NAMESPACE_VALUE)
-            .setOid(NAMESPACE_OID));
         TopologyEntity.Builder workloadController = TopologyEntity.newBuilder(
-                newEntityBuilder(K8S_TARGET_ID, namespace.getOid())
+                newEntityBuilder(K8S_TARGET_ID)
                         .setEntityType(EntityType.WORKLOAD_CONTROLLER_VALUE)
                         .setOid(WORKLOAD_CONTROLLER_OID));
         TopologyEntity.Builder pod1 = TopologyEntity.newBuilder(
@@ -201,23 +200,20 @@ public class EnvironmentTypeInjectorTest {
         topologyEntitiesMap.put(vm1.getOid(), vm1);
         topologyEntitiesMap.put(pod1.getOid(), pod1);
         topologyEntitiesMap.put(workloadController.getOid(), workloadController);
-        topologyEntitiesMap.put(namespace.getOid(), namespace);
         TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topologyEntitiesMap);
         final InjectionSummary injectionSummary = environmentTypeInjector.injectEnvironmentType(graph);
 
         assertTrue(graph.getEntity(VM_OID).isPresent());
         assertTrue(graph.getEntity(CONTAINER_POD_OID).isPresent());
         assertTrue(graph.getEntity(WORKLOAD_CONTROLLER_OID).isPresent());
-        assertTrue(graph.getEntity(NAMESPACE_OID).isPresent());
 
         assertThat(graph.getEntity(VM_OID).get().getEnvironmentType(), is(EnvironmentType.CLOUD));
         assertThat(graph.getEntity(CONTAINER_POD_OID).get().getEnvironmentType(), is(EnvironmentType.CLOUD));
         assertThat(graph.getEntity(WORKLOAD_CONTROLLER_OID).get().getEnvironmentType(), is(EnvironmentType.CLOUD));
-        assertThat(graph.getEntity(NAMESPACE_OID).get().getEnvironmentType(), is(EnvironmentType.CLOUD));
 
         assertThat(injectionSummary.getConflictingTypeCount(), is(0));
         assertThat(injectionSummary.getUnknownCount(), is(0));
-        assertThat(injectionSummary.getEnvTypeCounts(), is(ImmutableMap.of(EnvironmentType.CLOUD, 4)));
+        assertThat(injectionSummary.getEnvTypeCounts(), is(ImmutableMap.of(EnvironmentType.CLOUD, 3)));
     }
 
 
@@ -275,6 +271,135 @@ public class EnvironmentTypeInjectorTest {
         assertThat(injectionSummary.getConflictingTypeCount(), is(0));
         assertThat(injectionSummary.getUnknownCount(), is(0));
         assertThat(injectionSummary.getEnvTypeCounts(), is(ImmutableMap.of(EnvironmentType.CLOUD, 4)));
+    }
+
+    /**
+     * Test traversal for Namespace and ContainerPlatformCluster entities on on-prem infrastructure.
+     * The graph here looks like:
+     * <p/>
+     *    AggregatedBy                AggregatedBy
+     * VC_VM <-- ContainerPlatformCluster --> K8s_Namespace
+     */
+    @Test
+    public void testOnPremNamespaceContainerClusterTraversal() {
+        Map<Long, TopologyEntity.Builder> topologyEntitiesMap = new HashMap<>();
+        TopologyEntity.Builder containerCluster = TopologyEntity
+            .newBuilder(newEntityBuilder(K8S_TARGET_ID)
+                .setEntityType(EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE)
+                .setOid(CONTAINER_PLATFORM_CLUSTER_OID));
+        TopologyEntity.Builder vm = TopologyEntity
+            .newBuilder(TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setOid(VM_OID)
+                .addConnectedEntityList(TopologyEntityDTO.ConnectedEntity.newBuilder()
+                    .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION)
+                    .setConnectedEntityId(CONTAINER_PLATFORM_CLUSTER_OID)
+                    .setConnectedEntityType(EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE))
+                .setOrigin(Origin.newBuilder().setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                    .putDiscoveredTargetData(VC_TARGET_ID,
+                        PerTargetEntityInformation.getDefaultInstance())
+                    .putDiscoveredTargetData(K8S_TARGET_ID,
+                        PerTargetEntityInformation.getDefaultInstance()))));
+        TopologyEntity.Builder namespace = TopologyEntity
+            .newBuilder(newEntityBuilder(K8S_TARGET_ID)
+                .setEntityType(EntityType.NAMESPACE_VALUE)
+                .setOid(NAMESPACE_OID)
+                .addConnectedEntityList(TopologyEntityDTO.ConnectedEntity.newBuilder()
+                    .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION)
+                    .setConnectedEntityId(CONTAINER_PLATFORM_CLUSTER_OID)
+                    .setConnectedEntityType(EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE)));
+
+        topologyEntitiesMap.put(vm.getOid(), vm);
+        topologyEntitiesMap.put(containerCluster.getOid(), containerCluster);
+        topologyEntitiesMap.put(namespace.getOid(), namespace);
+        TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topologyEntitiesMap);
+        final InjectionSummary injectionSummary = environmentTypeInjector.injectEnvironmentType(graph);
+
+        assertTrue(graph.getEntity(VM_OID).isPresent());
+        assertTrue(graph.getEntity(CONTAINER_PLATFORM_CLUSTER_OID).isPresent());
+        assertTrue(graph.getEntity(NAMESPACE_OID).isPresent());
+
+        assertThat(graph.getEntity(VM_OID).get().getEnvironmentType(), is(EnvironmentType.ON_PREM));
+        assertThat(graph.getEntity(CONTAINER_PLATFORM_CLUSTER_OID).get().getEnvironmentType(), is(EnvironmentType.ON_PREM));
+        assertThat(graph.getEntity(NAMESPACE_OID).get().getEnvironmentType(), is(EnvironmentType.ON_PREM));
+
+        assertThat(injectionSummary.getConflictingTypeCount(), is(0));
+        assertThat(injectionSummary.getUnknownCount(), is(0));
+        assertThat(injectionSummary.getEnvTypeCounts(), is(ImmutableMap.of(EnvironmentType.ON_PREM, 3)));
+    }
+
+    /**
+     * Test traversal for Namespace and ContainerPlatformCluster entities on hybrid infrastructure.
+     * The graph here looks like:
+     * <p/>
+     *    AggregatedBy                AggregatedBy
+     * VC_VM <-- ContainerPlatformCluster --> K8s_Namespace
+     *                   |
+     * AWS_VM <----------  AggregatedBy
+     */
+    @Test
+    public void testHybridNamespaceContainerClusterTraversal() {
+        Map<Long, TopologyEntity.Builder> topologyEntitiesMap = new HashMap<>();
+        TopologyEntity.Builder containerCluster = TopologyEntity
+            .newBuilder(newEntityBuilder(K8S_TARGET_ID)
+                .setEntityType(EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE)
+                .setOid(CONTAINER_PLATFORM_CLUSTER_OID));
+        TopologyEntity.Builder vm1 = TopologyEntity
+            .newBuilder(TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setOid(VM_OID)
+                .addConnectedEntityList(TopologyEntityDTO.ConnectedEntity.newBuilder()
+                    .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION)
+                    .setConnectedEntityId(CONTAINER_PLATFORM_CLUSTER_OID)
+                    .setConnectedEntityType(EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE))
+                .setOrigin(Origin.newBuilder().setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                    .putDiscoveredTargetData(VC_TARGET_ID,
+                        PerTargetEntityInformation.getDefaultInstance())
+                    .putDiscoveredTargetData(K8S_TARGET_ID,
+                        PerTargetEntityInformation.getDefaultInstance()))));
+        TopologyEntity.Builder vm2 = TopologyEntity
+            .newBuilder(TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setOid(VM2_OID)
+                .addConnectedEntityList(TopologyEntityDTO.ConnectedEntity.newBuilder()
+                    .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION)
+                    .setConnectedEntityId(CONTAINER_PLATFORM_CLUSTER_OID)
+                    .setConnectedEntityType(EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE))
+                .setOrigin(Origin.newBuilder().setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                    .putDiscoveredTargetData(AWS_TARGET_ID,
+                        PerTargetEntityInformation.getDefaultInstance())
+                    .putDiscoveredTargetData(K8S_TARGET_ID,
+                        PerTargetEntityInformation.getDefaultInstance()))));
+        TopologyEntity.Builder namespace = TopologyEntity
+            .newBuilder(newEntityBuilder(K8S_TARGET_ID)
+                .setEntityType(EntityType.NAMESPACE_VALUE)
+                .setOid(NAMESPACE_OID)
+                .addConnectedEntityList(TopologyEntityDTO.ConnectedEntity.newBuilder()
+                    .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION)
+                    .setConnectedEntityId(CONTAINER_PLATFORM_CLUSTER_OID)
+                    .setConnectedEntityType(EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE)));
+
+        topologyEntitiesMap.put(vm1.getOid(), vm1);
+        topologyEntitiesMap.put(vm2.getOid(), vm2);
+        topologyEntitiesMap.put(containerCluster.getOid(), containerCluster);
+        topologyEntitiesMap.put(namespace.getOid(), namespace);
+        TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topologyEntitiesMap);
+        final InjectionSummary injectionSummary = environmentTypeInjector.injectEnvironmentType(graph);
+
+        assertTrue(graph.getEntity(VM_OID).isPresent());
+        assertTrue(graph.getEntity(VM2_OID).isPresent());
+        assertTrue(graph.getEntity(CONTAINER_PLATFORM_CLUSTER_OID).isPresent());
+        assertTrue(graph.getEntity(NAMESPACE_OID).isPresent());
+
+        assertThat(graph.getEntity(VM_OID).get().getEnvironmentType(), is(EnvironmentType.ON_PREM));
+        assertThat(graph.getEntity(VM2_OID).get().getEnvironmentType(), is(EnvironmentType.CLOUD));
+        assertThat(graph.getEntity(CONTAINER_PLATFORM_CLUSTER_OID).get().getEnvironmentType(), is(EnvironmentType.HYBRID));
+        assertThat(graph.getEntity(NAMESPACE_OID).get().getEnvironmentType(), is(EnvironmentType.HYBRID));
+
+        assertThat(injectionSummary.getConflictingTypeCount(), is(0));
+        assertThat(injectionSummary.getUnknownCount(), is(0));
+        assertThat(injectionSummary.getEnvTypeCounts(),
+            is(ImmutableMap.of(EnvironmentType.ON_PREM, 1, EnvironmentType.CLOUD, 1, EnvironmentType.HYBRID, 2)));
     }
 
     /**

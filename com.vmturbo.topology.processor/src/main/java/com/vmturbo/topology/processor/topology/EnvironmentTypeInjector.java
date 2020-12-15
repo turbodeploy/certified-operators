@@ -64,9 +64,12 @@ public class EnvironmentTypeInjector {
             // WorkloadControllers are connected to their on-prem/cloud infrastructure through the ContainerPods
             // that consume from them.
             EntityType.WORKLOAD_CONTROLLER_VALUE, TopologyEntity::getConsumers,
-            // Namespaces are connected to their on-prem/cloud infrastructure through the WorkloadControllers
-            // and ContainerPods that consume from them.
-            EntityType.NAMESPACE_VALUE, TopologyEntity::getConsumers
+            // ContainerPlatformClusters have aggregated on-prem/cloud VM entities.
+            EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE, EnvironmentTypeInjector::getAggregatedVMs,
+            // Namespaces are aggregated by ContainerPlatformClusters. Traverse ContainerPlatformCluster
+            // to find out connected on-prem/cloud infrastructure so that namespace will have consistent
+            // environment type with container platform cluster.
+            EntityType.NAMESPACE_VALUE, TopologyEntity::getAggregators
         );
 
     public EnvironmentTypeInjector(@Nonnull final TargetStore targetStore) {
@@ -156,6 +159,13 @@ public class EnvironmentTypeInjector {
         // trigger a warning).
         envTypeCounts.remove(EnvironmentType.UNKNOWN_ENV);
         return new InjectionSummary(unknownCount, conflictingTypeCount.get(), envTypeCounts);
+    }
+
+    @Nonnull
+    private static Collection<TopologyEntity> getAggregatedVMs(@Nonnull TopologyEntity containerClusterEntity) {
+        return containerClusterEntity.getAggregatedEntities().stream()
+            .filter(entity -> entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
+            .collect(Collectors.toList());
     }
 
     @Nonnull
