@@ -56,7 +56,6 @@ import com.vmturbo.auth.api.usermgmt.ActiveDirectoryDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
 import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
-import com.vmturbo.auth.component.exception.DuplicateExternalGroupException;
 import com.vmturbo.auth.component.policy.UserPolicy;
 import com.vmturbo.auth.component.store.sso.SsoUtil;
 import com.vmturbo.auth.component.widgetset.WidgetsetDbStore;
@@ -1234,7 +1233,7 @@ public class AuthProvider extends AuthProviderBase {
         final String adGroupName = adGroupInputDto.getDisplayName();
         Optional<String> json = getKVValue(composeExternalGroupInfoKey(adGroupName));
         if (json.isPresent()) {
-            throw new DuplicateExternalGroupException(adGroupName);
+            throw new SecurityException("Creating active directory group which already exists: " + adGroupName);
         }
 
         return addSecurityGroupImpl(adGroupInputDto);
