@@ -230,8 +230,7 @@ public class AuthUsersController {
                 return new ResponseEntity<>( userUuid, HttpStatus.OK);
             }
         } catch (Exception e) {
-            return new ResponseEntity<>(e.getMessage(),
-                HttpStatus.FORBIDDEN);
+            return new ResponseEntity<>(e.getMessage(), HttpStatus.CONFLICT);
         }
         throw new SecurityException("Unable to add user: " + dto.getUser());
     }

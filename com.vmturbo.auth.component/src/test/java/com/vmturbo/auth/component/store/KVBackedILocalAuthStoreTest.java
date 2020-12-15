@@ -48,6 +48,7 @@ import com.vmturbo.auth.api.authorization.AuthorizationException;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
 import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
+import com.vmturbo.auth.component.exception.DuplicateExternalGroupException;
 import com.vmturbo.auth.component.policy.UserPolicy;
 import com.vmturbo.auth.component.policy.UserPolicy.LoginPolicy;
 import com.vmturbo.auth.component.store.AuthProvider.UserInfo;
@@ -603,7 +604,10 @@ public class KVBackedILocalAuthStoreTest {
         Assert.assertEquals(ADMINISTRATOR, g.getRoleName());
     }
 
-    @Test(expected = SecurityException.class)
+    /**
+     * Test duplicate group creation fails.
+     */
+    @Test(expected = DuplicateExternalGroupException.class)
     public void testCreateSecurityGroupWhichAlreadyExists() {
         KeyValueStore keyValueStore = new MapKeyValueStore();
         AuthProvider store = getStore(keyValueStore);
