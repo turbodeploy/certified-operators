@@ -15,9 +15,12 @@ service_exists() {
     fi
 }
 
-SRC_ZOOKEEPER_CONFIG="/opt/turbonomic/kubernetes/etc/zookeeper.properties"
+# It's important to use /opt/local (rather than /opt/turbonomic) as the source for these files
+# Because the IP address substitutions in the t8c.sh script are only performed in /opt/local
+# and the kafka configuration contains the IP of the VM (which requires substitution).
+SRC_ZOOKEEPER_CONFIG="/opt/local/etc/zookeeper.properties"
 DEST_ZOOKEEPER_CONFIG="/opt/kafka/config/zookeeper.properties"
-SRC_KAFKA_CONFIG="/opt/turbonomic/kubernetes/etc/server.properties"
+SRC_KAFKA_CONFIG="/opt/local/etc/server.properties"
 DEST_KAFKA_CONFIG="/opt/kafka/config/server.properties"
 
 # Check if Zookeeper is installed
