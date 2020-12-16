@@ -23,7 +23,8 @@ import com.vmturbo.topology.processor.api.util.ThinTargetCache;
  */
 public class EntityDetailsMapper {
 
-    private static final String ENHANCED_BY_PROP = "Enhanced by";
+    @VisibleForTesting
+    static final String ENHANCED_BY_PROP = "Enhanced by";
 
     private final ThinTargetCache thinTargetCache;
 
@@ -77,16 +78,22 @@ public class EntityDetailsMapper {
     private Optional<DetailDataApiDTO> getEnhancedByProperty(@Nonnull final TopologyEntityDTO entity) {
         final Set<Long> targetsIds = getProxyOriginTargets(entity);
         if (!targetsIds.isEmpty()) {
-            final Set<String> targetsTypes = getTargetTypes(targetsIds);
-            if (!targetsTypes.isEmpty()) {
-                final DetailDataApiDTO detailData = new DetailDataApiDTO();
-                detailData.setKey(ENHANCED_BY_PROP);
-                detailData.setCritical(true);
-                detailData.setValue(String.join(",", targetsTypes));
+            final Set<String> probeTypes = getProbeTypes(targetsIds);
+            if (!probeTypes.isEmpty()) {
+                final DetailDataApiDTO detailData = createDetailData(ENHANCED_BY_PROP,
+                        String.join(", ", probeTypes), true);
                 return Optional.of(detailData);
             }
         }
         return Optional.empty();
+    }
+
+    private DetailDataApiDTO createDetailData(@Nonnull String key, @Nonnull String value, boolean isCritical) {
+        final DetailDataApiDTO detailData = new DetailDataApiDTO();
+        detailData.setKey(key);
+        detailData.setValue(value);
+        detailData.setCritical(isCritical);
+        return detailData;
     }
 
     @Nonnull
@@ -98,10 +105,11 @@ public class EntityDetailsMapper {
     }
 
     @Nonnull
-    private Set<String> getTargetTypes(@Nonnull final Set<Long> targetsIds) {
+    private Set<String> getProbeTypes(@Nonnull final Set<Long> targetsIds) {
         return targetsIds.stream().map(thinTargetCache::getTargetInfo)
                 .filter(Optional::isPresent)
                 .map(Optional::get)
+                .filter(info -> !info.isHidden())
                 .map(info -> info.probeInfo().type())
                 .collect(Collectors.toSet());
     }
