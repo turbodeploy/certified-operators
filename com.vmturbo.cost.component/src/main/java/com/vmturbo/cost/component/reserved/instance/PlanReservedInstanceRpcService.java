@@ -47,7 +47,7 @@ import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc.PlanRese
 import com.vmturbo.cost.component.entity.cost.PlanProjectedEntityCostStore;
 import com.vmturbo.cost.component.reserved.instance.filter.BuyReservedInstanceCostFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.PlanProjectedEntityReservedInstanceMappingFilter;
-import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 
 /**
  * Plan reserved instance service.

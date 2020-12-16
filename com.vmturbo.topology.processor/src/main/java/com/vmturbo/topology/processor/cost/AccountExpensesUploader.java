@@ -25,7 +25,7 @@ import com.vmturbo.common.protobuf.cost.RIAndExpenseUploadServiceGrpc.RIAndExpen
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.proactivesupport.DataMetricGauge;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader.TargetCostData;

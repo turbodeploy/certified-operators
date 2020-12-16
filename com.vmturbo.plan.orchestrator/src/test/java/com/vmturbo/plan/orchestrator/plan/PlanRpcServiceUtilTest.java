@@ -63,7 +63,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DemandType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.OfferingClass;
-import com.vmturbo.platform.sdk.common.CommonCost.PaymentOption;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.PaymentOption;
 
 /**
  * Unit tests for {@link PlanRpcServiceUtil}.
@@ -77,7 +77,7 @@ public class PlanRpcServiceUtilTest {
     private static final long GROUP_ID = 3001L;
     private static final ReservedInstanceType EXPECTED_RI_TYPE = ReservedInstanceType.newBuilder()
                     .setOfferingClass(ReservedInstanceType.OfferingClass.STANDARD)
-                    .setPaymentOption(PaymentOption.PARTIAL_UPFRONT)
+                    .setPaymentOption(ReservedInstanceType.PaymentOption.PARTIAL_UPFRONT)
                     .setTermYears(3).build();
     private static final List<Long> BUSINESS_ACCOUNTS_OIDS = Stream.of(10001L, 1002L, 1003L)
                     .collect(Collectors.collectingAndThen(Collectors.toList(), Collections::unmodifiableList));

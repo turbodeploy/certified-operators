@@ -31,7 +31,7 @@ import com.vmturbo.extractor.schema.enums.ActionState;
 import com.vmturbo.extractor.schema.enums.ActionType;
 import com.vmturbo.extractor.schema.enums.Severity;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 
 /**
  * Unit tests for {@link ActionConverter}.

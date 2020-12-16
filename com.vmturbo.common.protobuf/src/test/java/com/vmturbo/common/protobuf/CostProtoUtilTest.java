@@ -10,8 +10,8 @@ import org.junit.Test;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType;
-import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 
 /**
  * Tests for {@link CostProtoUtil}.

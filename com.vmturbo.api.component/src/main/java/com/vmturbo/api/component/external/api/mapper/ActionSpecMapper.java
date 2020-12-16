@@ -152,8 +152,9 @@ import com.vmturbo.components.common.setting.OsMigrationSettingsEnum.OperatingSy
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
-import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 
 /**
  * Map an ActionSpec returned from the ActionOrchestrator into an {@link ActionApiDTO} to be
@@ -903,7 +904,7 @@ public class ActionSpecMapper {
      * @param savingsPerHour the savings per hour
      * @return the savings stats
      */
-    private Optional<StatApiDTO> createSavingsStat(CurrencyAmount savingsPerHour) {
+    private Optional<StatApiDTO> createSavingsStat(CloudCostDTO.CurrencyAmount savingsPerHour) {
         if (savingsPerHour.getAmount() != 0) {
             // Get the currency
             Currency currency = CURRENCIES_BY_NUMERIC_CODE.get(savingsPerHour.getCurrency());

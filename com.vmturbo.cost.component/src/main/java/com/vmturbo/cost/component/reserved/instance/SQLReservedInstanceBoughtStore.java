@@ -56,7 +56,7 @@ import com.vmturbo.cost.component.pricing.PriceTableStore;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceCostFilter;
 import com.vmturbo.cost.component.util.BusinessAccountHelper;
-import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.PricingDTO;
 import com.vmturbo.platform.sdk.common.PricingDTO.ReservedInstancePrice;
 

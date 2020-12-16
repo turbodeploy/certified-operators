@@ -65,7 +65,7 @@ import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.dema
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.demand.calculator.RIBuyDemandCalculatorFactory;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.OfferingClass;
-import com.vmturbo.platform.sdk.common.CommonCost.PaymentOption;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.PaymentOption;
 
 /**
  * <p>This class is ported from Classic/Legacy Opsmgr.</p>

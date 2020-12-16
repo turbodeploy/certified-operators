@@ -33,7 +33,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy.ActionOrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
-import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 
 public class ActionPaginatorTest {
 

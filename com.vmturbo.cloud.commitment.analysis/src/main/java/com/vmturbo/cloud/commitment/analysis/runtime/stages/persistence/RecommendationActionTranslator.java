@@ -20,7 +20,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.BuyRIExplanation
 import com.vmturbo.common.protobuf.cloud.CloudCommitment.CloudCommitmentType;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 
 /**
  * A translator of {@link CloudCommitmentRecommendation} instances to {@link Action} instances (for

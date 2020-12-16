@@ -47,7 +47,7 @@ import com.vmturbo.cost.component.reserved.instance.ActionContextRIBuyStore;
 import com.vmturbo.cost.component.reserved.instance.ActionContextRIBuyStore.DemandType;
 import com.vmturbo.cost.component.reserved.instance.ActionContextRIBuyStore.RIBuyInstanceDemand;
 import com.vmturbo.cost.component.reserved.instance.BuyReservedInstanceStore;
-import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 
 /**
  * A local implementation of {@link CloudCommitmentRecommendationStore}, in which RIs are stored

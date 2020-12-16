@@ -50,10 +50,10 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ReservedInstanceData.
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ReservedInstanceData.ReservedInstanceAppliedScope;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ReservedInstanceData.ReservedInstanceAppliedScope.MultipleAccountsReservedInstanceScope;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.PaymentOption;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
-import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
-import com.vmturbo.platform.sdk.common.CommonCost.PaymentOption;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader.TargetCostData;
 import com.vmturbo.topology.processor.cost.RICostDataUploader.RICostComponentData;

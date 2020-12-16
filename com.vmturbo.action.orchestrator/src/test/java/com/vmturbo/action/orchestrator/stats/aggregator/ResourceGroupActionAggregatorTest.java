@@ -37,7 +37,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.group.api.GroupAndMembers;
-import com.vmturbo.platform.sdk.common.CommonCost;
+import com.vmturbo.platform.sdk.common.CloudCostDTO;
 
 /**
  * Tests the functionality of {@link ResourceGroupActionAggregator}.
@@ -55,7 +55,7 @@ public class ResourceGroupActionAggregatorTest {
         .setInfo(ActionDTO.ActionInfo.getDefaultInstance())
         .setDeprecatedImportance(1)
         .setExplanation(ActionDTO.Explanation.getDefaultInstance())
-        .setSavingsPerHour(CommonCost.CurrencyAmount.newBuilder()
+        .setSavingsPerHour(CloudCostDTO.CurrencyAmount.newBuilder()
             .setAmount(1.0))
         .build();
 

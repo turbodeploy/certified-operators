@@ -61,8 +61,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.OfferingClass;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.PaymentOption;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
-import com.vmturbo.platform.sdk.common.CommonCost.PaymentOption;
 
 /**
  * Invokes the RI Instance Analysis.
@@ -398,7 +398,7 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
                     RIProviderSetting riProviderSetting = riSettingEntry.getValue();
                     ReservedInstanceType.OfferingClass defaultOffering = cloudType.equals(CloudType.AZURE.name())
                             ? ReservedInstanceType.OfferingClass.CONVERTIBLE : ReservedInstanceType.OfferingClass.STANDARD;
-                    PaymentOption defaultPayment = PaymentOption.ALL_UPFRONT;
+                    ReservedInstanceType.PaymentOption defaultPayment = ReservedInstanceType.PaymentOption.ALL_UPFRONT;
                     int defaultTerm = 1;
                     RIPurchaseProfile riPurchaseProfile = RIPurchaseProfile.newBuilder()
                             .setRiType(ReservedInstanceType.newBuilder().setOfferingClass(
