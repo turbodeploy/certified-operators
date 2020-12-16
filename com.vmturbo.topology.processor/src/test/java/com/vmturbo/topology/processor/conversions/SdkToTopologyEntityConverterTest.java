@@ -83,17 +83,27 @@ public class SdkToTopologyEntityConverterTest {
 
     private static final long TARGET_OID = 99888;
 
-
+    /**
+     * Test the suspendability of a discovered virtual machine.
+     */
     @Test
     public void testDiscoveredEntitySuspendability() {
-        assertEquals(Optional.empty(), SdkToTopologyEntityConverter.calculateSuspendability(EntityDTO.newBuilder()
-            .setId("foo")
-            .setEntityType(EntityType.VIRTUAL_MACHINE)
-            .setOrigin(EntityOrigin.DISCOVERED)));
+        TopologyStitchingEntity proxyStitchingEntity = new TopologyStitchingEntity(
+                StitchingEntityData
+                        .newBuilder(EntityDTO.newBuilder()
+                                .setId("foo")
+                                .setEntityType(EntityType.VIRTUAL_MACHINE)
+                                .setOrigin(EntityOrigin.DISCOVERED))
+                        .build());
+        assertEquals(Optional.empty(), SdkToTopologyEntityConverter
+                .calculateSuspendabilityWithStitchingEntity(proxyStitchingEntity));
     }
 
+    /**
+     * Test the suspendability of a discovered local storage.
+     */
     @Test
-    public void testEntitySuspendabiligyWithStitchingEntity() {
+    public void testLocalStorageSuspendability() {
         final EntityDTO.Builder pmEntityDto = EntityDTO.newBuilder()
                 .setId("foo")
                 .setEntityType(EntityType.PHYSICAL_MACHINE);
@@ -113,20 +123,88 @@ public class SdkToTopologyEntityConverterTest {
                 storageStitchingEntity));
     }
 
+    /**
+     * Test the suspendability of a proxy virtual machine.
+     */
     @Test
     public void testProxyEntitySuspendability() {
-        assertEquals(Optional.of(false), SdkToTopologyEntityConverter.calculateSuspendability(EntityDTO.newBuilder()
-            .setId("foo")
-            .setEntityType(EntityType.VIRTUAL_MACHINE)
-            .setOrigin(EntityOrigin.PROXY)));
+        TopologyStitchingEntity proxyStitchingEntity = new TopologyStitchingEntity(
+                StitchingEntityData
+                        .newBuilder(EntityDTO.newBuilder()
+                                .setId("foo")
+                                .setEntityType(EntityType.VIRTUAL_MACHINE)
+                                .setOrigin(EntityOrigin.PROXY))
+                        .build());
+        assertEquals(Optional.of(false), SdkToTopologyEntityConverter
+                .calculateSuspendabilityWithStitchingEntity(proxyStitchingEntity));
     }
 
+    /**
+     * Test the suspendability of a replacable virtual machine.
+     */
     @Test
     public void testReplacableEntitySuspendability() {
-        assertEquals(Optional.of(false), SdkToTopologyEntityConverter.calculateSuspendability(EntityDTO.newBuilder()
-            .setId("foo")
-            .setEntityType(EntityType.VIRTUAL_MACHINE)
-            .setOrigin(EntityOrigin.REPLACEABLE)));
+        TopologyStitchingEntity replacableStitchingEntity = new TopologyStitchingEntity(
+                StitchingEntityData
+                        .newBuilder(EntityDTO.newBuilder()
+                                .setId("foo")
+                                .setEntityType(EntityType.VIRTUAL_MACHINE)
+                                .setOrigin(EntityOrigin.REPLACEABLE))
+                        .build());
+        assertEquals(Optional.of(false), SdkToTopologyEntityConverter
+                .calculateSuspendabilityWithStitchingEntity(replacableStitchingEntity));
+    }
+
+    /**
+     * Test the suspendability of an application with no service consumer.
+     */
+    @Test
+    public void testAppWithoutServiceConsumerSuspendability() {
+        TopologyStitchingEntity appStitchingEntity = new TopologyStitchingEntity(
+                StitchingEntityData
+                        .newBuilder(EntityDTO.newBuilder()
+                                .setId("app")
+                                .setEntityType(EntityType.APPLICATION_COMPONENT))
+                        .build());
+        // No Service as consumer, suspension should be disabled
+        assertEquals(Optional.of(false), SdkToTopologyEntityConverter
+                .calculateSuspendabilityWithStitchingEntity(appStitchingEntity));
+    }
+
+    /**
+     * Test the suspendability of an application with service consumer.
+     */
+    @Test
+    public void testServiceAppWithoutSLOSuspendability() {
+        // Create the service entity
+        TopologyStitchingEntity serviceStitchingEntity = new TopologyStitchingEntity(
+                StitchingEntityData
+                        .newBuilder(EntityDTO.newBuilder()
+                                .setId("service")
+                                .setEntityType(EntityType.SERVICE))
+                        .build());
+        // Create the app entity
+        TopologyStitchingEntity appStitchingEntity = new TopologyStitchingEntity(
+                StitchingEntityData
+                        .newBuilder(EntityDTO.newBuilder()
+                                .setId("app")
+                                .setEntityType(EntityType.APPLICATION_COMPONENT))
+                        .build());
+        // Add the service entity as the consumer of the app entity
+        appStitchingEntity.addConsumer(serviceStitchingEntity);
+        // No SLO commodities, suspend should be disabled
+        assertEquals(Optional.of(false), SdkToTopologyEntityConverter.calculateSuspendabilityWithStitchingEntity(
+                appStitchingEntity));
+        appStitchingEntity.addCommoditySold(CommodityDTO.newBuilder()
+                .setCommodityType(CommodityType.TRANSACTION).setUsed(0), Optional.empty());
+        // Transaction commodity with 0 used, suspend should be disabled
+        assertEquals(Optional.of(false), SdkToTopologyEntityConverter.calculateSuspendabilityWithStitchingEntity(
+                appStitchingEntity));
+        appStitchingEntity.addCommoditySold(CommodityDTO.newBuilder()
+                .setCommodityType(CommodityType.RESPONSE_TIME).setUsed(300), Optional.empty());
+        // ResponseTime commodity with > 0 used, do not set suspendability
+        assertEquals(Optional.empty(), SdkToTopologyEntityConverter.calculateSuspendabilityWithStitchingEntity(
+                appStitchingEntity));
     }
 
     @Test

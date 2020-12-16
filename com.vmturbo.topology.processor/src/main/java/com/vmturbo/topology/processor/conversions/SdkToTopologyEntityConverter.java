@@ -132,9 +132,19 @@ public class SdkToTopologyEntityConverter {
                     CommodityDTO.CommodityType.VCPU, CommodityDTO.CommodityType.VMEM,
                     CommodityDTO.CommodityType.STORAGE_AMOUNT);
 
-    private static final Set<EntityType> suspendableEntityTypes = Sets.newHashSet(EntityType.BUSINESS_APPLICATION,
-            EntityType.APPLICATION_SERVER, EntityType.APPLICATION, EntityType.APPLICATION_COMPONENT,
-            EntityType.DATABASE_SERVER, EntityType.DATABASE, EntityType.SERVICE);
+    private static final Set<EntityType> applicationEntityTypes =
+            Sets.newHashSet(EntityType.BUSINESS_APPLICATION,
+                            EntityType.BUSINESS_TRANSACTION,
+                            EntityType.SERVICE,
+                            EntityType.APPLICATION_SERVER,
+                            EntityType.APPLICATION,
+                            EntityType.APPLICATION_COMPONENT,
+                            EntityType.DATABASE_SERVER,
+                            EntityType.DATABASE);
+
+    private static Set<CommodityDTO.CommodityType> SLO_COMMODITIES =
+            Sets.newHashSet(CommodityDTO.CommodityType.RESPONSE_TIME,
+                    CommodityDTO.CommodityType.TRANSACTION);
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -777,25 +787,6 @@ public class SdkToTopologyEntityConverter {
     }
 
     /**
-     * Discovered entities may be suspended. Proxy/replacable entities should never be suspended by the market.
-     * They are often the top of the supply chain if they are not removed or replaced during stitching.
-     * Thus, only unstitched proxy/replaceable entities will ever ben converted here.
-     *
-     * <p/>TODO: Proxy/Replacable should be removed when we no longer need to support classic. Do not rely on it here.
-     *
-     * @param entity The entity whose suspendability should be calculated.
-     * @return If the entity is discovered, an empty value to indicate the default suspendability should
-     *         be retained. If the entity origin is not discovered, an Optional of false to indicate the entity
-     *         should never be suspended by the market.
-     */
-    @VisibleForTesting
-    static Optional<Boolean> calculateSuspendability(@Nonnull final EntityDTOOrBuilder entity) {
-        return entity.getOrigin() == EntityOrigin.DISCOVERED
-            ? Optional.empty()
-            : Optional.of(false);
-    }
-
-    /**
      * Use {@link TopologyStitchingEntity} to check if entity should be suspendable or not.
      * Discovered entities may be suspended. Proxy/replacable entities should never be suspended by the market.
      * They are often the top of the supply chain if they are not removed or replaced during stitching.
@@ -812,30 +803,51 @@ public class SdkToTopologyEntityConverter {
     @VisibleForTesting
     static Optional<Boolean> calculateSuspendabilityWithStitchingEntity(
             @Nonnull final TopologyStitchingEntity entity) {
-        if  (suspendableEntityTypes.contains(entity.getEntityType()))  {
-            return Optional.of(checkAppSuspendability(entity));
+        if (shouldDisableSuspension(entity)) {
+            // Set the suspendability to false to disable suspension of the entity
+            return Optional.of(false);
         }
-        return (entity.getEntityBuilder().getOrigin() == EntityOrigin.DISCOVERED
-                && (!isLocalStorage(entity)))
-                ? Optional.empty()
-                : Optional.of(false);
+        // Do not set suspendability of the entity to retain default setting
+        return Optional.empty();
     }
 
     /**
-     * An application is considered suspendable only if it was a discovered entity and
-     * its consumer is a service with multiple providers and with any level of measured utilization.
-     * @param entity is Application.
-     * @return true if can be suspended.
+     * Check if we should disable suspension for an entity.
+     *
+     * @param entity the entity to check.
+     * @return a boolean.
      */
-    private static boolean checkAppSuspendability(TopologyStitchingEntity entity) {
-        return entity.getEntityBuilder().getOrigin() == EntityOrigin.DISCOVERED
-            && entity.getConsumers().stream()
-                .anyMatch(consumer -> consumer.getEntityType() == EntityType.SERVICE
-                    && consumer.getProviders().size() > 1)
-            && entity.getCommoditiesSold()
-                .anyMatch(commodity -> ((commodity.getCommodityType() == CommodityDTO.CommodityType.TRANSACTION
-                    || commodity.getCommodityType() == CommodityDTO.CommodityType.RESPONSE_TIME)
-                    && commodity.getUsed() > 0));
+    private static boolean shouldDisableSuspension(@Nonnull final TopologyStitchingEntity entity) {
+        // If the entity origin is not discovered, we should disable suspension
+        if (entity.getEntityBuilder().getOrigin() != EntityOrigin.DISCOVERED) {
+            return true;
+        }
+        // For application related entities
+        if (applicationEntityTypes.contains(entity.getEntityType())) {
+            // If the entity does not provide to a service with any non-zero SLO metrics,
+            // we should disable suspension
+            return shouldDisableAppSuspension(entity);
+        }
+        // If the entity is a local storage, we should disable suspension
+        return isLocalStorage(entity);
+    }
+
+    /**
+     * Check if we should disable suspension for an application related entity, as defined
+     * in the applicationEntityTypes {@link Set}. If the entity does not provide to a service,
+     * or if the entity provide to a service but there is no measured SLO metrics, we should
+     * disable suspension of the entity.
+     *
+     * @param entity the application related entity to check
+     * @return a boolean
+     */
+    private static boolean shouldDisableAppSuspension(TopologyStitchingEntity entity) {
+        return entity.getConsumers().stream()
+                    .map(StitchingEntity::getEntityType)
+                    .noneMatch(EntityType.SERVICE::equals)
+               || entity.getCommoditiesSold()
+                    .noneMatch(commodity -> SLO_COMMODITIES.contains(commodity.getCommodityType())
+                            && commodity.getUsed() > 0);
     }
 
     /**
