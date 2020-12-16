@@ -511,17 +511,16 @@ public class Stages {
      * This stage construct a topology map (ie OID -> TopologyEntity.Builder) from a {@Link StitchingContext}.
      */
     public static class ConstructTopologyFromStitchingContextStage
-        extends Stage<StitchingContext, Map<Long, TopologyEntity.Builder>> {
+        extends Stage<StitchingContext, Map<Long, TopologyEntityDTO.Builder>> {
 
         public ConstructTopologyFromStitchingContextStage() {
 
         }
 
-        @NotNull
         @Nonnull
         @Override
-        public StageResult<Map<Long, TopologyEntity.Builder>> execute(@NotNull @Nonnull final StitchingContext stitchingContext) {
-            final Map<Long, TopologyEntity.Builder> topology = stitchingContext.constructTopology();
+        public StageResult<Map<Long, TopologyEntityDTO.Builder>> execute(@NotNull @Nonnull final StitchingContext stitchingContext) {
+            final Map<Long, TopologyEntityDTO.Builder> topology = stitchingContext.constructTopology();
             return StageResult.withResult(topology)
                 .andStatus(Status.success("Constructed topology of size " + topology.size() +
                     " from context of size " + stitchingContext.size()));
@@ -550,8 +549,8 @@ public class Stages {
         @NotNull
         @Nonnull
         @Override
-        public StageResult<Map<Long, Builder>> execute(@NotNull @Nonnull final StitchingContext stitchingContext) {
-            StageResult<Map<Long, Builder>> stageResult = super.execute(stitchingContext);
+        public StageResult<Map<Long, TopologyEntityDTO.Builder>> execute(@NotNull @Nonnull final StitchingContext stitchingContext) {
+            StageResult<Map<Long, TopologyEntityDTO.Builder>> stageResult = super.execute(stitchingContext);
             if (stageResult.getStatus().getType() == Status.success().getType()) {
                 resultCache.updateTopology(stageResult.getResult());
             }
@@ -566,7 +565,7 @@ public class Stages {
      * This stage is only added to pipelines after checking that the cache is not empty.
      */
     public static class CachingConstructTopologyFromStitchingContextStage
-        extends Stage<EntityStore, Map<Long, TopologyEntity.Builder>> {
+        extends Stage<EntityStore, Map<Long, TopologyEntityDTO.Builder>> {
 
         /**
          * Cache that will be filled by CacheWritingConstructTopologyFromStitchingContextStage
@@ -581,7 +580,7 @@ public class Stages {
         @NotNull
         @Nonnull
         @Override
-        public StageResult<Map<Long, Builder>> execute(@NotNull @Nonnull final EntityStore entityStore) {
+        public StageResult<Map<Long, TopologyEntityDTO.Builder>> execute(@NotNull @Nonnull final EntityStore entityStore) {
             final CachedTopologyResult result = resultCache.getTopology();
             return StageResult.withResult(result.getEntities())
                 .andStatus(Status.success(result.toString()));
@@ -589,9 +588,27 @@ public class Stages {
     }
 
     /**
+     * Converts {@link TopologyEntityDTO} into {@link TopologyEntity}.
+     * Used to allow the topology caching to work with {@link TopologyEntityDTO}s.
+     */
+    public static class InitializeTopologyEntitiesStage extends Stage<Map<Long, TopologyEntityDTO.Builder>, Map<Long, TopologyEntity.Builder>> {
+
+        @Nonnull
+        @Override
+        public StageResult<Map<Long, Builder>> execute(
+                @Nonnull Map<Long, TopologyEntityDTO.Builder> input) {
+            Map<Long, TopologyEntity.Builder> output = new HashMap<>(input.size());
+            input.forEach((id, dtoBldr) -> {
+                output.put(id, TopologyEntity.newBuilder(dtoBldr));
+            });
+            return StageResult.withResult(output).andStatus(Status.success());
+        }
+    }
+
+    /**
      * This stage acquires an old topology from the repository.
-     * <p>
-     * We only do this in plans, because the live topology pipeline doesn't depend
+     *
+     * <p>We only do this in plans, because the live topology pipeline doesn't depend
      * on old topologies.
      */
     public static class TopologyAcquisitionStage extends Stage<Long, Map<Long, TopologyEntity.Builder>> {

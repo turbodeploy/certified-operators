@@ -105,7 +105,6 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
     private static final long BUSINESS_USER_OID = 10;
     private static final long BUSINESS_USER_OID_2 = 11;
     private static final long DATABASE_SERVER_OID = 100;
-    private static final long DATABASE_OID = 500;
     private static final long CONTAINER_OID = 1000;
     private static final long CONTAINER_POD_OID = 2000;
     private static final long DESKTOP_POOL_PROVIDER_OID = 3;
@@ -565,7 +564,7 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
     }
 
     /**
-     * Tests that {@link PercentileEditor#completeBroadcast()} fails if
+     * Tests that {@link PercentileEditor#completeBroadcast(HistoryAggregationContext)} fails if
      * object is not initialized.
      *
      * @throws HistoryCalculationException always
@@ -639,8 +638,8 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
     }
 
     /**
-     * Tests that {@link PercentileEditor#completeBroadcast()} works correctly
-     * when half of maintenance windows passed since last checkpoint.
+     * Tests that {@link PercentileEditor#completeBroadcast(HistoryAggregationContext)} works
+     * correctly when half of maintenance windows passed since last checkpoint.
      *
      * @throws HistoryCalculationException when something goes wrong
      * @throws InterruptedException when something goes wrong
@@ -678,8 +677,8 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
     }
 
     /**
-     * Tests that {@link PercentileEditor#completeBroadcast()} works correctly
-     * when one maintenance windows passed since last checkpoint.
+     * Tests that {@link PercentileEditor#completeBroadcast(HistoryAggregationContext)} works
+     * correctly when one maintenance windows passed since last checkpoint.
      *
      * @throws HistoryCalculationException when something goes wrong
      * @throws InterruptedException when something goes wrong
@@ -713,8 +712,8 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
     }
 
     /**
-     * Tests that {@link PercentileEditor#completeBroadcast()} works correctly
-     * when several maintenance windows passed since last checkpoint.
+     * Tests that {@link PercentileEditor#completeBroadcast(HistoryAggregationContext)} works
+     * correctly when several maintenance windows passed since last checkpoint.
      *
      * @throws HistoryCalculationException when something goes wrong
      * @throws InterruptedException when something goes wrong
@@ -919,11 +918,6 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
                 StatsHistoryServiceStub statsHistoryClient, Clock clock,
                 BiFunction<StatsHistoryServiceStub, Pair<Long, Long>, PercentilePersistenceTask> taskCreator) {
             super(config, statsHistoryClient, clock, taskCreator);
-        }
-
-        PercentileEditorCacheAccess(PercentileHistoricalEditorConfig config,
-                                    StatsHistoryServiceStub statsHistoryClient, Clock clock) {
-            this(config, statsHistoryClient, clock, PercentileTaskStub::new);
         }
 
         PercentileCommodityData getCacheEntry(EntityCommodityFieldReference field) {

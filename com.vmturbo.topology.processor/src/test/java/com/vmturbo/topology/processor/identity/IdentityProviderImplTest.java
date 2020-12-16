@@ -68,7 +68,7 @@ public class IdentityProviderImplTest {
         keyValueStore = new MapKeyValueStore();
         identityProvider = new IdentityProviderImpl(
             new IdentityService(new IdentityServiceInMemoryUnderlyingStore(
-                    mock(IdentityDatabaseStore.class)), new HeuristicsMatcher()),
+                    mock(IdentityDatabaseStore.class), 10), new HeuristicsMatcher()),
             keyValueStore,
             compatibilityChecker, 0L);
         baseProbeInfo = Probes.defaultProbe;
@@ -81,7 +81,7 @@ public class IdentityProviderImplTest {
     public void testConstructorInitializesIdentityGenerator() {
         final long idGenPrefix = IdentityGenerator.MAXPREFIX - 1;
         identityProvider = new IdentityProviderImpl(new IdentityService(
-            new IdentityServiceInMemoryUnderlyingStore(mock(IdentityDatabaseStore.class)),
+            new IdentityServiceInMemoryUnderlyingStore(mock(IdentityDatabaseStore.class), 10),
                 new HeuristicsMatcher()),
             keyValueStore,
             compatibilityChecker,

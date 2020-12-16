@@ -12,7 +12,6 @@ import com.vmturbo.cost.component.util.BusinessAccountHelper;
  * A class for storing RI Buy 1.0 demand and for running RI Buy analysis.
  */
 public class RIBuyRunner implements LiveCloudTopologyListener {
-    private boolean runRIBuy = false;
 
     private final ReservedInstanceAnalysisInvoker invoker;
 
@@ -41,12 +40,6 @@ public class RIBuyRunner implements LiveCloudTopologyListener {
         // Store allocation demand in db
         computeTierDemandStatsWriter.calculateAndStoreRIDemandStats(topologyInfo, cloudTopology, false);
 
-        if (runRIBuy) {
-            invoker.invokeBuyRIAnalysis(cloudTopology, businessAccountHelper.getAllBusinessAccounts());
-        }
-    }
-
-    public void setRunRIBuy(boolean runRIBuy) {
-        this.runRIBuy = runRIBuy;
+        invoker.invokeBuyRIAnalysis(cloudTopology, businessAccountHelper.getAllBusinessAccounts());
     }
 }

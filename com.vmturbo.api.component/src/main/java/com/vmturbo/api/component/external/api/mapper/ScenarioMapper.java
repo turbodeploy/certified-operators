@@ -4,6 +4,8 @@ import static com.vmturbo.components.common.setting.GlobalSettingSpecs.AWSPrefer
 import static com.vmturbo.components.common.setting.GlobalSettingSpecs.AWSPreferredPaymentOption;
 import static com.vmturbo.components.common.setting.GlobalSettingSpecs.AWSPreferredTerm;
 import static com.vmturbo.components.common.setting.GlobalSettingSpecs.AzurePreferredTerm;
+import static com.vmturbo.components.common.setting.GlobalSettingSpecs.CloudCommitmentHistoricalLookbackPeriod;
+import static com.vmturbo.components.common.setting.GlobalSettingSpecs.CloudCommitmentIncludeTerminatedEntities;
 import static com.vmturbo.components.common.setting.GlobalSettingSpecs.RIDemandType;
 import static com.vmturbo.components.common.setting.GlobalSettingSpecs.RIPurchase;
 
@@ -141,7 +143,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DemandType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.OfferingClass;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.PaymentOption;
+import com.vmturbo.platform.sdk.common.CommonCost.PaymentOption;
 
 /**
  * Maps scenarios between their API DTO representation and their protobuf representation.
@@ -187,7 +189,9 @@ public class ScenarioMapper {
      */
     private static final EnumSet<GlobalSettingSpecs> SUPPORTED_RI_PROFILE_SETTINGS = EnumSet
                     .of(AWSPreferredOfferingClass, AWSPreferredPaymentOption, AWSPreferredTerm,
-                            AzurePreferredTerm, RIDemandType);
+                            AzurePreferredTerm, RIDemandType,
+                            CloudCommitmentHistoricalLookbackPeriod,
+                            CloudCommitmentIncludeTerminatedEntities);
 
     static {
         MARKET_PLAN_SCOPE = new BaseApiDTO();
@@ -1046,6 +1050,12 @@ public class ScenarioMapper {
                         riTermMapper.valueOf(settingValue).map(PreferredTerm::getYears)
                                 .ifPresent(azureRISetting::setPreferredTerm);
                         break;
+                    case CloudCommitmentHistoricalLookbackPeriod:
+                        riSetting.setLookBackDurationDays(Integer.parseInt(settingValue));
+                        break;
+                    case CloudCommitmentIncludeTerminatedEntities:
+                        riSetting.setIncludeTerminatedEntityDemand(Boolean.parseBoolean(settingValue));
+                        break;
                 }
             });
         });
@@ -1648,6 +1658,23 @@ public class ScenarioMapper {
             demandTypeDto.setDisplayName(RIDemandType.getDisplayName());
             riSettingDTOs.add(demandTypeDto);
         }
+
+        if (ri.hasLookBackDurationDays()) {
+            final SettingApiDTO<Integer> lookbackDurationDto = new SettingApiDTO<>();
+            lookbackDurationDto.setUuid(CloudCommitmentHistoricalLookbackPeriod.getSettingName());
+            lookbackDurationDto.setValue(ri.getLookBackDurationDays());
+            lookbackDurationDto.setDisplayName(CloudCommitmentHistoricalLookbackPeriod.getDisplayName());
+            riSettingDTOs.add(lookbackDurationDto);
+        }
+
+        if (ri.hasIncludeTerminatedEntityDemand()) {
+            final SettingApiDTO<Boolean> terminatedInclusionDto = new SettingApiDTO<>();
+            terminatedInclusionDto.setUuid(CloudCommitmentIncludeTerminatedEntities.getSettingName());
+            terminatedInclusionDto.setValue(ri.getIncludeTerminatedEntityDemand());
+            terminatedInclusionDto.setDisplayName(CloudCommitmentIncludeTerminatedEntities.getDisplayName());
+            riSettingDTOs.add(terminatedInclusionDto);
+        }
+
         return riSettingDTOs;
     }
 

@@ -6,6 +6,7 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
+import com.vmturbo.platform.sdk.common.CommonCost;
 
 /**
  * Repository interface for interacting with the reserved_instance_spec cost database table.
@@ -26,7 +27,7 @@ public interface PlanReservedInstanceSpecStore {
     List<Cost.ReservedInstanceSpec> getReservedInstanceSpecs(@Nonnull Long regionId,
                                                              @Nonnull Long tierId,
                                                              CloudCostDTO.ReservedInstanceType.OfferingClass offeringClass,
-                                                             CloudCostDTO.ReservedInstanceType.PaymentOption paymentOption,
+                                                             CommonCost.PaymentOption paymentOption,
                                                              int term,
                                                              CloudCostDTO.Tenancy tenancy,
                                                              CloudCostDTO.OSType osType);

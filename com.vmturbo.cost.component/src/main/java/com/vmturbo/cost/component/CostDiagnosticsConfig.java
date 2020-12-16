@@ -101,7 +101,8 @@ public class CostDiagnosticsConfig {
             storesToSave.addAll(Lists.newArrayList(reservedInstanceConfig.buyReservedInstanceStore(),
                     reservedInstanceConfig.entityReservedInstanceMappingStore(),
                     reservedInstanceConfig.reservedInstanceBoughtStore(), reservedInstanceConfig.planReservedInstanceStore(),
-                    reservedInstanceSpecConfig.reservedInstanceSpecStore()));
+                    reservedInstanceSpecConfig.reservedInstanceSpecStore(),
+                    reservedInstanceConfig.accountRIMappingStore()));
 
             // Query the entity cost store. If saveHistoricalStatsDiags is true, we also dump rolled up tables.
             storesToSave.addAll(entityCostConfig.entityCostStore().getDiagnosables(saveHistoricalStatsDiags));

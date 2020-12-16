@@ -364,16 +364,15 @@ public class StitchingContext {
      * @return The entities in the {@link StitchingContext}, arranged by ID.
      */
     @Nonnull
-    public Map<Long, TopologyEntity.Builder> constructTopology() {
+    public Map<Long, TopologyEntityDTO.Builder> constructTopology() {
 
-        final Function<TopologyStitchingEntity, TopologyEntity.Builder> valueMapper =
+        final Function<TopologyStitchingEntity, TopologyEntityDTO.Builder> valueMapper =
                         stitchingEntity -> {
-                            final TopologyEntityDTO.Builder builder = SdkToTopologyEntityConverter
+                            return SdkToTopologyEntityConverter
                                             .newTopologyEntityDTO(stitchingEntity,
                                                             resoldCommodityCache)
                                             .setOrigin(Origin.newBuilder().setDiscoveryOrigin(
                                                             stitchingEntity.buildDiscoveryOrigin()));
-                            return TopologyEntity.newBuilder(builder);
                         };
         /**
          * If this line throws an exception, it indicates an error in stitching. If stitching is
@@ -381,11 +380,11 @@ public class StitchingContext {
          *
          * If multiple entities have the same OID, we log it as an error and pick one to use at random.
          */
-        final Map<Long, Collection<TopologyEntity.Builder>> duplicatedOids = new HashMap<>();
-        final Map<Long, TopologyEntity.Builder> result = stitchingGraph.entities()
+        final Map<Long, Collection<TopologyEntityDTO.Builder>> duplicatedOids = new HashMap<>();
+        final Map<Long, TopologyEntityDTO.Builder> result = stitchingGraph.entities()
                         .collect(Collectors.toMap(TopologyStitchingEntity::getOid, valueMapper,
                                         (oldValue, newValue) -> {
-                                            final Collection<TopologyEntity.Builder>
+                                            final Collection<TopologyEntityDTO.Builder>
                                                             duplicatedBuilders =
                                                             duplicatedOids.computeIfAbsent(
                                                                             oldValue.getOid(),

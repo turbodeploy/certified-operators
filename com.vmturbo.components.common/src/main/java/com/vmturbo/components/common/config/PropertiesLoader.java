@@ -3,6 +3,7 @@ package com.vmturbo.components.common.config;
 import static com.vmturbo.components.common.BaseVmtComponent.PROP_COMPONENT_TYPE;
 import static com.vmturbo.components.common.BaseVmtComponent.PROP_PROPERTIES_YAML_PATH;
 import static com.vmturbo.components.common.BaseVmtComponent.PROP_SECRETS_YAML_PATH;
+import static com.vmturbo.components.common.config.SensitiveDataUtil.hasSensitiveData;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -62,6 +63,7 @@ public class PropertiesLoader {
      * The config source name for the properties read from the "CONFIG" resource.
      */
     private static final String OTHER_PROPERTIES_CONFIG_SOURCE = "other-properties";
+    private static final String ASTERISKS = "xxxxx";
 
     private PropertiesLoader() {
     }
@@ -304,6 +306,14 @@ public class PropertiesLoader {
                 str += "... [" + (originalLength - str.length() + " bytes truncated]");
             }
         }
-        logger.info("       {} = '{}'", key, str);
+        safeLogger(key, str);
+    }
+
+    private static void safeLogger(@Nonnull final Object key, @Nonnull final String value) {
+        if (hasSensitiveData(key)) {
+            logger.info("       {} = '{}'", key, ASTERISKS);
+        } else {
+            logger.info("       {} = '{}'", key, value);
+        }
     }
 }

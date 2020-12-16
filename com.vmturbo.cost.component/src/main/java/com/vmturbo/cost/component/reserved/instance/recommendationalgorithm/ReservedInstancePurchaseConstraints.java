@@ -6,7 +6,7 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.OfferingClass;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.PaymentOption;
+import com.vmturbo.platform.sdk.common.CommonCost.PaymentOption;
 
 /**
  * This class controls what kind of Reserved Instances the recommendation algorithm will recommend buying.

@@ -31,6 +31,7 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.mockito.Mockito;
 
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.MutableFixedClock;
@@ -88,6 +89,8 @@ public class DiscoveryBasedUnblockTest {
 
     private DiscoveryBasedUnblock unblock;
 
+    private BinaryDiscoveryDumper binaryDiscoveryDumper;
+
     private TargetShortCircuitSpec targetShortCircuitSpec = TargetShortCircuitSpec.newBuilder()
             .setFastRediscoveryThreshold(2)
             .setFastSlowBoundary(fastSlowBoundaryMs, TimeUnit.MILLISECONDS)
@@ -102,16 +105,18 @@ public class DiscoveryBasedUnblockTest {
 
     /**
      * Common setup code before every test.
+     *
+     * @throws InterruptedException if the operation is interrupted
      * @throws IOException id the dumpDir can't be created
      */
     @Before
-    public void setup() throws IOException {
+    public void setup() throws IOException, InterruptedException {
         dumpDir = new File(tmpFolder.newFolder("cached-responses-root"), "");
-        final BinaryDiscoveryDumper discoveryDumper = new BinaryDiscoveryDumper(dumpDir);
+        binaryDiscoveryDumper = spy(new BinaryDiscoveryDumper(dumpDir));
         unblock = spy(new DiscoveryBasedUnblock(pipelineExecutorService,
                     targetStore, probeStore, scheduler, operationManager,
                     targetShortCircuitSpec, maxDiscoveryWaitMs, maxProbeRegistrationWaitMs, TimeUnit.MILLISECONDS,
-                    clock, identityProvider, discoveryDumper, true));
+                    clock, identityProvider, binaryDiscoveryDumper, true));
         IdentityGenerator.initPrefix(1L);
         when(identityProvider.generateOperationId()).thenAnswer(invocation -> IdentityGenerator.next());
         when(operationManager.notifyDiscoveryResult(any(), any())).thenReturn(mock(Future.class));
@@ -485,7 +490,7 @@ public class DiscoveryBasedUnblockTest {
     @Test
     public void testLoadingCachedResponses() {
         final long targetId = 1;
-        writeDiscoveryResponse(targetId);
+        writeDiscoveryResponse(targetId, "foo");
         Target mockTarget = setupTarget(targetId);
         newLastDiscovery(mockTarget.getId());
         when(targetStore.getAll()).thenReturn(Arrays.asList(mockTarget));
@@ -504,13 +509,74 @@ public class DiscoveryBasedUnblockTest {
     }
 
     /**
+     * Test that when loading multiple discovery dumps, if one ingestion times out, we keep
+     * processing the others.
+     */
+    @Test
+    public void testLoadingCachedResponsesWithTimeout() {
+        final long firstTargetId = 1;
+        final long secondTargetId = 2;
+        writeDiscoveryResponse(firstTargetId, "foo");
+        writeDiscoveryResponse(secondTargetId, "bar");
+
+        for (long targetId : Arrays.asList(firstTargetId, secondTargetId)) {
+            Target mockTarget = setupTarget(targetId);
+            newLastDiscovery(mockTarget.getId());
+            when(targetStore.getAll()).thenReturn(Arrays.asList(mockTarget));
+            when(targetStore.getTarget(targetId)).thenReturn(Optional.of(mockTarget));
+            when(mockTarget.getProbeId()).thenReturn(1L);
+        }
+
+        when(operationManager.notifyDiscoveryResult(any(), any()))
+            .thenThrow(InterruptedException.class).thenReturn(mock(Future.class));
+
+        // Before loading the responses
+        assertFalse(unblock.runIteration());
+
+        unblock.run();
+
+        // After loading the responses
+        assertTrue(unblock.runIteration());
+
+        verify(operationManager, Mockito.times(2)).notifyDiscoveryResult(any(), any());
+        verify(pipelineExecutorService).unblockBroadcasts();
+    }
+
+    /**
+     * Test that loading cached responses at startup unlock the broadcast.
+     * @throws InterruptedException if the thread is interrupted
+     */
+    @Test
+    public void testWaitForIdentityStore() throws InterruptedException {
+        final long targetId = 1;
+        writeDiscoveryResponse(targetId, "foo");
+        Target mockTarget = setupTarget(targetId);
+        newLastDiscovery(mockTarget.getId());
+        when(targetStore.getAll()).thenReturn(Arrays.asList(mockTarget));
+        when(targetStore.getTarget(targetId)).thenReturn(Optional.of(mockTarget));
+        when(mockTarget.getProbeId()).thenReturn(1L);
+        Mockito.doAnswer(invocation -> {
+            Thread.sleep(1000);
+            Mockito.verify(binaryDiscoveryDumper, Mockito.never()).restoreDiscoveryResponses(any());
+            return null;
+        }).when(identityProvider).waitForInitializedStore();
+
+        unblock.run();
+
+        // After loading the responses
+        assertTrue(unblock.runIteration());
+
+        verify(pipelineExecutorService).unblockBroadcasts();
+    }
+
+    /**
      * Test that loading cached responses for only a subset of the availables target doesn't
      * unlock the broadcast.
      */
     @Test
     public void testLoadingCachedResponsesWithMissingTarget() {
         final long targetId = 1;
-        writeDiscoveryResponse(targetId);
+        writeDiscoveryResponse(targetId, "foo");
         Target mockTarget1 = setupTarget(targetId);
         newLastDiscovery(mockTarget1.getId());
         when(targetStore.getTarget(targetId)).thenReturn(Optional.of(mockTarget1));
@@ -539,7 +605,7 @@ public class DiscoveryBasedUnblockTest {
     @Test
     public void testDeleteTargetDiscoveryResponse() {
         final long targetId = 1;
-        writeDiscoveryResponse(targetId);
+        writeDiscoveryResponse(targetId, "foo");
         when(targetStore.getTarget(targetId)).thenReturn(Optional.ofNullable(null));
 
         Assert.assertEquals(1, dumpDir.list().length);
@@ -562,9 +628,9 @@ public class DiscoveryBasedUnblockTest {
         return mockDiscovery;
     }
 
-    private void writeDiscoveryResponse(final long targetId) {
+    private void writeDiscoveryResponse(final long targetId, final String id) {
         final DiscoveryResponse discoveryResponse = DiscoveryResponse.newBuilder()
-            .addEntityDTO(EntityDTO.newBuilder().setId("foo").setEntityType(EntityType.VIRTUAL_MACHINE)).build();
+            .addEntityDTO(EntityDTO.newBuilder().setId(id).setEntityType(EntityType.VIRTUAL_MACHINE)).build();
         final String sanitizedTargetName = DiscoveryDumpFilename.sanitize(String.valueOf(targetId));
         final DiscoveryDumpFilename ddf =
             new DiscoveryDumpFilename(sanitizedTargetName, new Date(), DiscoveryType.FULL);

@@ -61,10 +61,10 @@ import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyin
  * wide-ranging effects throughout the system.
  */
 @NotThreadSafe public class IdentityServiceInMemoryUnderlyingStore
-        implements IdentityServiceUnderlyingStore {
+    implements IdentityServiceUnderlyingStore {
 
     private static final Logger LOGGER =
-            LogManager.getLogger(IdentityServiceInMemoryUnderlyingStore.class);
+        LogManager.getLogger(IdentityServiceInMemoryUnderlyingStore.class);
 
     /**
      * The rank and property separator for the String representation.
@@ -95,15 +95,18 @@ import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyin
 
     private TimeUnit loadIdsTimeUnit = TimeUnit.SECONDS;
 
+    private final int initializationTimeoutMin;
+
     /**
      * Constructs the underlying store.
      */
     public IdentityServiceInMemoryUnderlyingStore(
-            @Nonnull final IdentityDatabaseStore identityDatabaseStore,
-            final long loadIdsInterval,
-            final TimeUnit loadIdsTimeUnit) {
+        @Nonnull final IdentityDatabaseStore identityDatabaseStore,
+        final long loadIdsInterval,
+        final TimeUnit loadIdsTimeUnit,
+        final int initializationTimeoutMin) {
         this.identityDatabaseStore = identityDatabaseStore;
-
+        this.initializationTimeoutMin = initializationTimeoutMin;
         // We do the initialization asynchronously so the rest of Spring initialization can
         // complete, but all methods should throw an exception until the
         // initialization completes so that we don't assign new IDs to entities that already
@@ -116,13 +119,15 @@ import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyin
         this.loadIdsTimeUnit = loadIdsTimeUnit;
         Executors.newSingleThreadExecutor().execute(
             new SavedIdsLoader(identityDatabaseStore, loadIdsInterval, loadIdsTimeUnit,
-                    this::addRestoredIds));
+                this::addRestoredIds));
     }
 
     @VisibleForTesting
     public IdentityServiceInMemoryUnderlyingStore(
-            @Nonnull final IdentityDatabaseStore identityDatabaseStore) {
+        @Nonnull final IdentityDatabaseStore identityDatabaseStore,
+        final int initializationTimeoutMin) {
         this.identityDatabaseStore = identityDatabaseStore;
+        this.initializationTimeoutMin = initializationTimeoutMin;
         addRestoredIds(Collections.emptySet());
     }
 
@@ -146,7 +151,7 @@ import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyin
             while (true) {
                 try {
                     Set<EntityInMemoryProxyDescriptor> descriptors =
-                            identityDatabaseStore.getDescriptors();
+                        identityDatabaseStore.getDescriptors();
                     onComplete.accept(descriptors);
                     return;
                 } catch (IdentityDatabaseException e) {
@@ -183,11 +188,26 @@ import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyin
                 initialized = false;
             }
             (new SavedIdsLoader(identityDatabaseStore, loadIdsInterval, loadIdsTimeUnit,
-                    this::addRestoredIds)).run();
+                this::addRestoredIds)).run();
         } catch (InterruptedException ie) {
             LOGGER.error("Interrupted while loading saved IDs from the DB.", ie);
             Thread.currentThread().interrupt();
             return;
+        }
+    }
+
+    /**
+     * Wait for the store to be initialized. Threads will wait on this lock until the
+     * initialization process, once done, will call the method notifyAll on the initializationLock.
+     *
+     * @throws InterruptedException if any thread interrupted the current thread before
+     * or while the current thread was waiting for a notification.
+     */
+    public void waitForInitializedStore() throws InterruptedException {
+        synchronized (initializationLock) {
+            while (!initialized) {
+                initializationLock.wait(initializationTimeoutMin * 60000);
+            }
         }
     }
 
@@ -221,7 +241,7 @@ import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyin
         }
 
         return new PropertyDescriptorImpl(s.substring(index + 1),
-                                             Integer.parseInt(s.substring(0, index)));
+            Integer.parseInt(s.substring(0, index)));
     }
 
     /**
@@ -233,7 +253,7 @@ import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyin
      * @return The key.
      */
     static @Nonnull String composeKeyFromProperties(
-            @Nonnull List<PropertyDescriptor> properties) {
+        @Nonnull List<PropertyDescriptor> properties) {
         StringBuilder sb = new StringBuilder();
         for (PropertyDescriptor vpd : properties) {
             sb.append(propertyAsString(vpd));
@@ -248,10 +268,10 @@ import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyin
     @Override
     public long lookupByIdentifyingSet(@Nonnull EntityMetadataDescriptor metadataDescriptor,
                                        @Nonnull List<PropertyDescriptor> properties)
-            throws IdentityServiceStoreOperationException, IdentityUninitializedException {
+        throws IdentityServiceStoreOperationException, IdentityUninitializedException {
         checkInitialized();
         return index_.getOrDefault(composeKeyFromProperties(properties),
-                IdentityService.INVALID_OID);
+            IdentityService.INVALID_OID);
     }
 
     @VisibleForTesting
@@ -272,12 +292,11 @@ import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyin
                         // If we don't initialize the IdentityService until the restoration from the
                         // database completes, then this should never happen.
                         LOGGER.error("The ID {} was associated with a different set of properties" +
-                                " than the ones retrieved from the database.", descriptor.getOID());
+                            " than the ones retrieved from the database.", descriptor.getOID());
                     }
                     index_.put(descriptor.getKey(), descriptor.getOID());
                 });
-                initialized = true;
-                initializationLock.notify();
+                setStoreAsInitializedAndNotify();
             }
         }
     }
@@ -286,12 +305,12 @@ import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyin
      * {@inheritDoc}}
      */
     public void upsertEntries(@Nonnull final Map<Long, EntryData> entryMap)
-            throws IdentityServiceStoreOperationException, IdentityUninitializedException {
+        throws IdentityServiceStoreOperationException, IdentityUninitializedException {
         checkInitialized();
 
         // Mapping from ProbeId -> IdentityRecord
         ListMultimap<Long, IdentityRecord> updatedRecords =
-                MultimapBuilder.hashKeys().arrayListValues().build();
+            MultimapBuilder.hashKeys().arrayListValues().build();
         for (final Entry<Long, EntryData> entry : entryMap.entrySet()) {
             try {
                 final EntryData entryData = entry.getValue();
@@ -303,7 +322,7 @@ import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyin
                 EntityType entityType = entryData.getEntityDTO().get().getEntityType();
                 if (!vmtPD.equals(oldPd)) {
                     updatedRecords.put(entryData.getProbeId(),
-                            new IdentityRecord(entityType, vmtPD));
+                        new IdentityRecord(entityType, vmtPD));
                 }
             } catch (IdentityWrongSetException e) {
                 throw new IdentityServiceStoreOperationException(e);
@@ -312,7 +331,7 @@ import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyin
 
         try {
             for (Entry<Long, Collection<IdentityRecord>> entry :
-                        updatedRecords.asMap().entrySet()) {
+                updatedRecords.asMap().entrySet()) {
                 identityDatabaseStore.saveDescriptors(entry.getKey(), entry.getValue());
             }} catch (IdentityDatabaseException e) {
             throw new IdentityServiceStoreOperationException(e);
@@ -332,17 +351,17 @@ import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyin
      */
     @Override
     public void addEntry(final long oid,
-                   @Nonnull final EntityDescriptor descriptor,
-                   @Nonnull final EntityMetadataDescriptor metadataDescriptor,
-                   @Nonnull final EntityType entityType,
-                   final long probeId)
-            throws IdentityServiceStoreOperationException, IdentityUninitializedException {
+                         @Nonnull final EntityDescriptor descriptor,
+                         @Nonnull final EntityMetadataDescriptor metadataDescriptor,
+                         @Nonnull final EntityType entityType,
+                         final long probeId)
+        throws IdentityServiceStoreOperationException, IdentityUninitializedException {
         checkInitialized();
         try {
             final EntityInMemoryProxyDescriptor vmtPD =
-                    new EntityInMemoryProxyDescriptor(oid, descriptor, metadataDescriptor);
+                new EntityInMemoryProxyDescriptor(oid, descriptor, metadataDescriptor);
             identityDatabaseStore.saveDescriptors(probeId,
-                    Collections.singletonList(new IdentityRecord(entityType, vmtPD)));
+                Collections.singletonList(new IdentityRecord(entityType, vmtPD)));
             oid2Dto_.put(vmtPD.getOID(), vmtPD);
             index_.put(vmtPD.getKey(), vmtPD.getOID());
         } catch (IdentityWrongSetException | IdentityDatabaseException e) {
@@ -355,27 +374,27 @@ import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyin
      */
     @Override
     public void updateEntry(final long oid,
-                      @Nonnull final EntityDescriptor descriptor,
-                      @Nonnull final EntityMetadataDescriptor metadataDescriptor,
-                      @Nonnull final EntityType entityType,
-                      final long probeId)
-            throws IdentityServiceStoreOperationException, IdentityUninitializedException {
+                            @Nonnull final EntityDescriptor descriptor,
+                            @Nonnull final EntityMetadataDescriptor metadataDescriptor,
+                            @Nonnull final EntityType entityType,
+                            final long probeId)
+        throws IdentityServiceStoreOperationException, IdentityUninitializedException {
 
         checkInitialized();
 
         EntityInMemoryProxyDescriptor existing = oid2Dto_.remove(oid);
         if (existing == null) {
             throw new IllegalStateException(
-                    "The OID " + oid + " does not correspond to an existing Entity");
+                "The OID " + oid + " does not correspond to an existing Entity");
         }
         // Remove the stuff from the index_.
         index_.remove(existing.getKey());
 
         try {
             final EntityInMemoryProxyDescriptor vmtPD =
-                    new EntityInMemoryProxyDescriptor(oid, descriptor, metadataDescriptor);
+                new EntityInMemoryProxyDescriptor(oid, descriptor, metadataDescriptor);
             identityDatabaseStore.saveDescriptors(probeId,
-                    Collections.singletonList(new IdentityRecord(entityType, vmtPD)));
+                Collections.singletonList(new IdentityRecord(entityType, vmtPD)));
             oid2Dto_.put(vmtPD.getOID(), vmtPD);
             index_.put(vmtPD.getKey(), vmtPD.getOID());
         } catch (IdentityWrongSetException | IdentityDatabaseException e) {
@@ -391,7 +410,7 @@ import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyin
      */
     @Override
     public boolean removeEntry(long oid)
-            throws IdentityServiceStoreOperationException, IdentityUninitializedException {
+        throws IdentityServiceStoreOperationException, IdentityUninitializedException {
         checkInitialized();
 
         final EntityInMemoryProxyDescriptor vmtPD = oid2Dto_.remove(oid);
@@ -414,9 +433,9 @@ import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyin
     @Override
     @Nonnull
     public Iterable<EntityProxyDescriptor> query(
-                @Nullable final EntityMetadataDescriptor metadataDescriptor,
-                @Nonnull final Iterable<PropertyDescriptor> properties)
-            throws IdentityServiceStoreOperationException, IdentityUninitializedException {
+        @Nullable final EntityMetadataDescriptor metadataDescriptor,
+        @Nonnull final Iterable<PropertyDescriptor> properties)
+        throws IdentityServiceStoreOperationException, IdentityUninitializedException {
         checkInitialized();
 
         Collection<EntityProxyDescriptor> array = new ArrayList<>();
@@ -434,7 +453,7 @@ import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyin
      */
     @Override
     public boolean containsOID(long oid)
-            throws IdentityServiceStoreOperationException, IdentityUninitializedException {
+        throws IdentityServiceStoreOperationException, IdentityUninitializedException {
         checkInitialized();
         return oid2Dto_.containsKey(oid);
     }
@@ -444,12 +463,12 @@ import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyin
      */
     @Override
     public boolean containsWithIdentifyingProperties(
-                @Nonnull EntityMetadataDescriptor metadataDescriptor,
-                @Nonnull List<PropertyDescriptor> properties)
-            throws IdentityServiceStoreOperationException, IdentityUninitializedException {
+        @Nonnull EntityMetadataDescriptor metadataDescriptor,
+        @Nonnull List<PropertyDescriptor> properties)
+        throws IdentityServiceStoreOperationException, IdentityUninitializedException {
         checkInitialized();
         return lookupByIdentifyingSet(metadataDescriptor, properties) !=
-               IdentityService.INVALID_OID;
+            IdentityService.INVALID_OID;
     }
 
     /**
@@ -470,27 +489,37 @@ import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyin
             // whatever was initialized anyway.
             // But we set the initialized flag to true, so that no information gets lost if
             // "restore" happens before ID data is re-loaded.
-            initialized = true;
             final List<EntityInMemoryProxyDescriptor> newOid2Dto = constructGson()
-                    .fromJson(input, new TypeToken<List<EntityInMemoryProxyDescriptor>>() {
-                    }.getType());
+                .fromJson(input, new TypeToken<List<EntityInMemoryProxyDescriptor>>() {
+                }.getType());
             index_.clear();
             oid2Dto_.clear();
             newOid2Dto.forEach(descriptor -> {
                 oid2Dto_.put(descriptor.getOID(), descriptor);
                 index_.put(descriptor.getKey(), descriptor.getOID());
             });
+            setStoreAsInitializedAndNotify();
         }
+    }
+
+    /**
+     * Once the store is initialized we need to notify all the threads that might be waiting on
+     * the initializationLock.
+     */
+    @GuardedBy("initializationLock")
+    private void setStoreAsInitializedAndNotify() {
+        initialized = true;
+        initializationLock.notifyAll();
     }
 
     private Gson constructGson() {
         final EntityInMemoryProxyDescriptorConverter converter =
-                new EntityInMemoryProxyDescriptorConverter();
+            new EntityInMemoryProxyDescriptorConverter();
         final GsonBuilder builder = new GsonBuilder();
         builder.registerTypeAdapter(EntityInMemoryProxyDescriptor.class,
             (JsonSerializer<EntityInMemoryProxyDescriptor>) (descriptor, type, jsonSerializationContext) -> new JsonPrimitive(converter.to(descriptor)));
         builder.registerTypeAdapter(EntityInMemoryProxyDescriptor.class,
-                (JsonDeserializer<EntityInMemoryProxyDescriptor>) (json, type, context) -> converter.from(json.getAsJsonPrimitive().getAsString()));
+            (JsonDeserializer<EntityInMemoryProxyDescriptor>) (json, type, context) -> converter.from(json.getAsJsonPrimitive().getAsString()));
         return builder.create();
     }
 }

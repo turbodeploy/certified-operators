@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<probe>
+    <full-class-name>com.vmturbo.mediation.actionstream.kafka.ActionStreamKafkaProbe</full-class-name>
+    <type>ActionStream Kafka</type>
+    <category>Orchestrator</category>
+    <ui-category>Orchestrator</ui-category>
+    <version>1.0.0</version>
+</probe>

@@ -28,6 +28,7 @@ import io.grpc.stub.StreamObserver;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.CollectionUtils;
 
+import com.vmturbo.api.component.external.api.mapper.EntityDetailsMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
@@ -35,6 +36,7 @@ import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.util.businessaccount.BusinessAccountMapper;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
+import com.vmturbo.api.dto.entity.EntityDetailsApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.pagination.PaginationUtil;
@@ -101,6 +103,7 @@ public class RepositoryApi {
     private final ServiceEntityMapper serviceEntityMapper;
     private final BusinessAccountMapper businessAccountMapper;
     private final PaginationMapper paginationMapper;
+    private final EntityDetailsMapper entityDetailsMapper;
 
     public RepositoryApi(@Nonnull final SeverityPopulator severityPopulator,
                          @Nonnull final RepositoryServiceBlockingStub repositoryService,
@@ -110,6 +113,7 @@ public class RepositoryApi {
                          @Nonnull final ServiceEntityMapper serviceEntityMapper,
                          @Nonnull BusinessAccountMapper businessAccountMapper,
                          @Nonnull final PaginationMapper paginationMapper,
+                         @Nonnull final EntityDetailsMapper entityDetailsMapper,
                          final long realtimeTopologyContextId) {
         this.severityPopulator = Objects.requireNonNull(severityPopulator);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
@@ -119,6 +123,7 @@ public class RepositoryApi {
         this.repositoryService = Objects.requireNonNull(repositoryService);
         this.businessAccountMapper = Objects.requireNonNull(businessAccountMapper);
         this.repositoryServiceAsyncStub = Objects.requireNonNull(repositoryServiceAsyncStub);
+        this.entityDetailsMapper = Objects.requireNonNull(entityDetailsMapper);
         this.paginationMapper = paginationMapper;
     }
 
@@ -153,7 +158,8 @@ public class RepositoryApi {
     @Nonnull
     public SearchRequest newSearchRequestMulti(@Nonnull Collection<SearchParameters> params) {
         return new SearchRequest(realtimeTopologyContextId, searchServiceBlockingStub,
-                searchServiceAsyncStub, severityPopulator, serviceEntityMapper, params);
+                searchServiceAsyncStub, severityPopulator, serviceEntityMapper,
+                entityDetailsMapper, params);
     }
 
     /**
@@ -183,7 +189,8 @@ public class RepositoryApi {
     @Nonnull
     public SingleEntityRequest entityRequest(final long oid) {
         return new SingleEntityRequest(realtimeTopologyContextId, repositoryService,
-                repositoryServiceAsyncStub, severityPopulator, serviceEntityMapper, oid);
+                repositoryServiceAsyncStub, severityPopulator, serviceEntityMapper,
+                entityDetailsMapper, oid);
     }
 
     /**
@@ -196,7 +203,8 @@ public class RepositoryApi {
     @Nonnull
     public MultiEntityRequest entitiesRequest(@Nonnull final Set<Long> oids) {
         return new MultiEntityRequest(realtimeTopologyContextId, repositoryService,
-                repositoryServiceAsyncStub, severityPopulator, serviceEntityMapper, oids);
+                repositoryServiceAsyncStub, severityPopulator, serviceEntityMapper,
+                entityDetailsMapper, oids);
     }
 
     /**
@@ -231,7 +239,7 @@ public class RepositoryApi {
                         .build();
         return new SearchRequest(realtimeTopologyContextId, searchServiceBlockingStub,
                                  searchServiceAsyncStub,
-                                 severityPopulator, serviceEntityMapper,
+                                 severityPopulator, serviceEntityMapper, entityDetailsMapper,
                                  Collections.singleton(searchParameters));
     }
 
@@ -377,13 +385,16 @@ public class RepositoryApi {
         private final BatchRPC retriever;
         private final ServiceEntityMapper serviceEntityMapper;
         private final SeverityPopulator severityPopulator;
+        private final EntityDetailsMapper entityDetailsMapper;
 
         private PartialEntityRetriever(@Nonnull final BatchRPC retriever,
                                        @Nonnull final ServiceEntityMapper serviceEntityMapper,
-                                       @Nonnull final SeverityPopulator severityPopulator) {
+                                       @Nonnull final SeverityPopulator severityPopulator,
+                                       @Nonnull final EntityDetailsMapper entityDetailsMapper) {
             this.retriever = retriever;
             this.serviceEntityMapper = serviceEntityMapper;
             this.severityPopulator = severityPopulator;
+            this.entityDetailsMapper = entityDetailsMapper;
         }
 
         private Stream<PartialEntity> entityStream(@Nonnull final Type type) {
@@ -438,6 +449,12 @@ public class RepositoryApi {
                 @Nullable final Collection<String> requestedAspects)
                 throws ConversionException, InterruptedException {
             return new ArrayList<>(getSEMap(contextId, aspectMapper, requestedAspects).values());
+        }
+
+        @Nonnull
+        List<EntityDetailsApiDTO> getEntitiesDetails() {
+            return entityDetailsMapper.toEntitiesDetails(
+                    getFullEntities().collect(Collectors.toList()));
         }
     }
 
@@ -560,6 +577,7 @@ public class RepositoryApi {
                              @Nonnull final SearchServiceStub searchServiceStub,
                              @Nonnull final SeverityPopulator severityPopulator,
                              @Nonnull final ServiceEntityMapper serviceEntityMapper,
+                             @Nonnull final EntityDetailsMapper entityDetailsMapper,
                              @Nonnull final Collection<SearchParameters> params) {
             this.realtimeContextId = realtimeContextId;
             this.searchServiceBlockingStub = searchServiceBlockingStub;
@@ -569,13 +587,14 @@ public class RepositoryApi {
             this.params = params;
 
             this.retriever = new PartialEntityRetriever(type ->
-                searchServiceBlockingStub.searchEntitiesStream(SearchEntitiesRequest.newBuilder()
-                    .setSearch(SearchQuery.newBuilder()
-                        .addAllSearchParameters(params))
-                    .setReturnType(type)
-                    .build()),
-                serviceEntityMapper,
-                severityPopulator);
+                    searchServiceBlockingStub.searchEntitiesStream(SearchEntitiesRequest.newBuilder()
+                            .setSearch(SearchQuery.newBuilder()
+                                    .addAllSearchParameters(params))
+                            .setReturnType(type)
+                            .build()),
+                    serviceEntityMapper,
+                    severityPopulator,
+                    entityDetailsMapper);
         }
 
         /**
@@ -742,9 +761,10 @@ public class RepositoryApi {
                 @Nonnull final RepositoryServiceStub repositoryServiceStub,
                 @Nonnull final SeverityPopulator severityPopulator,
                 @Nonnull final ServiceEntityMapper serviceEntityMapper,
+                @Nonnull final EntityDetailsMapper entityDetailsMapper,
                 final long oid) {
             super(SingleEntityRequest.class, realtimeContextId, repositoryServiceBlockingStub,
-                    repositoryServiceStub, severityPopulator, serviceEntityMapper,
+                    repositoryServiceStub, severityPopulator, serviceEntityMapper, entityDetailsMapper,
                     Collections.singleton(oid));
         }
 
@@ -791,6 +811,18 @@ public class RepositoryApi {
                 throws ConversionException, InterruptedException {
             return retriever.getSEList(getContextId(), aspectMapper, aspects).stream().findFirst();
         }
+
+        /**
+         * Get the {@link EntityDetailsApiDTO}s that matches the OID.
+         * The {@link EntityDetailsApiDTO} will fully populated with the entity OID and a list
+         * of properties.
+         *
+         * @return an optional entity with details.
+         */
+        @Nonnull
+        public Optional<EntityDetailsApiDTO> getEntityDetails() {
+            return retriever.getEntitiesDetails().stream().findFirst();
+        }
     }
 
     /**
@@ -802,9 +834,11 @@ public class RepositoryApi {
                   @Nonnull final RepositoryServiceStub repositoryServiceStub,
                   @Nonnull final SeverityPopulator severityPopulator,
                   @Nonnull final ServiceEntityMapper serviceEntityMapper,
+                  @Nonnull final EntityDetailsMapper entityDetailsMapper,
                   @Nonnull final Set<Long> oids) {
             super(MultiEntityRequest.class, realtimeContextId, repositoryServiceBlockingStub,
-                    repositoryServiceStub, severityPopulator, serviceEntityMapper, oids);
+                    repositoryServiceStub, severityPopulator, serviceEntityMapper,
+                    entityDetailsMapper, oids);
         }
 
         /**
@@ -905,6 +939,7 @@ public class RepositoryApi {
                                 @Nonnull final RepositoryServiceStub repositoryServiceStub,
                                 @Nonnull final SeverityPopulator severityPopulator,
                                 @Nonnull final ServiceEntityMapper serviceEntityMapper,
+                                @Nonnull final EntityDetailsMapper entityDetailsMapper,
                                 @Nonnull final Set<Long> targetId) {
             this.clazz = clazz;
             this.realtimeContextId = realtimeContextId;
@@ -923,7 +958,7 @@ public class RepositoryApi {
                 }
             };
             this.retriever = new PartialEntityRetriever(batchRetriever, serviceEntityMapper,
-                    severityPopulator);
+                    severityPopulator, entityDetailsMapper);
         }
 
         @Nonnull

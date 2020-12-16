@@ -58,7 +58,7 @@ public class SecretPropertiesReader extends YamlProcessor {
      * AuthDBConfig.java for Auth component.
      */
     @VisibleForTesting
-    static final Map<String, Map> componentSecretKeyMap = ImmutableMap.<String, Map>builder()
+    static final Map<String, Map<String, String>> componentSecretKeyMap = ImmutableMap.<String, Map<String, String>>builder()
             .put("action-orchestrator", ImmutableMap.of(USERNAME, "actionDbUsername", PASSWORD, "actionDbPassword"))
             .put("auth", ImmutableMap.of(USERNAME, "authDbUsername", PASSWORD, "authDbPassword"))
             .put("cost", ImmutableMap.of(USERNAME, "costDbUsername", PASSWORD, "costDbPassword"))

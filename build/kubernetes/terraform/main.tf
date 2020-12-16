@@ -128,6 +128,11 @@ resource "helm_release" "xl" {
   }
 
   set {
+    name  = "mediation-actionstream-kafka.enabled"
+    value = "${var.mediation-actionstream-kafka ? true : false}"
+  }
+
+  set {
     name  = "mssql.enabled"
     value = "${var.mssql ? true : false}"
   }

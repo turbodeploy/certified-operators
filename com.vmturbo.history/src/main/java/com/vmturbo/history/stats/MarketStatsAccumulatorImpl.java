@@ -28,9 +28,6 @@ import com.google.common.collect.ImmutableTable;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Table.Cell;
 
-import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
-import it.unimi.dsi.fastutil.objects.Object2DoubleMap;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Record;
@@ -108,12 +105,12 @@ public class MarketStatsAccumulatorImpl implements MarketStatsAccumulator {
     /**
      * A list of commodities that are to be excluded, i.e. not written to the DB.
      */
-    private final ImmutableSet<String> commoditiesToExclude;
+    private final Set<CommodityType> excludedCommodityTypes;
 
 
     /**
      * The provider for all the database- and table-specific methods. Based on Jooq and
-     * does all the reading from and writing to the DB. ALso used for creating DB statments,
+     * does all the reading from and writing to the DB. ALso used for creating DB statements,
      * both query and insert, to be populated here and then executed.
      */
     private final HistorydbIO historydbIO;
@@ -171,25 +168,27 @@ public class MarketStatsAccumulatorImpl implements MarketStatsAccumulator {
     );
 
     /**
-     * Create an object to accumulate min / max / total / capacity over the commodities for
-     * a given EntityType.
+     * Create an object to accumulate min / max / total / capacity over the commodities for a given
+     * EntityType.
      *
-     * @param topologyInfo         topology info
-     * @param entityType           the type of entity for which these stats are being accumulated. A given
-     *                             stat may be bought and sold be different entities. We must record those
-     *                             usages separately.
-     * @param environmentType      environment type
-     * @param historydbIO          DBIO handler for the History tables
-     * @param commoditiesToExclude a list of commodity names used by the market but not necessary
-     *                             to be persisted as stats in the db
-     * @param loaders              {@link SimpleBulkLoaderFactory} from which needed {@link BulkInserter} objects
-     * @param longCommodityKeys    where to store commodity keys that had to be shortened, for consolidated logging
+     * @param topologyInfo           topology info
+     * @param entityType             the type of entity for which these stats are being accumulated.
+     *                               A given stat may be bought and sold be different entities. We
+     *                               must record those usages separately.
+     * @param environmentType        environment type
+     * @param historydbIO            DBIO handler for the History tables
+     * @param excludedCommodityTypes a list of commodity names used by the market but not necessary
+     *                               to be persisted as stats in the db
+     * @param loaders                {@link SimpleBulkLoaderFactory} from which needed {@link
+     *                               BulkInserter} objects
+     * @param longCommodityKeys      where to store commodity keys that had to be shortened, for
+     *                               consolidated logging
      */
     public MarketStatsAccumulatorImpl(@Nonnull final TopologyInfo topologyInfo,
             @Nonnull final String entityType,
             @Nonnull final EnvironmentType environmentType,
             @Nonnull final HistorydbIO historydbIO,
-            @Nonnull final Set<String> commoditiesToExclude,
+            @Nonnull final Set<CommodityType> excludedCommodityTypes,
             @Nonnull final SimpleBulkLoaderFactory loaders,
             @Nonnull final Set<String> longCommodityKeys) {
         this.topologyInfo = topologyInfo;
@@ -206,11 +205,7 @@ public class MarketStatsAccumulatorImpl implements MarketStatsAccumulator {
                     "No _latest table for entity type, so can't save entity stats: " + entityType);
         }
 
-        final ImmutableSet.Builder<String> builder = ImmutableSet.builder();
-        commoditiesToExclude.stream()
-                .map(String::toLowerCase)
-                .forEach(builder::add);
-        this.commoditiesToExclude = builder.build();
+        this.excludedCommodityTypes = excludedCommodityTypes;
 
         loader = loaders.getLoader(dbTable);
         historicalUtilizationLoader = loaders.getLoader(HistUtilization.HIST_UTILIZATION);
@@ -221,7 +216,7 @@ public class MarketStatsAccumulatorImpl implements MarketStatsAccumulator {
      * Accumulate an entity count stat - the number of entities of the given type.
      *
      * @param countStatsName the name of the stat, i.e. the Entity Type being counted
-     * @param count          the number of Service Entitis of the given type
+     * @param count          the number of Service Entities of the given type
      */
     private void addEntityCountStat(String countStatsName, double count) {
         internalAddCommodity(countStatsName, countStatsName, count, count, count, count,
@@ -231,7 +226,7 @@ public class MarketStatsAccumulatorImpl implements MarketStatsAccumulator {
     /**
      * Accumulate a stat given the property type, subtype, and relation type.
      *
-     * @param propertyType      specificy property type to record
+     * @param propertyType      specific property type to record
      * @param propertySubtype   subtype of property to record
      * @param used              current amount of the commodity being bought
      * @param capacity          amount of the commodity the seller is providing
@@ -367,7 +362,7 @@ public class MarketStatsAccumulatorImpl implements MarketStatsAccumulator {
                 continue;
             }
             // filter out Commodities, such as Access Commodities, that shouldn't be persisted
-            if (isExcludedCommodity(mixedCaseCommodityName)) {
+            if (isExcludedCommodity(CommodityType.forNumber(intCommodityType))) {
                 continue;
             }
             double capacity = commoditySoldDTO.getCapacity();
@@ -478,11 +473,11 @@ public class MarketStatsAccumulatorImpl implements MarketStatsAccumulator {
      * <p>The comparison is not case-sensitive. The instance property 'commoditiesToExclude'
      * is converted to lower case in the constructor for this class.</p>
      *
-     * @param mixedCaseCommodityName the commodity name to test
+     * @param commodityType the commodity name to test
      * @return whether this commodity should be excluded, i.e. not written to the DB
      */
-    private boolean isExcludedCommodity(String mixedCaseCommodityName) {
-        return commoditiesToExclude.contains(mixedCaseCommodityName.toLowerCase());
+    private boolean isExcludedCommodity(CommodityType commodityType) {
+        return excludedCommodityTypes.contains(commodityType);
     }
 
 
@@ -538,7 +533,7 @@ public class MarketStatsAccumulatorImpl implements MarketStatsAccumulator {
          *
          * @param snapshotTime      snapshot time
          * @param entityDTO         entity
-         * @param providerId        providing entityt id
+         * @param providerId        providing entity id
          * @param commoditiesBought commodities bought from provider
          * @param capacityCache     cache of capacity info for selling entities seen so far
          * @param entityByOid       map of entities by oid
@@ -682,33 +677,20 @@ public class MarketStatsAccumulatorImpl implements MarketStatsAccumulator {
                 continue;
             }
             // filter out Commodities, such as Access Commodities, that shouldn't be persisted
-            if (isExcludedCommodity(mixedCaseCommodityName)) {
+            if (isExcludedCommodity(CommodityType.forNumber(commType))) {
                 continue;
             }
-            double capacity = 0;
+            Double capacity = null;
             if (providerId != null) {
-                Int2ObjectMap<Object2DoubleMap<String>> soldCapacities;
                 if (commoditiesBought.hasVolumeId()) {
-                    // first try to get capacity from volume
-                    soldCapacities = capacityCache.getEntityCapacities(commoditiesBought.getVolumeId());
-                    // try to get capacity from provider if not available from volume
-                    if (soldCapacities == null || !soldCapacities.containsKey(commType)) {
-                        soldCapacities = capacityCache.getEntityCapacities(providerId);
-                    }
-                } else {
-                    soldCapacities = capacityCache.getEntityCapacities(providerId);
+                    capacity = capacityCache.getCapacity(commoditiesBought.getVolumeId(), commodityBoughtDTO.getCommodityType());
                 }
-                if (soldCapacities == null || !soldCapacities.containsKey(commType)
-                        || !soldCapacities.get(commType).containsKey(commKey)) {
-                    logger.warn("Missing commodity sold {} of buyer entity {}, seller entity {}",
-                            mixedCaseCommodityName, entityDTO.getOid(), providerId);
-                    continue;
+                if (capacity == null) {
+                    capacity = capacityCache.getCapacity(providerId, commodityBoughtDTO.getCommodityType());
                 }
-                capacity = soldCapacities.get(commType).getDouble(commKey);
             }
-
             // all "used" subtype entries should have a capacity
-            if (capacity <= 0) {
+            if (capacity == null || capacity <= 0) {
                 if (logger.isTraceEnabled()) {
                     logger.trace("Skipping bought commodity with unset capacity {}:{}:{}:{}",
                                     entityDTO.getOid(), providerId, commType, commKey);

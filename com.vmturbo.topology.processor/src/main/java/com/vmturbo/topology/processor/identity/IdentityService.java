@@ -267,4 +267,13 @@ public class IdentityService implements com.vmturbo.identity.IdentityService<Ent
     public void restore(@Nonnull final Reader reader) {
         store_.restore(reader);
     }
+
+    /**
+     * Makes the current thread wait until the store gets initialized or a timeout occurs.
+     * @throws InterruptedException if any thread interrupted the current thread before
+     * or while the current thread was waiting for a notification.
+     */
+    public void waitForInitializedStore() throws InterruptedException {
+         store_.waitForInitializedStore();
+    }
 }

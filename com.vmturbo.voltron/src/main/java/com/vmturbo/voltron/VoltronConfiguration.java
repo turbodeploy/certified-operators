@@ -660,6 +660,11 @@ public class VoltronConfiguration {
         MEDIATION_ISTIO(Component.MEDIATION_ISTIO),
 
         /**
+         * ActionStream Kafka Mediation.
+         */
+        MEDIATION_ACTIONSTREAM_KAFKA(Component.MEDIATION_ACTIONSTREAM_KAFKA),
+
+        /**
          * NetApp.
          */
         MEDIATION_NETAPP(Component.MEDIATION_NETAPP),

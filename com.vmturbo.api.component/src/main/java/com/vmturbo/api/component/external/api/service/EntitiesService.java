@@ -64,6 +64,7 @@ import com.vmturbo.api.controller.MarketsController;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
+import com.vmturbo.api.dto.entity.EntityDetailsApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.entity.TagApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
@@ -141,6 +142,9 @@ public class EntitiesService implements IEntitiesService {
     // and the utility methods should be removed.
     private final static String UUID = "{uuid}";
     private final static String REPLACEME = "#REPLACEME";
+
+    private static final String ILLEGAL_UUID_MESSAGE = "%s is illegal argument. "
+            + "Should be a numeric entity id.";
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -297,12 +301,8 @@ public class EntitiesService implements IEntitiesService {
     @Nonnull
     public ServiceEntityApiDTO getEntityByUuid(@Nonnull String uuid, boolean includeAspects)
             throws Exception {
-        if (!uuidMapper.fromUuid(uuid).isEntity()) {
-            throw new IllegalArgumentException(String.format("%s is illegal argument. " +
-                    "Should be a numeric entity id.", uuid));
-        }
+        final long oid = getEntityOidFromString(uuid);
         // get information about this entity from the repository
-        final long oid = uuidMapper.fromUuid(uuid).oid();
         final SingleEntityRequest req = repositoryApi.entityRequest(oid);
         if (includeAspects) {
             req.useAspectMapper(entityAspectMapper);
@@ -341,6 +341,15 @@ public class EntitiesService implements IEntitiesService {
         priceIndexPopulator.populateRealTimeEntities(Collections.singletonList(result));
 
         return result;
+    }
+
+    @Override
+    public EntityDetailsApiDTO getEntityDetails(@Nonnull final String entityUuid)
+            throws Exception {
+        final long oid = getEntityOidFromString(entityUuid);
+        final SingleEntityRequest req = repositoryApi.entityRequest(oid);
+        return req.getEntityDetails()
+                .orElseThrow(() -> new UnknownObjectException(entityUuid));
     }
 
     @Override
@@ -394,10 +403,7 @@ public class EntitiesService implements IEntitiesService {
                                               @Nonnull final String actionUuid,
                                               @Nullable final ActionDetailLevel detailLevel)
             throws Exception {
-        if (!uuidMapper.fromUuid(uuid).isEntity()) {
-            throw new IllegalArgumentException(String.format("%s is illegal argument. " +
-                    "Should be a numeric entity id.", uuid));
-        }
+        getEntityOidFromString(uuid);
         long oid = uuidMapper.fromUuid(actionUuid).oid();
         final ActionApiDTO result;
         try {
@@ -925,14 +931,10 @@ public class EntitiesService implements IEntitiesService {
 
     @Override
     public List<TagApiDTO> getTagsByEntityUuid(final String s) throws Exception {
-        if (!(uuidMapper.fromUuid(s).isEntity() || uuidMapper.fromUuid(s).isGroup())) {
-            throw new IllegalArgumentException(String.format("%s is illegal argument. " +
-                    "Should be a numeric entity id.", s));
-        }
-        final ApiId apiId = uuidMapper.fromUuid(s);
-        long oid = apiId.oid();
+        final long oid = getEntityOrGroupOidFromString(s);
+        final boolean isGroup = uuidMapper.fromUuid(s).isGroup();
         final Map<String, TagValuesDTO> tagsMap = new HashMap<>();
-        if (apiId.isGroup()) {
+        if (isGroup) {
             final GetTagsRequest tagsRequest =
                     GetTagsRequest.newBuilder().addGroupId(oid).build();
             final GetTagsResponse tagsForGroups =
@@ -978,11 +980,7 @@ public class EntitiesService implements IEntitiesService {
 
     @Override
     public List<SettingsPolicyApiDTO> getSettingPoliciesByEntityUuid(String uuid) throws Exception {
-        if (!uuidMapper.fromUuid(uuid).isEntity()) {
-            throw new IllegalArgumentException(String.format("%s is illegal argument. " +
-                    "Should be a numeric entity id.", uuid));
-        }
-        long oid = uuidMapper.fromUuid(uuid).oid();
+        final long oid = getEntityOidFromString(uuid);
         GetEntitySettingPoliciesRequest request =
                 GetEntitySettingPoliciesRequest.newBuilder()
                         .addEntityOidList(Long.valueOf(uuid))
@@ -999,11 +997,7 @@ public class EntitiesService implements IEntitiesService {
     public Map<String, EntityAspect> getAspectsByEntityUuid(String uuid)
             throws UnauthorizedObjectException, UnknownObjectException, OperationFailedException,
             ConversionException, InterruptedException {
-        if (!uuidMapper.fromUuid(uuid).isEntity()) {
-            throw new IllegalArgumentException(String.format("%s is illegal argument. " +
-                    "Should be a numeric entity id.", uuid));
-        }
-        long oid = uuidMapper.fromUuid(uuid).oid();
+        final long oid = getEntityOidFromString(uuid);
         final TopologyEntityDTO entityDTO = repositoryApi.entityRequest(oid)
             .getFullEntity()
             .orElseThrow(() -> new UnknownObjectException(uuid));
@@ -1016,11 +1010,7 @@ public class EntitiesService implements IEntitiesService {
     public EntityAspect getAspectByEntityUuid(String uuid, String aspectTag)
             throws UnauthorizedObjectException, UnknownObjectException, OperationFailedException,
             ConversionException, InterruptedException {
-        if (!uuidMapper.fromUuid(uuid).isEntity()) {
-            throw new IllegalArgumentException(String.format("%s is illegal argument. " +
-                    "Should be a numeric entity id.", uuid));
-        }
-        long oid = uuidMapper.fromUuid(uuid).oid();
+        final long oid = getEntityOidFromString(uuid);
         AspectName aspectName = AspectName.fromString(aspectTag);
         final TopologyEntityDTO entityDTO = repositoryApi.entityRequest(oid)
             .getFullEntity()
@@ -1050,12 +1040,7 @@ public class EntitiesService implements IEntitiesService {
 
     @Override
     public List<ConstraintApiDTO> getConstraintsByEntityUuid(String uuid) throws Exception {
-        if (!uuidMapper.fromUuid(uuid).isEntity()) {
-            throw new IllegalArgumentException(String.format("%s is illegal argument. " +
-                    "Should be a numeric entity id.", uuid));
-        }
-
-        long oid = uuidMapper.fromUuid(uuid).oid();
+        final long oid = getEntityOidFromString(uuid);
         final EntityConstraintsResponse response = entityConstraintsRpcService.getConstraints(
             EntityConstraintsRequest.newBuilder().setOid(oid).build());
         String discoveringTargets = response.getDiscoveringTargetIdsList().stream()
@@ -1163,14 +1148,11 @@ public class EntitiesService implements IEntitiesService {
     @Override
     public EntityPaginationResponse getPotentialEntitiesByEntity(String uuid, ConstraintApiInputDTO inputDto,
                                                                  EntityPaginationRequest paginationRequest) throws Exception {
-        if (!uuidMapper.fromUuid(uuid).isEntity()) {
-            throw new IllegalArgumentException(String.format("%s is illegal argument. " +
-                "Should be a numeric entity id.", uuid));
-        }
+        final long entityOid = getEntityOidFromString(uuid);
 
         final PotentialPlacementsRequest.Builder request =
             PotentialPlacementsRequest.newBuilder()
-                .setOid(uuidMapper.fromUuid(uuid).oid())
+                .setOid(entityOid)
                 .setRelationType(EntityConstraints.RelationType.BOUGHT)
                 .addAllCommodityType(inputDto.getPlacementOptions().stream()
                     .filter(option -> !"".equals(option.getKey()))
@@ -1258,6 +1240,36 @@ public class EntitiesService implements IEntitiesService {
         return (targetEntity != null && entityUuid.equals(targetEntity.getUuid())) ||
             (currentEntity != null && entityUuid.equals(currentEntity.getUuid())) ||
             (newEntity != null && entityUuid.equals(newEntity.getUuid()));
+    }
+
+    /**
+     * Get the entity's OID.
+     *
+     * @param uuid the uuid.
+     * @throws OperationFailedException if the string is not an entity's OID.
+     */
+    private long getEntityOidFromString(@Nonnull final String uuid)
+            throws OperationFailedException {
+        ApiId apiId = uuidMapper.fromUuid(uuid);
+        if (!apiId.isEntity()) {
+            throw new IllegalArgumentException(String.format(ILLEGAL_UUID_MESSAGE, uuid));
+        }
+        return apiId.oid();
+    }
+
+    /**
+     * Get the entity's or group's OID.
+     *
+     * @param uuid the uuid.
+     * @throws OperationFailedException if the string is neither an entity's OID nor a group's OID.
+     */
+    private long getEntityOrGroupOidFromString(@Nonnull final String uuid)
+            throws OperationFailedException {
+        ApiId apiId = uuidMapper.fromUuid(uuid);
+        if (!apiId.isEntity() && !apiId.isGroup()) {
+            throw new IllegalArgumentException(String.format(ILLEGAL_UUID_MESSAGE, uuid));
+        }
+        return apiId.oid();
     }
 }
 

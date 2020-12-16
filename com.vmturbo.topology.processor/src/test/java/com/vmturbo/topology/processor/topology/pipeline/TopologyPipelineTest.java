@@ -16,12 +16,12 @@ import org.jetbrains.annotations.NotNull;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.common.pipeline.Pipeline.PipelineDefinition;
 import com.vmturbo.components.common.pipeline.Pipeline.PipelineStageException;
 import com.vmturbo.components.common.pipeline.Pipeline.StageResult;
 import com.vmturbo.components.common.pipeline.Pipeline.Status;
-import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.topology.pipeline.CachedTopology.CachedTopologyResult;
@@ -45,15 +45,14 @@ public class TopologyPipelineTest {
     @Test
     public void testCachingStage() throws Exception {
         final CachedTopology cachedTopo = mock(CachedTopology.class);
-        TopologyEntity.Builder builder = mock(TopologyEntity.Builder.class);
-        final Map<Long, TopologyEntity.Builder> cachedMap = Maps.newHashMap();
+        TopologyEntityDTO.Builder builder = TopologyEntityDTO.newBuilder().setOid(1);
+        final Map<Long, TopologyEntityDTO.Builder> cachedMap = Maps.newHashMap();
         cachedMap.put(1L, builder);
-        final CachedTopologyResult cachedResult = new CachedTopologyResult(null, cachedMap);
+        final CachedTopologyResult cachedResult = new CachedTopologyResult(cachedMap);
         when(cachedTopo.getTopology()).thenReturn(cachedResult);
-        when(builder.snapshot()).thenReturn(builder);
         final EntityStore entityStore = mock(EntityStore.class);
-        final TopologyPipeline<EntityStore, Map<Long, TopologyEntity.Builder>> pipeline =
-            new TopologyPipeline<>(PipelineDefinition.<EntityStore, Map<Long, TopologyEntity.Builder>, TopologyPipelineContext>newBuilder(context)
+        final TopologyPipeline<EntityStore, Map<Long, TopologyEntityDTO.Builder>> pipeline =
+            new TopologyPipeline<>(PipelineDefinition.<EntityStore, Map<Long, TopologyEntityDTO.Builder>, TopologyPipelineContext>newBuilder(context)
                 .finalStage(new CachingConstructTopologyFromStitchingContextStage(cachedTopo)));
         assertThat(pipeline.run(entityStore), is(cachedMap));
     }
@@ -61,13 +60,13 @@ public class TopologyPipelineTest {
     @Test
     public void testCacheWritingStage() throws Exception {
         final CachedTopology cachedTopo = mock(CachedTopology.class);
-        final TopologyEntity.Builder builder = mock(TopologyEntity.Builder.class);
-        final Map<Long, TopologyEntity.Builder> cachedMap = Maps.newHashMap();
+        final TopologyEntityDTO.Builder builder = TopologyEntityDTO.newBuilder().setOid(1L);
+        final Map<Long, TopologyEntityDTO.Builder> cachedMap = Maps.newHashMap();
         cachedMap.put(1L, builder);
         final StitchingContext stitchingContext = mock(StitchingContext.class);
         when(stitchingContext.constructTopology()).thenReturn(cachedMap);
-        final TopologyPipeline<StitchingContext, Map<Long, TopologyEntity.Builder>> pipeline =
-            new TopologyPipeline<>(PipelineDefinition.<StitchingContext, Map<Long, TopologyEntity.Builder>, TopologyPipelineContext>newBuilder(context)
+        final TopologyPipeline<StitchingContext, Map<Long, TopologyEntityDTO.Builder>> pipeline =
+            new TopologyPipeline<>(PipelineDefinition.<StitchingContext, Map<Long, TopologyEntityDTO.Builder>, TopologyPipelineContext>newBuilder(context)
                 .finalStage(new CacheWritingConstructTopologyFromStitchingContextStage(cachedTopo)));
         pipeline.run(stitchingContext);
         verify(cachedTopo).updateTopology(cachedMap);

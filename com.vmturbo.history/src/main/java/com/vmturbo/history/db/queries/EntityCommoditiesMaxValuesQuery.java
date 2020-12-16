@@ -10,8 +10,8 @@ import static com.vmturbo.common.protobuf.utils.StringConstants.SNAPSHOT_TIME;
 import static com.vmturbo.common.protobuf.utils.StringConstants.UUID;
 import static com.vmturbo.history.db.jooq.JooqUtils.getDoubleField;
 import static com.vmturbo.history.db.jooq.JooqUtils.getRelationTypeField;
-import static com.vmturbo.history.db.jooq.JooqUtils.getTimestampField;
 import static com.vmturbo.history.db.jooq.JooqUtils.getStringField;
+import static com.vmturbo.history.db.jooq.JooqUtils.getTimestampField;
 
 import java.sql.Timestamp;
 import java.time.Instant;

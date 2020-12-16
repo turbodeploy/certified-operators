@@ -8,6 +8,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
+import java.time.Period;
 import java.time.temporal.ChronoUnit;
 import java.util.Optional;
 
@@ -38,9 +39,11 @@ import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.AllocatedDemandClassification;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CommitmentPurchaseProfile;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 
 public class RecommendationAnalysisTaskTest {
@@ -92,7 +95,8 @@ public class RecommendationAnalysisTaskTest {
             .build();
 
     private final CloudCommitmentSpecData commitmentSpecData = ImmutableReservedInstanceSpecData.builder()
-            .spec(ReservedInstanceSpec.newBuilder().build())
+            .spec(ReservedInstanceSpec.newBuilder().setReservedInstanceSpecInfo(
+                    ReservedInstanceSpecInfo.newBuilder().setType(ReservedInstanceType.newBuilder().setTermYears(1).build()).build()).build())
             .cloudTier(TopologyEntityDTO.newBuilder()
                     .setEntityType(EntityType.COMPUTE_TIER_VALUE)
                     .setOid(123L)
@@ -137,6 +141,7 @@ public class RecommendationAnalysisTaskTest {
         when(savingsCalculatorFactory.newCalculator(any(), any())).thenReturn(savingsCalculator);
         when(savingsCalculator.calculateSavingsRecommendation(any())).thenReturn(savingsCalculationResult);
         when(savingsCalculationResult.recommendation()).thenReturn(savingsRecommendation);
+        when(savingsRecommendation.savingsOverOnDemand()).thenReturn(20.0d);
         when(pricingResolverFactory.newResolver(any(), any())).thenReturn(pricingResolver);
 
         when(computeTierFamilyResolver.getNumCoupons(anyLong())).thenReturn(Optional.empty());
@@ -155,6 +160,9 @@ public class RecommendationAnalysisTaskTest {
         // ASSERTIONS
         final ReservedInstanceRecommendationInfo recommendationInfo = (ReservedInstanceRecommendationInfo)
                 recommendation.recommendationInfo();
+        // Test the break even period set on the cloud commitment.
+        assert (recommendation.breakEven().isPresent());
+        assert (recommendation.breakEven().get().equals(Period.ofDays(292)));
         // demand B has the most demand - it should be the purchasing acct
         assertThat(recommendationInfo.purchasingAccountOid(), equalTo(cloudTierInfoB.accountOid()));
     }

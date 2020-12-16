@@ -3,6 +3,7 @@ package plan;
 
 option java_package = "com.vmturbo.common.protobuf.plan";
 
+import "CommonCost.proto";
 import "CommonDTO.proto";
 import "CloudCostDTO.proto";
 import "setting/Setting.proto";
@@ -92,11 +93,15 @@ message ScenarioChange {
         optional common_dto.DemandType demand_type = 1;
         // RI Setting by CloudType
         map<string, RIProviderSetting> ri_setting_by_cloudtype = 2;
+
+        optional bool include_terminated_entity_demand = 3 [default = true];
+
+        optional int32 look_back_duration_days = 4;
     }
 
     message RIProviderSetting {
         optional common_dto.ReservedInstanceType.OfferingClass preferred_offering_class = 1;
-        optional common_dto.ReservedInstanceType.PaymentOption preferred_payment_option = 2;
+        optional common_dto.PaymentOption preferred_payment_option = 2;
         optional int32 preferred_term = 3;
         optional int64 purchase_date = 4;
     }

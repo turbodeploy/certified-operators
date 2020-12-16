@@ -24,6 +24,8 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.Builder;
 import com.vmturbo.common.protobuf.stats.StatsREST.StatsHistoryServiceController;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory.DefaultEntityStatsPaginationParamsFactory;
+import com.vmturbo.components.common.utils.DataPacks.DataPack;
+import com.vmturbo.components.common.utils.DataPacks.LongDataPack;
 import com.vmturbo.components.common.utils.RetentionPeriodFetcher;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import com.vmturbo.group.api.GroupClientConfig;
@@ -268,13 +270,13 @@ public class StatsConfig {
 
     @Bean
     public ProjectedStatsStore projectedStatsStore() {
-        return new ProjectedStatsStore(ingestersConfig.excludedCommoditiesList());
+        return new ProjectedStatsStore(ingestersConfig.excludedCommodities(),
+                new LongDataPack(), new DataPack<>());
     }
 
     @Bean
     public SystemLoadReader systemLoadReader() {
-        SystemLoadReader systemLoadReader = new SystemLoadReader(historyDbConfig.historyDbIO());
-        return systemLoadReader;
+        return new SystemLoadReader(historyDbConfig.historyDbIO());
     }
 
     @Bean
@@ -299,8 +301,7 @@ public class StatsConfig {
      */
     @Bean
     public ComputedPropertiesProcessorFactory computedPropertiesProcessorFactory() {
-        return (statsFilter, recordsProcessor)
-                -> new ComputedPropertiesProcessor(statsFilter, recordsProcessor);
+        return ComputedPropertiesProcessor::new;
     }
 
     @Bean

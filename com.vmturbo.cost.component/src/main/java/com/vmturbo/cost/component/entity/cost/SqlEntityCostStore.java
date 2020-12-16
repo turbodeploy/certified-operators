@@ -72,7 +72,7 @@ import com.vmturbo.cost.component.db.tables.records.EntityCostByMonthRecord;
 import com.vmturbo.cost.component.db.tables.records.EntityCostRecord;
 import com.vmturbo.cost.component.util.CostFilter;
 import com.vmturbo.cost.component.util.CostGroupBy;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
+import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 import com.vmturbo.sql.utils.DbException;
 import com.vmturbo.trax.TraxNumber;
 

@@ -22,7 +22,6 @@ import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.repository.api.RepositoryClient;
-import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.conversions.TopologyToSdkEntityConverter;
 import com.vmturbo.topology.processor.topology.pipeline.CachedTopology;
 import com.vmturbo.topology.processor.topology.pipeline.CachedTopology.CachedTopologyResult;
@@ -42,7 +41,7 @@ public class EntityRetrieverTest {
             2).setOid(ENTITY2_OID).build();
 
     private EntityRetriever entityRetriever;
-    private Map<Long, TopologyEntity.Builder> cachedEntities;
+    private Map<Long, TopologyEntityDTO.Builder> cachedEntities;
     private List<TopologyEntityDTO> repoData;
 
     /**
@@ -111,8 +110,6 @@ public class EntityRetrieverTest {
     }
 
     private void putIntoCache(@Nonnull TopologyEntityDTO topologyEntityDTO) {
-        final TopologyEntity.Builder topologyEntity = TopologyEntity.newBuilder(
-                topologyEntityDTO.toBuilder());
-        cachedEntities.put(topologyEntityDTO.getOid(), topologyEntity);
+        cachedEntities.put(topologyEntityDTO.getOid(), topologyEntityDTO.toBuilder());
     }
 }

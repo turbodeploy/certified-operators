@@ -222,6 +222,8 @@ public class DiscoveryBasedUnblock implements PipelineUnblock {
         try {
             if (enableDiscoveryResponsesCaching) {
                 try {
+                    identityProvider.waitForInitializedStore();
+                    logger.info("Restoring discovery dumps from volume");
                     binaryDiscoveryDumper.restoreDiscoveryResponses(targetStore).forEach((key, discoveryResponse) -> {
                         long targetId = key;
                         Optional<Target> target = targetStore.getTarget(targetId);
@@ -233,11 +235,10 @@ public class DiscoveryBasedUnblock implements PipelineUnblock {
 
                             try {
                                 operationManager.notifyDiscoveryResult(operation,
-                                    discoveryResponse).get(5, TimeUnit.MINUTES);
+                                    discoveryResponse).get(20, TimeUnit.MINUTES);
                             } catch (InterruptedException | ExecutionException | TimeoutException e) {
                                 logger.error("Error in notifying the discovery result for target "
                                     + "id:{} and probe id: {}", targetId, probeId);
-                                throw new RuntimeException(e);
                             }
 
                             TargetDiscoveryInfo info = targetDiscoveryInfoMap.computeIfAbsent(targetId,
@@ -250,6 +251,9 @@ public class DiscoveryBasedUnblock implements PipelineUnblock {
                     });
                 } catch (RuntimeException e) {
                     logger.error("Failed to restore discovery responses from disk.", e);
+                } catch (InterruptedException e) {
+                    logger.error("Failed to restore discovery responses from disk due to "
+                        + "time out in waiting for the identity store to be initialized", e);
                 }
             }
             while (pipelineExecutorService.areBroadcastsBlocked()) {

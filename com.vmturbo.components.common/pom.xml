@@ -5,7 +5,7 @@
     <parent>
         <artifactId>Turbonomic-XL</artifactId>
         <groupId>com.vmturbo</groupId>
-        <version>8.0.5-SNAPSHOT</version>
+        <version>8.0.6-SNAPSHOT</version>
         <relativePath>../build/pom.xml</relativePath>
     </parent>
 
@@ -305,6 +305,10 @@
         <dependency>
             <groupId>org.antlr</groupId>
             <artifactId>ST4</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>it.unimi.dsi</groupId>
+            <artifactId>fastutil</artifactId>
         </dependency>
         <!-- END Prometheus dependencies, for component metrics -->
     </dependencies>

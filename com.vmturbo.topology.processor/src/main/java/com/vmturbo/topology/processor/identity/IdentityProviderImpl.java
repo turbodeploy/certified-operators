@@ -353,6 +353,15 @@ public class IdentityProviderImpl implements IdentityProvider {
         logger.info("Successfully restored the Identity Provider!");
     }
 
+    /**
+     * Makes the current thread wait until the store gets initialized or a timeout occurs.
+     * @throws InterruptedException if any thread interrupted the current thread before
+     * or while the current thread was waiting for a notification.
+     */
+    public void waitForInitializedStore() throws InterruptedException {
+         identityService.waitForInitializedStore();
+    }
+
     @Nonnull
     @Override
     public String getFileName() {

@@ -47,7 +47,7 @@ import com.vmturbo.platform.common.dto.NonMarketDTO.NonMarketEntityDTO;
 import com.vmturbo.platform.common.dto.NonMarketDTO.NonMarketEntityDTO.CloudServiceData;
 import com.vmturbo.platform.common.dto.NonMarketDTO.NonMarketEntityDTO.CloudServiceData.BillingData;
 import com.vmturbo.platform.common.dto.NonMarketDTO.NonMarketEntityDTO.NonMarketEntityType;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
+import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader.TargetCostData;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
@@ -115,7 +115,7 @@ public class AccountExpensesUploaderTest {
 
     private IdentityProvider identityProvider = new IdentityProviderImpl(
         new IdentityService(new IdentityServiceInMemoryUnderlyingStore(
-            Mockito.mock(IdentityDatabaseStore.class)),
+            Mockito.mock(IdentityDatabaseStore.class), 10),
             new HeuristicsMatcher()), keyValueStore, new ProbeInfoCompatibilityChecker(), 0L);
 
     private final Discovery discoveryTopology =

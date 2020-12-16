@@ -7,6 +7,7 @@ import static com.vmturbo.history.db.jooq.JooqUtils.getDoubleField;
 import static com.vmturbo.history.db.jooq.JooqUtils.getRelationTypeField;
 import static com.vmturbo.history.db.jooq.JooqUtils.getStringField;
 import static com.vmturbo.history.db.jooq.JooqUtils.getTimestampField;
+import static com.vmturbo.history.listeners.RollupProcessor.VOL_ATTACHMENT_HISTORY_RETENTION_PERIOD;
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.isA;
@@ -14,11 +15,13 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 
 import java.sql.Connection;
+import java.sql.Date;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,16 +30,21 @@ import java.util.Random;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jooq.Condition;
 import org.jooq.Record;
+import org.jooq.Record3;
 import org.jooq.Result;
 import org.jooq.Table;
 import org.junit.After;
 import org.junit.AfterClass;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -48,6 +56,8 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.components.common.utils.MultiStageTimer;
+import com.vmturbo.history.db.BasedbIO.Style;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
@@ -58,9 +68,11 @@ import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
 import com.vmturbo.history.listeners.RollupProcessor.RollupType;
 import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.schema.abstraction.Tables;
+import com.vmturbo.history.schema.abstraction.tables.VolumeAttachmentHistory;
 import com.vmturbo.history.schema.abstraction.tables.records.PmStatsLatestRecord;
 import com.vmturbo.history.stats.DbTestConfig;
 import com.vmturbo.history.stats.PropertySubType;
+import com.vmturbo.history.stats.readers.VolumeAttachmentHistoryReader;
 
 /**
  * Class to test the rollup processor and the stored procs it depends on.
@@ -156,6 +168,7 @@ public class RollupProcessorTest {
                 type.flatMap(EntityType::getMonthTable).ifPresent(this::truncateTable);
             }
         }
+        truncateTable(VolumeAttachmentHistory.VOLUME_ATTACHMENT_HISTORY);
     }
 
     /**
@@ -234,6 +247,119 @@ public class RollupProcessorTest {
         checkRollups(DAY, template1, dailyFeb1, Tables.PM_STATS_LATEST, null, null, null);
         checkRollups(MONTH, template1, monthlyJan, Tables.PM_STATS_LATEST, null, null, null);
         checkRollups(MONTH, template1, monthlyFeb, Tables.PM_STATS_LATEST, null, null, null);
+    }
+
+    private static final long VOLUME_OID = 11111L;
+    private static final long VOLUME_OID_2 = 22222L;
+    private static final long VM_OID = 33333L;
+    private static final long VM_OID_2 = 44444L;
+
+    /**
+     * Test that retention processing removes the record related to the only volume from the
+     * volume_attachment_history table that is older than retention period.
+     *
+     * @throws VmtDbException if error encountered during insertion.
+     */
+    @Test
+    public void testPurgeVolumeAttachmentHistoryRecordsRemoval() throws VmtDbException {
+        final long currentTime = System.currentTimeMillis();
+        final long outsideRetentionPeriod = currentTime - TimeUnit.DAYS
+            .toMillis(VOL_ATTACHMENT_HISTORY_RETENTION_PERIOD + 1);
+        insertIntoVolumeAttachmentHistoryTable(VOLUME_OID, 0L, outsideRetentionPeriod,
+            outsideRetentionPeriod);
+        final VolumeAttachmentHistoryReader reader = new VolumeAttachmentHistoryReader(historydbIO);
+        final List<Record3<Long, Long, Date>> records =
+            reader.getVolumeAttachmentHistory(Collections.singletonList(VOLUME_OID));
+        Assert.assertFalse(records.isEmpty());
+
+        final Logger logger = LogManager.getLogger();
+        final MultiStageTimer timer = new MultiStageTimer(logger);
+        rollupProcessor.performRetentionProcessing(timer);
+
+        final List<Record3<Long, Long, Date>> recordsAfterPurge =
+            reader.getVolumeAttachmentHistory(Collections.singletonList(VOLUME_OID));
+        Assert.assertTrue(recordsAfterPurge.isEmpty());
+    }
+
+    /**
+     * Test that retention processing does not remove any records related to the volume from the
+     * volume_attachment_history table as it has one entry discovered within the retention period.
+     *
+     * @throws VmtDbException if error encountered during insertion.
+     */
+    @Test
+    public void testPurgeVolumeAttachmentHistoryRecordsNoRemovals() throws VmtDbException {
+        final long currentTime = System.currentTimeMillis();
+        final long withinRetentionPeriod = currentTime - TimeUnit.DAYS
+            .toMillis(VOL_ATTACHMENT_HISTORY_RETENTION_PERIOD);
+        final long outsideRetentionPeriod =
+            currentTime - TimeUnit.DAYS.toMillis(VOL_ATTACHMENT_HISTORY_RETENTION_PERIOD + 1);
+        insertIntoVolumeAttachmentHistoryTable(VOLUME_OID, VM_OID, outsideRetentionPeriod,
+            outsideRetentionPeriod);
+        insertIntoVolumeAttachmentHistoryTable(VOLUME_OID, 0L, withinRetentionPeriod,
+            withinRetentionPeriod);
+
+        final Logger logger = LogManager.getLogger();
+        final MultiStageTimer timer = new MultiStageTimer(logger);
+        rollupProcessor.performRetentionProcessing(timer);
+
+        final VolumeAttachmentHistoryReader reader = new VolumeAttachmentHistoryReader(historydbIO);
+        final List<Record3<Long, Long, Date>> recordsAfterPurge =
+            reader.getVolumeAttachmentHistory(Collections.singletonList(VOLUME_OID));
+        final Record3<Long, Long, Date> record = recordsAfterPurge.iterator().next();
+        Assert.assertEquals(VOLUME_OID, (long)record.component1());
+        Assert.assertEquals(VM_OID, (long)record.component2());
+    }
+
+    /**
+     * Test that retention processing removes records related to one volume but retains records
+     * related to another volume as the former has no entries within the retention period while
+     * the latter has one entry within the last retention period.
+     *
+     * @throws VmtDbException if error encountered during insertion.
+     */
+    @Test
+    public void testPurgeVolumeAttachmentHistoryRecordsOneRemoval() throws VmtDbException {
+        final long currentTime = System.currentTimeMillis();
+        final long withinRetentionPeriod = currentTime - TimeUnit.DAYS
+            .toMillis(VOL_ATTACHMENT_HISTORY_RETENTION_PERIOD);
+        final long outsideRetentionPeriod = currentTime - TimeUnit.DAYS
+            .toMillis(VOL_ATTACHMENT_HISTORY_RETENTION_PERIOD + 1);
+        insertIntoVolumeAttachmentHistoryTable(VOLUME_OID, VM_OID, outsideRetentionPeriod,
+            outsideRetentionPeriod);
+        insertIntoVolumeAttachmentHistoryTable(VOLUME_OID, 0L, withinRetentionPeriod,
+            withinRetentionPeriod);
+        insertIntoVolumeAttachmentHistoryTable(VOLUME_OID_2, VM_OID_2, outsideRetentionPeriod,
+            outsideRetentionPeriod);
+        insertIntoVolumeAttachmentHistoryTable(VOLUME_OID_2, 0, outsideRetentionPeriod,
+            outsideRetentionPeriod);
+
+        final Logger logger = LogManager.getLogger();
+        final MultiStageTimer timer = new MultiStageTimer(logger);
+        rollupProcessor.performRetentionProcessing(timer);
+
+        final VolumeAttachmentHistoryReader reader = new VolumeAttachmentHistoryReader(historydbIO);
+        final List<Record3<Long, Long, Date>> recordsAfterPurge =
+            reader.getVolumeAttachmentHistory(Stream.of(VOLUME_OID, VOLUME_OID_2)
+                .collect(Collectors.toList()));
+        final Record3<Long, Long, Date> record = recordsAfterPurge.iterator().next();
+        Assert.assertEquals(VOLUME_OID, (long)record.component1());
+        Assert.assertEquals(VM_OID, (long)record.component2());
+    }
+
+    private void insertIntoVolumeAttachmentHistoryTable(final long volumeOid, final long vmOid,
+                                                        final long lastAttachedTime,
+                                                        final long lastDiscoveredTime)
+        throws VmtDbException {
+        historydbIO.execute(Style.IMMEDIATE,
+            HistorydbIO.getJooqBuilder().insertInto(
+                VolumeAttachmentHistory.VOLUME_ATTACHMENT_HISTORY,
+                VolumeAttachmentHistory.VOLUME_ATTACHMENT_HISTORY.VOLUME_OID,
+                VolumeAttachmentHistory.VOLUME_ATTACHMENT_HISTORY.VM_OID,
+                VolumeAttachmentHistory.VOLUME_ATTACHMENT_HISTORY.LAST_ATTACHED_DATE,
+                VolumeAttachmentHistory.VOLUME_ATTACHMENT_HISTORY.LAST_DISCOVERED_DATE)
+                .values(volumeOid, vmOid, new Date(lastAttachedTime),
+                    new Date(lastDiscoveredTime)));
     }
 
     /**

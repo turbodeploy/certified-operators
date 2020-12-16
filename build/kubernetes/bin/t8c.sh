@@ -20,6 +20,7 @@ chartsFile="/opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_c
 # ip values set manually in /opt/local/etc/turbo.conf
 singleNodeIp=$(ip address show eth0 | egrep inet | egrep -v inet6 | awk '{print $2}' | awk -F/ '{print$1}')
 sed -i "s/10.0.2.15/${singleNodeIp}/g" /opt/local/etc/turbo.conf
+sed -i "s/10.0.2.15/${singleNodeIp}/g" /opt/local/etc/server.properties
 for i in $(ls /opt/turbonomic/kubernetes/operator/deploy/crds/)
 do 
   sed -i "s/10.0.2.15/${singleNodeIp}/g" /opt/turbonomic/kubernetes/operator/deploy/crds/$i
@@ -389,7 +390,7 @@ then
   sudo systemctl enable gfsck.service
   sudo systemctl daemon-reload
 
-  # Setup mariadb before brining up XL components
+  # Setup mariadb before bringing up XL components
   #./mariadb_storage_setup.sh
   # Check to see if an external db is being used.  If so, do not run mariadb locally
   egrep "externalDBName" ${chartsFile}
@@ -417,6 +418,28 @@ then
     /opt/local/bin/configure_timescaledb.sh
     # Create mount point for both pgsql and mariadb
     /opt/local/bin/switch_dbs_mount_point.sh
+  fi
+
+  # Setup kafka/zookeeper before bringing up XL components (if so configured)
+  # Check to see if an external kafka is being used.  If so, do not run kafka locally
+  # We have to do two checks because the external kafka variable ("externalKafka") is a substring of
+  # the alternative configuration ("externalKafkaIp") that runs Kafka in the VM.
+  egrep "externalKafka" ${chartsFile}
+  externalKafka=$(echo $?)
+  egrep "externalKafkaIP" ${chartsFile}
+  runKafkaInVM=$(echo $?)
+
+  if [ X${externalKafka} = X0 ] && [ X${runKafkaInVM} != X0 ]
+  then
+    externalKafkaName=$(egrep "externalKafka" ${chartsFile})
+    echo "Kafka is external from this server:"
+    echo "${externalKafkaName}"
+  elif [ X${runKafkaInVM} = X0 ]
+  then
+    echo "Kafka is configured to run in the VM, configuring..."
+    /opt/local/bin/configure_kafka.sh
+  else
+    echo "Kafka is configured to run as a container, skipping configuration for the VM service."
   fi
 
   # Create the operator

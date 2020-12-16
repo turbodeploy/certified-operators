@@ -33,6 +33,7 @@ import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedEntityInfo;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplyChainNodeFetcherBuilder;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplychainApiDTOFetcherBuilder;
+import com.vmturbo.api.dto.entity.EntityDetailsApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.exceptions.ConversionException;
@@ -126,6 +127,20 @@ public class ApiTestUtils {
         return req;
     }
 
+    /**
+     * Create a mock {@link SingleEntityRequest} that returns the given entity when its
+     * getEntityMetadata method is called.
+     *
+     * @param entity the entity to return when getEntityMetadata is called.
+     * @return a mock {@link SingleEntityRequest}.
+     */
+    @Nonnull
+    public static RepositoryApi.SingleEntityRequest mockSingleEntityRequest(
+            @Nonnull final EntityDetailsApiDTO entity) {
+        SingleEntityRequest req = mockSingleEntityRequest();
+        when(req.getEntityDetails()).thenReturn(Optional.of(entity));
+        return req;
+    }
 
     @Nonnull
     private static RepositoryApi.MultiEntityRequest mockMultiEntityRequest() {

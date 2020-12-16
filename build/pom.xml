@@ -6,26 +6,26 @@
 
     <groupId>com.vmturbo</groupId>
     <artifactId>Turbonomic-XL</artifactId>
-    <version>8.0.5-SNAPSHOT</version>
+    <version>8.0.6-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <properties>
-        <market.version>4.0.5-SNAPSHOT</market.version>
+        <market.version>4.0.6-SNAPSHOT</market.version>
         <java.version>1.8</java.version>
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
 
         <!-- MT Version from which to resolve cross-branch dependencies on common code -->
-        <vmturbo.mt.branch.version>8.0.5-SNAPSHOT</vmturbo.mt.branch.version>
+        <vmturbo.mt.branch.version>8.0.6-SNAPSHOT</vmturbo.mt.branch.version>
 
         <!-- Version from the APM PRobes Repository (Newrelic, AppInsights) -->
-        <apm.probes.branch.version>8.0.5-SNAPSHOT</apm.probes.branch.version>
+        <apm.probes.branch.version>8.0.6-SNAPSHOT</apm.probes.branch.version>
 
         <!-- MT Version com.vmturbo.ux -->
-        <ux.mt.branch.version>8.0.5-SNAPSHOT</ux.mt.branch.version>
+        <ux.mt.branch.version>8.0.6-SNAPSHOT</ux.mt.branch.version>
 
         <!-- API Repository version, determines what version of the API definition to pull in -->
-        <com.vmturbo.api.version>3.1.66-SNAPSHOT</com.vmturbo.api.version>
+        <com.vmturbo.api.version>3.1.68-SNAPSHOT</com.vmturbo.api.version>
 
         <!--CPU Capacity Library Version-->
         <cpu.capacity.version>1.4.0</cpu.capacity.version>
@@ -75,6 +75,7 @@
         <javax.xml.bind.version>2.3.1</javax.xml.bind.version>
         <javax.xml.ws.version>2.3.1</javax.xml.ws.version>
         <com.sun.xml.bind.version>2.3.0.1</com.sun.xml.bind.version>
+        <hamcrest.version>2.1</hamcrest.version>
         <hamcrest-all.version>1.3</hamcrest-all.version>
         <hamcrest-optional-version>2.0.0</hamcrest-optional-version>
         <javassist.version>3.21.0-GA</javassist.version>
@@ -438,6 +439,8 @@
                 <module>../com.vmturbo.mediation.hyperflex.component</module>
                 <module>../com.vmturbo.mediation.hyperv.conversion</module>
                 <module>../com.vmturbo.mediation.hyperv.component</module>
+                <module>../com.vmturbo.mediation.actionstream.kafka</module>
+                <module>../com.vmturbo.mediation.actionstream.kafka.component</module>
                 <module>../com.vmturbo.mediation.netapp.component</module>
                 <module>../com.vmturbo.mediation.netflow.component</module>
                 <module>../com.vmturbo.mediation.newrelic.component</module>
@@ -940,6 +943,14 @@
         </profile>
 
         <profile>
+            <id>mediation-actionstream-kafka</id>
+            <modules>
+                <module>../com.vmturbo.mediation.actionstream.kafka</module>
+                <module>../com.vmturbo.mediation.actionstream.kafka.component</module>
+            </modules>
+        </profile>
+
+        <profile>
             <id>mediation</id>
             <modules>
                 <module>../com.vmturbo.mediation.component</module>
@@ -1231,6 +1242,7 @@
                 <module>../com.vmturbo.mediation.delegatingprobe</module>
                 <module>../com.vmturbo.mediation.actionscript</module>
                 <module>../com.vmturbo.mediation.conversion</module>
+                <module>../com.vmturbo.mediation.actionstream.kafka</module>
 
                 <!-- Mediation container with all the probes inside. -->
                 <module>../com.vmturbo.mediation.component</module>
@@ -1278,6 +1290,7 @@
                 <module>../com.vmturbo.mediation.intersight.hyperflex.component</module>
                 <module>../com.vmturbo.mediation.intersight.server.component</module>
                 <module>../com.vmturbo.mediation.intersight.ucs.component</module>
+                <module>../com.vmturbo.mediation.actionstream.kafka.component</module>
                 <module>../com.vmturbo.mediation.netapp.component</module>
                 <module>../com.vmturbo.mediation.newrelic.component</module>
                 <module>../com.vmturbo.mediation.appinsights.component</module>
@@ -2710,7 +2723,7 @@
             <dependency>
                 <groupId>org.hamcrest</groupId>
                 <artifactId>hamcrest-core</artifactId>
-                <version>${hamcrest-all.version}</version>
+                <version>${hamcrest.version}</version>
                 <scope>test</scope>
             </dependency>
             <dependency>

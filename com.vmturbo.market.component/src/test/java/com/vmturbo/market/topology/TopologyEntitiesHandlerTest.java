@@ -430,7 +430,7 @@ public class TopologyEntitiesHandlerTest {
 
         final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(
                     MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                    SuspensionsThrottlingConfig.DEFAULT, Collections.emptyMap())
+                    SuspensionsThrottlingConfig.DEFAULT, Collections.emptyMap(), false)
                 .setRightsizeLowerWatermark(rightsizeLowerWatermark)
                 .setRightsizeUpperWatermark(rightsizeUpperWatermark)
                 .setMaxPlacementsOverride(maxPlacementIterations)
@@ -788,7 +788,7 @@ public class TopologyEntitiesHandlerTest {
         final AnalysisConfig analysisConfig = AnalysisConfig
                         .newBuilder(MarketAnalysisUtils.QUOTE_FACTOR,
                                         MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                                        SuspensionsThrottlingConfig.DEFAULT, Collections.emptyMap())
+                                        SuspensionsThrottlingConfig.DEFAULT, Collections.emptyMap(), false)
                         .setRightsizeLowerWatermark(rightsizeLowerWatermark)
                         .setRightsizeUpperWatermark(rightsizeUpperWatermark)
                         .setMaxPlacementsOverride(maxPlacementIterations)
@@ -905,7 +905,7 @@ public class TopologyEntitiesHandlerTest {
                             .newBuilder(MarketAnalysisUtils.QUOTE_FACTOR,
                                             MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                                             SuspensionsThrottlingConfig.DEFAULT,
-                                            Collections.emptyMap())
+                                            Collections.emptyMap(), false)
                             .setRightsizeLowerWatermark(rightsizeLowerWatermark)
                             .setRightsizeUpperWatermark(rightsizeUpperWatermark)
                             .setMaxPlacementsOverride(maxPlacementIterations)
@@ -1045,7 +1045,7 @@ public class TopologyEntitiesHandlerTest {
                 .newBuilder(MarketAnalysisUtils.QUOTE_FACTOR,
                         MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                         SuspensionsThrottlingConfig.DEFAULT,
-                        Collections.emptyMap())
+                        Collections.emptyMap(), false)
                 .setRightsizeLowerWatermark(rightsizeLowerWatermark)
                 .setRightsizeUpperWatermark(rightsizeUpperWatermark)
                 .setMaxPlacementsOverride(maxPlacementIterations)
@@ -1275,7 +1275,7 @@ public class TopologyEntitiesHandlerTest {
         assertEquals(e.getModifiableRawCommodityMap().size(), RawMaterialsMap.rawMaterialsMap.size());
         // check if the VMEM's rawMaterials are correctly stored
         assertEquals(e.getRawMaterials(CommonDTO.CommodityDTO.CommodityType.VMEM_VALUE).get().getMaterials().length,
-                 RawMaterialsMap.rawMaterialsMap.get(CommonDTO.CommodityDTO.CommodityType.VMEM_VALUE).size());
+                 RawMaterialsMap.rawMaterialsMap.get(CommonDTO.CommodityDTO.CommodityType.VMEM_VALUE).getRawMaterials().size());
 
     }
 

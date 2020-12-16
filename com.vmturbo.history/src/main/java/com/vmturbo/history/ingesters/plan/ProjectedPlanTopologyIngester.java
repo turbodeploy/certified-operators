@@ -28,7 +28,7 @@ public class ProjectedPlanTopologyIngester extends TopologyIngesterBase<Projecte
      */
     public ProjectedPlanTopologyIngester(
             @Nonnull final Collection<? extends IChunkProcessorFactory<ProjectedTopologyEntity,
-                    TopologyInfo, SimpleBulkLoaderFactory>> chunkProcessorFactories,
+                    TopologyInfo, IngesterState>> chunkProcessorFactories,
             @Nonnull final TopologyIngesterConfig topologyIngesterConfig,
             @Nonnull final Supplier<SimpleBulkLoaderFactory> loaderFactorySupplier) {
         super(chunkProcessorFactories, topologyIngesterConfig, loaderFactorySupplier,

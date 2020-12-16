@@ -1146,15 +1146,21 @@ public class ActionModeCalculator {
             }
         }
 
-        final int comparison = SettingDTOUtil.compareEnumSettingValues(
-                settingsForTargetEntity.get(perfActionSetting.getSettingName())
-                        .getEnumSettingValue(),
-                settingsForTargetEntity.get(effActionSetting.getSettingName())
-                        .getEnumSettingValue(), CLOUD_SCALE_SETTING_ENUM_TYPE);
-        if (comparison >= 0) {
-            return perfActionSetting;
+        final Setting perfSetting = settingsForTargetEntity.get(perfActionSetting.getSettingName());
+        final Setting effSetting = settingsForTargetEntity.get(effActionSetting.getSettingName());
+
+        if (perfSetting == null || effSetting == null) {
+            logger.debug("There is no defined setting for performance/efficiency cloud scale");
+            return ConfigurableActionSettings.CloudComputeScale;
         } else {
-            return effActionSetting;
+            final int comparison = SettingDTOUtil.compareEnumSettingValues(
+                    perfSetting.getEnumSettingValue(), effSetting.getEnumSettingValue(),
+                    CLOUD_SCALE_SETTING_ENUM_TYPE);
+            if (comparison >= 0) {
+                return perfActionSetting;
+            } else {
+                return effActionSetting;
+            }
         }
     }
 

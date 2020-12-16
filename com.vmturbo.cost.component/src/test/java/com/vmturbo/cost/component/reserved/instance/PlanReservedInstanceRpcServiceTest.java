@@ -46,8 +46,7 @@ import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc.PlanRese
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.cost.component.entity.cost.PlanProjectedEntityCostStore;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.sdk.common.CloudCostDTO;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
+import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 
 /**
  * Tests for the {@link PlanReservedInstanceRpcService}.
@@ -85,8 +84,8 @@ public class PlanReservedInstanceRpcServiceTest {
                     .setAvailabilityZoneId(100L)
                     .setNumBought(10)
                     .setReservedInstanceBoughtCost(ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost.newBuilder()
-                                    .setFixedCost(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(0))
-                                    .setRecurringCostPerHour(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(0.25)))
+                                    .setFixedCost(CurrencyAmount.newBuilder().setAmount(0))
+                                    .setRecurringCostPerHour(CurrencyAmount.newBuilder().setAmount(0.25)))
                     .setDisplayName("t101.small")
                     .build();
 
@@ -98,8 +97,8 @@ public class PlanReservedInstanceRpcServiceTest {
                     .setNumBought(20)
                     .setReservedInstanceBoughtCost(ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost
                                     .newBuilder()
-                                    .setFixedCost(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(15))
-                                    .setRecurringCostPerHour(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(0.25)))
+                                    .setFixedCost(CurrencyAmount.newBuilder().setAmount(15))
+                                    .setRecurringCostPerHour(CurrencyAmount.newBuilder().setAmount(0.25)))
                     .setDisplayName("t102.large")
                     .build();
 

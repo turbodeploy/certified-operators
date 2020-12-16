@@ -111,6 +111,41 @@ public class CachingMemberCalculatorTest {
     }
 
     /**
+     * Test that given two groups g1 and g2, such that g1 is a member of g2 and g2 is a member of
+     * g1 we can resolve them properly without ending up in a infinite loop.
+     *
+     * @throws Exception To satisfy compiler.
+     */
+    @Test
+    public void testRecursiveGroupResolution() throws Exception {
+        final CachingMemberCalculator memberCalculator = new CachingMemberCalculator(groupDAO,
+            internalCalculator, Type.SET, true, threadFactory);
+
+        Grouping g1 = Grouping.newBuilder()
+            .setId(1)
+            .setDefinition(GroupDefinition.newBuilder()
+                .setDisplayName("foo"))
+            .build();
+        Set<Long> g1Members = Sets.newHashSet(2L);
+        Grouping g2 = Grouping.newBuilder()
+            .setId(2)
+            .setDefinition(GroupDefinition.newBuilder()
+                .setDisplayName("bar"))
+            .build();
+        Set<Long> g2Members = Sets.newHashSet(1L);
+
+        when(groupDAO.getGroups(any())).thenReturn(Arrays.asList(g1, g2));
+        when(internalCalculator.getGroupMembers(groupDAO, g1.getDefinition(), false))
+            .thenReturn(g1Members);
+        when(internalCalculator.getGroupMembers(groupDAO, g2.getDefinition(), false))
+            .thenReturn(g2Members);
+        memberCalculator.onSourceTopologyAvailable(TOPOLOGY_ID, CONTEXT_ID);
+        memberCalculator.getGroupMembers(groupDAO, Collections.singletonList(1L), true);
+        verify(internalCalculator, times(2))
+            .getGroupMembers(any(IGroupStore.class), any(GroupDefinition.class), anyBoolean());
+    }
+
+    /**
      * Test getting expanded members recursively.
      *
      * @throws Exception To satisfy compiler.

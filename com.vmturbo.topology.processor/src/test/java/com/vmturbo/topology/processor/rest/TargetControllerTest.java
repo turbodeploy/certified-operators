@@ -155,7 +155,7 @@ public class TargetControllerTest {
             return new IdentityProviderImpl(
                     new IdentityService(
                             new IdentityServiceInMemoryUnderlyingStore(
-                                    mock(IdentityDatabaseStore.class)),
+                                    mock(IdentityDatabaseStore.class), 10),
                             new HeuristicsMatcher()),
                     new MapKeyValueStore(), new ProbeInfoCompatibilityChecker(), 0L);
         }

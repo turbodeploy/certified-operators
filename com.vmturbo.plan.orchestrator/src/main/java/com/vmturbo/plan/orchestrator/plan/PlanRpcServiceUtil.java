@@ -51,6 +51,7 @@ import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DemandType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType;
+import com.vmturbo.platform.sdk.common.CommonCost.PaymentOption;
 
 /**
  * This class provides support for PlanRpcService.
@@ -82,7 +83,7 @@ public class PlanRpcServiceUtil {
                     RIProviderSetting riProviderSetting = riSettingEntry.getValue();
                     ReservedInstanceType.OfferingClass defaultOffering = cloudType.equals(CloudType.AZURE.name()) ?
                             ReservedInstanceType.OfferingClass.CONVERTIBLE : ReservedInstanceType.OfferingClass.STANDARD;
-                    ReservedInstanceType.PaymentOption defaultPayment = ReservedInstanceType.PaymentOption.ALL_UPFRONT;
+                    PaymentOption defaultPayment = PaymentOption.ALL_UPFRONT;
                     int defaultTerm = 1;
                     RIPurchaseProfile riPurchaseProfile = RIPurchaseProfile.newBuilder()
                             .setRiType(ReservedInstanceType.newBuilder().setOfferingClass(
@@ -102,8 +103,8 @@ public class PlanRpcServiceUtil {
          * platforms or tenancies here in the requests, results in null and the RI buy algorithm will
          * fill in the appropriate OSTypes and Tenancies.
          */
-        final StartBuyRIAnalysisRequest.Builder buyRiRequest = StartBuyRIAnalysisRequest
-                .newBuilder().setTopologyInfo(TopologyInfo.newBuilder()
+        final StartBuyRIAnalysisRequest.Builder buyRiRequest = StartBuyRIAnalysisRequest.newBuilder()
+                .setTopologyInfo(TopologyInfo.newBuilder()
                         .setTopologyContextId(planId)
                         .setTopologyType(TopologyType.PLAN)
                         .setPlanInfo(PlanTopologyInfo.newBuilder()
@@ -136,6 +137,16 @@ public class PlanRpcServiceUtil {
         } else {
             buyRiRequest.setDemandType(DemandType.ALLOCATION);
         }
+
+        // New CCA settings
+        if (riSetting.hasIncludeTerminatedEntityDemand()) {
+            buyRiRequest.setIncludeTerminatedEntityDemand(riSetting.getIncludeTerminatedEntityDemand());
+        }
+
+        if (riSetting.hasLookBackDurationDays()) {
+            buyRiRequest.setLookBackDurationDays(riSetting.getLookBackDurationDays());
+        }
+
         return buyRiRequest.build();
     }
 

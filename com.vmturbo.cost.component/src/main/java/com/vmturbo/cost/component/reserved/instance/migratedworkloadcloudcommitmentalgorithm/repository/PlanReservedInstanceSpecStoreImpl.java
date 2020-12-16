@@ -14,6 +14,7 @@ import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceSpecRecord;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
+import com.vmturbo.platform.sdk.common.CommonCost;
 
 /**
  * Spring Repository implementation used to interact with the reserved_instance_spec cost database table.
@@ -48,7 +49,7 @@ public class PlanReservedInstanceSpecStoreImpl implements PlanReservedInstanceSp
      * @return A list of all reserved instance specs that match this criteria
      */
     @Override
-    public List<Cost.ReservedInstanceSpec> getReservedInstanceSpecs(@Nonnull Long regionId, @Nonnull Long tierId, CloudCostDTO.ReservedInstanceType.OfferingClass offeringClass, CloudCostDTO.ReservedInstanceType.PaymentOption paymentOption, int term, CloudCostDTO.Tenancy tenancy, CloudCostDTO.OSType osType) {
+    public List<Cost.ReservedInstanceSpec> getReservedInstanceSpecs(@Nonnull Long regionId, @Nonnull Long tierId, CloudCostDTO.ReservedInstanceType.OfferingClass offeringClass, CommonCost.PaymentOption paymentOption, int term, CloudCostDTO.Tenancy tenancy, CloudCostDTO.OSType osType) {
         return context.selectFrom(RESERVED_INSTANCE_SPEC)
                 .where(RESERVED_INSTANCE_SPEC.REGION_ID.eq(regionId)
                     .and(RESERVED_INSTANCE_SPEC.TIER_ID.eq(tierId)))

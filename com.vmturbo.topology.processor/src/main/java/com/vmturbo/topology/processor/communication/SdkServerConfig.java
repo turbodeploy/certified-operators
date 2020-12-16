@@ -16,6 +16,8 @@ import org.springframework.web.socket.server.standard.ServerEndpointRegistration
 import com.vmturbo.communication.WebsocketServerTransportManager;
 import com.vmturbo.communication.WebsocketServerTransportManager.TransportHandler;
 import com.vmturbo.sdk.server.common.SdkWebsocketServerTransportHandler;
+import com.vmturbo.topology.processor.communication.queues.AggregatingDiscoveryQueue;
+import com.vmturbo.topology.processor.communication.queues.AggregatingDiscoveryQueueImpl;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
 import com.vmturbo.topology.processor.targets.TargetConfig;
 
@@ -35,16 +37,47 @@ public class SdkServerConfig {
     @Value("${websocket.atomic.send.timeout.sec:30}")
     private long websocketAtomicSendTimeout;
 
+    @Value("${maxConcurrentTargetDiscoveriesPerContainerCount:10}")
+    private int maxConcurrentTargetDiscoveriesPerContainerCount;
+
+    @Value("${maxConcurrentTargetIncrementalDiscoveriesPerContainerCount:10}")
+    private int maxConcurrentTargetIncrementalDiscoveriesPerContainerCount;
+
+    @Value("${applyPermitsToContainers:false}")
+    private boolean applyPermitsToContainers;
+
     @Autowired
     private ProbeConfig probeConfig;
 
     @Autowired
     private TargetConfig targetConfig;
 
+    /**
+     * Create the queue for target discoveries.
+     *
+     * @return {@link AggregatingDiscoveryQueue} which holds scheduled discoveries for targets.
+     */
+    @Bean
+    public AggregatingDiscoveryQueue discoveryQueue() {
+        return new AggregatingDiscoveryQueueImpl(probeConfig.probeStore());
+    }
+
+    /**
+     * Return the appropriate type of RemoteMediationServer depending on whether we are controlling
+     * permits at the container level or probe type leve.
+     *
+     * @return RemoteMediationServer based on value of applyPermitsToContainers.
+     */
     @Bean
     public RemoteMediationServer remoteMediation() {
-        return new RemoteMediationServer(probeConfig.probeStore(),
-            targetConfig.probePropertyStore(), new ProbeContainerChooserImpl(probeConfig.probeStore()));
+        return applyPermitsToContainers ? new RemoteMediationServerWithDiscoveryWorkers(
+                probeConfig.probeStore(), targetConfig.probePropertyStore(),
+                new ProbeContainerChooserImpl(probeConfig.probeStore()), discoveryQueue(),
+                maxConcurrentTargetDiscoveriesPerContainerCount,
+                maxConcurrentTargetIncrementalDiscoveriesPerContainerCount)
+                : new RemoteMediationServer(probeConfig.probeStore(),
+                        targetConfig.probePropertyStore(),
+                        new ProbeContainerChooserImpl(probeConfig.probeStore()));
     }
 
     /**
@@ -91,5 +124,14 @@ public class SdkServerConfig {
 
     public long getNegotiationTimeoutSec() {
         return negotiationTimeoutSec;
+    }
+
+    /**
+     * Return whether permits are controlled at the container level or the probe type level.
+     *
+     * @return true if permits are being controlled at the container level.
+     */
+    public boolean getApplyPermitsToContainers() {
+        return applyPermitsToContainers;
     }
 }

@@ -24,10 +24,12 @@ import org.jooq.DSLContext;
 import org.jooq.Record2;
 import org.jooq.UpdatableRecord;
 import org.jooq.impl.DSL;
+import org.jooq.impl.TableImpl;
 
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.AccountRICoverageUpload;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage.RICoverageSource;
+import com.vmturbo.cost.component.TableDiagsRestorable;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.enums.AccountToReservedInstanceMappingRiSourceCoverage;
 import com.vmturbo.cost.component.db.tables.records.AccountToReservedInstanceMappingRecord;
@@ -36,8 +38,10 @@ import com.vmturbo.cost.component.db.tables.records.AccountToReservedInstanceMap
  * This class stores and retrieves per-account and per-entity RI Coverage information for
  * discovered and undiscovered accounts/RIs.
  */
-public class AccountRIMappingStore {
+public class AccountRIMappingStore implements TableDiagsRestorable {
     private static final Logger logger = LogManager.getLogger();
+
+    private static final String dumpFileName = "accountRIMapping_dump";
 
     private static final int chunkSize = 2000;
 
@@ -206,6 +210,22 @@ public class AccountRIMappingStore {
                                 AccountRIMappingItem::getUsedCoupons,
                                 (oldValue, newValue) -> oldValue + newValue));
         return undiscoveredAccountRIUsage;
+    }
+
+    @Override
+    public DSLContext getDSLContext() {
+        return dsl;
+    }
+
+    @Override
+    public TableImpl<AccountToReservedInstanceMappingRecord> getTable() {
+        return Tables.ACCOUNT_TO_RESERVED_INSTANCE_MAPPING;
+    }
+
+    @Nonnull
+    @Override
+    public String getFileName() {
+        return dumpFileName;
     }
 
     /**

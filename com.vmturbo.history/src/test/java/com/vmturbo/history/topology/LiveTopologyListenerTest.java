@@ -1,7 +1,6 @@
 package com.vmturbo.history.topology;
 
 import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 import java.util.concurrent.CountDownLatch;
@@ -22,7 +21,7 @@ import com.vmturbo.history.api.StatsAvailabilityTracker.TopologyContextType;
 import com.vmturbo.history.listeners.TopologyCoordinator;
 
 /**
- * Test the Live Topology processing classes
+ * Test the Live Topology processing classes.
  */
 public class LiveTopologyListenerTest {
     // TODO unify: revive these tests
@@ -39,7 +38,7 @@ public class LiveTopologyListenerTest {
     }
 
     /**
-     * Verify that interleaved topology skipping is working
+     * Verify that interleaved topology skipping is working.
      */
     @Ignore
     @Test

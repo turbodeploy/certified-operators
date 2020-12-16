@@ -2099,6 +2099,28 @@ services:
       JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_INTERSIGHT_SERVER_MEM_LIMIT_MB}M
 
+  mediation-actionstream-kafka:
+    extends:
+      file: common-services.yml
+      service: dev-mediation-component
+    image: turbonomic/com.vmturbo.mediation.kafka.component:${XL_VERSION}
+    depends_on: *clustermgrdep
+    ports:
+      - "${MEDIATION_ACTIONSTREAM_KAFKA_PORT}"
+      - "${MEDIATION_ACTIONSTREAM_KAFKA_DEBUG_PORT}"
+    environment:
+      component_type: mediation-actionstream-kafka
+      instance_id: mediation-actionstream-kafka-1
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_ACTIONSTREAM_KAFKA_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_ACTIONSTREAM_KAFKA_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
+    mem_limit: ${MEDIATION_ACTIONSTREAM_KAFKA_MEM_LIMIT_MB}M
+
   mediation:
     extends:
       file: common-services.yml

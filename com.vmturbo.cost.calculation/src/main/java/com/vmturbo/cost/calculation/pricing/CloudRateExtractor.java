@@ -18,6 +18,8 @@ import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.ImmutableSetMultimap;
+import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 
 import org.apache.logging.log4j.LogManager;
@@ -44,12 +46,12 @@ import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDT
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DeploymentType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.LicenseModel;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
+import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList;
 import com.vmturbo.platform.sdk.common.PricingDTO.DatabaseTierPriceList;
 import com.vmturbo.platform.sdk.common.PricingDTO.DatabaseTierPriceList.DatabaseTierConfigPrice;
@@ -71,6 +73,11 @@ public class CloudRateExtractor {
     private final EntityInfoExtractor<TopologyEntityDTO> entityInfoExtractor;
 
     private static final Set<String> TIERS_WITH_PRIORITY = ImmutableSet.of("IO2");
+
+    private static final Multimap<String, Unit> TIER2UNITS_ACCUMULATIVE_COST_MAP
+            = new ImmutableSetMultimap.Builder<String, Unit>()
+                .putAll("GP3", Unit.MBPS_MONTH, Unit.MILLION_IOPS)
+                .build();
 
     private static final Map<DatabaseEngine, String> DB_ENGINE_MAP = ImmutableMap.<DatabaseEngine, String>builder()
             .put(DatabaseEngine.AURORA, "Aurora")
@@ -412,10 +419,8 @@ public class CloudRateExtractor {
                     storagePrice.getPricesList().stream()
                             .collect(Collectors.groupingBy(Price::getUnit));
             pricesByUnit.forEach((unit, priceList) -> {
-                // We currently don't support any storage tiers with the accumulative price structure.
-                // When we need to support accumulative price, the indicator has to be passed in
-                // from the probe. We cannot say the price list is accumulative if it has ranges.
-                final boolean isAccumulativePrice = false;
+                // Accumulative cost for GP3 IOPS and Throughput.
+                final boolean isAccumulativePrice = TIER2UNITS_ACCUMULATIVE_COST_MAP.containsEntry(storageTier.getDisplayName(), unit);
 
                 // A price is considered a "unit" price if the amount of units consumed
                 // affects the price.

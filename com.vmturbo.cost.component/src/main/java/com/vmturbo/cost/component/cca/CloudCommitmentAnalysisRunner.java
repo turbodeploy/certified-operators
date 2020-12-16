@@ -1,5 +1,7 @@
 package com.vmturbo.cost.component.cca;
 
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -124,7 +126,9 @@ public class CloudCommitmentAnalysisRunner {
 
         final DemandSelection demandSelection = DemandSelection.newBuilder()
                 .setIncludeSuspendedEntities(cloudCommitmentSettingsFetcher.allocationSuspended())
-                .setIncludeTerminatedEntities(cloudCommitmentSettingsFetcher.includeTerminatedEntities())
+                .setIncludeTerminatedEntities(request.hasIncludeTerminatedEntityDemand()
+                        ? request.getIncludeTerminatedEntityDemand()
+                        : cloudCommitmentSettingsFetcher.includeTerminatedEntities())
                 .setScope(createDemandScopeFromRequest(request))
                 .build();
 
@@ -136,7 +140,7 @@ public class CloudCommitmentAnalysisRunner {
                                 .setDemandSelection(cloudCommitmentSettingsFetcher.scopeHistoricalDemandSelection()
                                         ? demandSelection
                                         : createBaseScopeForRequest(request)))
-                        .setLookBackStartTime(cloudCommitmentSettingsFetcher.historicalLookBackPeriod())
+                        .setLookBackStartTime(resolveAnalysisStartTimeMillis(request))
                         .setLogDetailedSummary(logDetailedSummary));
 
         // Set the demand classification settings
@@ -187,6 +191,16 @@ public class CloudCommitmentAnalysisRunner {
     private List<Long> getCloudCommitmentsFromRequest(StartBuyRIAnalysisRequest request) {
         List<ReservedInstanceBought> riBoughtList = planReservedInstanceStore.getReservedInstanceBoughtByPlanId(request.getTopologyInfo().getTopologyContextId());
         return riBoughtList.stream().map(s -> s.getId()).collect(Collectors.toList());
+    }
+
+    private long resolveAnalysisStartTimeMillis(@Nonnull StartBuyRIAnalysisRequest request) {
+
+        final int lookbackDays = request.hasLookBackDurationDays()
+                ? request.getLookBackDurationDays()
+                : cloudCommitmentSettingsFetcher.historicalLookBackDays();
+
+        final Instant analysisStartTime = Instant.now().minus(lookbackDays, ChronoUnit.DAYS);
+        return analysisStartTime.toEpochMilli();
     }
 
     private DemandScope createDemandScopeFromRequest(StartBuyRIAnalysisRequest request) {

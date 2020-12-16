@@ -76,7 +76,7 @@ public class TestMediationCommonConfig {
         return new IdentityProviderImpl(
                 new IdentityService(
                         new IdentityServiceInMemoryUnderlyingStore(
-                            Mockito.mock(IdentityDatabaseStore.class)), new HeuristicsMatcher()),
+                            Mockito.mock(IdentityDatabaseStore.class), 1), new HeuristicsMatcher()),
                 keyValueStore(), compatibilityChecker(), 0L);
     }
 

@@ -6,6 +6,7 @@ actionscript = true
 appdynamics = true
 hpe3par = true
 hyperv = true
+mediation-actionscript-kafka = false
 netapp = true
 nutanix = true
 pure = true

@@ -10,9 +10,9 @@ import javax.annotation.Nonnull;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
 import com.vmturbo.history.ingesters.common.IChunkProcessor;
 import com.vmturbo.history.ingesters.common.IChunkProcessorFactory;
+import com.vmturbo.history.ingesters.common.TopologyIngesterBase.IngesterState;
 
 /**
  * Base class for projected topology writers.
@@ -62,6 +62,6 @@ public abstract class ProjectedTopologyWriterBase
      * Create a new writer instance.
      */
     public abstract static class Factory implements
-            IChunkProcessorFactory<ProjectedTopologyEntity, TopologyInfo, SimpleBulkLoaderFactory> {
+            IChunkProcessorFactory<ProjectedTopologyEntity, TopologyInfo, IngesterState> {
     }
 }

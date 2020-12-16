@@ -366,7 +366,7 @@ public class RestTest {
     public void testAddNoAccess() throws Exception {
         logon("USER");
         String result = mockMvc.perform(postAdd(0))
-                               .andExpect(status().isForbidden())
+                               .andExpect(status().isConflict())
                                .andReturn().getResponse().getContentAsString();
         SecurityContextHolder.getContext().setAuthentication(null);
     }

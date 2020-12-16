@@ -209,6 +209,8 @@ intersight:
   enabled: false
 istio:
   enabled: false
+mediation-actionstream-kafka:
+  enabled: false
 mssql:
   enabled: false
 mysql:

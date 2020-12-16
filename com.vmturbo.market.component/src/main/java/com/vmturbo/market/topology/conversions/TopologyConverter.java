@@ -1,6 +1,7 @@
 package com.vmturbo.market.topology.conversions;
 
-import static com.vmturbo.common.protobuf.CostProtoUtil.calculateFactorForCommodityValues;
+import static com.vmturbo.market.topology.conversions.TopologyConversionUtils.CLOUD_VOLUME_COMMODITIES_UNIT_CONVERSION;
+import static com.vmturbo.market.topology.conversions.TopologyConversionUtils.calculateFactorForCommodityValues;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -3638,8 +3639,7 @@ public class TopologyConverter {
                         builder.setAssignedCapacityForBuyer(oldCapacity);
                     }
                 }
-            } else if (isCloudMigration && commodityType
-                    == CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE) {
+            } else if (isCloudMigration && CLOUD_VOLUME_COMMODITIES_UNIT_CONVERSION.contains(commodityType)) {
                 // Storage amount used is coming in MB, market expects in GB which is tier capacity.
                 // Issue seen for cloud migration case where source entities with storage in MB,
                 // are being migrated to cloud storage tiers like GP2.

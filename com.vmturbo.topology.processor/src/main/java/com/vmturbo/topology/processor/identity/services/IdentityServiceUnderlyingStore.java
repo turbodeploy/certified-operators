@@ -132,6 +132,13 @@ public interface IdentityServiceUnderlyingStore {
             throws IdentityServiceStoreOperationException, IdentityUninitializedException;
 
     /**
+     * Makes the current thread wait until the store gets initialized or a timeout occurs.
+     * @throws InterruptedException if any thread interrupted the current thread before
+     * or while the current thread was waiting for a notification.
+     */
+    void waitForInitializedStore() throws InterruptedException;
+
+    /**
      * Write out the contents of the store to the provided writer.
      *
      * @param writer The writer to backup to.

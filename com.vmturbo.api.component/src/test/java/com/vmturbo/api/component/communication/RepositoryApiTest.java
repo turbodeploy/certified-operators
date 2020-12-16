@@ -36,6 +36,7 @@ import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.PaginatedSearchRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.RepositoryRequestResult;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
+import com.vmturbo.api.component.external.api.mapper.EntityDetailsMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
@@ -98,6 +99,7 @@ public class RepositoryApiTest {
     private RepositoryApi repositoryApi;
     private BusinessAccountMapper businessAccountMapper;
     private PaginationMapper paginationMapper = mock(PaginationMapper.class);
+    private EntityDetailsMapper entityDetailsMapper = mock(EntityDetailsMapper.class);
 
     @Before
     public void setup() {
@@ -108,7 +110,7 @@ public class RepositoryApiTest {
                 RepositoryServiceGrpc.newStub(grpcChannel),
                 SearchServiceGrpc.newBlockingStub(grpcChannel),
                 SearchServiceGrpc.newStub(grpcChannel), serviceEntityMapper, businessAccountMapper,
-                paginationMapper,
+                paginationMapper, entityDetailsMapper,
                 realtimeContextId);
     }
 

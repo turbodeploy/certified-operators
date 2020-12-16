@@ -52,6 +52,7 @@ import com.vmturbo.api.component.external.api.util.setting.EntitySettingQueryExe
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
+import com.vmturbo.api.dto.entity.EntityDetailsApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.entity.TagApiDTO;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
@@ -419,6 +420,31 @@ public class EntitiesServiceTest {
         // there should no provider or consumer information; not even empty lists
         Assert.assertNull(result.getConsumers());
         Assert.assertNull(result.getProviders());
+    }
+
+    /**
+     * Tests the normal behavior of the {@link EntitiesService#getEntityDetails(String)} method.
+     *
+     * @throws Exception should not happen.
+     */
+    @Test
+    public void testGetEntityDetails() throws Exception {
+        EntityDetailsApiDTO vm = new EntityDetailsApiDTO();
+        vm.setUuid(VM_ID);
+
+        SingleEntityRequest vmReq = ApiTestUtils.mockSingleEntityRequest(vm);
+        when(repositoryApi.entityRequest(VM_ID)).thenReturn(vmReq);
+
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.oid()).thenReturn(VM_ID);
+        when(apiId.isEntity()).thenReturn(true);
+        when(uuidMapper.fromUuid(Long.toString(VM_ID))).thenReturn(apiId);
+
+        // call service
+        final EntityDetailsApiDTO result = service.getEntityDetails(Long.toString(VM_ID));
+
+        // check basic information
+        Assert.assertEquals(VM_ID, result.getUuid());
     }
 
     /**

@@ -23,6 +23,7 @@ import org.junit.Test;
 
 import com.vmturbo.common.protobuf.topology.Stitching.JournalOptions;
 import com.vmturbo.common.protobuf.topology.Stitching.Verbosity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
@@ -30,7 +31,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.StitchingEntity;
-import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.billing.AwsBillingBusinessAccountStitchingOperation;
 import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.journal.JournalRecorder.StringBuilderRecorder;
@@ -104,11 +104,11 @@ public class AwsBillingBusinessAccountStitchingOperationIntegrationTest extends 
         addEntities(Collections.emptyMap(), BILLING_TARGET_ID);
         addEntities(awsEntities, AWS_TARGET_ID);
 
-        final Map<Long, TopologyEntity.Builder> stitchedTopology = stitch();
+        final Map<Long, TopologyEntityDTO.Builder> stitchedTopology = stitch();
         assertThat(stitchedTopology.keySet(), containsInAnyOrder(1L, 2L));
-        assertThat(stitchedTopology.get(2L).getEntityBuilder().getConnectedEntityListList(),
+        assertThat(stitchedTopology.get(2L).getConnectedEntityListList(),
             empty());
-        assertThat(stitchedTopology.get(1L).getEntityBuilder().getConnectedEntityListList(),
+        assertThat(stitchedTopology.get(1L).getConnectedEntityListList(),
             contains(ConnectedEntity.newBuilder()
                 .setConnectedEntityId(2L)
                 .setConnectedEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
@@ -137,8 +137,8 @@ public class AwsBillingBusinessAccountStitchingOperationIntegrationTest extends 
         addEntities(awsEntities, AWS_TARGET_ID);
         addEntities(billingEntities, BILLING_TARGET_ID);
 
-        final Map<Long, TopologyEntity.Builder> stitchedTopology = stitch();
-        assertThat(stitchedTopology.get(1L).getEntityBuilder().getDisplayName(),
+        final Map<Long, TopologyEntityDTO.Builder> stitchedTopology = stitch();
+        assertThat(stitchedTopology.get(1L).getDisplayName(),
                 is(billingEntities.get(1L).getDisplayName()));
     }
 
@@ -158,8 +158,8 @@ public class AwsBillingBusinessAccountStitchingOperationIntegrationTest extends 
         addEntities(Collections.emptyMap(), BILLING_TARGET_ID);
         addEntities(awsEntities, AWS_TARGET_ID);
 
-        final Map<Long, TopologyEntity.Builder> stitchedTopology = stitch();
-        assertThat(stitchedTopology.get(1L).getEntityBuilder().getDisplayName(),
+        final Map<Long, TopologyEntityDTO.Builder> stitchedTopology = stitch();
+        assertThat(stitchedTopology.get(1L).getDisplayName(),
                 isEmptyString());
     }
 
@@ -184,8 +184,8 @@ public class AwsBillingBusinessAccountStitchingOperationIntegrationTest extends 
         addEntities(awsEntities, AWS_TARGET_ID);
         addEntities(billingEntities, BILLING_TARGET_ID);
 
-        final Map<Long, TopologyEntity.Builder> stitchedTopology = stitch();
-        assertThat(stitchedTopology.get(1L).getEntityBuilder().getDisplayName(),
+        final Map<Long, TopologyEntityDTO.Builder> stitchedTopology = stitch();
+        assertThat(stitchedTopology.get(1L).getDisplayName(),
                 is(awsEntities.get(1L).getDisplayName()));
     }
 
@@ -205,11 +205,11 @@ public class AwsBillingBusinessAccountStitchingOperationIntegrationTest extends 
         addEntities(Collections.emptyMap(), AWS_TARGET_ID);
         addEntities(billingEntities, BILLING_TARGET_ID);
 
-        final Map<Long, TopologyEntity.Builder> stitchedTopology = stitch();
+        final Map<Long, TopologyEntityDTO.Builder> stitchedTopology = stitch();
         assertThat(stitchedTopology.keySet(), containsInAnyOrder(1L, 2L));
-        assertThat(stitchedTopology.get(2L).getEntityBuilder().getConnectedEntityListList(),
+        assertThat(stitchedTopology.get(2L).getConnectedEntityListList(),
             empty());
-        assertThat(stitchedTopology.get(1L).getEntityBuilder().getConnectedEntityListList(),
+        assertThat(stitchedTopology.get(1L).getConnectedEntityListList(),
             contains(ConnectedEntity.newBuilder()
                 .setConnectedEntityId(2L)
                 .setConnectedEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
@@ -245,13 +245,13 @@ public class AwsBillingBusinessAccountStitchingOperationIntegrationTest extends 
         addEntities(awsEntities, AWS_TARGET_ID);
         addEntities(billingEntities, BILLING_TARGET_ID);
 
-        final Map<Long, TopologyEntity.Builder> stitchedTopology = stitch();
+        final Map<Long, TopologyEntityDTO.Builder> stitchedTopology = stitch();
         assertThat(stitchedTopology.keySet(), containsInAnyOrder(1L, 2L, 3L));
-        assertThat(stitchedTopology.get(2L).getEntityBuilder().getConnectedEntityListList(),
+        assertThat(stitchedTopology.get(2L).getConnectedEntityListList(),
             empty());
-        assertThat(stitchedTopology.get(3L).getEntityBuilder().getConnectedEntityListList(),
+        assertThat(stitchedTopology.get(3L).getConnectedEntityListList(),
             empty());
-        assertThat(stitchedTopology.get(1L).getEntityBuilder().getConnectedEntityListList(),
+        assertThat(stitchedTopology.get(1L).getConnectedEntityListList(),
             containsInAnyOrder(ConnectedEntity.newBuilder()
                     .setConnectedEntityId(2L)
                     .setConnectedEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
@@ -291,11 +291,11 @@ public class AwsBillingBusinessAccountStitchingOperationIntegrationTest extends 
         addEntities(awsEntities, AWS_TARGET_ID);
         addEntities(billingEntities, BILLING_TARGET_ID);
 
-        final Map<Long, TopologyEntity.Builder> stitchedTopology = stitch();
+        final Map<Long, TopologyEntityDTO.Builder> stitchedTopology = stitch();
         assertThat(stitchedTopology.keySet(), containsInAnyOrder(1L, 2L));
-        assertThat(stitchedTopology.get(2L).getEntityBuilder().getConnectedEntityListList(),
+        assertThat(stitchedTopology.get(2L).getConnectedEntityListList(),
             empty());
-        assertThat(stitchedTopology.get(1L).getEntityBuilder().getConnectedEntityListList(),
+        assertThat(stitchedTopology.get(1L).getConnectedEntityListList(),
             containsInAnyOrder(ConnectedEntity.newBuilder()
                     .setConnectedEntityId(2L)
                     .setConnectedEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
@@ -335,13 +335,13 @@ public class AwsBillingBusinessAccountStitchingOperationIntegrationTest extends 
             addEntities(awsEntities, AWS_TARGET_ID);
             addEntities(billingEntities, BILLING_TARGET_ID);
 
-            final Map<Long, TopologyEntity.Builder> stitchedTopology = stitch();
+            final Map<Long, TopologyEntityDTO.Builder> stitchedTopology = stitch();
             assertThat(stitchedTopology.keySet(), containsInAnyOrder(1L, 2L, 3L));
-            assertThat(stitchedTopology.get(2L).getEntityBuilder().getConnectedEntityListList(),
+            assertThat(stitchedTopology.get(2L).getConnectedEntityListList(),
                 empty());
-            assertThat(stitchedTopology.get(3L).getEntityBuilder().getConnectedEntityListList(),
+            assertThat(stitchedTopology.get(3L).getConnectedEntityListList(),
                 empty());
-            assertThat(stitchedTopology.get(1L).getEntityBuilder().getConnectedEntityListList(),
+            assertThat(stitchedTopology.get(1L).getConnectedEntityListList(),
                 containsInAnyOrder(ConnectedEntity.newBuilder()
                         .setConnectedEntityId(2L)
                         .setConnectedEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
@@ -352,12 +352,12 @@ public class AwsBillingBusinessAccountStitchingOperationIntegrationTest extends 
                         .setConnectedEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
                         .setConnectionType(ConnectionType.OWNS_CONNECTION)
                         .build()));
-            assertThat(stitchedTopology.get(1L).getEntityBuilder().getDisplayName(),
+            assertThat(stitchedTopology.get(1L).getDisplayName(),
                     is(awsEntities.get(1L).getDisplayName()));
         }
     }
 
-    private Map<Long, TopologyEntity.Builder> stitch() {
+    private Map<Long, TopologyEntityDTO.Builder> stitch() {
         final StringBuilder journalStringBuilder = new StringBuilder(2048);
         final StitchingContext stitchingContext = entityStore.constructStitchingContext();
         final StringBuilderRecorder recorder = new StringBuilderRecorder(journalStringBuilder);

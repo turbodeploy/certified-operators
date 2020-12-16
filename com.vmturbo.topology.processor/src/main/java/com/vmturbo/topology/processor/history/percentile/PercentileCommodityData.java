@@ -102,9 +102,13 @@ public class PercentileCommodityData
             if (!context.isPlan()) {
                 UtilizationData utilizationData = commodityFieldsAccessor.getUtilizationData(field);
                 if (utilizationData != null) {
-                    utilizationCounts.addPoints(utilizationData.getPointList(), capacity,
-                                                utilizationData.getLastPointTimestampMs() - utilizationData
-                                                                .getIntervalMs() * (utilizationData.getPointCount() - 1));
+                    final int pointCount = utilizationData.getPointCount();
+                    if (pointCount > 0) {
+                        final long timestamp = utilizationData.getLastPointTimestampMs()
+                                - utilizationData.getIntervalMs() * (pointCount - 1);
+                        utilizationCounts.addPoints(utilizationData.getPointList(), capacity,
+                                timestamp);
+                    }
                 } else {
                     // if this commodity is selected for percentile analysis, but mediation passed no data,
                     // generate a single point from real-time usage

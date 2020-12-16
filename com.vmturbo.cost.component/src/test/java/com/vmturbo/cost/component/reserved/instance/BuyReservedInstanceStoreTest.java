@@ -42,8 +42,8 @@ import com.vmturbo.cost.component.reserved.instance.filter.BuyReservedInstanceFi
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalysisRecommendation;
 import com.vmturbo.platform.sdk.common.CloudCostDTOREST.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTOREST.ReservedInstanceType.OfferingClass;
-import com.vmturbo.platform.sdk.common.CloudCostDTOREST.ReservedInstanceType.PaymentOption;
 import com.vmturbo.platform.sdk.common.CloudCostDTOREST.Tenancy;
+import com.vmturbo.platform.sdk.common.CommonCost.PaymentOption;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
 
@@ -339,7 +339,7 @@ public class BuyReservedInstanceStoreTest {
         final ReservedInstanceSpecRecord specRecordOne = dsl.newRecord(Tables.RESERVED_INSTANCE_SPEC,
                 new ReservedInstanceSpecRecord(99L,
                         OfferingClass.STANDARD.getValue(),
-                        PaymentOption.ALL_UPFRONT.getValue(),
+                        PaymentOption.ALL_UPFRONT.getNumber(),
                         1,
                         Tenancy.DEDICATED.getValue(),
                         OSType.LINUX.getValue(),

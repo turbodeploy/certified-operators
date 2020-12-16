@@ -30,6 +30,7 @@ import com.vmturbo.cloud.commitment.analysis.runtime.stages.recommendation.Cloud
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.recommendation.ReservedInstanceRecommendationInfo;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.recommendation.calculator.CloudCommitmentSavingsCalculator.SavingsCalculationRecommendation;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.recommendation.calculator.SavingsCalculationContext;
+import com.vmturbo.cloud.commitment.analysis.spec.CloudCommitmentSpecData;
 import com.vmturbo.cloud.commitment.analysis.spec.ReservedInstanceSpecData;
 import com.vmturbo.cloud.common.commitment.ReservedInstanceData;
 import com.vmturbo.cloud.common.topology.MinimalCloudTopology;
@@ -40,12 +41,13 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInst
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceDerivedCost;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceDerivedCost.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.cost.component.reserved.instance.ActionContextRIBuyStore;
 import com.vmturbo.cost.component.reserved.instance.ActionContextRIBuyStore.DemandType;
 import com.vmturbo.cost.component.reserved.instance.ActionContextRIBuyStore.RIBuyInstanceDemand;
 import com.vmturbo.cost.component.reserved.instance.BuyReservedInstanceStore;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
+import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 
 /**
  * A local implementation of {@link CloudCommitmentRecommendationStore}, in which RIs are stored
@@ -129,13 +131,24 @@ public class LocalCommitmentRecommendationStore implements CloudCommitmentRecomm
                         .setAmount(riPricingData.hourlyRecurringRate())
                         .build())
                 .build();
-        final ReservedInstanceDerivedCost riDerivedCost = ReservedInstanceDerivedCost.newBuilder()
+
+
+        final Builder riDerivedCostBuilder = ReservedInstanceDerivedCost.newBuilder()
                 .setAmortizedCostPerHour(
                         CurrencyAmount.newBuilder()
                                 .setAmount(riPricingData.amortizedHourlyRate())
-                                .build())
-                .build();
+                                .build());
 
+        if (recommendation.breakEven() != null && recommendation.breakEven().isPresent()) {
+            final long breakEvenPeriodInHours = recommendation.breakEven().get().getDays() * 24;
+            double onDemandRate = calculateAndRetrieveOnDemandRate(riPricingData, recommendationInfo.commitmentSpecData(),
+                    breakEvenPeriodInHours, savingsRecommendation.recommendationUtilization());
+            riDerivedCostBuilder.setOnDemandRatePerHour(CurrencyAmount.newBuilder()
+                    .setAmount(onDemandRate)
+                    .build());
+        }
+
+        final ReservedInstanceDerivedCost riDerivedCost = riDerivedCostBuilder.build();
         final long recommendationCouponCapacity =
                 riSpecData.couponsPerInstance() * savingsRecommendation.recommendationQuantity();
         final ReservedInstanceBoughtCoupons riBoughtCoupons = ReservedInstanceBoughtCoupons.newBuilder()
@@ -229,6 +242,27 @@ public class LocalCommitmentRecommendationStore implements CloudCommitmentRecomm
                 .stream()
                 .map(RIBuyInstanceDemand.Builder::build)
                 .collect(ImmutableList.toImmutableList());
+    }
+
+    /**
+     * The on demand rate needs to be computed cause the UI uses it for setting the break even period
+     * for any CCA buy recommendation. This is a hackish approach. Once we have API support for sending
+     * the break even period, this will be deprecated.
+     *
+     * @param riPricingData The riPricingData for getting the amortized hourly rate.
+     * @param cloudCommitmentSpecData The cloud commitment spec data for getting the term.
+     * @param breakEvenPeriod The break even period used for calculating the on demand rate.
+     * @param recommendationUtilization the recommended utilization of the recommendation.
+     *
+     * @return A double representing the on demand cost.
+     */
+    private double calculateAndRetrieveOnDemandRate(@Nonnull RIPricingData riPricingData,
+            @Nonnull CloudCommitmentSpecData cloudCommitmentSpecData, @Nonnull long breakEvenPeriod,
+            @Nonnull double recommendationUtilization) {
+        double hourlyAmortizedRate = riPricingData.amortizedHourlyRate();
+        long term = cloudCommitmentSpecData.termInHours();
+        double onDemandRate = (term * hourlyAmortizedRate / breakEvenPeriod);
+        return onDemandRate / (recommendationUtilization / 100);
     }
 
 }

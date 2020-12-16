@@ -104,6 +104,8 @@ public abstract class SQLDatabaseConfig {
 
     private static final Logger logger = LogManager.getLogger();
 
+    private DBPasswordUtil dbPasswordUtil;
+
     /**
      * Get the name of the database schema. Each component has its own schema.
      *
@@ -114,7 +116,7 @@ public abstract class SQLDatabaseConfig {
     @Bean
     @Primary
     public DataSource dataSource() {
-        return dataSource(getSQLConfigObject().getDbRootUrl(), dbRootUsername, getDBRootPassword());
+        return dataSource(getSQLConfigObject().getDbRootUrl(), dbRootUsername, getDBRootPassword(false));
     }
 
     /**
@@ -233,7 +235,7 @@ public abstract class SQLDatabaseConfig {
      */
     @Bean
     public SQLConfigObject getSQLConfigObject() {
-        String dbPassword = getDBRootPassword();
+        String dbPassword = getDBRootPassword(false);
         final Optional<UsernamePasswordCredentials> rootCredentials = (dbRootUsername != null && dbPassword != null) ?
             Optional.ofNullable(new UsernamePasswordCredentials(dbRootUsername, dbPassword)) : Optional.empty();
         final Map<SQLDialect, String> driverPropertiesMap = ImmutableMap.of(
@@ -254,10 +256,9 @@ public abstract class SQLDatabaseConfig {
     @NotNull
     protected DataSource getDataSource(String dbSchemaName, String dbUsername,
             Optional<String> password) {
-        // If no db password specified, use root password by default.
+        // If no db password specified, use root password.
         return dataSourceConfig(dbSchemaName, dbUsername,
-                password.orElseGet(() -> new DBPasswordUtil(authHost, authPort, authRoute,
-                        authRetryDelaySecs).getSqlDbRootPassword()),
+                password.orElseGet(() -> getDBRootPassword(true)),
                 password.isPresent());
     }
 
@@ -296,11 +297,11 @@ public abstract class SQLDatabaseConfig {
                             + "Initializing schema and user under root credentials is needed.",
                     schemaName, dbUsername);
         }
+        final String dbRootPassword = getDBRootPassword(false);
         DataSource rootDataSource =
-                dataSource(getSQLConfigObject().getDbRootUrl(), dbRootUsername,
-                        getDBRootPassword());
+                dataSource(getSQLConfigObject().getDbRootUrl(), dbRootUsername, dbRootPassword);
         try (Connection rootConnection = rootDataSource.getConnection()) {
-            if (hasGrantPrivilege(rootConnection, dbRootUsername, getDBRootPassword(), schemaName)) {
+            if (hasGrantPrivilege(rootConnection, dbRootUsername, dbRootPassword, schemaName)) {
                 // Run flyway migration under root credentials.
                 flyway(schemaName, rootDataSource);
                 // Allow given user to access the database (= grants.sql):
@@ -310,6 +311,8 @@ public abstract class SQLDatabaseConfig {
                 logger.error("Database connection is not available with root credentials" +
                         " or doesn't have GRANT permission. Failed " +
                         "to create db user {} for schema {}.", dbUsername, schemaName);
+                throw new BeanCreationException(dbRootUsername +
+                        " does NOT have GRANT permission to reset component user: " + dbUsername);
             }
         } catch (SQLException e) {
             logger.error("Database connection is not available with root credentials. Failed " +
@@ -375,13 +378,43 @@ public abstract class SQLDatabaseConfig {
     }
 
     /**
-     * Get DB root password. If DB password passed in from environment, use it; otherwise use the
-     * default root password from ktil.
+     * Get DB root password. If DB password passed in from environment, use it;
+     * Next, if `isGettingPassFromAuth` is true, return from Auth component, otherwise
+     * return the default root DB password.
      *
+     * @param isGettingPassFromAuth should get DB root password from auth component?
      * @return DB root password.
+     *
      */
-    private String getDBRootPassword() {
-        return !Strings.isEmpty(dbRootPassword) ? dbRootPassword : DBPasswordUtil.obtainDefaultPW();
+    @VisibleForTesting
+    String getDBRootPassword(boolean isGettingPassFromAuth) {
+        if (!Strings.isEmpty(dbRootPassword)) {
+            return dbRootPassword;
+        } else if (isGettingPassFromAuth) {
+            return getDbPasswordUtil().getSqlDbRootPassword();
+        }
+        return getDbPasswordUtil().obtainDefaultPW();
+    }
+
+    // Lazy initialization due to auth connection parameters are injected by Spring.
+    synchronized DBPasswordUtil getDbPasswordUtil() {
+        if (dbPasswordUtil != null) {
+            return dbPasswordUtil;
+        }
+        dbPasswordUtil = new DBPasswordUtil(authHost, authPort, authRoute, authRetryDelaySecs);
+        return dbPasswordUtil;
+    }
+
+    // use for testing only
+    @VisibleForTesting
+    void setDbPasswordUtil(@Nonnull final DBPasswordUtil dbPasswordUtil) {
+        this.dbPasswordUtil = dbPasswordUtil;
+    }
+
+    // use for testing only
+    @VisibleForTesting
+    void setDbRootPassword(@Nonnull final String  dbRootPassword) {
+        this.dbRootPassword = dbRootPassword;
     }
 
     /**

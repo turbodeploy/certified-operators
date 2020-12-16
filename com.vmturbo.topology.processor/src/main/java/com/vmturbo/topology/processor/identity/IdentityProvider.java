@@ -89,4 +89,11 @@ public interface IdentityProvider extends DiagsRestorable<Void> {
      * @param probeInfo The object describing the probe.
      */
     void updateProbeInfo(ProbeInfo probeInfo);
+
+    /**
+     * Makes the current thread wait until the store gets initialized or a timeout occurs.
+     * @throws InterruptedException if any thread interrupted the current thread before
+     * or while the current thread was waiting for a notification.
+     */
+     void waitForInitializedStore() throws InterruptedException;
 }

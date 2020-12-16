@@ -1,8 +1,5 @@
 package com.vmturbo.cost.component.cca;
 
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
-
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
@@ -88,13 +85,12 @@ public class CloudCommitmentSettingsFetcher {
     }
 
     /**
-     * Get the historical look back period to get the analyzable demand for an entity.
+     * Get the historical look back in days to get the analyzable demand for an entity.
      *
-     * @return the historical look back period.
+     * @return the historical look back in days.
      */
-    public long historicalLookBackPeriod() {
-        return Instant.now().minus((int)fetchCloudCommitmentFloatSetting(GlobalSettingSpecs
-                .CloudCommitmentHistoricalLookbackPeriod.createSettingSpec()), ChronoUnit.DAYS).toEpochMilli();
+    public int historicalLookBackDays() {
+        return (int)fetchCloudCommitmentFloatSetting(GlobalSettingSpecs.CloudCommitmentHistoricalLookbackPeriod.createSettingSpec());
     }
 
     /**

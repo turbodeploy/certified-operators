@@ -44,8 +44,9 @@ import com.vmturbo.cost.component.util.BusinessAccountHelper;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTOREST.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTOREST.ReservedInstanceType.OfferingClass;
-import com.vmturbo.platform.sdk.common.CloudCostDTOREST.ReservedInstanceType.PaymentOption;
 import com.vmturbo.platform.sdk.common.CloudCostDTOREST.Tenancy;
+import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
+import com.vmturbo.platform.sdk.common.CommonCost.PaymentOption;
 import com.vmturbo.platform.sdk.common.PricingDTO;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
@@ -110,8 +111,8 @@ public class ReservedInstanceUtilizationStoreTest {
                     .setNumberOfCoupons(100))
             .setReservedInstanceBoughtCost(ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost
                             .newBuilder()
-                            .setFixedCost(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(15))
-                            .setRecurringCostPerHour(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(0.25)))
+                            .setFixedCost(CurrencyAmount.newBuilder().setAmount(15))
+                            .setRecurringCostPerHour(CurrencyAmount.newBuilder().setAmount(0.25)))
             .setNumBought(10)
             .build();
 
@@ -128,8 +129,8 @@ public class ReservedInstanceUtilizationStoreTest {
                     .setNumberOfCoupons(100))
             .setReservedInstanceBoughtCost(ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost
                             .newBuilder()
-                            .setFixedCost(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(15))
-                            .setRecurringCostPerHour(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(0.25)))
+                            .setFixedCost(CurrencyAmount.newBuilder().setAmount(15))
+                            .setRecurringCostPerHour(CurrencyAmount.newBuilder().setAmount(0.25)))
             .setNumBought(20)
             .build();
 
@@ -146,8 +147,8 @@ public class ReservedInstanceUtilizationStoreTest {
                     .setNumberOfCoupons(100))
                     .setReservedInstanceBoughtCost(ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost
                                     .newBuilder()
-                                    .setFixedCost(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(15))
-                                    .setRecurringCostPerHour(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(0.25)))
+                                    .setFixedCost(CurrencyAmount.newBuilder().setAmount(15))
+                                    .setRecurringCostPerHour(CurrencyAmount.newBuilder().setAmount(0.25)))
             .setNumBought(30)
             .build();
 
@@ -274,15 +275,15 @@ public class ReservedInstanceUtilizationStoreTest {
     private void insertDefaultReservedInstanceSpec() {
         final CloudCostDTO.ReservedInstanceType riType1 = CloudCostDTO.ReservedInstanceType.newBuilder().setTermYears(1).setOfferingClass(
                         CloudCostDTO.ReservedInstanceType.OfferingClass.STANDARD).setPaymentOption(
-                        CloudCostDTO.ReservedInstanceType.PaymentOption.ALL_UPFRONT).build();
+                        PaymentOption.ALL_UPFRONT).build();
 
         final CloudCostDTO.ReservedInstanceType riType2 = CloudCostDTO.ReservedInstanceType.newBuilder().setTermYears(2).setOfferingClass(
                         CloudCostDTO.ReservedInstanceType.OfferingClass.STANDARD).setPaymentOption(
-                        CloudCostDTO.ReservedInstanceType.PaymentOption.ALL_UPFRONT).build();
+                        PaymentOption.ALL_UPFRONT).build();
         final ReservedInstanceSpecRecord specRecordOne = dsl.newRecord(Tables.RESERVED_INSTANCE_SPEC,
                 new ReservedInstanceSpecRecord(99L,
                         OfferingClass.STANDARD.getValue(),
-                        PaymentOption.ALL_UPFRONT.getValue(),
+                        PaymentOption.ALL_UPFRONT.getNumber(),
                         1,
                         Tenancy.DEDICATED.getValue(),
                         OSType.LINUX.getValue(),
@@ -292,7 +293,7 @@ public class ReservedInstanceUtilizationStoreTest {
         final ReservedInstanceSpecRecord specRecordTwo = dsl.newRecord(Tables.RESERVED_INSTANCE_SPEC,
                 new ReservedInstanceSpecRecord(100L,
                         OfferingClass.STANDARD.getValue(),
-                        PaymentOption.ALL_UPFRONT.getValue(),
+                        PaymentOption.ALL_UPFRONT.getNumber(),
                         2,
                         Tenancy.HOST.getValue(),
                         OSType.LINUX.getValue(),

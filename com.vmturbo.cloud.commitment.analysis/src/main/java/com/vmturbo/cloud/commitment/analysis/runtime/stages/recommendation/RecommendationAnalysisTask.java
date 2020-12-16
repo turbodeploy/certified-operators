@@ -1,10 +1,12 @@
 package com.vmturbo.cloud.commitment.analysis.runtime.stages.recommendation;
 
+import java.time.Period;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 
@@ -59,6 +61,8 @@ public class RecommendationAnalysisTask implements Callable<CloudCommitmentRecom
 
     private final SavingsPricingResolver pricingResolver;
 
+    private final BreakEvenCalculator breakEvenCalculator;
+
     private RecommendationAnalysisTask(@Nonnull IdentityProvider identityProvider,
                                        @Nonnull CloudCommitmentSavingsCalculator savingsCalculator,
                                        @Nonnull SavingsPricingResolver pricingResolver,
@@ -71,6 +75,7 @@ public class RecommendationAnalysisTask implements Callable<CloudCommitmentRecom
         this.recommendationTopology = Objects.requireNonNull(recommendationTopology);
         this.computeTierFamilyResolver = Objects.requireNonNull(computeTierFamilyResolver);
         this.commitmentContext = recommendationTopology.commitmentContext();
+        this.breakEvenCalculator = new BreakEvenCalculator();
     }
 
     /**
@@ -95,6 +100,8 @@ public class RecommendationAnalysisTask implements Callable<CloudCommitmentRecom
 
         final SavingsCalculationResult savingsCalculationResult =
                 savingsCalculator.calculateSavingsRecommendation(savingsCalculationContext);
+
+        final Optional<Period> breakEvenTime = breakEvenCalculator.calculateBreakEven(savingsCalculationResult, recommendationInfo.commitmentSpecData());
         logger.debug("Completed savings calculation (Recommendation Info={} Stopwatch={})",
                 recommendationInfo, stopwatch);
 
@@ -103,6 +110,7 @@ public class RecommendationAnalysisTask implements Callable<CloudCommitmentRecom
                 .recommendationInfo(recommendationInfo)
                 .coveredDemandInfo(createCoveredDemandInfo())
                 .savingsCalculationResult(savingsCalculationResult)
+                .breakEven(breakEvenTime)
                 .build();
     }
 

@@ -69,7 +69,7 @@ public class IdentityServiceInMemoryUnderlyingStoreTest {
     public void setUp() throws Exception {
         firstOID = IdentityGenerator.next();
         secondOID = IdentityGenerator.next();
-        store = new IdentityServiceInMemoryUnderlyingStore(databaseStore);
+        store = new IdentityServiceInMemoryUnderlyingStore(databaseStore, 10);
     }
 
     @Test
@@ -316,9 +316,11 @@ public class IdentityServiceInMemoryUnderlyingStoreTest {
             .thenReturn(Collections.singleton(descriptor));
 
         final IdentityServiceInMemoryUnderlyingStore store =
-                new IdentityServiceInMemoryUnderlyingStore(databaseStore, 50, TimeUnit.MILLISECONDS);
+                new IdentityServiceInMemoryUnderlyingStore(databaseStore, 50,
+                    TimeUnit.MILLISECONDS, 10);
 
         verify(databaseStore, timeout(60000).atLeast(2)).getDescriptors();
+        store.waitForInitializedStore();
         assertTrue(store.containsOID(7L));
         store.checkInitialized();
     }
@@ -350,7 +352,7 @@ public class IdentityServiceInMemoryUnderlyingStoreTest {
         store.backup(writer);
 
         final IdentityServiceInMemoryUnderlyingStore newStore =
-                new IdentityServiceInMemoryUnderlyingStore(databaseStore);
+                new IdentityServiceInMemoryUnderlyingStore(databaseStore, 10);
 
         newStore.restore(new StringReader(writer.toString()));
         assertTrue(store.containsOID(firstOID));

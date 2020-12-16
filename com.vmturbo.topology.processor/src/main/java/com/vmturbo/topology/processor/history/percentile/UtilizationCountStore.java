@@ -90,14 +90,12 @@ public class UtilizationCountStore {
     public synchronized boolean isMinHistoryDataAvailable(@Nonnull HistoryAggregationContext context,
                                              @Nonnull PercentileHistoricalEditorConfig config) {
 
-        return latest.isMinHistoryDataAvailable(config.getClock().millis(),
-                                                fieldReference.toString(),
-                                                config.getMinObservationPeriod(context,
-                                                                               fieldReference.getEntityOid()))
-               || full.isMinHistoryDataAvailable(config.getClock().millis(),
-                                                 fieldReference.toString(),
-                                                 config.getMinObservationPeriod(context,
-                                                                                fieldReference.getEntityOid()));
+        final long currentTimestamp = config.getClock().millis();
+        final String field = fieldReference.toString();
+        final int minObservationPeriodDays = config.getMinObservationPeriod(context,
+                fieldReference.getEntityOid());
+        return latest.isMinHistoryDataAvailable(currentTimestamp, field, minObservationPeriodDays)
+                || full.isMinHistoryDataAvailable(currentTimestamp, field, minObservationPeriodDays);
     }
 
     /**

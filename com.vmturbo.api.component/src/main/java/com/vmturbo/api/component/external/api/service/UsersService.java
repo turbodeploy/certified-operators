@@ -704,7 +704,7 @@ public class UsersService implements IUsersService {
     /**
      * Create the Active Directory representation.
      *
-     * @param inputDTO The Active Directory description.
+     * @param inputDTO The Active Directory DTO.
      * @return The Active Directory representation object.
      * @throws ConversionException if error faced converting objects to API DTOs
      * @throws InterruptedException if current thread has been interrupted
@@ -716,15 +716,16 @@ public class UsersService implements IUsersService {
         try {
             final String request = baseRequest().path("/users/ad").build().toUriString();
             HttpEntity<ActiveDirectoryDTO> entity = new HttpEntity<>(convertADInfoToAuth(inputDTO),
-                composeHttpHeaders());
+                    composeHttpHeaders());
             Class<ActiveDirectoryDTO> clazz = ActiveDirectoryDTO.class;
-            final String details = String.format("Set LDAP domain to: %s", inputDTO.getDomainName());
-            AuditLog.newEntry(AuditAction.SET_LDAP,
-                details, true)
-                .targetName("LDAP SERVICE")
-                .audit();
-            return convertADInfoFromAuth(restTemplate_.exchange(request, HttpMethod.POST,
-                entity, clazz).getBody());
+            final String details = String.format("Set LDAP domain to: %s",
+                    inputDTO.getDomainName());
+
+            ActiveDirectoryApiDTO result = convertADInfoFromAuth(
+                    restTemplate_.exchange(request, HttpMethod.POST, entity, clazz).getBody());
+            AuditLog.newEntry(AuditAction.SET_LDAP, details, true).targetName("LDAP SERVICE")
+                    .audit();
+            return result;
         } catch (RuntimeException e) {
             final String details = String.format("Failed to set LDAP domain to: %s", inputDTO.getDomainName());
             AuditLog.newEntry(AuditAction.SET_LDAP,
@@ -732,6 +733,48 @@ public class UsersService implements IUsersService {
                 .targetName("LDAP SERVICE")
                 .audit();
             throw e;
+        }
+    }
+
+    /**
+     * Update the Active Directory representation.
+     *
+     * @param inputDTO The Active Directory DTO.
+     * @return The Active Directory representation object.
+     * @throws ConversionException if error faced converting objects to API DTOs
+     * @throws InterruptedException if current thread has been interrupted
+     */
+    @Override
+    public ActiveDirectoryApiDTO updateActiveDirectory(final ActiveDirectoryApiDTO inputDTO)
+            throws ConversionException, InterruptedException {
+
+        return createActiveDirectory(inputDTO);
+    }
+
+    /**
+     * Delete the Active Directory representation.
+     *
+     * @return true if succeeded, false if failure
+     * @throws ConversionException if error faced converting objects to API DTOs
+     * @throws InterruptedException if current thread has been interrupted
+     */
+    @Override
+    public Boolean deleteActiveDirectory() throws ConversionException, InterruptedException {
+
+        try {
+            UriComponentsBuilder builder = baseRequest().path("/users/ad");
+            HttpEntity<ActiveDirectoryDTO> entity = new HttpEntity<>(
+                    convertADInfoToAuth(new ActiveDirectoryApiDTO()), composeHttpHeaders());
+            restTemplate_.exchange(builder.build().toUriString(), HttpMethod.POST, entity,
+                    ActiveDirectoryDTO.class);
+            AuditLog.newEntry(AuditAction.SET_LDAP, "Deleting AD configuration", true).targetName(
+                    "LDAP SERVICE").audit();
+            return true;
+        } catch (RuntimeException e) {
+            AuditLog.newEntry(AuditAction.SET_LDAP, "Failed to delete AD configuration", false)
+                    .targetName("LDAP SERVICE")
+                    .audit();
+            return false;
         }
     }
 

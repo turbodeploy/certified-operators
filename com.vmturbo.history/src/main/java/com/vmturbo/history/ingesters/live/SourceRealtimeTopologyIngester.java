@@ -28,9 +28,8 @@ public class SourceRealtimeTopologyIngester extends TopologyIngesterBase<Topolog
      * @param loaderFactorySupplier   supplier of new bulk loader factories
      */
     public SourceRealtimeTopologyIngester(
-        @Nonnull final Collection<IChunkProcessorFactory
-            <Topology.DataSegment, TopologyInfo, SimpleBulkLoaderFactory>>
-            chunkProcessorFactories,
+        @Nonnull final Collection<IChunkProcessorFactory<Topology.DataSegment, TopologyInfo, IngesterState>>
+                chunkProcessorFactories,
         @Nonnull final TopologyIngesterConfig topologyIngesterConfig,
         @Nonnull final Supplier<SimpleBulkLoaderFactory> loaderFactorySupplier) {
         super(chunkProcessorFactories, topologyIngesterConfig, loaderFactorySupplier,

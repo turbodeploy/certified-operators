@@ -50,7 +50,7 @@ public class IdentityServiceTest {
     public void setUp() throws Exception {
         idSvc = new IdentityService(
                 new IdentityServiceInMemoryUnderlyingStore(
-                        Mockito.mock(IdentityDatabaseStore.class)),
+                        Mockito.mock(IdentityDatabaseStore.class), 10),
                     new HeuristicsMatcher());
 
     }

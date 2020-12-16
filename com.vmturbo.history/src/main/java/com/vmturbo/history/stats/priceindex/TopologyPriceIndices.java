@@ -1,12 +1,15 @@
 package com.vmturbo.history.stats.priceindex;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 
 import javax.annotation.Nonnull;
+
+import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.longs.Long2DoubleOpenHashMap;
+import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -68,22 +71,22 @@ public class TopologyPriceIndices {
      */
     public void visit(@Nonnull final TopologyPriceIndexVisitor visitor) throws InterruptedException {
         final DataMetricTimer timer = SharedMetrics.UPDATE_PRICE_INDEX_DURATION_SUMMARY
-            .labels(SharedMetrics.LIVE_CONTEXT_TYPE_LABEL)
-            .startTimer();
-        logger.debug("Persisting priceIndex info for context: {}, topology: {}," +
-                " count: {}, skipped entities: {}",
-            topologyInfo.getTopologyContextId(),
-            topologyInfo.getTopologyId(),
-            numEntities, numSkipped);
+                .labels(SharedMetrics.LIVE_CONTEXT_TYPE_LABEL)
+                .startTimer();
+        logger.debug("Persisting priceIndex info for context: {}, topology: {},"
+                        + " count: {}, skipped entities: {}",
+                topologyInfo.getTopologyContextId(),
+                topologyInfo.getTopologyId(),
+                numEntities, numSkipped);
 
         try {
-            for (final Entry<Integer, Map<EnvironmentType, Map<Long, Double>>> entityTypeEntry :
-                    priceIndexMap.entrySet()) {
+            for (final Entry<Integer, Map<EnvironmentType, Map<Long, Double>>> entityTypeEntry
+                    : priceIndexMap.entrySet()) {
                 final Integer entityType = entityTypeEntry.getKey();
-                for (final Entry<EnvironmentType, Map<Long, Double>> envTypeEntry :
-                        entityTypeEntry.getValue().entrySet()) {
+                for (final Entry<EnvironmentType, Map<Long, Double>> envTypeEntry
+                        : entityTypeEntry.getValue().entrySet()) {
                     visitor.visit(entityType, envTypeEntry.getKey(),
-                        Collections.unmodifiableMap(envTypeEntry.getValue()));
+                            Collections.unmodifiableMap(envTypeEntry.getValue()));
                 }
             }
             visitor.onComplete();
@@ -95,8 +98,8 @@ public class TopologyPriceIndices {
 
         final double durationSec = timer.observe();
 
-        logger.debug("Done persisting priceIndex info for context: {}, topology: {}," +
-                        "time {} sec", topologyInfo.getTopologyContextId(), topologyInfo.getTopologyId(),
+        logger.debug("Done persisting priceIndex info for context: {}, topology: {},"
+                        + "time {} sec", topologyInfo.getTopologyContextId(), topologyInfo.getTopologyId(),
                 durationSec);
     }
 
@@ -118,7 +121,8 @@ public class TopologyPriceIndices {
 
         private final TopologyInfo topologyInfo;
 
-        private final Map<Integer, Map<EnvironmentType, Map<Long, Double>>> priceIndexMap = new HashMap<>();
+        private final Map<Integer, Map<EnvironmentType, Map<Long, Double>>> priceIndexMap =
+                new Int2ObjectOpenHashMap<>();
 
         private int numEntities = 0;
 
@@ -166,9 +170,9 @@ public class TopologyPriceIndices {
                 final long id,
                 final double priceIdx) {
             final Map<EnvironmentType, Map<Long, Double>> idxByIdAndEnvType =
-                    priceIndexMap.computeIfAbsent(entityType, k -> new HashMap<>());
+                    priceIndexMap.computeIfAbsent(entityType, k -> new Object2ObjectOpenHashMap<>());
             final Map<Long, Double> idxById = idxByIdAndEnvType.computeIfAbsent(
-                    envType, k -> new HashMap<>());
+                    envType, k -> new Long2DoubleOpenHashMap());
             idxById.put(id, priceIdx);
         }
 
@@ -179,7 +183,8 @@ public class TopologyPriceIndices {
          * @return the new price index structure
          */
         public TopologyPriceIndices build() {
-            return new TopologyPriceIndices(topologyInfo, priceIndexMap, numEntities, numSkipped);
+            final TopologyPriceIndices result = new TopologyPriceIndices(topologyInfo, priceIndexMap, numEntities, numSkipped);
+            return result;
         }
     }
 }
