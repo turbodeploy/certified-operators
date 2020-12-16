@@ -465,8 +465,6 @@ public class IntersightTargetSyncService implements Runnable {
         public Set<AccountValue> getAccountData() {
             return probeInfo.getAccountDefinitions()
                     .stream()
-                    // filter all proxy fields as Intersight has its own http proxy
-                    .filter(accountDefEntry -> !accountDefEntry.getName().startsWith("proxy"))
                     .map(accountDefEntry -> {
                         final String name = accountDefEntry.getName();
                         final String value;
