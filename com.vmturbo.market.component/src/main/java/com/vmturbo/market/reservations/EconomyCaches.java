@@ -326,7 +326,8 @@ public class EconomyCaches {
             if (newPlacementResult.values().stream().flatMap(List::stream)
                     .allMatch(i -> i.supplier.isPresent())) {
                 // All buyers in a given reservation can still find providers in the chosen cluster.
-                // Make them movable false in the historical cache.
+                // Make them movable false in the historical cache. No need to add newPlacementResult
+                // to buyerOidToPlacement because the provider is decided by realtime not historical.
                 newPlacementResult.keySet().forEach(oid -> {
                     Trader placedBuyer = economy.getTopology().getTradersByOid().get(oid);
                     economy.getMarketsAsBuyer(placedBuyer).keySet().forEach(sl -> sl.setMovable(false));
@@ -337,9 +338,10 @@ public class EconomyCaches {
                 newPlacementResult.values().stream().flatMap(List::stream).forEach(i -> i.supplier = Optional.empty());
                 removeDeletedTraders(economy, newPlacementResult.keySet());
                 removeDeletedTraders(realtimeCachedEconomy, newPlacementResult.keySet());
+                // Update new result in buyerOidToPlacement because some buyers failed in the chosen
+                // cluster.
+                newPlacementResult.entrySet().forEach(e -> buyerOidToPlacement.put(e.getKey(), e.getValue()));
             }
-            // Update new result in buyerOidToPlacement
-            newPlacementResult.entrySet().forEach(e -> buyerOidToPlacement.put(e.getKey(), e.getValue()));
         }
 
         return buyerOidToPlacement;

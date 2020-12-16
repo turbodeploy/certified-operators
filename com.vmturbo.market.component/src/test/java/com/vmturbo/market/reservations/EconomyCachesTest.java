@@ -115,10 +115,9 @@ public class EconomyCachesTest {
 
     /**
      * Construct an existing reservation with 1 buyer. Pass an economy with 2 pms as the historical
-     * economy. Verify that the update method rerun the existing reservation vm.
-     * The existing reservation buyer was placed on pm2.
-     * Expected: the update economy should contain 1 vm, 2 pms. After rerun the vm should be placed
-     * on pm1.
+     * economy. The buyer was placed on pm2.
+     * Expected: the update economy should contain 1 vm, 2 pms. After rerun the return result of
+     * UpdateHistoricalCachedEconomy should still be on pm2 no matter which host the rerun picked up.
      */
     @Test
     public void testUpdateHistoricalCachedEconomyNoBoundary() {
@@ -141,9 +140,12 @@ public class EconomyCachesTest {
                 .updateHistoricalCachedEconomy(simpleEconomy(), commTypeToSpecMap, buyerPlacements,
                         existingReservations);
         Economy newEconomy =  economyCaches.historicalCachedEconomy;
-        Assert.assertTrue(newPlacements.get(buyerOid).stream().allMatch(i -> i.supplier.get() == pm1Oid));
+        Assert.assertTrue(newPlacements.get(buyerOid).stream().allMatch(i -> i.supplier.get() == pm2Oid));
         Assert.assertTrue(newEconomy.getTraders().size() == 3);
         Trader trader = newEconomy.getTopology().getTradersByOid().get(buyerOid);
+        // In the historical economy, pm1 is chosen as the new supplier, but we still return pm2
+        // because the point of replay in historical cache is just to check whether the cluster has to
+        // be changed or not.
         Assert.assertTrue(trader != null && newEconomy.getMarketsAsBuyer(trader).keySet().stream()
                 .anyMatch(sl -> sl.getSupplier().getOid() == pm1Oid));
         Trader pm1 = newEconomy.getTopology().getTradersByOid().get(pm1Oid);
@@ -161,7 +163,8 @@ public class EconomyCachesTest {
      * as the historical economy. Verify that the update method rerun the existing reservation vm.
      * The existing reservation buyer was placed on pm2.
      * Expected: the update economy should contain 1 vm, 4 pms. After rerun the vm should be placed
-     * on pm1. Even though pm4 has the lowest used, but it is not in the same cluster.
+     * on pm1 but the return result of updateHistoricalCachedEconomy will give pm2. Even though pm4
+     * has the lowest used, but it is not in the same cluster.
      */
     @Test
     public void testUpdateHistoricalCachedEconomyWithClusterBoundary() {
@@ -186,7 +189,7 @@ public class EconomyCachesTest {
                 .updateHistoricalCachedEconomy(economyWithCluster(new double[]{pm1MemUsed, pm2MemUsed,
                         pm3MemUsed, pm4MemUsed}), commTypeToSpecMap, buyerPlacements, existingReservations);
         Economy newEconomy =  economyCaches.historicalCachedEconomy;
-        Assert.assertTrue(newPlacements.get(buyerOid).stream().allMatch(i -> i.supplier.get() == pm1Oid));
+        Assert.assertTrue(newPlacements.get(buyerOid).stream().allMatch(i -> i.supplier.get() == pm2Oid));
         Assert.assertTrue(newEconomy.getTraders().size() == 5);
         Trader trader = newEconomy.getTopology().getTradersByOid().get(buyerOid);
         Assert.assertTrue(trader != null && newEconomy.getMarketsAsBuyer(trader).keySet().stream()
@@ -235,6 +238,45 @@ public class EconomyCachesTest {
         Assert.assertTrue(pm2.getCommoditiesSold().stream().anyMatch(c -> c.getQuantity() ==  pm2MemUsed));
         Assert.assertFalse(newEconomy.getTopology().getTradersByOid().containsKey(buyerOid));
         Assert.assertFalse(newEconomy.getTopology().getShoppingListOids().inverse().containsKey(buyerSlOid));
+    }
+
+    /**
+     * Construct an existing reservation with 1 buyer. Pass an economy with 2 pms.
+     * Verify that the update method rerun the existing reservation vm.
+     * The existing reservation buyer was placed on pm2. The replay will pick up pm1 as the supplier.
+     * Expected: the updateHistoricalCachedEconomy should return placement decision with pm2 because
+     * only failure in replay should change the placement result.
+     */
+    @Test
+    public void testUpdateHistoricalCachedEconomyReplaySucceeded() {
+        long buyerOid = 1234L;
+        long buyerSlOid = 1000L;
+        long reservationOid = 1L;
+        double buyerMemUsed = 10;
+        InitialPlacementBuyer buyer = initialPlacementBuyer(buyerOid, buyerSlOid, VM_TYPE, new HashMap() {{
+            put(TopologyDTO.CommodityType.newBuilder().setType(MEM_TYPE).build(), new Double(buyerMemUsed));
+        }});
+        Map<Long, List<InitialPlacementBuyer>> existingReservations =  new HashMap() {{
+            put(reservationOid, Arrays.asList(buyer));
+        }};
+        Map<Long, List<InitialPlacementDecision>> buyerPlacements = new HashMap() {{
+            put(buyerOid, Arrays.asList(new InitialPlacementDecision(buyerSlOid,
+                    Optional.of(pm2Oid), new ArrayList())));
+        }};
+        economyCaches.setState(EconomyCachesState.READY);
+        economyCaches.updateRealtimeCachedEconomy(simpleEconomy(), commTypeToSpecMap, buyerPlacements,
+                existingReservations);
+        Map<Long, List<InitialPlacementDecision>> newPlacements = economyCaches
+                .updateHistoricalCachedEconomy(simpleEconomy(), commTypeToSpecMap, buyerPlacements,
+                        existingReservations);
+        Economy newEconomy =  economyCaches.historicalCachedEconomy;
+        Assert.assertTrue(newPlacements.get(buyerOid).stream()
+                .allMatch(i -> i.supplier.get() == pm2Oid));
+        Assert.assertTrue(newEconomy.getTraders().size() == 3);
+        Trader pm1 = newEconomy.getTopology().getTradersByOid().get(pm1Oid);
+        Assert.assertTrue(pm1.getCommoditiesSold().stream().anyMatch(c -> c.getQuantity() ==  pm1MemUsed + buyerMemUsed));
+        Assert.assertTrue(newEconomy.getTopology().getTradersByOid().containsKey(buyerOid));
+        Assert.assertTrue(newEconomy.getTopology().getShoppingListOids().inverse().containsKey(buyerSlOid));
     }
 
     /**
