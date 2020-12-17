@@ -1,8 +1,7 @@
 package com.vmturbo.extractor.grafana;
 
 import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileReader;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -13,16 +12,23 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectReader;
+import com.fasterxml.jackson.databind.ObjectWriter;
+import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
+import com.google.common.base.Charsets;
 import com.google.common.base.Preconditions;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
+import org.apache.commons.io.FileUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.FormattedString;
+import com.vmturbo.extractor.bin.ConvertJsonToYaml;
 import com.vmturbo.extractor.grafana.model.DashboardSpec;
 import com.vmturbo.extractor.grafana.model.FolderInput;
 
@@ -32,11 +38,13 @@ import com.vmturbo.extractor.grafana.model.FolderInput;
 public class DashboardsOnDisk {
     private static final Logger logger = LogManager.getLogger();
     private static final Gson GSON = ComponentGsonFactory.createGson();
+    private static final ObjectReader yamlReader = new YAMLMapper().reader();
+    private static final ObjectWriter jsonWriter = new ObjectMapper().writer();
     /**
      * The name of the folder under resources/.
      */
-    private static final String PERMISSIONS_FILE = "permissions.json";
-    private static final String FOLDER_FILE = "folder.json";
+    private static final String PERMISSIONS_FILE = "permissions.yaml";
+    private static final String FOLDER_FILE = "folder.yaml";
     private static final String GENERAL_FOLDER = "general";
 
     private final String dashboardsPath;
@@ -141,28 +149,28 @@ public class DashboardsOnDisk {
                 JsonObject permissions = null;
                 FolderInput folder = null;
                 // Shouldn't produce NPE because we verified it's a directory.
-                for (File jsonFile : file.listFiles()) {
-                    logger.debug("Found file {}", jsonFile.getName());
-                    if (jsonFile.getName().equals(PERMISSIONS_FILE)) {
+                for (File yamlFile : file.listFiles()) {
+                    logger.debug("Found file {}", yamlFile.getName());
+                    if (yamlFile.getName().equals(PERMISSIONS_FILE)) {
                         // Override folder permissions.
                         try {
-                            permissions = parser.parse(new FileReader(jsonFile)).getAsJsonObject();
-                        } catch (FileNotFoundException e) {
+                            permissions = parser.parse(yamlToJson(yamlFile)).getAsJsonObject();
+                        } catch (IOException e) {
                             // This shouldn't happen, because we are going over existing files.
                         }
-                    } else if (jsonFile.getName().equals(FOLDER_FILE)) {
+                    } else if (yamlFile.getName().equals(FOLDER_FILE)) {
                         try {
-                            folder = GSON.fromJson(new FileReader(jsonFile), FolderInput.class);
-                        } catch (FileNotFoundException e) {
+                            folder = GSON.fromJson(yamlToJson(yamlFile), FolderInput.class);
+                        } catch (IOException e) {
                             // This shouldn't happen, because we are going over existing files.
                         }
-                    } else if (jsonFile.getName().endsWith(".json")) {
+                    } else if (yamlFile.getName().endsWith(".yaml")) {
                         try {
-                            JsonObject dashboardJson = parser.parse(new FileReader(jsonFile)).getAsJsonObject();
+                            JsonObject dashboardJson = parser.parse(yamlToJson(yamlFile)).getAsJsonObject();
                             DashboardSpec dashboard = new DashboardSpec(dashboardJson);
-                            validateDashboard(jsonFile, dashboard);
+                            validateDashboard(yamlFile, dashboard);
                             dashboards.add(dashboard);
-                        } catch (FileNotFoundException e) {
+                        } catch (IOException e) {
                             e.printStackTrace();
                         }
                     } else {
@@ -181,6 +189,11 @@ public class DashboardsOnDisk {
                 logger.info("Skipping non-folder {}", file.getName());
             }
         }
+    }
+
+    private String yamlToJson(File yamlFile) throws IOException {
+        final String yaml = FileUtils.readFileToString(yamlFile, Charsets.UTF_8);
+        return ConvertJsonToYaml.yamlToJson(yaml);
     }
 
     private void validateDashboard(File file, DashboardSpec dashboard) {

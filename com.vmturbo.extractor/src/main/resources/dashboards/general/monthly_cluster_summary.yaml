@@ -1,0 +1,576 @@
+---
+annotations:
+  list:
+  - builtIn: 1
+    datasource: -- Grafana --
+    enable: true
+    hide: true
+    iconColor: rgba(0, 211, 255, 1)
+    name: Annotations & Alerts
+    type: dashboard
+description: ""
+editable: false
+gnetId: null
+graphTooltip: 0
+iteration: 1598553889195
+links: []
+panels:
+- columns: []
+  datasource: $DB
+  description: This panel presents statistics for the virtual enterprise as a whole.
+    Values are provided showing month over month with growth.
+  fieldConfig:
+    defaults:
+      custom: {}
+    overrides: []
+  fontSize: 100%
+  gridPos:
+    h: 5
+    w: 17
+    x: 0
+    y: 0
+  id: 2
+  pageSize: null
+  showHeader: true
+  sort:
+    col: 0
+    desc: true
+  styles:
+  - $$hashKey: object:691
+    alias: Time
+    align: auto
+    dateFormat: MMM-DD YYYY
+    pattern: Time
+    type: date
+  - $$hashKey: object:692
+    alias: ""
+    align: ""
+    colorMode: null
+    colors:
+    - rgba(188, 189, 186, 0.97)
+    - rgb(0, 0, 0)
+    - rgba(245, 54, 54, 0.9)
+    decimals: 0
+    mappingType: 1
+    pattern: /.*This Month/
+    thresholds:
+    - 0
+    type: string
+    unit: short
+    valueMaps:
+    - $$hashKey: object:735
+      text: ""
+      value: -1
+  - $$hashKey: object:693
+    alias: ""
+    align: auto
+    colorMode: null
+    colors:
+    - rgba(245, 54, 54, 0.9)
+    - rgba(237, 129, 40, 0.89)
+    - rgba(50, 172, 45, 0.97)
+    dateFormat: YYYY-MM-DD HH:mm:ss
+    decimals: 1
+    mappingType: 1
+    pattern: VMs Per Host
+    rangeMaps:
+    - from: ""
+      text: ""
+      to: ""
+    thresholds: []
+    type: number
+    unit: short
+    valueMaps:
+    - text: ""
+      value: -1
+  - $$hashKey: object:694
+    alias: ""
+    align: auto
+    colorMode: null
+    colors:
+    - rgba(245, 54, 54, 0.9)
+    - rgba(237, 129, 40, 0.89)
+    - rgba(50, 172, 45, 0.97)
+    dateFormat: YYYY-MM-DD HH:mm:ss
+    decimals: 0
+    mappingType: 1
+    pattern: /.*/
+    thresholds:
+    - ""
+    type: number
+    unit: short
+  targets:
+  - format: time_series
+    group: []
+    metricColumn: none
+    rawQuery: true
+    rawSql: |
+      with this_month_vms as (
+      SELECT
+              distinct oid
+      FROM entity
+      INNER JOIN LATERAL (
+          SELECT true
+            FROM metric
+            WHERE metric.entity_oid = entity.oid
+            and metric.entity_hash = entity.hash
+            and metric.time between timestamptz $__timeTo() - interval '1 hour' and $__timeTo()
+            LIMIT 1
+      ) as foo ON true WHERE
+        (type = 'VIRTUAL_MACHINE') and
+        (timestamptz $__timeTo() - interval '1 hour', $__timeTo()) OVERLAPS (first_seen, last_seen)),
+      last_month_vms as (
+      SELECT
+              distinct oid
+      FROM entity
+      INNER JOIN LATERAL (
+          SELECT true
+            FROM metric
+            WHERE metric.entity_oid = entity.oid
+            and metric.entity_hash = entity.hash
+            and metric.time between timestamptz $__timeTo() - interval '1 month' - interval '1 hour'
+                                and timestamptz $__timeTo() - interval '1 month'
+            LIMIT 1
+      ) as foo on true WHERE
+        (type = 'VIRTUAL_MACHINE') and
+        (timestamptz $__timeTo() - interval '1 month' - interval '1 hour',
+         timestamptz $__timeTo() - interval '1 month') OVERLAPS (first_seen, last_seen)),
+      this_month_pm_count as (
+      SELECT
+              count(distinct oid) as pmCount
+      FROM entity
+      INNER JOIN LATERAL (
+          SELECT true
+            FROM metric
+            WHERE metric.entity_oid = entity.oid
+            and metric.entity_hash = entity.hash
+            and metric.time between timestamptz $__timeTo() - interval '1 hour' and $__timeTo()
+            LIMIT 1
+      ) as foo ON true WHERE
+        (type = 'PHYSICAL_MACHINE') and
+        (timestamptz $__timeTo() - interval '1 hour', $__timeTo()) OVERLAPS (first_seen, last_seen)),
+      last_month_pm_count as (
+      SELECT
+              count(distinct oid) as pmCount
+      FROM entity
+      INNER JOIN LATERAL (
+          SELECT true
+            FROM metric
+            WHERE metric.entity_oid = entity.oid
+            and metric.entity_hash = entity.hash
+            and metric.time between timestamptz $__timeTo() - interval '1 month' - interval '1 hour'
+                                and timestamptz $__timeTo() - interval '1 month'
+            LIMIT 1
+      ) as foo on true WHERE
+        (type = 'PHYSICAL_MACHINE') and
+        (timestamptz $__timeTo() - interval '1 month' - interval '1 hour',
+         timestamptz $__timeTo() - interval '1 month') OVERLAPS (first_seen, last_seen))
+      select month as time, pmCount as "Host Count", vmCount as "VM Count", vmCount::float4/nullif(pmCount,0) as "VMs Per Host",
+      vmsAdded "VMs Added This Month", vmsRemoved "VMs Removed This Month"
+      from
+      (SELECT
+        timestamptz $__timeTo() as month,
+              (select pmCount from this_month_pm_count) as pmCount,
+              (select count(oid) from this_month_vms) as vmCount,
+              (select count(*)
+          from (
+          select oid from this_month_vms
+          except
+          select oid from last_month_vms
+          )  foo
+        ) as vmsAdded,
+        (select count(*)
+          from (
+          select oid from last_month_vms
+          except
+          select oid from this_month_vms
+          )  foo
+        ) as vmsRemoved
+
+      union
+      SELECT
+        timestamptz $__timeTo() - interval '1 month' as month,
+              (select pmCount from last_month_pm_count) as pmCount,
+              (select count(oid) from last_month_vms) as vmCount,
+              -1 as vmsAdded,
+              -1 as vmsRemoved
+      ) foo
+    refId: A
+    select:
+    - - params:
+        - current
+        type: column
+    table: metric
+    timeColumn: '"time"'
+    timeColumnType: timestamp
+    where:
+    - name: $__timeFilter
+      params: []
+      type: macro
+  timeFrom: null
+  timeShift: null
+  title: Stats
+  transform: timeseries_to_columns
+  type: table-old
+- columns: []
+  datasource: $DB
+  fieldConfig:
+    defaults:
+      custom: {}
+    overrides: []
+  fontSize: 100%
+  gridPos:
+    h: 4
+    w: 17
+    x: 0
+    y: 5
+  id: 4
+  pageSize: null
+  showHeader: true
+  sort:
+    col: 0
+    desc: true
+  styles:
+  - alias: Time
+    align: auto
+    dateFormat: MMM-DD YYYY
+    pattern: Time
+    type: date
+  - alias: ""
+    align: left
+    colorMode: null
+    colors:
+    - rgba(245, 54, 54, 0.9)
+    - rgba(237, 129, 40, 0.89)
+    - rgba(50, 172, 45, 0.97)
+    dateFormat: YYYY-MM-DD HH:mm:ss
+    decimals: 2
+    mappingType: 1
+    pattern: VMs per TB
+    thresholds: []
+    type: number
+    unit: short
+  - alias: ""
+    align: left
+    colorMode: null
+    colors:
+    - rgba(245, 54, 54, 0.9)
+    - rgba(237, 129, 40, 0.89)
+    - rgba(50, 172, 45, 0.97)
+    decimals: 2
+    pattern: /.*/
+    thresholds: []
+    type: number
+    unit: mbytes
+  targets:
+  - format: table
+    group: []
+    metricColumn: none
+    rawQuery: true
+    rawSql: |
+      with
+      curStorage as (select distinct oid
+                        from entity
+                        where (type = 'STORAGE') and
+                        (timestamptz $__timeTo() - interval '1 hour',
+                         timestamptz $__timeTo()) OVERLAPS (first_seen, last_seen)),
+
+      curVMCount as (select count(distinct oid) vmCount
+                        from entity
+                        INNER JOIN LATERAL (
+                              SELECT true
+                              FROM metric
+                              WHERE metric.entity_oid = entity.oid
+                              and metric.time between timestamptz $__timeTo() - interval '1 hour' and
+                              timestamptz $__timeTo()
+                  LIMIT 1
+                        ) as metric ON TRUE
+                        where (type = 'VIRTUAL_MACHINE') and
+                        (timestamptz $__timeTo() - interval '1 hour',
+                         timestamptz $__timeTo()) OVERLAPS (first_seen, last_seen)),
+
+      curAmount as (select
+                timestamptz $__timeTo() as time,
+                sum(metric.capacity) as total,
+                sum(metric.current) as used,
+                sum(metric.capacity) - sum(metric.current) as available,
+                avg(metric.utilization) as utilization
+                FROM curStorage as entity
+                INNER JOIN LATERAL (
+                    SELECT metric.type, metric.current, metric.capacity, metric.utilization
+                    FROM metric
+                    WHERE metric.entity_oid = entity.oid
+                          and metric.type = 'STORAGE_AMOUNT'
+                          and metric.provider_oid IS NULL
+                          and metric.time between timestamptz $__timeTo() - interval '1 hour' and
+                              timestamptz $__timeTo()
+                    LIMIT 1
+                    ) as metric ON TRUE),
+
+      curAlloc as (select
+                sum(metric.current) as allocated
+                FROM curStorage as entity
+                INNER JOIN LATERAL (
+                    SELECT metric.type, metric.current, metric.capacity, metric.utilization
+                    FROM metric
+                    WHERE metric.entity_oid = entity.oid
+                          and metric.type = 'STORAGE_PROVISIONED'
+                          and metric.provider_oid IS NULL
+                          and metric.time between timestamptz $__timeTo() - interval '1 hour' and
+                              timestamptz $__timeTo()
+                    LIMIT 1
+                    ) as metric ON TRUE),
+
+      monthStorage as (select distinct oid
+                        from entity
+                        where (type = 'STORAGE') and
+                        (timestamptz $__timeTo() - interval '1 hour' - interval '1 month',
+                         timestamptz $__timeTo() - interval '1 month') OVERLAPS (first_seen, last_seen)),
+
+      monthVMCount as (select count(distinct oid) vmCount
+                        from entity
+                        INNER JOIN LATERAL (
+                              SELECT true
+                              FROM metric
+                              WHERE metric.entity_oid = entity.oid
+                              and metric.time between timestamptz $__timeTo() - interval '1 hour'
+                              - interval '1 month'
+                              and timestamptz $__timeTo()  - interval '1 month'
+                  LIMIT 1
+                        ) as metric ON TRUE
+                        where (type = 'VIRTUAL_MACHINE') and
+                        (timestamptz $__timeTo() - interval '1 hour',
+                         timestamptz $__timeTo()) OVERLAPS (first_seen, last_seen)),
+
+      monthAmount as (select
+                timestamptz $__timeTo() - interval '1 month' as time,
+                sum(metric.capacity) as total,
+                sum(metric.current) as used,
+                sum(metric.capacity) - sum(metric.current) as available,
+                avg(metric.utilization) as utilization
+                FROM curStorage as entity
+                INNER JOIN LATERAL (
+                    SELECT metric.type, metric.current, metric.capacity, metric.utilization
+                    FROM metric
+                    WHERE metric.entity_oid = entity.oid
+                          and metric.type = 'STORAGE_AMOUNT'
+                          and metric.provider_oid IS NULL
+                          and metric.time between timestamptz $__timeTo() - interval '1 hour' - interval '1 month'
+                          and timestamptz $__timeTo() - interval '1 month'
+                    LIMIT 1
+                    ) as metric ON TRUE),
+
+      monthAlloc as (select
+                sum(metric.current) as allocated
+                FROM curStorage as entity
+                INNER JOIN LATERAL (
+                    SELECT metric.type, metric.current, metric.capacity, metric.utilization
+                    FROM metric
+                    WHERE metric.entity_oid = entity.oid
+                          and metric.type = 'STORAGE_PROVISIONED'
+                          and metric.provider_oid IS NULL
+                          and metric.time between timestamptz $__timeTo() - interval '1 hour'
+                          - interval '1 month'
+                          and timestamptz $__timeTo() - interval '1 month'
+                    LIMIT 1
+                    ) as metric ON TRUE)
+
+      select time as "Time", total as "Total", used as "Used", available as "Available", allocated as "Allocated", vmCount/Allocated*1e6 as "VMs per TB", allocated/vmCount "Storage per VM"
+      from curAmount, curAlloc, curVMCount
+      union
+      select time as "Time", total as "Total", used as "Used", available as "Available", allocated as "Allocated", vmCount/Allocated*1e6 as "VMs per TB", allocated/vmCount "Storage per VM"
+      from monthAmount, monthAlloc, monthVMCount
+    refId: A
+    select:
+    - - params:
+        - current
+        type: column
+    table: metric
+    timeColumn: '"time"'
+    timeColumnType: timestamp
+    where:
+    - name: $__timeFilter
+      params: []
+      type: macro
+  timeFrom: null
+  timeShift: null
+  title: Storage
+  transform: table
+  type: table-old
+- columns: []
+  datasource: $DB
+  description: 'The following indicators compare cluster capacity vs consumption.
+    Indicator colors show: green where consumption is below N-2 server total resources,
+    orange for above N-2 but below N-1, and red where consumption is above N-1.'
+  fieldConfig:
+    defaults:
+      custom: {}
+    overrides: []
+  fontSize: 100%
+  gridPos:
+    h: 8
+    w: 17
+    x: 0
+    y: 9
+  id: 6
+  pageSize: null
+  showHeader: true
+  sort:
+    col: 0
+    desc: true
+  styles:
+  - $$hashKey: object:400
+    alias: Time
+    align: auto
+    dateFormat: YYYY-MM-DD HH:mm:ss
+    pattern: Time
+    type: date
+  - $$hashKey: object:401
+    alias: ""
+    align: auto
+    colorMode: null
+    colors:
+    - rgba(245, 54, 54, 0.9)
+    - rgba(237, 129, 40, 0.89)
+    - rgba(50, 172, 45, 0.97)
+    dateFormat: YYYY-MM-DD HH:mm:ss
+    decimals: 2
+    mappingType: 1
+    pattern: Cluster
+    thresholds: []
+    type: string
+    unit: short
+  - $$hashKey: object:402
+    alias: ""
+    align: right
+    colorMode: cell
+    colors:
+    - rgb(242, 73, 92)
+    - rgba(237, 129, 40, 0.89)
+    - rgba(50, 172, 45, 0.97)
+    decimals: 2
+    mappingType: 2
+    pattern: /.*/
+    preserveFormat: false
+    rangeMaps: []
+    thresholds:
+    - 1
+    - 2
+    type: number
+    unit: none
+    valueMaps:
+    - $$hashKey: object:270
+      text: 10000000
+      value: -10000000
+  targets:
+  - format: table
+    group: []
+    metricColumn: none
+    rawQuery: true
+    rawSql: |
+      with cluster as (select oid, name from entity where type = 'COMPUTE_CLUSTER' and last_seen >= timestamptz $__timeTo()),
+
+      cluster_pm as (select distinct cluster.oid as clusterOid, cluster.name as clusterName, entity.oid as pmOid
+                         from entity, cluster
+                         where (type = 'PHYSICAL_MACHINE') and
+                               (scope && ARRAY[cluster.oid] and
+                               (timestamptz $__timeTo() - interval '1 hour',
+                                timestamptz $__timeTo()) OVERLAPS (first_seen, last_seen)))
+
+      select clusterName as "Cluster", (sum(mem.capacity) - sum(mem.current))/NULLIF(max(mem.capacity),0) as "Mem",
+                          (sum(cpu.capacity) - sum(cpu.current))/NULLIF(max(cpu.capacity),0) as "CPU",
+                          (sum(net.capacity) - sum(net.current))/NULLIF(max(net.capacity),0) as "Network"
+                          --,
+      --                          (sum(storage.capacity) - sum(storage.current))/max(storage.capacity) as storageN,
+      --                          (sum(net.capacity) - sum(net.current))/max(net.capacity) as storageN
+                          from cluster_pm
+
+                          LEFT JOIN LATERAL (
+                          SELECT current, capacity
+                          FROM metric
+                          WHERE metric.entity_oid = cluster_pm.pmOid
+                          and metric.type = 'MEM'
+                          and metric.time between timestamptz $__timeTo() - interval '1 hour' and
+                          timestamptz $__timeTo()
+                          LIMIT 1
+                          ) as mem ON TRUE
+
+                          LEFT OUTER JOIN LATERAL (
+                          SELECT current, capacity
+                          FROM metric
+                          WHERE metric.entity_oid = cluster_pm.pmOid
+                          and metric.type = 'CPU'
+                          and metric.time between timestamptz $__timeTo() - interval '1 hour' and
+                          timestamptz $__timeTo()
+                          LIMIT 1
+                          ) as cpu ON TRUE
+
+      --                   LEFT OUTER JOIN LATERAL (
+      --                   SELECT current, capacity
+      --                   FROM metric
+      --                   WHERE metric.entity_oid = cluster_pm.pmOid
+      --                   and metric.type = 'STORAGE_AMOUNT'
+      --                   and metric.time between timestamptz $__timeTo() - interval '1 hour' and
+      --                   timestamptz $__timeTo()
+      --                   LIMIT 1
+      --                   ) as storage ON TRUE
+
+                           LEFT OUTER JOIN LATERAL (
+                           SELECT current, capacity
+                           FROM metric
+                           WHERE metric.entity_oid = cluster_pm.pmOid
+                           and metric.type = 'NET_THROUGHPUT'
+                           and metric.time between timestamptz $__timeTo() - interval '1 hour' and
+                           timestamptz $__timeTo()
+                           LIMIT 1
+                           ) as net ON TRUE
+                          group by cluster_pm.clusterOid, cluster_pm.clusterName
+    refId: A
+    select:
+    - - params:
+        - current
+        type: column
+    table: metric
+    timeColumn: '"time"'
+    timeColumnType: timestamp
+    where:
+    - name: $__timeFilter
+      params: []
+      type: macro
+  timeFrom: null
+  timeShift: null
+  title: Cluster Status
+  transform: table
+  type: table-old
+refresh: false
+schemaVersion: 25
+style: dark
+tags: []
+templating:
+  list:
+  - hide: 2
+    includeAll: false
+    label: null
+    multi: false
+    name: DB
+    options: []
+    query: postgres
+    queryValue: ""
+    refresh: 1
+    regex: ""
+    skipUrlSync: false
+    type: datasource
+timepicker:
+  refresh_intervals:
+  - 10s
+  - 30s
+  - 1m
+  - 5m
+  - 15m
+  - 30m
+  - 1h
+  - 2h
+  - 1d
+timezone: ""
+title: Monthly Overview and Cluster Summary
+uid: monthly_cluster_summary
