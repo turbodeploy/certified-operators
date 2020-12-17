@@ -1,12 +1,9 @@
 package com.vmturbo.market.reservations;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
-
-import org.apache.commons.lang3.tuple.Pair;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityStats;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;

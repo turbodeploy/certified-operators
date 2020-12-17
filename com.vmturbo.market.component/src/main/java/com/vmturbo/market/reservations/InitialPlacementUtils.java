@@ -98,7 +98,8 @@ public final class InitialPlacementUtils {
                     // Copy bare minimum trader properties
                     cloneTrader.setDebugInfoNeverUseInCode(
                             trader.getDebugInfoNeverUseInCode() + PLACEMENT_CLONE_SUFFIX);
-                    cloneTrader.getSettings().setQuoteFunction(trader.getSettings().getQuoteFunction());
+                    cloneTrader.getSettings().setQuoteFunction(
+                            trader.getSettings().getQuoteFunction());
                     cloneTrader.getSettings().setCanAcceptNewCustomers(true);
                     cloneTrader.getSettings().setIsShopTogether(true);
                     cloneCommoditiesSold(trader, cloneTrader);
@@ -407,7 +408,7 @@ public final class InitialPlacementUtils {
                 }
             });
         });
-        logger.info("Historical economy decision is {} ", sb.toString());
+        logger.info("Placement decision is {} ", sb.toString());
     }
 
     /**
@@ -536,5 +537,47 @@ public final class InitialPlacementUtils {
             tradersBoundedByCluster.put(clusterComm, traders);
         }
         return tradersBoundedByCluster;
+    }
+
+    /**
+     * Make sellers that sell the given cluster commodities not eligible for placement.
+     *
+     * @param economy the economy.
+     * @param commTypeMap the commodity type to commodity specification mapping.
+     * @param clusterCommPerSl buyer's shopping list oid to the cluster that it failed to be placed.
+     * @return an oid set of sellers that are not eligible for placement.
+     */
+    public static Set<Long> setSellersNotAcceptCustomers(@Nonnull final Economy economy,
+            @Nonnull final BiMap<CommodityType, Integer> commTypeMap,
+            @Nonnull final Map<Long, CommodityType> clusterCommPerSl) {
+        Set<Integer> clusterCommSpecSet = clusterCommPerSl.values().stream()
+                .map(c -> commTypeMap.get(c)).collect(Collectors.toSet());
+        Set<Long> ineligibleSellers = new HashSet();
+        economy.clearSellersFromMarkets();
+        economy.getTraders().stream().forEach(t -> {
+            if (t.getBasketSold().stream().anyMatch(cs -> clusterCommSpecSet.contains(cs.getType()))) {
+                // make all sellers that sell this cluster comm as CanAcceptNewCustomer false
+                if (t.getSettings().canAcceptNewCustomers()) {
+                    t.getSettings().setCanAcceptNewCustomers(false);
+                    ineligibleSellers.add(t.getOid());
+                }
+            }
+        });
+        return ineligibleSellers;
+    }
+
+    /**
+     * Reset previously marked sellers back to be able to accept customers.
+     *
+     * @param economy the economy.
+     * @param ineligibleSellers a set of previously marked sellers.
+     */
+    public static void restoreCanNotAcceptNewCustomerSellers(@Nonnull final Economy economy,
+            @Nonnull final Set<Long> ineligibleSellers) {
+        economy.getTraders().stream().forEach(t -> {
+            if (ineligibleSellers.contains(t.getOid())) {
+                t.getSettings().setCanAcceptNewCustomers(true);
+            }
+        });
     }
 }

@@ -19,6 +19,9 @@ public class MarketRpcConfig {
     @Value("${prepareReservationCache:true}")
     private boolean prepareReservationCache;
 
+    @Value("${maxRetry:1}")
+    private int maxRetry;
+
     @Bean
     public Optional<MarketDebugRpcService> marketDebugRpcService() {
         return grpcDebugServicesEnabled() ?
@@ -43,7 +46,7 @@ public class MarketRpcConfig {
 
     @Bean
     public InitialPlacementFinder getInitialPlacementFinder() {
-        return new InitialPlacementFinder(prepareReservationCache);
+        return new InitialPlacementFinder(prepareReservationCache, maxRetry);
     }
 
     /**

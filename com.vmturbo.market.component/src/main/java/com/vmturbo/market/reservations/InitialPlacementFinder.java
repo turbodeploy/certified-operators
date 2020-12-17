@@ -45,9 +45,10 @@ public class InitialPlacementFinder {
     protected Map<Long, List<InitialPlacementDecision>> buyerPlacements = new HashMap<>();
     // Whether the historical economy cache is being updated with historical stats.
     private boolean isHistoricalCacheUpdated = false;
-    // the lock to synchronize the change of reservation
+    // The lock to synchronize the change of reservation
     private Object reservationLock = new Object();
-
+    // The max number of retry if findInitialPlacement failed
+    private static int maxRetry;
     // Logger
     private static final Logger logger = LogManager.getLogger();
 
@@ -76,10 +77,12 @@ public class InitialPlacementFinder {
     /**
      * Constructor.
      * @param prepareReservationCache whether economy caches should be built.
+     * @param  maxRetry The max number of retry if findInitialPlacement failed.
      */
-    public InitialPlacementFinder(final boolean prepareReservationCache) {
+    public InitialPlacementFinder(final boolean prepareReservationCache, int maxRetry) {
         economyCaches = new EconomyCaches();
         this.prepareReservationCache = prepareReservationCache;
+        this.maxRetry = maxRetry;
     }
 
     /**
@@ -199,8 +202,8 @@ public class InitialPlacementFinder {
                         i.getBuyerId()).collect(Collectors.toSet());
                 try {
                     Map<Long, List<InitialPlacementDecision>> initialPlacementPerReservation =
-                                economyCaches.findInitialPlacement(buyersPerReservation.getValue(),
-                                        slToClusterMap);
+                            economyCaches.findInitialPlacement(buyersPerReservation.getValue(),
+                                    slToClusterMap, maxRetry);
                     buyerPlacements.putAll(initialPlacementPerReservation);
                     // Keep incoming reservation buyers in the existingReservations map
                     existingReservations.put(buyersPerReservation.getKey(), buyersPerReservation.getValue());

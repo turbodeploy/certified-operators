@@ -66,7 +66,7 @@ public class InitialPlacementFinderTest {
      */
     @Test
     public void testConstructTraderTOs() {
-        InitialPlacementFinder pf = new InitialPlacementFinder(true);
+        InitialPlacementFinder pf = new InitialPlacementFinder(true, 1);
         pf.updateCachedEconomy(getOriginalEconomy(), commTypeToSpecMap, true);
         TraderTO vmTO = InitialPlacementUtils.constructTraderTO(
                 getTradersToPlace(vmID, pmSlOid, PM_TYPE, MEM_TYPE, 100), commTypeToSpecMap,
@@ -86,7 +86,7 @@ public class InitialPlacementFinderTest {
      */
     @Test
     public void testBuyersToBeDeleted() {
-        InitialPlacementFinder pf = new InitialPlacementFinder(true);
+        InitialPlacementFinder pf = new InitialPlacementFinder(true, 1);
         pf.existingReservations.put(1L, new ArrayList(Arrays.asList(getTradersToPlace(vmID, pmSlOid,
                 PM_TYPE, MEM_TYPE, 10))));
         pf.buyerPlacements.put(vmID, new ArrayList(Arrays.asList(new InitialPlacementDecision(pmSlOid,
@@ -104,7 +104,7 @@ public class InitialPlacementFinderTest {
      */
     @Test
     public void testFindPlacement() {
-        InitialPlacementFinder pf = new InitialPlacementFinder(true);
+        InitialPlacementFinder pf = new InitialPlacementFinder(true, 1);
         // Create both economy caches using same economy.
         Economy originalEconomy = getOriginalEconomy();
         pf.updateCachedEconomy(originalEconomy, commTypeToSpecMap, true);
@@ -134,7 +134,7 @@ public class InitialPlacementFinderTest {
      */
     @Test
     public void testInitialPlacementFinderResultWithFailureInfo() {
-        InitialPlacementFinder pf = new InitialPlacementFinder(true);
+        InitialPlacementFinder pf = new InitialPlacementFinder(true, 1);
         Economy originalEconomy = getOriginalEconomy();
         pf.updateCachedEconomy(originalEconomy, commTypeToSpecMap, true);
         InitialPlacementBuyer buyer = getTradersToPlace(vmID, pmSlOid, PM_TYPE, MEM_TYPE, 100);
@@ -234,7 +234,7 @@ public class InitialPlacementFinderTest {
      */
     @Test
     public void testReservationPartialSuccess() {
-        InitialPlacementFinder pf = new InitialPlacementFinder(true);
+        InitialPlacementFinder pf = new InitialPlacementFinder(true, 1);
         Economy originalEconomy = getOriginalEconomy();
         // Create both economy caches using same economy.
         pf.updateCachedEconomy(originalEconomy, commTypeToSpecMap, true);
@@ -271,7 +271,7 @@ public class InitialPlacementFinderTest {
      */
     @Test
     public void testReservationDeletionAndAdd() {
-        InitialPlacementFinder pf = new InitialPlacementFinder(true);
+        InitialPlacementFinder pf = new InitialPlacementFinder(true, 1);
         Economy originalEconomy = getOriginalEconomy();
         pf.updateCachedEconomy(originalEconomy, commTypeToSpecMap, true);
 

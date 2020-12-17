@@ -215,7 +215,7 @@ public class EconomyCaches {
         }  catch (Exception exception) { // Return old placement decisions if update has exceptions.
             historicalCacheEndUpdateTime = clock.instant();
             logger.error("Skip refresh historical economy cache because of exception {}", exception);
-            logger.info("Real time reservation cache update time : " + historicalCacheStartUpdateTime
+            logger.info("Historical reservation cache update time : " + historicalCacheStartUpdateTime
                     .until(historicalCacheEndUpdateTime, ChronoUnit.SECONDS) + " seconds");
             return buyerOidToPlacement;
         }
@@ -231,7 +231,7 @@ public class EconomyCaches {
         }
         historicalCacheEndUpdateTime = clock.instant();
         logger.info("Historical economy cache is ready now.");
-        logger.info("Real time reservation cache update time : " + historicalCacheStartUpdateTime
+        logger.info("Historical reservation cache update time : " + historicalCacheStartUpdateTime
                 .until(historicalCacheEndUpdateTime, ChronoUnit.SECONDS) + " seconds");
         return newResult;
     }
@@ -427,13 +427,15 @@ public class EconomyCaches {
      * Find placement for a list of {@link InitialPlacementBuyer}s that come from one reservation.
      *
      * @param buyers a list of {@link InitialPlacementBuyer}s from the same reservation.
-     * @param slToClusterMap A map to keep track of reservation buyer's shopping list oid to its
-     * cluster mapping.
+     * @param slToClusterMap A map to keep track of successfully placed  reservation buyer's shopping
+     * list oid to its cluster commodity mapping.
+     * @param maxRetry the max number of retry the find placement logic.
      * @return a map of {@link InitialPlacementBuyer} oid to its placement decisions.
      */
     public Map<Long, List<InitialPlacementDecision>> findInitialPlacement(
             @Nonnull final List<InitialPlacementBuyer> buyers,
-            @Nonnull final Map<Long, CommodityType> slToClusterMap) {
+            @Nonnull final Map<Long, CommodityType> slToClusterMap,
+            final int maxRetry) {
         if (state != EconomyCachesState.READY) {
             logger.warn("Market is not ready to run reservation yet, wait for one day to retry");
             return new HashMap();
@@ -469,30 +471,98 @@ public class EconomyCaches {
         //construct traderTO from InitialPlacementBuyer including cluster boundary
         for (InitialPlacementBuyer buyer : buyers) {
             // Construct traderTO with cluster boundaries provided in clusterCommPerSl
-            placedBuyerTOs.add(
-                    InitialPlacementUtils.constructTraderTO(buyer, realtimeCachedCommTypeMap,
-                            clusterCommPerSl));
+            placedBuyerTOs.add(InitialPlacementUtils.constructTraderTO(buyer,
+                    realtimeCachedCommTypeMap, clusterCommPerSl));
         }
-        // TODO: retry implementation to handle entities that failed in the real time placement.
         Map<Long, List<InitialPlacementDecision>> secondRoundPlacement =
                 placeBuyerInCachedEconomy(placedBuyerTOs, realtimeCachedEconomy,
                         realtimeCachedCommTypeMap);
-        logger.info("Placing reservation buyers on historical economy cache");
+        logger.info("Placing reservation buyers on realtime economy cache");
         InitialPlacementUtils.printPlacementDecisions(secondRoundPlacement);
-        if (secondRoundPlacement.values().stream().flatMap(List::stream)
-                .anyMatch(pl -> !pl.supplier.isPresent())) {
-            // Remove buyers from both economy caches.
-            clearDeletedBuyersFromCache(secondRoundPlacement.keySet());
-            // At least one buyer failed in real time, unplace all the buyers in this same reservation.
-            secondRoundPlacement.values().stream().flatMap(List::stream)
-                    .forEach(pl -> pl.supplier = Optional.empty());
+        Set<Long> failedBuyerOids = new HashSet();
+        for (Map.Entry<Long, List<InitialPlacementDecision>> entry : secondRoundPlacement.entrySet()) {
+            if (entry.getValue().stream().allMatch(pl -> pl.supplier.isPresent())) {
+                // Populate the cluster commodity type for successful each buyer's shopping list.
+                entry.getValue().forEach( d -> slToClusterMap.put(d.slOid, clusterCommPerSl.get(d.slOid)));
+            } else {
+                failedBuyerOids.add(entry.getKey());
+            }
+        }
+        if (maxRetry == 0 && !failedBuyerOids.isEmpty()) {
+            // No need to retry, unplace the entire reservation and clear all buyers
             logger.info("Not all buyers in reservation {} can be placed according to real time stats.",
                     buyers.get(0).getReservationId());
-        } else {
-            // Populate the cluster commodity type for each buyer's shopping list.
-            slToClusterMap.putAll(clusterCommPerSl);
+            processRetryPlacementsDecisions(secondRoundPlacement, slToClusterMap);
+        } else if (!failedBuyerOids.isEmpty()) {
+            Map<Long, List<InitialPlacementDecision>> retryResult = retryPlacement(buyers.stream()
+                    .filter(b -> failedBuyerOids.contains(b.getBuyerId())).collect(Collectors.toList()),
+                    clusterCommPerSl, slToClusterMap, maxRetry - 1);
+            if (retryResult.values().stream().flatMap(List::stream)
+                    .anyMatch(pl -> !pl.supplier.isPresent())) {
+                // Retry still contains some no placements, unplace and clear all the buyers
+                processRetryPlacementsDecisions(secondRoundPlacement, slToClusterMap);
+            } else {
+                secondRoundPlacement.putAll(retryResult);
+            }
         }
         return secondRoundPlacement;
+    }
+
+    /**
+     * Check placement decisions, if any one failed, remove the buyer from both economy caches.
+     *
+     * @param result a map of buyer oid to its list of {@link InitialPlacementDecision}s.
+     * @param slToClusterMap the map to keep track of placed shopping list and cluster commodity.
+     * @return true if all InitialPlacementDecision finds a supplier.
+     */
+    private boolean processRetryPlacementsDecisions(
+            @Nonnull final Map<Long, List<InitialPlacementDecision>> result,
+            @Nonnull final Map<Long, CommodityType> slToClusterMap) {
+        boolean isSuccessful = true;
+        if (result.values().stream().flatMap(List::stream).anyMatch(pl -> !pl.supplier.isPresent())) {
+            result.values().stream().flatMap(List::stream).forEach(pl -> {
+                pl.supplier = Optional.empty();
+                slToClusterMap.remove(pl.slOid);
+            });
+            clearDeletedBuyersFromCache(result.keySet());
+            isSuccessful = false;
+        }
+        return isSuccessful;
+    }
+
+    /**
+     * Retry placement for a list of buyers. The cluster in which the buyer failed is provided so
+     * that retry will exclude the given cluster.
+     *
+     * @param buyersToRetry a list of buyers to run placement.
+     * @param clusterCommPerSl buyer's shopping list oid to the cluster that it failed to be placed.
+     * @param slToClusterMap the map to keep track of placed shopping list and cluster commodity.
+     * @param maxRetry the max number of rerun the findInitialPlacement.
+     * @return a map of {@link InitialPlacementBuyer} oid to its placement decisions.
+     */
+    protected Map<Long, List<InitialPlacementDecision>> retryPlacement(
+            @Nonnull final List<InitialPlacementBuyer> buyersToRetry,
+            @Nonnull final Map<Long, CommodityType> clusterCommPerSl,
+            @Nonnull final Map<Long, CommodityType> slToClusterMap,
+            final int maxRetry) {
+        if (buyersToRetry.isEmpty()) {
+            return new HashMap();
+        }
+        Set<Long> buyerOids = buyersToRetry.stream().map(b -> b.getBuyerId())
+                .collect(Collectors.toSet());
+        logger.info("Retrying for buyers {} in reservation {}", buyerOids, buyersToRetry.get(0).getReservationId());
+        // Remove buyersToRetry from both economy caches.
+        clearDeletedBuyersFromCache(buyerOids);
+        // We are going to make sellers that sell cluster commodity as CanAcceptNewCustomers
+        // false. This can avoid choosing sellers from the previously failed cluster.
+        Set<Long> failedClusterSellers = InitialPlacementUtils.setSellersNotAcceptCustomers(
+                historicalCachedEconomy, historicalCachedCommTypeMap, clusterCommPerSl);
+        Map<Long, List<InitialPlacementDecision>> result = findInitialPlacement(buyersToRetry,
+                slToClusterMap, maxRetry);
+        // Reset back sellers after rerun the placement.
+        InitialPlacementUtils.restoreCanNotAcceptNewCustomerSellers(historicalCachedEconomy,
+                failedClusterSellers);
+        return result;
     }
 
     /**
@@ -577,7 +647,9 @@ public class EconomyCaches {
                 Collectors.toSet());
         buyersByReservationId.entrySet().forEach(e -> {
             e.getValue().stream().forEach(i -> {
-                if (initialPlacements.get(i.getBuyerId()).stream().anyMatch(d -> !d.supplier.isPresent())) {
+                if (initialPlacements.getOrDefault(i.getBuyerId(),
+                        new ArrayList<InitialPlacementDecision>()).stream()
+                        .anyMatch(d -> !d.supplier.isPresent())) {
                     fullySuccessfulReservationIds.remove(e.getKey());
                 }
             });
