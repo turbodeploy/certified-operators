@@ -37,9 +37,9 @@ public class UdtProbeConverterTest {
      */
     @Test
     public void testConvertToResponse() {
-        long serviceUdtId = 111L;
+        String serviceUdtId = "aa111bb";
         UdtChildEntity serviceChild = new UdtChildEntity(1000L, EntityType.SERVICE);
-        UdtEntity btEntity = new UdtEntity(EntityType.BUSINESS_TRANSACTION, "10", "bt-0",
+        UdtEntity btEntity = new UdtEntity(EntityType.BUSINESS_TRANSACTION, "10a", "bt-0",
                 Collections.singleton(serviceChild));
         UdtEntity serviceEntity = new UdtEntity(EntityType.SERVICE, String.valueOf(serviceUdtId), "svc-0",
                 Collections.singleton(new UdtChildEntity(2000L, EntityType.VIRTUAL_MACHINE)));
@@ -59,7 +59,7 @@ public class UdtProbeConverterTest {
         Assert.assertNotNull(svcDto);
         Assert.assertNotNull(btDto);
 
-        Assert.assertEquals(serviceUdtId, Long.parseLong(svcDto.getId()));    // Service DTO has ID == Oid (not UDT ID).
+        Assert.assertEquals(serviceUdtId, svcDto.getId());    // Service DTO has ID == Oid (not UDT ID).
 
         Assert.assertEquals(EntityDTO.EntityOrigin.DISCOVERED, btDto.getOrigin());
         Assert.assertEquals(EntityDTO.EntityOrigin.DISCOVERED, svcDto.getOrigin());

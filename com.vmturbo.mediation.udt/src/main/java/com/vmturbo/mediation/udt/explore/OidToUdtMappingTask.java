@@ -47,13 +47,13 @@ class OidToUdtMappingTask {
             final Set<TopologyEntityDTO> entitiesDiscoveredByUdt = dataProvider.searchEntitiesByTargetId(targetId);
             LOGGER.info("OID/UDT Mapping: Retrieved {} UDT entities.", entitiesDiscoveredByUdt.size());
             if (!entitiesDiscoveredByUdt.isEmpty()) {
-                final Map<Long, Long> oidToDefinitionIdMap = createOidMap(entitiesDiscoveredByUdt);
+                final Map<Long, String> oidToDefinitionIdMap = createOidMap(entitiesDiscoveredByUdt);
                 definedEntities.stream()
                         .flatMap(udtEntity -> udtEntity.getChildren().stream())
                         .forEach(child -> {
                             final long childOid = child.getOid();
                             if (oidToDefinitionIdMap.containsKey(childOid)) {
-                                long udtId = oidToDefinitionIdMap.get(childOid);
+                                final String udtId = oidToDefinitionIdMap.get(childOid);
                                 LOGGER.trace("OID/UDT Mapping: OID entity {} has UDT-ID {}.", childOid, udtId);
                                 child.setUdtId(udtId);
                             }
@@ -72,18 +72,14 @@ class OidToUdtMappingTask {
      * @return a map of IDs.
      */
     @Nonnull
-    private static Map<Long, Long> createOidMap(@Nonnull Set<TopologyEntityDTO> topologyEntities) {
-        final Map<Long, Long> map = Maps.newHashMap();
+    private static Map<Long, String> createOidMap(@Nonnull Set<TopologyEntityDTO> topologyEntities) {
+        final Map<Long, String> map = Maps.newHashMap();
         for (TopologyEntityDTO entity : topologyEntities) {
             final Long oid = entity.getOid();
             final String vendor = entity.getEntityPropertyMapMap().get(VENDOR);
             final String definitionId = entity.getEntityPropertyMapMap().get(VENDOR_ID);
             if (isNotEmpty(vendor) && isNotEmpty(definitionId) && vendor.equals(UDT_PROBE_TAG)) {
-                try {
-                    map.put(oid, Long.valueOf(definitionId));
-                } catch (NumberFormatException e) {
-                    LOGGER.warn("Incorrect UDT ID.", e);
-                }
+                map.put(oid, definitionId);
             }
         }
         return map;

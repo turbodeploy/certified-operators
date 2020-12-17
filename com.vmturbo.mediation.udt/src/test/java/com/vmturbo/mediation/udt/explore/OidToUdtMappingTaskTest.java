@@ -31,9 +31,9 @@ public class OidToUdtMappingTaskTest {
     @Test
     public void testMapping() {
         long oid = 1000L;
-        long udtId = 222L;
+        String udtId = "aa222bbcc111";
         DataProvider dataProvider = Mockito.mock(DataProvider.class);
-        UdtEntity udtService = new UdtEntity(EntityType.SERVICE, String.valueOf(udtId), "Service-B", emptySet());
+        UdtEntity udtService = new UdtEntity(EntityType.SERVICE, udtId, "Service-B", emptySet());
         UdtChildEntity childService = new UdtChildEntity(oid, EntityType.SERVICE);
         //childService.setUdtId(definitionId);
         UdtEntity udtTransaction = new UdtEntity(EntityType.BUSINESS_TRANSACTION, "111",
@@ -42,7 +42,7 @@ public class OidToUdtMappingTaskTest {
         TopologyEntityDTO entityDTO = TestUtils.createTopologyDto(oid, "Service-B", EntityType.SERVICE)
                 .toBuilder()
                 .putEntityPropertyMap(VENDOR, UDT_PROBE_TAG)
-                .putEntityPropertyMap(VENDOR_ID, String.valueOf(udtId))
+                .putEntityPropertyMap(VENDOR_ID, udtId)
                 .build();
         Mockito.when(dataProvider.searchEntitiesByTargetId(Mockito.anyLong()))
                 .thenReturn(Collections.singleton(entityDTO));

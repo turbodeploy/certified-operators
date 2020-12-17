@@ -49,7 +49,7 @@ public class UdtEntity {
 
     @Override
     public String toString() {
-        String childrenStr = children.stream().map(ch -> String.valueOf(ch.getDtoId()))
+        String childrenStr = children.stream().map(UdtChildEntity::getDtoId)
                 .collect(Collectors.joining(","));
         return String.format("[id=%s name=%s type=%s children=%s]", id, name,
                 entityType.name(), childrenStr);
