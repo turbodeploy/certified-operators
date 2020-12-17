@@ -165,6 +165,8 @@ telemetry:
 # Enable mediation
 actionscript:
   enabled: false
+actionstream-kafka:
+  enabled: false
 aix:
   enabled: false
 acims:
@@ -205,11 +207,11 @@ hyperflex:
   enabled: false
 hyperv:
   enabled: false
+instana:
+  enabled: false
 intersight:
   enabled: false
 istio:
-  enabled: false
-mediation-actionstream-kafka:
   enabled: false
 mssql:
   enabled: false

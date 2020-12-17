@@ -1,52 +1,14 @@
-{{ if .Values.global }}
-  {{ if and (not .Values.global.externalKafka) (not .Values.global.externalKafkaIP) }}
-    {{/* Kafka is not external, so we need to run Zookeeper as a container. Create a PVC, deployment and a service. */}}
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: {{ .Chart.Name }}-data
-  {{- if or .Values.storageAnnotations .Values.global.storageAnnotations }}
-  annotations:
-    {{- with .Values.storageAnnotations }}
-{{- toYaml . | nindent 8 }}
-    {{- end }}
-    {{- with .Values.global.storageAnnotations }}
-{{- toYaml . | nindent 8 }}
-    {{- end }}
-  {{- end }}
-  labels:
-    zone: internal
-    app.kubernetes.io/name: {{ .Chart.Name }}-data
-    app.kubernetes.io/instance: {{ .Release.Name }}
-    app.kubernetes.io/managed-by: {{ .Release.Service }}
-spec:
-  accessModes:
-  - ReadWriteOnce
-{{- if .Values.global }}
-  {{- if .Values.global.storageSelector }}
-  selector:
-    matchLabels:
-      partition: {{ .Release.Namespace }}-zookeeper-data
-  {{- end }}
-  {{- if .Values.global.storageClassName }}
-  storageClassName: {{ .Values.global.storageClassName }}
-  {{- end }}
-{{- end }}
-  resources:
-    requests:
-      storage: 3Gi
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ .Chart.Name }}
   labels:
-    zone: internal
+    zone: secure
     app.kubernetes.io/name: {{ .Chart.Name }}
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/managed-by: {{ .Release.Service }}
 spec:
-  replicas: 1
+  replicas: {{ .Values.replicaCount }}
   strategy:
     type: Recreate
   template:
@@ -63,7 +25,7 @@ spec:
   {{- end }}
 {{- end }}
       labels:
-        zone: internal
+        zone: secure
         app.kubernetes.io/name: {{ .Chart.Name }}
         app.kubernetes.io/instance: {{ .Release.Name }}
         app.kubernetes.io/managed-by: {{ .Release.Service }}
@@ -75,15 +37,16 @@ spec:
 {{- end }}
       containers:
       - name: {{ .Chart.Name }}
-        image: {{ template "image" . }}
-        imagePullPolicy: {{ template "pullPolicy" . }}
-        env:
 {{- if .Values.global }}
-  {{- if .Values.global.javaEnvironmentOptions }}
-        - name: JVMFLAGS
-          value: {{ .Values.global.javaEnvironmentOptions | quote }}
+  {{- if .Values.global.customImageNames }}
+        image: {{ template "instana_image" . }}
+  {{- else }}
+        image: {{ template "image" . }}
   {{- end }}
+        imagePullPolicy: {{ template "pullPolicy" . }}
 {{- end }}
+        env:
+{{ template "java.setJVMEnvironmentOptions" . }}
 {{ toYaml .Values.env | indent 8 }}
 {{- if .Values.global }}
   {{- if or .Values.logtostdout .Values.global.logtostdout }}
@@ -92,21 +55,17 @@ spec:
   {{- end }}
 {{- end }}
         ports:
-          - containerPort: 2181
+          - containerPort: 8080
         livenessProbe:
-          exec:
-            command:
-              - sh
-              - -c
-              - "/zookeeper-ready"
-{{- include "common.getLivenessThresholds" . | indent 10 }}
+          httpGet:
+            port: 8080
+            path: /health
+          periodSeconds: 60
+          failureThreshold: 60
         readinessProbe:
-          exec:
-            command:
-              - sh
-              - -c
-              - "/zookeeper-ready"
-{{- include "common.getReadinessThresholds" . | indent 10 }}
+          httpGet:
+            port: 8080
+            path: /health
         resources:
 {{ toYaml .Values.resources | indent 12 }}
         securityContext:
@@ -115,10 +74,14 @@ spec:
             drop:
             - ALL
         volumeMounts:
-        - mountPath: /var/lib/zoo
-          name: zookeeper-data
+        - mountPath: /etc/turbonomic
+          name: turbo-volume
+          readOnly: true
         - mountPath: /tmp
-          name: zookeeper-tmpfs0
+          name: mediation-instana-tmpfs0
+        - mountPath: /etc/targets
+          name: instana-secrets
+          readOnly: true
 {{- if .Values.global }}
   {{- if .Values.global.registry }}
     {{- if .Values.global.imagePullSecret }}
@@ -143,18 +106,19 @@ spec:
       tolerations:
 {{- toYaml . | nindent 8 }}
   {{- end }}
-  {{- with .Values.global.securityContext }}
-      securityContext:
-{{- toYaml . | nindent 8 }}
-  {{- end }}
 {{- end }}
       restartPolicy: Always
       volumes:
-      - name: zookeeper-data
-        persistentVolumeClaim:
-          claimName: {{ .Chart.Name }}-data
-      - name: zookeeper-tmpfs0
+      - name: turbo-volume
+        configMap:
+          name: global-properties-{{ .Release.Name }}
+          optional: true
+      - name: mediation-instana-tmpfs0
         emptyDir: {}
+      - name: instana-secrets
+        secret:
+          secretName: "instana"
+          optional: true
   selector:
     matchLabels:
       app.kubernetes.io/name: {{ .Chart.Name }}
@@ -165,16 +129,20 @@ kind: Service
 metadata:
   name: {{ .Chart.Name }}
   labels:
-    zone: internal
+    zone: secure
     app.kubernetes.io/name: {{ .Chart.Name }}
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/managed-by: {{ .Release.Service }}
 spec:
   ports:
-  - name: tcp-zookeeper
-    port: 2181
+  - name: http-mediation-instana
+    port: 8080
+{{- if .Values.global }}
+  {{- if or .Values.debug .Values.global.debug }}
+  - name: tcp-mediation-instana-debug
+    port: 8000
+  {{- end -}}
+{{- end }}
   selector:
     app.kubernetes.io/name: {{ .Chart.Name }}
     app.kubernetes.io/instance: {{ .Release.Name }}
-  {{ end }}
-{{ end }}

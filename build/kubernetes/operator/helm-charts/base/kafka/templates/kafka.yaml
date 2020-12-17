@@ -1,6 +1,6 @@
 {{ if .Values.global }}
-  {{ if and (not .Values.global.externalKafka) (not  .Values.global.externalKafkaIP) }}
-        {{/* Kafka is not external, so define a PVC and a Deployment for it. */}}
+  {{ if and (not .Values.global.externalKafka) (not .Values.global.externalKafkaIP) }}
+    {{/* Kafka is not external, so define a PVC and a Deployment for it. */}}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
