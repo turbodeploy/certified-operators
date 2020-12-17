@@ -152,12 +152,16 @@ public class AggregateDemandCollector {
                         .endTime(currentBucketStartTime.plus(analysisInterval.duration()))
                         .build();
                 final Duration overlap = TimeCalculator.overlap(currentBucket, demandInterval);
-                final double overlapDemand = TimeCalculator.divide(overlap, currentBucket.duration());
 
-                demandByTimeInterval.put(
-                        currentBucket,
-                        demandByTimeInterval.getOrDefault(
-                                currentBucket, 0.0) + overlapDemand);
+                // Do not record the interval, if the overlap is zero
+                if (overlap.toMillis() > 0) {
+                    final double overlapDemand = TimeCalculator.divide(overlap, currentBucket.duration());
+
+                    demandByTimeInterval.put(
+                            currentBucket,
+                            demandByTimeInterval.getOrDefault(
+                                    currentBucket, 0.0) + overlapDemand);
+                }
 
                 currentBucketStartTime = currentBucket.endTime();
             }

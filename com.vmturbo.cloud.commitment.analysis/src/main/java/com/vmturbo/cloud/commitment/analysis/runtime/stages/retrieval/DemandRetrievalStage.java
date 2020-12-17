@@ -79,8 +79,7 @@ public class DemandRetrievalStage extends AbstractStage<Void, EntityCloudTierDem
     @Override
     public AnalysisStage.StageResult<EntityCloudTierDemandSet> execute(final Void aVoid) {
 
-        final Instant lookBackStartTime = analysisContext.getAnalysisWindow()
-                .map(TimeInterval::startTime)
+        final TimeInterval analysisWindow = analysisContext.getAnalysisWindow()
                 .orElseThrow(() -> new IllegalStateException("Analysis window must be set"));
 
         final DemandScope allocatedDemandScope = demandSelection.getAllocatedSelection()
@@ -89,13 +88,15 @@ public class DemandRetrievalStage extends AbstractStage<Void, EntityCloudTierDem
         final Stream<EntityCloudTierMapping> persistedDemandStream = demandReader.getAllocationDemand(
                 demandSelection.getCloudTierType(),
                 allocatedDemandScope,
-                lookBackStartTime);
+                analysisWindow);
 
         final DemandSummary demandSummary = DemandSummary.newSummary(logDetailedSummary);
         final Set<EntityCloudTierMapping> selectedDemand = persistedDemandStream
-                // Some demand may end after the lookback start time but start before it. In these
-                // cases, we trim the demand to start on the lookback start time
-                .map(m -> trimDemandStartTime(m, lookBackStartTime))
+                // The demand reader will return demand which overlaps with the analysis windows. This may
+                // mean that some of the entries either start before the analysis start time or end
+                // after it. In this case, we trim the demand to only the analysis window so that any
+                // downstream stages only consider demand within the window
+                .map(m -> trimDemandToAnalysisWindow(m, analysisWindow))
                 // Billing family is not stored with the demand, given it can fluctuate with discovery
                 // (e.g. if AWS org access is added after discovery). Therefore, we resolve the billing
                 // family after demand retrieval
@@ -125,18 +126,26 @@ public class DemandRetrievalStage extends AbstractStage<Void, EntityCloudTierDem
      * the star time of the mapping to the look back start time. If the mapping's start time is after
      * the look back start time, the mapping will be directly returned.
      * @param cloudTierMapping The entity cloud tier mapping to process.
-     * @param lookBackStartTime The minimum start time to allow for {@code cloudTierMapping}.
+     * @param analysisWindow The analysis window.
      * @return A normalized entity cloud tier mapping instance.
      */
-    private EntityCloudTierMapping trimDemandStartTime(@Nonnull EntityCloudTierMapping cloudTierMapping,
-                                                          @Nonnull Instant lookBackStartTime) {
+    private EntityCloudTierMapping trimDemandToAnalysisWindow(@Nonnull EntityCloudTierMapping cloudTierMapping,
+                                                              @Nonnull TimeInterval analysisWindow) {
 
-        if (cloudTierMapping.timeInterval().startTime().isBefore(lookBackStartTime)) {
+        final Instant startTime = cloudTierMapping.timeInterval().startTime();
+        final Instant endTime = cloudTierMapping.timeInterval().endTime();
+
+        if (startTime.isBefore(analysisWindow.startTime()) || endTime.isAfter(analysisWindow.endTime())) {
+
             return ImmutableEntityCloudTierMapping.builder()
                     .from(cloudTierMapping)
-                    .timeInterval(cloudTierMapping.timeInterval()
-                            .toBuilder()
-                            .startTime(lookBackStartTime)
+                    .timeInterval(TimeInterval.builder()
+                            .startTime(startTime.isBefore(analysisWindow.startTime())
+                                    ? analysisWindow.startTime()
+                                    : startTime)
+                            .endTime(endTime.isAfter(analysisWindow.endTime())
+                                    ? analysisWindow.endTime()
+                                    : endTime)
                             .build())
                     .build();
         } else {

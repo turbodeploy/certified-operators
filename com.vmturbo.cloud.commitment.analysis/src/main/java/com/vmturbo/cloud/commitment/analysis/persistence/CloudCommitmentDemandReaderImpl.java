@@ -1,6 +1,5 @@
 package com.vmturbo.cloud.commitment.analysis.persistence;
 
-import java.time.Instant;
 import java.util.Objects;
 import java.util.stream.Stream;
 
@@ -12,6 +11,7 @@ import com.vmturbo.cloud.commitment.analysis.demand.TimeFilter.TimeComparator;
 import com.vmturbo.cloud.commitment.analysis.demand.store.ComputeTierAllocationStore;
 import com.vmturbo.cloud.commitment.analysis.demand.store.EntityComputeTierAllocationFilter;
 import com.vmturbo.cloud.commitment.analysis.demand.store.ImmutableEntityComputeTierAllocationFilter;
+import com.vmturbo.cloud.common.data.TimeInterval;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.DemandScope;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.HistoricalDemandSelection.CloudTierType;
 
@@ -38,15 +38,19 @@ public class CloudCommitmentDemandReaderImpl implements CloudCommitmentDemandRea
     @Override
     public Stream<EntityCloudTierMapping> getAllocationDemand(@Nonnull CloudTierType cloudTierType,
                                                               @Nonnull DemandScope demandScope,
-                                                              @Nonnull Instant earliestEndTime) {
+                                                              @Nonnull TimeInterval selectionWindow) {
 
         final EntityComputeTierAllocationFilter filter = ImmutableEntityComputeTierAllocationFilter.builder()
+                .startTimeFilter(ImmutableTimeFilter.builder()
+                        .time(selectionWindow.endTime())
+                        .comparator(TimeComparator.BEFORE_OR_EQUAL_TO)
+                        .build())
                 // We filter based on end time, in order to include records that started before
                 // the target start time, but ended after. We'll later adjust the start time
                 // of any records that spread across the start time to the start time, effectively
                 // only selecting the demand from the target start time.
                 .endTimeFilter(ImmutableTimeFilter.builder()
-                        .time(earliestEndTime)
+                        .time(selectionWindow.startTime())
                         .comparator(TimeComparator.AFTER_OR_EQUAL_TO)
                         .build())
                 .addAllEntityOids(demandScope.getEntityOidList())

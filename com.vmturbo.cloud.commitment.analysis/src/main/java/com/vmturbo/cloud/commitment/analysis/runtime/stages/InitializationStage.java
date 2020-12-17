@@ -55,9 +55,11 @@ public class InitializationStage extends AbstractStage {
         // to the closest (earlier) hour.
         final Instant analysisStartTime = lookBackStartTime.truncatedTo(
                 analysisContext.getAnalysisBucket().unit());
+        final Instant analysisEndTime = Instant.now().truncatedTo(
+                analysisContext.getAnalysisBucket().unit());
         final TimeInterval analysisWindow = TimeInterval.builder()
                 .startTime(analysisStartTime)
-                .endTime(Instant.now())
+                .endTime(analysisEndTime)
                 .build();
         analysisContext.setAnalysisWindow(analysisWindow);
 

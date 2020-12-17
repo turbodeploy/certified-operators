@@ -65,7 +65,13 @@ public class DemandRetrievalStageTest {
     public void testExecutionWithDemandTrimming() throws Exception {
 
         // setup analysis config for stage construction
-        final Instant lookbackStartTime = Instant.now().minus(10, ChronoUnit.DAYS);
+        final Instant analysisStartTime = Instant.now().minus(10, ChronoUnit.DAYS);
+        final Instant analysisEndTime = analysisStartTime.plus(9, ChronoUnit.DAYS);
+        final TimeInterval analysisWindow = TimeInterval.builder()
+                .startTime(analysisStartTime)
+                .endTime(analysisEndTime)
+                .build();
+
         final AllocatedDemandSelection allocatedSelection = AllocatedDemandSelection.newBuilder()
                 .setIncludeFlexibleDemand(true)
                 .setDemandSelection(DemandSelection.newBuilder()
@@ -78,7 +84,7 @@ public class DemandRetrievalStageTest {
                 .setLogDetailedSummary(true)
                 // make sure demand selection isn't using this value. It should be using the normalized
                 // value from the config
-                .setLookBackStartTime(lookbackStartTime.plusSeconds(32312).toEpochMilli())
+                .setLookBackStartTime(analysisStartTime.plusSeconds(32312).toEpochMilli())
                 .build();
 
         final CloudCommitmentAnalysisConfig analysisConfig = CloudCommitmentAnalysisConfig.newBuilder()
@@ -90,11 +96,7 @@ public class DemandRetrievalStageTest {
                 .build();
 
         // setup the lookback time in the context
-        when(analysisContext.getAnalysisWindow()).thenReturn(Optional.of(
-                TimeInterval.builder()
-                        .startTime(lookbackStartTime)
-                        .endTime(Instant.now())
-                        .build()));
+        when(analysisContext.getAnalysisWindow()).thenReturn(Optional.of(analysisWindow));
 
         // construct the stage
         final AnalysisStage<Void, EntityCloudTierDemandSet> demandRetrievalStage = demandRetrievalFactory.createStage(
@@ -104,8 +106,8 @@ public class DemandRetrievalStageTest {
         // set demand reader response
         final EntityCloudTierMapping entityCloudTierMappingA = ImmutableEntityCloudTierMapping.builder()
                 .timeInterval(TimeInterval.builder()
-                        .startTime(lookbackStartTime.minus(3, ChronoUnit.DAYS))
-                        .endTime(lookbackStartTime.plus(1, ChronoUnit.DAYS))
+                        .startTime(analysisStartTime.minus(3, ChronoUnit.DAYS))
+                        .endTime(analysisEndTime.plus(1, ChronoUnit.DAYS))
                         .build())
                 .entityOid(1L)
                 .accountOid(2L)
@@ -120,8 +122,8 @@ public class DemandRetrievalStageTest {
 
         final EntityCloudTierMapping entityCloudTierMappingB = ImmutableEntityCloudTierMapping.builder()
                 .timeInterval(TimeInterval.builder()
-                        .startTime(lookbackStartTime.plus(1, ChronoUnit.DAYS))
-                        .endTime(Instant.now())
+                        .startTime(analysisStartTime.plus(1, ChronoUnit.DAYS))
+                        .endTime(analysisEndTime.minus(1, ChronoUnit.DAYS))
                         .build())
                 .entityOid(1L)
                 .accountOid(2L)
@@ -137,18 +139,18 @@ public class DemandRetrievalStageTest {
         when(demandReader.getAllocationDemand(
                 eq(CloudTierType.COMPUTE_TIER),
                 eq(allocatedSelection.getDemandSelection().getScope()),
-                eq(lookbackStartTime))).thenReturn(Stream.of(entityCloudTierMappingA, entityCloudTierMappingB));
+                eq(analysisWindow))).thenReturn(Stream.of(entityCloudTierMappingA, entityCloudTierMappingB));
 
         // invoke the stage
         final AnalysisStage.StageResult<EntityCloudTierDemandSet> stageResult =
                 demandRetrievalStage.execute(null);
 
-
         // setup expected output
         final EntityCloudTierMapping expectedMappingA = ImmutableEntityCloudTierMapping.copyOf(entityCloudTierMappingA)
                 .withTimeInterval(entityCloudTierMappingA.timeInterval()
                         .toBuilder()
-                        .startTime(lookbackStartTime)
+                        .startTime(analysisStartTime)
+                        .endTime(analysisEndTime)
                         .build());
         final EntityCloudTierMapping expectedMappingB = entityCloudTierMappingB;
 
