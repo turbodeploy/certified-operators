@@ -1,5 +1,7 @@
 package com.vmturbo.topology.processor.identity;
 
+import java.util.concurrent.TimeUnit;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -9,7 +11,10 @@ import org.springframework.context.annotation.Import;
 import com.vmturbo.common.protobuf.topology.IdentityREST.IdentityServiceController;
 import com.vmturbo.topology.processor.KVConfig;
 import com.vmturbo.topology.processor.TopologyProcessorDBConfig;
+import com.vmturbo.topology.processor.identity.services.HeuristicsMatcher;
+import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyingStore;
 import com.vmturbo.topology.processor.identity.storage.IdentityDatabaseStore;
+import com.vmturbo.topology.processor.identity.storage.IdentityServiceInMemoryUnderlyingStore;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
 
 /**
@@ -41,9 +46,12 @@ public class IdentityProviderConfig {
     @Value("${identityStoreinitializationTimeoutMin:20}")
     private int identityStoreinitializationTimeoutMin;
 
-    @Value("${useIdentityRecordsCache:false}")
-    private boolean useIdentityRecordsCache;
 
+    @Bean
+    public IdentityServiceUnderlyingStore underlyingStore() {
+        return new IdentityServiceInMemoryUnderlyingStore(identityDatabaseStore(),
+                assignedIdReloadReattemptIntervalSeconds, TimeUnit.SECONDS, identityStoreinitializationTimeoutMin);
+    }
 
     @Bean
     public IdentityDatabaseStore identityDatabaseStore() {
@@ -51,15 +59,22 @@ public class IdentityProviderConfig {
     }
 
     @Bean
+    public HeuristicsMatcher heuristicsMatcher() {
+        return new HeuristicsMatcher();
+    }
+
+    @Bean
+    public IdentityService identityService() {
+        return new IdentityService(underlyingStore(), heuristicsMatcher());
+    }
+
+    @Bean
     public IdentityProvider identityProvider() {
         return new IdentityProviderImpl(
+            identityService(),
             kvConfig.keyValueStore(),
             probeConfig.compatibilityChecker(),
-            identityGeneratorPrefix,
-            identityDatabaseStore(),
-            identityStoreinitializationTimeoutMin,
-            assignedIdReloadReattemptIntervalSeconds,
-            useIdentityRecordsCache);
+            identityGeneratorPrefix);
     }
 
     @Bean

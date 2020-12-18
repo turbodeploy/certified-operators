@@ -19,9 +19,6 @@ public class EntityDescriptorMock implements EntityDescriptor {
 
     private final List<PropertyDescriptor> heuristicPropertiers;
 
-    private final List<PropertyDescriptor> nonVolatileProperties;
-
-
     /**
      * Constructs entity descriptor mock.
      *
@@ -33,7 +30,6 @@ public class EntityDescriptorMock implements EntityDescriptor {
         this.identifyingPropertiers = composePropertySet(identifyingPropertiers);
         this.volatilePropertiers = composePropertySet(Collections.singletonList("hyperv_vm"));
         this.heuristicPropertiers = composePropertySet(heuristicPropertiers);
-        this.nonVolatileProperties = composePropertySet(identifyingPropertiers);
     }
 
     /**
@@ -47,7 +43,6 @@ public class EntityDescriptorMock implements EntityDescriptor {
                                 List<String> volatileProperties,
                                 List<String> heuristicProperties) {
         this.identifyingPropertiers = composePropertySet(nonVolatileProperties);
-        this.nonVolatileProperties = composePropertySet(nonVolatileProperties);
         this.volatilePropertiers = composePropertySet(volatileProperties);
         this.identifyingPropertiers.addAll(this.volatilePropertiers);
         this.heuristicPropertiers = composePropertySet(heuristicProperties);
@@ -58,13 +53,6 @@ public class EntityDescriptorMock implements EntityDescriptor {
     public List<PropertyDescriptor> getVolatileProperties(
             @Nonnull EntityMetadataDescriptor metadataDescriptor) {
         return volatilePropertiers;
-    }
-
-    @Override
-    @Nonnull
-    public List<PropertyDescriptor> getNonVolatileProperties(
-        @Nonnull EntityMetadataDescriptor metadataDescriptor) {
-        return nonVolatileProperties;
     }
 
     @Override

@@ -11,10 +11,10 @@ import javax.annotation.Nonnull;
  */
 public interface EntityDescriptor {
     /**
-     * Returns the identifying property list.
+     * Returns the "non-volatile identifying" property list.
      *
      * @param metadataDescriptor The entity metadata descriptor.
-     * @return The identifying property list.
+     * @return The "non-volatile identifying" property set.
      */
     @Nonnull
     List<PropertyDescriptor> getIdentifyingProperties(
@@ -29,16 +29,6 @@ public interface EntityDescriptor {
     @Nonnull
     List<PropertyDescriptor> getVolatileProperties(
             @Nonnull EntityMetadataDescriptor metadataDescriptor);
-
-    /**
-     * Returns the "non-volatile identifying" property set.
-     *
-     * @param metadataDescriptor The entity metadata descriptor.
-     * @return The "non-volatile  identifying" property set.
-     */
-    @Nonnull
-    List<PropertyDescriptor> getNonVolatileProperties(
-        @Nonnull EntityMetadataDescriptor metadataDescriptor);
 
     /**
      * Returns the "heuristic" property set.

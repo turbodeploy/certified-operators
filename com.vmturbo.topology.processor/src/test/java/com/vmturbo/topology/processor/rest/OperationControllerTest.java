@@ -83,7 +83,10 @@ import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityProviderImpl;
+import com.vmturbo.topology.processor.identity.IdentityService;
+import com.vmturbo.topology.processor.identity.services.HeuristicsMatcher;
 import com.vmturbo.topology.processor.identity.storage.IdentityDatabaseStore;
+import com.vmturbo.topology.processor.identity.storage.IdentityServiceInMemoryUnderlyingStore;
 import com.vmturbo.topology.processor.notification.SystemNotificationProducer;
 import com.vmturbo.topology.processor.operation.Operation;
 import com.vmturbo.topology.processor.operation.OperationListener;
@@ -127,8 +130,12 @@ public class OperationControllerTest {
     static class ContextConfiguration  extends WebMvcConfigurerAdapter {
         @Bean
         IdentityProvider identityProvider() {
-            return new IdentityProviderImpl(new MapKeyValueStore(), new ProbeInfoCompatibilityChecker(), 0L,
-                mock(IdentityDatabaseStore.class), 10, 0, false);
+            return new IdentityProviderImpl(
+                    new IdentityService(
+                        new IdentityServiceInMemoryUnderlyingStore(
+                                Mockito.mock(IdentityDatabaseStore.class), 10),
+                        new HeuristicsMatcher()),
+                    new MapKeyValueStore(), new ProbeInfoCompatibilityChecker(), 0L);
         }
 
         @Bean

@@ -98,7 +98,10 @@ import com.vmturbo.topology.processor.api.impl.TargetRESTApi.TargetInfo;
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi.TargetSpec;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityProviderImpl;
+import com.vmturbo.topology.processor.identity.IdentityService;
+import com.vmturbo.topology.processor.identity.services.HeuristicsMatcher;
 import com.vmturbo.topology.processor.identity.storage.IdentityDatabaseStore;
+import com.vmturbo.topology.processor.identity.storage.IdentityServiceInMemoryUnderlyingStore;
 import com.vmturbo.topology.processor.operation.IOperationManager;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.validation.Validation;
@@ -130,6 +133,7 @@ public class TargetControllerTest {
 
     private static final WorkflowServiceMole workflowServiceMole =
             Mockito.spy(new WorkflowServiceMole());
+
     /**
      * Nested configuration for Spring context.
      */
@@ -148,9 +152,12 @@ public class TargetControllerTest {
 
         @Bean
         public IdentityProvider identityService() {
-            return new IdentityProviderImpl(new MapKeyValueStore(),
-                new ProbeInfoCompatibilityChecker(), 0L, mock(IdentityDatabaseStore.class), 10, 0
-                , false);
+            return new IdentityProviderImpl(
+                    new IdentityService(
+                            new IdentityServiceInMemoryUnderlyingStore(
+                                    mock(IdentityDatabaseStore.class), 10),
+                            new HeuristicsMatcher()),
+                    new MapKeyValueStore(), new ProbeInfoCompatibilityChecker(), 0L);
         }
 
         @Bean

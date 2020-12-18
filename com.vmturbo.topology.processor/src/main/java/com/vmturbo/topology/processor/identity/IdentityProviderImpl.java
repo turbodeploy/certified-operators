@@ -9,14 +9,12 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 import com.google.gson.reflect.TypeToken;
@@ -37,12 +35,6 @@ import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
 import com.vmturbo.topology.processor.identity.extractor.IdentifyingPropertyExtractor;
 import com.vmturbo.topology.processor.identity.metadata.ServiceEntityIdentityMetadata;
 import com.vmturbo.topology.processor.identity.metadata.ServiceEntityIdentityMetadataStore;
-import com.vmturbo.topology.processor.identity.services.HeuristicsMatcher;
-import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyingStore;
-import com.vmturbo.topology.processor.identity.storage.IdentityCaches.DescriptorsBasedCache;
-import com.vmturbo.topology.processor.identity.storage.IdentityCaches.IdentityRecordsBasedCache;
-import com.vmturbo.topology.processor.identity.storage.IdentityDatabaseStore;
-import com.vmturbo.topology.processor.identity.storage.IdentityServiceInMemoryUnderlyingStore;
 import com.vmturbo.topology.processor.probes.ProbeInfoCompatibilityChecker;
 
 /**
@@ -108,8 +100,6 @@ public class IdentityProviderImpl implements IdentityProvider {
 
     private final ProbeInfoCompatibilityChecker probeInfoCompatibilityChecker;
 
-    private final IdentityServiceInMemoryUnderlyingStore identityServiceInMemoryUnderlyingStore;
-
     /**
      * Contains the entity identity metadata each probe provided at registration
      * time. We use this metadata to drive property extraction from entity DTOs.
@@ -128,29 +118,17 @@ public class IdentityProviderImpl implements IdentityProvider {
     /**
      * Create a new IdentityProvider implementation.
      *
+     * @param identityService The identity service to use when identifying service entities
      * @param keyValueStore The key value store where identity information that needs to be persisted is stored
      * @param identityGeneratorPrefix The prefix used to initialize the {@link IdentityGenerator}
      * @param compatibilityChecker compatibility checker
-     * @param identityDatabaseStore the store containing the oids
-     * @param identityStoreinitializationTimeoutMin the maximum time that threads will wait for
-     *                                              the store to be ready
-     * @param assignedIdReloadReattemptIntervalSeconds The interval at which to attempt to reload assigned IDs
-     * @param useIdentityRecordsCache whether to use the {@link IdentityRecordsBasedCache} or
-     * {@link DescriptorsBasedCache}
      */
-    public IdentityProviderImpl(@Nonnull final KeyValueStore keyValueStore,
+    public IdentityProviderImpl(@Nonnull final IdentityService identityService,
+                                @Nonnull final KeyValueStore keyValueStore,
                                 @Nonnull final ProbeInfoCompatibilityChecker compatibilityChecker,
-                                final long identityGeneratorPrefix,
-                                @Nonnull IdentityDatabaseStore identityDatabaseStore,
-                                int identityStoreinitializationTimeoutMin,
-                                long assignedIdReloadReattemptIntervalSeconds,
-                                boolean useIdentityRecordsCache) {
+                                final long identityGeneratorPrefix) {
         IdentityGenerator.initPrefix(identityGeneratorPrefix);
-        this.identityServiceInMemoryUnderlyingStore =
-            new IdentityServiceInMemoryUnderlyingStore(identityDatabaseStore, identityStoreinitializationTimeoutMin,
-            assignedIdReloadReattemptIntervalSeconds, TimeUnit.SECONDS, perProbeMetadata, useIdentityRecordsCache);
-        this.identityService = new IdentityService(identityServiceInMemoryUnderlyingStore,
-            new HeuristicsMatcher());
+        this.identityService = Objects.requireNonNull(identityService);
         this.keyValueStore = Objects.requireNonNull(keyValueStore);
         this.probeInfoCompatibilityChecker = Objects.requireNonNull(compatibilityChecker);
 
@@ -159,31 +137,6 @@ public class IdentityProviderImpl implements IdentityProvider {
             entry -> entry.getKey().replaceFirst(PROBE_ID_PREFIX, ""),
             entry -> Long.parseLong(entry.getValue())));
       }
-
-    /**
-     * Create a new IdentityProvider implementation for testing. With this implementation the
-     * identityService can be mocked and stubbed and make it easier to test interactions with it.
-     *
-     * @param identityService The identity service to use when identifying service entities
-     * @param keyValueStore The key value store where identity information that needs to be persisted is stored
-     * @param identityGeneratorPrefix The prefix used to initialize the {@link IdentityGenerator}
-     * @param compatibilityChecker compatibility checker
-     */
-    @VisibleForTesting
-    public IdentityProviderImpl(@Nonnull final IdentityService identityService,
-                                @Nonnull final KeyValueStore keyValueStore,
-                                @Nonnull final ProbeInfoCompatibilityChecker compatibilityChecker,
-                                final long identityGeneratorPrefix) {
-        IdentityGenerator.initPrefix(identityGeneratorPrefix);
-        this.identityService = identityService;
-        this.keyValueStore = Objects.requireNonNull(keyValueStore);
-        this.probeInfoCompatibilityChecker = Objects.requireNonNull(compatibilityChecker);
-        this.identityServiceInMemoryUnderlyingStore = null;
-        Map<String, String> savedProbeIds = this.keyValueStore.getByPrefix(PROBE_ID_PREFIX);
-        this.probeTypeToId = savedProbeIds.entrySet().stream().collect(Collectors.toConcurrentMap(
-            entry -> entry.getKey().replaceFirst(PROBE_ID_PREFIX, ""),
-            entry -> Long.parseLong(entry.getValue())));
-    }
 
     /** {@inheritDoc}
      */
@@ -258,11 +211,6 @@ public class IdentityProviderImpl implements IdentityProvider {
             perProbeMetadata.put(probeId,
                     new ServiceEntityIdentityMetadataStore(probeInfo.getEntityMetadataList()));
         }
-    }
-
-    @Override
-    public IdentityServiceUnderlyingStore getStore() {
-        return identityServiceInMemoryUnderlyingStore;
     }
 
     /** {@inheritDoc}
@@ -399,13 +347,8 @@ public class IdentityProviderImpl implements IdentityProvider {
                         "Unable to parse probe metadata input JSON.", e);
             }
 
-            try {
-                final StringReader reader = new StringReader(diagsLines.get(DIAGS_ID_SVC_IDX));
-                identityService.restore(reader, perProbeMetadata);
-            } catch (Exception e) {
-                final StringReader reader = new StringReader(diagsLines.get(DIAGS_ID_SVC_IDX));
-                identityService.restoreOldDiags(reader);
-            }
+            final StringReader reader = new StringReader(diagsLines.get(DIAGS_ID_SVC_IDX));
+            identityService.restore(reader);
         }
         logger.info("Successfully restored the Identity Provider!");
     }
@@ -427,10 +370,5 @@ public class IdentityProviderImpl implements IdentityProvider {
 
     private void storeProbeId(final String probeType, final Long probeId) {
         keyValueStore.put(PROBE_ID_PREFIX + probeType, probeId.toString());
-    }
-
-    @Override
-    public void initialize() throws InitializationException {
-        identityServiceInMemoryUnderlyingStore.initialize();
     }
 }

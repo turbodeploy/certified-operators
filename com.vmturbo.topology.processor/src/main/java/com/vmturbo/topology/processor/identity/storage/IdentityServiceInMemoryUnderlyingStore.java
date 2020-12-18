@@ -3,22 +3,26 @@ package com.vmturbo.topology.processor.identity.storage;
 import java.io.Reader;
 import java.io.Writer;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ListMultimap;
+import com.google.common.collect.MultimapBuilder;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonDeserializer;
@@ -39,11 +43,8 @@ import com.vmturbo.topology.processor.identity.IdentityUninitializedException;
 import com.vmturbo.topology.processor.identity.IdentityWrongSetException;
 import com.vmturbo.topology.processor.identity.PropertyDescriptor;
 import com.vmturbo.topology.processor.identity.extractor.PropertyDescriptorImpl;
-import com.vmturbo.topology.processor.identity.metadata.ServiceEntityIdentityMetadataStore;
+import com.vmturbo.topology.processor.identity.services.EntityProxyDescriptor;
 import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyingStore;
-import com.vmturbo.topology.processor.identity.storage.IdentityCaches.DescriptorsBasedCache;
-import com.vmturbo.topology.processor.identity.storage.IdentityCaches.IdentityCache;
-import com.vmturbo.topology.processor.identity.storage.IdentityCaches.IdentityRecordsBasedCache;
 
 /**
  * The VMTIdentityServiceInMemoryUnderlyingStore implements the in-memory underlying store. The
@@ -60,7 +61,7 @@ import com.vmturbo.topology.processor.identity.storage.IdentityCaches.IdentityRe
  * wide-ranging effects throughout the system.
  */
 @NotThreadSafe public class IdentityServiceInMemoryUnderlyingStore
-        implements IdentityServiceUnderlyingStore {
+    implements IdentityServiceUnderlyingStore {
 
     private static final Logger LOGGER =
         LogManager.getLogger(IdentityServiceInMemoryUnderlyingStore.class);
@@ -78,6 +79,16 @@ import com.vmturbo.topology.processor.identity.storage.IdentityCaches.IdentityRe
 
     private final Object initializationLock = new Object();
 
+    /**
+     * The index_. Map from the combined identifying properties to OID.
+     */
+    private final Map<String, Long> index_ = new HashMap<>();
+
+    /**
+     * The OID to DTO map.
+     */
+    private final Map<Long, EntityInMemoryProxyDescriptor> oid2Dto_ = new ConcurrentHashMap<>();
+
     private final IdentityDatabaseStore identityDatabaseStore;
 
     private long loadIdsInterval = 10;
@@ -86,20 +97,16 @@ import com.vmturbo.topology.processor.identity.storage.IdentityCaches.IdentityRe
 
     private final int initializationTimeoutMin;
 
-    ConcurrentMap<Long, ServiceEntityIdentityMetadataStore> perProbeMetadata;
-
-    private IdentityCache identityCache;
-
+    /**
+     * Constructs the underlying store.
+     */
     public IdentityServiceInMemoryUnderlyingStore(
-            @Nonnull final IdentityDatabaseStore identityDatabaseStore,
-            final int initializationTimeoutMin,
-            final long loadIdsInterval,
-            final TimeUnit loadIdsTimeUnit,
-            ConcurrentMap<Long, ServiceEntityIdentityMetadataStore> perProbeMetadata,
-            boolean useIdentityRecordsCache) {
+        @Nonnull final IdentityDatabaseStore identityDatabaseStore,
+        final long loadIdsInterval,
+        final TimeUnit loadIdsTimeUnit,
+        final int initializationTimeoutMin) {
         this.identityDatabaseStore = identityDatabaseStore;
         this.initializationTimeoutMin = initializationTimeoutMin;
-        this.perProbeMetadata = perProbeMetadata;
         // We do the initialization asynchronously so the rest of Spring initialization can
         // complete, but all methods should throw an exception until the
         // initialization completes so that we don't assign new IDs to entities that already
@@ -110,49 +117,30 @@ import com.vmturbo.topology.processor.identity.storage.IdentityCaches.IdentityRe
         // plans on old topologies - even if the Identity Service is not initialized.
         this.loadIdsInterval = loadIdsInterval;
         this.loadIdsTimeUnit = loadIdsTimeUnit;
-        initializeIdentityCache(perProbeMetadata, useIdentityRecordsCache);
+        Executors.newSingleThreadExecutor().execute(
+            new SavedIdsLoader(identityDatabaseStore, loadIdsInterval, loadIdsTimeUnit,
+                this::addRestoredIds));
     }
 
     @VisibleForTesting
     public IdentityServiceInMemoryUnderlyingStore(
         @Nonnull final IdentityDatabaseStore identityDatabaseStore,
-        final int initializationTimeoutMin,
-        ConcurrentMap<Long, ServiceEntityIdentityMetadataStore> perProbeMetadata) {
+        final int initializationTimeoutMin) {
         this.identityDatabaseStore = identityDatabaseStore;
         this.initializationTimeoutMin = initializationTimeoutMin;
-        this.identityCache = new IdentityRecordsBasedCache(perProbeMetadata);
         addRestoredIds(Collections.emptySet());
-    }
-
-    /**
-     * Initialize the store.
-     */
-    public void initialize() {
-        ExecutorService executor = Executors.newSingleThreadExecutor();
-        executor.execute(
-            new SavedIdsLoader(identityDatabaseStore, loadIdsInterval, loadIdsTimeUnit,
-                this::addRestoredIds));
-        executor.shutdown();
-        try {
-            boolean success = executor.awaitTermination(initializationTimeoutMin, TimeUnit.MINUTES);
-            if (!success) {
-                LOGGER.error("Failed to initialize the store due to time out");
-            }
-        } catch (InterruptedException e) {
-            LOGGER.error("Identity store initialization interrupted", e);
-        }
     }
 
     private static class SavedIdsLoader implements Runnable {
 
         private IdentityDatabaseStore identityDatabaseStore;
         private final long retryMs;
-        private Consumer<Set<IdentityRecord>> onComplete;
+        private Consumer<Set<EntityInMemoryProxyDescriptor>> onComplete;
 
         SavedIdsLoader(@Nonnull final IdentityDatabaseStore identityDatabaseStore,
                        final long retryInterval,
                        @Nonnull final TimeUnit retryUnit,
-                       Consumer<Set<IdentityRecord>> onComplete) {
+                       Consumer<Set<EntityInMemoryProxyDescriptor>> onComplete) {
             this.identityDatabaseStore = identityDatabaseStore;
             this.retryMs = TimeUnit.MILLISECONDS.convert(retryInterval, retryUnit);
             this.onComplete = onComplete;
@@ -162,8 +150,8 @@ import com.vmturbo.topology.processor.identity.storage.IdentityCaches.IdentityRe
         public void run() {
             while (true) {
                 try {
-                    Set<IdentityRecord> descriptors =
-                            identityDatabaseStore.getDescriptors();
+                    Set<EntityInMemoryProxyDescriptor> descriptors =
+                        identityDatabaseStore.getDescriptors();
                     onComplete.accept(descriptors);
                     return;
                 } catch (IdentityDatabaseException e) {
@@ -195,7 +183,8 @@ import com.vmturbo.topology.processor.identity.storage.IdentityCaches.IdentityRe
                 while (initialized != true) {
                     initializationLock.wait();
                 }
-                identityCache.clear();
+                index_.clear();
+                oid2Dto_.clear();
                 initialized = false;
             }
             (new SavedIdsLoader(identityDatabaseStore, loadIdsInterval, loadIdsTimeUnit,
@@ -281,7 +270,8 @@ import com.vmturbo.topology.processor.identity.storage.IdentityCaches.IdentityRe
                                        @Nonnull List<PropertyDescriptor> properties)
         throws IdentityServiceStoreOperationException, IdentityUninitializedException {
         checkInitialized();
-        return identityCache.getOidByIdentifyingProperties(properties);
+        return index_.getOrDefault(composeKeyFromProperties(properties),
+            IdentityService.INVALID_OID);
     }
 
     @VisibleForTesting
@@ -293,24 +283,19 @@ import com.vmturbo.topology.processor.identity.storage.IdentityCaches.IdentityRe
         }
     }
 
-    private void addRestoredIds(@Nonnull final Set<IdentityRecord>  identityRecordsToProbeId) {
+    private void addRestoredIds(@Nonnull final Set<EntityInMemoryProxyDescriptor> descriptors) {
         synchronized (initializationLock) {
             if (!initialized) {
-                identityRecordsToProbeId.forEach(identityRecord -> {
-                    EntityInMemoryProxyDescriptor descriptor = identityRecord.getDescriptor();
-                    EntityInMemoryProxyDescriptor existing =
-                        identityCache.addIdentityRecord(identityRecord);
+                descriptors.forEach(descriptor -> {
+                    EntityInMemoryProxyDescriptor existing = oid2Dto_.put(descriptor.getOID(), descriptor);
                     if (existing != null && !existing.equals(descriptor)) {
                         // If we don't initialize the IdentityService until the restoration from the
                         // database completes, then this should never happen.
                         LOGGER.error("The ID {} was associated with a different set of properties" +
                             " than the ones retrieved from the database.", descriptor.getOID());
                     }
+                    index_.put(descriptor.getKey(), descriptor.getOID());
                 });
-                LOGGER.info("Done with the identity cache initialization");
-                if (LOGGER.isDebugEnabled()) {
-                    identityCache.report();
-                }
                 setStoreAsInitializedAndNotify();
             }
         }
@@ -323,7 +308,9 @@ import com.vmturbo.topology.processor.identity.storage.IdentityCaches.IdentityRe
         throws IdentityServiceStoreOperationException, IdentityUninitializedException {
         checkInitialized();
 
-        List<IdentityRecord> updatedRecords = new ArrayList<>();
+        // Mapping from ProbeId -> IdentityRecord
+        ListMultimap<Long, IdentityRecord> updatedRecords =
+            MultimapBuilder.hashKeys().arrayListValues().build();
         for (final Entry<Long, EntryData> entry : entryMap.entrySet()) {
             try {
                 final EntryData entryData = entry.getValue();
@@ -331,10 +318,11 @@ import com.vmturbo.topology.processor.identity.storage.IdentityCaches.IdentityRe
                     new EntityInMemoryProxyDescriptor(entry.getKey(),
                         entryData.getDescriptor(),
                         entryData.getMetadata());
-                final EntityInMemoryProxyDescriptor oldPd = identityCache.get(vmtPD.getOID());
+                final EntityInMemoryProxyDescriptor oldPd = oid2Dto_.get(vmtPD.getOID());
                 EntityType entityType = entryData.getEntityDTO().get().getEntityType();
                 if (!vmtPD.equals(oldPd)) {
-                    updatedRecords.add(new IdentityRecord(entityType, vmtPD, entryData.getProbeId()));
+                    updatedRecords.put(entryData.getProbeId(),
+                        new IdentityRecord(entityType, vmtPD));
                 }
             } catch (IdentityWrongSetException e) {
                 throw new IdentityServiceStoreOperationException(e);
@@ -342,14 +330,20 @@ import com.vmturbo.topology.processor.identity.storage.IdentityCaches.IdentityRe
         }
 
         try {
-            identityDatabaseStore.saveDescriptors(updatedRecords);
-            } catch (IdentityDatabaseException e) {
+            for (Entry<Long, Collection<IdentityRecord>> entry :
+                updatedRecords.asMap().entrySet()) {
+                identityDatabaseStore.saveDescriptors(entry.getKey(), entry.getValue());
+            }} catch (IdentityDatabaseException e) {
             throw new IdentityServiceStoreOperationException(e);
         }
 
         // Do this after the database update is successful, to keep the in-memory index from
         // being out-of-date with the database.
-        updatedRecords.forEach(record -> identityCache.addIdentityRecord(record));
+        updatedRecords.values().forEach(record -> {
+            EntityInMemoryProxyDescriptor descriptor = record.getDescriptor();
+            oid2Dto_.put(descriptor.getOID(), descriptor);
+            index_.put(descriptor.getKey(), descriptor.getOID());
+        });
     }
 
     /**
@@ -365,10 +359,11 @@ import com.vmturbo.topology.processor.identity.storage.IdentityCaches.IdentityRe
         checkInitialized();
         try {
             final EntityInMemoryProxyDescriptor vmtPD =
-                    new EntityInMemoryProxyDescriptor(oid, descriptor, metadataDescriptor);
-            IdentityRecord identityRecord = new IdentityRecord(entityType, vmtPD, probeId);
-            identityDatabaseStore.saveDescriptors(Collections.singletonList(identityRecord));
-            identityCache.addIdentityRecord(identityRecord);
+                new EntityInMemoryProxyDescriptor(oid, descriptor, metadataDescriptor);
+            identityDatabaseStore.saveDescriptors(probeId,
+                Collections.singletonList(new IdentityRecord(entityType, vmtPD)));
+            oid2Dto_.put(vmtPD.getOID(), vmtPD);
+            index_.put(vmtPD.getKey(), vmtPD.getOID());
         } catch (IdentityWrongSetException | IdentityDatabaseException e) {
             throw new IdentityServiceStoreOperationException(e);
         }
@@ -387,21 +382,25 @@ import com.vmturbo.topology.processor.identity.storage.IdentityCaches.IdentityRe
 
         checkInitialized();
 
-        EntityInMemoryProxyDescriptor existing = identityCache.remove(oid);
+        EntityInMemoryProxyDescriptor existing = oid2Dto_.remove(oid);
         if (existing == null) {
             throw new IllegalStateException(
                 "The OID " + oid + " does not correspond to an existing Entity");
         }
+        // Remove the stuff from the index_.
+        index_.remove(existing.getKey());
 
         try {
             final EntityInMemoryProxyDescriptor vmtPD =
-                    new EntityInMemoryProxyDescriptor(oid, descriptor, metadataDescriptor);
-            final IdentityRecord identityRecord = new IdentityRecord(entityType, vmtPD, probeId);
-            identityDatabaseStore.saveDescriptors(Collections.singletonList(identityRecord));
-            identityCache.addIdentityRecord(identityRecord);
+                new EntityInMemoryProxyDescriptor(oid, descriptor, metadataDescriptor);
+            identityDatabaseStore.saveDescriptors(probeId,
+                Collections.singletonList(new IdentityRecord(entityType, vmtPD)));
+            oid2Dto_.put(vmtPD.getOID(), vmtPD);
+            index_.put(vmtPD.getKey(), vmtPD.getOID());
         } catch (IdentityWrongSetException | IdentityDatabaseException e) {
             // Put the old stuff back, since the update failed.
-            identityCache.addIdentityRecord(new IdentityRecord(entityType, existing, probeId));
+            oid2Dto_.put(oid, existing);
+            index_.put(existing.getKey(), oid);
             throw new IdentityServiceStoreOperationException(e);
         }
     }
@@ -414,8 +413,9 @@ import com.vmturbo.topology.processor.identity.storage.IdentityCaches.IdentityRe
         throws IdentityServiceStoreOperationException, IdentityUninitializedException {
         checkInitialized();
 
-        final EntityInMemoryProxyDescriptor vmtPD = identityCache.remove(oid);
+        final EntityInMemoryProxyDescriptor vmtPD = oid2Dto_.remove(oid);
         if (vmtPD != null) {
+            index_.remove(vmtPD.getKey());
             try {
                 identityDatabaseStore.removeDescriptor(oid);
             } catch (IdentityDatabaseException e) {
@@ -429,14 +429,23 @@ import com.vmturbo.topology.processor.identity.storage.IdentityCaches.IdentityRe
 
     /**
      * {@inheritDoc}
-     * @return
      */
+    @Override
     @Nonnull
-    public List<EntityInMemoryProxyDescriptor> getDtosByNonVolatileProperties(
-        @Nonnull final List<PropertyDescriptor> properties)
-            throws IdentityUninitializedException {
+    public Iterable<EntityProxyDescriptor> query(
+        @Nullable final EntityMetadataDescriptor metadataDescriptor,
+        @Nonnull final Iterable<PropertyDescriptor> properties)
+        throws IdentityServiceStoreOperationException, IdentityUninitializedException {
         checkInitialized();
-        return identityCache.getDtosByNonVolatileProperties(properties);
+
+        Collection<EntityProxyDescriptor> array = new ArrayList<>();
+        // Query
+        for (EntityInMemoryProxyDescriptor desc : oid2Dto_.values()) {
+            if (desc.containsAll(properties)) {
+                array.add(desc);
+            }
+        }
+        return array;
     }
 
     /**
@@ -446,7 +455,7 @@ import com.vmturbo.topology.processor.identity.storage.IdentityCaches.IdentityRe
     public boolean containsOID(long oid)
         throws IdentityServiceStoreOperationException, IdentityUninitializedException {
         checkInitialized();
-        return identityCache.containsKey(oid);
+        return oid2Dto_.containsKey(oid);
     }
 
     /**
@@ -467,27 +476,27 @@ import com.vmturbo.topology.processor.identity.storage.IdentityCaches.IdentityRe
      */
     @Override
     public void backup(@Nonnull final Writer writer) {
-        identityCache.toJson(writer);
+        constructGson().toJson(oid2Dto_.values(), writer);
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public void restore(@Nonnull final Reader input, @Nonnull Map<Long,
-        ServiceEntityIdentityMetadataStore> perProbeMetadata) {
+    public void restore(@Nonnull final Reader input) {
         synchronized (initializationLock) {
             // We don't check if initialized is true or not, because the "restore" overrides
             // whatever was initialized anyway.
             // But we set the initialized flag to true, so that no information gets lost if
             // "restore" happens before ID data is re-loaded.
-            initialized = true;
-            identityCache.clear();
-            List<IdentityRecord> identityRecords = constructGson()
-                    .fromJson(input, new TypeToken<List<IdentityRecord>>() {
-                    }.getType());
-            identityRecords.forEach(identityRecord -> {
-                identityCache.addIdentityRecord(identityRecord);
+            final List<EntityInMemoryProxyDescriptor> newOid2Dto = constructGson()
+                .fromJson(input, new TypeToken<List<EntityInMemoryProxyDescriptor>>() {
+                }.getType());
+            index_.clear();
+            oid2Dto_.clear();
+            newOid2Dto.forEach(descriptor -> {
+                oid2Dto_.put(descriptor.getOID(), descriptor);
+                index_.put(descriptor.getKey(), descriptor.getOID());
             });
             setStoreAsInitializedAndNotify();
         }
@@ -501,43 +510,6 @@ import com.vmturbo.topology.processor.identity.storage.IdentityCaches.IdentityRe
     private void setStoreAsInitializedAndNotify() {
         initialized = true;
         initializationLock.notifyAll();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void restoreOldDiags(@Nonnull  final Reader input) {
-        synchronized (initializationLock) {
-            initialized = true;
-            identityCache.clear();
-            final List<EntityInMemoryProxyDescriptor> newOid2Dto = constructGson()
-                .fromJson(input, new TypeToken<List<EntityInMemoryProxyDescriptor>>() {
-                }.getType());
-            identityCache = new DescriptorsBasedCache();
-            newOid2Dto.forEach(descriptor -> {
-                identityCache.addDescriptor(descriptor);
-            });
-        }
-    }
-
-    /**
-     * Inizialize the cache based on the config parameter useIdentityRecordsCache. The
-     * {@link IdentityRecordsBasedCache} is a faster cached optimized to lookup entities by non
-     * volatile oids. It consumes more memory, and in the first stage it will only be used at
-     * customers that are dealing with slow discovery ingestion see OM-63916 for more context.
-     *
-     * @param perProbeMetadata probes with their metadata
-     * @param useIdentityRecordsCache whether to use the {@link IdentityRecordsBasedCache} or
-     * {@link DescriptorsBasedCache}
-     *
-     */
-    private void initializeIdentityCache(ConcurrentMap<Long, ServiceEntityIdentityMetadataStore> perProbeMetadata, boolean useIdentityRecordsCache) {
-        if (useIdentityRecordsCache) {
-            this.identityCache = new IdentityRecordsBasedCache(perProbeMetadata);
-        } else {
-            this.identityCache = new DescriptorsBasedCache();
-        }
     }
 
     private Gson constructGson() {

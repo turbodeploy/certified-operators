@@ -7,7 +7,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
 
 import com.google.common.collect.Lists;
 
@@ -21,10 +20,8 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.sdk.common.IdentityMetadata.EntityIdentityMetadata;
 import com.vmturbo.topology.processor.identity.extractor.EntityDescriptorImpl;
 import com.vmturbo.topology.processor.identity.extractor.PropertyDescriptorImpl;
-import com.vmturbo.topology.processor.identity.metadata.ServiceEntityIdentityMetadataStore;
 import com.vmturbo.topology.processor.identity.services.HeuristicsMatcher;
 import com.vmturbo.topology.processor.identity.storage.IdentityDatabaseStore;
 import com.vmturbo.topology.processor.identity.storage.IdentityServiceInMemoryUnderlyingStore;
@@ -41,11 +38,8 @@ public class IdentityServiceTest {
     private CommonDTO.EntityDTO entityDTO =
             EntityDTO.newBuilder()
                     .setId("999")
-
                     .setEntityType(EntityType.VIRTUAL_MACHINE)
             .build();
-    private final ConcurrentHashMap<Long, ServiceEntityIdentityMetadataStore> perProbeMetadata =
-        new ConcurrentHashMap<>();
 
     @BeforeClass
     public static void setUpBeforeClass() throws Exception {
@@ -54,14 +48,10 @@ public class IdentityServiceTest {
 
     @Before
     public void setUp() throws Exception {
-        perProbeMetadata.put(probeId,
-            new ServiceEntityIdentityMetadataStore(Collections.singletonList(EntityIdentityMetadata
-                .newBuilder().setEntityType(EntityType.VIRTUAL_MACHINE).build())));
-        IdentityServiceInMemoryUnderlyingStore store = new IdentityServiceInMemoryUnderlyingStore(
-            Mockito.mock(IdentityDatabaseStore.class), 10, perProbeMetadata);
-        idSvc = new IdentityService(store,
+        idSvc = new IdentityService(
+                new IdentityServiceInMemoryUnderlyingStore(
+                        Mockito.mock(IdentityDatabaseStore.class), 10),
                     new HeuristicsMatcher());
-        store.initialize();
 
     }
 

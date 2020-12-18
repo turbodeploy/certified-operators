@@ -15,15 +15,11 @@ public class IdentityRecord {
 
     private final EntityInMemoryProxyDescriptor descriptor;
 
-    private final long probeId;
-
     public IdentityRecord(@Nonnull EntityType entityType,
-                          @Nonnull EntityInMemoryProxyDescriptor memoryDescriptor,
-                          long probeId) {
+                          @Nonnull EntityInMemoryProxyDescriptor memoryDescriptor) {
 
         this.entityType = Objects.requireNonNull(entityType);
         this.descriptor = Objects.requireNonNull(memoryDescriptor);
-        this.probeId = probeId;
     }
 
     public EntityType getEntityType() {
@@ -32,9 +28,5 @@ public class IdentityRecord {
 
     public EntityInMemoryProxyDescriptor getDescriptor() {
         return descriptor;
-    }
-
-    public long getProbeId() {
-        return probeId;
     }
 }

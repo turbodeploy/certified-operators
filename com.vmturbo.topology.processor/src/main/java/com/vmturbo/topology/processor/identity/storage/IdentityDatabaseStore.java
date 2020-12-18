@@ -9,12 +9,11 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
-import org.jooq.Record3;
+import org.jooq.Record1;
 import org.jooq.Result;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.db.tables.AssignedIdentity;
 
 /**
@@ -31,14 +30,15 @@ public class IdentityDatabaseStore {
         this.dsl = dsl;
     }
 
-    void saveDescriptors(@Nonnull final Collection<IdentityRecord> records)
+    void saveDescriptors(final long probeId,
+                         @Nonnull final Collection<IdentityRecord> records)
             throws IdentityDatabaseException {
         try {
             // TODO: change this into a batch insert.
             dsl.transaction(configuration -> {
                 final DSLContext transactionDsl = DSL.using(configuration);
                 records.forEach(record ->
-                        insert(transactionDsl, record.getProbeId(),
+                        insert(transactionDsl, probeId,
                                 record.getEntityType().getNumber(),
                                 record.getDescriptor()));
             });
@@ -73,19 +73,15 @@ public class IdentityDatabaseStore {
     }
 
     @Nonnull
-    Set<IdentityRecord> getDescriptors() throws IdentityDatabaseException {
+    Set<EntityInMemoryProxyDescriptor> getDescriptors() throws IdentityDatabaseException {
         try {
-            final Result<Record3<EntityInMemoryProxyDescriptor, Long, Integer>> result =
-                    dsl.select(AssignedIdentity.ASSIGNED_IDENTITY.PROPERTIES,
-                        AssignedIdentity.ASSIGNED_IDENTITY.PROBE_ID,
-                        AssignedIdentity.ASSIGNED_IDENTITY.ENTITY_TYPE)
+            final Result<Record1<EntityInMemoryProxyDescriptor>> result =
+                    dsl.select(AssignedIdentity.ASSIGNED_IDENTITY.PROPERTIES)
                             .from(AssignedIdentity.ASSIGNED_IDENTITY)
                             .fetch();
             return result.stream()
-                .map(record -> new IdentityRecord(EntityType.forNumber(record.get(AssignedIdentity.ASSIGNED_IDENTITY.ENTITY_TYPE)),
-                        record.get(AssignedIdentity.ASSIGNED_IDENTITY.PROPERTIES),
-                            record.get(AssignedIdentity.ASSIGNED_IDENTITY.PROBE_ID)))
-                .collect(Collectors.toSet());
+                    .map(record -> record.get(AssignedIdentity.ASSIGNED_IDENTITY.PROPERTIES))
+                    .collect(Collectors.toSet());
         } catch (DataAccessException e) {
             throw new IdentityDatabaseException(e);
         }

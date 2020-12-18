@@ -6,8 +6,8 @@ import java.util.List;
 import java.util.Map;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
-import com.vmturbo.components.common.RequiresDataInitialization;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.identity.EntityDescriptor;
 import com.vmturbo.topology.processor.identity.EntityMetadataDescriptor;
@@ -15,13 +15,11 @@ import com.vmturbo.topology.processor.identity.EntryData;
 import com.vmturbo.topology.processor.identity.IdentityServiceStoreOperationException;
 import com.vmturbo.topology.processor.identity.IdentityUninitializedException;
 import com.vmturbo.topology.processor.identity.PropertyDescriptor;
-import com.vmturbo.topology.processor.identity.metadata.ServiceEntityIdentityMetadataStore;
-import com.vmturbo.topology.processor.identity.storage.EntityInMemoryProxyDescriptor;
 
 /**
  * The IdentityServiceUnderlyingStore implements the Identity Service underlying service.
  */
-public interface IdentityServiceUnderlyingStore extends RequiresDataInitialization {
+public interface IdentityServiceUnderlyingStore {
 
     /**
      * Performs the lookup by the identifying set of properties.
@@ -96,13 +94,18 @@ public interface IdentityServiceUnderlyingStore extends RequiresDataInitializati
      * Performs the search using the set of properties.
      * The optional metadata descriptor will be used to narrow the search.
      *
-     * @param properties The non volatile properties.
+     * @param metadataDescriptor The metadata descriptor. if {@code null}, will be ignored.
+     * @param properties         The set of properties.
+     * @return The collection of identifying and heuristic properties. It is in the form of:
+     * {@code Iterable<VMTEntityProxyDescriptor>}
+     * @throws IdentityServiceStoreOperationException In case of an error querying the DTOs.
      * @throws IdentityUninitializedException If the store is not initialized yet.
      */
     @Nonnull
-    List<EntityInMemoryProxyDescriptor> getDtosByNonVolatileProperties(
-        @Nonnull List<PropertyDescriptor> properties)
-            throws IdentityUninitializedException;
+    Iterable<EntityProxyDescriptor> query(
+            @Nullable EntityMetadataDescriptor metadataDescriptor,
+            @Nonnull Iterable<PropertyDescriptor> properties)
+            throws IdentityServiceStoreOperationException, IdentityUninitializedException;
 
     /**
      * Checks whether entity with such OID is already present.
@@ -148,23 +151,16 @@ public interface IdentityServiceUnderlyingStore extends RequiresDataInitializati
      * removed.
      *
      * @param input The reader to back up from.
-     * @param perProbeMetadata probe metadata to distinguish volatile and non-volatile properties
      */
-    void restore(@Nonnull Reader input, @Nonnull Map<Long,
-        ServiceEntityIdentityMetadataStore> perProbeMetadata);
+    void restore(@Nonnull final Reader input);
 
     /**
      * Reload the entity descriptors from the underlying backing store.
+     *
      * If the store is a pass-through, then this will be a no-op. If the
      * store is an in-memory store backed by a persistent store, this call
      * updates the in-memory store with the latest values from the
      * persistent store.
      */
     void reloadEntityDescriptors();
-
-    /**
-     * Restore diags with the older format containing {@link EntityInMemoryProxyDescriptor}.
-     * @param input The reader to back up from.
-     */
-    void restoreOldDiags(Reader input);
 }

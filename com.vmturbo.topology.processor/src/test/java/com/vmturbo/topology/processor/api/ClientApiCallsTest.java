@@ -114,7 +114,6 @@ public class ClientApiCallsTest extends AbstractApiCallsTest {
         targetStore = integrationTestServer.getBean(TargetStore.class);
         entityStore = integrationTestServer.getBean(EntityStore.class);
         identityProviderSpy = integrationTestServer.getBean(IdentityProvider.class);
-        identityProviderSpy.getStore().initialize();
         repositoryClientFake = integrationTestServer.getBean(FakeRepositoryClient.class);
         groupScopeResolver = mock(GroupScopeResolver.class);
         Mockito.when(groupScopeResolver.processGroupScope(Matchers.any(), Matchers.any(), Matchers.any()))

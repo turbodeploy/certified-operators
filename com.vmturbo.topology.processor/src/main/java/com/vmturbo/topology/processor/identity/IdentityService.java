@@ -19,7 +19,6 @@ import com.vmturbo.identity.exceptions.IdentityServiceException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
-import com.vmturbo.topology.processor.identity.metadata.ServiceEntityIdentityMetadataStore;
 import com.vmturbo.topology.processor.identity.services.EntityProxyDescriptor;
 import com.vmturbo.topology.processor.identity.services.HeuristicsMatcher;
 import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyingStore;
@@ -128,11 +127,9 @@ public class IdentityService implements com.vmturbo.identity.IdentityService<Ent
                 descriptor.getIdentifyingProperties(metadataDescriptor);
         final List<PropertyDescriptor> volatileProperties =
                 descriptor.getVolatileProperties(metadataDescriptor);
-        final List<PropertyDescriptor> nonVolatileProperties =
-            descriptor.getNonVolatileProperties(metadataDescriptor);
         // First, see if we have the match by the identifying properties
         final long existingOid;
-        existingOid = store_.lookupByIdentifyingSet(metadataDescriptor, identifyingProperties);
+            existingOid = store_.lookupByIdentifyingSet(metadataDescriptor, identifyingProperties);
         if (existingOid != INVALID_OID) {
             if (!volatileProperties.isEmpty()) {
                 entriesToUpsert.put(existingOid, entryData);
@@ -153,8 +150,10 @@ public class IdentityService implements com.vmturbo.identity.IdentityService<Ent
         // properties have changed.
         // We will perform the heuristic match, and we need all the Entities that could be a
         // potential hit.
+        Collection<PropertyDescriptor> queryIDProps = new ArrayList<>(identifyingProperties);
+        queryIDProps.removeAll(volatileProperties);
         if (heuristicsNow != null && heuristicsNow.size() > 0) {
-            for (EntityProxyDescriptor match : store_.getDtosByNonVolatileProperties(nonVolatileProperties)) {
+            for (EntityProxyDescriptor match : store_.query(metadataDescriptor, queryIDProps)) {
                 // We have volatile properties. Perform heuristics
                 Iterable<PropertyDescriptor> heuristicsLast = match.getHeuristicProperties();
                 // See if we need to merge the two
@@ -264,20 +263,9 @@ public class IdentityService implements com.vmturbo.identity.IdentityService<Ent
      * Restore the contents of a backed-up {@link IdentityService} from the provided reader.
      *
      * @param reader The reader to read from.
-     * @param perProbeMetadata probe metadata to distinguish volatile and non-volatile properties
      */
-    public void restore(@Nonnull final Reader reader, @Nonnull Map<Long,
-        ServiceEntityIdentityMetadataStore> perProbeMetadata) {
-        store_.restore(reader, perProbeMetadata);
-    }
-
-    /**
-     * Restore the contents of a backed-up {@link IdentityService} from the provided reader.
-     *
-     * @param reader The reader to read from.
-     */
-    public void restoreOldDiags(@Nonnull final Reader reader) {
-        store_.restoreOldDiags(reader);
+    public void restore(@Nonnull final Reader reader) {
+        store_.restore(reader);
     }
 
     /**
