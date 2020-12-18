@@ -481,14 +481,18 @@ public class Move extends MoveBase implements Action { // inheritance for code r
                                              boolean take, @Nullable final Set<ShoppingList> currentSLs,
                                              final boolean isIncoming) {
         final CommoditySold commoditySold = traderToUpdate.getCommoditiesSold().get(soldIndex);
-
+        if (take) {
+            // updating the numConsumers of a commodity when the move action is being taken
+            final int numConsumers = commoditySold.getNumConsumers();
+            commoditySold.setNumConsumers(isIncoming ? numConsumers + 1
+                    : numConsumers <= 1 ? 0 : numConsumers - 1);
+        }
         UpdatingFunction explicitCombinator = commoditySold.getSettings().getUpdatingFunction();
         if (explicitCombinator == null) {
             // if there is no explicit combinator, use default one.
             return defaultCombinator.operate(sl, boughtIndex, commoditySold, traderToUpdate,
                     economy, take, currentSLs, isIncoming);
         }
-        take = UpdatingFunctionFactory.isValidDistributionFunction(explicitCombinator) ? false : take;
         return explicitCombinator.operate(sl, boughtIndex, commoditySold, traderToUpdate,
             economy, take, currentSLs, isIncoming);
     }

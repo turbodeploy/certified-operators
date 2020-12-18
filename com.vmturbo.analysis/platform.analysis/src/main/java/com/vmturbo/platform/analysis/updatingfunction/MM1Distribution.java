@@ -109,7 +109,6 @@ public class MM1Distribution implements UpdatingFunction {
             // There is nothing to distribute
             return new double[]{commSold.getQuantity(), commSold.getPeakQuantity()};
         }
-        boolean isProvision = UpdatingFunctionFactory.isProvision(clonedSL, currentSLs);
         // Aggregate quantities across all shopping lists
         final double originalQuantitySum = currentSLs.stream()
                 .peek(sl -> {
@@ -121,7 +120,7 @@ public class MM1Distribution implements UpdatingFunction {
                 })
                 .mapToDouble(sl -> sl.getQuantity(index)).sum();
         final int originalSize = currentSLs.size();
-        final int newSize = originalSize + (isProvision ? 1 : -1);
+        final int newSize = originalSize + (isIncoming ? 1 : -1);
         final double originalAvgQuantity = originalQuantitySum / originalSize;
         double projectedQuantity = originalAvgQuantity;
         double projectedPeakQuantity = projectedQuantity;
@@ -216,7 +215,7 @@ public class MM1Distribution implements UpdatingFunction {
         // Distribute
         UpdatingFunctionFactory.distributeOnCurrent(currentSLs, index, projectedQuantity,
                 projectedPeakQuantity, projectedQuantityDependentComms);
-        if (isProvision) {
+        if (isIncoming) {
             UpdatingFunctionFactory.distributeOnClone(index, clonedSL, projectedQuantity,
                     projectedPeakQuantity, projectedQuantityDependentComms);
         }

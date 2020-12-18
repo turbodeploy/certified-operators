@@ -440,12 +440,14 @@ public class TestUtils {
                 int soldIndex = seller.getBasketSold()
                         .indexOf(basketCommodities.get(i));
                 if (soldIndex >= 0) {
-                    double sellerQuantity = seller.getCommoditiesSold().get(soldIndex).getQuantity();
-                    double sellerPeakQuantity = seller.getCommoditiesSold().get(soldIndex).getPeakQuantity();
-                    seller.getCommoditiesSold().get(soldIndex).setQuantity(sellerQuantity + commQuantities[i])
-                    .setPeakQuantity(sellerPeakQuantity + commQuantities[i]);
+                    final CommoditySold commoditySold = seller.getCommoditiesSold().get(soldIndex);
+                    final double sellerQuantity = commoditySold.getQuantity();
+                    final double sellerPeakQuantity = commoditySold.getPeakQuantity();
+                    commoditySold.setQuantity(sellerQuantity + commQuantities[i])
+                            .setPeakQuantity(sellerPeakQuantity + commQuantities[i])
+                            // populate numConsumers on the commSold
+                            .setNumConsumers(commoditySold.getNumConsumers() + 1);
                 }
-
             }
         }
         return sl;
@@ -474,17 +476,13 @@ public class TestUtils {
         if(seller != null){
             sl.move(seller);
             for(int i=0; i<basketCommodities.size(); i++){
-                double sellerQuantity = seller.getCommoditiesSold().get(seller.getBasketSold()
-                                .indexOf(basketCommodities.get(i))).getQuantity();
-                seller.getCommoditiesSold().get(seller.getBasketSold()
-                                .indexOf(basketCommodities.get(i))).setQuantity(sellerQuantity + commQuantities[i]);
-
-                double sellerPeakQuantity = seller.getCommoditiesSold().get(seller.getBasketSold()
-                                .indexOf(basketCommodities.get(i))).getPeakQuantity();
-                seller.getCommoditiesSold()
-                                .get(seller.getBasketSold().indexOf(basketCommodities.get(i)))
-                                .setPeakQuantity((peakQuantities[i] > sellerPeakQuantity)
-                                                ? peakQuantities[i] : sellerPeakQuantity);
+                final CommoditySold commoditySold = seller.getCommoditySold(basketCommodities.get(i));
+                final double sellerQuantity = commoditySold.getQuantity();
+                final double sellerPeakQuantity = commoditySold.getPeakQuantity();
+                commoditySold.setQuantity(sellerQuantity + commQuantities[i])
+                        .setPeakQuantity(Math.max(peakQuantities[i], sellerPeakQuantity))
+                        // populate numConsumers on the commSold
+                        .setNumConsumers(commoditySold.getNumConsumers() + 1);
             }
         }
         return sl;
@@ -722,8 +720,9 @@ public class TestUtils {
             sl.setPeakQuantity(i, quantities[i]);
             CommoditySold commSold =
                     supplier.getCommoditySold(sl.getBasket().get(i));
-            commSold.setQuantity(commSold.getQuantity() + quantities[i]);
-            commSold.setPeakQuantity(commSold.getPeakQuantity() + quantities[i]);
+            commSold.setQuantity(commSold.getQuantity() + quantities[i])
+                    .setPeakQuantity(commSold.getPeakQuantity() + quantities[i])
+                    .setNumConsumers(commSold.getNumConsumers() + 1);
         }
     }
 

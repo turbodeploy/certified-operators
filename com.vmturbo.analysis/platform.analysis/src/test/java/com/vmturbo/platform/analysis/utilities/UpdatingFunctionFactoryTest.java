@@ -6,6 +6,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
@@ -50,10 +51,12 @@ public class UpdatingFunctionFactoryTest {
      */
     @Test
     public void testAddComm() {
-        double[] res = UpdatingFunctionFactory.ADD_COMM.operate(sl2, 0,
-                        pm.getCommoditySold(TestUtils.CPU), null, null, false, null, true);
+        double[] res = Move.updatedQuantities(economy, UpdatingFunctionFactory.ADD_COMM, sl2,
+                0, pm, 0, false, null, true);
         Assert.assertEquals(80, res[0], TestUtils.FLOATING_POINT_DELTA);
         Assert.assertEquals(150, res[1], TestUtils.FLOATING_POINT_DELTA);
+        pm.getCommoditiesSold()
+                .forEach(commoditySold -> Assert.assertEquals(1, commoditySold.getNumConsumers()));
     }
 
     /**
@@ -63,30 +66,33 @@ public class UpdatingFunctionFactoryTest {
      */
     @Test
     public void testSubComm() {
-        double[] res = UpdatingFunctionFactory.SUB_COMM.operate(sl1, 0,
-                        pm.getCommoditySold(TestUtils.CPU), null, null, false, null, false);
+        double[] res = Move.updatedQuantities(economy, UpdatingFunctionFactory.SUB_COMM, sl1,
+                0, pm, 0, false, null, false);
         Assert.assertEquals(0, res[0], TestUtils.FLOATING_POINT_DELTA);
         Assert.assertEquals(0, res[1], TestUtils.FLOATING_POINT_DELTA);
+        pm.getCommoditiesSold()
+                .forEach(commoditySold -> Assert.assertEquals(1, commoditySold.getNumConsumers()));
     }
 
     /**
      * Unit test for IGNORE_CONSUMPTION().
      * res1[0] = 50.
      * res1[1] = 90.
-     * res2[0] = 30 + 50 = 80.
-     * res2[1] = 60 + 90 = 150.
+     * res2[0] = 0.
+     * res2[1] = 0.
      */
     @Test
     public void testIgnoreConsumption() {
-        double[] res1 = UpdatingFunctionFactory.IGNORE_CONSUMPTION.operate(sl2, 0,
-                        pm.getCommoditySold(TestUtils.CPU), null, null, true, null, true);
+        double[] res1 = Move.updatedQuantities(economy, UpdatingFunctionFactory.IGNORE_CONSUMPTION, sl2,
+                0, pm, 0, true, null, true);
         Assert.assertEquals(50, res1[0], TestUtils.FLOATING_POINT_DELTA);
         Assert.assertEquals(90, res1[1], TestUtils.FLOATING_POINT_DELTA);
-
-        double[] res2 = UpdatingFunctionFactory.IGNORE_CONSUMPTION.operate(sl2, 0,
-                        pm.getCommoditySold(TestUtils.CPU), null, null, false, null, true);
+        double[] res2 = Move.updatedQuantities(economy, UpdatingFunctionFactory.IGNORE_CONSUMPTION, sl2,
+                0, pm, 0, false, null, true);
         Assert.assertEquals(0, res2[0], TestUtils.FLOATING_POINT_DELTA);
         Assert.assertEquals(0, res2[1], TestUtils.FLOATING_POINT_DELTA);
+        pm.getCommoditiesSold()
+                .forEach(commoditySold -> Assert.assertEquals(2, commoditySold.getNumConsumers()));
     }
 
     /**
@@ -118,16 +124,14 @@ public class UpdatingFunctionFactoryTest {
         TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.CPU), vm,
                         new double[] {10}, new double[] {30}, pm);
         Assert.assertEquals(2, pm.getCustomers().size());
-        // populate numConsumers on the commSold by the pm
-        pm.getCommoditiesSold().forEach(cs -> cs.setNumConsumers(2));
-        CommoditySold commoditySold = pm.getCommoditySold(TestUtils.CPU);
 
         sl2 = TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.CPU), vm,
             new double[] {90}, new double[] {120}, null);
 
         // Moving into PM
-        double[] res1 = UpdatingFunctionFactory.AVG_COMMS.operate(sl2, 0,
-            commoditySold, pm, null, true, null, true);
+        double[] res1 = Move.updatedQuantities(economy, UpdatingFunctionFactory.AVG_COMMS, sl2,
+                0, pm, 0, true, null, true);
+        CommoditySold commoditySold = pm.getCommoditySold(TestUtils.CPU);
         Assert.assertEquals(70, res1[0], TestUtils.FLOATING_POINT_DELTA);
         Assert.assertEquals(100, res1[1], TestUtils.FLOATING_POINT_DELTA);
         Assert.assertEquals(3, commoditySold.getNumConsumers());
@@ -135,16 +139,16 @@ public class UpdatingFunctionFactoryTest {
         commoditySold.setQuantity(res1[0]).setPeakQuantity(res1[1]);
 
         // Moving out of PM
-        double[] res2 = UpdatingFunctionFactory.AVG_COMMS.operate(sl2, 0,
-            commoditySold, pm, null, true, null, false);
+        double[] res2 = Move.updatedQuantities(economy, UpdatingFunctionFactory.AVG_COMMS, sl2,
+                0, pm, 0, true, null, false);
         Assert.assertEquals(60, res2[0], TestUtils.FLOATING_POINT_DELTA);
         Assert.assertEquals(90, res2[1], TestUtils.FLOATING_POINT_DELTA);
         Assert.assertEquals(2, commoditySold.getNumConsumers());
         commoditySold.setQuantity(res2[0]).setPeakQuantity(res2[1]);
 
         // Asking for a quote from PM
-        double[] res3 = UpdatingFunctionFactory.AVG_COMMS.operate(sl2, 0,
-            commoditySold, pm, null, false, null, true);
+        double[] res3 = Move.updatedQuantities(economy, UpdatingFunctionFactory.AVG_COMMS, sl2,
+                0, pm, 0, false, null, true);
         Assert.assertEquals(70, res3[0], TestUtils.FLOATING_POINT_DELTA);
         Assert.assertEquals(100, res3[1], TestUtils.FLOATING_POINT_DELTA);
         Assert.assertEquals(2, commoditySold.getNumConsumers());

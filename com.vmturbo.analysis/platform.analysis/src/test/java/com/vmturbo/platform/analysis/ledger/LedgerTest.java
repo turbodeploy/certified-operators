@@ -363,9 +363,9 @@ public class LedgerTest {
 
         // create supplier
         Trader seller = economy.addTrader(0, TraderState.ACTIVE, basketSold);
-        seller.getCommoditiesSold().get(0).setQuantity(4).setPeakQuantity(10).setCapacity(100);
-        seller.getCommoditiesSold().get(1).setQuantity(10).setPeakQuantity(20).setCapacity(20);
-        seller.getCommoditiesSold().get(2).setQuantity(5).setPeakQuantity(5).setCapacity(500);
+        seller.getCommoditiesSold().get(0).setQuantity(4).setPeakQuantity(10).setCapacity(100).setNumConsumers(1);
+        seller.getCommoditiesSold().get(1).setQuantity(10).setPeakQuantity(20).setCapacity(20).setNumConsumers(1);
+        seller.getCommoditiesSold().get(2).setQuantity(5).setPeakQuantity(5).setCapacity(500).setNumConsumers(1);
 
         // create consumer
         Trader buyer = economy.addTrader(1, TraderState.ACTIVE, basketSold);

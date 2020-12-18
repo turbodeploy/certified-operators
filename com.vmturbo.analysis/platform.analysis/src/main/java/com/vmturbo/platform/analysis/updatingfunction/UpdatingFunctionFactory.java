@@ -7,7 +7,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
 
@@ -309,33 +308,29 @@ public final class UpdatingFunctionFactory {
     public static final UpdatingFunction AVG_COMMS = (buyer, boughtIndex, commSold, seller, economy,
                                                       take, currentSLs, isIncoming)
                     -> {
-                        // updating the numConsumers of a commodity when the move action is being taken
                         int numConsumers = commSold.getNumConsumers();
                         if (take) {
                             if (isIncoming) {
-                                int newNumConsumers = numConsumers + 1;
-                                commSold.setNumConsumers(newNumConsumers);
+                                int oldNumConsumers = numConsumers - 1;
                                 return new double[] {
-                                    Math.max(commSold.getQuantity(), ((commSold.getQuantity() * numConsumers
-                                        + buyer.getQuantities()[boughtIndex]) / newNumConsumers)),
-                                    Math.max(commSold.getPeakQuantity(), ((commSold.getPeakQuantity() * numConsumers
-                                        + buyer.getPeakQuantities()[boughtIndex]) / newNumConsumers))};
+                                    Math.max(commSold.getQuantity(), ((commSold.getQuantity() * oldNumConsumers
+                                        + buyer.getQuantities()[boughtIndex]) / numConsumers)),
+                                    Math.max(commSold.getPeakQuantity(), ((commSold.getPeakQuantity() * oldNumConsumers
+                                        + buyer.getPeakQuantities()[boughtIndex]) / numConsumers))};
                             } else {
-                                // If there was only one customer which has moved out, then
+                                // If there was only one consumer which has moved out, then
                                 // there are no consumers. So return 0.
                                 // If there were 0 customers, then ideally we should not come here
                                 // since there is nothing to move out. We return 0 in that case as well.
-                                if (numConsumers <= 1) {
-                                    commSold.setNumConsumers(0);
-                                    return new double[] {0, 0};
+                                if (numConsumers == 0) {
+                                    return new double[]{0, 0};
                                 } else {
                                     // The else statement is redundant here. But it is written for clarity
-                                    int newNumConsumers = numConsumers - 1;
-                                    commSold.setNumConsumers(newNumConsumers);
-                                    double avgQuantity = Math.max(0, (commSold.getQuantity() * numConsumers
-                                            - buyer.getQuantities()[boughtIndex])) / newNumConsumers;
-                                    double avgPeakQuantity = Math.max(0, (commSold.getPeakQuantity() * numConsumers
-                                            - buyer.getPeakQuantities()[boughtIndex])) / newNumConsumers;
+                                    int oldNumConsumers = numConsumers + 1;
+                                    double avgQuantity = Math.max(0, (commSold.getQuantity() * oldNumConsumers
+                                            - buyer.getQuantities()[boughtIndex])) / numConsumers;
+                                    double avgPeakQuantity = Math.max(0, (commSold.getPeakQuantity() * oldNumConsumers
+                                            - buyer.getPeakQuantities()[boughtIndex])) / numConsumers;
                                     return new double[]{
                                         Math.min(commSold.getQuantity(), avgQuantity),
                                         Math.min(commSold.getPeakQuantity(), avgPeakQuantity)
@@ -491,7 +486,6 @@ public final class UpdatingFunctionFactory {
                     if (currentSLs == null) {
                         return new double[]{commSold.getQuantity(), commSold.getPeakQuantity()};
                     }
-                    boolean isProvision = isProvision(clonedSL, currentSLs);
                     // Aggregate quantities across all shopping lists
                     final double quantitySum = currentSLs.stream()
                             .peek(sl -> {
@@ -506,7 +500,7 @@ public final class UpdatingFunctionFactory {
                             .mapToDouble(sl -> sl.getPeakQuantity(index)).sum();
                     final int existingSize = currentSLs.size();
                     // Calculate projected quantities based on the workload conserving model
-                    final int newSize = existingSize + (isProvision ? 1 : -1);
+                    final int newSize = existingSize + (isIncoming ? 1 : -1);
                     double projectedQuantity = quantitySum / newSize;
                     double projectedPeakQuantity = peakQuantitySum / newSize;
                     // Distribute the projected quantities
@@ -514,7 +508,7 @@ public final class UpdatingFunctionFactory {
                     distributeOnCurrent(currentSLs, index,
                             projectedQuantity, projectedPeakQuantity);
                     // Update new shopping list
-                    if (isProvision) {
+                    if (isIncoming) {
                         distributeOnClone(index, clonedSL,
                                 projectedQuantity, projectedPeakQuantity);
                     }
@@ -576,21 +570,6 @@ public final class UpdatingFunctionFactory {
      */
     public static boolean isMM1DistributionFunction(UpdatingFunction distributionFunction) {
         return distributionFunction != null && mm1Cache.containsValue(distributionFunction);
-    }
-
-    /**
-     * A helper function to check if the current distribution is for provision.
-     *
-     * @param sl         the shopping list of interest
-     * @param currentSLs the existing shopping list
-     * @return true if this is a distribution for provision, or a rollback of suspension
-     */
-    public static boolean isProvision(@Nonnull final ShoppingList sl,
-                                      @Nonnull Set<ShoppingList> currentSLs) {
-        final UUID uuid = sl.getShoppingListId();
-        return currentSLs.stream()
-                .map(ShoppingList::getShoppingListId)
-                .noneMatch(uuid::equals);
     }
 
     /**

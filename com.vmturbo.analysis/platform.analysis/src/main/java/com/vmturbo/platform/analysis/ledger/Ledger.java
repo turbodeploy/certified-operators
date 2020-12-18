@@ -223,6 +223,11 @@ public class Ledger {
             logger.debug(seller.getDebugInfoNeverUseInCode());
         }
         for (CommoditySold commSold : seller.getCommoditiesSold()) {
+            if (commSold.getNumConsumers() < 1) {
+                // Skip commodity with no consumers. It should not contribute to the revenue
+                // of the entity.
+                continue;
+            }
             double commSoldUtil = commSold.getQuantity()/commSold.getEffectiveCapacity();
             if (commSoldUtil != 0) {
                 PriceFunction pf = commSold.getSettings().getPriceFunction();

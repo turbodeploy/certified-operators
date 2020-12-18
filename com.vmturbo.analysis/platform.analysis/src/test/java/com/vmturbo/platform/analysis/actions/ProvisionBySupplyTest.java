@@ -419,6 +419,9 @@ public class ProvisionBySupplyTest {
         assertEquals(1.0, application.getCommoditySold(bSvc.get(1)).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
         assertEquals(75.0, provision.getActionTarget().getCommoditySold(bSvc.get(0)).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
         assertEquals(1.0, provision.getActionTarget().getCommoditySold(bSvc.get(1)).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
+        // Make sure the number of consumers of sold commodities on the cloned trader is correct
+        provision.getActionTarget().getCommoditiesSold()
+                .forEach(commSold -> assertEquals(1, commSold.getNumConsumers()));
         // Rollback
         provision.rollback();
         // Make sure everything goes back to the original state
@@ -427,7 +430,6 @@ public class ProvisionBySupplyTest {
         assertEquals(1.0, slSvc.getQuantities()[1], TestUtils.FLOATING_POINT_DELTA);
         assertEquals(150.0, application.getCommoditySold(bSvc.get(0)).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
         assertEquals(1.0, application.getCommoditySold(bSvc.get(1)).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
-
     }
 
     /**
@@ -585,6 +587,12 @@ public class ProvisionBySupplyTest {
         assertEquals(expected4, sl2.getQuantity(0), TestUtils.FLOATING_POINT_DELTA);
         assertEquals(expected4, c1.getCommoditySold(TestUtils.VCPU).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
         assertEquals(expected4, c2.getCommoditySold(TestUtils.VCPU).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
+        // Verify provisioned sellers have the correct number of consumers
+        provision1.getActionTarget().getCommoditiesSold()
+                .forEach(commoditySold -> assertEquals(1, commoditySold.getNumConsumers()));
+        provision2.getActionTarget().getCommoditiesSold()
+                .forEach(commoditySold -> assertEquals(1, commoditySold.getNumConsumers()));
+
     }
 
     /**
@@ -735,7 +743,6 @@ public class ProvisionBySupplyTest {
         ShoppingList sl4 = e.addBasketBought(app2, b1);
         TestUtils.moveSlOnSupplier(e, sl4, c2, new double[]{50});
         e.populateMarketsWithSellersAndMergeConsumerCoverage();
-
         ProvisionBySupply provision = (ProvisionBySupply)new ProvisionBySupply(e, app1, CPU).take();
         // assert that clone is suspendable
         assertTrue(((ProvisionBySupply)provision).getProvisionedSeller().getSettings().isSuspendable());
@@ -744,7 +751,16 @@ public class ProvisionBySupplyTest {
                    .count() == 3);
         assertTrue(e.getTraders().stream().filter(t -> t.getType() == TestUtils.PM_TYPE)
                    .count() == 2);
-
+        // assert that the number of consumers is 2 for commodities sold by pm1
+        pm1.getCommoditiesSold()
+                .forEach(commoditySold -> assertEquals(2, commoditySold.getNumConsumers()));
+        // assert that the number of consumers is 1 for commodities sold by the cloned pm
+        e.getTraders().stream()
+                .filter(t -> t.getType() == TestUtils.PM_TYPE)
+                .filter(t -> !t.equals(pm1))
+                .map(Trader::getCommoditiesSold)
+                .flatMap(List::stream)
+                .forEach(commoditySold -> assertEquals(1, commoditySold.getNumConsumers()));
         provision.rollback();
         assertTrue(e.getTraders().size() == 5);
         assertTrue(e.getTraders().stream().filter(t -> t.getType() == TestUtils.CONTAINER_TYPE)
