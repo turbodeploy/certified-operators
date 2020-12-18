@@ -128,8 +128,9 @@ public class SdkToTopologyEntityConverter {
                     Sets.newHashSet(CommodityDTO.CommodityType.DSPM_ACCESS, CommodityDTO.CommodityType.DATASTORE);
 
     private static Set<CommodityDTO.CommodityType> reservedCommodityType =
-        Sets.newHashSet(CommodityDTO.CommodityType.CPU, CommodityDTO.CommodityType.MEM,
-                        CommodityDTO.CommodityType.VCPU, CommodityDTO.CommodityType.VMEM);
+            Sets.newHashSet(CommodityDTO.CommodityType.CPU, CommodityDTO.CommodityType.MEM,
+                    CommodityDTO.CommodityType.VCPU, CommodityDTO.CommodityType.VMEM,
+                    CommodityDTO.CommodityType.STORAGE_AMOUNT);
 
     private static final Set<EntityType> suspendableEntityTypes = Sets.newHashSet(EntityType.BUSINESS_APPLICATION,
             EntityType.APPLICATION_SERVER, EntityType.APPLICATION, EntityType.APPLICATION_COMPONENT,
