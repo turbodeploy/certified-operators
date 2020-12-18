@@ -371,4 +371,72 @@ public class ActionPaginatorTest {
                 .build());
         assertThat(descendingResults.getResults(), contains(largerView, smallerViewLargerId, smallerView));
     }
+
+    /**
+     * Test sorting by action disruptiveness.
+     */
+    @Test
+    public void testOrderByDisruptiveness() {
+        final ActionInfo resizeInfo = ActionInfo.newBuilder()
+                .setResize(Resize.newBuilder()
+                        .setTarget(ActionEntity.newBuilder()
+                                .setId(1)
+                                .setType(1)))
+                .build();
+        final ActionView disruptiveActionView = newActionView(1, action -> action
+                .setInfo(resizeInfo).setDisruptive(true));
+        final ActionView nonDisruptiveActionView = newActionView(2, action -> action
+                .setInfo(resizeInfo).setDisruptive(false));
+
+        final ActionPaginator paginator = paginatorFactory.newPaginator();
+        final PaginatedActionViews ascendingResults = paginator.applyPagination(
+                Stream.of(disruptiveActionView, nonDisruptiveActionView), PaginationParameters.newBuilder()
+                        .setOrderBy(OrderBy.newBuilder()
+                                .setAction(ActionOrderBy.ACTION_DISRUPTIVENESS))
+                        .setAscending(true)
+                        .build());
+        assertThat(ascendingResults.getResults(), contains(nonDisruptiveActionView, disruptiveActionView));
+
+        final PaginatedActionViews descendingResults = paginator.applyPagination(
+                Stream.of(disruptiveActionView, nonDisruptiveActionView), PaginationParameters.newBuilder()
+                        .setOrderBy(OrderBy.newBuilder()
+                                .setAction(ActionOrderBy.ACTION_DISRUPTIVENESS))
+                        .setAscending(false)
+                        .build());
+        assertThat(descendingResults.getResults(), contains(disruptiveActionView, nonDisruptiveActionView));
+    }
+
+    /**
+     * Test sorting by action reversibility.
+     */
+    @Test
+    public void testOrderByReversibility() {
+        final ActionInfo resizeInfo = ActionInfo.newBuilder()
+                .setResize(Resize.newBuilder()
+                        .setTarget(ActionEntity.newBuilder()
+                                .setId(1)
+                                .setType(1)))
+                .build();
+        final ActionView reversibleActionView = newActionView(1, action -> action
+                .setInfo(resizeInfo).setReversible(true));
+        final ActionView irreversibleActionView = newActionView(2, action -> action
+                .setInfo(resizeInfo).setReversible(false));
+
+        final ActionPaginator paginator = paginatorFactory.newPaginator();
+        final PaginatedActionViews ascendingResults = paginator.applyPagination(
+                Stream.of(reversibleActionView, irreversibleActionView), PaginationParameters.newBuilder()
+                        .setOrderBy(OrderBy.newBuilder()
+                                .setAction(ActionOrderBy.ACTION_REVERSIBILITY))
+                        .setAscending(true)
+                        .build());
+        assertThat(ascendingResults.getResults(), contains(irreversibleActionView, reversibleActionView));
+
+        final PaginatedActionViews descendingResults = paginator.applyPagination(
+                Stream.of(reversibleActionView, irreversibleActionView), PaginationParameters.newBuilder()
+                        .setOrderBy(OrderBy.newBuilder()
+                                .setAction(ActionOrderBy.ACTION_REVERSIBILITY))
+                        .setAscending(false)
+                        .build());
+        assertThat(descendingResults.getResults(), contains(reversibleActionView, irreversibleActionView));
+    }
 }

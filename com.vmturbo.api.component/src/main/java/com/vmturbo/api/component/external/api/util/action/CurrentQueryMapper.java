@@ -19,6 +19,7 @@ import com.google.common.annotations.VisibleForTesting;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.util.Strings;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
@@ -32,6 +33,7 @@ import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecut
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionSavingsAmountRangeFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.GroupBy;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.ScopeFilter;
@@ -153,9 +155,55 @@ class CurrentQueryMapper {
             agFilterBldr.addAllActionType(buyRiScopeHandler.extractActionTypes(
                     query.actionInput(), scope));
 
+            if (query.actionInput().getExecutionCharacteristics() != null) {
+                if (query.actionInput().getExecutionCharacteristics().getDisruptiveness() != null) {
+                    agFilterBldr.setDisruptiveness(ActionSpecMapper.mapApiDisruptivenessToXL(query.actionInput().getExecutionCharacteristics().getDisruptiveness()));
+                }
+
+                if (query.actionInput().getExecutionCharacteristics().getReversibility() != null) {
+                    agFilterBldr.setReversibility(ActionSpecMapper.mapApiReversibilityToXL(query.actionInput().getExecutionCharacteristics().getReversibility()));
+                }
+            }
+
+            if (query.actionInput().getSavingsAmountRange() != null
+                    && (
+                      query.actionInput().getSavingsAmountRange().getMinValue() != null
+                      || query.actionInput().getSavingsAmountRange().getMaxValue() != null
+                    )
+            ) {
+                ActionSavingsAmountRangeFilter.Builder savingsAmountRangeFilter = ActionSavingsAmountRangeFilter.newBuilder();
+                if (query.actionInput().getSavingsAmountRange().getMinValue() != null) {
+                    savingsAmountRangeFilter.setMinValue(query.actionInput().getSavingsAmountRange().getMinValue().doubleValue());
+                }
+
+                if (query.actionInput().getSavingsAmountRange().getMaxValue() != null) {
+                    savingsAmountRangeFilter.setMaxValue(query.actionInput().getSavingsAmountRange().getMaxValue().doubleValue());
+                }
+                agFilterBldr.setSavingsAmountRange(savingsAmountRangeFilter);
+            }
+
+            if (query.actionInput().getHasSchedule() != null) {
+                agFilterBldr.setHasSchedule(query.actionInput().getHasSchedule());
+            }
+
+            if (query.actionInput().getHasPrerequisites() != null) {
+                agFilterBldr.setHasPrerequisites(query.actionInput().getHasPrerequisites());
+            }
+
+            if (query.actionInput().getDescriptionQuery() != null && Strings.isNotEmpty(query.actionInput().getDescriptionQuery().getQuery())) {
+                agFilterBldr.setDescriptionQuery(query.actionInput().getDescriptionQuery().toRegexQuery());
+            }
+
+            if (query.actionInput().getRiskQuery() != null && Strings.isNotEmpty(query.actionInput().getRiskQuery().getQuery())) {
+                agFilterBldr.setRiskQuery(query.actionInput().getRiskQuery().toRegexQuery());
+            }
+
+            if (query.actionInput().getCostType() != null) {
+                agFilterBldr.setCostType(ActionSpecMapper.mapApiCostTypeToXL(query.actionInput().getCostType()));
+            }
+
             return agFilterBldr.build();
         }
-
     }
 
     /**

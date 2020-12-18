@@ -709,7 +709,16 @@ public class ActionInterpreter {
                 projectedTopology, originalCloudTopology, shoppingListInfo.getBuyerId());
         if (!CollectionUtils.isEmpty(changeProviderList)) {
             builder.addAllChanges(changeProviderList);
+        } else {
+            // only add primary provider if we have it available
+            if (shoppingListInfo.getSellerId() != null) {
+                final MarketTier currentTier = cloudTc.getMarketTier(shoppingListInfo.getSellerId());
+                if (currentTier != null) {
+                    builder.setPrimaryProvider(createActionEntity(currentTier.getTier().getOid(), projectedTopology));
+                }
+            }
         }
+
         // Interpret commodities change.
         List<ResizeInfo> resizeInfoList = createCommodityResizeInfo(moveTO, actionTargetEntity);
         if (!CollectionUtils.isEmpty(resizeInfoList)) {

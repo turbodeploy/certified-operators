@@ -63,6 +63,12 @@ public class PaginationMapper {
                 case CREATION_DATE:
                     return Optional.of(OrderBy.newBuilder()
                         .setAction(ActionOrderBy.ACTION_RECOMMENDATION_TIME).build());
+                case DISRUPTIVENESS:
+                    return Optional.of(OrderBy.newBuilder()
+                            .setAction(ActionOrderBy.ACTION_DISRUPTIVENESS).build());
+                case REVERSIBILITY:
+                    return Optional.of(OrderBy.newBuilder()
+                            .setAction(ActionOrderBy.ACTION_REVERSIBILITY).build());
                 default:
                     logger.error("Unhandled action sort order: {}", apiOrderBy);
             }

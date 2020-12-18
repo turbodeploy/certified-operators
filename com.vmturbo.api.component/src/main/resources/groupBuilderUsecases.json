@@ -38,21 +38,24 @@
     "ComputeTier": {
         "criteria": [
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "computeTiersByName"},
-            {"inputType": "#", "elements": "commoditySoldList[type=Mem,capacity]", "filterCategory": "property", "filterType": "computeTiersByMem"}
+            {"inputType": "#", "elements": "commoditySoldList[type=Mem,capacity]", "filterCategory": "property", "filterType": "computeTiersByMem"},
+            {"inputType": "s", "elements": "discoveredBy:cloudProvider", "filterCategory": "property", "filterType": "computeTiersByCloudProvider", "loadOptions": true}
         ]
     },
 
     "DatabaseTier": {
         "criteria": [
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "databaseTiersByName"},
-            {"inputType": "#", "elements": "commoditySoldList[type=StorageAmount,capacity]", "filterCategory": "property", "filterType": "databaseTiersByStorageAmount"}
+            {"inputType": "#", "elements": "commoditySoldList[type=StorageAmount,capacity]", "filterCategory": "property", "filterType": "databaseTiersByStorageAmount"},
+            {"inputType": "s", "elements": "discoveredBy:cloudProvider", "filterCategory": "property", "filterType": "databaseTiersByCloudProvider", "loadOptions": true}
         ]
     },
 
     "DatabaseServerTier": {
         "criteria": [
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "databaseServerTiersByName"},
-            {"inputType": "#", "elements": "commoditySoldList[type=VMem,capacity]", "filterCategory": "property", "filterType": "databaseServerTiersByVMem"}
+            {"inputType": "#", "elements": "commoditySoldList[type=VMem,capacity]", "filterCategory": "property", "filterType": "databaseServerTiersByVMem"},
+            {"inputType": "s", "elements": "discoveredBy:cloudProvider", "filterCategory": "property", "filterType": "databaseServerTiersByCloudProvider", "loadOptions": true}
         ]
     },
 
@@ -322,7 +325,8 @@
 
     "StorageTier" : {
       "criteria" : [
-        {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "storageTierByName"}
+        {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "storageTierByName"},
+        {"inputType": "s", "elements": "discoveredBy:cloudProvider", "filterCategory": "property", "filterType": "storageTiersByCloudProvider", "loadOptions": true}
       ]
     },
     "Network": {

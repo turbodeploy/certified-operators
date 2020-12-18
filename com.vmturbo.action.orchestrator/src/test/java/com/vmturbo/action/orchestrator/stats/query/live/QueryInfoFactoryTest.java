@@ -11,12 +11,11 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 
 import javax.annotation.Nonnull;
-
-import com.google.common.collect.ImmutableSet;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -24,7 +23,10 @@ import org.junit.Test;
 import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 
+import com.google.common.collect.ImmutableSet;
+
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
+import com.vmturbo.action.orchestrator.action.ActionSchedule;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.store.InvolvedEntitiesExpander;
 import com.vmturbo.action.orchestrator.store.InvolvedEntitiesExpander.InvolvedEntitiesFilter;
@@ -32,10 +34,14 @@ import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
+import com.vmturbo.common.protobuf.action.ActionDTO.Action.Prerequisite;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionDisruptiveness;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionReversibility;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionSavingsAmountRangeFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
@@ -52,6 +58,7 @@ import com.vmturbo.common.protobuf.action.InvolvedEntityCalculation;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.components.common.identity.ArrayOidSet;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 
 public class QueryInfoFactoryTest {
     private static final long REALTIME_CONTEXT_ID = 77777;
@@ -429,6 +436,210 @@ public class QueryInfoFactoryTest {
             actionView -> {
                 when(actionView.getMode()).thenReturn(ActionMode.AUTOMATIC);
             });
+        assertTrue(queryInfo.actionGroupPredicate().test(matching));
+        assertFalse(queryInfo.actionGroupPredicate().test(nonMatching));
+    }
+
+    /**
+     * Test query filter should return true when filter descriptionQuery matches action description.
+     */
+    @Test
+    public void testDescriptionQueryFilter() {
+        final QueryInfo queryInfo = queryInfoFactory.extractQueryInfo(SingleQuery.newBuilder()
+                .setQuery(CurrentActionStatsQuery.newBuilder()
+                        .setActionGroupFilter(ActionGroupFilter.newBuilder()
+                                .setDescriptionQuery("(.*template32.*)")))
+                .build());
+
+        final SingleActionInfo matching = activateActionInfo(
+                actionBuilder -> { },
+                actionView -> when(actionView.getDescription()).thenReturn("Scale vm from template32 to template2"));
+        final SingleActionInfo nonMatching = activateActionInfo(
+                actionBuilder -> { },
+                actionView -> when(actionView.getDescription()).thenReturn("Scale vm from template1 to template2"));
+        assertTrue(queryInfo.actionGroupPredicate().test(matching));
+        assertFalse(queryInfo.actionGroupPredicate().test(nonMatching));
+    }
+
+    /**
+     * Test query filter should return true when filter disruptiveness matches action disruptivness.
+     */
+    @Test
+    public void testDisruptivenessFilter() {
+        final ActionDTO.Action action1 = Action.newBuilder()
+                .setId(1)
+                .setDeprecatedImportance(0)
+                .setExecutable(true)
+                .setExplanation(Explanation.newBuilder().build())
+                .setInfo(ActionInfo.getDefaultInstance())
+                .setDisruptive(true)
+                .build();
+        final ActionDTO.Action action2 = Action.newBuilder()
+                .setId(1)
+                .setDeprecatedImportance(0)
+                .setExecutable(true)
+                .setExplanation(Explanation.newBuilder().build())
+                .setInfo(ActionInfo.getDefaultInstance())
+                .setDisruptive(false)
+                .build();
+        final ActionView actionView1 = ActionOrchestratorTestUtils.mockActionView(action1);
+        final ActionView actionView2 = ActionOrchestratorTestUtils.mockActionView(action2);
+        final SingleActionInfo matching = ImmutableSingleActionInfo.builder()
+                .action(actionView1)
+                .build();
+        final SingleActionInfo nonMatching = ImmutableSingleActionInfo.builder()
+                .action(actionView2)
+                .build();
+
+        final QueryInfo queryInfo = queryInfoFactory.extractQueryInfo(SingleQuery.newBuilder()
+                .setQuery(CurrentActionStatsQuery.newBuilder()
+                        .setActionGroupFilter(ActionGroupFilter.newBuilder()
+                                .setDisruptiveness(ActionDisruptiveness.DISRUPTIVE)))
+                .build());
+        assertTrue(queryInfo.actionGroupPredicate().test(matching));
+        assertFalse(queryInfo.actionGroupPredicate().test(nonMatching));
+    }
+
+    /**
+     * Test query filter should return true when filter reversibility matches action reversibility.
+     */
+    @Test
+    public void testReversibilityFilter() {
+        final ActionDTO.Action action1 = Action.newBuilder()
+                .setId(1)
+                .setDeprecatedImportance(0)
+                .setExecutable(true)
+                .setExplanation(Explanation.newBuilder().build())
+                .setInfo(ActionInfo.getDefaultInstance())
+                .setReversible(true)
+                .build();
+        final ActionDTO.Action action2 = Action.newBuilder()
+                .setId(1)
+                .setDeprecatedImportance(0)
+                .setExecutable(true)
+                .setExplanation(Explanation.newBuilder().build())
+                .setInfo(ActionInfo.getDefaultInstance())
+                .setReversible(false)
+                .build();
+        final ActionView actionView1 = ActionOrchestratorTestUtils.mockActionView(action1);
+        final ActionView actionView2 = ActionOrchestratorTestUtils.mockActionView(action2);
+        final SingleActionInfo matching = ImmutableSingleActionInfo.builder()
+                .action(actionView1)
+                .build();
+        final SingleActionInfo nonMatching = ImmutableSingleActionInfo.builder()
+                .action(actionView2)
+                .build();
+        final QueryInfo queryInfo = queryInfoFactory.extractQueryInfo(SingleQuery.newBuilder()
+                .setQuery(CurrentActionStatsQuery.newBuilder()
+                        .setActionGroupFilter(ActionGroupFilter.newBuilder()
+                                .setReversibility(ActionReversibility.REVERSIBLE)))
+                .build());
+        assertTrue(queryInfo.actionGroupPredicate().test(matching));
+        assertFalse(queryInfo.actionGroupPredicate().test(nonMatching));
+    }
+
+    /**
+     * Test query filter should return true when filter savingAmountRange matches action savings amount.
+     */
+    @Test
+    public void testSavingsAmountRangeFilter() {
+        final ActionDTO.Action action1 = Action.newBuilder()
+                .setId(1)
+                .setDeprecatedImportance(0)
+                .setExecutable(true)
+                .setExplanation(Explanation.newBuilder().build())
+                .setInfo(ActionInfo.getDefaultInstance())
+                .setSavingsPerHour(CurrencyAmount.newBuilder()
+                        .setAmount(15.0f))
+                .build();
+        final ActionDTO.Action action2 = Action.newBuilder()
+                .setId(1)
+                .setDeprecatedImportance(0)
+                .setExecutable(true)
+                .setExplanation(Explanation.newBuilder().build())
+                .setInfo(ActionInfo.getDefaultInstance())
+                .setSavingsPerHour(CurrencyAmount.newBuilder()
+                        .setAmount(22.0f))
+                .build();
+        final ActionView actionView1 = ActionOrchestratorTestUtils.mockActionView(action1);
+        final ActionView actionView2 = ActionOrchestratorTestUtils.mockActionView(action2);
+        final QueryInfo queryInfo = queryInfoFactory.extractQueryInfo(SingleQuery.newBuilder()
+                .setQuery(CurrentActionStatsQuery.newBuilder()
+                        .setActionGroupFilter(ActionGroupFilter.newBuilder()
+                                .setSavingsAmountRange(ActionSavingsAmountRangeFilter.newBuilder()
+                                        .setMinValue(10.0f)
+                                        .setMaxValue(20.0f)
+                                        .build()
+                                )))
+                .build());
+        final SingleActionInfo matching = ImmutableSingleActionInfo.builder()
+                .action(actionView1)
+                .build();
+        final SingleActionInfo nonMatching = ImmutableSingleActionInfo.builder()
+                .action(actionView2)
+                .build();
+        assertTrue(queryInfo.actionGroupPredicate().test(matching));
+        assertFalse(queryInfo.actionGroupPredicate().test(nonMatching));
+    }
+
+    /**
+     * Test query filter should return true when filter hasSchedule matches action having schedule.
+     */
+    @Test
+    public void testHasScheduleFilter() {
+        final QueryInfo queryInfo = queryInfoFactory.extractQueryInfo(SingleQuery.newBuilder()
+                .setQuery(CurrentActionStatsQuery.newBuilder()
+                        .setActionGroupFilter(ActionGroupFilter.newBuilder()
+                                .setHasSchedule(true)))
+                .build());
+
+        final SingleActionInfo matching = activateActionInfo(
+                actionBuilder -> {},
+                actionView -> {
+                    final ActionSchedule actionSchedule = new ActionSchedule(1L, 2L, "America/Chicago", 12L, "testSchedule",
+                            ActionMode.MANUAL, "admin");
+                    when(actionView.getSchedule()).thenReturn(Optional.of(actionSchedule));
+                });
+        final SingleActionInfo nonMatching = activateActionInfo(
+                actionBuilder -> {},
+                actionView -> when(actionView.getSchedule()).thenReturn(Optional.empty()));
+        assertTrue(queryInfo.actionGroupPredicate().test(matching));
+        assertFalse(queryInfo.actionGroupPredicate().test(nonMatching));
+    }
+
+    /**
+     * Test query filter should return true when filter hasPrerequisites matches action having prerequisites.
+     */
+    @Test
+    public void testHasPrerequisitesFilter() {
+        final ActionDTO.Action action1 = Action.newBuilder()
+                .setId(1)
+                .setDeprecatedImportance(0)
+                .setExecutable(true)
+                .setExplanation(Explanation.newBuilder().build())
+                .setInfo(ActionInfo.getDefaultInstance())
+                .addPrerequisite(Prerequisite.newBuilder())
+                .build();
+        final ActionDTO.Action action2 = Action.newBuilder()
+                .setId(1)
+                .setDeprecatedImportance(0)
+                .setExecutable(true)
+                .setExplanation(Explanation.newBuilder().build())
+                .setInfo(ActionInfo.getDefaultInstance())
+                .build();
+        final ActionView actionView1 = ActionOrchestratorTestUtils.mockActionView(action1);
+        final ActionView actionView2 = ActionOrchestratorTestUtils.mockActionView(action2);
+        final QueryInfo queryInfo = queryInfoFactory.extractQueryInfo(SingleQuery.newBuilder()
+                .setQuery(CurrentActionStatsQuery.newBuilder()
+                        .setActionGroupFilter(ActionGroupFilter.newBuilder()
+                                .setHasPrerequisites(true)))
+                .build());
+        final SingleActionInfo matching = ImmutableSingleActionInfo.builder()
+                .action(actionView1)
+                .build();
+        final SingleActionInfo nonMatching = ImmutableSingleActionInfo.builder()
+                .action(actionView2)
+                .build();
         assertTrue(queryInfo.actionGroupPredicate().test(matching));
         assertFalse(queryInfo.actionGroupPredicate().test(nonMatching));
     }

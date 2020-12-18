@@ -4,6 +4,9 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anySet;
 import static org.mockito.Mockito.mock;
@@ -41,10 +44,16 @@ import com.vmturbo.api.component.external.api.util.action.CurrentQueryMapper.Act
 import com.vmturbo.api.component.external.api.util.action.CurrentQueryMapper.EntityScopeFactory;
 import com.vmturbo.api.component.external.api.util.action.CurrentQueryMapper.GroupByExtractor;
 import com.vmturbo.api.component.external.api.util.action.CurrentQueryMapper.ScopeFilterExtractor;
+import com.vmturbo.api.dto.QueryInputApiDTO;
+import com.vmturbo.api.dto.RangeInputApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
+import com.vmturbo.api.dto.action.ActionExecutionCharacteristicInputApiDTO;
+import com.vmturbo.api.enums.ActionDisruptiveness;
 import com.vmturbo.api.enums.ActionMode;
+import com.vmturbo.api.enums.ActionReversibility;
 import com.vmturbo.api.enums.ActionState;
 import com.vmturbo.api.enums.ActionType;
+import com.vmturbo.api.enums.QueryType;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
@@ -507,6 +516,153 @@ public class CurrentQueryMapperTest {
             ApiTestUtils.mockEntityId("1"));
         assertThat(groupFilter.getActionCategoryList(),
             containsInAnyOrder(ActionCategory.PERFORMANCE_ASSURANCE, ActionCategory.COMPLIANCE));
+    }
+
+    /**
+     * Test action stats filtering for action description.
+     */
+    @Test
+    public void testActionGroupFilterExtractorDescriptionQuery() {
+        final ActionApiInputDTO inputDTO = new ActionApiInputDTO();
+        final QueryInputApiDTO descriptionQuery = new QueryInputApiDTO();
+        descriptionQuery.setQuery("test");
+        descriptionQuery.setType(QueryType.CONTAINS);
+        inputDTO.setDescriptionQuery(descriptionQuery);
+
+        final ActionGroupFilterExtractor groupFilterExtractor = new ActionGroupFilterExtractor(
+                actionSpecMapper, buyRiScopeHandler);
+        final ActionGroupFilter groupFilter = groupFilterExtractor.extractActionGroupFilter(
+                makeQuery(inputDTO),
+                ApiTestUtils.mockEntityId("1"));
+        assertEquals(".*\\Qtest\\E.*", groupFilter.getDescriptionQuery());
+    }
+
+    /**
+     * Test action stats filtering for action risk.
+     */
+    @Test
+    public void testActionGroupFilterExtractorRiskQuery() {
+        final ActionApiInputDTO inputDTO = new ActionApiInputDTO();
+        final QueryInputApiDTO riskQuery = new QueryInputApiDTO();
+        riskQuery.setQuery(".*IOPS Congestion.*");
+        riskQuery.setType(QueryType.REGEX);
+        inputDTO.setRiskQuery(riskQuery);
+
+        final ActionGroupFilterExtractor groupFilterExtractor = new ActionGroupFilterExtractor(
+                actionSpecMapper, buyRiScopeHandler);
+        final ActionGroupFilter groupFilter = groupFilterExtractor.extractActionGroupFilter(
+                makeQuery(inputDTO),
+                ApiTestUtils.mockEntityId("1"));
+        assertEquals(".*IOPS Congestion.*", groupFilter.getRiskQuery());
+    }
+
+    /**
+     * Test action stats filtering for disruptiveness.
+     */
+    @Test
+    public void testActionGroupFilterExtractorDisruptiveness() {
+        final ActionApiInputDTO inputDTO = new ActionApiInputDTO();
+        final ActionExecutionCharacteristicInputApiDTO executionCharacteristicInputApiDTO = new ActionExecutionCharacteristicInputApiDTO();
+        executionCharacteristicInputApiDTO.setDisruptiveness(ActionDisruptiveness.DISRUPTIVE);
+        inputDTO.setExecutionCharacteristics(executionCharacteristicInputApiDTO);
+
+        final ActionGroupFilterExtractor groupFilterExtractor = new ActionGroupFilterExtractor(
+                actionSpecMapper, buyRiScopeHandler);
+        final ActionGroupFilter groupFilter = groupFilterExtractor.extractActionGroupFilter(
+                makeQuery(inputDTO),
+                ApiTestUtils.mockEntityId("1"));
+        assertSame(ActionDTO.ActionDisruptiveness.DISRUPTIVE, groupFilter.getDisruptiveness());
+
+        final ActionExecutionCharacteristicInputApiDTO executionCharacteristicInputApiDTO2 = new ActionExecutionCharacteristicInputApiDTO();
+        executionCharacteristicInputApiDTO2.setDisruptiveness(ActionDisruptiveness.NON_DISRUPTIVE);
+        inputDTO.setExecutionCharacteristics(executionCharacteristicInputApiDTO2);
+        final ActionGroupFilterExtractor groupFilterExtractor2 = new ActionGroupFilterExtractor(
+                actionSpecMapper, buyRiScopeHandler);
+        final ActionGroupFilter groupFilter2 = groupFilterExtractor2.extractActionGroupFilter(
+                makeQuery(inputDTO),
+                ApiTestUtils.mockEntityId("1"));
+        assertSame(ActionDTO.ActionDisruptiveness.NON_DISRUPTIVE, groupFilter2.getDisruptiveness());
+    }
+
+    /**
+     * Test action stats filtering for reversibility.
+     */
+    @Test
+    public void testActionGroupFilterExtractorReversibility() {
+        final ActionApiInputDTO inputDTO = new ActionApiInputDTO();
+        final ActionExecutionCharacteristicInputApiDTO executionCharacteristicInputApiDTO = new ActionExecutionCharacteristicInputApiDTO();
+        executionCharacteristicInputApiDTO.setReversibility(ActionReversibility.REVERSIBLE);
+        inputDTO.setExecutionCharacteristics(executionCharacteristicInputApiDTO);
+
+        final ActionGroupFilterExtractor groupFilterExtractor = new ActionGroupFilterExtractor(
+                actionSpecMapper, buyRiScopeHandler);
+        final ActionGroupFilter groupFilter = groupFilterExtractor.extractActionGroupFilter(
+                makeQuery(inputDTO),
+                ApiTestUtils.mockEntityId("1"));
+        assertSame(ActionDTO.ActionReversibility.REVERSIBLE, groupFilter.getReversibility());
+
+        final ActionExecutionCharacteristicInputApiDTO executionCharacteristicInputApiDTO2 = new ActionExecutionCharacteristicInputApiDTO();
+        executionCharacteristicInputApiDTO2.setReversibility(ActionReversibility.IRREVERSIBLE);
+        inputDTO.setExecutionCharacteristics(executionCharacteristicInputApiDTO2);
+
+        final ActionGroupFilterExtractor groupFilterExtractor2 = new ActionGroupFilterExtractor(
+                actionSpecMapper, buyRiScopeHandler);
+        final ActionGroupFilter groupFilter2 = groupFilterExtractor2.extractActionGroupFilter(
+                makeQuery(inputDTO),
+                ApiTestUtils.mockEntityId("1"));
+        assertSame(ActionDTO.ActionReversibility.IRREVERSIBLE, groupFilter2.getReversibility());
+    }
+
+    /**
+     * Test action stats filtering for storage amount.
+     */
+    @Test
+    public void testActionGroupFilterExtractorSavingsAmount() {
+        final ActionApiInputDTO inputDTO = new ActionApiInputDTO();
+        final RangeInputApiDTO rangeInputApiDTO = new RangeInputApiDTO();
+        rangeInputApiDTO.setMaxValue(20.0f);
+        rangeInputApiDTO.setMinValue(10.0f);
+        inputDTO.setSavingsAmountRange(rangeInputApiDTO);
+
+        final ActionGroupFilterExtractor groupFilterExtractor = new ActionGroupFilterExtractor(
+                actionSpecMapper, buyRiScopeHandler);
+        final ActionGroupFilter groupFilter = groupFilterExtractor.extractActionGroupFilter(
+                makeQuery(inputDTO),
+                ApiTestUtils.mockEntityId("1"));
+        assertEquals(groupFilter.getSavingsAmountRange().getMaxValue(), 20.0f, 0);
+        assertEquals(groupFilter.getSavingsAmountRange().getMinValue(), 10.0f, 0);
+    }
+
+    /**
+     * Test action stats filtering for action with schedule.
+     */
+    @Test
+    public void testActionGroupFilterExtractorHasSchedule() {
+        final ActionApiInputDTO inputDTO = new ActionApiInputDTO();
+        inputDTO.setHasSchedule(true);
+
+        final ActionGroupFilterExtractor groupFilterExtractor = new ActionGroupFilterExtractor(
+                actionSpecMapper, buyRiScopeHandler);
+        final ActionGroupFilter groupFilter = groupFilterExtractor.extractActionGroupFilter(
+                makeQuery(inputDTO),
+                ApiTestUtils.mockEntityId("1"));
+        assertTrue(groupFilter.getHasSchedule());
+    }
+
+    /**
+     * Test action stats filtering for actions having prerequisties.
+     */
+    @Test
+    public void testActionGroupFilterExtractorHasPrerequisites() {
+        final ActionApiInputDTO inputDTO = new ActionApiInputDTO();
+        inputDTO.setHasPrerequisites(true);
+
+        final ActionGroupFilterExtractor groupFilterExtractor = new ActionGroupFilterExtractor(
+                actionSpecMapper, buyRiScopeHandler);
+        final ActionGroupFilter groupFilter = groupFilterExtractor.extractActionGroupFilter(
+                makeQuery(inputDTO),
+                ApiTestUtils.mockEntityId("1"));
+        assertTrue(groupFilter.getHasPrerequisites());
     }
 
     @Test

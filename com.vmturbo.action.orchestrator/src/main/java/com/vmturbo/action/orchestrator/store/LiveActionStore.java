@@ -12,6 +12,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -63,6 +65,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
+import com.vmturbo.common.protobuf.memory.MemoryMeasurer;
+import com.vmturbo.common.protobuf.memory.MemoryMeasurer.MemoryMeasurement;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
@@ -126,6 +130,8 @@ public class LiveActionStore implements ActionStore {
     private final EntitiesWithNewStateCache entitiesWithNewStateCache;
     private final ActionAuditSender actionAuditSender;
     private final WorkflowStore workflowStore;
+
+    private final ReadWriteLock lock = new ReentrantReadWriteLock();
 
     /**
      * For certain actions that have already executed successfully, it is valid to execute them
@@ -562,6 +568,11 @@ public class LiveActionStore implements ActionStore {
                 severityCache.refresh(this);
             }
 
+        }
+
+        if (logger.isDebugEnabled()) {
+           final MemoryMeasurement memory = MemoryMeasurer.measure(actions);
+           logger.debug("Live action store with count {} uses memory: {}", actions.size(), memory);
         }
 
         return true;

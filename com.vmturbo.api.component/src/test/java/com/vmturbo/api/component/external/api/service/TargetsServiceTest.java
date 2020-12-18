@@ -91,6 +91,7 @@ import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.InputValueType;
 import com.vmturbo.api.handler.GlobalExceptionHandler;
 import com.vmturbo.api.pagination.SearchOrderBy;
+import com.vmturbo.api.serviceinterfaces.IActionsService;
 import com.vmturbo.api.serviceinterfaces.IBusinessUnitsService;
 import com.vmturbo.api.serviceinterfaces.IGroupsService;
 import com.vmturbo.api.serviceinterfaces.IPoliciesService;
@@ -1462,6 +1463,11 @@ public class TargetsServiceTest {
         @Bean
         public ISchedulesService schedulesService() {
             return Mockito.mock(ISchedulesService.class);
+        }
+
+        @Bean
+        public IActionsService actionsService() {
+            return Mockito.mock(IActionsService.class);
         }
 
         @Bean

@@ -31,6 +31,13 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.apache.commons.beanutils.BeanUtils;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.util.Strings;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -38,12 +45,6 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-
-import org.apache.commons.beanutils.BeanUtils;
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.lang.StringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMappingContextFactory.ActionSpecMappingContext;
 import com.vmturbo.api.component.external.api.mapper.ReservedInstanceMapper.NotFoundCloudTypeException;
@@ -97,6 +98,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter.InvolvedEntities;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionSavingsAmountRangeFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
 import com.vmturbo.common.protobuf.action.ActionDTO.AtomicResize;
@@ -2027,6 +2029,45 @@ public class ActionSpecMapper {
             if (inputDto.getCostType() != null) {
                 queryBuilder.setCostType(ActionSpecMapper.mapApiCostTypeToXL(inputDto.getCostType()));
             }
+
+            if (inputDto.getDescriptionQuery() != null && Strings.isNotEmpty(inputDto.getDescriptionQuery().getQuery())) {
+                queryBuilder.setDescriptionQuery(inputDto.getDescriptionQuery().toRegexQuery());
+            }
+
+            if (inputDto.getRiskQuery() != null && Strings.isNotEmpty(inputDto.getRiskQuery().getQuery())) {
+                queryBuilder.setRiskQuery(inputDto.getRiskQuery().toRegexQuery());
+            }
+
+            if (inputDto.getExecutionCharacteristics() != null) {
+                if (inputDto.getExecutionCharacteristics().getDisruptiveness() != null) {
+                    queryBuilder.setDisruptiveness(ActionSpecMapper.mapApiDisruptivenessToXL(inputDto.getExecutionCharacteristics().getDisruptiveness()));
+                }
+
+                if (inputDto.getExecutionCharacteristics().getReversibility() != null) {
+                    queryBuilder.setReversibility(ActionSpecMapper.mapApiReversibilityToXL(inputDto.getExecutionCharacteristics().getReversibility()));
+                }
+            }
+
+            if (inputDto.getSavingsAmountRange() != null && (inputDto.getSavingsAmountRange().getMinValue() != null || inputDto.getSavingsAmountRange().getMaxValue() != null)) {
+                ActionSavingsAmountRangeFilter.Builder savingsAmountRangeFilter = ActionSavingsAmountRangeFilter.newBuilder();
+                if (inputDto.getSavingsAmountRange().getMinValue() != null) {
+                    savingsAmountRangeFilter.setMinValue(inputDto.getSavingsAmountRange().getMinValue().doubleValue());
+                }
+
+                if (inputDto.getSavingsAmountRange().getMaxValue() != null) {
+                    savingsAmountRangeFilter.setMaxValue(inputDto.getSavingsAmountRange().getMaxValue().doubleValue());
+                }
+                queryBuilder.setSavingsAmountRange(savingsAmountRangeFilter);
+            }
+
+            if (inputDto.getHasSchedule() != null) {
+                queryBuilder.setHasSchedule(inputDto.getHasSchedule());
+            }
+
+            if (inputDto.getHasPrerequisites() != null) {
+                queryBuilder.setHasPrerequisites(inputDto.getHasPrerequisites());
+            }
+
         } else {
             // When "inputDto" is null, we should automatically insert the operational action states.
             Stream.of(OPERATIONAL_ACTION_STATES).forEach(queryBuilder::addStates);
@@ -2791,6 +2832,8 @@ public class ActionSpecMapper {
                 return Optional.of(ActionDTO.ActionMode.MANUAL);
             case AUTOMATIC:
                 return Optional.of(ActionDTO.ActionMode.AUTOMATIC);
+            case EXTERNAL_APPROVAL:
+                return Optional.of(ActionDTO.ActionMode.EXTERNAL_APPROVAL);
             default:
                 logger.error("Unknown action mode {}", actionMode);
                 return Optional.empty();
@@ -2813,6 +2856,40 @@ public class ActionSpecMapper {
                 return ActionDTO.ActionCostType.ACTION_COST_TYPE_NONE;
             default:
                 throw new IllegalArgumentException("Unknown action cost type" + actionCostType);
+        }
+    }
+
+    /**
+     * Map UI's ActionDisruptiveness to ActionDTO.ActionDisruptiveness.
+     *
+     * @param actionDisruptiveness UI's ActionDisruptiveness
+     * @return ActionDTO.ActionDisruptiveness
+     */
+    public static ActionDTO.ActionDisruptiveness mapApiDisruptivenessToXL(final ActionDisruptiveness actionDisruptiveness) {
+        switch (actionDisruptiveness) {
+            case DISRUPTIVE:
+                return ActionDTO.ActionDisruptiveness.DISRUPTIVE;
+            case NON_DISRUPTIVE:
+                return ActionDTO.ActionDisruptiveness.NON_DISRUPTIVE;
+            default:
+                throw new IllegalArgumentException("Unknown action disruptiveness" + actionDisruptiveness);
+        }
+    }
+
+    /**
+     * Map UI's ActionReversibility to ActionDTO.ActionReversibility.
+     *
+     * @param actionReversibility UI's ActionReversibility
+     * @return ActionDTO.ActionReversibility
+     */
+    public static ActionDTO.ActionReversibility mapApiReversibilityToXL(final ActionReversibility actionReversibility) {
+        switch (actionReversibility) {
+            case REVERSIBLE:
+                return ActionDTO.ActionReversibility.REVERSIBLE;
+            case IRREVERSIBLE:
+                return ActionDTO.ActionReversibility.IRREVERSIBLE;
+            default:
+                throw new IllegalArgumentException("Unknown action reversibility" + actionReversibility);
         }
     }
 }

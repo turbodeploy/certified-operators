@@ -375,6 +375,12 @@ message Scale {
 
     // scaling group ID
     optional string scaling_group_id = 4;
+
+    // Market can recommend scale volume actions where we the diskSize, IOPS or Throughput can be
+    // scaled without tier change.
+    // In this case we don't have information about current tier in change provider and we need to
+    // get this information to be added to the action explanation.
+    optional ActionEntity primary_provider = 5;
 }
 
 message ChangeProvider {
@@ -933,6 +939,30 @@ enum ActionCostType {
     INVESTMENT = 2;
 }
 
+enum ActionDisruptiveness {
+    // Actions can be either disruptive or non-disruptive.
+
+    // Disruptive actions are those that would cause disruption.
+    // Action is disruptive, eg: Azure volume scale actions require VM deallocation as prerequisite
+    DISRUPTIVE = 0;
+
+    // Non disruptive actions are those that would not cause disruption.
+    NON_DISRUPTIVE = 1;
+}
+
+enum ActionReversibility {
+    // Actions can be either reversible or irreversible.
+
+    // Reversible actions are those that would can be reversed.
+    // Action is reversible, eg: cloud volume actions which don't change disk size.
+    REVERSIBLE = 0;
+
+    // Irreversible actions are those that cannot be reversed.
+    // Action is irreversible, eg: increasing cloud volume size. Cloud volume size can only
+    // be increased, and cannot be decreased.
+    IRREVERSIBLE = 1;
+}
+
 // The ActionDecision provides information about why OperationsManager
 // decided to execute or not to execute a particular action.
 message ActionDecision {
@@ -1224,6 +1254,43 @@ message ActionQueryFilter {
     // If present, include actions which have associated schedule with this id.
     // If not present, the field is not used to filter.
     optional int64 associatedScheduleId = 15;
+
+    // If non-empty, include all actions else match action description to query
+    optional string description_query = 16;
+
+    // If non-empty, include all actions else match action risk to query
+    optional string risk_query = 17;
+
+    // If non-empty, include all disruptive or non-disruptive actions.
+    optional ActionDisruptiveness disruptiveness = 18;
+
+    // If non-empty, include all reversible or irreversible actions.
+    optional ActionReversibility reversibility = 19;
+
+    // If true, include only actions with associated with schedule in the response.
+    // If false, include only actions without associated with schedule in the response.
+    // If not present, the field is not used to filter.
+    optional bool has_schedule = 20;
+
+    // If true, include only actions with prerequisites in the response.
+    // If false, include only actions without prerequisites in the response.
+    // If not present, the field is not used to filter.
+    optional bool has_prerequisites = 21;
+
+    // If non-empty, include all actions with savings amount between the min and max range.
+    optional ActionSavingsAmountRangeFilter savings_amount_range = 22;
+}
+
+// A filter to be supplied with action query filter.
+// The conditions in the query filter will be AND-ed together, so only actions
+// that match all of them will be returned.
+// This filter will match all actions in a given range.
+message ActionSavingsAmountRangeFilter {
+    // If provided the action savings amount would be greater than equal to this amount.
+    optional double min_value = 1;
+
+    // If provided the action savings amount would be less than equal to this amount.
+    optional double max_value = 2;
 }
 
 // The number of actions of a specific type that match the criteria in
@@ -1518,6 +1585,34 @@ message CurrentActionStatsQuery {
         // If false, include only non-externally visible actions.
         // If not present, the field is not used to filter.
         optional bool visible = 5;
+
+        // If non-empty, include only actions of given cost type
+        optional ActionCostType cost_type = 6;
+
+        // If non-empty, include all actions else match action description to query
+        optional string description_query = 7;
+
+        // If non-empty, include all actions else match action risk to query
+        optional string risk_query = 8;
+
+        // If non-empty, include all disruptive or non-disruptive actions.
+        optional ActionDisruptiveness disruptiveness = 9;
+
+        // If non-empty, include all reversible or irreversible actions.
+        optional ActionReversibility reversibility = 10;
+
+        // If true, include only actions with associated with schedule in the response.
+        // If false, include only actions without associated with schedule in the response.
+        // If not present, the field is not used to filter.
+        optional bool has_schedule = 11;
+
+        // If true, include only actions with prerequisites in the response.
+        // If false, include only actions without prerequisites in the response.
+        // If not present, the field is not used to filter.
+        optional bool has_prerequisites = 12;
+
+        // If non-empty, include all actions with savings amount between the min and max range.
+        optional ActionSavingsAmountRangeFilter savings_amount_range = 13;
     }
 
     // The entities involved in an action must match this filter in order for the action to be
