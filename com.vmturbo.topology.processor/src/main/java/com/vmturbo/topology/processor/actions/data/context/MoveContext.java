@@ -2,8 +2,10 @@ package com.vmturbo.topology.processor.actions.data.context;
 
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -103,42 +105,52 @@ public class MoveContext extends ChangeProviderContext {
         // Search for a secondary target only if the move is cross-target
         if (isCrossTargetMove()) {
             // Determine the target ID for the destination entity
-            // Collect all targets related to any destination entity in this move
-            final Set<Long> destinationTargetIds = getMoveInfo().getChangesList().stream()
-                    .map(ChangeProvider::getDestination)
-                    .map(ActionEntity::getId)
-                    .map(destinationEntityId -> getEntityStore().getEntity(destinationEntityId)
-                            .map(Entity::getTargets))
-                    .filter(Optional::isPresent)
-                    .map(Optional::get)
-                    // This step combines all the Set<Long> in the stream into a single Set<Long>
-                    .collect(HashSet::new, Set::addAll, Set::addAll);
-
-            // If there are no destination targets found, throw an exception since cross target
-            // moves require a secondary target in order to complete successfully
-            if (destinationTargetIds.isEmpty()) {
-                throw new ContextCreationException("No secondary target could be found for cross-"
-                        + "target move " + getActionId());
-            }
-
-            // First try to find a destination target with the same target type as the primary
-            // target
-            final SDKProbeType primaryTargetType;
-            try {
-                primaryTargetType = getTargetType(getTargetId());
-            } catch (TargetNotFoundException e) {
-                throw new ContextCreationException(
-                        "Could not determine main target type by id " + getTargetId(), e);
-            }
-            for (Long targetId: destinationTargetIds) {
-                if (targetMatchesType(targetId, primaryTargetType)) {
-                    return targetId;
+            // Collect targets related to all destination entities in this move
+            List<Set<Long>> allDestinationTargetIds = getMoveInfo().getChangesList().stream()
+                            .map(ChangeProvider::getDestination)
+                            .map(ActionEntity::getId)
+                            .map(destinationEntityId -> getEntityStore().getEntity(destinationEntityId)
+                                            .map(Entity::getTargets))
+                            .filter(Optional::isPresent)
+                            .map(Optional::get)
+                            .collect(Collectors.toList());
+            if (!allDestinationTargetIds.isEmpty()) {
+                // intersect the targets from each of destination entities
+                Set<Long> destinationTargetIds = allDestinationTargetIds.stream().skip(1).collect(
+                                () -> new HashSet<>(allDestinationTargetIds.get(0)),
+                                Set::retainAll,
+                                Set::retainAll);
+                logger.debug("Target candidates (type not considered yet) for executing action {}: {}",
+                                this::getActionId, destinationTargetIds::toString);
+                if (!destinationTargetIds.isEmpty()) {
+                    // First try to find a destination target with the same target type as the primary
+                    // target
+                    final SDKProbeType primaryTargetType;
+                    try {
+                        primaryTargetType = getTargetType(getTargetId());
+                    } catch (TargetNotFoundException e) {
+                        throw new ContextCreationException(
+                                "Could not determine main target type by id " + getTargetId(), e);
+                    }
+                    for (Long targetId: destinationTargetIds) {
+                        if (targetMatchesType(targetId, primaryTargetType)) {
+                            return targetId;
+                        }
+                    }
+                    // If no target of the same type is found, just return the first secondary target found
+                    long fallbackId = destinationTargetIds.stream()
+                                    .findFirst()
+                                    .get();
+                    logger.warn("Cross-target move {}: found no applicable secondary targets "
+                                    + "of source type {}, selecting target {}", getActionId(),
+                                    primaryTargetType, fallbackId);
+                    return fallbackId;
                 }
             }
-            // If no target of the same type is found, just return the first secondary target found
-            return destinationTargetIds.stream()
-                    .findFirst()
-                    .get();
+            // If there are no destination targets found, throw an exception since cross target
+            // moves require a secondary target in order to complete successfully
+            throw new ContextCreationException("No secondary target could be found for cross-"
+                            + "target move " + getActionId());
         }
         return null;
     }
