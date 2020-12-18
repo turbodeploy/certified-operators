@@ -3,8 +3,11 @@ package com.vmturbo.topology.processor.actions.data.context;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import com.google.common.collect.ImmutableSet;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -377,9 +380,11 @@ public class ChangeProviderContextTest {
                     .build()))
             .build();
 
-        final int primaryTargetId = 2;
+        final long primaryTargetId = 2;
         // In a cross-target move, the destination entity was discovered by a second target
-        final int secondaryTargetId = 3;
+        final long secondaryTargetId = 3;
+        // shared destination storage also belongs to yet another target
+        final long tertiaryTargetId = 234;
         final int actionId = 7;
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
             .setActionId(actionId)
@@ -400,7 +405,7 @@ public class ChangeProviderContextTest {
         mockEntity(destinationEntityId1, hostEntityType, secondaryTargetId);
         // Build the source storage and destination storage
         mockEntity(sourceEntityId2, storageEntityType, primaryTargetId);
-        mockEntity(destinationEntityId2, storageEntityType, secondaryTargetId);
+        mockEntity(destinationEntityId2, storageEntityType, ImmutableSet.of(secondaryTargetId, tertiaryTargetId));
 
         // We need to provide a mocked TopologyEntityDTO for the primary entity because that is how
         // the cross-target logic will find the storage entity to retrieve
@@ -440,6 +445,7 @@ public class ChangeProviderContextTest {
 
         Assert.assertEquals(actionId, actionExecutionContext.getActionId());
         Assert.assertEquals(primaryTargetId, actionExecutionContext.getTargetId());
+        // should not be tertiaryTargetId but an intersection of destination host and storage targets
         Assert.assertEquals(secondaryTargetId, actionExecutionContext.getSecondaryTargetId().longValue());
 
         // Move actions should have 2 actionItems
@@ -820,16 +826,23 @@ public class ChangeProviderContextTest {
         Mockito.verifyNoMoreInteractions(actionDataManagerMock);
     }
 
-    private Entity mockEntity(long entityId, EntityType entityType, long targetId)
+    private Entity mockEntity(long entityId, EntityType entityType, Set<Long> targetIds)
                 throws EntityRetrievalException {
         final Entity entity = new Entity(entityId, entityType);
         final EntityDTO entityDTO = EntityDTO.newBuilder()
             .setEntityType(entityType)
             .setId(Long.toString(entityId))
             .build();
-        entity.addTargetInfo(targetId, entityDTO);
+        for (Long tId : targetIds) {
+            entity.addTargetInfo(tId, entityDTO);
+        }
         Mockito.when(entityStoreMock.getEntity(entityId)).thenReturn(Optional.of(entity));
         Mockito.when(entityRetrieverMock.fetchAndConvertToEntityDTO(entityId)).thenReturn(entityDTO);
         return entity;
+    }
+
+    private Entity mockEntity(long entityId, EntityType entityType, long tId)
+                    throws EntityRetrievalException {
+        return mockEntity(entityId, entityType, Collections.singleton(tId));
     }
 }
