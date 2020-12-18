@@ -21,6 +21,7 @@
             protobuf-java libraries from SDK framework -->
         <protobuf.version>3.5.0</protobuf.version>
         <jackson-core.version>2.10.0</jackson-core.version>
+        <i2p-crypto-eddsa.version>0.3.0</i2p-crypto-eddsa.version>
     </properties>
 
    <build>
@@ -70,6 +71,12 @@
             <artifactId>bcpkix-jdk15on</artifactId>
             <version>${bouncycastle.version}</version>
         </dependency>
+       <!-- EdDSA Host Key Verification -->
+       <dependency>
+           <groupId>net.i2p.crypto</groupId>
+           <artifactId>eddsa</artifactId>
+           <version>${i2p-crypto-eddsa.version}</version>
+       </dependency>
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
