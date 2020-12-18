@@ -58,8 +58,10 @@ public class CloudCommitmentInventoryResolverStage extends AbstractStage<Aggrega
     public StageResult<AnalysisTopology> execute(AggregateAnalysisDemand aggregateAnalysisDemand) {
 
         final CloudCommitmentInventory cloudCommitmentInventory = analysisConfig.getCloudCommitmentInventory();
-        final List<CloudCommitmentData> cloudCommitmentDataList = cloudCommitmentBoughtResolver.getCloudCommitment(cloudCommitmentInventory);
 
+        logger.info("Resolving cloud commitment inventory: {}", cloudCommitmentInventory);
+
+        final List<CloudCommitmentData> cloudCommitmentDataList = cloudCommitmentBoughtResolver.getCloudCommitment(cloudCommitmentInventory);
         final Map<Long, CloudCommitmentCapacity> cloudCommitmentCapacityMap =
                 getCloudCommitmentCapacityByOid(cloudCommitmentDataList);
 

@@ -172,11 +172,13 @@ public class DemandRetrievalStage extends AbstractStage<Void, EntityCloudTierDem
                         + "    Total: <totalDuration>\n"
                         + "    Avg: <averageDuration>\n"
                         + "    Max: <maxDuration>\n"
-                        + "    Count: <durationCount>\n";
+                        + "    Count: <durationCount>\n"
+                        + "    Unique Entities Count: <uniqueEntitiesCount>\n"
+                        + "    Unique Demand Count: <uniqueDemandCount>\n";
         private static final String DEMAND_SELECTION_DETAILED_SUMMARY_TEMPLATE =
                 DEMAND_SELECTION_SUMMARY_TEMPLATE
-                        + "Unique Entities: <uniqueEntities>\n"
-                        + "Unique Demand: <uniqueDemand>\n";
+                        + "   Unique Entities: <entities;separator=\",\">\n"
+                        + "   Duration by Tier: <durationByTier;separator=\",\">\n";
 
         private final boolean detailedSummary;
 
@@ -210,14 +212,13 @@ public class DemandRetrievalStage extends AbstractStage<Void, EntityCloudTierDem
                 final long durationMillis = mappingInterval.duration().toMillis();
                 durationStats.accept(durationMillis);
 
-                if (detailedSummary) {
-                    uniqueEntities.add(entityCloudTierMapping.entityOid());
 
-                    durationStatsByDemand.computeIfAbsent(
-                            entityCloudTierMapping.cloudTierDemand(),
-                            demand -> new LongSummaryStatistics())
-                                .accept(durationMillis);
-                }
+                uniqueEntities.add(entityCloudTierMapping.entityOid());
+
+                durationStatsByDemand.computeIfAbsent(
+                        entityCloudTierMapping.cloudTierDemand(),
+                        demand -> new LongSummaryStatistics())
+                            .accept(durationMillis);
             };
         }
 
@@ -233,10 +234,12 @@ public class DemandRetrievalStage extends AbstractStage<Void, EntityCloudTierDem
             template.add("averageDuration", Duration.ofMillis((long)durationStats.getAverage()));
             template.add("maxDuration", Duration.ofMillis(durationStats.getMax()));
             template.add("durationCount", durationStats.getCount());
+            template.add("uniqueEntitiesCount", uniqueEntities.size());
+            template.add("uniqueDemandCount", durationStatsByDemand.size());
 
             if (detailedSummary) {
-                template.add("uniqueEntities", uniqueEntities.size());
-                template.add("uniqueDemand", durationStatsByDemand.size());
+                template.add("entities", uniqueEntities);
+                template.add("durationByTier", durationStatsByDemand);
             }
 
             return template.render();
