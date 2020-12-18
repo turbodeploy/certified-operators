@@ -9,6 +9,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertSame;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyLong;
@@ -49,6 +50,13 @@ import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
@@ -62,10 +70,13 @@ import com.vmturbo.api.component.external.api.service.ReservedInstancesService;
 import com.vmturbo.api.component.external.api.util.ApiUtilsTest;
 import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
 import com.vmturbo.api.dto.BaseApiDTO;
+import com.vmturbo.api.dto.QueryInputApiDTO;
+import com.vmturbo.api.dto.RangeInputApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.action.ActionExecutionAuditApiDTO;
 import com.vmturbo.api.dto.action.ActionExecutionCharacteristicApiDTO;
+import com.vmturbo.api.dto.action.ActionExecutionCharacteristicInputApiDTO;
 import com.vmturbo.api.dto.action.ActionScheduleApiDTO;
 import com.vmturbo.api.dto.action.CloudResizeActionDetailsApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
@@ -78,6 +89,7 @@ import com.vmturbo.api.enums.ActionState;
 import com.vmturbo.api.enums.ActionType;
 import com.vmturbo.api.enums.EntityState;
 import com.vmturbo.api.enums.EnvironmentType;
+import com.vmturbo.api.enums.QueryType;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.auditing.AuditLogUtils;
 import com.vmturbo.common.api.mappers.EnvironmentTypeMapper;
@@ -1911,6 +1923,103 @@ public class ActionSpecMapperTest {
     }
 
     /**
+     * Test action filtering for actiond description.
+     */
+    @Test
+    public void testCreateActionFilterDescriptionQuery() {
+        final ActionApiInputDTO inputDTO = new ActionApiInputDTO();
+        final QueryInputApiDTO descriptionQuery = new QueryInputApiDTO();
+        descriptionQuery.setQuery("test");
+        descriptionQuery.setType(QueryType.CONTAINS);
+        inputDTO.setDescriptionQuery(descriptionQuery);
+
+        final ActionQueryFilter filter = createFilter(inputDTO);
+        assertEquals(".*\\Qtest\\E.*", filter.getDescriptionQuery());
+    }
+
+    /**
+     * Test action filtering for disruptiveness.
+     */
+    @Test
+    public void testCreateActionFilterDisruptiveness() {
+        final ActionApiInputDTO inputDTO = new ActionApiInputDTO();
+        final ActionExecutionCharacteristicInputApiDTO executionCharacteristicInputApiDTO = new ActionExecutionCharacteristicInputApiDTO();
+        executionCharacteristicInputApiDTO.setDisruptiveness(ActionDisruptiveness.DISRUPTIVE);
+        inputDTO.setExecutionCharacteristics(executionCharacteristicInputApiDTO);
+
+        final ActionQueryFilter filter = createFilter(inputDTO);
+        assertSame(ActionDTO.ActionDisruptiveness.DISRUPTIVE, filter.getDisruptiveness());
+
+        final ActionExecutionCharacteristicInputApiDTO executionCharacteristicInputApiDTO2 = new ActionExecutionCharacteristicInputApiDTO();
+        executionCharacteristicInputApiDTO2.setDisruptiveness(ActionDisruptiveness.NON_DISRUPTIVE);
+        inputDTO.setExecutionCharacteristics(executionCharacteristicInputApiDTO2);
+
+        final ActionQueryFilter filter2 = createFilter(inputDTO);
+        assertSame(ActionDTO.ActionDisruptiveness.NON_DISRUPTIVE, filter2.getDisruptiveness());
+    }
+
+    /**
+     * Test action filtering for reversibility.
+     */
+    @Test
+    public void testCreateActionFilterReversibility() {
+        final ActionApiInputDTO inputDTO = new ActionApiInputDTO();
+        final ActionExecutionCharacteristicInputApiDTO executionCharacteristicInputApiDTO = new ActionExecutionCharacteristicInputApiDTO();
+        executionCharacteristicInputApiDTO.setReversibility(ActionReversibility.REVERSIBLE);
+        inputDTO.setExecutionCharacteristics(executionCharacteristicInputApiDTO);
+
+        final ActionQueryFilter filter = createFilter(inputDTO);
+        assertSame(ActionDTO.ActionReversibility.REVERSIBLE, filter.getReversibility());
+
+        final ActionExecutionCharacteristicInputApiDTO executionCharacteristicInputApiDTO2 = new ActionExecutionCharacteristicInputApiDTO();
+        executionCharacteristicInputApiDTO2.setReversibility(ActionReversibility.IRREVERSIBLE);
+        inputDTO.setExecutionCharacteristics(executionCharacteristicInputApiDTO2);
+
+        final ActionQueryFilter filter2 = createFilter(inputDTO);
+        assertSame(ActionDTO.ActionReversibility.IRREVERSIBLE, filter2.getReversibility());
+    }
+
+    /**
+     * Test action filtering for savings amount.
+     */
+    @Test
+    public void testCreateActionFilterSaingsAmount() {
+        final ActionApiInputDTO inputDTO = new ActionApiInputDTO();
+        final RangeInputApiDTO rangeInputApiDTO = new RangeInputApiDTO();
+        rangeInputApiDTO.setMaxValue(20.0f);
+        rangeInputApiDTO.setMinValue(10.0f);
+        inputDTO.setSavingsAmountRange(rangeInputApiDTO);
+
+        final ActionQueryFilter filter = createFilter(inputDTO);
+        assertEquals(filter.getSavingsAmountRange().getMaxValue(), 20.0f, 0);
+        assertEquals(filter.getSavingsAmountRange().getMinValue(), 10.0f, 0);
+    }
+
+    /**
+     * Test action filtering for action with schedule.
+     */
+    @Test
+    public void testCreateActionFilterHasSchedule() {
+        final ActionApiInputDTO inputDTO = new ActionApiInputDTO();
+        inputDTO.setHasSchedule(true);
+
+        final ActionQueryFilter filter = createFilter(inputDTO);
+        assertTrue(filter.getHasSchedule());
+    }
+
+    /**
+     * Test action filtering for action has prerequisites.
+     */
+    @Test
+    public void testCreateActionFilterHasPrerequisites() {
+        final ActionApiInputDTO inputDTO = new ActionApiInputDTO();
+        inputDTO.setHasPrerequisites(true);
+
+        final ActionQueryFilter filter = createFilter(inputDTO);
+        assertTrue(filter.getHasPrerequisites());
+    }
+
+    /**
      * Test that getting actions by market UUID fails if given future start time.
      *
      * @throws Exception should throw {@link IllegalArgumentException}.
@@ -2378,6 +2487,24 @@ public class ActionSpecMapperTest {
         assertEquals(ActionDTO.ActionCostType.SAVINGS, ActionSpecMapper.mapApiCostTypeToXL(ActionCostType.SAVING));
         assertEquals(ActionDTO.ActionCostType.INVESTMENT, ActionSpecMapper.mapApiCostTypeToXL(ActionCostType.INVESTMENT));
         assertEquals(ActionDTO.ActionCostType.ACTION_COST_TYPE_NONE, ActionSpecMapper.mapApiCostTypeToXL(ActionCostType.ACTION_COST_TYPE_NONE));
+    }
+
+    /**
+     * Test valid actionDisruptiveness is mapped.
+     */
+    @Test
+    public void testValidMapApiDisruptivenessToXL() {
+        assertEquals(ActionDTO.ActionDisruptiveness.DISRUPTIVE, ActionSpecMapper.mapApiDisruptivenessToXL(ActionDisruptiveness.DISRUPTIVE));
+        assertEquals(ActionDTO.ActionDisruptiveness.NON_DISRUPTIVE, ActionSpecMapper.mapApiDisruptivenessToXL(ActionDisruptiveness.NON_DISRUPTIVE));
+    }
+
+    /**
+     * Test valid actionDisruptiveness is mapped.
+     */
+    @Test
+    public void testValidMapApiReversibilityToXL() {
+        assertEquals(ActionDTO.ActionReversibility.REVERSIBLE, ActionSpecMapper.mapApiReversibilityToXL(ActionReversibility.REVERSIBLE));
+        assertEquals(ActionDTO.ActionReversibility.IRREVERSIBLE, ActionSpecMapper.mapApiReversibilityToXL(ActionReversibility.IRREVERSIBLE));
     }
 
     /**

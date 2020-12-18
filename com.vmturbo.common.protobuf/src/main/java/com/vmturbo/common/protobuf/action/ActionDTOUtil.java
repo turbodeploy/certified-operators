@@ -550,6 +550,9 @@ public class ActionDTOUtil {
                 retList.add(change.getDestination());
             }
         }
+        if (action.getInfo().getScale().hasPrimaryProvider()) {
+            retList.add(action.getInfo().getScale().getPrimaryProvider());
+        }
         return retList;
     }
 

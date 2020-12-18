@@ -7,8 +7,11 @@ import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.regex.Pattern;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -23,14 +26,18 @@ import com.vmturbo.action.orchestrator.action.TestActionBuilder;
 import com.vmturbo.action.orchestrator.store.LiveActionStore;
 import com.vmturbo.action.orchestrator.store.PlanActionStore;
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.Action.Prerequisite;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCostType;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionDisruptiveness;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter.InvolvedEntities;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionReversibility;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionSavingsAmountRangeFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
@@ -545,6 +552,321 @@ public class QueryFilterTest {
                 .setCostType(ActionCostType.ACTION_COST_TYPE_NONE)
                 .build();
         final ActionView actionView2 = ActionOrchestratorTestUtils.mockActionView(action);
+        assertTrue(new QueryFilter(filter2, PlanActionStore.VISIBILITY_PREDICATE)
+                .test(actionView2));
+    }
+
+    /**
+     * Test query filter should return true when filter descriptionQuery matches action description.
+     */
+    @Test
+    public void testDescriptionQueryFilterMatch() {
+        final ActionDTO.Action action = ActionDTO.Action.newBuilder()
+                .setId(1)
+                .setDeprecatedImportance(0)
+                .setExecutable(true)
+                .setExplanation(Explanation.newBuilder().build())
+                .setInfo(ActionInfo.getDefaultInstance())
+                .build();
+
+        // match 1
+        ActionQueryFilter filter = ActionQueryFilter.newBuilder()
+                .setDescriptionQuery("(.*template1.*)|(.*template2.*)")
+                .build();
+        ActionView actionView = ActionOrchestratorTestUtils.mockActionView(action);
+
+        when(actionView.getDescription()).thenReturn("Scale vm from template1 to template2");
+        assertTrue(new QueryFilter(filter, PlanActionStore.VISIBILITY_PREDICATE)
+                .test(actionView));
+
+        // match 2
+        filter = ActionQueryFilter.newBuilder()
+                .setDescriptionQuery(".*template1.*")
+                .build();
+        when(actionView.getDescription()).thenReturn("Scale vm from template1 to template2");
+        assertTrue(new QueryFilter(filter, PlanActionStore.VISIBILITY_PREDICATE)
+                .test(actionView));
+
+        // match 3
+        filter = ActionQueryFilter.newBuilder()
+                .setDescriptionQuery("template1")
+                .build();
+        when(actionView.getDescription()).thenReturn("Scale vm from template1 to template2");
+        assertFalse(new QueryFilter(filter, PlanActionStore.VISIBILITY_PREDICATE)
+                .test(actionView));
+
+        // match 4
+        filter = ActionQueryFilter.newBuilder()
+                .setDescriptionQuery("^.*" + Pattern.quote("t2.nano") + ".*$")
+                .build();
+        when(actionView.getDescription()).thenReturn("Scale vm from template1 to t2.nano");
+        assertTrue(new QueryFilter(filter, PlanActionStore.VISIBILITY_PREDICATE)
+                .test(actionView));
+
+        // match 5
+        filter = ActionQueryFilter.newBuilder()
+                .setDescriptionQuery("^.*\\btemplate2\\b.*$")
+                .build();
+        when(actionView.getDescription()).thenReturn("Scale vm from template1 to template2");
+        assertTrue(new QueryFilter(filter, PlanActionStore.VISIBILITY_PREDICATE)
+                .test(actionView));
+    }
+
+    /**
+     * Test query filter should return true when filter riskQuery matches action related risks.
+     */
+    @Test
+    public void testRiskQueryFilterMatch() {
+        final ActionDTO.Action action = ActionDTO.Action.newBuilder()
+                .setId(1)
+                .setDeprecatedImportance(0)
+                .setExecutable(true)
+                .setExplanation(Explanation.newBuilder().build())
+                .setInfo(ActionInfo.getDefaultInstance())
+                .build();
+        final Set<String> relatedRisks = new HashSet<>(Arrays.asList(
+                "IOPS Congestion",
+                "VMem Congestion",
+                "Underutilized VMem",
+                "Underutilized IOPS"
+        ));
+        ActionView actionView = ActionOrchestratorTestUtils.mockActionView(action);
+        when(actionView.getRelatedRisks()).thenReturn(relatedRisks);
+
+        // match 1
+        ActionQueryFilter filter = ActionQueryFilter.newBuilder()
+                .setRiskQuery("(.*IOPS Congestion.*)|(.*VMem Congestion.*)|(.*Underutilized VMem.*)|(.*Underutilized IOPS.*)")
+                .build();
+        assertTrue(new QueryFilter(filter, PlanActionStore.VISIBILITY_PREDICATE)
+                .test(actionView));
+
+        // match 2
+        filter = ActionQueryFilter.newBuilder()
+                .setRiskQuery(".*IOPS Congestion.*")
+                .build();
+        assertTrue(new QueryFilter(filter, PlanActionStore.VISIBILITY_PREDICATE)
+                .test(actionView));
+
+        // match 3
+        filter = ActionQueryFilter.newBuilder()
+                .setRiskQuery(".*VMem Congestion.*")
+                .build();
+        assertTrue(new QueryFilter(filter, PlanActionStore.VISIBILITY_PREDICATE)
+                .test(actionView));
+
+        // match 4
+        filter = ActionQueryFilter.newBuilder()
+                .setRiskQuery("Underutilized VMem")
+                .build();
+        assertTrue(new QueryFilter(filter, PlanActionStore.VISIBILITY_PREDICATE)
+                .test(actionView));
+
+        // match 5
+        filter = ActionQueryFilter.newBuilder()
+                .setRiskQuery("Underutilized IOPS")
+                .build();
+        assertTrue(new QueryFilter(filter, PlanActionStore.VISIBILITY_PREDICATE)
+                .test(actionView));
+
+        // match 6
+        filter = ActionQueryFilter.newBuilder()
+                .setRiskQuery("^.*\\bIOPS\\b.*$")
+                .build();
+        assertTrue(new QueryFilter(filter, PlanActionStore.VISIBILITY_PREDICATE)
+                .test(actionView));
+
+        // match 7
+        filter = ActionQueryFilter.newBuilder()
+                .setRiskQuery("^.*\\biops\\b.*$")
+                .build();
+        assertFalse(new QueryFilter(filter, PlanActionStore.VISIBILITY_PREDICATE)
+                .test(actionView));
+    }
+
+    /**
+     * Test query filter should return true when filter disruptiveness matches action disruptivness.
+     */
+    @Test
+    public void testDisruptivenessFilter() {
+        final ActionDTO.Action action = ActionDTO.Action.newBuilder()
+                .setId(1)
+                .setDeprecatedImportance(0)
+                .setExecutable(true)
+                .setExplanation(Explanation.newBuilder().build())
+                .setInfo(ActionInfo.getDefaultInstance())
+                .setDisruptive(true)
+                .build();
+
+        final ActionQueryFilter filter = ActionQueryFilter.newBuilder()
+                .setDisruptiveness(ActionDisruptiveness.DISRUPTIVE)
+                .build();
+        final ActionView actionView = ActionOrchestratorTestUtils.mockActionView(action);
+        assertTrue(new QueryFilter(filter, PlanActionStore.VISIBILITY_PREDICATE)
+                .test(actionView));
+
+        final ActionDTO.Action action2 = ActionDTO.Action.newBuilder()
+                .setId(1)
+                .setDeprecatedImportance(0)
+                .setExecutable(true)
+                .setExplanation(Explanation.newBuilder().build())
+                .setInfo(ActionInfo.getDefaultInstance())
+                .setDisruptive(false)
+                .build();
+        final ActionQueryFilter filter2 = ActionQueryFilter.newBuilder()
+                .setDisruptiveness(ActionDisruptiveness.NON_DISRUPTIVE)
+                .build();
+        final ActionView actionView2 = ActionOrchestratorTestUtils.mockActionView(action2);
+        assertTrue(new QueryFilter(filter2, PlanActionStore.VISIBILITY_PREDICATE)
+                .test(actionView2));
+    }
+
+    /**
+     * Test query filter should return true when filter reversibility matches action reversibility.
+     */
+    @Test
+    public void testReversibilityFilter() {
+        final ActionDTO.Action action = ActionDTO.Action.newBuilder()
+                .setId(1)
+                .setDeprecatedImportance(0)
+                .setExecutable(true)
+                .setExplanation(Explanation.newBuilder().build())
+                .setInfo(ActionInfo.getDefaultInstance())
+                .setReversible(true)
+                .build();
+
+        final ActionQueryFilter filter = ActionQueryFilter.newBuilder()
+                .setReversibility(ActionReversibility.REVERSIBLE)
+                .build();
+        final ActionView actionView = ActionOrchestratorTestUtils.mockActionView(action);
+        assertTrue(new QueryFilter(filter, PlanActionStore.VISIBILITY_PREDICATE)
+                .test(actionView));
+
+        final ActionDTO.Action action2 = ActionDTO.Action.newBuilder()
+                .setId(1)
+                .setDeprecatedImportance(0)
+                .setExecutable(true)
+                .setExplanation(Explanation.newBuilder().build())
+                .setInfo(ActionInfo.getDefaultInstance())
+                .setReversible(false)
+                .build();
+        final ActionQueryFilter filter2 = ActionQueryFilter.newBuilder()
+                .setReversibility(ActionReversibility.IRREVERSIBLE)
+                .build();
+        final ActionView actionView2 = ActionOrchestratorTestUtils.mockActionView(action2);
+        assertTrue(new QueryFilter(filter2, PlanActionStore.VISIBILITY_PREDICATE)
+                .test(actionView2));
+    }
+
+    /**
+     * Test query filter should return true when filter savingsAmountRange matches action savingsAmountRange.
+     */
+    @Test
+    public void testSavingsAmountRangeFilter() {
+        final ActionDTO.Action action = ActionDTO.Action.newBuilder()
+                .setId(1)
+                .setDeprecatedImportance(0)
+                .setExecutable(true)
+                .setExplanation(Explanation.newBuilder().build())
+                .setInfo(ActionInfo.getDefaultInstance())
+                .setSavingsPerHour(CurrencyAmount.newBuilder()
+                        .setAmount(15.0f))
+                .build();
+
+        final ActionQueryFilter filter = ActionQueryFilter.newBuilder()
+                .setSavingsAmountRange(ActionSavingsAmountRangeFilter.newBuilder()
+                        .setMinValue(10.0f)
+                        .setMaxValue(20.0f)
+                )
+                .build();
+        final ActionView actionView = ActionOrchestratorTestUtils.mockActionView(action);
+        assertTrue(new QueryFilter(filter, PlanActionStore.VISIBILITY_PREDICATE)
+                .test(actionView));
+
+
+        final ActionDTO.Action action2 = ActionDTO.Action.newBuilder()
+                .setId(1)
+                .setDeprecatedImportance(0)
+                .setExecutable(true)
+                .setExplanation(Explanation.newBuilder().build())
+                .setInfo(ActionInfo.getDefaultInstance())
+                .setSavingsPerHour(CurrencyAmount.newBuilder()
+                        .setAmount(22.0f))
+                .build();
+        final ActionQueryFilter filter2 = ActionQueryFilter.newBuilder()
+                .setSavingsAmountRange(ActionSavingsAmountRangeFilter.newBuilder()
+                        .setMinValue(10.0f)
+                        .setMaxValue(20.0f)
+                )
+                .build();
+        final ActionView actionView2 = ActionOrchestratorTestUtils.mockActionView(action2);
+        assertFalse(new QueryFilter(filter2, PlanActionStore.VISIBILITY_PREDICATE)
+                .test(actionView2));
+    }
+
+    /**
+     * Test query filter should return true when filter hasSchedule matches action having schedule.
+     */
+    @Test
+    public void testHasScheduleFilter() {
+        final ActionDTO.Action action = ActionDTO.Action.newBuilder()
+                .setId(1)
+                .setDeprecatedImportance(0)
+                .setExecutable(true)
+                .setExplanation(Explanation.newBuilder().build())
+                .setInfo(ActionInfo.getDefaultInstance())
+                .build();
+
+        final ActionQueryFilter filter = ActionQueryFilter.newBuilder()
+                .setHasSchedule(true)
+                .build();
+        final ActionView actionView = ActionOrchestratorTestUtils.mockActionView(action);
+        final ActionSchedule actionSchedule = new ActionSchedule(1L, 2L, "America/Chicago", 12L, "testSchedule",
+                ActionMode.MANUAL, "admin");
+        when(actionView.getSchedule()).thenReturn(Optional.of(actionSchedule));
+        assertTrue(new QueryFilter(filter, PlanActionStore.VISIBILITY_PREDICATE)
+                .test(actionView));
+
+        final ActionQueryFilter filter2 = ActionQueryFilter.newBuilder()
+                .setHasSchedule(false)
+                .build();
+        final ActionView actionView2 = ActionOrchestratorTestUtils.mockActionView(action);
+        when(actionView2.getSchedule()).thenReturn(Optional.empty());
+        assertTrue(new QueryFilter(filter2, PlanActionStore.VISIBILITY_PREDICATE)
+                .test(actionView2));
+    }
+
+    /**
+     * Test query filter should return true when filter hasPrerequisites matches action having prerequisites.
+     */
+    @Test
+    public void testHasPrerequisitesFilter() {
+        final ActionDTO.Action action = ActionDTO.Action.newBuilder()
+                .setId(1)
+                .setDeprecatedImportance(0)
+                .setExecutable(true)
+                .setExplanation(Explanation.newBuilder().build())
+                .setInfo(ActionInfo.getDefaultInstance())
+                .addPrerequisite(Prerequisite.newBuilder())
+                .build();
+
+        final ActionQueryFilter filter = ActionQueryFilter.newBuilder()
+                .setHasPrerequisites(true)
+                .build();
+        final ActionView actionView = ActionOrchestratorTestUtils.mockActionView(action);
+        assertTrue(new QueryFilter(filter, PlanActionStore.VISIBILITY_PREDICATE)
+                .test(actionView));
+
+        final ActionDTO.Action action2 = ActionDTO.Action.newBuilder()
+                .setId(1)
+                .setDeprecatedImportance(0)
+                .setExecutable(true)
+                .setExplanation(Explanation.newBuilder().build())
+                .setInfo(ActionInfo.getDefaultInstance())
+                .build();
+        final ActionQueryFilter filter2 = ActionQueryFilter.newBuilder()
+                .setHasPrerequisites(false)
+                .build();
+        final ActionView actionView2 = ActionOrchestratorTestUtils.mockActionView(action2);
         assertTrue(new QueryFilter(filter2, PlanActionStore.VISIBILITY_PREDICATE)
                 .test(actionView2));
     }

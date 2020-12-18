@@ -17,17 +17,19 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.apache.commons.lang.NotImplementedException;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.checkerframework.checker.nullness.qual.NonNull;
+import org.springframework.validation.Errors;
+
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
-
-import org.apache.commons.lang.NotImplementedException;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
@@ -41,6 +43,7 @@ import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQuery;
 import com.vmturbo.api.dto.action.ActionApiDTO;
+import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.action.ActionDetailsApiDTO;
 import com.vmturbo.api.dto.action.ActionScopesApiInputDTO;
 import com.vmturbo.api.dto.action.EntityActionsApiDTO;
@@ -546,5 +549,47 @@ public class ActionsService implements IActionsService {
                     realtimeTopologyContextId : Long.valueOf(topologyContextId))
                 .addAllActionIds(uuids)
                 .build();
+    }
+
+    /**
+     * Validates incoming action api input dto.
+     *
+     * @param obj Object to validate
+     * @param e   Spring framework validation errors, not actually used in our validations
+     */
+    @Override
+    public void validateInput(final Object obj, final Errors e) {
+        if (!(obj instanceof ActionApiInputDTO)) {
+            logger.error("Unexpected object type validating action api input: {}",
+                    () -> obj.getClass().getCanonicalName());
+            throw new IllegalArgumentException("Unexpected object type validating schedule input: "
+                    + obj.getClass());
+        }
+
+        final ActionApiInputDTO actionApiInputDTO = (ActionApiInputDTO)obj;
+        final StringBuilder errors = new StringBuilder();
+
+        // description query
+        if (actionApiInputDTO.getDescriptionQuery() != null && actionApiInputDTO.getDescriptionQuery().getType() == null) {
+            errors.append("Description query is invalid. Query Type cannot be null.");
+        }
+
+        // risk query
+        if (actionApiInputDTO.getRiskQuery() != null && actionApiInputDTO.getRiskQuery().getType() == null) {
+            errors.append("Risk query is invalid. Query Type cannot be null.");
+        }
+
+        // savings amount range
+        if (actionApiInputDTO.getSavingsAmountRange() != null
+                && actionApiInputDTO.getSavingsAmountRange().getMinValue() == null
+                && actionApiInputDTO.getSavingsAmountRange().getMaxValue() == null) {
+            errors.append("Savings Amount Range is invalid. Either minValue or maxValue should be specified.");
+        }
+
+        final String errorMsg = errors.toString();
+        if (StringUtils.isNotBlank(errorMsg)) {
+            logger.error("Error validating action api input: {}", () -> errorMsg);
+            throw new IllegalArgumentException(errorMsg);
+        }
     }
 }

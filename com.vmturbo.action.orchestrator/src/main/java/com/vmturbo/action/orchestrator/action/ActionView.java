@@ -3,6 +3,7 @@ package com.vmturbo.action.orchestrator.action;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.Optional;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
@@ -298,6 +299,14 @@ public interface ActionView {
      */
     @Nonnull
     String getDescription();
+
+    /**
+     * Gets the action related risks.
+     *
+     * @return The related risks set.
+     */
+    @Nonnull
+    Set<String> getRelatedRisks();
 
     /**
      * Return a market recommendation OID. This OID is used for distinguishing between different

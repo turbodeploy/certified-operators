@@ -23,6 +23,8 @@ message OrderBy {
         ACTION_RISK_CATEGORY = 3;
         ACTION_SAVINGS = 4;
         ACTION_RECOMMENDATION_TIME = 5;
+        ACTION_DISRUPTIVENESS = 6;
+        ACTION_REVERSIBILITY = 7;
     }
 
     // The ordering parameters for search requests.
