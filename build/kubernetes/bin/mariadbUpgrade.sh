@@ -100,6 +100,7 @@ sudo systemctl enable mariadb
 sudo systemctl daemon-reload
 
 # Start the upgraded version
+sudo sed -i "/event_scheduler/s/ON/OFF/" /etc/my.cnf.d/server.cnf
 sudo systemctl start mariadb
 
 # Test the database is running
@@ -131,6 +132,39 @@ fi
 
 
 sudo /usr/bin/mysql_upgrade -uroot -p${dbPassword}
+
+sudo systemctl stop mariadb
+
+# Start the upgraded version
+sudo sed -i "/event_scheduler/s/OFF/ON/" /etc/my.cnf.d/server.cnf
+sudo systemctl start mariadb
+
+# Test the database is running
+mariadbStatus=$(systemctl is-active mariadb)
+if [ "X$mariadbStatus" = "Xactive" ]
+then
+  echo
+  echo "MariaDB process started properly, continuing"
+else
+  echo
+  echo "*MariaDB did not start properly, please check the logs and the daemon status*"
+  echo "Logging at /var/log/mysql"
+  echo "System Daemon: sudo systemctl status mariadb"
+  exit 1
+fi
+
+LISTENING=$(netstat -an|grep LISTEN|grep 3306|wc -l)
+if [ "$LISTENING" -eq '1' ]
+then
+  echo
+  echo "Mariadb process is listening on a proper port, continuing"
+else
+  echo
+  echo "*MariaDB seems to not be listening on a proper port*"
+  echo "Logging at /var/log/mysql"
+  echo "System Daemon: sudo systemctl status mariadb"
+  exit 1
+fi
 
 # Test the database
 
