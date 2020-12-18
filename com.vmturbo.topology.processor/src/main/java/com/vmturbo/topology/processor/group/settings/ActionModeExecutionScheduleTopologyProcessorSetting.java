@@ -45,7 +45,8 @@ public class ActionModeExecutionScheduleTopologyProcessorSetting extends
                         newActionMode, settingSpec.getEnumSettingValueType());
 
         // define winner setting
-        if (comparisonResults == 0) {
+        // If we have merged execution without a schedule, pick one winner
+        if (comparisonResults == 0 && existingExecutionWindows.size() > 0) {
             final Set<Long> mergedExecutionSchedules =
                     new HashSet<>(existingExecutionWindows.size());
             mergedExecutionSchedules.addAll(existingExecutionWindows);
