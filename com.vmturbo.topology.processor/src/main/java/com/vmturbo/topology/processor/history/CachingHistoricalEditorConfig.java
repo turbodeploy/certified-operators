@@ -10,7 +10,12 @@ import com.vmturbo.topology.processor.KVConfig;
 /**
  * Base class for history editor configurations.
  */
-public abstract class CachingHistoricalEditorConfig extends HistoricalEditorConfig {
+public class CachingHistoricalEditorConfig extends HistoricalEditorConfig {
+    /**
+     * The property name in the topology processor key value store whose value represents boolean
+     * flag. In case flag is set to true then percentile cache will be added to diagnostics.
+     */
+    public static final String STORE_CACHE_TO_DIAGNOSTICS_PROPERTY = "storeCacheToDiagnostics";
     /**
      * The property name in the topology processor key value store whose value
      * represents the OID of the entity for which percentile counts are logged.
@@ -42,12 +47,6 @@ public abstract class CachingHistoricalEditorConfig extends HistoricalEditorConf
         this.kvConfig = kvConfig;
     }
 
-    /**
-     * Getting the name of the property responsible for saving the cache to diagnostics.
-     *
-     * @return the name of the property.
-     */
-    protected abstract String getDiagnosticsEnabledPropertyName();
 
     /**
      * The configured OID whose percentile counts needs to be logged when debug enabled.
@@ -72,14 +71,14 @@ public abstract class CachingHistoricalEditorConfig extends HistoricalEditorConf
      * {@code false}.
      *
      * @return {@code true} in case cache needs to be stored in diagnostic file, otherwise
-     *         returns {@code false}.
+     *                 returns {@code false}.
      */
     public boolean isCacheExportingToDiagnostics() {
         // TODO Alexander Vasin this property needs to be moved to yaml file, when properties reload
         //  implementation will be completed, i.e. when
         //  https://vmturbo.atlassian.net/browse/PLAT-218 will be closed
-        return getConsulValue(getDiagnosticsEnabledPropertyName()).map(
-                Boolean.TRUE.toString()::equals).orElse(false);
+        return getConsulValue(STORE_CACHE_TO_DIAGNOSTICS_PROPERTY)
+                        .map(Boolean.TRUE.toString()::equals).orElse(false);
     }
 
     @Nonnull

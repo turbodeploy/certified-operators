@@ -1,7 +1,7 @@
 package com.vmturbo.topology.processor.history;
 
-import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -196,7 +196,7 @@ public class HistoryAggregationConfig {
      */
     @Nonnull
     public Collection<BinaryDiagsRestorable> statefulEditors() {
-        return Arrays.asList(percentileHistoryEditor(), timeslotHistoryEditor());
+        return Collections.singleton(percentileHistoryEditor());
     }
 
     /**
@@ -212,14 +212,12 @@ public class HistoryAggregationConfig {
     /**
      * Timeslot commodities history editor.
      *
-     * @param <E> type of the editor that is going to be created.
      * @return timeslot editor bean
      */
     @Bean
-    public <E extends IHistoricalEditor<?> & BinaryDiagsRestorable> E timeslotHistoryEditor() {
-        final E result = (E)new TimeSlotEditor(timeslotEditorConfig(), historyClient(),
-                backgroundHistoryLoadingPool(), TimeSlotLoadingTask::new);
-        return result;
+    public IHistoricalEditor<?> timeslotHistoryEditor() {
+        return new TimeSlotEditor(timeslotEditorConfig(), historyClient(),
+                        backgroundHistoryLoadingPool(), TimeSlotLoadingTask::new);
     }
 
     /**

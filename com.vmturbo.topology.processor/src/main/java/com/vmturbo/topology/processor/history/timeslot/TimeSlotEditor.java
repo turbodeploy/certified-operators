@@ -1,15 +1,11 @@
 package com.vmturbo.topology.processor.history.timeslot;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
 import java.io.OutputStream;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -29,14 +25,12 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import org.apache.logging.log4j.Logger;
-import org.jetbrains.annotations.NotNull;
 
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -125,9 +119,9 @@ public class TimeSlotEditor extends
 
     @Override
     public boolean isCommodityApplicable(@Nonnull TopologyEntity entity,
-            @Nonnull Builder commBought, int providerType) {
+                    @Nonnull TopologyDTO.CommodityBoughtDTO.Builder commBought, int providerType) {
         return ENABLED_TIMESLOT_COMMODITY_TYPES
-                .contains(CommodityType.forNumber(commBought.getCommodityType().getType()));
+                        .contains(CommodityType.forNumber(commBought.getCommodityType().getType()));
     }
 
     @Override
@@ -166,9 +160,8 @@ public class TimeSlotEditor extends
             List<List<EntityCommodityReference>> partitions = Lists
                 .partition(period2comm.getValue(), getConfig().getLoadingChunkSize());
             for (List<EntityCommodityReference> chunk : partitions) {
-                final Pair<Long, Long> range = new Pair<>(now
-                    - period2comm.getKey() * Duration.ofDays(1).toMillis(),
-                    null);
+                final Pair<Long, Long> range = new Pair<>(
+                        now - TimeUnit.DAYS.toMillis(period2comm.getKey()), null);
                 loadingTasks.add(new HistoryLoadingCallable(context,
                     new TimeSlotLoadingTask(getStatsHistoryClient(), range), chunk));
             }
@@ -178,27 +171,8 @@ public class TimeSlotEditor extends
 
     @Override
     protected void exportState(@Nonnull OutputStream appender)
-            throws DiagnosticsException, IOException {
-        try (ObjectOutputStream out = new ObjectOutputStream(appender)) {
-            out.writeLong(startTimestamp);
-            final int limit = getConfig().getLoadingChunkSize();
-            Map<EntityCommodityFieldReference, TimeSlotCommodityData> buffer = new HashMap<>();
-            int countEntries = 0;
-            for (Entry<EntityCommodityFieldReference, TimeSlotCommodityData> entry : getCache().entrySet()) {
-                buffer.put(entry.getKey(), entry.getValue());
-                countEntries++;
-                if (countEntries >= limit) {
-                    out.writeObject(buffer);
-                    countEntries = 0;
-                    buffer = new HashMap<>();
-                }
-                if (Thread.interrupted()) {
-                    throw new DiagnosticsException(String.format(
-                            "Cannot write timeslots cache into '%s' file. State exporting was interrupted",
-                            getFileName()));
-                }
-            }
-        }
+                    throws DiagnosticsException, IOException {
+        // TODO Alexander Vasin
     }
 
     @Override
@@ -299,35 +273,7 @@ public class TimeSlotEditor extends
     }
 
     @Override
-    protected void restoreState(@NotNull byte[] bytes) throws DiagnosticsException {
-        try (CacheBackup<TimeSlotCommodityData> backup = new CacheBackup<>(getCache(),
-                TimeSlotCommodityData::new)) {
-            getCache().clear();
-            final ByteArrayInputStream in = new ByteArrayInputStream(bytes);
-            try (ObjectInputStream o = new ObjectInputStream(in)) {
-                if (in.available() != 0) {
-                    this.startTimestamp = o.readLong();
-                }
-                while (in.available() != 0) {
-                    final Map<EntityCommodityFieldReference, TimeSlotCommodityData> data =
-                            (Map<EntityCommodityFieldReference, TimeSlotCommodityData>)o.readObject();
-                    if (data != null) {
-                        this.getCache().putAll(data);
-                    }
-                    if (Thread.interrupted()) {
-                        throw new DiagnosticsException(String.format(
-                                "Cannot write timeslots cache into '%s' file. State exporting was interrupted",
-                                getFileName()));
-                    }
-                }
-                backup.keepCacheOnClose();
-            } catch (IOException | ClassNotFoundException e) {
-                throw new DiagnosticsException("Failed to deserialize timeslot data", e);
-            }
-        }
-    }
-
-    protected long getStartTimestamp() {
-        return startTimestamp;
+    protected void restoreState(@Nonnull byte[] bytes) throws DiagnosticsException {
+        // TODO Alexander Vasin
     }
 }

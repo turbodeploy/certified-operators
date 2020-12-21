@@ -7,7 +7,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -166,9 +165,8 @@ public abstract class AbstractCachingHistoricalEditor<HistoryData extends IHisto
     @Override
     public void collectDiags(@Nonnull OutputStream appender)
                     throws DiagnosticsException, IOException {
-        final String simpleName = getClass().getSimpleName();
         if (!getConfig().isCacheExportingToDiagnostics()) {
-            logger.warn("Cache exporting is disabled for '{}'.", simpleName);
+            logger.warn("Cache exporting is disabled for '{}'.", getClass().getSimpleName());
             return;
         }
         exportState(appender);
@@ -394,44 +392,4 @@ public abstract class AbstractCachingHistoricalEditor<HistoryData extends IHisto
         }
     }
 
-    /**
-     * Helper class to store the latest valid state of cache and restore it in case of failures.
-     *
-     * @param <T> type of commodity data.
-     */
-    public static class CacheBackup<T> implements AutoCloseable {
-        private final Map<EntityCommodityFieldReference, T> originalCache;
-        private Map<EntityCommodityFieldReference, T> backup;
-
-        /**
-         * Constructor for cache backup.
-         *
-         * @param originalCache the original cache.
-         * @param copyConstructor constructor of commodity data.
-         */
-        public CacheBackup(@Nonnull Map<EntityCommodityFieldReference, T> originalCache,
-                Function<T, T> copyConstructor) {
-            this.originalCache = Objects.requireNonNull(originalCache);
-            backup = new LinkedHashMap<>();
-            for (Map.Entry<EntityCommodityFieldReference, T> entry : originalCache.entrySet()) {
-                backup.put(entry.getKey(), copyConstructor.apply(entry.getValue()));
-            }
-        }
-
-        /**
-         * Don't restore the original state of cache on {@link CacheBackup#close}.
-         */
-        public void keepCacheOnClose() {
-            backup = null;
-        }
-
-        @Override
-        public void close() {
-            if (backup != null) {
-                originalCache.clear();
-                originalCache.putAll(backup);
-                backup = null;
-            }
-        }
-    }
 }

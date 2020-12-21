@@ -9,7 +9,7 @@ import com.vmturbo.topology.processor.KVConfig;
 /**
  * Configuration settings for historical editor with background loading.
  */
-public abstract class BackgroundLoadingHistoricalEditorConfig extends CachingHistoricalEditorConfig {
+public class BackgroundLoadingHistoricalEditorConfig extends CachingHistoricalEditorConfig {
     private final int backgroundLoadThreshold;
     private final int backgroundLoadRetries;
     private final int backgroundLoadTimeoutMin;

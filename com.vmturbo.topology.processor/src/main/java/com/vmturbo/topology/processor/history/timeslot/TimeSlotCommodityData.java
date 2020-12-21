@@ -1,9 +1,7 @@
 package com.vmturbo.topology.processor.history.timeslot;
 
-import java.io.Serializable;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -29,8 +27,7 @@ import com.vmturbo.topology.processor.history.IHistoryCommodityData;
  * Per-commodity cache for storing utilizations for time-slot calculations.
  */
 public class TimeSlotCommodityData
-                implements IHistoryCommodityData<TimeslotHistoricalEditorConfig, List<Pair<Long, StatRecord>>, Void>,
-        Serializable {
+                implements IHistoryCommodityData<TimeslotHistoricalEditorConfig, List<Pair<Long, StatRecord>>, Void> {
     private static final Logger logger = LogManager.getLogger();
     private static final String LOG_PREFIX = "Timeslot calculation: ";
     private static final long MILLIS_IN_DAY = TimeUnit.DAYS.toMillis(1);
@@ -43,28 +40,6 @@ public class TimeSlotCommodityData
     private long lastMaintenanceTimestamp;
     private int currentObservationPeriod;
     private EntityCommodityFieldReference reference;
-
-    /**
-     * Construct a copy of <code>other</code>.
-     *
-     * @param other object to copy from
-     */
-    public TimeSlotCommodityData(@Nonnull TimeSlotCommodityData other) {
-        this.previousSlots = Arrays.copyOf(other.previousSlots, other.previousSlots.length);
-        this.currentSlot = new SlotStatistics(other.currentSlot);
-        this.timestamp = other.timestamp;
-        this.lastMaintenanceTimestamp = other.lastMaintenanceTimestamp;
-        this.currentObservationPeriod = other.currentObservationPeriod;
-        this.reference = other.reference;
-    }
-
-    /**
-     * Construct an empty instance of class.
-     *
-     * @apiNote We need an explicit empty constructor because this class has a throwing copy
-     *         one.
-     */
-    public TimeSlotCommodityData() {}
 
     /**
      * Returns last successful maintenance timestamp or 0L in case maintenance did not happen yet.
@@ -242,42 +217,14 @@ public class TimeSlotCommodityData
                         this.currentObservationPeriod, this.reference);
     }
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        TimeSlotCommodityData that = (TimeSlotCommodityData)o;
-        return Objects.equals(this.reference, that.reference);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(reference);
-    }
-
     /**
      * Holder for the data of a single time slot.
      */
-    static class SlotStatistics implements Serializable {
+    static class SlotStatistics {
         // number of recorded points in that slot
         private int count;
         // sum of utilizations of points over the slot (regardless of capacities)
         private float total;
-
-        /**
-         * Construct the slot statistics.
-         */
-        SlotStatistics() {
-        }
-
-        private SlotStatistics(@Nonnull SlotStatistics other) {
-            this.total = other.total;
-            this.count = other.count;
-        }
 
         /**
          * Subtract the data from another slot instance.

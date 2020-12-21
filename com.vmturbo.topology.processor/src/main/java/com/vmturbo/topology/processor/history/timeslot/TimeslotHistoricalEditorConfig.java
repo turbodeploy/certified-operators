@@ -22,13 +22,6 @@ public class TimeslotHistoricalEditorConfig extends BackgroundLoadingHistoricalE
      */
     public static final int DEFAULT_MAINTENANCE_WINDOW_HOURS = 23;
 
-    /**
-     * The property name in the topology processor key value store whose value represents boolean
-     * flag. In case flag is set to true then percentile cache will be added to diagnostics.
-     */
-    private static final String TIMESLOT_STORE_CACHE_TO_DIAGNOSTICS =
-            "storeTimeSlotCacheToDiagnostics";
-
     private final int maintenanceWindowHours;
 
     /**
@@ -99,10 +92,5 @@ public class TimeslotHistoricalEditorConfig extends BackgroundLoadingHistoricalE
                         ss -> DailyObservationWindowsCount.THREE,
                         DailyObservationWindowsCount.class,
                         DailyObservationWindowsCount::getCountOfWindowsPerDay).intValue();
-    }
-
-    @Override
-    protected String getDiagnosticsEnabledPropertyName() {
-        return TIMESLOT_STORE_CACHE_TO_DIAGNOSTICS;
     }
 }

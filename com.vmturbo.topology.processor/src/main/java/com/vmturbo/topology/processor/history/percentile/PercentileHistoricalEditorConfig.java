@@ -8,7 +8,6 @@ import java.util.function.Function;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.commons.lang.StringUtils;
@@ -28,13 +27,6 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
      * Default value how often to checkpoint observation window.
      */
     public static final int DEFAULT_MAINTENANCE_WINDOW_HOURS = 24;
-
-    /**
-     * The property name in the topology processor key value store whose value represents boolean
-     * flag. In case flag is set to true then percentile cache will be added to diagnostics.
-     */
-    @VisibleForTesting
-    public static final String STORE_CACHE_TO_DIAGNOSTICS_PROPERTY = "storeCacheToDiagnostics";
 
     private static final Map<EntityType, EntitySettingSpecs> TYPE_AGGRESSIVENESS = ImmutableMap
                     .of(EntityType.BUSINESS_USER,
@@ -199,10 +191,5 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
                 ss -> ss.getNumericSettingValueType().getDefault());
         }
         return defaultValue;
-    }
-
-    @Override
-    protected String getDiagnosticsEnabledPropertyName() {
-        return STORE_CACHE_TO_DIAGNOSTICS_PROPERTY;
     }
 }

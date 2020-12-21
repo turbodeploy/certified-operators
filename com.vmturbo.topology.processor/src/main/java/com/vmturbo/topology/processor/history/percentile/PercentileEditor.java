@@ -10,9 +10,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
@@ -667,7 +669,7 @@ public class PercentileEditor extends
      */
     @Nonnull
     protected CacheBackup createCacheBackup() throws HistoryCalculationException {
-        return new CacheBackup<>(getCache(), PercentileCommodityData::new);
+        return new CacheBackup(getCache());
     }
 
     private void writeBlob(PercentileCounts.Builder blob, long periodMs, long startTimestamp)
@@ -774,5 +776,39 @@ public class PercentileEditor extends
         final PercentileCounts counts = createBlob(dumpingFunction).build();
         counts.writeDelimitedTo(output);
         return counts.getPercentileRecordsCount();
+    }
+
+    /**
+     * Helper class to store the latest valid state of cache and restore it in case of failures.
+     */
+    protected static class CacheBackup implements AutoCloseable {
+        private final Map<EntityCommodityFieldReference, PercentileCommodityData> originalCache;
+        private Map<EntityCommodityFieldReference, PercentileCommodityData> backup;
+
+        public CacheBackup(@Nonnull Map<EntityCommodityFieldReference, PercentileCommodityData> originalCache)
+                        throws HistoryCalculationException {
+            this.originalCache = Objects.requireNonNull(originalCache);
+            backup = new LinkedHashMap<>();
+            for (Map.Entry<EntityCommodityFieldReference, PercentileCommodityData> entry : originalCache
+                            .entrySet()) {
+                backup.put(entry.getKey(), new PercentileCommodityData(entry.getValue()));
+            }
+        }
+
+        /**
+         * Don't restore the original state of cache on {@link CacheBackup#close}.
+         */
+        public void keepCacheOnClose() {
+            backup = null;
+        }
+
+        @Override
+        public void close() {
+            if (backup != null) {
+                originalCache.clear();
+                originalCache.putAll(backup);
+                backup = null;
+            }
+        }
     }
 }
