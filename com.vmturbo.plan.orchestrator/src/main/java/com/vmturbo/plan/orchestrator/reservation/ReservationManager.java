@@ -25,6 +25,8 @@ import com.vmturbo.common.protobuf.market.InitialPlacement.DeleteInitialPlacemen
 import com.vmturbo.common.protobuf.market.InitialPlacement.DeleteInitialPlacementBuyerResponse;
 import com.vmturbo.common.protobuf.market.InitialPlacement.FindInitialPlacementRequest;
 import com.vmturbo.common.protobuf.market.InitialPlacement.FindInitialPlacementResponse;
+import com.vmturbo.common.protobuf.market.InitialPlacement.GetProvidersOfExistingReservationsRequest;
+import com.vmturbo.common.protobuf.market.InitialPlacement.GetProvidersOfExistingReservationsResponse;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer.InitialPlacementCommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyerPlacementInfo;
@@ -112,6 +114,38 @@ public class ReservationManager implements ReservationDeletedListener {
         this.reservationDao.addListener(this);
         this.initialPlacementServiceBlockingStub = Objects.requireNonNull(initialPlacementServiceBlockingStub);
         this.templatesDao = templatesDao;
+        getProvidersOfExistingReservations();
+    }
+
+    /**
+     * Get the provider information from the market for the existing reservations.
+     * It might have been updated in market if a cluster headroom ran when PO was not up.
+     */
+    public void getProvidersOfExistingReservations() {
+        Set<Reservation> updatedReservations = new HashSet<>();
+        try {
+            final Set<Reservation> reservations = new HashSet<>();
+            reservationDao.getAllReservations().forEach(reservation -> {
+                if (reservation.getStatus() == ReservationStatus.RESERVED) {
+                    reservations.add(reservation);
+                }
+            });
+            GetProvidersOfExistingReservationsResponse response = initialPlacementServiceBlockingStub
+                    .getProvidersOfExistingReservations(GetProvidersOfExistingReservationsRequest
+                            .newBuilder().build());
+            logger.info(logPrefix + "Updating the provider info of reservations. "
+                            + "Number of reservations updated = {}",
+                    response.getInitialPlacementBuyerPlacementInfoCount());
+            updatedReservations = updateProviderInfoForReservations(
+                    response.getInitialPlacementBuyerPlacementInfoList(),
+                    reservations.stream().map(res -> res.getId()).collect(Collectors.toSet()),
+                    ReservationStatus.RESERVED);
+        } catch (Exception e) {
+            logger.warn(logPrefix
+                    + "Failed to update getProvidersOfExistingReservations  with exception {} ", e);
+        } finally {
+            updateReservationResult(updatedReservations);
+        }
     }
 
     /**
@@ -193,8 +227,9 @@ public class ReservationManager implements ReservationDeletedListener {
                         buildIntialPlacementRequest(currentReservations);
                 FindInitialPlacementResponse response = initialPlacementServiceBlockingStub
                         .findInitialPlacement(initialPlacementRequest);
-                updatedReservations = updateProviderInfoForReservations(response,
-                        currentReservations.stream().map(res -> res.getId()).collect(Collectors.toSet()));
+                updatedReservations = updateProviderInfoForReservations(response.getInitialPlacementBuyerPlacementInfoList(),
+                        currentReservations.stream().map(res -> res.getId()).collect(Collectors.toSet()),
+                        ReservationStatus.INPROGRESS);
             } catch (Exception e) {
                 logger.warn(logPrefix + "findInitialPlacement was not completed successfully");
             } finally {
@@ -207,16 +242,18 @@ public class ReservationManager implements ReservationDeletedListener {
     /**
      * Update the provider info of the reservation using the initial placement response.
      *
-     * @param response            initial placement response from market.
+     * @param initialPlacementBuyerPlacementInfos            initial placement response from market.
      * @param currentReservations reservations which are sent to the market. We have to make sure
      *                            we only update the reservations which are part of the request.
+     * @param statusOfInterest status of the reservations that are currently updated by this method.
      * @return all in-progress reservations with the provider info updated.
      */
-    public Set<Reservation> updateProviderInfoForReservations(final FindInitialPlacementResponse response,
-                                                              Set<Long> currentReservations) {
+    public Set<Reservation> updateProviderInfoForReservations(final List<InitialPlacementBuyerPlacementInfo> initialPlacementBuyerPlacementInfos,
+                                                              Set<Long> currentReservations,
+                                                              ReservationStatus statusOfInterest) {
         Map<Long, Reservation> updatedReservations = new HashMap<>();
         reservationDao.getAllReservations().stream()
-                .filter(res -> res.getStatus() == ReservationStatus.INPROGRESS)
+                .filter(res -> res.getStatus() == statusOfInterest)
                 .filter(res -> currentReservations.contains(res.getId()))
                 .forEach(inProgressRes -> updatedReservations.put(inProgressRes.getId(), inProgressRes));
         Map<Long, Reservation> buyerIdToReservation = new HashMap<>();
@@ -227,7 +264,7 @@ public class ReservationManager implements ReservationDeletedListener {
                 }
             }
         }
-        for (InitialPlacementBuyerPlacementInfo initialPlacementBuyerPlacementInfo : response.getInitialPlacementBuyerPlacementInfoList()) {
+        for (InitialPlacementBuyerPlacementInfo initialPlacementBuyerPlacementInfo : initialPlacementBuyerPlacementInfos) {
             Reservation currentReservation = buyerIdToReservation.get(initialPlacementBuyerPlacementInfo.getBuyerId());
             if (currentReservation == null) {
                 logger.error(logPrefix + "The buyer id {} does not "
@@ -322,13 +359,12 @@ public class ReservationManager implements ReservationDeletedListener {
     }
 
     /**
-     * build a initial placement request for the given set of reservations.
-     *
-     * @param reservations the input set of reservations.
-     * @return the constructed initial placement request. buyerIdToReservation is updated.
+     * Build the InitialPlacementBuyerList.
+     * @param reservations  the input set of reservations.
+     * @return the list of InitialPlacementBuyer for the reservations.
      */
-    public FindInitialPlacementRequest buildIntialPlacementRequest(Set<Reservation> reservations) {
-        FindInitialPlacementRequest.Builder initialPlacementRequestBuilder = FindInitialPlacementRequest.newBuilder();
+    public List<InitialPlacementBuyer> buildInitialPlacementBuyerList(Set<Reservation> reservations) {
+        List<InitialPlacementBuyer> initialPlacementBuyerList = new ArrayList<>();
         for (Reservation reservation : reservations) {
             for (ReservationTemplate reservationTemplate : reservation.getReservationTemplateCollection()
                     .getReservationTemplateList()) {
@@ -349,10 +385,23 @@ public class ReservationManager implements ReservationDeletedListener {
                                                 .addAllCommodityBought(placementInfo
                                                         .getCommodityBoughtList())));
                     }
-                    initialPlacementRequestBuilder.addInitialPlacementBuyer(intialPlacementBuyerBuilder);
+                    initialPlacementBuyerList.add(intialPlacementBuyerBuilder.build());
                 }
             }
         }
+        return initialPlacementBuyerList;
+    }
+
+    /**
+     * build a initial placement request for the given set of reservations.
+     *
+     * @param reservations the input set of reservations.
+     * @return the constructed initial placement request.
+     */
+    public FindInitialPlacementRequest buildIntialPlacementRequest(Set<Reservation> reservations) {
+        FindInitialPlacementRequest.Builder initialPlacementRequestBuilder = FindInitialPlacementRequest.newBuilder();
+        buildInitialPlacementBuyerList(reservations).stream()
+                .forEach(buyer -> initialPlacementRequestBuilder.addInitialPlacementBuyer(buyer));
         return initialPlacementRequestBuilder.build();
     }
 
@@ -798,27 +847,5 @@ public class ReservationManager implements ReservationDeletedListener {
         RESERVATION_STATUS_COUNTER.labels(DELETED_STATUS).increment();
         deleteReservationFromMarketCache(Collections.singleton(reservation));
         checkAndStartReservationPlan();
-    }
-
-
-    /**
-     * Send existing to the market.
-     * @param reservations the reservations to be sent.
-     */
-    public void sendExistingReservationsToMarket(@Nonnull final Set<Reservation> reservations) {
-        Set<Reservation> updatedReservations = reservations;
-        try {
-            FindInitialPlacementRequest findInitialPlacementRequest =
-                    buildIntialPlacementRequest(reservations);
-            FindInitialPlacementResponse response =
-                initialPlacementServiceBlockingStub
-                        .existingInitialPlacement(findInitialPlacementRequest);
-            updatedReservations = updateProviderInfoForReservations(response,
-                reservations.stream().map(res -> res.getId()).collect(Collectors.toSet()));
-        } catch (Exception e) {
-            logger.warn(logPrefix + "Update existing InitialPlacement was not completed successfully");
-        } finally {
-            updateReservationResult(updatedReservations);
-        }
     }
 }

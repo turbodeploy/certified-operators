@@ -20,6 +20,7 @@ import com.vmturbo.plan.orchestrator.plan.PlanDao;
 import com.vmturbo.plan.orchestrator.plan.PlanRpcService;
 import com.vmturbo.plan.orchestrator.project.headroom.ClusterHeadroomPlanProjectExecutor;
 import com.vmturbo.plan.orchestrator.project.migration.CloudMigrationPlanProjectExecutor;
+import com.vmturbo.plan.orchestrator.reservation.ReservationManager;
 import com.vmturbo.plan.orchestrator.templates.TemplatesDao;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 
@@ -50,6 +51,7 @@ public class PlanProjectExecutor {
      * @param topologyProcessor a REST call to get target info
      * @param cpuCapacityEstimator estimates the scaling factor of a cpu model.
      * @param taskScheduler a taskScheduler used for scheduled plan executions
+     * @param reservationManager the reservation manager.
      */
     PlanProjectExecutor(@Nonnull final PlanDao planDao,
                         @Nonnull final PlanProjectDao planProjectDao,
@@ -64,12 +66,13 @@ public class PlanProjectExecutor {
                         final long headroomPlanRerunDelayInSecond,
                         @Nonnull final TopologyProcessor topologyProcessor,
                         @Nonnull final CPUCapacityEstimator cpuCapacityEstimator,
-                        @Nonnull final ThreadPoolTaskScheduler taskScheduler) {
+                        @Nonnull final ThreadPoolTaskScheduler taskScheduler,
+                        @Nonnull final ReservationManager reservationManager) {
 
         headroomExecutor = new ClusterHeadroomPlanProjectExecutor(planDao, groupChannel,
                 planRpcService, projectPlanPostProcessorRegistry, repositoryChannel, templatesDao, historyChannel,
                 headroomCalculationForAllClusters, headroomPlanRerunDelayInSecond,
-                topologyProcessor, cpuCapacityEstimator, taskScheduler);
+                topologyProcessor, cpuCapacityEstimator, taskScheduler, reservationManager);
 
         cloudMigrationExecutor = new CloudMigrationPlanProjectExecutor(planDao, planProjectDao,
                 planRpcService, projectPlanPostProcessorRegistry, projectNotifier);

@@ -80,6 +80,7 @@ import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
 import com.vmturbo.plan.orchestrator.plan.PlanRpcService;
 import com.vmturbo.plan.orchestrator.project.headroom.ClusterHeadroomPlanProjectExecutor;
+import com.vmturbo.plan.orchestrator.reservation.ReservationManager;
 import com.vmturbo.plan.orchestrator.templates.TemplatesDao;
 import com.vmturbo.plan.orchestrator.templates.exceptions.DuplicateTemplateException;
 import com.vmturbo.plan.orchestrator.templates.exceptions.IllegalTemplateOperationException;
@@ -154,7 +155,7 @@ public class PlanProjectExecutorTest {
         planProjectExecutor = new PlanProjectExecutor(planDao, planProjectDao, grpcServer.getChannel(),
                 planRpcService, registry, grpcServer.getChannel(), templatesDao, grpcServer.getChannel(),
                 projectNotificationSender, true, 10, topologyProcessor,
-                cpuCapacityEstimator, mock(ThreadPoolTaskScheduler.class));
+                cpuCapacityEstimator, mock(ThreadPoolTaskScheduler.class), mock(ReservationManager.class));
         headroomExecutor = planProjectExecutor.getHeadroomExecutor();
         when(templatesDao.getFilteredTemplates(any()))
             .thenReturn(Collections.singleton(Template.newBuilder()

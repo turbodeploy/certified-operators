@@ -6,6 +6,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -20,9 +21,14 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.market.InitialPlacement.GetProvidersOfExistingReservationsResponse;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer;
+import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyerPlacementInfo;
+import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementFailure;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityStats;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason.FailedResources;
 import com.vmturbo.market.reservations.EconomyCaches.EconomyCachesState;
 import com.vmturbo.market.reservations.InitialPlacementFinderResult.FailureInfo;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
@@ -64,14 +70,6 @@ public class InitialPlacementFinder {
         } else {
             return new ArrayList<>();
         }
-    }
-
-    /**
-     * Method to check if market is ready.
-     * @return true if market is ready.
-     */
-    public boolean isMarketReady() {
-        return this.economyCaches.getState() == EconomyCachesState.READY;
     }
 
     /**
@@ -294,5 +292,56 @@ public class InitialPlacementFinder {
             }
         }
         return placementResult;
+    }
+
+    /**
+     * Build the GetProvidersOfExistingReservationsResponse data structure based on existingReservations.
+     * @return the constructed GetProvidersOfExistingReservationsResponse.
+     */
+    public GetProvidersOfExistingReservationsResponse buildGetProvidersOfExistingReservationsResponse() {
+        GetProvidersOfExistingReservationsResponse.Builder response = GetProvidersOfExistingReservationsResponse
+                .newBuilder();
+        try {
+            for (Entry<Long, List<InitialPlacementBuyer>> entry : existingReservations.entrySet()) {
+                for (InitialPlacementBuyer initialPlacementBuyer : entry.getValue()) {
+                    List<InitialPlacementDecision> initialPlacementDecisionList =
+                            findExistingInitialPlacementDecisions(
+                                    initialPlacementBuyer.getBuyerId());
+                    for (InitialPlacementDecision initialPlacementDecision : initialPlacementDecisionList) {
+                        InitialPlacementBuyerPlacementInfo.Builder initialPlacementBuyerPlacementInfoBuilder
+                                = InitialPlacementBuyerPlacementInfo.newBuilder();
+                        initialPlacementBuyerPlacementInfoBuilder.setBuyerId(initialPlacementBuyer.getBuyerId());
+                        initialPlacementBuyerPlacementInfoBuilder
+                                .setCommoditiesBoughtFromProviderId(initialPlacementDecision.slOid);
+                        // if failure info is present setInitialPlacementFailure. If no supplier  and no
+                        // failure info it means some other buyer in reservation failed. Send without
+                        // InitialPlacementFailure or InitialPlacementSuccess.  Dont sen back successful
+                        // buyers.
+                        if (!initialPlacementDecision.failureInfos.isEmpty()) {
+                            InitialPlacementFailure.Builder failureBuilder = InitialPlacementFailure.newBuilder();
+                            for (FailureInfo info : initialPlacementDecision.failureInfos) {
+                                CommodityType commodityType = info.getCommodityType();
+                                UnplacementReason reason = UnplacementReason.newBuilder()
+                                        .addFailedResources(FailedResources.newBuilder().setCommType(commodityType)
+                                                .setRequestedAmount(info.getRequestedAmount())
+                                                .setMaxAvailable(info.getMaxQuantity()).build())
+                                        .setClosestSeller(info.getClosestSellerOid())
+                                        .build();
+                                failureBuilder.addUnplacedReason(reason);
+                            }
+                            initialPlacementBuyerPlacementInfoBuilder.setInitialPlacementFailure(failureBuilder);
+                            response.addInitialPlacementBuyerPlacementInfo(initialPlacementBuyerPlacementInfoBuilder);
+                        } else if (!initialPlacementDecision.supplier.isPresent()) {
+                            response.addInitialPlacementBuyerPlacementInfo(initialPlacementBuyerPlacementInfoBuilder);
+                        }
+                    }
+                }
+
+            }
+        } catch (Exception e) {
+            logger.error("Failed to build GetProvidersOfExistingReservationsResponse with"
+                    + " exception {} ", e);
+        }
+        return response.build();
     }
 }

@@ -17,6 +17,8 @@ import com.vmturbo.common.protobuf.market.InitialPlacement.DeleteInitialPlacemen
 import com.vmturbo.common.protobuf.market.InitialPlacement.DeleteInitialPlacementBuyerResponse;
 import com.vmturbo.common.protobuf.market.InitialPlacement.FindInitialPlacementRequest;
 import com.vmturbo.common.protobuf.market.InitialPlacement.FindInitialPlacementResponse;
+import com.vmturbo.common.protobuf.market.InitialPlacement.GetProvidersOfExistingReservationsRequest;
+import com.vmturbo.common.protobuf.market.InitialPlacement.GetProvidersOfExistingReservationsResponse;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyerPlacementInfo;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementFailure;
@@ -45,6 +47,22 @@ public class InitialPlacementRpcService extends InitialPlacementServiceImplBase 
      */
     public InitialPlacementRpcService(@Nonnull final InitialPlacementFinder initialPlacementFinder) {
         this.initPlacementFinder = Objects.requireNonNull(initialPlacementFinder);
+    }
+
+    @Override
+    public void getProvidersOfExistingReservations(final GetProvidersOfExistingReservationsRequest request,
+                                                           final StreamObserver<GetProvidersOfExistingReservationsResponse> responseObserver) {
+        GetProvidersOfExistingReservationsResponse response =
+                initPlacementFinder.buildGetProvidersOfExistingReservationsResponse();
+        try {
+            responseObserver.onNext(response);
+            responseObserver.onCompleted();
+        } catch (Exception e) {
+            responseObserver.onError(Status.INTERNAL
+                    .withDescription("Failed to create ProvidersOfExistingReservations.")
+                    .asException());
+        }
+        return;
     }
 
     @Override
@@ -114,68 +132,5 @@ public class InitialPlacementRpcService extends InitialPlacementServiceImplBase 
         return;
 
     }
-
-    /**
-     * Update the economy cache with the already existing buyers.
-     *
-     * @param request the existing buyers.
-     * @param responseObserver true if updated.
-     */
-    @Override
-    public void existingInitialPlacement(final FindInitialPlacementRequest request,
-                                               final StreamObserver<FindInitialPlacementResponse> responseObserver) {
-        if (!initPlacementFinder.isMarketReady()) {
-            responseObserver.onError(Status.UNAVAILABLE
-                    .withDescription("Economy caches not ready.")
-                    .asException());
-        }
-        logger.info("The number of workloads to update is " + request.getInitialPlacementBuyerList().size());
-        FindInitialPlacementResponse.Builder response = FindInitialPlacementResponse
-                .newBuilder();
-        for (InitialPlacementBuyer initialPlacementBuyer : request.getInitialPlacementBuyerList()) {
-            List<InitialPlacementDecision> initialPlacementDecisionList =
-                    initPlacementFinder.findExistingInitialPlacementDecisions(
-                            initialPlacementBuyer.getBuyerId());
-            for (InitialPlacementDecision initialPlacementDecision : initialPlacementDecisionList) {
-                InitialPlacementBuyerPlacementInfo.Builder initialPlacementBuyerPlacementInfoBuilder
-                        = InitialPlacementBuyerPlacementInfo.newBuilder();
-                initialPlacementBuyerPlacementInfoBuilder.setBuyerId(initialPlacementBuyer.getBuyerId());
-                initialPlacementBuyerPlacementInfoBuilder
-                        .setCommoditiesBoughtFromProviderId(initialPlacementDecision.slOid);
-                // if failure info is present setInitialPlacementFailure. If no supplier  and no
-                // failure info it means some other buyer in reservation failed. Send without
-                // InitialPlacementFailure or InitialPlacementSuccess.  Dont sen back successful
-                // buyers.
-                if (!initialPlacementDecision.failureInfos.isEmpty()) {
-                    InitialPlacementFailure.Builder failureBuilder = InitialPlacementFailure.newBuilder();
-                    for (FailureInfo info: initialPlacementDecision.failureInfos) {
-                        CommodityType commodityType = info.getCommodityType();
-                        UnplacementReason reason = UnplacementReason.newBuilder()
-                                .addFailedResources(FailedResources.newBuilder().setCommType(commodityType)
-                                        .setRequestedAmount(info.getRequestedAmount())
-                                        .setMaxAvailable(info.getMaxQuantity()).build())
-                                .setClosestSeller(info.getClosestSellerOid())
-                                .build();
-                        failureBuilder.addUnplacedReason(reason);
-                    }
-                    initialPlacementBuyerPlacementInfoBuilder.setInitialPlacementFailure(failureBuilder);
-                    response.addInitialPlacementBuyerPlacementInfo(initialPlacementBuyerPlacementInfoBuilder);
-                } else if (!initialPlacementDecision.supplier.isPresent()) {
-                    response.addInitialPlacementBuyerPlacementInfo(initialPlacementBuyerPlacementInfoBuilder);
-                }
-            }
-        }
-        try {
-            responseObserver.onNext(response.build());
-            responseObserver.onCompleted();
-        } catch (Exception e) {
-            responseObserver.onError(Status.INTERNAL
-                    .withDescription("Failed to update reservation.")
-                    .asException());
-        }
-        return;
-
-    }
-
 
 }

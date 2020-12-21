@@ -6,6 +6,7 @@ option java_package = "com.vmturbo.common.protobuf.plan";
 import "plan/Scenario.proto";
 import "topology/TopologyDTO.proto";
 import "plan/TemplateDTO.proto";
+import "market/InitialPlacement.proto";
 
 // Reservation describes user-specified reservation information, such as templates, constraints and
 // also contains all reservation instances and placement information which are created by internal
@@ -211,6 +212,14 @@ message UpdateFutureAndExpiredReservationsResponse {
     optional int64 expired_reservations_removed = 2;
 }
 
+message GetBuyersOfExistingReservationsRequest {
+
+}
+
+message GetBuyersOfExistingReservationsResponse {
+    repeated .market.InitialPlacementBuyer initialPlacementBuyer = 1;
+}
+
 // A service responsible for Reservation related request.
 service ReservationService {
 
@@ -234,11 +243,14 @@ service ReservationService {
     rpc DeleteReservationById(DeleteReservationByIdRequest) returns (Reservation);
 
     // Update a existing resertion with a new reservation.
-    rpc UpdateReservationById(UpdateReservationByIdRequest) returns (Reservation);
+    rpc UpdateReservationById (UpdateReservationByIdRequest) returns (Reservation);
 
     // Update a list of reservations together.
-    rpc UpdateReservations(UpdateReservationsRequest) returns (stream Reservation);
+    rpc UpdateReservations (UpdateReservationsRequest) returns (stream Reservation);
 
     // Update a existing resertion with a new reservation.
-    rpc UpdateConstraintMap(UpdateConstraintMapRequest) returns (UpdateConstraintMapResponse);
+    rpc UpdateConstraintMap (UpdateConstraintMapRequest) returns (UpdateConstraintMapResponse);
+
+    //Get all the initial placement buyers to be sent to market.
+    rpc GetBuyersOfExistingReservations (GetBuyersOfExistingReservationsRequest) returns (GetBuyersOfExistingReservationsResponse);
 }

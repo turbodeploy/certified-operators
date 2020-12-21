@@ -520,8 +520,8 @@ public class ReservationManagerTest {
             FindInitialPlacementResponse findInitialPlacementResponse =
                     findInitialPlacementResponseBuilder.build();
             Set<Reservation> updatedReservations = reservationManagerSpy
-                    .updateProviderInfoForReservations(findInitialPlacementResponse,
-                            reservations.stream().map(res -> res.getId()).collect(Collectors.toSet()));
+                    .updateProviderInfoForReservations(findInitialPlacementResponse.getInitialPlacementBuyerPlacementInfoList(),
+                            reservations.stream().map(res -> res.getId()).collect(Collectors.toSet()), ReservationStatus.INPROGRESS);
             ArgumentCaptor<HashSet<Reservation>> captor =
                     ArgumentCaptor.forClass((Class<HashSet<Reservation>>)(Class)HashSet
                             .class);
@@ -605,8 +605,8 @@ public class ReservationManagerTest {
             FindInitialPlacementResponse findInitialPlacementResponse =
                     findInitialPlacementResponseBuilder.build();
             Set<Reservation> updatedReservations = reservationManagerSpy
-                    .updateProviderInfoForReservations(findInitialPlacementResponse,
-                            reservations.stream().map(res -> res.getId()).collect(Collectors.toSet()));
+                    .updateProviderInfoForReservations(findInitialPlacementResponse.getInitialPlacementBuyerPlacementInfoList(),
+                            reservations.stream().map(res -> res.getId()).collect(Collectors.toSet()), ReservationStatus.INPROGRESS);
             ArgumentCaptor<HashSet<Reservation>> captor =
                     ArgumentCaptor.forClass((Class<HashSet<Reservation>>)(Class)HashSet
                             .class);

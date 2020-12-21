@@ -2,13 +2,17 @@ package com.vmturbo.market.rpc;
 
 import java.util.Optional;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import com.vmturbo.common.protobuf.market.InitialPlacementREST.InitialPlacementServiceController;
 import com.vmturbo.common.protobuf.market.MarketDebugREST.MarketDebugServiceController;
+import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc;
+import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
 import com.vmturbo.market.reservations.InitialPlacementFinder;
+import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientConfig;
 
 @Configuration
 public class MarketRpcConfig {
@@ -21,6 +25,9 @@ public class MarketRpcConfig {
 
     @Value("${maxRetry:1}")
     private int maxRetry;
+
+    @Autowired
+    private PlanOrchestratorClientConfig planClientConfig;
 
     @Bean
     public Optional<MarketDebugRpcService> marketDebugRpcService() {
@@ -47,6 +54,11 @@ public class MarketRpcConfig {
     @Bean
     public InitialPlacementFinder getInitialPlacementFinder() {
         return new InitialPlacementFinder(prepareReservationCache, maxRetry);
+    }
+
+    @Bean
+    public ReservationServiceBlockingStub getReservationService() {
+        return ReservationServiceGrpc.newBlockingStub(planClientConfig.planOrchestratorChannel());
     }
 
     /**
