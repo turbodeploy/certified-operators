@@ -59,6 +59,11 @@ public class StringConstants {
     public static final String INSTANCE_TYPE = "instance_type";
     public static final String INTERNAL_NAME = "internal_name";
     public static final String IO_THROUGHPUT = "IOThroughput";
+    /**
+     * Communication channel assigned to targets. If a target has a channel it can only be
+     * discovered by probes with the same channel.
+     */
+    public static final String COMMUNICATION_BINDING_CHANNEL = "communicationBindingChannel";
     public static final String MAX_PROPERTY_VALUE = "max_property_value";
     public static final String MAX_VALUE = "max_value";
     public static final String MEM = "Mem";

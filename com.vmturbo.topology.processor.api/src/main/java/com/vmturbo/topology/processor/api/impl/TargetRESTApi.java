@@ -13,13 +13,15 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
+
+import io.swagger.annotations.ApiModelProperty;
+
 import com.vmturbo.topology.processor.api.AccountValue;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
+import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec.Builder;
 import com.vmturbo.topology.processor.api.TopologyProcessorException;
 import com.vmturbo.topology.processor.api.dto.InputField;
 import com.vmturbo.topology.processor.api.dto.TargetInputFields;
-
-import io.swagger.annotations.ApiModelProperty;
 
 /**
  * Common class for Java objects representing request and response objects
@@ -162,6 +164,11 @@ public class TargetRESTApi {
         public List<Long> getDerivedTargetIds() {
             return spec.getDerivedTargetIds();
         }
+
+        @Override
+        public Optional<String> getCommunicationBindingChannel() {
+            return spec.getCommunicationBindingChannel();
+        }
     }
 
     /**
@@ -183,6 +190,7 @@ public class TargetRESTApi {
         @ApiModelProperty(value = "The derived target IDs associated with this target")
         private final List<Long> derivedTargetIds;
 
+
         protected TargetSpec() {
             probeId = null;
             isHidden = false;
@@ -191,8 +199,9 @@ public class TargetRESTApi {
         }
 
         public TargetSpec(@Nonnull final Long probeId,
-                        @Nonnull final List<InputField> accountFields) {
-            super(accountFields);
+                          @Nonnull final List<InputField> accountFields,
+                          Optional<String> communicationBindingChannel) {
+            super(accountFields, communicationBindingChannel);
             this.probeId = Objects.requireNonNull(probeId);
             this.isHidden = false;
             this.readOnly = false;
@@ -201,8 +210,10 @@ public class TargetRESTApi {
 
         public TargetSpec(@Nonnull final TopologyProcessorDTO.TargetSpec targetSpec) {
             super(targetSpec.getAccountValueList().stream()
-                            .map(accountValue -> new InputField(accountValue))
-                            .collect(Collectors.toList()));
+                            .map(InputField::new)
+                            .collect(Collectors.toList()),
+                Optional.ofNullable(targetSpec.hasCommunicationBindingChannel() ?
+                    targetSpec.getCommunicationBindingChannel() : null));
             this.probeId = targetSpec.getProbeId();
             this.isHidden = targetSpec.getIsHidden();
             this.readOnly = targetSpec.getReadOnly();
@@ -236,11 +247,13 @@ public class TargetRESTApi {
                 throw new TopologyProcessorException("Missing JSON fields.");
             }
 
-            return TopologyProcessorDTO.TargetSpec.newBuilder().setProbeId(probeId)
+            Builder builder =
+                TopologyProcessorDTO.TargetSpec.newBuilder().setProbeId(probeId)
                             .addAllAccountValue(getInputFields().stream()
                                             .map(InputField::toAccountValue)
-                                            .collect(Collectors.toList()))
-                            .build();
+                                            .collect(Collectors.toList()));
+            getCommunicationBindingChannel().ifPresent(builder::setCommunicationBindingChannel);
+            return builder.build();
         }
 
         public Map<String, InputField> getInputFieldsByName() {

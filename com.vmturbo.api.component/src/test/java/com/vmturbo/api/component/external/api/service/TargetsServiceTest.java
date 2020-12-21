@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.service;
 
+import static com.vmturbo.common.protobuf.utils.StringConstants.COMMUNICATION_BINDING_CHANNEL;
 import static junit.framework.TestCase.assertTrue;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -129,6 +130,7 @@ import com.vmturbo.topology.processor.api.TargetInfo;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.TopologyProcessorException;
 import com.vmturbo.topology.processor.api.dto.InputField;
+import com.vmturbo.topology.processor.api.dto.TargetInputFields;
 import com.vmturbo.topology.processor.api.impl.ProbeRESTApi.AccountField;
 
 /**
@@ -301,6 +303,23 @@ public class TargetsServiceTest {
         when(targetInfo.getProbeId()).thenReturn(probeId);
         when(targetInfo.getAccountData()).thenReturn(
                 new HashSet<>(Arrays.asList(accountValues)));
+        when(targetInfo.getCommunicationBindingChannel()).thenReturn(Optional.empty());
+        when(targetInfo.getStatus()).thenReturn("Validated");
+        when(targetInfo.isHidden()).thenReturn(false);
+        when(targetInfo.getDisplayName()).thenReturn(TARGET_DISPLAY_NAME);
+        registeredTargets.put(targetId, targetInfo);
+        return targetInfo;
+    }
+    private TargetInfo createMockTargetInfo(long probeId, long targetId,
+                                            String communicationChannel,
+                                            AccountValue... accountValues)
+        throws Exception {
+        final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
+        when(targetInfo.getId()).thenReturn(targetId);
+        when(targetInfo.getProbeId()).thenReturn(probeId);
+        when(targetInfo.getAccountData()).thenReturn(
+            new HashSet<>(Arrays.asList(accountValues)));
+        when(targetInfo.getCommunicationBindingChannel()).thenReturn(Optional.of(communicationChannel));
         when(targetInfo.getStatus()).thenReturn("Validated");
         when(targetInfo.isHidden()).thenReturn(false);
         when(targetInfo.getDisplayName()).thenReturn(TARGET_DISPLAY_NAME);
@@ -717,6 +736,36 @@ public class TargetsServiceTest {
     }
 
     /**
+     * Tests that adding a target with a communication channel among the {@link InputFieldApiDTO}
+     * results in the correct requests, with a {@link TargetData} containing the channel.
+     *
+     * @throws Exception on exceptions occur.
+     */
+    @Test
+    public void testAddTargetWithCommunicationChannel() throws Exception {
+        final long probeId = 1;
+        final long targetId = 2;
+        final ProbeInfo probe = createMockProbeInfo(probeId, "type", "category", "uiCategory", createAccountDef
+            ("key"));
+        final String channel = "channel";
+        createMockTargetInfo(probe.getId(), targetId);
+        final TargetApiDTO targetDto = new TargetApiDTO();
+        targetDto.setType(probe.getType());
+        targetDto.setInputFields(Arrays.asList(inputField(COMMUNICATION_BINDING_CHANNEL,
+            "channel")));
+        final String targetString = GSON.toJson(targetDto);
+        when(topologyProcessor.getAllTargets()).thenReturn(Collections.EMPTY_SET);
+        final MvcResult result = mockMvc.perform(MockMvcRequestBuilders.post("/targets")
+            .contentType(MediaType.APPLICATION_JSON_UTF8_VALUE)
+            .content(targetString)
+            .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
+            .andExpect(MockMvcResultMatchers.status().isOk()).andReturn();
+        final ArgumentCaptor<TargetData> captor = ArgumentCaptor.forClass(TargetData.class);
+        Mockito.verify(topologyProcessor).addTarget(Mockito.eq(probeId), captor.capture());
+        Assert.assertEquals(channel, captor.getValue().getCommunicationBindingChannel().get());
+    }
+
+    /**
      * Tests for modifying target.
      *
      * @throws Exception on exceptions occurred
@@ -739,13 +788,102 @@ public class TargetsServiceTest {
                                         .content(targetString)
                                         .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
                         .andExpect(MockMvcResultMatchers.status().isOk()).andReturn();
-        final ArgumentCaptor<TargetData> captor = ArgumentCaptor.forClass(TargetData.class);
+        final ArgumentCaptor<TargetInputFields> captor = ArgumentCaptor.forClass(TargetInputFields.class);
         Mockito.verify(topologyProcessor).modifyTarget(Mockito.eq(targetId), captor.capture());
         final Collection<AccountValue> inputFields = captor.getValue().getAccountData();
         Assert.assertEquals(targetDto.getInputFields().size(), inputFields.size());
         final Map<String, InputFieldApiDTO> expectedFieldsMap = targetDto.getInputFields().stream()
                         .collect(Collectors.toMap(field -> field.getName(), field -> field));
         inputFields.forEach(av -> assertEquals(av, expectedFieldsMap.get(av.getName())));
+    }
+
+    /**
+     * Tests for modifying target passing a communication channel.
+     *
+     * @throws Exception on exceptions occurred
+     */
+    @Test
+    public void testEditTargetWithCommunicationChannel() throws Exception {
+        final long probeId = 1;
+        final long targetId = 2;
+        final ProbeInfo probe = createMockProbeInfo(probeId, "type", "category", "uiCategory");
+        final String channel = "channel";
+        final TargetApiDTO targetDtoWithChannel = new TargetApiDTO();
+        final TargetInfo targetInfo = createMockTargetInfo(probe.getId(), targetId);
+        targetDtoWithChannel.setType(probe.getType());
+        targetDtoWithChannel.setInputFields(Arrays.asList(inputField(COMMUNICATION_BINDING_CHANNEL,
+            channel)));
+        final String targetString = GSON.toJson(targetDtoWithChannel);
+
+        mockMvc
+            .perform(MockMvcRequestBuilders.put("/targets/" + targetId)
+                .contentType(MediaType.APPLICATION_JSON_UTF8_VALUE)
+                .content(targetString)
+                .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
+            .andExpect(MockMvcResultMatchers.status().isOk()).andReturn();
+        final ArgumentCaptor<TargetInputFields> captor = ArgumentCaptor.forClass(TargetInputFields.class);
+        Mockito.verify(topologyProcessor).modifyTarget(Mockito.eq(targetId), captor.capture());
+        Assert.assertEquals(channel, captor.getValue().getCommunicationBindingChannel().get());
+    }
+
+    /**
+     * Tests for modifying target without passing a communication channel. In this case we should
+     * be passing an empty communication channel
+     *
+     * @throws Exception on exceptions occurred
+     */
+    @Test
+    public void testEditTargetWithoutCommunicationChannel() throws Exception {
+        final long probeId = 1;
+        final long targetId = 2;
+        final ProbeInfo probe = createMockProbeInfo(probeId, "type", "category", "uiCategory");
+        final TargetInfo targetInfo = createMockTargetInfo(probe.getId(), targetId);
+        final String channel = "channel";
+
+        final TargetApiDTO targetDtoWithoutChannel = new TargetApiDTO();
+        targetDtoWithoutChannel.setType(probe.getType());
+        targetDtoWithoutChannel.setInputFields(Arrays.asList(inputField("field",
+            "value")));
+        final String targetString = GSON.toJson(targetDtoWithoutChannel);
+        mockMvc
+            .perform(MockMvcRequestBuilders.put("/targets/" + targetId)
+                .contentType(MediaType.APPLICATION_JSON_UTF8_VALUE)
+                .content(targetString)
+                .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
+            .andExpect(MockMvcResultMatchers.status().isOk()).andReturn();
+        final ArgumentCaptor<TargetInputFields> captor = ArgumentCaptor.forClass(TargetInputFields.class);
+        Mockito.verify(topologyProcessor).modifyTarget(Mockito.eq(targetId), captor.capture());
+        Assert.assertFalse(captor.getValue().getCommunicationBindingChannel().isPresent());
+    }
+
+    /**
+     * Tests for deleting the communication channel of a target. This is achieved by passing an
+     * empty string as the value of the communication channel field
+     *
+     * @throws Exception on exceptions occurred
+     */
+    @Test
+    public void testDeleteTargetCommunicationChannel() throws Exception {
+        final long probeId = 1;
+        final long targetId = 2;
+        final ProbeInfo probe = createMockProbeInfo(probeId, "type", "category", "uiCategory");
+        final String channel = "channel";
+        final TargetInfo targetInfo = createMockTargetInfo(probe.getId(), targetId);
+
+        final TargetApiDTO targetDtoWithoutChannel = new TargetApiDTO();
+        targetDtoWithoutChannel.setType(probe.getType());
+        targetDtoWithoutChannel.setInputFields(Arrays.asList(inputField(COMMUNICATION_BINDING_CHANNEL,
+            "")));
+        final String targetString = GSON.toJson(targetDtoWithoutChannel);
+        mockMvc
+            .perform(MockMvcRequestBuilders.put("/targets/" + targetId)
+                .contentType(MediaType.APPLICATION_JSON_UTF8_VALUE)
+                .content(targetString)
+                .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
+            .andExpect(MockMvcResultMatchers.status().isOk()).andReturn();
+        final ArgumentCaptor<TargetInputFields> captor = ArgumentCaptor.forClass(TargetInputFields.class);
+        Mockito.verify(topologyProcessor).modifyTarget(Mockito.eq(targetId), captor.capture());
+        Assert.assertEquals("", captor.getValue().getCommunicationBindingChannel().get());
     }
 
     /**

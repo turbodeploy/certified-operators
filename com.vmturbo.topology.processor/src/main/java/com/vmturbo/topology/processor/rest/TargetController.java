@@ -55,6 +55,7 @@ import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus;
 import com.vmturbo.topology.processor.api.TopologyProcessorException;
 import com.vmturbo.topology.processor.api.dto.InputField;
+import com.vmturbo.topology.processor.api.dto.TargetInputFields;
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi.GetAllTargetsResponse;
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi.TargetInfo;
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi.TargetSpec;
@@ -250,14 +251,15 @@ public class TargetController {
     })
     public ResponseEntity<TargetInfo> updateTarget(
                     @ApiParam(value = "The information for the target to update.",
-                                    required = true) @RequestBody final Collection<InputField> targetSpec,
+                                    required = true) @RequestBody final TargetInputFields targetInputFields,
                     @ApiParam(value = "The ID of the target.") @PathVariable("targetId") final Long targetId) {
         try {
             Target target = getTargetFromStore(targetId);
             if (TargetOperation.UPDATE.isValidTargetOperation(target.getProbeInfo().getCreationMode())) {
-                Objects.requireNonNull(targetSpec);
-                target = targetStore.updateTarget(targetId, targetSpec.stream()
-                    .map(av -> av.toAccountValue()).collect(Collectors.toList()));
+                Objects.requireNonNull(targetInputFields);
+                target = targetStore.updateTarget(targetId, targetInputFields.getInputFields().stream()
+                    .map(InputField::toAccountValue).collect(Collectors.toList()),
+                    targetInputFields.getCommunicationBindingChannel());
                 final TargetInfo targetInfo = targetToTargetInfo(target);
                 return new ResponseEntity<>(targetInfo, HttpStatus.OK);
             } else {

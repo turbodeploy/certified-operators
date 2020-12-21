@@ -63,6 +63,7 @@ import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.platform.sdk.common.util.SDKUtil;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
 import com.vmturbo.topology.processor.api.dto.InputField;
+import com.vmturbo.topology.processor.api.dto.TargetInputFields;
 import com.vmturbo.topology.processor.conversions.SdkToTopologyEntityConverter;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
@@ -218,14 +219,17 @@ public class ClientApiCallsTest extends AbstractApiCallsTest {
     @Test
     public void testAddTarget() throws Exception {
         final long probeId = createProbe();
+        final String communicationBindingChannel = "testChannel";
         final AccountValue original = new InputField(FIELD_NAME, "fieldValue", Optional.empty());
         final TargetData data = mock(TargetData.class);
         Mockito.when(data.getAccountData()).thenReturn(Collections.singleton(original));
+        Mockito.when(data.getCommunicationBindingChannel()).thenReturn(Optional.of(communicationBindingChannel));
         final long targetId = getTopologyProcessor().addTarget(probeId, data);
         final Optional<Target> target = targetStore.getTarget(targetId);
         Assert.assertTrue(target.isPresent());
         final Collection<AccountValue> actual = target.get().createTargetInfo().getAccountData();
         Assert.assertEquals(Collections.singleton(original), new HashSet<>(actual));
+        Assert.assertEquals(communicationBindingChannel, target.get().getSpec().getCommunicationBindingChannel());
     }
 
     /**
@@ -241,6 +245,7 @@ public class ClientApiCallsTest extends AbstractApiCallsTest {
         final TargetData data = mock(TargetData.class);
         Mockito.when(data.getAccountData())
                         .thenReturn(new HashSet<>(Arrays.asList(field1, field2)));
+        Mockito.when(data.getCommunicationBindingChannel()).thenReturn(Optional.empty());
         expectedException.expect(TopologyProcessorException.class);
         expectedException.expectMessage(
                         CoreMatchers.allOf(CoreMatchers.containsString(field1.getName()),
@@ -323,10 +328,10 @@ public class ClientApiCallsTest extends AbstractApiCallsTest {
         final long probeId = createProbe();
         final long targetId = createTarget(probeId, "1");
         Assert.assertTrue(targetStore.getTarget(targetId).isPresent());
-        final TargetData targetData = mock(TargetData.class);
         final InputField field = new InputField(FIELD_NAME, "2", Optional.empty());
-        Mockito.when(targetData.getAccountData()).thenReturn(Collections.singleton(field));
 
+        final TargetInputFields targetData = new TargetInputFields(Collections.singletonList(field),
+            Optional.of("channel"));
         getTopologyProcessor().modifyTarget(targetId, targetData);
         final Target resultTarge = targetStore.getTarget(targetId).get();
         Assert.assertEquals("2",
@@ -341,9 +346,9 @@ public class ClientApiCallsTest extends AbstractApiCallsTest {
      */
     @Test
     public void testUpdateNonExistingTarget() throws Exception {
-        final TargetData targetData = mock(TargetData.class);
         final InputField field = new InputField(FIELD_NAME, "2", Optional.empty());
-        Mockito.when(targetData.getAccountData()).thenReturn(Collections.singleton(field));
+        final TargetInputFields targetData = new TargetInputFields(Collections.singletonList(field),
+            Optional.of("label"));
 
         final long targetId = -1;
         expectExceptionForId(targetId, "does not exist");
