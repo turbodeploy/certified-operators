@@ -62,6 +62,7 @@ import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.TopologyEntity.Builder;
 import com.vmturbo.topology.processor.KVConfig;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
+import com.vmturbo.topology.processor.history.AbstractCachingHistoricalEditor.CacheBackup;
 import com.vmturbo.topology.processor.history.BaseGraphRelatedTest;
 import com.vmturbo.topology.processor.history.CachingHistoricalEditorConfig;
 import com.vmturbo.topology.processor.history.CommodityField;
@@ -71,7 +72,6 @@ import com.vmturbo.topology.processor.history.HistoryCalculationException;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts.PercentileRecord;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts.PercentileRecord.CapacityChange;
-import com.vmturbo.topology.processor.history.percentile.PercentileEditor.CacheBackup;
 import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
 
 /**
@@ -598,7 +598,8 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
         percentileEditor.initContext(context, Collections.emptyList());
         final EntityCommodityFieldReference mockReference =
                         Mockito.mock(EntityCommodityFieldReference.class);
-        try (PercentileEditor.CacheBackup cacheBackup = new PercentileEditor.CacheBackup(percentileEditor.getCache())) {
+        try (PercentileEditor.CacheBackup cacheBackup = new PercentileEditor.CacheBackup<>(
+                percentileEditor.getCache(), PercentileCommodityData::new)) {
             percentileEditor.getCache().put(mockReference,
                                             Mockito.mock(PercentileCommodityData.class));
             cacheBackup.keepCacheOnClose();
@@ -623,8 +624,8 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
         percentileEditor.initContext(context, Collections.emptyList());
         final Map<EntityCommodityFieldReference, PercentileCommodityData> originalCache =
                         percentileEditor.getCache();
-        final PercentileEditor.CacheBackup cacheBackup =
-                        new PercentileEditor.CacheBackup(originalCache);
+        final CacheBackup cacheBackup = new CacheBackup<>(originalCache,
+                PercentileCommodityData::new);
         final EntityCommodityFieldReference mock =
                         Mockito.mock(EntityCommodityFieldReference.class);
         originalCache.put(mock, Mockito.mock(PercentileCommodityData.class));
@@ -791,8 +792,7 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
         Mockito.when(result.keyValueStore()).thenReturn(kvStore);
         Mockito.when(kvStore.get(Mockito.any())).thenAnswer(invocation -> {
             final String parameter = invocation.getArgumentAt(0, String.class);
-            if (parameter.equals(
-                            CachingHistoricalEditorConfig.STORE_CACHE_TO_DIAGNOSTICS_PROPERTY)) {
+            if (parameter.equals(PercentileHistoricalEditorConfig.STORE_CACHE_TO_DIAGNOSTICS_PROPERTY)) {
                 return Optional.of("true");
             }
             return Optional.empty();
