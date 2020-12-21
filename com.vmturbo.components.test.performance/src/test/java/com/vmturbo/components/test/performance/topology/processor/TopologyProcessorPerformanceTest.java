@@ -4,6 +4,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -233,6 +234,12 @@ public class TopologyProcessorPerformanceTest {
                     new TestAccountValue("dcCount", String.valueOf(account.getDcCount())),
                     new TestAccountValue("seed", String.valueOf(account.getSeed()))
                 ));
+            }
+
+            @Nonnull
+            @Override
+            public Optional<String> getCommunicationBindingChannel() {
+                return Optional.empty();
             }
         };
     }

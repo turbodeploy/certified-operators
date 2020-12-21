@@ -4,6 +4,7 @@ import static com.vmturbo.platform.sdk.common.util.SDKProbeType.UDT;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
@@ -87,6 +88,12 @@ class TargetRegistration {
             @Override
             public Set<AccountValue> getAccountData() {
                 return Sets.newHashSet(accountValue);
+            }
+
+            @Nonnull
+            @Override
+            public Optional<String> getCommunicationBindingChannel() {
+                return Optional.empty();
             }
         };
     }

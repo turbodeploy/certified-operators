@@ -135,7 +135,7 @@ public class CachingTargetStoreTest {
         when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(probeInfo));
 
         final TargetRESTApi.TargetSpec spec = new TargetRESTApi.TargetSpec(0L, Collections.singletonList(
-            new InputField("targetId", "targetId", Optional.empty())));
+            new InputField("targetId", "targetId", Optional.empty())), Optional.empty());
 
         final Target target = targetStore.createTarget(spec.toDto());
 
@@ -154,7 +154,7 @@ public class CachingTargetStoreTest {
         when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(probeInfo));
 
         final TargetRESTApi.TargetSpec spec = new TargetRESTApi.TargetSpec(0L, Collections.singletonList(
-            new InputField("targetId", "targetId", Optional.empty())));
+            new InputField("targetId", "targetId", Optional.empty())), Optional.empty());
 
         final Target target = targetStore.createTarget(spec.toDto());
 
@@ -176,7 +176,7 @@ public class CachingTargetStoreTest {
         final long probeId = 717;
         final TargetRESTApi.TargetSpec spec = new TargetRESTApi.TargetSpec(probeId,
             Collections.singletonList(
-            new InputField("targetId", "targetId", Optional.empty())));
+            new InputField("targetId", "targetId", Optional.empty())), Optional.empty());
 
         final Target target = targetStore.createTarget(spec.toDto());
         assertThat(target.getProbeId(), is(probeId));
@@ -204,7 +204,7 @@ public class CachingTargetStoreTest {
         when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(probeInfo));
 
         final TargetRESTApi.TargetSpec spec = new TargetRESTApi.TargetSpec(0L, Collections.singletonList(
-            new InputField("targetId", "targetId", Optional.empty())));
+            new InputField("targetId", "targetId", Optional.empty())), Optional.empty());
 
         final Target target = targetStore.createTarget(spec.toDto());
 
@@ -231,7 +231,7 @@ public class CachingTargetStoreTest {
             Collections.singletonList(new InputField(
                 PredefinedAccountDefinition.Username.name().toLowerCase(),
                 "foo",
-                Optional.empty())));
+                Optional.empty())), Optional.empty());
         // we expect the create target to fail since the account values don't match the account
         // definition of the probe.
         targetStore.createTarget(spec.toDto());
@@ -259,7 +259,8 @@ public class CachingTargetStoreTest {
         when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(pi));
 
         final TargetRESTApi.TargetSpec spec = new TargetRESTApi.TargetSpec(0L, Collections.singletonList(
-            new InputField(PredefinedAccountDefinition.Address.name().toLowerCase(), "foo", Optional.empty())));
+            new InputField(PredefinedAccountDefinition.Address.name().toLowerCase(), "foo",
+                Optional.empty())), Optional.empty());
         final Target target = targetStore.createTarget(spec.toDto());
 
         Assert.assertEquals("foo", target.getDisplayName());
@@ -275,7 +276,8 @@ public class CachingTargetStoreTest {
 
         final TargetRESTApi.TargetSpec spec = new TargetRESTApi.TargetSpec(0L, Arrays.asList(
             new InputField(PredefinedAccountDefinition.Address.name().toLowerCase(), "foo", Optional.empty()),
-            new InputField(NAME_ACCT_DEF.getCustomDefinition().getName(), "my name", Optional.empty())));
+            new InputField(NAME_ACCT_DEF.getCustomDefinition().getName(), "my name",
+                Optional.empty())), Optional.empty());
         final Target target = targetStore.createTarget(spec.toDto());
 
         Assert.assertEquals("my name", target.getDisplayName());
@@ -288,7 +290,7 @@ public class CachingTargetStoreTest {
         targetStore.addListener(listener);
 
         final TargetRESTApi.TargetSpec spec = new TargetRESTApi.TargetSpec(0L, Collections.singletonList(
-            new InputField("targetId", "targetId", Optional.empty())));
+            new InputField("targetId", "targetId", Optional.empty())), Optional.empty());
         Target target = targetStore.createTarget(spec.toDto());
 
         verify(listener).onTargetAdded(target);
@@ -305,7 +307,7 @@ public class CachingTargetStoreTest {
         when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(probeInfo));
         final long targetId = 0L;
         final TargetRESTApi.TargetSpec spec = new TargetRESTApi.TargetSpec(targetId, Arrays.asList(
-            new InputField("targetId", "foo", Optional.empty())));
+            new InputField("targetId", "foo", Optional.empty())), Optional.empty());
 
         final Target target = new Target(targetId, probeStore, spec.toDto(), false);
 
@@ -383,14 +385,14 @@ public class CachingTargetStoreTest {
         targetStore.addListener(listener);
         Assert.assertEquals("1",
             target.getMediationAccountVals(groupScopeResolver).iterator().next().getStringValue());
-        target = targetStore.updateTarget(target.getId(), targetSpec.getAccountValueList());
+        target = targetStore.updateTarget(target.getId(), targetSpec.getAccountValueList(), Optional.empty());
         // No update message sent since account values did not change
         verify(listener, never()).onTargetUpdated(target);
         Assert.assertEquals("1",
             target.getMediationAccountVals(groupScopeResolver).iterator().next().getStringValue());
 
         final Collection<TopologyProcessorDTO.AccountValue> targetFieldsNew = createAccountValue(2);
-        target = targetStore.updateTarget(target.getId(), targetFieldsNew);
+        target = targetStore.updateTarget(target.getId(), targetFieldsNew, Optional.empty());
         Assert.assertEquals("2",
             target.getMediationAccountVals(groupScopeResolver)
                 .iterator().next().getStringValue());
@@ -413,7 +415,7 @@ public class CachingTargetStoreTest {
         Target target = targetStore.createTarget(createTargetSpec(0, 2));
 
         final Collection<TopologyProcessorDTO.AccountValue> targetFieldsNew = createAccountValue(1);
-        target = targetStore.updateTarget(target.getId(), targetFieldsNew);
+        target = targetStore.updateTarget(target.getId(), targetFieldsNew, Optional.empty());
         Assert.assertEquals("1",
             target.getMediationAccountVals(groupScopeResolver)
                 .iterator().next().getStringValue());
@@ -549,7 +551,7 @@ public class CachingTargetStoreTest {
 
         Target updatedTarget = target.withUpdatedFields(
             Collections.singleton(barAccountValue.toBuilder().setStringValue("bar-updated").build()),
-            probeStore);
+            probeStore, Optional.empty());
 
         assertAccountValueEquals(updatedTarget, fooName, "foo-original");
         assertAccountValueEquals(updatedTarget, barName, "bar-updated");
@@ -614,7 +616,7 @@ public class CachingTargetStoreTest {
         final Target updatedTargetEmptyBarAndCarValues = target.withUpdatedFields(
             ImmutableList.of(barAccountValue.toBuilder().setStringValue("").build(),
                 carAccountValue.toBuilder().setStringValue("").build()),
-            probeStore);
+            probeStore, Optional.empty());
         // assert that account value that was set to empty string does not exist
         assertFalse(updatedTargetEmptyBarAndCarValues.getMediationAccountVals(groupScopeResolver).stream()
             .filter(acctValue -> acctValue.getKey().equals(barAccountValue.getKey()))
@@ -647,7 +649,7 @@ public class CachingTargetStoreTest {
         final TargetSpec spec = createTargetSpec(0, 1);
         expectedException.expect(TargetNotFoundException.class);
         expectedException.expectMessage("does not exist");
-        targetStore.updateTarget(-1, spec.getAccountValueList());
+        targetStore.updateTarget(-1, spec.getAccountValueList(), Optional.empty());
     }
 
     /**
@@ -756,7 +758,7 @@ public class CachingTargetStoreTest {
             parent.getId());
         final Long derivedTargetId = verifyDerivedTargetCreation(derivedTargetSpec);
         assertNotNull(derivedTargetId);
-        targetStore.updateTarget(parent.getId(), parent.getSpec().getAccountValueList());
+        targetStore.updateTarget(parent.getId(), parent.getSpec().getAccountValueList(), Optional.empty());
         Assert.assertTrue(targetStore.getTarget(derivedTargetId).isPresent());
     }
 
@@ -770,7 +772,8 @@ public class CachingTargetStoreTest {
         when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(probeInfo));
 
         final TargetRESTApi.TargetSpec spec = new TargetRESTApi.TargetSpec(0L, Collections.singletonList(
-            new InputField(PredefinedAccountDefinition.Address.name().toLowerCase(), FIELD_NAME, Optional.empty())));
+            new InputField(PredefinedAccountDefinition.Address.name().toLowerCase(), FIELD_NAME,
+                Optional.empty())), Optional.empty());
         final Target target = targetStore.createTarget(spec.toDto());
         Assert.assertEquals(ProbeCategory.HYPERVISOR, targetStore.getProbeCategoryForTarget(target.getId()).get());
 

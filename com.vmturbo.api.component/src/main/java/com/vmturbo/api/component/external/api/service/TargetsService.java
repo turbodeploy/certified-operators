@@ -1,5 +1,7 @@
 package com.vmturbo.api.component.external.api.service;
 
+import static com.vmturbo.common.protobuf.utils.StringConstants.COMMUNICATION_BINDING_CHANNEL;
+
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -82,6 +84,7 @@ import com.vmturbo.topology.processor.api.TargetInfo;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.TopologyProcessorException;
 import com.vmturbo.topology.processor.api.dto.InputField;
+import com.vmturbo.topology.processor.api.dto.TargetInputFields;
 
 /**
  * Service entry points to search the Repository.
@@ -599,7 +602,7 @@ public class TargetsService implements ITargetsService {
         Preconditions.checkState(allowTargetManagement,
                 "Targets management public APIs are not allowed in integration mode");
         long targetId = Long.valueOf(uuid);
-        final TargetData updatedTargetData = new NewTargetData(inputFields);
+        final NewTargetData updatedTargetData = new NewTargetData(inputFields);
         try {
             TargetInfo targetInfo = topologyProcessor.getTarget(targetId);
             if (targetInfo.isReadOnly()) {
@@ -607,8 +610,10 @@ public class TargetsService implements ITargetsService {
                         + targetInfo.getDisplayName() + " (id " + targetId
                         + ") cannot be changed through public APIs.");
             }
-            topologyProcessor.modifyTarget(targetId, updatedTargetData);
-            return createTargetDtoWithRelationships(targetInfo, Collections.emptySet(), getProbeIdToProbeInfoMap());
+            topologyProcessor.modifyTarget(targetId,
+                new TargetInputFields(updatedTargetData.inputFieldsList, updatedTargetData.getCommunicationBindingChannel()));
+            TargetInfo updatedTargetInfo = topologyProcessor.getTarget(targetId);
+            return createTargetDtoWithRelationships(updatedTargetInfo, Collections.emptySet(), getProbeIdToProbeInfoMap());
         } catch (CommunicationException e) {
             throw new CommunicationError(e);
         } catch (TopologyProcessorException e) {
@@ -687,11 +692,8 @@ public class TargetsService implements ITargetsService {
     private static class NewTargetData implements TargetData {
 
         private static final String IS_STORAGE_BROWSING_ENABLED = "isStorageBrowsingEnabled";
-        private final Set<AccountValue> accountData;
-        // Is it a VC probe? And is VC storage browsing filed NOT set?
-        private final BiFunction<String, Collection<InputFieldApiDTO>, Boolean> isVCStorageBrowsingNotSet =
-            (probeType, inputFields) -> SDKProbeType.VCENTER.getProbeType().equals(probeType) &&
-                !inputFields.stream().anyMatch(field -> IS_STORAGE_BROWSING_ENABLED.equals(field.getName()));
+        private final List<InputField> inputFieldsList;
+        private Optional<String> communicationBindingChannel = Optional.empty();
 
         private static final InputFieldApiDTO storageBrowsingDisabledDTO = new InputFieldApiDTO();
         static {
@@ -710,26 +712,25 @@ public class TargetsService implements ITargetsService {
          * @param inputFields a list of {@ref InputFieldApiDTO} to use to initialize the accountData
          */
         NewTargetData(Collection<InputFieldApiDTO> inputFields) {
-            accountData = inputFields.stream().map(inputField -> {
-                return new InputField(inputField.getName(),
-                    inputField.getValue(),
-                    // TODO: fix type mismatch between InputFieldApiDTO.groupProperties and
-                    // TargetRESTAPI.TargetSpec.InputField.groupProperties
-                    // until then...return empty Optional
-                    Optional.empty());
-            }).collect(Collectors.toSet());
+            inputFieldsList = new ArrayList<>();
+            inputFields.forEach(inputField -> {
+                if (inputField.getName().equals(COMMUNICATION_BINDING_CHANNEL)) {
+                    this.communicationBindingChannel = Optional.ofNullable(inputField.getValue());
+                } else {
+                    inputFieldsList.add(new InputField(inputField.getName(),
+                        inputField.getValue(),
+                        // TODO: fix type mismatch between InputFieldApiDTO.groupProperties and
+                        // TargetRESTAPI.TargetSpec.InputField.groupProperties
+                        // until then...return empty Optional
+                        Optional.empty()));
+                }
+            });
         }
 
         /**
          * Initialize the accountData Set from a List of InputFieldApiDTO's. We use the inputField name
          * and value to build the new AccountData value to describe the target.
          * <p>
-         * Note: "isStorageBrowsingEnabled" filed is introduce recently, and if users continue to use
-         * old API script to create VC target (without specifying this filed), VC browsing will be enabled by default.
-         * But UI shows VC browsing disabled (since target info doesn't have this filed). To address this problem,
-         * if this filed is not set when creating VC target, it will be added with value set to "false".
-         * So probe and UI are consistent.
-         * </p>
          * <p>Warning: The GroupProperties of the InputFieldApiDTO is ignored for now, since there is a
          * mismatch between the InputFieldApiDTO ({@code List<String>)}) and the
          * InputField.groupProperties ({@code List<List<String>>}).
@@ -738,30 +739,49 @@ public class TargetsService implements ITargetsService {
          * @param inputFields a list of {@ref InputFieldApiDTO} to use to initialize the accountData
          */
         NewTargetData(@Nonnull final String probeType, final Collection<InputFieldApiDTO> inputFields) {
-            final Set<InputFieldApiDTO> inputFieldApiDTOList;
-            if (isVCStorageBrowsingNotSet.apply(probeType, inputFields)) {
-                // if input fields don't include the newly added "isStorageBrowsingEnabled" filed,
-                // e.g. calling from API, set it to "false",  so probe and UI are consistent.
-                inputFieldApiDTOList = Sets.newHashSet(inputFields);
-                inputFieldApiDTOList.add(storageBrowsingDisabledDTO);
-            } else {
-                inputFieldApiDTOList = ImmutableSet.copyOf(inputFields);
-            }
-
-            accountData = inputFieldApiDTOList.stream().map(inputField -> {
-                return new InputField(inputField.getName(),
-                    inputField.getValue(),
-                    // TODO: fix type mismatch between InputFieldApiDTO.groupProperties and
-                    // TargetRESTAPI.TargetSpec.InputField.groupProperties
-                    // until then...return empty Optional
-                    Optional.empty());
-            }).collect(Collectors.toSet());
+            this(ensureStorageBrowsingFlagSet(probeType, inputFields));
         }
 
         @Nonnull
         @Override
         public Set<AccountValue> getAccountData() {
-            return accountData;
+            return new HashSet<>(inputFieldsList);
+        }
+
+        @Override
+        public Optional<String> getCommunicationBindingChannel() {
+            return communicationBindingChannel;
+        }
+
+        /**
+         * Parses the input fields before initializing them.
+         * Note:"isStorageBrowsingEnabled" field is introduce recently, and if users continue to use
+         * old API script to create VC target (without specifying this field), VC browsing will be
+         * enabled by default.
+         * But UI shows VC browsing disabled (since target info doesn't have this field). To
+         * address this problem, if this field is not set when creating VC target, it will be
+         * added with value set to "false".
+         * So probe and UI are consistent.
+         *
+         * @param probeType probe type
+         * @param inputFieldsApiDTO a list of {@ref InputFieldApiDTO} to use to initialize the accountData
+         * @return a list of parsed {@link InputFieldApiDTO}
+         */
+        private static Collection<InputFieldApiDTO> ensureStorageBrowsingFlagSet(@Nonnull final String probeType, final Collection<InputFieldApiDTO> inputFieldsApiDTO) {
+            // Is it a VC probe? And is VC storage browsing field NOT set?
+            final BiFunction<String, Collection<InputFieldApiDTO>, Boolean> isVCStorageBrowsingNotSet =
+                (probe, inputFields) -> SDKProbeType.VCENTER.getProbeType().equals(probeType)
+                    && inputFields.stream().noneMatch(field -> IS_STORAGE_BROWSING_ENABLED.equals(field.getName()));
+            final Set<InputFieldApiDTO> inputFieldApiDTOList;
+            if (isVCStorageBrowsingNotSet.apply(probeType, inputFieldsApiDTO)) {
+                // if input fields don't include   the newly added "isStorageBrowsingEnabled" field,
+                // e.g. calling from API, set it to "false",  so probe and UI are consistent.
+                inputFieldApiDTOList = Sets.newHashSet(inputFieldsApiDTO);
+                inputFieldApiDTOList.add(storageBrowsingDisabledDTO);
+            } else {
+                inputFieldApiDTOList = ImmutableSet.copyOf(inputFieldsApiDTO);
+            }
+            return inputFieldApiDTOList;
         }
     }
 
@@ -1116,10 +1136,23 @@ public class TargetsService implements ITargetsService {
                         return inputFieldDTO;
                     })
                     .collect(Collectors.toList());
+            if (targetInfo.getCommunicationBindingChannel().isPresent()) {
+                inputFields.add(createCommunicationChannelInputField(targetInfo.getCommunicationBindingChannel().get()));
+            }
             targetApiDTO.setInputFields(inputFields);
         }
 
         return targetApiDTO;
+    }
+
+    @Nonnull
+    private InputFieldApiDTO createCommunicationChannelInputField(@Nonnull String communicationBindingChannel) {
+        final InputFieldApiDTO channelInputApiDTO = new InputFieldApiDTO();
+        channelInputApiDTO.setValue(communicationBindingChannel);
+        channelInputApiDTO.setName(COMMUNICATION_BINDING_CHANNEL);
+        channelInputApiDTO.setIsMandatory(false);
+        channelInputApiDTO.setDisplayName(COMMUNICATION_BINDING_CHANNEL);
+        return channelInputApiDTO;
     }
 
     @Nonnull

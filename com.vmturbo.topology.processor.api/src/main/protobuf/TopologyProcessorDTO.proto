@@ -17,6 +17,9 @@ message TargetSpec {
     optional bool read_only = 5 [default = false];
     // This field stores the derived target IDs associated with this target.
     repeated int64 derived_target_ids = 6;
+    // This field is used to constrain a target to communicate over a single channel. A target with
+    // a channel can only be discovered by probes on the same channel.
+    optional string communicationBindingChannel = 7;
 }
 
 message TargetInfo {

@@ -9,6 +9,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -199,7 +200,7 @@ public class NotificationsApiTest extends AbstractApiCallsTest {
         getTopologyProcessor().addTargetListener(listener);
 
         targetStore.updateTarget(target.getId(),
-                        createTargetSpec(probeId, "2").getAccountValueList());
+                        createTargetSpec(probeId, "2").getAccountValueList(), Optional.empty());
 
         final ArgumentCaptor<TargetInfo> targetCaptor = ArgumentCaptor.forClass(TargetInfo.class);
         Mockito.verify(listener, Mockito.timeout(TIMEOUT_MS).times(1))

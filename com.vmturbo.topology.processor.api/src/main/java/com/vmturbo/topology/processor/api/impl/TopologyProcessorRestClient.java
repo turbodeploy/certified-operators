@@ -23,6 +23,7 @@ import com.vmturbo.topology.processor.api.TargetData;
 import com.vmturbo.topology.processor.api.TopologyProcessorException;
 import com.vmturbo.topology.processor.api.ValidationStatus;
 import com.vmturbo.topology.processor.api.dto.InputField;
+import com.vmturbo.topology.processor.api.dto.TargetInputFields;
 import com.vmturbo.topology.processor.api.impl.OperationRESTApi.DiscoverAllResponse;
 import com.vmturbo.topology.processor.api.impl.OperationRESTApi.OperationResponse;
 import com.vmturbo.topology.processor.api.impl.OperationRESTApi.ValidateAllResponse;
@@ -104,7 +105,7 @@ public class TopologyProcessorRestClient extends ComponentRestClient {
         final TargetSpec spec = new TargetSpec(probeId,
                 Objects.requireNonNull(targetData).getAccountData().stream()
                     .map(this::convert)
-                    .collect(Collectors.toList()));
+                    .collect(Collectors.toList()), targetData.getCommunicationBindingChannel());
         final RequestEntity<?> request = RequestEntity.post(URI.create(targetUri)).body(spec);
         return addTargetClient.execute(request).getId();
     }
@@ -131,11 +132,19 @@ public class TopologyProcessorRestClient extends ComponentRestClient {
         remoteTargetsClient.execute(request);
     }
 
-    public void modifyTarget(final long targetId, @Nonnull final TargetData newData)
+    /**
+     * Updates a target.
+     *
+     * @param targetId of the target to update
+     * @param newData the updated data
+     * @throws TopologyProcessorException if required fields are not present when parsed from JSON.
+     * @throws CommunicationException if error occurs in communicating with the component
+     */
+    public void modifyTarget(final long targetId, @Nonnull final TargetInputFields newData)
                     throws CommunicationException, TopologyProcessorException {
         final RequestEntity<?> request =
                         RequestEntity.put(URI.create(targetUri + Long.toString(targetId)))
-                                        .body(Objects.requireNonNull(newData).getAccountData());
+                                        .body(Objects.requireNonNull(newData));
         updateTargetsClient.execute(request);
     }
 
