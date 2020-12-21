@@ -61,6 +61,7 @@ public class EnvironmentTypeInjectorTest {
     private static final long SERVICE_OID = 13L;
     private static final long CONTAINER_PLATFORM_CLUSTER_OID = 14L;
     private static final long VM2_OID = 15L;
+    private static final long VV_OID = 16L;
 
     private TargetStore targetStore = mock(TargetStore.class);
 
@@ -271,6 +272,51 @@ public class EnvironmentTypeInjectorTest {
         assertThat(injectionSummary.getConflictingTypeCount(), is(0));
         assertThat(injectionSummary.getUnknownCount(), is(0));
         assertThat(injectionSummary.getEnvTypeCounts(), is(ImmutableMap.of(EnvironmentType.CLOUD, 4)));
+    }
+
+    /**
+     * Test traversing consumes relationships. The graph here looks like:
+     * <p/>
+     *        Provides          Consumes
+     * AWS_VM <-- k8s_ContainerPod --> k8s_Volume
+     */
+    @Test
+    public void testVirtualVolumeTraversal() {
+        Map<Long, TopologyEntity.Builder> topologyEntitiesMap = new HashMap<>();
+        TopologyEntity.Builder vm1 = TopologyEntity
+                .newBuilder(TopologyEntityDTO.newBuilder()
+                        .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                        .setOid(VM_OID)
+                        .setOrigin(Origin.newBuilder().setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                                .putDiscoveredTargetData(AWS_TARGET_ID,
+                                        PerTargetEntityInformation.getDefaultInstance())
+                                .putDiscoveredTargetData(K8S_TARGET_ID,
+                                        PerTargetEntityInformation.getDefaultInstance()))));
+        TopologyEntity.Builder vv = TopologyEntity.newBuilder(newEntityBuilder(K8S_TARGET_ID)
+                .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                .setOid(VV_OID));
+        TopologyEntity.Builder pod = TopologyEntity.newBuilder(
+                newEntityBuilder(K8S_TARGET_ID, vm1.getOid(), vv.getOid())
+                        .setEntityType(EntityType.CONTAINER_POD_VALUE)
+                        .setOid(CONTAINER_POD_OID));
+
+
+        topologyEntitiesMap.put(vm1.getOid(), vm1);
+        topologyEntitiesMap.put(vv.getOid(), vv);
+        topologyEntitiesMap.put(pod.getOid(), pod);
+        TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topologyEntitiesMap);
+        final InjectionSummary injectionSummary = environmentTypeInjector.injectEnvironmentType(graph);
+
+        assertTrue(graph.getEntity(VM_OID).isPresent());
+        assertTrue(graph.getEntity(CONTAINER_POD_OID).isPresent());
+
+        assertThat(graph.getEntity(VM_OID).get().getEnvironmentType(), is(EnvironmentType.CLOUD));
+        assertThat(graph.getEntity(CONTAINER_POD_OID).get().getEnvironmentType(), is(EnvironmentType.CLOUD));
+        assertThat(graph.getEntity(VV_OID).get().getEnvironmentType(), is(EnvironmentType.CLOUD));
+
+        assertThat(injectionSummary.getConflictingTypeCount(), is(0));
+        assertThat(injectionSummary.getUnknownCount(), is(0));
+        assertThat(injectionSummary.getEnvTypeCounts(), is(ImmutableMap.of(EnvironmentType.CLOUD, 3)));
     }
 
     /**

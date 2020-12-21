@@ -69,7 +69,10 @@ public class EnvironmentTypeInjector {
             // Namespaces are aggregated by ContainerPlatformClusters. Traverse ContainerPlatformCluster
             // to find out connected on-prem/cloud infrastructure so that namespace will have consistent
             // environment type with container platform cluster.
-            EntityType.NAMESPACE_VALUE, TopologyEntity::getAggregators
+            EntityType.NAMESPACE_VALUE, TopologyEntity::getAggregators,
+            // Virtual Volumes when discovered from pure k8s clusters are connected only to ContainerPods
+            // that consume from them.
+            EntityType.VIRTUAL_VOLUME_VALUE, TopologyEntity::getConsumers
         );
 
     public EnvironmentTypeInjector(@Nonnull final TargetStore targetStore) {
