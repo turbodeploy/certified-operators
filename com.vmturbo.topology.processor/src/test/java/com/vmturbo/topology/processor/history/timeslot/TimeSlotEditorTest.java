@@ -1,7 +1,10 @@
 package com.vmturbo.topology.processor.history.timeslot;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.time.Clock;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -36,6 +39,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.setting.DailyObservationWindowsCount;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.stats.StatsAccumulator;
@@ -134,10 +138,7 @@ public class TimeSlotEditorTest extends BaseGraphRelatedTest {
 
         final List<EntityCommodityReference> comms = createCommodityReferences();
         final CountDownLatch latch = new CountDownLatch(comms.size());
-        final TimeslotEditorCacheAccess editor =
-                        new TimeslotEditorCacheAccess(config, null, backgroundLoadingPool,
-                                        (client, range) -> new TestTimeSlotLoadingTask(client,
-                                                        latch, DEFAULT_RANGE));
+        final TimeslotEditorCacheAccess editor = getEditor(latch);
         final HistoryAggregationContext context = new HistoryAggregationContext(topologyInfo,
                         graphWithSettings, false);
         editor.initContext(context, comms);
@@ -177,10 +178,7 @@ public class TimeSlotEditorTest extends BaseGraphRelatedTest {
         final List<EntityCommodityReference> comms = ImmutableList.of(ref1, ref2, ref3);
         Mockito.when(clock.millis()).thenReturn(0L);
         final CountDownLatch latch = new CountDownLatch(comms.size());
-        final TimeslotEditorCacheAccess editor =
-                        new TimeslotEditorCacheAccess(config, null, backgroundLoadingPool,
-                                        (client, range) -> new TestTimeSlotLoadingTask(client,
-                                                        latch, DEFAULT_RANGE));
+        final TimeslotEditorCacheAccess editor = getEditor(latch);
         final HistoryAggregationContext context = new HistoryAggregationContext(topologyInfo,
                         graphWithSettings, false);
         editor.initContext(context, comms);
@@ -287,13 +285,13 @@ public class TimeSlotEditorTest extends BaseGraphRelatedTest {
             data.init(fieldRef, null, config, firstBroadcastContext);
             editor.getCache().put(fieldRef, data);
         }
-        Mockito.doAnswer((invocation) -> TimeUnit.HOURS.toMillis(1)).when(clock)
+        Mockito.doAnswer((invocation) -> Duration.ofHours(1).toMillis()).when(clock)
                         .millis();
         doCalculations(editor, firstBroadcastContext);
         final HistoryAggregationContext secondBroadcastContext = createContext(ImmutableMap
                         .of(ref1, Pair.create(10F, 100F), ref2, Pair.create(195F, 200F), ref3,
                                         Pair.create(95F, 100F))).getFirst();
-        Mockito.doAnswer((invocation) -> TimeUnit.HOURS.toMillis(3))
+        Mockito.doAnswer((invocation) -> Duration.ofHours(1).toMillis() * 3)
                         .when(clock).millis();
         doCalculations(editor, secondBroadcastContext);
         Mockito.doAnswer((invocation) -> System.currentTimeMillis()).when(clock).millis();
@@ -303,6 +301,62 @@ public class TimeSlotEditorTest extends BaseGraphRelatedTest {
                                         Pair.create(195F, 200F), ref3, Pair.create(95F, 100F)));
         doCalculations(editor, contextToGraph2.getFirst());
         Assert.assertEquals(getTimeSlots(ref1, contextToGraph2.getSecond()).get(0), 10F, 0.0001);
+    }
+
+    /**
+     * Checks write and read capability for timeslot data.
+     *
+     * @throws InterruptedException in case thread was interrupted.
+     * @throws HistoryCalculationException in case time slot calculation process failed.
+     * @throws IOException in case of an error during writing or reading.
+     * @throws DiagnosticsException in case of error during diagnostics export/import.
+     */
+    @Test
+    public void testWriterReaderTimeslotData() throws InterruptedException, HistoryCalculationException, IOException,
+            DiagnosticsException {
+        final GraphWithSettings graphWithSettings = createGraphWithSettings();
+        config = createConfig(1, Clock.systemUTC());
+        final List<EntityCommodityReference> comms = createCommodityReferences();
+        final CountDownLatch latch = new CountDownLatch(comms.size());
+        final TimeslotEditorCacheAccess editor = getEditor(latch);
+        final HistoryAggregationContext context = new HistoryAggregationContext(topologyInfo,
+                graphWithSettings, false);
+        editor.initContext(context, comms);
+        final List<EntityCommodityReference> entityCommodityFieldReferences = new ArrayList<>();
+        for (int i = 0; i < 500; i++) {
+            entityCommodityFieldReferences.add(new EntityCommodityFieldReference(i, CT, null));
+        }
+        final Map<EntityCommodityFieldReference, TimeSlotCommodityData> cache = editor.getCache();
+        for (EntityCommodityReference ref : entityCommodityFieldReferences) {
+            final EntityCommodityFieldReference fieldRef = new EntityCommodityFieldReference(ref,
+                    CommodityField.USED);
+            final TimeSlotCommodityData data = new TimeSlotCommodityData();
+            cache.put(fieldRef, data);
+        }
+        final TimeslotEditorCacheAccess timeslotEditorCacheAccess = getEditor(
+                new CountDownLatch(0));
+        final long timestamp;
+        try (ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            editor.exportState(output);
+            timestamp = editor.getStartTimestamp();
+            timeslotEditorCacheAccess.restoreState(output.toByteArray());
+        }
+        Assert.assertEquals(timestamp, timeslotEditorCacheAccess.getStartTimestamp());
+        for (Entry<EntityCommodityFieldReference, TimeSlotCommodityData> entityCommodityReferenceTimeSlotCommodityData : timeslotEditorCacheAccess
+                .getCache()
+                .entrySet()) {
+            final TimeSlotCommodityData timeSlotCommodityData = cache.get(
+                    entityCommodityReferenceTimeSlotCommodityData.getKey());
+            Assert.assertNotNull(timeSlotCommodityData);
+            Assert.assertEquals(timeSlotCommodityData,
+                    entityCommodityReferenceTimeSlotCommodityData.getValue());
+        }
+    }
+
+    @Nonnull
+    private TimeslotEditorCacheAccess getEditor(@Nonnull CountDownLatch latch) {
+        return new TimeslotEditorCacheAccess(config, null, backgroundLoadingPool,
+                (client, range) -> new TestTimeSlotLoadingTask(client, latch, DEFAULT_RANGE));
     }
 
     private void doCalculations(TimeslotEditorCacheAccess editor,
