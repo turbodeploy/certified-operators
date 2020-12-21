@@ -574,11 +574,11 @@ public class ReservationMapper {
             throw  new ProviderIdNotRecognizedException(providerInfo.getProviderId());
         }
         final int entityType = ApiEntityType.fromString(serviceEntityApiDTO.get().getClassName()).typeNumber();
-        if (!placementInfoApiDTO.getClusterResources().stream()
-                .anyMatch(a -> a.getProvider().getUuid()
-                        .equals(String.valueOf(providerInfo.getClusterId())))) {
-            placementInfoApiDTO.getClusterResources()
-                    .add(generateClusterResourcesApiDTO(providerInfo.getClusterId(),
+        String clusterId = String.valueOf(providerInfo.getClusterId());
+        if (!placementInfoApiDTO.getRelatedResources().stream()
+                .anyMatch(a -> a.getResourceId().equals(clusterId))) {
+            placementInfoApiDTO.getRelatedResources()
+                    .add(generateClusterResourcesApiDTO(clusterId,
                             providerInfo.getCommodityStats()));
         }
         switch (entityType) {
@@ -587,7 +587,7 @@ public class ReservationMapper {
                         placementInfoApiDTO.getComputeResources() != null ?
                                 placementInfoApiDTO.getComputeResources() :
                                 new ArrayList<>();
-                computeResources.add(generateResourcesApiDTO(serviceEntityApiDTO.get(), providerInfo.getCommoditiesBought()));
+                computeResources.add(generateResourcesApiDTO(serviceEntityApiDTO.get(), providerInfo.getCommoditiesBought(), clusterId));
                 placementInfoApiDTO.setComputeResources(computeResources);
                 break;
             case EntityType.STORAGE_VALUE:
@@ -595,7 +595,7 @@ public class ReservationMapper {
                         placementInfoApiDTO.getStorageResources() != null ?
                                 placementInfoApiDTO.getStorageResources() :
                                 new ArrayList<>();
-                storageResources.add(generateResourcesApiDTO(serviceEntityApiDTO.get(), providerInfo.getCommoditiesBought()));
+                storageResources.add(generateResourcesApiDTO(serviceEntityApiDTO.get(), providerInfo.getCommoditiesBought(), clusterId));
                 placementInfoApiDTO.setStorageResources(storageResources);
                 break;
             case EntityType.NETWORK_VALUE:
@@ -603,7 +603,7 @@ public class ReservationMapper {
                         placementInfoApiDTO.getNetworkResources() != null ?
                                 placementInfoApiDTO.getNetworkResources() :
                                 new ArrayList<>();
-                networkResources.add(generateResourcesApiDTO(serviceEntityApiDTO.get(), providerInfo.getCommoditiesBought()));
+                networkResources.add(generateResourcesApiDTO(serviceEntityApiDTO.get(), providerInfo.getCommoditiesBought(), clusterId));
                 placementInfoApiDTO.setNetworkResources(networkResources);
                 break;
             default:
@@ -618,12 +618,10 @@ public class ReservationMapper {
      * @param commodityStats the stats of the cluster.
      * @return cluster stats wrapped as ResourceApiDTO.
      */
-    private ResourceApiDTO generateClusterResourcesApiDTO(@Nonnull final long clusterId,
+    private ResourceApiDTO generateClusterResourcesApiDTO(@Nonnull final String clusterId,
                                                    List<CommodityStats> commodityStats) {
-        final BaseApiDTO providerBaseApiDTO = new BaseApiDTO();
-        providerBaseApiDTO.setUuid(String.valueOf(clusterId));
         final ResourceApiDTO resourceApiDTO = new ResourceApiDTO();
-        resourceApiDTO.setProvider(providerBaseApiDTO);
+        resourceApiDTO.setResourceId(clusterId);
         List<StatApiDTO> statApiDTOS = new ArrayList<>();
         for (CommodityStats commodityStat : commodityStats) {
             Pair<String, String> commodityNameUnit = COMMODITY_TYPE_NAME_UNIT_MAP
@@ -651,10 +649,12 @@ public class ReservationMapper {
      *
      * @param serviceEntityApiDTO  The provider service entity
      * @param commodityBoughtDTOList the commodities bought by the VM associated with the reservation.
+     * @param clusterID the id of the cluster the provider belongs to.
      * @return ResourceApiDTO populated with providerID and the stats.
      */
     private ResourceApiDTO generateResourcesApiDTO(@Nonnull final ServiceEntityApiDTO serviceEntityApiDTO,
-                                                   List<CommodityBoughtDTO> commodityBoughtDTOList) {
+                                                   List<CommodityBoughtDTO> commodityBoughtDTOList,
+                                                   String clusterID) {
         final BaseApiDTO providerBaseApiDTO = new BaseApiDTO();
         providerBaseApiDTO.setClassName(serviceEntityApiDTO.getClassName());
         providerBaseApiDTO.setDisplayName(serviceEntityApiDTO.getDisplayName());
@@ -676,6 +676,7 @@ public class ReservationMapper {
             }
         }
         resourceApiDTO.setStats(statApiDTOS);
+        resourceApiDTO.getRelatedResources().add(clusterID);
         return resourceApiDTO;
     }
 

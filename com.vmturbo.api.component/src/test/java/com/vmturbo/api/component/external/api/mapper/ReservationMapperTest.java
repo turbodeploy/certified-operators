@@ -261,7 +261,7 @@ public class ReservationMapperTest {
         final ResourceApiDTO storageResource = reservationApiDTO.getDemandEntities().get(0)
                 .getPlacements().getStorageResources().get(0);
         final ResourceApiDTO clusterResource = reservationApiDTO.getDemandEntities().get(0)
-                .getPlacements().getClusterResources().get(0);
+                .getPlacements().getRelatedResources().get(0);
         assertEquals("123", clusterResource.getProvider().getUuid());
         assertEquals(300, Math.round(clusterResource.getStats().stream().filter(a -> a.getName()
                 .equals(CommodityTypeUnits.MEM_PROVISIONED.getMixedCase())).findFirst().get().getCapacity().getAvg()));
