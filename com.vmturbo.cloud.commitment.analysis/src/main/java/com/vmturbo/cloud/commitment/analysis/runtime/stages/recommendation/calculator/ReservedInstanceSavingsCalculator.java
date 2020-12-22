@@ -28,6 +28,7 @@ import org.immutables.value.Value.Immutable;
 
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.recommendation.calculator.SavingsCalculationContext.AggregateDemand;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.recommendation.calculator.SavingsCalculationContext.CloudTierDemandInfo;
+import com.vmturbo.cloud.common.data.ImmutableTimeSeries;
 import com.vmturbo.cloud.common.data.TimeSeries;
 import com.vmturbo.cloud.common.data.TimeSeriesData;
 import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
@@ -105,7 +106,7 @@ public class ReservedInstanceSavingsCalculator implements CloudCommitmentSavings
                                 .timeInterval(demandSegment.timeInterval())
                                 .tierDemandMap(demandMap)
                                 .build();
-                    }).collect(TimeSeries.toTimeSeries());
+                    }).collect(ImmutableTimeSeries.toImmutableTimeSeries());
         }
 
         private SavingsCalculationResult calculateSavings() {

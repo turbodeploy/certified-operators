@@ -63,6 +63,7 @@ public class CloudCommitmentAnalysis {
 
         try (AnalysisExecutionContext aec = this.new AnalysisExecutionContext()) {
             if (!isStarted.getAndSet(true)) {
+                logger.info("Cloud commitment analysis config:\n{}", analysisConfig);
                 logger.info("Staring cloud commitment analysis:\n{}", analysisSummary);
 
                 // The first stage is expected to accept null as input

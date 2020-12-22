@@ -19,11 +19,13 @@ import com.vmturbo.cloud.commitment.analysis.pricing.CloudTierPricingData;
 import com.vmturbo.cloud.common.data.TimeSeries;
 import com.vmturbo.cloud.common.data.TimeSeriesData;
 import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
+import com.vmturbo.cloud.common.immutable.TimeSeriesEncodingEnabled;
 
 /**
  * the input to a cloud commitment savings calculation, containing the relevant rates and demand. All
  * demand contained within the context is expected to be in scope of the recommended commitment.
  */
+@TimeSeriesEncodingEnabled
 @HiddenImmutableImplementation
 @Immutable
 public interface SavingsCalculationContext {

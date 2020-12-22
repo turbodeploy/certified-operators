@@ -20,6 +20,7 @@ import com.vmturbo.cloud.commitment.analysis.runtime.data.AnalysisTopology;
 import com.vmturbo.cloud.commitment.analysis.runtime.data.AnalysisTopologySegment;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.AggregateAnalysisDemand;
 import com.vmturbo.cloud.common.commitment.CloudCommitmentData;
+import com.vmturbo.cloud.common.data.ImmutableTimeSeries;
 import com.vmturbo.cloud.common.data.TimeSeries;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisConfig;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentInventory;
@@ -78,7 +79,7 @@ public class CloudCommitmentInventoryResolverStage extends AbstractStage<Aggrega
                         .aggregateCloudTierDemandSet(aggregateDemandSegment.aggregateCloudTierDemand())
                         .cloudCommitmentByOid(cloudCommitmentCapacityMap)
                         .build())
-                .collect(TimeSeries.toTimeSeries());
+                .collect(ImmutableTimeSeries.toImmutableTimeSeries());
 
         analysisTopologyBuilder.segments(analysisSegments);
         return StageResult.<AnalysisTopology>builder()

@@ -2,9 +2,9 @@ package com.vmturbo.cloud.commitment.analysis.runtime.stages.recommendation;
 
 import javax.annotation.Nonnull;
 
-import org.immutables.value.Value.Auxiliary;
 import org.immutables.value.Value.Derived;
 import org.immutables.value.Value.Immutable;
+import org.immutables.value.Value.Redacted;
 
 import com.vmturbo.cloud.commitment.analysis.pricing.RIPricingData;
 import com.vmturbo.cloud.commitment.analysis.spec.ReservedInstanceSpecData;
@@ -31,7 +31,7 @@ public interface ReservedInstanceRecommendationInfo extends RecommendationInfo {
     /**
      * {@inheritDoc}.
      */
-    @Auxiliary
+    @Redacted
     @Override
     ReservedInstanceSpecData commitmentSpecData();
 

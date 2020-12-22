@@ -20,6 +20,7 @@ import com.vmturbo.cloud.commitment.analysis.runtime.stages.AbstractStage;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.AllocatedDemandClassifier.AllocatedDemandClassifierFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.CloudTierFamilyMatcher.CloudTierFamilyMatcherFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.retrieval.EntityCloudTierDemandSet;
+import com.vmturbo.cloud.common.data.ImmutableTimeSeries;
 import com.vmturbo.cloud.common.data.TimeSeries;
 import com.vmturbo.cloud.common.topology.MinimalCloudTopology;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisConfig;
@@ -76,7 +77,7 @@ public class DemandClassificationStage extends AbstractStage<EntityCloudTierDema
                 .stream()
                 .collect(Collectors.groupingBy(
                         EntityCloudTierMapping::entityOid,
-                        TimeSeries.toTimeSeries()));
+                        ImmutableTimeSeries.toImmutableTimeSeries()));
 
 
         logger.info("Classifying allocated demand for {} entities", allocationDemandByEntityOid.size());

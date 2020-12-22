@@ -22,7 +22,6 @@ import com.vmturbo.cloud.commitment.analysis.runtime.stages.recommendation.calcu
 import com.vmturbo.cloud.commitment.analysis.spec.ImmutableReservedInstanceSpecData;
 import com.vmturbo.cloud.commitment.analysis.spec.ReservedInstanceSpecData;
 import com.vmturbo.cloud.common.data.TimeInterval;
-import com.vmturbo.cloud.common.data.TimeSeries;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -186,9 +185,7 @@ public class CloudCommitmentRecommendationTest {
      */
     public static final SavingsCalculationContext RI_SAVINGS_CALCULATION_CONTEXT = SavingsCalculationContext.builder()
             .amortizedCommitmentRate(5.0)
-            .demandSegments(TimeSeries.newTimeSeries(
-                    DEMAND_SEGMENT_1,
-                    DEMAND_SEGMENT_2))
+            .addDemandSegments(DEMAND_SEGMENT_1, DEMAND_SEGMENT_2)
             .build();
 
     /**

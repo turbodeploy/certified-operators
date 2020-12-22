@@ -169,13 +169,18 @@ public class CloudCommitmentAnalysisRunner {
 
 
         cloudCommitmentAnalysisConfigBuilder.setPurchaseProfile(
-                CommitmentPurchaseProfile.newBuilder().setAllocatedSelection(AllocatedDemandSelection
-                        .newBuilder().setIncludeFlexibleDemand(cloudCommitmentSettingsFetcher.allocationFlexible())
-                        .setDemandSelection(demandSelection))
-                        .setRecommendationSettings(RecommendationSettings.newBuilder().setMaxDemandPercent(cloudCommitmentSettingsFetcher.maxDemandPercentage())
-                        .setMinimumSavingsOverOnDemandPercent(cloudCommitmentSettingsFetcher.minimumSavingsOverOnDemand()).build())
+                CommitmentPurchaseProfile.newBuilder()
+                        .setAllocatedSelection(AllocatedDemandSelection
+                                .newBuilder()
+                                .setIncludeFlexibleDemand(cloudCommitmentSettingsFetcher.allocationFlexible())
+                                .setDemandSelection(demandSelection))
+                        .setRecommendationSettings(RecommendationSettings.newBuilder()
+                                .setMaxDemandPercent(cloudCommitmentSettingsFetcher.maxDemandPercentage())
+                                .setMinimumSavingsOverOnDemandPercent(cloudCommitmentSettingsFetcher.minimumSavingsOverOnDemand())
+                                .build())
                         .setRiPurchaseProfile(ReservedInstancePurchaseProfile.newBuilder()
-                                .putAllRiTypeByRegionOid(getRITypeByOid(request)).build()));
+                                .putAllRiTypeByRegionOid(getRITypeByOid(request))
+                                .build()));
 
         CloudCommitmentAnalysisConfig cloudCommitmentAnalysisConfig = cloudCommitmentAnalysisConfigBuilder.build();
 

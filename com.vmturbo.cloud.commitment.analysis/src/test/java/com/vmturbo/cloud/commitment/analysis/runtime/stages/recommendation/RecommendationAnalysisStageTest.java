@@ -41,7 +41,6 @@ import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.Aggre
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.AggregateCloudTierDemand.EntityInfo;
 import com.vmturbo.cloud.commitment.analysis.spec.CloudCommitmentSpecData;
 import com.vmturbo.cloud.common.data.TimeInterval;
-import com.vmturbo.cloud.common.data.TimeSeries;
 import com.vmturbo.cloud.common.topology.MinimalCloudTopology;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.AllocatedDemandClassification;
 import com.vmturbo.common.protobuf.cloud.CloudCommitment.CloudCommitmentType;
@@ -87,15 +86,14 @@ public class RecommendationAnalysisStageTest {
             .build();
 
     private final AnalysisTopology analysisTopology = AnalysisTopology.builder()
-            .segments(TimeSeries.newTimeSeries(
-                    AnalysisTopologySegment.builder()
-                            .timeInterval(TimeInterval.builder()
-                                    .startTime(Instant.ofEpochSecond(0))
-                                    .endTime(Instant.ofEpochSecond(0).plus(1, ChronoUnit.HOURS))
-                                    .build())
-                            .putAggregateCloudTierDemandSet(aggregateDemandA.cloudTierInfo(), aggregateDemandA)
-                            .putAggregateCloudTierDemandSet(aggregateDemandB.cloudTierInfo(), aggregateDemandB)
-                            .build()))
+            .addSegment(AnalysisTopologySegment.builder()
+                    .timeInterval(TimeInterval.builder()
+                            .startTime(Instant.ofEpochSecond(0))
+                            .endTime(Instant.ofEpochSecond(0).plus(1, ChronoUnit.HOURS))
+                            .build())
+                    .putAggregateCloudTierDemandSet(aggregateDemandA.cloudTierInfo(), aggregateDemandA)
+                    .putAggregateCloudTierDemandSet(aggregateDemandB.cloudTierInfo(), aggregateDemandB)
+                    .build())
             .build();
 
     private final RateAnnotatedCommitmentContext commitmentContext = RateAnnotatedCommitmentContext.builder()

@@ -18,7 +18,7 @@ import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
  */
 @HiddenImmutableImplementation
 @Immutable(lazyhash = true)
-public abstract class TimeInterval {
+public abstract class TimeInterval implements TimeSeriesData {
 
     /**
      * The start time of this interval.
@@ -46,6 +46,15 @@ public abstract class TimeInterval {
     }
 
     /**
+     * {@inheritDoc}.
+     */
+    @Nonnull
+    @Override
+    public TimeInterval timeInterval() {
+        return this;
+    }
+
+    /**
      * Converts this {@link TimeInterval} instance to a {@link Builder} instance.
      * @return The newly created builder instance.
      */
@@ -68,6 +77,8 @@ public abstract class TimeInterval {
     public static Builder builder() {
         return new Builder();
     }
+
+
 
     /**
      * A builder class for creating {@link TimeInterval} instances.

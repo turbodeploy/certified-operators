@@ -30,15 +30,15 @@ public class BreakEvenCalculator {
      */
     public Optional<Period> calculateBreakEven(@Nonnull SavingsCalculationResult savingsCalculationResult,
                                                 @Nonnull CloudCommitmentSpecData cloudCommitmentSpecData) {
-        SavingsCalculationRecommendation savingsCalculationRecommendation = savingsCalculationResult.recommendation();
-        double savings = savingsCalculationRecommendation.savingsOverOnDemand();
+        final SavingsCalculationRecommendation savingsCalculationRecommendation = savingsCalculationResult.recommendation();
+        final double savings = savingsCalculationRecommendation.savingsOverOnDemand();
         if (savings < 0) {
-            logger.info("WARNING: The savings for this recommendation is negative. The breakeven"
+            logger.debug("The savings for this recommendation is negative. The breakeven"
                     + " period for {} will not be set", savingsCalculationRecommendation);
             return Optional.empty();
         }
-        long termInHours = cloudCommitmentSpecData.termInHours();
-        double breakEvenPeriodInHours = (1 - savings / 100) * termInHours;
+        final long termInHours = cloudCommitmentSpecData.termInHours();
+        final double breakEvenPeriodInHours = (1 - savings / 100) * termInHours;
         return Optional.of(Period.ofDays((int)(breakEvenPeriodInHours / 24)));
     }
 }

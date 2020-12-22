@@ -8,9 +8,9 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.cloud.commitment.analysis.demand.BoundedDuration;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.DemandTransformationJournal.DemandTransformationResult;
+import com.vmturbo.cloud.common.data.ImmutableTimeSeries;
 import com.vmturbo.cloud.common.data.TimeInterval;
 import com.vmturbo.cloud.common.data.TimeSeries;
-import com.vmturbo.cloud.common.data.TimeSeries.ConcurrentTimeSeries;
 
 /**
  * An aggregator responsible for converting all entity demand to an aggregated type, based on the scope,
@@ -62,14 +62,14 @@ public class AnalysisDemandCreator {
                 .aggregateDemandSeries(analysisTimeline.stream()
                         .map(analysisBucket -> demandByBucket.getOrDefault(
                                 analysisBucket, AggregateDemandSegment.emptySegment(analysisBucket)))
-                        .collect(TimeSeries.toTimeSeries()))
+                        .collect(ImmutableTimeSeries.toImmutableTimeSeries()))
                 .build();
     }
 
 
     private TimeSeries<TimeInterval> calculateAnalysisBuckets() {
 
-        final ConcurrentTimeSeries<TimeInterval> analysisIntervals = TimeSeries.newConcurrentTimeline();
+        final ImmutableTimeSeries.Builder<TimeInterval> analysisIntervals = ImmutableTimeSeries.builder();
         final Instant analysisEndTime = analysisWindow.endTime();
 
         Instant currentStartTime = analysisWindow.startTime();
@@ -85,6 +85,6 @@ public class AnalysisDemandCreator {
             currentStartTime = endTime;
         }
 
-        return analysisIntervals;
+        return analysisIntervals.build();
     }
 }

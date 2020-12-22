@@ -16,8 +16,6 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.Optional;
 
-import com.google.common.collect.Lists;
-
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
@@ -37,6 +35,7 @@ import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.Deman
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.retrieval.EntityCloudTierDemandSet;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.retrieval.ImmutableEntityCloudTierDemandSet;
 import com.vmturbo.cloud.commitment.analysis.spec.CloudCommitmentSpecMatcher;
+import com.vmturbo.cloud.common.data.ImmutableTimeSeries;
 import com.vmturbo.cloud.common.data.TimeInterval;
 import com.vmturbo.cloud.common.data.TimeSeries;
 import com.vmturbo.cloud.common.topology.MinimalCloudTopology;
@@ -157,14 +156,12 @@ public class DemandClassificationStageTest {
         // setup allocated demand classifier
         final DemandTimeSeries allocatedDemandA = DemandTimeSeries.builder()
                 .cloudTierDemand(entityAllocationA2.cloudTierDemand())
-                .demandIntervals(TimeSeries.newTimeline(
-                        Collections.singleton(entityAllocationA2.timeInterval())))
+                .addDemandIntervals(entityAllocationA2.timeInterval())
                 .build();
 
         final DemandTimeSeries allocatedTimeSeries = DemandTimeSeries.builder()
                 .cloudTierDemand(entityAllocationA1.cloudTierDemand())
-                .demandIntervals(TimeSeries.newTimeline(
-                        Collections.singleton(entityAllocationA1.timeInterval())))
+                .addDemandIntervals(entityAllocationA1.timeInterval())
                 .build();
         final ClassifiedCloudTierDemand classifiedEntityA = ClassifiedCloudTierDemand.builder()
                 .putClassifiedDemand(
@@ -178,10 +175,7 @@ public class DemandClassificationStageTest {
 
         final DemandTimeSeries allocatedDemandB = DemandTimeSeries.builder()
                 .cloudTierDemand(entityAllocationB1.cloudTierDemand())
-                .demandIntervals(TimeSeries.newTimeline(
-                        Lists.newArrayList(
-                                entityAllocationB1.timeInterval(),
-                                entityAllocationB2.timeInterval())))
+                .addDemandIntervals(entityAllocationB1.timeInterval(), entityAllocationB2.timeInterval())
                 .build();
         final ClassifiedCloudTierDemand classifiedEntityB = ClassifiedCloudTierDemand.builder()
                 .putClassifiedDemand(
@@ -222,8 +216,8 @@ public class DemandClassificationStageTest {
                 ArgumentCaptor.forClass(TimeSeries.class);
         verify(allocatedDemandClassifier, times(2)).classifyEntityDemand(entityTimeSeries.capture());
         assertThat(entityTimeSeries.getAllValues(), containsInAnyOrder(
-                TimeSeries.newTimeSeries(Lists.newArrayList(entityAllocationA1, entityAllocationA2)),
-                TimeSeries.newTimeSeries(Lists.newArrayList(entityAllocationB1, entityAllocationB2))));
+                ImmutableTimeSeries.of(entityAllocationA1, entityAllocationA2),
+                ImmutableTimeSeries.of(entityAllocationB1, entityAllocationB2)));
 
         // verify the result
         final ClassifiedEntityDemandAggregate entityAggregateA =

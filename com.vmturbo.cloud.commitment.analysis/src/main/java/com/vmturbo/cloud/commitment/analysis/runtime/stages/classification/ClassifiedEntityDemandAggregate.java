@@ -11,12 +11,14 @@ import org.immutables.value.Value.Auxiliary;
 import org.immutables.value.Value.Default;
 import org.immutables.value.Value.Derived;
 import org.immutables.value.Value.Immutable;
+import org.immutables.value.Value.Redacted;
 import org.immutables.value.Value.Style;
 import org.immutables.value.Value.Style.ImplementationVisibility;
 
 import com.vmturbo.cloud.commitment.analysis.demand.CloudTierDemand;
 import com.vmturbo.cloud.common.data.TimeInterval;
 import com.vmturbo.cloud.common.data.TimeSeries;
+import com.vmturbo.cloud.common.immutable.TimeSeriesEncodingEnabled;
 
 /**
  * Represents all {@link CloudTierDemand} associated with a single entity, aggregated and classified.
@@ -124,6 +126,7 @@ public interface ClassifiedEntityDemandAggregate {
      * Represents multiple {@link TimeInterval} instances in which the same {@link CloudTierDemand}
      * was recorded.
      */
+    @TimeSeriesEncodingEnabled
     @Style(visibility = ImplementationVisibility.PACKAGE, overshadowImplementation = true)
     @Immutable
     interface DemandTimeSeries {
@@ -140,7 +143,7 @@ public interface ClassifiedEntityDemandAggregate {
          * was recorded.
          * @return A time series of all the demand intervals.
          */
-        @Auxiliary
+        @Redacted
         @Nonnull
         TimeSeries<TimeInterval> demandIntervals();
 

@@ -14,8 +14,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-import com.google.common.collect.Lists;
-
 import org.junit.Test;
 
 import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierDemand;
@@ -24,6 +22,7 @@ import com.vmturbo.cloud.commitment.analysis.demand.EntityComputeTierAllocation;
 import com.vmturbo.cloud.commitment.analysis.demand.ImmutableEntityComputeTierAllocation;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.AllocatedDemandClassifier.AllocatedDemandClassifierFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.ClassifiedEntityDemandAggregate.DemandTimeSeries;
+import com.vmturbo.cloud.common.data.ImmutableTimeSeries;
 import com.vmturbo.cloud.common.data.TimeInterval;
 import com.vmturbo.cloud.common.data.TimeSeries;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.AllocatedDemandClassification;
@@ -118,9 +117,10 @@ public class AllocatedDemandClassifierTest {
         when(cloudTierFamilyMatcher.match(eq(staleAllocated), eq(allocatedMapping))).thenReturn(false);
 
         // build the time series of demand
-        final TimeSeries<EntityCloudTierMapping> entityDemandSeries = TimeSeries.newTimeSeries(
-                Lists.newArrayList(allocatedMapping, ephemeralMapping, priorAllocation,
-                        flexiblyAllocatedA, flexiblyAllocatedB, staleAllocated, oldAllocation));
+        final TimeSeries<EntityCloudTierMapping> entityDemandSeries = ImmutableTimeSeries.<EntityCloudTierMapping>builder()
+                .add(allocatedMapping, ephemeralMapping, priorAllocation,
+                        flexiblyAllocatedA, flexiblyAllocatedB, staleAllocated, oldAllocation)
+                .build();
 
         // invoke the demand classifier
         final AllocatedDemandClassifier allocatedDemandClassifier = allocatedDemandClassifierFactory.newClassifier(
@@ -133,47 +133,35 @@ public class AllocatedDemandClassifierTest {
         final DemandTimeSeries allocatedDemandTimeSeries = DemandTimeSeries
                 .builder()
                 .cloudTierDemand(allocatedMapping.cloudTierDemand())
-                .demandIntervals(TimeSeries.newTimeline(
-                        Lists.newArrayList(
-                                allocatedMapping.timeInterval(),
-                                priorAllocation.timeInterval())))
+                .addDemandIntervals(allocatedMapping.timeInterval())
+                .addDemandIntervals(priorAllocation.timeInterval())
                 .build();
 
         // Ephemeral
         final DemandTimeSeries ephemeralDemandTimeSeries = DemandTimeSeries.builder()
                 .cloudTierDemand(ephemeralMapping.cloudTierDemand())
-                .demandIntervals(TimeSeries.newTimeline(
-                        Lists.newArrayList(
-                                ephemeralMapping.timeInterval())))
+                .addDemandIntervals(ephemeralMapping.timeInterval())
                 .build();
 
         // Flexibly allocated
         final DemandTimeSeries flexibleDemandTimeSeriesA = DemandTimeSeries.builder()
                 .cloudTierDemand(flexiblyAllocatedA.cloudTierDemand())
-                .demandIntervals(TimeSeries.newTimeline(
-                        Lists.newArrayList(
-                                flexiblyAllocatedA.timeInterval())))
+                .addDemandIntervals(flexiblyAllocatedA.timeInterval())
                 .build();
         final DemandTimeSeries flexibleDemandTimeSeriesB = DemandTimeSeries.builder()
                 .cloudTierDemand(flexiblyAllocatedB.cloudTierDemand())
-                .demandIntervals(TimeSeries.newTimeline(
-                        Lists.newArrayList(
-                                flexiblyAllocatedB.timeInterval())))
+                .addDemandIntervals(flexiblyAllocatedB.timeInterval())
                 .build();
 
         // Stale
         final DemandTimeSeries staleDemandTimeSeries = DemandTimeSeries.builder()
                 .cloudTierDemand(staleAllocated.cloudTierDemand())
-                .demandIntervals(TimeSeries.newTimeline(
-                        Lists.newArrayList(
-                                staleAllocated.timeInterval())))
+                .addDemandIntervals(staleAllocated.timeInterval())
                 .build();
 
         final DemandTimeSeries oldDemandTimeSeries = DemandTimeSeries.builder()
                 .cloudTierDemand(oldAllocation.cloudTierDemand())
-                .demandIntervals(TimeSeries.newTimeline(
-                        Lists.newArrayList(
-                                oldAllocation.timeInterval())))
+                .addDemandIntervals(oldAllocation.timeInterval())
                 .build();
 
         // Asertions
@@ -184,7 +172,7 @@ public class AllocatedDemandClassifierTest {
                 DemandTimeSeries
                         .builder()
                         .cloudTierDemand(allocatedMapping.cloudTierDemand())
-                        .demandIntervals(TimeSeries.singletonTimeline(allocatedMapping.timeInterval()))
+                        .addDemandIntervals(allocatedMapping.timeInterval())
                         .build())));
 
         final DemandClassification allocatedClassification =

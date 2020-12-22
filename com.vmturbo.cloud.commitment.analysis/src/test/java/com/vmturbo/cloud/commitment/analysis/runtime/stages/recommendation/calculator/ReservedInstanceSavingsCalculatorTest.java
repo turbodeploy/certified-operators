@@ -19,7 +19,6 @@ import com.vmturbo.cloud.commitment.analysis.runtime.stages.recommendation.calcu
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.recommendation.calculator.SavingsCalculationContext.CloudTierDemandInfo;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.recommendation.calculator.SavingsCalculationContext.DemandSegment;
 import com.vmturbo.cloud.common.data.TimeInterval;
-import com.vmturbo.cloud.common.data.TimeSeries;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CommitmentPurchaseProfile.RecommendationSettings;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CommitmentPurchaseProfile.RecommendationSettings.ReservedInstanceRecommendationSettings;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
@@ -74,7 +73,7 @@ public class ReservedInstanceSavingsCalculatorTest {
         final SavingsCalculationContext savingsContext = SavingsCalculationContext.builder()
                 // just below 10% discount
                 .amortizedCommitmentRate(.91)
-                .demandSegments(TimeSeries.newTimeSeries(demandSegment))
+                .addDemandSegment(demandSegment)
                 .build();
 
         // Invoke the savings calculator
@@ -109,7 +108,7 @@ public class ReservedInstanceSavingsCalculatorTest {
         final SavingsCalculationContext savingsContext = SavingsCalculationContext.builder()
                 // just below 10% discount
                 .amortizedCommitmentRate(1.80)
-                .demandSegments(TimeSeries.newTimeSeries(demandSegment))
+                .addDemandSegment(demandSegment)
                 .build();
 
         // Invoke the savings calculator
@@ -157,7 +156,7 @@ public class ReservedInstanceSavingsCalculatorTest {
         final SavingsCalculationContext savingsContext = SavingsCalculationContext.builder()
                 // just below 10% discount
                 .amortizedCommitmentRate(1.80)
-                .demandSegments(TimeSeries.newTimeSeries(demandSegment))
+                .addDemandSegment(demandSegment)
                 .build();
 
 
