@@ -155,13 +155,7 @@ public class OperationConfig {
      */
     @Bean
     public BinaryDiscoveryDumper binaryDiscoveryDumper() {
-        try {
-            return new BinaryDiscoveryDumper(new File(discoveryResponsesCachePath));
-        } catch (IOException e) {
-            logger.warn("Failed to initialized binary discovery dumper; discovery responses will "
-                + "not be dumped and target won't be restored after a restart", e);
-        }
-        return null;
+        return new BinaryDiscoveryDumper(new File(discoveryResponsesCachePath));
     }
 
     /**

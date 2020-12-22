@@ -1045,7 +1045,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                                 discoveryDumper.dumpDiscovery(targetName, discoveryType, response,
                                         new ArrayList<>());
                             }
-                            if (enableDiscoveryResponsesCaching && binaryDiscoveryDumper != null) {
+                            if (enableDiscoveryResponsesCaching) {
                                 binaryDiscoveryDumper.dumpDiscovery(String.valueOf(targetId),
                                     discoveryType,
                                     response,

@@ -57,6 +57,8 @@ public class BinaryDiscoveryDumper implements DiscoveryDumper, CustomDiagHandler
 
     private final String diagsDirectoryPath = "/BinaryDiscoveries/";
 
+    private boolean succesfulInitialization = true;
+
 
     /**
      * Constructs the instance of dump file repository, pointing at specific dump files directory.
@@ -64,9 +66,16 @@ public class BinaryDiscoveryDumper implements DiscoveryDumper, CustomDiagHandler
      * @param dumpDirectory directory to use to store dumps
      * @throws IOException if an error occurs in creating the directory
      */
-    public BinaryDiscoveryDumper(@Nonnull final File dumpDirectory) throws IOException {
+    @Nonnull
+    public BinaryDiscoveryDumper(@Nonnull final File dumpDirectory) {
         this.dumpDirectory = Objects.requireNonNull(dumpDirectory);
-        FileUtils.forceMkdir(dumpDirectory);
+        try {
+            FileUtils.forceMkdir(dumpDirectory);
+        } catch (IOException e) {
+            logger.warn("Failed to initialized binary discovery dumper; discovery responses will "
+                + "not be dumped and target won't be restored after a restart", e);
+            succesfulInitialization = false;
+        }
     }
 
 
@@ -85,7 +94,7 @@ public class BinaryDiscoveryDumper implements DiscoveryDumper, CustomDiagHandler
           @Nonnull final DiscoveryResponse discovery,
           @Nonnull final List<AccountDefEntry> accountDefs) {
 
-        if (discoveryType == DiscoveryType.INCREMENTAL) {
+        if (discoveryType == DiscoveryType.INCREMENTAL || !succesfulInitialization) {
             return;
         }
         sweepOldFileForTarget(tgtId);
@@ -104,6 +113,9 @@ public class BinaryDiscoveryDumper implements DiscoveryDumper, CustomDiagHandler
 
     @Override
     public void restore(final WrappedZipEntry zipEntry) {
+        if (!succesfulInitialization) {
+            return;
+        }
         File fileInDiags = new File(zipEntry.getName());
         try {
             FileUtils.writeByteArrayToFile(new File(dumpDirectory.getAbsolutePath() + '/' + fileInDiags.getName()),
@@ -121,6 +133,9 @@ public class BinaryDiscoveryDumper implements DiscoveryDumper, CustomDiagHandler
      */
     @Override
     public void dumpToStream(@Nonnull ZipOutputStream zipStream) {
+        if (!succesfulInitialization) {
+            return;
+        }
         try {
             logger.info("Creating zip folder {}", diagsDirectoryPath);
             ZipEntry directoryEntry = new ZipEntry(diagsDirectoryPath);

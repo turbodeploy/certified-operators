@@ -126,7 +126,7 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
             @Nonnull final PriceTableUploader priceTableUploader,
             @Nonnull final TopologyPipelineExecutorService topologyPipelineExecutorService,
             @Nonnull final Map<String, BinaryDiagsRestorable> fixedFilenameBinaryDiagnosticParts,
-            @Nonnull final BinaryDiscoveryDumper binaryDiscoveryDumper) {
+            final BinaryDiscoveryDumper binaryDiscoveryDumper) {
         this.targetStore = targetStore;
         this.targetPersistentIdentityStore = targetPersistentIdentityStore;
         this.scheduler = scheduler;
@@ -259,7 +259,9 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
                             .iterator());
         }
 
+
         diagsWriter.writeCustomEntries(binaryDiscoveryDumper);
+
         diagsWriter.dumpDiagnosable(
                 new PrometheusDiagnosticsProvider(CollectorRegistry.defaultRegistry));
         fixedFilenameBinaryDiagnosticParts.values().forEach(diagsWriter::dumpDiagnosable);
