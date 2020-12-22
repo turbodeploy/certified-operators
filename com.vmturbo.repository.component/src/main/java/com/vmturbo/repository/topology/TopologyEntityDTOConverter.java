@@ -23,6 +23,7 @@ import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.repository.dto.ApplicationInfoRepoDTO;
 import com.vmturbo.repository.dto.BusinessAccountInfoRepoDTO;
 import com.vmturbo.repository.dto.BusinessUserInfoRepoDTO;
+import com.vmturbo.repository.dto.CloudCommitmentInfoRepoDTO;
 import com.vmturbo.repository.dto.CommoditiesBoughtRepoFromProviderDTO;
 import com.vmturbo.repository.dto.ComputeTierInfoRepoDTO;
 import com.vmturbo.repository.dto.DatabaseInfoRepoDTO;
@@ -62,6 +63,7 @@ class TopologyEntityDTOConverter {
                     .put(TypeCase.DESKTOP_POOL, DesktopPoolInfoRepoDTO.class)
                     .put(TypeCase.BUSINESS_USER, BusinessUserInfoRepoDTO.class)
                     .put(TypeCase.WORKLOAD_CONTROLLER, WorkloadControllerInfoRepoDTO.class)
+                    .put(TypeCase.CLOUD_COMMITMENT_DATA, CloudCommitmentInfoRepoDTO.class)
                     .build();
 
 

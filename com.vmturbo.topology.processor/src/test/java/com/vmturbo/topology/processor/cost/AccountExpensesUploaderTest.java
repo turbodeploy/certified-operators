@@ -367,6 +367,10 @@ public class AccountExpensesUploaderTest {
          Mockito.when(mockStitchingContext.getEntitiesOfType(EntityType.DATABASE_SERVER_TIER)).thenAnswer(
                  invocationOnMock -> Stream.empty());
 
+         // CLOUD COMMITMENTS
+         Mockito.when(mockStitchingContext.getEntitiesOfType(EntityType.CLOUD_COMMITMENT)).thenAnswer(
+                 invocationOnMock -> Stream.empty());
+
          Mockito.when(mockStitchingContext.getEntitiesByEntityTypeAndTarget())
                  .thenReturn(entitiesByEntityTypeAndTarget.build());
 

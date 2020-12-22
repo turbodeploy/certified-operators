@@ -10,6 +10,7 @@ import "CloudCostDTO.proto";
 import "CommonDTO.proto";
 import "tag/Tag.proto";
 import "ncm/Matrix.proto";
+import "CommonCost.proto";
 
 // Different entity types may have additional configuration options that get discovered by the
 // SDK. We could represent these options as part of the loose-form entity properties, but it
@@ -38,6 +39,7 @@ message TypeSpecificInfo {
         WorkloadControllerInfo workload_controller = 77;
         DatabaseTierInfo database_tier = 78;
         DatabaseServerTierInfo database_server_tier = 79;
+        CloudCommitmentInfo cloud_commitment_data = 80;
     }
 
     message ApplicationInfo {
@@ -214,6 +216,23 @@ message TypeSpecificInfo {
     message DatabaseServerTierInfo {
         // license model of database server; e.g. BYOL or license included
         optional string family = 1;
+    }
+
+    message CloudCommitmentInfo {
+        oneof scope {
+            common_dto.EntityDTO.CloudCommitmentData.ServiceRestricted service_restricted = 1; // can be applied anywhere
+            common_dto.EntityDTO.CloudCommitmentData.FamilyRestricted family_restricted = 2; // restricted to one instance family
+        }
+
+        // A commitment can be spend based (savings plans) or coupon based (Reserved Instances)
+        oneof commitment {
+            common_dto.CurrencyAmount spend = 3;
+            int64 number_coupons = 4;
+        }
+        optional common_dto.PaymentOption payment = 5;
+        optional int64 term_milliseconds = 6;
+        optional int64 start_time_milliseconds = 7;
+        optional int64 expiration_time_milliseconds = 8;
     }
 
     // Architectures
