@@ -97,6 +97,9 @@ public class DemandRetrievalStage extends AbstractStage<Void, EntityCloudTierDem
                 // after it. In this case, we trim the demand to only the analysis window so that any
                 // downstream stages only consider demand within the window
                 .map(m -> trimDemandToAnalysisWindow(m, analysisWindow))
+                // Drop any empty mappings e.g. a mapping that happened to end right on
+                // the start time of the analysis window
+                .filter(m -> m.timeInterval().duration().toMillis() > 0)
                 // Billing family is not stored with the demand, given it can fluctuate with discovery
                 // (e.g. if AWS org access is added after discovery). Therefore, we resolve the billing
                 // family after demand retrieval

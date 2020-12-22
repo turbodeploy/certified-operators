@@ -493,7 +493,7 @@ public class SQLComputeTierAllocationStore extends SQLCloudScopedStore implement
         switch (timeFilter.comparator()) {
 
             case BEFORE:
-                timeCondition = field.le(time);
+                timeCondition = field.lessThan(time);
                 break;
             case BEFORE_OR_EQUAL_TO:
                 timeCondition = field.lessOrEqual(time);
@@ -502,7 +502,7 @@ public class SQLComputeTierAllocationStore extends SQLCloudScopedStore implement
                 timeCondition = field.eq(time);
                 break;
             case AFTER:
-                timeCondition = field.ge(time);
+                timeCondition = field.greaterThan(time);
                 break;
             case AFTER_OR_EQUAL_TO:
                 timeCondition = field.greaterOrEqual(time);
