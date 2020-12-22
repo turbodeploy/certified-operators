@@ -1,6 +1,7 @@
 package com.vmturbo.market.topology.conversions;
 
 import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -8,14 +9,24 @@ import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.LongStream;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.components.common.setting.GlobalSettingSpecs;
+import com.vmturbo.cost.calculation.integration.CloudCostDataProvider;
+import com.vmturbo.cost.calculation.pricing.CloudRateExtractor;
+import com.vmturbo.market.runner.AnalysisFactory;
+import com.vmturbo.market.runner.MarketMode;
+import com.vmturbo.platform.common.dto.CommonDTO;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -41,6 +52,7 @@ import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import org.mockito.Mockito;
 
 public class ConsistentScalingHelperTest {
 
@@ -149,6 +161,91 @@ public class ConsistentScalingHelperTest {
         TopologyEntityDTO nonCloudEntity = topology.get(4L);
         Assert.assertThat(csh.getGroupFactor(cloudEntity), is(2));
         Assert.assertThat(csh.getGroupFactor(nonCloudEntity), is(1));
+    }
+
+    @Test
+    public void testScalingGroupConversion() {
+        long[][] membership = {
+                // Create test group:
+                {1L, 100L, 101L}   // Group-1: cloud
+        };
+        createSettingPolicies(membership);
+        final TopologyDTO.TopologyEntityDTO.Builder vm1Builder = TopologyDTO.TopologyEntityDTO
+                .newBuilder()
+                .setOid(100L).setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setEnvironmentType(EnvironmentType.CLOUD)
+                .setTypeSpecificInfo(TopologyDTO.TypeSpecificInfo.newBuilder()
+                        .setVirtualMachine(TopologyDTO.TypeSpecificInfo.VirtualMachineInfo.newBuilder()))
+                .addCommoditiesBoughtFromProviders(
+                        TopologyEntityDTO.CommoditiesBoughtFromProvider.newBuilder()
+                                .setProviderEntityType(EntityType.COMPUTE_TIER_VALUE)
+                                .addCommodityBought(TopologyDTO.CommodityBoughtDTO.newBuilder().setActive(true)
+                                        .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                                                .setType(CommonDTO.CommodityDTO.CommodityType.VCPU_VALUE).build())
+                                        .setUsed(10).build())
+                                .addCommodityBought(TopologyDTO.CommodityBoughtDTO.newBuilder().setActive(true)
+                                        .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                                                .setType(CommonDTO.CommodityDTO.CommodityType.IO_THROUGHPUT_VALUE).build())
+                                        .setUsed(4).build())
+                                .addCommodityBought(TopologyDTO.CommodityBoughtDTO.newBuilder().setActive(true)
+                                        .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                                                .setType(CommonDTO.CommodityDTO.CommodityType.COUPON_VALUE).build())
+                                        .setUsed(4).build())
+                                .build()
+                );
+
+        final TopologyDTO.TopologyEntityDTO.Builder vm2Builder = TopologyDTO.TopologyEntityDTO
+                .newBuilder()
+                .setOid(101L).setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setEnvironmentType(EnvironmentType.CLOUD)
+                .setTypeSpecificInfo(TopologyDTO.TypeSpecificInfo.newBuilder()
+                        .setVirtualMachine(TopologyDTO.TypeSpecificInfo.VirtualMachineInfo.newBuilder()))
+                .addCommoditiesBoughtFromProviders(
+                        TopologyEntityDTO.CommoditiesBoughtFromProvider.newBuilder()
+                                .setProviderEntityType(EntityType.COMPUTE_TIER_VALUE)
+                                .addCommodityBought(TopologyDTO.CommodityBoughtDTO.newBuilder().setActive(true)
+                                        .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                                                .setType(CommonDTO.CommodityDTO.CommodityType.VCPU_VALUE).build())
+                                        .setUsed(15).build())
+                                .addCommodityBought(TopologyDTO.CommodityBoughtDTO.newBuilder().setActive(true)
+                                        .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                                                .setType(CommonDTO.CommodityDTO.CommodityType.IO_THROUGHPUT_VALUE).build())
+                                        .setUsed(3).build())
+                                .addCommodityBought(TopologyDTO.CommodityBoughtDTO.newBuilder().setActive(true)
+                                        .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                                                .setType(CommonDTO.CommodityDTO.CommodityType.COUPON_VALUE).build())
+                                        .setUsed(16).build())
+                                .build()
+                );
+
+        AnalysisFactory.AnalysisConfig analysisConfig = mock(AnalysisFactory.AnalysisConfig.class);
+        when(analysisConfig.getIncludeVdc()).thenReturn(false);
+        when(analysisConfig.getQuoteFactor()).thenReturn(MarketAnalysisUtils.QUOTE_FACTOR);
+        when(analysisConfig.getMarketMode()).thenReturn(MarketMode.M2Only);
+        when(analysisConfig.getLiveMarketMoveCostFactor()).thenReturn(MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR);
+        when(analysisConfig.getGlobalSetting(GlobalSettingSpecs.AllowUnlimitedHostOverprovisioning))
+                .thenReturn(Optional.empty());
+        TierExcluder.TierExcluderFactory tierExcluderFactory = mock(TierExcluder.TierExcluderFactory.class);
+        when(tierExcluderFactory.newExcluder(any(), any(), any())).thenReturn(mock(TierExcluder.class));
+
+        TopologyConverter converter = Mockito.spy(new TopologyConverter(
+                topologyInfo,
+                mock(CloudRateExtractor.class),
+                mock(CommodityConverter.class),
+                mock(CloudCostDataProvider.CloudCostData.class),
+                CommodityIndex.newFactory(),
+                tierExcluderFactory,
+                consistentScalingHelperFactory, cloudTopology, mock(ReversibilitySettingFetcher.class),
+                analysisConfig));
+
+        // Prime the topology converter with the VMs by converting it.
+        converter.convertToMarket(ImmutableMap.of(100L, vm1Builder.build(), 101L, vm2Builder.build()),
+                Collections.EMPTY_SET);
+        Map<Integer, Double> topUsagesMap = converter.getConsistentScalingHelper()
+                .getScalingGroupUsage(100L).get().topUsage_;
+        assertEquals(topUsagesMap.size(), 2);
+        Assert.assertThat(topUsagesMap.get(CommonDTO.CommodityDTO.CommodityType.VCPU_VALUE), is(15.0));
+        Assert.assertThat(topUsagesMap.get(CommonDTO.CommodityDTO.CommodityType.IO_THROUGHPUT_VALUE), is(4.0));
     }
 
     private EntitySettingGroup createEntitySettingGroup(final long[] group) {
