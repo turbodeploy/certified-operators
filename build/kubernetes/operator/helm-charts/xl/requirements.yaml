@@ -153,6 +153,10 @@ dependencies:
     repository: file://../base/datacloud
     version: 0.1.0
     condition: datacloud.enabled
+  - name: datacloud-graph
+    repository: file://../base/datacloud-graph
+    version: 0.1.0
+    condition: datacloud-graph.enabled
 
 # Integration dependencies
   - name: intersight-integration
