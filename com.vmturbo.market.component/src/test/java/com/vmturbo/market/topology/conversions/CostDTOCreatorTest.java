@@ -88,7 +88,6 @@ public class CostDTOCreatorTest {
      * CostDTOCreator::OSTypeMapping, except "Windows Server" and "Windows server Burst".
      */
     @Test
-    @org.junit.Ignore("Temporarily ignored until OpsMgr changes are committed")
     public void testOSTypeMappings() {
         List<OSType> osWithoutMapping = new ArrayList<>();
         Map<OSType, String> inversedOSTypeMapping = CloudRateExtractor.OS_TYPE_MAP.entrySet().stream().collect(
