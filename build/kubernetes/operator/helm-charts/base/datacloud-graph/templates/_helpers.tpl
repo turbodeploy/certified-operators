@@ -10,7 +10,6 @@ Common labels
 */}}
 {{- define "turbonomic-agent-graph.labels" -}}
 helm.sh/chart: {{ include "turbonomic-agent-graph.chart" . }}
-{{ include "turbonomic-agent-graph.selectorLabels" . }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
