@@ -779,6 +779,11 @@ public class CostFunctionFactory {
                 if (seller == null) {
                     return CommodityQuote.zero(seller);
                 }
+                // When commTypesWithConstraints is empty(seller is Unmanaged Standard or Unmanaged Premium tier),
+                // there is no constraint defined by the seller, thus there is no need to analyze shoppingList on the seller.
+                if (commTypesWithConstraints.isEmpty()) {
+                    return new CostUnavailableQuote(seller, null, null, null);
+                }
                 // Construct commQuantityMap for sl commodities' demand for commTypesWithConstraints,
                 // which is used for constraint check, and will be updated during constraint check.
                 Map<CommoditySpecification, Double> commQuantityMap = new HashMap<>();
