@@ -88,11 +88,14 @@
             "suspend" : "DISABLED"
           },
           "ContainerPod" : {
-            "provision" : "AUTOMATIC",
-            "suspend" : "DISABLED"
+            "move": "AUTOMATIC"
           },
           "ContainerSpec" : {
             "resize": "AUTOMATIC"
+          },
+          "ApplicationComponent" : {
+            "provision" : "AUTOMATIC",
+            "suspend": "AUTOMATIC"
           }
         }
       }
