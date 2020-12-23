@@ -35,7 +35,7 @@ import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.UpdateConstraintMapRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTOMoles;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc;
-import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
+import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceStub;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
@@ -614,8 +614,8 @@ public class StagesTest {
                 spy(ReservationDTOMoles.ReservationServiceMole.class);
         reservationServer = GrpcTestServer.newServer(reservationServiceMole);
         reservationServer.start();
-        ReservationServiceBlockingStub reservationService = ReservationServiceGrpc
-                .newBlockingStub(reservationServer.getChannel());
+        ReservationServiceStub reservationService = ReservationServiceGrpc
+                .newStub(reservationServer.getChannel());
 
         final GroupResolver groupResolver = mock(GroupResolver.class);
         PolicyManager policyManager = mock(PolicyManager.class);

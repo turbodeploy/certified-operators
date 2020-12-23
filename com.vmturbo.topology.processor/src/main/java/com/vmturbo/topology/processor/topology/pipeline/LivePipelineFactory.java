@@ -8,7 +8,7 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
-import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
+import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.common.pipeline.Pipeline.PipelineDefinition;
 import com.vmturbo.matrix.component.external.MatrixInterface;
@@ -150,7 +150,7 @@ public class LivePipelineFactory {
 
     private final EphemeralEntityEditor ephemeralEntityEditor;
 
-    private final ReservationServiceBlockingStub reservationService;
+    private final ReservationServiceStub reservationService;
 
     private final GroupResolverSearchFilterResolver searchFilterResolver;
 
@@ -190,7 +190,7 @@ public class LivePipelineFactory {
             @Nonnull final ActionMergeSpecsUploader actionMergeSpecsUploader,
             @Nonnull final RequestAndLimitCommodityThresholdsInjector requestAndLimitCommodityThresholdsInjector,
             @Nonnull final EphemeralEntityEditor ephemeralEntityEditor,
-            @Nonnull final ReservationServiceBlockingStub reservationService,
+            @Nonnull final ReservationServiceStub reservationService,
             @Nonnull final GroupResolverSearchFilterResolver searchFilterResolver,
             @Nonnull final GroupScopeResolver groupScopeResolver,
             final int supplyChainValidationFrequency) {

@@ -50,6 +50,11 @@ public class EconomyCaches {
     private static final Logger logger = LogManager.getLogger();
 
     /**
+     * prefix for initial placement log messages.
+     */
+    private final String logPrefix = "FindInitialPlacement: ";
+
+    /**
      * The clock to record the reservation update time.
      */
     private final Clock clock = Clock.systemUTC();
@@ -162,14 +167,14 @@ public class EconomyCaches {
             realtimeCacheStartUpdateTime = clock.instant();
             newEconomy = InitialPlacementUtils.cloneEconomy(originalEconomy);
             // Add reservation entities to newEconomy which only contains PM and DS
-            logger.debug("Adding reservation {} with buyers {} on real time economy cache",
+            logger.debug(logPrefix + "Adding reservation {} with buyers {} on real time economy cache",
                     existingReservations.keySet(), buyerOidToPlacement.keySet());
             addExistingReservationEntities(newEconomy, HashBiMap.create(commTypeToSpecMap),
                     buyerOidToPlacement, existingReservations);
         } catch (Exception exception) {
             realtimeCacheEndUpdateTime = clock.instant();
-            logger.error("Skip refresh real time economy cache because of exception {}", exception);
-            logger.info("Real time reservation cache update time : " + realtimeCacheStartUpdateTime
+            logger.error(logPrefix + "Skip refresh real time economy cache because of exception {}", exception);
+            logger.info(logPrefix + "Real time reservation cache update time : " + realtimeCacheStartUpdateTime
                     .until(realtimeCacheEndUpdateTime, ChronoUnit.SECONDS) + " seconds");
             return;
         }
@@ -184,8 +189,8 @@ public class EconomyCaches {
             setState(EconomyCachesState.REALTIME_READY);
         }
         realtimeCacheEndUpdateTime = clock.instant();
-        logger.info("Real time economy cache is ready now.");
-        logger.info("Real time reservation cache update time : " + realtimeCacheStartUpdateTime
+        logger.info(logPrefix + "Real time economy cache is ready now.");
+        logger.info(logPrefix + "Real time reservation cache update time : " + realtimeCacheStartUpdateTime
                 .until(realtimeCacheEndUpdateTime, ChronoUnit.SECONDS) + " seconds");
     }
 
@@ -210,14 +215,14 @@ public class EconomyCaches {
             // Clone a new economy from cluster headroom plan with no workloads.
             newEconomy = InitialPlacementUtils.cloneEconomy(originalEconomy);
             // Replay all existing reservation entities to newEconomy which currently only contains PM and DS
-            logger.debug("Replaying reservation {} with buyers {} on historical economy cache",
+            logger.debug(logPrefix + "Replaying reservation {} with buyers {} on historical economy cache",
                     existingReservations.keySet(), buyerOidToPlacement.keySet());
             newResult = replayReservationBuyers(newEconomy, HashBiMap.create(commTypeToSpecMap),
                     buyerOidToPlacement, existingReservations);
         }  catch (Exception exception) { // Return old placement decisions if update has exceptions.
             historicalCacheEndUpdateTime = clock.instant();
-            logger.error("Skip refresh historical economy cache because of exception {}", exception);
-            logger.info("Historical reservation cache update time : " + historicalCacheStartUpdateTime
+            logger.error(logPrefix + "Skip refresh historical economy cache because of exception {}", exception);
+            logger.info(logPrefix + "Historical reservation cache update time : " + historicalCacheStartUpdateTime
                     .until(historicalCacheEndUpdateTime, ChronoUnit.SECONDS) + " seconds");
             return buyerOidToPlacement;
         }
@@ -226,8 +231,8 @@ public class EconomyCaches {
         // Update cachedEconomy
         historicalCachedEconomy = newEconomy;
         historicalCacheEndUpdateTime = clock.instant();
-        logger.info("Historical economy cache is ready now.");
-        logger.info("Historical reservation cache update time : " + historicalCacheStartUpdateTime
+        logger.info(logPrefix + "Historical economy cache is ready now.");
+        logger.info(logPrefix + "Historical reservation cache update time : " + historicalCacheStartUpdateTime
                 .until(historicalCacheEndUpdateTime, ChronoUnit.SECONDS) + " seconds");
         return newResult;
     }
@@ -351,7 +356,7 @@ public class EconomyCaches {
      */
     public void clearDeletedBuyersFromCache(@Nonnull final Set<Long> buyersToBeDeleted) {
         if (state != EconomyCachesState.READY) {
-            logger.warn("Economy caches are not ready to remove any buyers");
+            logger.warn(logPrefix + "Economy caches are not ready to remove any buyers");
             return;
         }
         removeDeletedTraders(realtimeCachedEconomy, buyersToBeDeleted);
@@ -391,7 +396,7 @@ public class EconomyCaches {
         }
 
         if (!removeBuyers.isEmpty()) {
-            logger.info("Removed reservation entities oid {}", removeBuyers.stream()
+            logger.info(logPrefix + "Removed reservation entities oid {}", removeBuyers.stream()
                     .collect(Collectors.toList()));
         }
     }
@@ -438,7 +443,7 @@ public class EconomyCaches {
             @Nonnull final Map<Long, CommodityType> slToClusterMap,
             final int maxRetry) {
         if (state != EconomyCachesState.READY) {
-            logger.warn("Market is not ready to run reservation yet, wait for another broadcast to retry");
+            logger.warn(logPrefix + "Market is not ready to run reservation yet, wait for another broadcast to retry");
             return new HashMap();
         }
         // Create buyers and add into historical cache
@@ -454,7 +459,7 @@ public class EconomyCaches {
             }
             firstRoundPlacement = placeBuyerInCachedEconomy(traderTOs, historicalCachedEconomy,
                     historicalCachedCommTypeMap);
-            logger.info("Placing reservation buyers on historical economy cache");
+            logger.info(logPrefix + "Placing reservation buyers on historical economy cache");
             InitialPlacementUtils.printPlacementDecisions(firstRoundPlacement);
             clusterCommPerSl.putAll(InitialPlacementUtils.extractClusterBoundary(historicalCachedEconomy,
                     historicalCachedCommTypeMap, firstRoundPlacement, buyerFailedInHistoricalCache));
@@ -466,7 +471,7 @@ public class EconomyCaches {
             // Unplace all the buyers because at least one buyer failed.
             firstRoundPlacement.values().stream().flatMap(List::stream).forEach(pl ->
                     pl.supplier = Optional.empty());
-            logger.info("Not all buyers in reservation {} can be placed according to historical stats.",
+            logger.info(logPrefix + "Not all buyers in reservation {} can be placed according to historical stats.",
                     buyers.get(0).getReservationId());
             return firstRoundPlacement;
         }
@@ -481,7 +486,7 @@ public class EconomyCaches {
         Map<Long, List<InitialPlacementDecision>> secondRoundPlacement =
                 placeBuyerInCachedEconomy(placedBuyerTOs, realtimeCachedEconomy,
                         realtimeCachedCommTypeMap);
-        logger.info("Placing reservation buyers on realtime economy cache");
+        logger.info(logPrefix + "Placing reservation buyers on realtime economy cache");
         InitialPlacementUtils.printPlacementDecisions(secondRoundPlacement);
         Set<Long> failedBuyerOids = new HashSet();
         for (Map.Entry<Long, List<InitialPlacementDecision>> entry : secondRoundPlacement.entrySet()) {
@@ -494,7 +499,7 @@ public class EconomyCaches {
         }
         if ((maxRetry == 0 || historicalCachedEconomy == null) && !failedBuyerOids.isEmpty()) {
             // No need to retry, unplace the entire reservation and clear all buyers
-            logger.info("Not all buyers in reservation {} can be placed according to real time stats.",
+            logger.info(logPrefix + "Not all buyers in reservation {} can be placed according to real time stats.",
                     buyers.get(0).getReservationId());
             processRetryPlacementsDecisions(secondRoundPlacement, slToClusterMap);
         } else if (!failedBuyerOids.isEmpty()) {
@@ -556,7 +561,7 @@ public class EconomyCaches {
         }
         Set<Long> buyerOids = buyersToRetry.stream().map(b -> b.getBuyerId())
                 .collect(Collectors.toSet());
-        logger.info("Retrying for buyers {} in reservation {}", buyerOids, buyersToRetry.get(0).getReservationId());
+        logger.info(logPrefix + "Retrying for buyers {} in reservation {}", buyerOids, buyersToRetry.get(0).getReservationId());
         // Remove buyersToRetry from both economy caches.
         clearDeletedBuyersFromCache(buyerOids);
         // We are going to make sellers that sell cluster commodity as CanAcceptNewCustomers
@@ -681,6 +686,13 @@ public class EconomyCaches {
         // Populate the stats for the reservation buyers.
         return InitialPlacementUtils.calculateClusterStatistics(realtimeCachedEconomy,
                 realtimeCachedCommTypeMap, successfulSlToClusterMap, successfulBuyers);
+    }
+
+    /**
+     * Update the HistoricalCachedEconomy to null.
+     */
+    public void clearHistoricalCachedEconomy() {
+        historicalCachedEconomy = null;
     }
 }
 

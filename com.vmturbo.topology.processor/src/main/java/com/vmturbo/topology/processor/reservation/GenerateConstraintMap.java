@@ -8,8 +8,13 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.google.common.collect.Table;
 import com.google.common.collect.Table.Cell;
+
+import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
@@ -19,12 +24,12 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.UpdateConstraintMapRequest;
-import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.UpdateConstraintMapResponse;
+import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceStub;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.components.common.pipeline.Pipeline.Status;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -38,7 +43,13 @@ import com.vmturbo.topology.processor.group.policy.PolicyManager;
 public class GenerateConstraintMap {
     private final PolicyManager policyManager;
     private final GroupServiceBlockingStub groupServiceClient;
-    private final ReservationServiceBlockingStub reservationService;
+    private final ReservationServiceStub reservationService;
+    // Logger
+    private static final Logger logger = LogManager.getLogger();
+    /**
+     * prefix for initial placement log messages.
+     */
+    private final String logPrefix = "FindInitialPlacement: ";
 
     /**
      * constructor for GenerateConstraintMap.
@@ -50,7 +61,7 @@ public class GenerateConstraintMap {
     public GenerateConstraintMap(
             @Nonnull final PolicyManager policyManager,
             @Nonnull final GroupServiceBlockingStub groupServiceClient,
-            @Nonnull final ReservationServiceBlockingStub reservationService
+            @Nonnull final ReservationServiceStub reservationService
     ) {
         this.policyManager = policyManager;
         this.groupServiceClient = groupServiceClient;
@@ -75,7 +86,24 @@ public class GenerateConstraintMap {
         updatePolicies(topologyGraph, groupResolver, updateConstraintMapRequest);
 
         UpdateConstraintMapRequest constraintMapRequest = updateConstraintMapRequest.build();
-        reservationService.updateConstraintMap(constraintMapRequest);
+        StreamObserver<UpdateConstraintMapResponse> response =
+                new StreamObserver<UpdateConstraintMapResponse>() {
+
+                    @Override
+                    public void onNext(UpdateConstraintMapResponse
+                                               updateConstraintMapResponse) {
+                    }
+
+                    @Override
+                    public void onError(Throwable throwable) {
+                        logger.error(logPrefix + "Failed to update PO with ConstraintMap");
+                    }
+
+                    @Override
+                    public void onCompleted() {
+                    }
+                };
+        reservationService.updateConstraintMap(constraintMapRequest, response);
         return constraintMapRequest;
     }
 

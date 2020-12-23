@@ -29,7 +29,7 @@ import org.jetbrains.annotations.NotNull;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
-import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
+import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceStub;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
@@ -440,7 +440,7 @@ public class Stages {
         public GenerateConstraintMapStage(
                 @Nonnull final PolicyManager policyManager,
                 @Nonnull final GroupServiceBlockingStub groupServiceClient,
-                @Nonnull final ReservationServiceBlockingStub reservationService
+                @Nonnull final ReservationServiceStub reservationService
         ) {
             this.generateConstraintMap = new GenerateConstraintMap(policyManager,
                     groupServiceClient, reservationService);

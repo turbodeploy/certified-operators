@@ -58,6 +58,11 @@ public final class InitialPlacementUtils {
     private static final Logger logger = LogManager.getLogger();
 
     /**
+     * prefix for initial placement log messages.
+     */
+    private static final String logPrefix = "FindInitialPlacement: ";
+
+    /**
      * The clone prefix name.
      */
     public static final String PLACEMENT_CLONE_SUFFIX = "_PLACEMENT_CLONE";
@@ -150,7 +155,7 @@ public final class InitialPlacementUtils {
                         sl.getCommoditiesBoughtFromProvider().getCommodityBoughtList(),
                         commTypeToSpecMap, boundaryCommType);
             if (commBoughtTOs.isEmpty()) {
-                logger.warn("Empty commodity bought created in this trader {} sl {}, skipping"
+                logger.warn(logPrefix + "Empty commodity bought created in this trader {} sl {}, skipping"
                                 + " reservation for it", buyer.getBuyerId(),
                         sl.getCommoditiesBoughtFromProviderId());
                 validConstraint = false;
@@ -201,7 +206,7 @@ public final class InitialPlacementUtils {
         for (TopologyDTO.CommodityBoughtDTO commBought : commBoughtList) {
             Integer commSpecType = commTypeToSpecMap.get(commBought.getCommodityType());
             if (commSpecType == null) {
-                logger.warn("The reservation is given a commodity type {} key {} which may be just"
+                logger.warn(logPrefix + "The reservation is given a commodity type {} key {} which may be just"
                                 + " created in system, please wait one round of analysis and try this reservation again",
                         commBought.getCommodityType().getType(), commBought.getCommodityType().getKey());
                 return new ArrayList<>();
@@ -408,7 +413,7 @@ public final class InitialPlacementUtils {
                 }
             });
         });
-        logger.info("Placement decision is {} ", sb.toString());
+        logger.info(logPrefix + "Placement decision is {} ", sb.toString());
     }
 
     /**

@@ -21,6 +21,8 @@ import com.vmturbo.common.protobuf.market.InitialPlacement.GetProvidersOfExistin
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyerPlacementInfo;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementFailure;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementSuccess;
+import com.vmturbo.common.protobuf.market.InitialPlacement.UpdateHistoricalCachedEconomyRequest;
+import com.vmturbo.common.protobuf.market.InitialPlacement.UpdateHistoricalCachedEconomyResponse;
 import com.vmturbo.common.protobuf.market.InitialPlacementServiceGrpc.InitialPlacementServiceImplBase;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason;
@@ -34,6 +36,12 @@ import com.vmturbo.market.reservations.InitialPlacementFinderResult.FailureInfo;
  */
 public class InitialPlacementRpcService extends InitialPlacementServiceImplBase {
     private final Logger logger = LogManager.getLogger();
+
+    /**
+     * prefix for initial placement log messages.
+     */
+    private final String logPrefix = "FindInitialPlacement: ";
+
 
     private final InitialPlacementFinder initPlacementFinder;
 
@@ -65,7 +73,7 @@ public class InitialPlacementRpcService extends InitialPlacementServiceImplBase 
     @Override
     public void findInitialPlacement(final FindInitialPlacementRequest request,
                                      final StreamObserver<FindInitialPlacementResponse> responseObserver) {
-        logger.info("The number of workloads to find initial placement is " + request.getInitialPlacementBuyerList().size());
+        logger.info(logPrefix + "The number of workloads to find initial placement is " + request.getInitialPlacementBuyerList().size());
         Table<Long, Long, InitialPlacementFinderResult> result = initPlacementFinder
                 .findPlacement(request.getInitialPlacementBuyerList());
         FindInitialPlacementResponse.Builder response = FindInitialPlacementResponse.newBuilder();
@@ -114,7 +122,7 @@ public class InitialPlacementRpcService extends InitialPlacementServiceImplBase 
     @Override
     public void deleteInitialPlacementBuyer(final DeleteInitialPlacementBuyerRequest request,
                                             final StreamObserver<DeleteInitialPlacementBuyerResponse> responseObserver) {
-        logger.info("The number of workloads to delete is " + request.getBuyerIdList().size());
+        logger.info(logPrefix + "The number of workloads to delete is " + request.getBuyerIdList().size());
         boolean remove = initPlacementFinder.buyersToBeDeleted(request.getBuyerIdList());
         DeleteInitialPlacementBuyerResponse.Builder response = DeleteInitialPlacementBuyerResponse
                 .newBuilder().setResult(remove);
@@ -128,6 +136,24 @@ public class InitialPlacementRpcService extends InitialPlacementServiceImplBase 
         }
         return;
 
+    }
+
+    @Override
+    public void updateHistoricalCachedEconomy(final UpdateHistoricalCachedEconomyRequest request,
+                                      final StreamObserver<UpdateHistoricalCachedEconomyResponse> responseObserver) {
+        logger.info(logPrefix + "Received a request to update historical cache from Plan Orchestrator");
+        initPlacementFinder.clearHistoricalCachedEconomy();
+        UpdateHistoricalCachedEconomyResponse.Builder response = UpdateHistoricalCachedEconomyResponse
+                .newBuilder();
+        try {
+            responseObserver.onNext(response.build());
+            responseObserver.onCompleted();
+        } catch (Exception e) {
+            responseObserver.onError(Status.INTERNAL
+                    .withDescription("Failed to update historical cached economy.")
+                    .asException());
+        }
+        return;
     }
 
 }

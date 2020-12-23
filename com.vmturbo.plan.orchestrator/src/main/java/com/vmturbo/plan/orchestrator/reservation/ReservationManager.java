@@ -30,6 +30,7 @@ import com.vmturbo.common.protobuf.market.InitialPlacement.GetProvidersOfExistin
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer.InitialPlacementCommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyerPlacementInfo;
+import com.vmturbo.common.protobuf.market.InitialPlacement.UpdateHistoricalCachedEconomyRequest;
 import com.vmturbo.common.protobuf.market.InitialPlacementServiceGrpc.InitialPlacementServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.ReservationDTO;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ConstraintInfoCollection;
@@ -150,14 +151,37 @@ public class ReservationManager implements ReservationDeletedListener {
 
     /**
      * Add the constraint id and reservationConstraintInfo send from TP to the map for future lookup.
-     * @param constraintIDToCommodityTypeMap the map from id to reservationConstraintInfo.
+     * @param reservationConstraintInfoMap the map from id to reservationConstraintInfo.
      */
     public void addToConstraintIDToCommodityTypeMap(Map<Long, ReservationConstraintInfo>
-                                                            constraintIDToCommodityTypeMap) {
+                                                            reservationConstraintInfoMap) {
+
+
+        Set<Long> addedConstraints = reservationConstraintInfoMap.keySet().stream().filter(
+                id -> !this.constraintIDToCommodityTypeMap.containsKey(id))
+                .collect(Collectors.toSet());
+        Set<Long> deletedConstraints = this.constraintIDToCommodityTypeMap.keySet().stream().filter(
+                id -> !reservationConstraintInfoMap.containsKey(id))
+                .collect(Collectors.toSet());
+
+        if (!addedConstraints.isEmpty() || !deletedConstraints.isEmpty()) {
+            logger.info(logPrefix + "Policy/ Target changed. "
+                    + "Added Constraints: {} Deleted Constraints: {}"
+                    + "Sending trigger to market to update historical cache",
+                    addedConstraints, deletedConstraints);
+            try {
+                initialPlacementServiceBlockingStub.updateHistoricalCachedEconomy(
+                        UpdateHistoricalCachedEconomyRequest.newBuilder().build());
+            } catch (Exception e) {
+                logger.warn(logPrefix
+                        + "Failed to update market HistoricalCachedEconomy  with exception {} ", e);
+            }
+        }
+
         synchronized (reservationSetLock) {
             this.constraintIDToCommodityTypeMap.clear();
-            this.constraintIDToCommodityTypeMap.putAll(constraintIDToCommodityTypeMap);
-            constraintIDToCommodityTypeMap.entrySet().stream().forEach(entry -> {
+            this.constraintIDToCommodityTypeMap.putAll(reservationConstraintInfoMap);
+            reservationConstraintInfoMap.entrySet().stream().forEach(entry -> {
                 if (entry.getValue().getType() == Type.CLUSTER
                         || entry.getValue().getType() == Type.STORAGE_CLUSTER) {
                     clusterCommodityKeyToClusterID.put(entry.getValue().getKey(), entry.getKey());

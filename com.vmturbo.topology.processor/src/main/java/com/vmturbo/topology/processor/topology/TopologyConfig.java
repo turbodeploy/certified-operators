@@ -269,7 +269,7 @@ public class TopologyConfig {
                 actionsConfig.actionMergeSpecsUploader(),
                 requestCommodityThresholdsInjector(),
                 ephemeralEntityEditor(),
-                ReservationServiceGrpc.newBlockingStub(planClientConfig.planOrchestratorChannel()),
+                ReservationServiceGrpc.newStub(planClientConfig.planOrchestratorChannel()),
                 topologyProcessorRpcConfig.groupResolverSearchFilterResolver(),
                 targetConfig.groupScopeResolver(),
                 supplyChainValidationFrequency

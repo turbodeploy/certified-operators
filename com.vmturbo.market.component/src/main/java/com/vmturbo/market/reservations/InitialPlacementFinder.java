@@ -71,6 +71,10 @@ public class InitialPlacementFinder {
     private ExecutorService executorService;
     // Logger
     private static final Logger logger = LogManager.getLogger();
+    /**
+     * prefix for initial placement log messages.
+     */
+    private final String logPrefix = "FindInitialPlacement: ";
 
     /**
      * Find the InitialPlacementDecision corresponding to buyer.
@@ -149,7 +153,7 @@ public class InitialPlacementFinder {
      */
     public boolean buyersToBeDeleted(List<Long> deleteBuyerOids) {
         synchronized (reservationLock) {
-            logger.info("Prepare to delete reservation entities {} from both cached economies",
+            logger.info(logPrefix + "Prepare to delete reservation entities {} from both cached economies",
                     deleteBuyerOids);
             Set<Long> reservationsToRemove = new HashSet();
             for (Map.Entry<Long, List<InitialPlacementBuyer>> entry : existingReservations.entrySet()) {
@@ -170,15 +174,15 @@ public class InitialPlacementFinder {
                     economyCaches.clearDeletedBuyersFromCache(buyerOids);
                     buyerPlacements.keySet().removeAll(buyerOids);
                     existingReservations.remove(oid);
-                    logger.info("Reservation {} is successfully remove with {} entities.", oid,
+                    logger.info(logPrefix + "Reservation {} is successfully remove with {} entities.", oid,
                             buyerOids.size());
                 } catch (Exception exception) {
                     // In case any reservation trader failed to be cleared from economy, ask user wait for
                     // both historical cache and realtime cache updated.
                     economyCaches.setState(EconomyCachesState.NOT_READY);
-                    logger.warn("Setting economy caches state to NOT READY. Wait for 24 hours to run"
+                    logger.warn(logPrefix + "Setting economy caches state to NOT READY. Wait for 24 hours to run"
                             + " other reservation requests.");
-                    logger.error("Reservation {} can not be remove with {} entities due to {}.",
+                    logger.error(logPrefix + "Reservation {} can not be remove with {} entities due to {}.",
                             oid, buyerOids.size(), exception);
                 }
             }
@@ -224,7 +228,7 @@ public class InitialPlacementFinder {
                 } catch (Exception exception) {
                     // Any request that encounters an exception should fail all the buyers in the
                     // same reservation.
-                    logger.error("Find placement failed for reservation {} containing buyers {} with"
+                    logger.error(logPrefix + "Find placement failed for reservation {} containing buyers {} with"
                             + " exception {} ", buyersPerReservation.getKey(), buyersInOneRes, exception);
                     // Make sure no buyers in the failed reservation are added into existingReservations
                     // or buyerPlacements and no such buyers exist in both economy caches.
@@ -289,10 +293,10 @@ public class InitialPlacementFinder {
                             new InitialPlacementFinderResult(Optional.empty(), Optional.empty(),
                                     new ArrayList<>(), placement.failureInfos));
                     if (!placement.failureInfos.isEmpty()) {
-                        logger.debug("Unplaced reservation entity id {}, sl id {} has the following"
+                        logger.debug(logPrefix + "Unplaced reservation entity id {}, sl id {} has the following"
                                 + " commodities", buyerPlacement.getKey(), placement.slOid);
                         for (FailureInfo failureData : placement.failureInfos) {
-                            logger.debug("commodity type {}, requested amount {}, max quantity"
+                            logger.debug(logPrefix + "commodity type {}, requested amount {}, max quantity"
                                     + " available {}, closest seller oid {}", failureData.getCommodityType(),
                                     failureData.getRequestedAmount(), failureData.getMaxQuantity(),
                                     failureData.getClosestSellerOid());
@@ -354,7 +358,7 @@ public class InitialPlacementFinder {
 
             }
         } catch (Exception e) {
-            logger.error("Failed to build GetProvidersOfExistingReservationsResponse with"
+            logger.error(logPrefix + "Failed to build GetProvidersOfExistingReservationsResponse with"
                     + " exception {} ", e);
         }
         return response.build();
@@ -371,7 +375,7 @@ public class InitialPlacementFinder {
         List<InitialPlacementBuyer> existingBuyers = new ArrayList();
         executorService.submit(() -> {
             try {
-                logger.info("Trying to get a list of existing reservation buyers from plan orchestrator.");
+                logger.info(logPrefix + "Trying to get a list of existing reservation buyers from plan orchestrator.");
                 GetBuyersOfExistingReservationsResponse response = RetriableOperation.newOperation(() ->
                         blockingStub.getBuyersOfExistingReservations(request))
                         .retryOnException(e -> e instanceof StatusRuntimeException)
@@ -386,16 +390,16 @@ public class InitialPlacementFinder {
                 if (e instanceof InterruptedException) {
                     // Reset interrupt status.
                     Thread.currentThread().interrupt();
-                    logger.error("Trying to fetch the reservations from plan orchestrator but"
+                    logger.error(logPrefix + "Trying to fetch the reservations from plan orchestrator but"
                             + " thread is interrupted", e);
                 } else if (e instanceof RetriableOperationFailedException | e instanceof TimeoutException) {
-                    logger.error("Trying to fetch the reservations from plan orchestrator but"
+                    logger.error(logPrefix + "Trying to fetch the reservations from plan orchestrator but"
                             + " grpc call failed  with multiple retries", e);
                 } else if (e instanceof StatusRuntimeException) {
-                    logger.error("Trying to fetch the reservations from plan orchestrator but grpc call"
+                    logger.error(logPrefix + "Trying to fetch the reservations from plan orchestrator but grpc call"
                             + " failed  with status error {}", ((StatusRuntimeException)e).getStatus());
                 } else {
-                    logger.error("Trying to fetch the reservations from plan orchestrator for {}"
+                    logger.error(logPrefix + "Trying to fetch the reservations from plan orchestrator for {}"
                             + " minutes but still failed. Please make sure the plan orchestrator is up and"
                             + " running.", timeOut, e);
                 }
@@ -428,15 +432,24 @@ public class InitialPlacementFinder {
                 buyersInRes.add(buyer);
                 existingReservations.put(buyer.getReservationId(), buyersInRes);
             }
-            logger.info("Existing reservations are: reservation ids {}", existingReservations.keySet());
+            logger.info(logPrefix + "Existing reservations are: reservation ids {}", existingReservations.keySet());
             // Set state to ready once reservations are received from PO and real time economy is ready.
             if (economyCaches.getState() == EconomyCachesState.REALTIME_READY) {
                 economyCaches.setState(EconomyCachesState.READY);
-                logger.info("Economy caches state is set to READY");
+                logger.info(logPrefix + "Economy caches state is set to READY");
             } else if (economyCaches.getState() == EconomyCachesState.NOT_READY) {
                 economyCaches.setState(EconomyCachesState.RESERVATION_RECEIVED);
-                logger.info("Economy caches state is set to RESERVATION_RECEIVED");
+                logger.info(logPrefix + "Economy caches state is set to RESERVATION_RECEIVED");
             }
+        }
+    }
+
+    /**
+     * Update the HistoricalCachedEconomy to null.
+     */
+    public void clearHistoricalCachedEconomy() {
+        synchronized (reservationLock) {
+            economyCaches.clearHistoricalCachedEconomy();
         }
     }
 }
