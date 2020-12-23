@@ -14,6 +14,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.BiMap;
@@ -90,9 +91,9 @@ public class EconomyCaches {
         REALTIME_READY,
 
         /**
-         * The market has historical cached available.
+         * The list of existing reservations are received from plan orchestrator.
          */
-        HISTORICAL_READY,
+        RESERVATION_RECEIVED,
 
         /**
          * The market is ready for placement.
@@ -109,9 +110,10 @@ public class EconomyCaches {
     @VisibleForTesting
     protected Economy realtimeCachedEconomy;
 
-    // A minimal version of economy loaded with systemLoad statistics with only reservation entities and PM, DS
+    // A minimal version of economy loaded with systemLoad statistics with only reservation entities and PM, DS.
+    // The historical economy cache will not be created until first headroom plan runs.
     @VisibleForTesting
-    protected Economy historicalCachedEconomy;
+    protected Economy historicalCachedEconomy = null;
 
     // A map that stores the TopologyDTO.CommodityType to traderTO's CommoditySpecification
     // type mapping used for real time economy cache
@@ -175,8 +177,8 @@ public class EconomyCaches {
         realtimeCachedCommTypeMap = HashBiMap.create(commTypeToSpecMap);
         // Update cachedEconomy
         realtimeCachedEconomy = newEconomy;
-        // Set state to ready once both caches are ready
-        if (state == EconomyCachesState.HISTORICAL_READY) {
+        // Set state to ready once reservations are received from PO and real time economy is ready.
+        if (state == EconomyCachesState.RESERVATION_RECEIVED) {
             setState(EconomyCachesState.READY);
         } else if (state != EconomyCachesState.READY) {
             setState(EconomyCachesState.REALTIME_READY);
@@ -223,12 +225,6 @@ public class EconomyCaches {
         historicalCachedCommTypeMap = HashBiMap.create(commTypeToSpecMap);
         // Update cachedEconomy
         historicalCachedEconomy = newEconomy;
-        // Set state to ready once both caches are ready
-        if (state == EconomyCachesState.REALTIME_READY) {
-            setState(EconomyCachesState.READY);
-        } else if (state != EconomyCachesState.READY) {
-            setState(EconomyCachesState.HISTORICAL_READY);
-        }
         historicalCacheEndUpdateTime = clock.instant();
         logger.info("Historical economy cache is ready now.");
         logger.info("Historical reservation cache update time : " + historicalCacheStartUpdateTime
@@ -369,7 +365,10 @@ public class EconomyCaches {
      * @param economy the given economy.
      * @param buyersToBeDeleted the oid set of buyers to be deleted.
      */
-    public void removeDeletedTraders(@Nonnull  final Economy economy, @Nonnull final Set<Long> buyersToBeDeleted) {
+    public void removeDeletedTraders(@Nullable final Economy economy, @Nonnull final Set<Long> buyersToBeDeleted) {
+        if (economy == null) { // Historical economy may not be created yet.
+            return;
+        }
         Map<Long, Trader> traderByOid = economy.getTopology().getTradersByOid();
         Map<ShoppingList, Long> slOidMap = economy.getTopology().getModifiableShoppingListOids();
         Set<Long> removeBuyers = new HashSet<>();
@@ -439,24 +438,27 @@ public class EconomyCaches {
             @Nonnull final Map<Long, CommodityType> slToClusterMap,
             final int maxRetry) {
         if (state != EconomyCachesState.READY) {
-            logger.warn("Market is not ready to run reservation yet, wait for one day to retry");
+            logger.warn("Market is not ready to run reservation yet, wait for another broadcast to retry");
             return new HashMap();
         }
         // Create buyers and add into historical cache
         List<TraderTO> traderTOs = new ArrayList();
-        for (InitialPlacementBuyer buyer : buyers) {
-            traderTOs.add(InitialPlacementUtils.constructTraderTO(buyer, historicalCachedCommTypeMap,
-                    new HashMap()));
-        }
-        Map<Long, List<InitialPlacementDecision>> firstRoundPlacement = placeBuyerInCachedEconomy(
-                traderTOs, historicalCachedEconomy, historicalCachedCommTypeMap);
-        logger.info("Placing reservation buyers on historical economy cache");
-        InitialPlacementUtils.printPlacementDecisions(firstRoundPlacement);
+        Map<Long, List<InitialPlacementDecision>> firstRoundPlacement = new HashMap();
         Set<Long> buyerFailedInHistoricalCache = new HashSet();
         // A map of shopping list oid to its supplier's cluster commodity.
-        Map<Long, CommodityType> clusterCommPerSl = InitialPlacementUtils
-                .extractClusterBoundary(historicalCachedEconomy, historicalCachedCommTypeMap,
-                        firstRoundPlacement, buyerFailedInHistoricalCache);
+        final Map<Long, CommodityType> clusterCommPerSl = new HashMap();
+        if (historicalCachedEconomy != null) {
+            for (InitialPlacementBuyer buyer : buyers) {
+                traderTOs.add(InitialPlacementUtils.constructTraderTO(buyer, historicalCachedCommTypeMap,
+                        new HashMap()));
+            }
+            firstRoundPlacement = placeBuyerInCachedEconomy(traderTOs, historicalCachedEconomy,
+                    historicalCachedCommTypeMap);
+            logger.info("Placing reservation buyers on historical economy cache");
+            InitialPlacementUtils.printPlacementDecisions(firstRoundPlacement);
+            clusterCommPerSl.putAll(InitialPlacementUtils.extractClusterBoundary(historicalCachedEconomy,
+                    historicalCachedCommTypeMap, firstRoundPlacement, buyerFailedInHistoricalCache));
+        }
         if (!buyerFailedInHistoricalCache.isEmpty()) {
             // Not all buyers given to this method can find placement, we should fail the reservation
             // when it is successful only on partial buyers. Remove all successful ones from economy.
@@ -490,12 +492,14 @@ public class EconomyCaches {
                 failedBuyerOids.add(entry.getKey());
             }
         }
-        if (maxRetry == 0 && !failedBuyerOids.isEmpty()) {
+        if ((maxRetry == 0 || historicalCachedEconomy == null) && !failedBuyerOids.isEmpty()) {
             // No need to retry, unplace the entire reservation and clear all buyers
             logger.info("Not all buyers in reservation {} can be placed according to real time stats.",
                     buyers.get(0).getReservationId());
             processRetryPlacementsDecisions(secondRoundPlacement, slToClusterMap);
         } else if (!failedBuyerOids.isEmpty()) {
+            // Retry means the cluster chosen in historical economy may not be good in real time. When
+            // historicalCachedEconomy is null, no need to retry at all.
             Map<Long, List<InitialPlacementDecision>> retryResult = retryPlacement(buyers.stream()
                     .filter(b -> failedBuyerOids.contains(b.getBuyerId())).collect(Collectors.toList()),
                     clusterCommPerSl, slToClusterMap, maxRetry - 1);

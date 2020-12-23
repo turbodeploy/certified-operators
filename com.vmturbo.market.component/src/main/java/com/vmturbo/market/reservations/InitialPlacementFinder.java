@@ -9,6 +9,9 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -17,18 +20,26 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.Table;
 
+import io.grpc.StatusRuntimeException;
+
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.market.InitialPlacement.GetProvidersOfExistingReservationsResponse;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer;
+import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer.InitialPlacementCommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyerPlacementInfo;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementFailure;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.GetBuyersOfExistingReservationsRequest;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.GetBuyersOfExistingReservationsResponse;
+import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityStats;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason.FailedResources;
+import com.vmturbo.components.api.RetriableOperation;
+import com.vmturbo.components.api.RetriableOperation.RetriableOperationFailedException;
 import com.vmturbo.market.reservations.EconomyCaches.EconomyCachesState;
 import com.vmturbo.market.reservations.InitialPlacementFinderResult.FailureInfo;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
@@ -41,7 +52,8 @@ public class InitialPlacementFinder {
     // Whether the reservation cache should be constructed or not.
     private boolean prepareReservationCache;
     // the object to hold economy caches
-    private EconomyCaches economyCaches;
+    @VisibleForTesting
+    protected EconomyCaches economyCaches;
     // a map to keep track of existing reservation ids and the buyers within each reservation. The order
     // is preserved so that replay is following the order as reservations were added.
     @VisibleForTesting
@@ -49,12 +61,14 @@ public class InitialPlacementFinder {
     // A map of reservation buyer oid to its placement result.
     @VisibleForTesting
     protected Map<Long, List<InitialPlacementDecision>> buyerPlacements = new HashMap<>();
-    // Whether the historical economy cache is being updated with historical stats.
-    private boolean isHistoricalCacheUpdated = false;
     // The lock to synchronize the change of reservation
     private Object reservationLock = new Object();
     // The max number of retry if findInitialPlacement failed
     private static int maxRetry;
+    // A grpc blocking service stub
+    private ReservationServiceBlockingStub blockingStub;
+    // An executor service.
+    private ExecutorService executorService;
     // Logger
     private static final Logger logger = LogManager.getLogger();
 
@@ -74,11 +88,18 @@ public class InitialPlacementFinder {
 
     /**
      * Constructor.
+     *
+     * @param executorService the executorService.
+     * @param stub reservation rpc service blocking stub.
      * @param prepareReservationCache whether economy caches should be built.
-     * @param  maxRetry The max number of retry if findInitialPlacement failed.
+     * @param maxRetry The max number of retry if findInitialPlacement failed.
      */
-    public InitialPlacementFinder(final boolean prepareReservationCache, int maxRetry) {
+    public InitialPlacementFinder(@Nonnull ExecutorService executorService,
+            @Nonnull final ReservationServiceBlockingStub stub,
+            final boolean prepareReservationCache, int maxRetry) {
         economyCaches = new EconomyCaches();
+        this.executorService = executorService;
+        this.blockingStub = stub;
         this.prepareReservationCache = prepareReservationCache;
         this.maxRetry = maxRetry;
     }
@@ -109,18 +130,12 @@ public class InitialPlacementFinder {
                 // recorded in buyerPlacements.
                 economyCaches.updateRealtimeCachedEconomy(originalEconomy, commTypeToSpecMap,
                         buyerPlacements, existingReservations);
-                if (!isHistoricalCacheUpdated) {
-                    // Using real time for historical cache update before the system load stats is ready.
-                    buyerPlacements = economyCaches.updateHistoricalCachedEconomy(originalEconomy,
-                            commTypeToSpecMap, buyerPlacements, existingReservations);
-                }
             } else {
                 // Update the providers with providers generated in headroom plan in historical economy
                 // cache. Rerun all successfully placed reservations and update the providers in
                 // buyerPlacements.
                 buyerPlacements = economyCaches.updateHistoricalCachedEconomy(originalEconomy,
                         commTypeToSpecMap, buyerPlacements, existingReservations);
-                isHistoricalCacheUpdated = true;
             }
         }
     }
@@ -343,5 +358,85 @@ public class InitialPlacementFinder {
                     + " exception {} ", e);
         }
         return response.build();
+    }
+
+    /**
+     * Fetch the existing reservations from plan orchestrator.
+     *
+     * @param timeOut the max timeout allowed to retry the query.
+     */
+    public void queryExistingReservations(final long timeOut) {
+        GetBuyersOfExistingReservationsRequest request = GetBuyersOfExistingReservationsRequest
+                .newBuilder().build();
+        List<InitialPlacementBuyer> existingBuyers = new ArrayList();
+        executorService.submit(() -> {
+            try {
+                logger.info("Trying to get a list of existing reservation buyers from plan orchestrator.");
+                GetBuyersOfExistingReservationsResponse response = RetriableOperation.newOperation(() ->
+                        blockingStub.getBuyersOfExistingReservations(request))
+                        .retryOnException(e -> e instanceof StatusRuntimeException)
+                        .backoffStrategy(curTry -> 60000) // wait 1 min between retries
+                        .run(timeOut, TimeUnit.SECONDS);
+
+                List<InitialPlacementBuyer> reservationBuyers = new ArrayList();
+                reservationBuyers.addAll(response.getInitialPlacementBuyerList());
+                existingBuyers.addAll(reservationBuyers);
+                populateExistingReservationBuyers(existingBuyers);
+            } catch (Exception e) {
+                if (e instanceof InterruptedException) {
+                    // Reset interrupt status.
+                    Thread.currentThread().interrupt();
+                    logger.error("Trying to fetch the reservations from plan orchestrator but"
+                            + " thread is interrupted", e);
+                } else if (e instanceof RetriableOperationFailedException | e instanceof TimeoutException) {
+                    logger.error("Trying to fetch the reservations from plan orchestrator but"
+                            + " grpc call failed  with multiple retries", e);
+                } else if (e instanceof StatusRuntimeException) {
+                    logger.error("Trying to fetch the reservations from plan orchestrator but grpc call"
+                            + " failed  with status error {}", ((StatusRuntimeException)e).getStatus());
+                } else {
+                    logger.error("Trying to fetch the reservations from plan orchestrator for {}"
+                            + " minutes but still failed. Please make sure the plan orchestrator is up and"
+                            + " running.", timeOut, e);
+                }
+            }
+        });
+    }
+
+    /**
+     * Populate the reservation buyers and keep them in existingReservations and buyerPlacements
+     * maps.
+     *
+     * @param existingBuyers a list of {@link InitialPlacementBuyer}s.
+     */
+    private void populateExistingReservationBuyers(List<InitialPlacementBuyer> existingBuyers) {
+        synchronized (reservationLock) {
+            // Populate existing reservation buyers received from PO into in memory data structures
+            for (InitialPlacementBuyer buyer : existingBuyers) {
+                List<InitialPlacementDecision> decisions = new ArrayList();
+                for (InitialPlacementCommoditiesBoughtFromProvider sl : buyer
+                        .getInitialPlacementCommoditiesBoughtFromProviderList()) {
+                    long slOid = sl.getCommoditiesBoughtFromProviderId();
+                    Optional<Long> supplier = sl.getCommoditiesBoughtFromProvider().hasProviderId()
+                            ? Optional.of(sl.getCommoditiesBoughtFromProvider().getProviderId())
+                            : Optional.empty();
+                    decisions.add(new InitialPlacementDecision(slOid, supplier, new ArrayList()));
+                }
+                buyerPlacements.put(buyer.getBuyerId(), decisions);
+                List<InitialPlacementBuyer> buyersInRes = existingReservations.getOrDefault(
+                        buyer.getReservationId(), new ArrayList<InitialPlacementBuyer>());
+                buyersInRes.add(buyer);
+                existingReservations.put(buyer.getReservationId(), buyersInRes);
+            }
+            logger.info("Existing reservations are: reservation ids {}", existingReservations.keySet());
+            // Set state to ready once reservations are received from PO and real time economy is ready.
+            if (economyCaches.getState() == EconomyCachesState.REALTIME_READY) {
+                economyCaches.setState(EconomyCachesState.READY);
+                logger.info("Economy caches state is set to READY");
+            } else if (economyCaches.getState() == EconomyCachesState.NOT_READY) {
+                economyCaches.setState(EconomyCachesState.RESERVATION_RECEIVED);
+                logger.info("Economy caches state is set to RESERVATION_RECEIVED");
+            }
+        }
     }
 }

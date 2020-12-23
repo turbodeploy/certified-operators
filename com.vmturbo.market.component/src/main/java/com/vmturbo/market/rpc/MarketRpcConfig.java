@@ -1,6 +1,8 @@
 package com.vmturbo.market.rpc;
 
 import java.util.Optional;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -25,6 +27,9 @@ public class MarketRpcConfig {
 
     @Value("${maxRetry:1}")
     private int maxRetry;
+
+    @Value("${maxRequestReservationTimeoutInSeconds:600}")
+    private long maxRequestReservationTimeoutInSeconds;
 
     @Autowired
     private PlanOrchestratorClientConfig planClientConfig;
@@ -53,12 +58,27 @@ public class MarketRpcConfig {
 
     @Bean
     public InitialPlacementFinder getInitialPlacementFinder() {
-        return new InitialPlacementFinder(prepareReservationCache, maxRetry);
+        return new InitialPlacementFinder(getExecutorService(),
+                getReservationService(), prepareReservationCache, maxRetry);
     }
 
     @Bean
     public ReservationServiceBlockingStub getReservationService() {
         return ReservationServiceGrpc.newBlockingStub(planClientConfig.planOrchestratorChannel());
+    }
+
+
+    @Bean
+    public ExecutorService getExecutorService() {
+        return Executors.newSingleThreadExecutor();
+    }
+
+    /**
+     * Fetch existing reservations from plan orchestrator once market component starts.
+     */
+    @Bean
+    public void getExistingReservationsFromPO() {
+        getInitialPlacementFinder().queryExistingReservations(maxRequestReservationTimeoutInSeconds);
     }
 
     /**

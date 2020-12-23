@@ -1,6 +1,5 @@
 package com.vmturbo.market.rpc;
 
-import java.util.List;
 import java.util.Objects;
 
 import javax.annotation.Nonnull;
@@ -19,7 +18,6 @@ import com.vmturbo.common.protobuf.market.InitialPlacement.FindInitialPlacementR
 import com.vmturbo.common.protobuf.market.InitialPlacement.FindInitialPlacementResponse;
 import com.vmturbo.common.protobuf.market.InitialPlacement.GetProvidersOfExistingReservationsRequest;
 import com.vmturbo.common.protobuf.market.InitialPlacement.GetProvidersOfExistingReservationsResponse;
-import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyerPlacementInfo;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementFailure;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementSuccess;
@@ -27,7 +25,6 @@ import com.vmturbo.common.protobuf.market.InitialPlacementServiceGrpc.InitialPla
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason.FailedResources;
-import com.vmturbo.market.reservations.InitialPlacementDecision;
 import com.vmturbo.market.reservations.InitialPlacementFinder;
 import com.vmturbo.market.reservations.InitialPlacementFinderResult;
 import com.vmturbo.market.reservations.InitialPlacementFinderResult.FailureInfo;

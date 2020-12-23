@@ -135,7 +135,6 @@ public class EconomyCachesTest {
             put(buyerOid, Arrays.asList(new InitialPlacementDecision(buyerSlOid,
                     Optional.of(pm2Oid), new ArrayList())));
         }};
-        Assert.assertTrue(economyCaches.getState() == EconomyCachesState.NOT_READY);
         Map<Long, List<InitialPlacementDecision>> newPlacements = economyCaches
                 .updateHistoricalCachedEconomy(simpleEconomy(), commTypeToSpecMap, buyerPlacements,
                         existingReservations);
@@ -153,7 +152,6 @@ public class EconomyCachesTest {
                 .allMatch(c -> c.getQuantity() == buyerMemUsed + pm1MemUsed));
         Trader pm2 = newEconomy.getTopology().getTradersByOid().get(pm2Oid);
         Assert.assertTrue(pm2.getCommoditiesSold().stream().allMatch(c -> c.getQuantity() ==  pm2MemUsed));
-        Assert.assertTrue(economyCaches.getState() == EconomyCachesState.HISTORICAL_READY);
         Assert.assertTrue(newEconomy.getMarketsAsBuyer(trader).keySet().stream()
                 .allMatch(sl -> sl.isMovable() == false));
     }
@@ -338,6 +336,7 @@ public class EconomyCachesTest {
         InitialPlacementBuyer buyer = initialPlacementBuyer(buyerOid, buyerSlOid, VM_TYPE, new HashMap() {{
             put(TopologyDTO.CommodityType.newBuilder().setType(MEM_TYPE).build(), new Double(buyerMemUsed));
         }});
+        economyCaches.setState(EconomyCachesState.READY);
         // Create a historical economy with no existing reservations. The economy has 4 pms, all of
         // them have used == capacity.
         economyCaches.updateHistoricalCachedEconomy(economyWithCluster(new double[] {pm1MemUsed,
@@ -389,6 +388,7 @@ public class EconomyCachesTest {
         InitialPlacementBuyer buyer = initialPlacementBuyer(buyerOid, buyerSlOid, VM_TYPE, new HashMap() {{
             put(TopologyDTO.CommodityType.newBuilder().setType(MEM_TYPE).build(), new Double(buyerMemUsed));
         }});
+        economyCaches.setState(EconomyCachesState.READY);
         // Create a historical economy with no existing reservations. The economy has 4 pms, all of
         // them have used == capacity.
         economyCaches.updateHistoricalCachedEconomy(economyWithCluster(new double[] {pmMemCapacity,
@@ -437,6 +437,7 @@ public class EconomyCachesTest {
         InitialPlacementBuyer buyer = initialPlacementBuyer(buyerOid, buyerSlOid, VM_TYPE, new HashMap() {{
             put(TopologyDTO.CommodityType.newBuilder().setType(MEM_TYPE).build(), new Double(buyerMemUsed));
         }});
+        economyCaches.setState(EconomyCachesState.READY);
         // Create a historical economy with no existing reservations. The economy has 4 pms, all of
         // them have low utilization. Among them pm4 has the lowest used.
         economyCaches.updateHistoricalCachedEconomy(economyWithCluster(new double[] {pm1MemUsed,
@@ -519,6 +520,7 @@ public class EconomyCachesTest {
         InitialPlacementBuyer buyer2 = initialPlacementBuyer(buyer2Oid, buyer2SlOid, VM_TYPE, new HashMap() {{
             put(TopologyDTO.CommodityType.newBuilder().setType(MEM_TYPE).build(), new Double(buyer2MemUsed));
         }});
+        economyCaches.setState(EconomyCachesState.READY);
         // Create a historical economy with no existing reservations. The economy has 4 pms, all of
         // them have low utilization. Among them pm4 has the lowest used.
         economyCaches.updateHistoricalCachedEconomy(economyWithCluster(

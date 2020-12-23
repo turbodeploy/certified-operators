@@ -430,14 +430,7 @@ public class Analysis {
                 // whenever market receives entities from realtime broadcast, we update
                 // cachedEconomy and also pass the commodity type to specification map associated
                 // with that economy to initialPlacementFinder.
-                if (converter.getCommodityConverter() != null
-                        && converter.getCommodityConverter().getCommTypeAllocator() != null) {
-                    Map<TopologyDTO.CommodityType, Integer> commTypeToSpecMap = converter
-                            .getCommodityConverter().getCommTypeAllocator()
-                            .getReservationCommTypeToSpecMapping();
-                    initialPlacementFinder.updateCachedEconomy(topology.getEconomy(),
-                            commTypeToSpecMap, true);
-                }
+                updateReservationEconomyCache(topology.getEconomy(), true);
             }
             return new ConvertedTopology(topology, oidsToRemove, fakeEntityDTOs);
         } else {
@@ -884,14 +877,15 @@ public class Analysis {
      * @param economy the economy associated with analysis.
      * @param isRealtime whether the analysis is for a real time topology or not.
      */
-    private void updateReservationEconomyCache(final @Nonnull UnmodifiableEconomy economy, final boolean isRealtime) {
+    private void updateReservationEconomyCache(final @Nonnull UnmodifiableEconomy economy,
+            final boolean isRealtime) {
         if (!initialPlacementFinder.shouldConstructEconomyCache()) {
             return;
         }
         if (converter.getCommodityConverter() != null
                 && converter.getCommodityConverter().getCommTypeAllocator() != null) {
-            Map<TopologyDTO.CommodityType, Integer> commTypeToSpecMap =
-                    converter.getCommodityConverter().getCommTypeAllocator().getReservationCommTypeToSpecMapping();
+            Map<TopologyDTO.CommodityType, Integer> commTypeToSpecMap = converter
+                    .getCommodityConverter().getCommTypeAllocator().getReservationCommTypeToSpecMapping();
             initialPlacementFinder.updateCachedEconomy(economy, commTypeToSpecMap, isRealtime);
         }
     }
