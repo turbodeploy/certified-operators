@@ -1,5 +1,7 @@
 package com.vmturbo.mediation.udt.inventory;
 
+import javax.annotation.Nonnull;
+
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -7,7 +9,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  */
 public class UdtChildEntity {
 
-    private long udtId = 0L;
+    private String udtId = null;
     private final long oid;
     private final EntityType entityType;
 
@@ -26,7 +28,7 @@ public class UdtChildEntity {
         return oid;
     }
 
-    public void setUdtId(long udtId) {
+    public void setUdtId(@Nonnull String udtId) {
         this.udtId = udtId;
     }
 
@@ -36,8 +38,9 @@ public class UdtChildEntity {
      *
      * @return EntityDTO identification.
      */
-    public long getDtoId() {
-        return udtId > 0 ? udtId : oid;
+    @Nonnull
+    public String getDtoId() {
+        return udtId != null ? udtId :  String.valueOf(oid);
     }
 
     public EntityType getEntityType() {

@@ -50,6 +50,8 @@ import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor.ActionStatsQuery;
 import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQuery;
+import com.vmturbo.api.dto.QueryInputApiDTO;
+import com.vmturbo.api.dto.RangeInputApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.action.ActionDetailsApiDTO;
@@ -382,5 +384,44 @@ public class ActionsServiceTest {
             .filter(a -> uuid3.equals(a.getUuid()))
             .mapToLong(a -> a.getActions().size())
             .sum());
+    }
+
+    /**
+     * Test validating action input api dto for invalid description query.
+     *
+     * @throws IllegalArgumentException when action input api dto is invalid
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testValidateInputForDescriptionQuery() throws IllegalArgumentException {
+        final ActionApiInputDTO actionApiInputDTO = new ActionApiInputDTO();
+        final QueryInputApiDTO descriptionQuery = new QueryInputApiDTO();
+        actionApiInputDTO.setDescriptionQuery(descriptionQuery);
+        actionsServiceUnderTest.validateInput(actionApiInputDTO, null);
+    }
+
+    /**
+     * Test validating action input api dto for invalid risk query.
+     *
+     * @throws IllegalArgumentException when action input api dto is invalid
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testValidateInputForRiskQuery() throws IllegalArgumentException {
+        final ActionApiInputDTO actionApiInputDTO = new ActionApiInputDTO();
+        final QueryInputApiDTO riskQuery = new QueryInputApiDTO();
+        actionApiInputDTO.setRiskQuery(riskQuery);
+        actionsServiceUnderTest.validateInput(actionApiInputDTO, null);
+    }
+
+    /**
+     * Test validating action input api dto for invalid savings amount range.
+     *
+     * @throws IllegalArgumentException when action input api dto is invalid
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testValidateInputForSavingsAmountRange() throws IllegalArgumentException {
+        final ActionApiInputDTO actionApiInputDTO = new ActionApiInputDTO();
+        final RangeInputApiDTO savingsAmountRange = new RangeInputApiDTO();
+        actionApiInputDTO.setSavingsAmountRange(savingsAmountRange);
+        actionsServiceUnderTest.validateInput(actionApiInputDTO, null);
     }
 }

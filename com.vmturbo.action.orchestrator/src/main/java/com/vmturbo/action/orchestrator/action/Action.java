@@ -173,6 +173,8 @@ public class Action implements ActionView {
 
     private String description = null;
 
+    private Set<String> relatedRisks = Collections.emptySet();
+
     private Optional<Long> associatedAccountId = Optional.empty();
 
     private Optional<Long> associatedResourceGroupId = Optional.empty();
@@ -454,6 +456,8 @@ public class Action implements ActionView {
             // parameter specific to detached volumes is not needed as in plans.
             setDescription(ActionDescriptionBuilder.buildActionDescription(entitiesSnapshot,
                actionTranslation.getTranslationResultOrOriginal()));
+
+            setRelatedRisks(ExplanationComposer.composeRelatedRisks(actionTranslation.getTranslationResultOrOriginal()));
         }
     }
 
@@ -1106,6 +1110,14 @@ public class Action implements ActionView {
         synchronized (recommendationLock) {
             return recommendation.getSupportingLevel();
         }
+    }
+
+    public Set<String> getRelatedRisks() {
+        return relatedRisks;
+    }
+
+    public void setRelatedRisks(@Nonnull final Set<String> relatedRisks) {
+        this.relatedRisks = relatedRisks;
     }
 
     /**

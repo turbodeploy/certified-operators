@@ -79,8 +79,7 @@ public class DemandRetrievalStage extends AbstractStage<Void, EntityCloudTierDem
     @Override
     public AnalysisStage.StageResult<EntityCloudTierDemandSet> execute(final Void aVoid) {
 
-        final Instant lookBackStartTime = analysisContext.getAnalysisWindow()
-                .map(TimeInterval::startTime)
+        final TimeInterval analysisWindow = analysisContext.getAnalysisWindow()
                 .orElseThrow(() -> new IllegalStateException("Analysis window must be set"));
 
         final DemandScope allocatedDemandScope = demandSelection.getAllocatedSelection()
@@ -89,13 +88,18 @@ public class DemandRetrievalStage extends AbstractStage<Void, EntityCloudTierDem
         final Stream<EntityCloudTierMapping> persistedDemandStream = demandReader.getAllocationDemand(
                 demandSelection.getCloudTierType(),
                 allocatedDemandScope,
-                lookBackStartTime);
+                analysisWindow);
 
         final DemandSummary demandSummary = DemandSummary.newSummary(logDetailedSummary);
         final Set<EntityCloudTierMapping> selectedDemand = persistedDemandStream
-                // Some demand may end after the lookback start time but start before it. In these
-                // cases, we trim the demand to start on the lookback start time
-                .map(m -> trimDemandStartTime(m, lookBackStartTime))
+                // The demand reader will return demand which overlaps with the analysis windows. This may
+                // mean that some of the entries either start before the analysis start time or end
+                // after it. In this case, we trim the demand to only the analysis window so that any
+                // downstream stages only consider demand within the window
+                .map(m -> trimDemandToAnalysisWindow(m, analysisWindow))
+                // Drop any empty mappings e.g. a mapping that happened to end right on
+                // the start time of the analysis window
+                .filter(m -> m.timeInterval().duration().toMillis() > 0)
                 // Billing family is not stored with the demand, given it can fluctuate with discovery
                 // (e.g. if AWS org access is added after discovery). Therefore, we resolve the billing
                 // family after demand retrieval
@@ -125,18 +129,26 @@ public class DemandRetrievalStage extends AbstractStage<Void, EntityCloudTierDem
      * the star time of the mapping to the look back start time. If the mapping's start time is after
      * the look back start time, the mapping will be directly returned.
      * @param cloudTierMapping The entity cloud tier mapping to process.
-     * @param lookBackStartTime The minimum start time to allow for {@code cloudTierMapping}.
+     * @param analysisWindow The analysis window.
      * @return A normalized entity cloud tier mapping instance.
      */
-    private EntityCloudTierMapping trimDemandStartTime(@Nonnull EntityCloudTierMapping cloudTierMapping,
-                                                          @Nonnull Instant lookBackStartTime) {
+    private EntityCloudTierMapping trimDemandToAnalysisWindow(@Nonnull EntityCloudTierMapping cloudTierMapping,
+                                                              @Nonnull TimeInterval analysisWindow) {
 
-        if (cloudTierMapping.timeInterval().startTime().isBefore(lookBackStartTime)) {
+        final Instant startTime = cloudTierMapping.timeInterval().startTime();
+        final Instant endTime = cloudTierMapping.timeInterval().endTime();
+
+        if (startTime.isBefore(analysisWindow.startTime()) || endTime.isAfter(analysisWindow.endTime())) {
+
             return ImmutableEntityCloudTierMapping.builder()
                     .from(cloudTierMapping)
-                    .timeInterval(cloudTierMapping.timeInterval()
-                            .toBuilder()
-                            .startTime(lookBackStartTime)
+                    .timeInterval(TimeInterval.builder()
+                            .startTime(startTime.isBefore(analysisWindow.startTime())
+                                    ? analysisWindow.startTime()
+                                    : startTime)
+                            .endTime(endTime.isAfter(analysisWindow.endTime())
+                                    ? analysisWindow.endTime()
+                                    : endTime)
                             .build())
                     .build();
         } else {
@@ -163,11 +175,13 @@ public class DemandRetrievalStage extends AbstractStage<Void, EntityCloudTierDem
                         + "    Total: <totalDuration>\n"
                         + "    Avg: <averageDuration>\n"
                         + "    Max: <maxDuration>\n"
-                        + "    Count: <durationCount>\n";
+                        + "    Count: <durationCount>\n"
+                        + "    Unique Entities Count: <uniqueEntitiesCount>\n"
+                        + "    Unique Demand Count: <uniqueDemandCount>\n";
         private static final String DEMAND_SELECTION_DETAILED_SUMMARY_TEMPLATE =
                 DEMAND_SELECTION_SUMMARY_TEMPLATE
-                        + "Unique Entities: <uniqueEntities>\n"
-                        + "Unique Demand: <uniqueDemand>\n";
+                        + "   Unique Entities: <entities;separator=\",\">\n"
+                        + "   Duration by Tier: <durationByTier;separator=\",\">\n";
 
         private final boolean detailedSummary;
 
@@ -201,14 +215,13 @@ public class DemandRetrievalStage extends AbstractStage<Void, EntityCloudTierDem
                 final long durationMillis = mappingInterval.duration().toMillis();
                 durationStats.accept(durationMillis);
 
-                if (detailedSummary) {
-                    uniqueEntities.add(entityCloudTierMapping.entityOid());
 
-                    durationStatsByDemand.computeIfAbsent(
-                            entityCloudTierMapping.cloudTierDemand(),
-                            demand -> new LongSummaryStatistics())
-                                .accept(durationMillis);
-                }
+                uniqueEntities.add(entityCloudTierMapping.entityOid());
+
+                durationStatsByDemand.computeIfAbsent(
+                        entityCloudTierMapping.cloudTierDemand(),
+                        demand -> new LongSummaryStatistics())
+                            .accept(durationMillis);
             };
         }
 
@@ -224,10 +237,12 @@ public class DemandRetrievalStage extends AbstractStage<Void, EntityCloudTierDem
             template.add("averageDuration", Duration.ofMillis((long)durationStats.getAverage()));
             template.add("maxDuration", Duration.ofMillis(durationStats.getMax()));
             template.add("durationCount", durationStats.getCount());
+            template.add("uniqueEntitiesCount", uniqueEntities.size());
+            template.add("uniqueDemandCount", durationStatsByDemand.size());
 
             if (detailedSummary) {
-                template.add("uniqueEntities", uniqueEntities.size());
-                template.add("uniqueDemand", durationStatsByDemand.size());
+                template.add("entities", uniqueEntities);
+                template.add("durationByTier", durationStatsByDemand);
             }
 
             return template.render();

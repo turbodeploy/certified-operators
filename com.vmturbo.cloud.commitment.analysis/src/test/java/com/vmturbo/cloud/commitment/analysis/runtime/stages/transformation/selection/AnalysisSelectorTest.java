@@ -26,7 +26,6 @@ import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.Deman
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.selection.AnalysisSelector.AnalysisSelectorFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.selection.ClassificationFilter.ClassificationFilterFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.selection.EntityStateFilter.EntityStateFilterFactory;
-import com.vmturbo.cloud.common.data.TimeSeries;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.AllocatedDemandClassification;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.AllocatedDemandSelection;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
@@ -50,7 +49,6 @@ public class AnalysisSelectorTest {
                     .osType(OSType.RHEL)
                     .tenancy(Tenancy.DEFAULT)
                     .build())
-            .demandIntervals(TimeSeries.newTimeline())
             .build());
     private final ClassifiedEntityDemandAggregate entityAggregate = ClassifiedEntityDemandAggregate.builder()
             .entityOid(1)
@@ -65,7 +63,6 @@ public class AnalysisSelectorTest {
                                     .osType(OSType.RHEL)
                                     .tenancy(Tenancy.DEFAULT)
                                     .build())
-                            .demandIntervals(TimeSeries.newTimeline())
                             .build()))
             .putClassifiedCloudTierDemand(
                     DemandClassification.of(AllocatedDemandClassification.FLEXIBLY_ALLOCATED),

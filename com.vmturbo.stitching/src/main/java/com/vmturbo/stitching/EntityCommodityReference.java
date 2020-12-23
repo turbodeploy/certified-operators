@@ -1,5 +1,6 @@
 package com.vmturbo.stitching;
 
+import java.io.Serializable;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
@@ -16,7 +17,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
  * No volumes.
  */
 @Immutable
-public class EntityCommodityReference {
+public class EntityCommodityReference implements Serializable {
     private final long entityOid;
     private final TopologyDTO.CommodityType commodityType;
     private final Long providerOid;

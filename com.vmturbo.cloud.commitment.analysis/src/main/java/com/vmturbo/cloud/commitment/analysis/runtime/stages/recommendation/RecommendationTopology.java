@@ -1,7 +1,5 @@
 package com.vmturbo.cloud.commitment.analysis.runtime.stages.recommendation;
 
-import java.util.NavigableSet;
-
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.SetMultimap;
@@ -11,15 +9,16 @@ import org.immutables.value.Value.Immutable;
 import com.vmturbo.cloud.commitment.analysis.demand.ScopedCloudTierInfo;
 import com.vmturbo.cloud.commitment.analysis.pricing.RateAnnotatedCommitmentContext;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.AggregateCloudTierDemand;
+import com.vmturbo.cloud.common.data.TimeSeries;
 import com.vmturbo.cloud.common.data.TimeSeriesData;
 import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
-import com.vmturbo.cloud.common.immutable.TimeSeriesSortedSetEnabled;
+import com.vmturbo.cloud.common.immutable.TimeSeriesEncodingEnabled;
 
 /**
  * Topology data (including demand and relevant rates) corresponding to a single cloud commitment
  * recommendation.
  */
-@TimeSeriesSortedSetEnabled
+@TimeSeriesEncodingEnabled
 @HiddenImmutableImplementation
 @Immutable
 public interface RecommendationTopology {
@@ -36,7 +35,7 @@ public interface RecommendationTopology {
      * @return The demand segments, sorted by timestamp.
      */
     @Nonnull
-    NavigableSet<RecommendationDemandSegment> demandSegments();
+    TimeSeries<RecommendationDemandSegment> demandSegments();
 
     /**
      * Constructs and returns a new {@link Builder} instance.

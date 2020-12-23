@@ -38,7 +38,6 @@ import com.vmturbo.cloud.commitment.analysis.spec.SpecMatcherOutput;
 import com.vmturbo.cloud.common.commitment.CloudCommitmentData;
 import com.vmturbo.cloud.common.commitment.ReservedInstanceData;
 import com.vmturbo.cloud.common.data.TimeInterval;
-import com.vmturbo.cloud.common.data.TimeSeries;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.AllocatedDemandClassification;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisConfig;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CommitmentPurchaseProfile;
@@ -136,11 +135,12 @@ public class RecommendationSpecMatcherStageTest {
                             .endTime(Instant.now())
                             .build()).build();
 
-    TimeSeries<AnalysisTopologySegment> analysisSegmentTimeSeries = TimeSeries.newTimeSeries(analysisSegment);
-
     Map<Long, CloudCommitmentData> cloudCommitmentsByOid = createCloudCommitmentDataByOidMap();
 
-    AnalysisTopology analysisTopology = AnalysisTopology.builder().cloudCommitmentsByOid(cloudCommitmentsByOid).segments(analysisSegmentTimeSeries).build();
+    AnalysisTopology analysisTopology = AnalysisTopology.builder()
+            .cloudCommitmentsByOid(cloudCommitmentsByOid)
+            .addSegment(analysisSegment)
+            .build();
 
 
     /**

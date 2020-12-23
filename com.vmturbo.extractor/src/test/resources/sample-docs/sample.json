@@ -21,7 +21,7 @@
   "panels": [
     {
       "datasource": "-- Dashboard --",
-      "description": "Utilization is  calculated based on average CPU Ready wait time across a 20 second interval. Utilization >5% is highlighted with red text.  ",
+      "description": "Utilization is  calculated based on average CPU Ready wait time across\na 20 second interval. Utilization >5% is highlighted with red text.",
       "fieldConfig": {
         "defaults": {
           "custom": {},
@@ -82,7 +82,7 @@
       ],
       "timeFrom": null,
       "timeShift": null,
-      "title": "Top 10 Physical Machine Avg CPU Ready Queue Type Utilization ",
+      "title": "Top 10 Physical Machine Avg CPU Ready Queue Type Utilization",
       "transformations": [
         {
           "id": "organize",
@@ -101,7 +101,7 @@
     },
     {
       "datasource": "-- Dashboard --",
-      "description": "Utilization is  calculated based on aggregate CPU Ready wait time for 20 second interval. Utilization >5% is highlighted with red text.  ",
+      "description": "Utilization is  calculated based on aggregate CPU Ready wait time\nfor 20 second interval. Utilization >5% is highlighted with red text.",
       "fieldConfig": {
         "defaults": {
           "custom": {},
@@ -153,7 +153,7 @@
       ],
       "timeFrom": null,
       "timeShift": null,
-      "title": "Top 10 Virtual Machine by Avg CPU Ready Queue Utilization ",
+      "title": "Top 10 Virtual Machine by Avg CPU Ready Queue Utilization",
       "transformations": [
         {
           "id": "organize",
@@ -171,7 +171,7 @@
     {
       "columns": [],
       "datasource": "$DB",
-      "description": "Average and Max CPU Ready Queue by Queue Type. Utilization is  calculated based on average or max CPU Ready wait time over a 20 second interval. ",
+      "description": "Average and Max CPU Ready Queue by Queue Type. Utilization is  calculated\nbased on average or max CPU Ready wait time over a 20 second interval.",
       "fieldConfig": {
         "defaults": {
           "custom": {}
@@ -229,7 +229,7 @@
           "mappingType": 1,
           "pattern": "/.*CPU Ready.*/",
           "thresholds": [
-            "0.05"
+            0.05
           ],
           "type": "number",
           "unit": "percentunit"
@@ -278,7 +278,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "SELECT\n  entity.name as \"Host\", \n  REGEXP_REPLACE(metric.type::text, 'Q([0-9]*)_VCPU', '\\1 vCPU') \"Queue Type\",\n  avg(metric.utilization) AS \"Avg CPU Ready\",\n  max(metric.utilization) AS \"Max CPU Ready\"\nFROM metric, entity\nWHERE\n  $__timeFilter(\"time\") AND\n  metric.type::text LIKE 'Q%_VCPU' AND\n  metric.entity_oid = entity.oid AND\n  metric.entity_hash = entity.hash AND\n  entity.type = 'PHYSICAL_MACHINE' AND \n  ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) AND\n  CASE WHEN ARRAY[ [[Cluster]] ] = ARRAY[ '0' ] THEN true ELSE (entity.scope && ARRAY[ [[Cluster]] ]::bigint[]) END\nGroup by entity.oid, entity.name, 2\nORDER BY 3 desc",
+          "rawSql": "SELECT\n  entity.name as \"Host\",\n  REGEXP_REPLACE(metric.type::text, 'Q([0-9]*)_VCPU', '\\1 vCPU') \"Queue Type\",\n  avg(metric.utilization) AS \"Avg CPU Ready\",\n  max(metric.utilization) AS \"Max CPU Ready\"\nFROM metric, entity\nWHERE\n  $__timeFilter(\"time\") AND\n  metric.type::text LIKE 'Q%_VCPU' AND\n  metric.entity_oid = entity.oid AND\n  metric.entity_hash = entity.hash AND\n  entity.type = 'PHYSICAL_MACHINE' AND\n  ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) AND\n  CASE WHEN ARRAY[$Cluster]::text[] = ARRAY[ '0' ] THEN true ELSE (entity.scope && ARRAY[$Cluster]::bigint[]) END\nGroup by entity.oid, entity.name, 2\nORDER BY 3 desc",
           "refId": "A",
           "select": [
             [
@@ -302,14 +302,14 @@
       ],
       "timeFrom": null,
       "timeShift": null,
-      "title": "Top Physical Machines by CPU Ready Utilization ",
+      "title": "Top Physical Machines by CPU Ready Utilization",
       "transform": "table",
       "type": "table-old"
     },
     {
       "columns": [],
       "datasource": "$DB",
-      "description": "Average and Max CPU Ready Queue. Utilization is  calculated based on aggregate CPU ready wait time over a 20 second interval. ",
+      "description": "Average and Max CPU Ready Queue. Utilization is  calculated based\non aggregate CPU ready wait time over a 20 second interval.",
       "fieldConfig": {
         "defaults": {
           "custom": {}
@@ -384,7 +384,7 @@
           "mappingType": 1,
           "pattern": "/.*CPU Ready.*/",
           "thresholds": [
-            "0.05"
+            0.05
           ],
           "type": "number",
           "unit": "percentunit"
@@ -412,7 +412,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "SELECT\n  entity.name as \"VM Name\",\n  max(entity.attrs->>'num_cpus') || ' vCPUs' as \"Num vCPUs\",\n  avg(metric.utilization) as \"Avg CPU Ready\",\n  max(metric.utilization) as \"Max CPU Ready\"\nFROM metric, entity\nWHERE\n  ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) AND\n  $__timeFilter(\"time\") AND entity.oid = metric.entity_oid AND entity.hash = metric.entity_hash and \n  entity.type = 'VIRTUAL_MACHINE' AND \n  metric.type = 'CPU_READY' \n  AND CASE WHEN ARRAY[ [[Cluster]] ] = ARRAY[ '0' ] THEN true ELSE (entity.scope && ARRAY[ [[Cluster]] ]::bigint[]) END\nGROUP BY entity.oid, entity.name\nORDER BY 3 desc",
+          "rawSql": "SELECT\n  entity.name as \"VM Name\",\n  max(entity.attrs->>'num_cpus') || ' vCPUs' as \"Num vCPUs\",\n  avg(metric.utilization) as \"Avg CPU Ready\",\n  max(metric.utilization) as \"Max CPU Ready\"\nFROM metric, entity\nWHERE\n  ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) AND\n  $__timeFilter(\"time\") AND entity.oid = metric.entity_oid AND entity.hash = metric.entity_hash and\n  entity.type = 'VIRTUAL_MACHINE' AND\n  metric.type = 'CPU_READY'\n  AND CASE WHEN ARRAY[$Cluster]::text[] = ARRAY[ '0' ] THEN true ELSE (entity.scope && ARRAY[$Cluster]::bigint[]) END\nGROUP BY entity.oid, entity.name\nORDER BY 3 desc",
           "refId": "A",
           "select": [
             [
@@ -438,7 +438,7 @@
       ],
       "timeFrom": null,
       "timeShift": null,
-      "title": "Top Virtual Machine CPU Ready Utilization ",
+      "title": "Top Virtual Machine CPU Ready Utilization",
       "transform": "table",
       "type": "table-old"
     }
@@ -466,14 +466,14 @@
       {
         "allValue": "'0'",
         "datasource": "$DB",
-        "definition": "select name as __text, oid as __value \nfrom entity \nwhere entity.type = 'COMPUTE_CLUSTER' \nand ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) \ngroup by name, oid \norder by 1",
+        "definition": "select name as __text, oid as __value\nfrom entity\nwhere entity.type = 'COMPUTE_CLUSTER'\nand ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)\ngroup by name, oid\norder by 1",
         "hide": 0,
         "includeAll": true,
         "label": null,
         "multi": true,
         "name": "Cluster",
         "options": [],
-        "query": "select name as __text, oid as __value \nfrom entity \nwhere entity.type = 'COMPUTE_CLUSTER' \nand ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) \ngroup by name, oid \norder by 1",
+        "query": "select name as __text, oid as __value\nfrom entity\nwhere entity.type = 'COMPUTE_CLUSTER'\nand ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)\ngroup by name, oid\norder by 1",
         "refresh": 2,
         "regex": "",
         "skipUrlSync": false,

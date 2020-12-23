@@ -114,8 +114,6 @@ public class CloudRateExtractor {
             .put("Windows_SQL_Web", OSType.WINDOWS_WITH_SQL_WEB)
             .put("Windows_SQL_Server_Enterprise", OSType.WINDOWS_WITH_SQL_ENTERPRISE)
             .put("Windows_Bring_your_own_license", OSType.WINDOWS_BYOL)
-            .put("Windows_Server", OSType.WINDOWS_SERVER)
-            .put("Windows_Server_Burst", OSType.WINDOWS_SERVER_BURST)
             .put("Linux_SQL_Server_Enterprise", OSType.LINUX_WITH_SQL_ENTERPRISE)
             .put("Linux_SQL_Standard", OSType.LINUX_WITH_SQL_STANDARD)
             .put("Linux_SQL_Web", OSType.LINUX_WITH_SQL_WEB)

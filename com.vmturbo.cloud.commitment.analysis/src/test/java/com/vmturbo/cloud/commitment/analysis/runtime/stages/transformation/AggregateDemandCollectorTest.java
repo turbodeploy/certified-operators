@@ -10,7 +10,6 @@ import java.time.temporal.ChronoUnit;
 import java.util.Map;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -23,6 +22,7 @@ import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.Aggre
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.AggregateDemandCollector.AggregateDemandCollectorFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.DemandTransformationJournal.DemandTransformationResult;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.selection.ClassifiedEntitySelection;
+import com.vmturbo.cloud.common.data.ImmutableTimeSeries;
 import com.vmturbo.cloud.common.data.TimeInterval;
 import com.vmturbo.cloud.common.data.TimeSeries;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.AllocatedDemandClassification;
@@ -67,7 +67,7 @@ public class AggregateDemandCollectorTest {
     public void testDemandAggregation() {
 
         final DemandClassification classification = DemandClassification.of(AllocatedDemandClassification.ALLOCATED);
-        final TimeSeries<TimeInterval> demandTimeline = TimeSeries.newTimeline(Lists.newArrayList(
+        final TimeSeries<TimeInterval> demandTimeline = ImmutableTimeSeries.of(
                 TimeInterval.builder()
                         .startTime(analysisWindow.startTime())
                         .endTime(analysisWindow.startTime().plus(90, ChronoUnit.MINUTES))
@@ -79,7 +79,7 @@ public class AggregateDemandCollectorTest {
                 TimeInterval.builder()
                         .startTime(analysisWindow.startTime().plus(225, ChronoUnit.MINUTES))
                         .endTime(analysisWindow.startTime().plus(240, ChronoUnit.MINUTES))
-                        .build()));
+                        .build());
         final ClassifiedEntitySelection classifiedEntitySelection = ClassifiedEntitySelection.builder()
                 .entityOid(1L)
                 .accountOid(2L)

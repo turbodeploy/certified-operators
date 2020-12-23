@@ -9,6 +9,7 @@ import org.immutables.value.Value.Immutable;
 import com.vmturbo.cloud.common.commitment.CloudCommitmentData;
 import com.vmturbo.cloud.common.data.TimeSeries;
 import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
+import com.vmturbo.cloud.common.immutable.TimeSeriesEncodingEnabled;
 
 /**
  * The analysis topology, represented all aggregated demand considered for coverage analysis and
@@ -16,6 +17,7 @@ import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
  * is broken down into time segments (e.g. 1 hour blocks) through the {@link AnalysisTopologySegment}
  * instances.
  */
+@TimeSeriesEncodingEnabled
 @HiddenImmutableImplementation
 @Immutable
 public interface AnalysisTopology {

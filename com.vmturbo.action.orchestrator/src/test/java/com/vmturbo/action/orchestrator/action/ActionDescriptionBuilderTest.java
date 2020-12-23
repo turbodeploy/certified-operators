@@ -134,6 +134,8 @@ public class ActionDescriptionBuilderTest {
     private static final String ST_DESTINATION_DISPLAY_NAME = "storage_destination_test";
     private static final Long VV_ID = 66L;
     private static final String VV_DISPLAY_NAME = "volume_display_name";
+    private static final Long VV_TIER_ID = 88L;
+    private static final String VV_TIER_DISPLAY_NAME = "GP2";
     private static final Long DB_SOURCE_ID = 45L;
     private static final String DB_SOURCE_DISPLAY_NAME = "db_source_test";
     private static final Long DB_DESTINATION_ID = 56L;
@@ -1001,16 +1003,45 @@ public class ActionDescriptionBuilderTest {
 
     /**
      * Test that for an action involving a cloud volume commodity scaling from one capacity to another,
+     * the description is accurate and includes provider name.
+     *
+     * @throws UnsupportedActionException if something is extraordinarily wrong.
+     */
+    @Test
+    public void testBuildCloudVolumeScaleActionWithCommodityChangeDescriptionWithProviderId() throws UnsupportedActionException {
+        ActionPartialEntity volumeOptEntity = ActionPartialEntity.newBuilder()
+                .setOid(VV_ID)
+                .setEntityType(EntityType.VIRTUAL_VOLUME.getNumber())
+                .setDisplayName(VM1_DISPLAY_NAME)
+                .setPrimaryProviderId(VV_TIER_ID)
+                .build();
+
+        when(entitySettingsCache.getEntityFromOid(eq(VV_ID))).thenReturn(Optional.of(volumeOptEntity));
+        when(entitySettingsCache.getEntityFromOid(eq(VV_TIER_ID)))
+                .thenReturn((createEntity(VV_TIER_ID, EntityType.STORAGE_TIER.getNumber(), VV_TIER_DISPLAY_NAME)));
+
+        String description = ActionDescriptionBuilder.buildActionDescription(
+                entitySettingsCache, cloudVolumeScaleCommodityChangeRecommendation);
+        Assert.assertEquals("Scale up IOPS for Volume vm1_test on GP2 from 100 IOPS to 200 IOPS", description);
+    }
+
+    /**
+     * Test that for an action involving a cloud volume commodity scaling from one capacity to another,
      * the description is accurate.
      *
      * @throws UnsupportedActionException if something is extraordinarily wrong.
      */
     @Test
-    public void testBuildCloudVolumeScaleActionWithCommodityChangeDescription() throws UnsupportedActionException {
-        when(entitySettingsCache.getEntityFromOid(eq(VV_ID)))
-                .thenReturn((createEntity(VV_ID,
-                        EntityType.VIRTUAL_VOLUME.getNumber(),
-                        VM1_DISPLAY_NAME)));
+    public void testBuildCloudVolumeScaleActionWithCommodityChangeDescriptionWithoutProviderId() throws UnsupportedActionException {
+        ActionPartialEntity volumeOptEntity = ActionPartialEntity.newBuilder()
+                .setOid(VV_ID)
+                .setEntityType(EntityType.VIRTUAL_VOLUME.getNumber())
+                .setDisplayName(VM1_DISPLAY_NAME)
+                .build();
+
+        when(entitySettingsCache.getEntityFromOid(eq(VV_ID))).thenReturn(Optional.of(volumeOptEntity));
+        when(entitySettingsCache.getEntityFromOid(eq(VV_TIER_ID)))
+                .thenReturn((createEntity(VV_TIER_ID, EntityType.STORAGE_TIER.getNumber(), VV_TIER_DISPLAY_NAME)));
 
         String description = ActionDescriptionBuilder.buildActionDescription(
                 entitySettingsCache, cloudVolumeScaleCommodityChangeRecommendation);

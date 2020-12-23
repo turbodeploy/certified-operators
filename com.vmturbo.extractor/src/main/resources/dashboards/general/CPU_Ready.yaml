@@ -1,0 +1,423 @@
+---
+annotations:
+  list:
+  - builtIn: 1
+    datasource: -- Grafana --
+    enable: true
+    hide: true
+    iconColor: rgba(0, 211, 255, 1)
+    name: Annotations & Alerts
+    type: dashboard
+description: The top physical and virtual machines by CPU Ready Queue.
+editable: false
+gnetId: null
+graphTooltip: 0
+iteration: 1595278194454
+links: []
+panels:
+- datasource: -- Dashboard --
+  description: Utilization is  calculated based on average CPU Ready wait time across
+    a 20 second interval. Utilization >5% is highlighted with red text.
+  fieldConfig:
+    defaults:
+      custom: {}
+      displayName: ${__cell_0} ${__cell_1}
+      mappings:
+      - from: ""
+        id: 0
+        operator: ""
+        text: ""
+        to: ""
+        type: 1
+      thresholds:
+        mode: absolute
+        steps:
+        - color: green
+          value: null
+        - color: red
+          value: 0.05
+      unit: percentunit
+    overrides: []
+  gridPos:
+    h: 10
+    w: 12
+    x: 0
+    y: 0
+  id: 2
+  options:
+    displayMode: lcd
+    orientation: horizontal
+    reduceOptions:
+      calcs:
+      - max
+      fields: ""
+      limit: 10
+      values: true
+    showUnfilled: true
+  pluginVersion: 7.0.1
+  targets:
+  - panelId: 4
+    refId: A
+  timeFrom: null
+  timeShift: null
+  title: Top 10 Physical Machine Avg CPU Ready Queue Type Utilization
+  transformations:
+  - id: organize
+    options:
+      excludeByName:
+        Max CPU Ready Pct: true
+      indexByName: {}
+      renameByName:
+        Host: ""
+  type: bargauge
+- datasource: -- Dashboard --
+  description: Utilization is  calculated based on aggregate CPU Ready wait time for
+    20 second interval. Utilization >5% is highlighted with red text.
+  fieldConfig:
+    defaults:
+      custom: {}
+      displayName: ${__cell_0}
+      mappings: []
+      thresholds:
+        mode: absolute
+        steps:
+        - color: green
+          value: null
+        - color: red
+          value: 0.05
+      unit: percentunit
+    overrides: []
+  gridPos:
+    h: 14
+    w: 12
+    x: 12
+    y: 0
+  id: 8
+  options:
+    displayMode: lcd
+    orientation: horizontal
+    reduceOptions:
+      calcs:
+      - first
+      fields: ""
+      limit: 10
+      values: true
+    showUnfilled: true
+  pluginVersion: 7.0.1
+  targets:
+  - panelId: 6
+    refId: A
+  timeFrom: null
+  timeShift: null
+  title: Top 10 Virtual Machine by Avg CPU Ready Queue Utilization
+  transformations:
+  - id: organize
+    options:
+      excludeByName:
+        Max CPU Ready Pct: true
+      indexByName: {}
+      renameByName: {}
+  type: bargauge
+- columns: []
+  datasource: $DB
+  description: Average and Max CPU Ready Queue by Queue Type. Utilization is  calculated
+    based on average or max CPU Ready wait time over a 20 second interval.
+  fieldConfig:
+    defaults:
+      custom: {}
+    overrides: []
+  fontSize: 120%
+  gridPos:
+    h: 12
+    w: 12
+    x: 0
+    y: 10
+  id: 4
+  pageSize: null
+  showHeader: true
+  sort:
+    col: null
+    desc: false
+  styles:
+  - $$hashKey: object:645
+    alias: ""
+    align: auto
+    colorMode: value
+    colors:
+    - rgba(245, 54, 54, 0.9)
+    - rgba(237, 129, 40, 0.89)
+    - rgba(50, 172, 45, 0.97)
+    dateFormat: YYYY-MM-DD HH:mm:ss
+    decimals: 2
+    mappingType: 1
+    pattern: Host
+    preserveFormat: false
+    thresholds:
+    - ""
+    type: string
+    unit: short
+  - $$hashKey: object:646
+    alias: ""
+    align: auto
+    colorMode: value
+    colors:
+    - rgba(50, 172, 45, 0.97)
+    - '#E02F44'
+    - rgba(245, 54, 54, 0.9)
+    dateFormat: YYYY-MM-DD HH:mm:ss
+    decimals: 2
+    mappingType: 1
+    pattern: /.*CPU Ready.*/
+    thresholds:
+    - 0.05
+    type: number
+    unit: percentunit
+  - $$hashKey: object:647
+    alias: ""
+    align: auto
+    colorMode: null
+    colors:
+    - rgba(245, 54, 54, 0.9)
+    - rgba(237, 129, 40, 0.89)
+    - rgba(50, 172, 45, 0.97)
+    dateFormat: YYYY-MM-DD HH:mm:ss
+    decimals: 2
+    mappingType: 1
+    pattern: Queue Type
+    thresholds: []
+    type: string
+    unit: short
+    valueMaps: []
+  - $$hashKey: object:648
+    alias: ""
+    align: right
+    colorMode: null
+    colors:
+    - rgba(50, 172, 45, 0.97)
+    - rgba(237, 129, 40, 0.89)
+    - rgba(245, 54, 54, 0.9)
+    decimals: 2
+    pattern: /.*/
+    thresholds:
+    - ""
+    type: number
+    unit: short
+  targets:
+  - format: table
+    group: []
+    metricColumn: none
+    rawQuery: true
+    rawSql: |-
+      SELECT
+        entity.name as "Host",
+        REGEXP_REPLACE(metric.type::text, 'Q([0-9]*)_VCPU', '\1 vCPU') "Queue Type",
+        avg(metric.utilization) AS "Avg CPU Ready",
+        max(metric.utilization) AS "Max CPU Ready"
+      FROM metric, entity
+      WHERE
+        $__timeFilter("time") AND
+        metric.type::text LIKE 'Q%_VCPU' AND
+        metric.entity_oid = entity.oid AND
+        metric.entity_hash = entity.hash AND
+        entity.type = 'PHYSICAL_MACHINE' AND
+        ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) AND
+        CASE WHEN ARRAY[$Cluster]::text[] = ARRAY[ '0' ] THEN true ELSE (entity.scope && ARRAY[$Cluster]::bigint[]) END
+      Group by entity.oid, entity.name, 2
+      ORDER BY 3 desc
+    refId: A
+    select:
+    - - params:
+        - value
+        type: column
+    timeColumn: time
+    where:
+    - name: $__timeFilter
+      params: []
+      type: macro
+  timeFrom: null
+  timeShift: null
+  title: Top Physical Machines by CPU Ready Utilization
+  transform: table
+  type: table-old
+- columns: []
+  datasource: $DB
+  description: Average and Max CPU Ready Queue. Utilization is  calculated based on
+    aggregate CPU ready wait time over a 20 second interval.
+  fieldConfig:
+    defaults:
+      custom: {}
+    overrides: []
+  fontSize: 100%
+  gridPos:
+    h: 8
+    w: 12
+    x: 12
+    y: 14
+  id: 6
+  pageSize: null
+  showHeader: true
+  sort:
+    col: null
+    desc: false
+  styles:
+  - $$hashKey: object:382
+    alias: ""
+    align: auto
+    colorMode: null
+    colors:
+    - rgba(245, 54, 54, 0.9)
+    - rgba(237, 129, 40, 0.89)
+    - rgba(50, 172, 45, 0.97)
+    dateFormat: YYYY-MM-DD HH:mm:ss
+    decimals: 2
+    link: false
+    linkUrl: /d/fY_MyJeWz/vm-cpu-ready?var-VM=${__cell_0}
+    mappingType: 1
+    pattern: VM Name
+    thresholds: []
+    type: string
+    unit: short
+  - $$hashKey: object:383
+    alias: ""
+    align: auto
+    colorMode: null
+    colors:
+    - rgba(245, 54, 54, 0.9)
+    - rgba(237, 129, 40, 0.89)
+    - rgba(50, 172, 45, 0.97)
+    dateFormat: YYYY-MM-DD HH:mm:ss
+    decimals: 2
+    mappingType: 1
+    pattern: Num vCPUs
+    thresholds: []
+    type: string
+    unit: short
+  - $$hashKey: object:384
+    alias: ""
+    align: auto
+    colorMode: value
+    colors:
+    - rgba(50, 172, 45, 0.97)
+    - '#E02F44'
+    - rgba(245, 54, 54, 0.9)
+    dateFormat: YYYY-MM-DD HH:mm:ss
+    decimals: 2
+    mappingType: 1
+    pattern: /.*CPU Ready.*/
+    thresholds:
+    - 0.05
+    type: number
+    unit: percentunit
+  - $$hashKey: object:387
+    alias: ""
+    align: right
+    colorMode: null
+    colors:
+    - rgba(245, 54, 54, 0.9)
+    - rgba(237, 129, 40, 0.89)
+    - rgba(50, 172, 45, 0.97)
+    decimals: 2
+    pattern: /.*/
+    thresholds: []
+    type: number
+    unit: short
+  targets:
+  - format: table
+    group: []
+    metricColumn: none
+    rawQuery: true
+    rawSql: |-
+      SELECT
+        entity.name as "VM Name",
+        max(entity.attrs->>'num_cpus') || ' vCPUs' as "Num vCPUs",
+        avg(metric.utilization) as "Avg CPU Ready",
+        max(metric.utilization) as "Max CPU Ready"
+      FROM metric, entity
+      WHERE
+        ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) AND
+        $__timeFilter("time") AND entity.oid = metric.entity_oid AND entity.hash = metric.entity_hash and
+        entity.type = 'VIRTUAL_MACHINE' AND
+        metric.type = 'CPU_READY'
+        AND CASE WHEN ARRAY[$Cluster]::text[] = ARRAY[ '0' ] THEN true ELSE (entity.scope && ARRAY[$Cluster]::bigint[]) END
+      GROUP BY entity.oid, entity.name
+      ORDER BY 3 desc
+    refId: A
+    select:
+    - - params:
+        - value
+        type: column
+    table: metric
+    timeColumn: '"time"'
+    timeColumnType: timestamptz
+    where:
+    - name: $__timeFilter
+      params: []
+      type: macro
+  timeFrom: null
+  timeShift: null
+  title: Top Virtual Machine CPU Ready Utilization
+  transform: table
+  type: table-old
+refresh: false
+schemaVersion: 25
+style: dark
+tags: []
+templating:
+  list:
+  - hide: 2
+    includeAll: false
+    label: null
+    multi: false
+    name: DB
+    options: []
+    query: postgres
+    queryValue: ""
+    refresh: 1
+    regex: ""
+    skipUrlSync: false
+    type: datasource
+  - allValue: '''0'''
+    datasource: $DB
+    definition: |-
+      select name as __text, oid as __value
+      from entity
+      where entity.type = 'COMPUTE_CLUSTER'
+      and ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)
+      group by name, oid
+      order by 1
+    hide: 0
+    includeAll: true
+    label: null
+    multi: true
+    name: Cluster
+    options: []
+    query: |-
+      select name as __text, oid as __value
+      from entity
+      where entity.type = 'COMPUTE_CLUSTER'
+      and ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)
+      group by name, oid
+      order by 1
+    refresh: 2
+    regex: ""
+    skipUrlSync: false
+    sort: 0
+    tagValuesQuery: ""
+    tags: []
+    tagsQuery: ""
+    type: query
+    useTags: false
+timepicker:
+  refresh_intervals:
+  - 10s
+  - 30s
+  - 1m
+  - 5m
+  - 15m
+  - 30m
+  - 1h
+  - 2h
+  - 1d
+timezone: ""
+title: Top CPU Ready Queue
+uid: cpu_ready

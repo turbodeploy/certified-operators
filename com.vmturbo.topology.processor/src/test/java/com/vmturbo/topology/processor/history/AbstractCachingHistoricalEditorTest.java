@@ -47,10 +47,20 @@ public class AbstractCachingHistoricalEditorTest {
     private static final float ABOVE_DB_VALUE = 15f;
     private static double DELTA = 0.00001;
     private static final long TOPOLOGY_ID = 777777L;
-    private static final CachingHistoricalEditorConfig CONFIG1 =
-                    new CachingHistoricalEditorConfig(2, 3, TOPOLOGY_ID, Clock.systemUTC(), Mockito.any());
-    private static final CachingHistoricalEditorConfig CONFIG2 =
-                    new CachingHistoricalEditorConfig(10, 10, TOPOLOGY_ID, Clock.systemUTC(), Mockito.any());
+    private static final CachingHistoricalEditorConfig CONFIG1 = new CachingHistoricalEditorConfig(
+            2, 3, TOPOLOGY_ID, Clock.systemUTC(), Mockito.any()) {
+        @Override
+        protected String getDiagnosticsEnabledPropertyName() {
+            return null;
+        }
+    };
+    private static final CachingHistoricalEditorConfig CONFIG2 = new CachingHistoricalEditorConfig(
+            10, 10, TOPOLOGY_ID, Clock.systemUTC(), Mockito.any()) {
+        @Override
+        protected String getDiagnosticsEnabledPropertyName() {
+            return null;
+        }
+    };
     private static final HistoryAggregationContext CONTEXT = new HistoryAggregationContext(
                     TopologyInfo.newBuilder().setTopologyId(TOPOLOGY_ID).build(),
                     Mockito.mock(GraphWithSettings.class), false);

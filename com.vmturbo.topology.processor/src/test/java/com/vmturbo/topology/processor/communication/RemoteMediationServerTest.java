@@ -36,10 +36,7 @@ import com.vmturbo.topology.processor.TestProbeStore;
 import com.vmturbo.topology.processor.communication.ExpiringMessageHandler.HandlerStatus;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityProviderImpl;
-import com.vmturbo.topology.processor.identity.IdentityService;
-import com.vmturbo.topology.processor.identity.services.HeuristicsMatcher;
 import com.vmturbo.topology.processor.identity.storage.IdentityDatabaseStore;
-import com.vmturbo.topology.processor.identity.storage.IdentityServiceInMemoryUnderlyingStore;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.discovery.DiscoveryMessageHandler;
 import com.vmturbo.topology.processor.probeproperties.ProbePropertyStore;
@@ -55,12 +52,9 @@ import com.vmturbo.topology.processor.util.Probes;
 public class RemoteMediationServerTest {
 
     private final IdentityProvider identityProvider = new IdentityProviderImpl(
-        new IdentityService(new IdentityServiceInMemoryUnderlyingStore(
-            mock(IdentityDatabaseStore.class), 10),
-            new HeuristicsMatcher()),
         new MapKeyValueStore(),
         new ProbeInfoCompatibilityChecker(),
-        0L);
+        0L, mock(IdentityDatabaseStore.class), 10, 0, false);
 
     private final ProbeStore probeStore = new TestProbeStore(identityProvider);
 

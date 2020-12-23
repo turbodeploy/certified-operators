@@ -539,9 +539,18 @@ public class EntityStore {
                 throw new TargetNotFoundException(targetId);
             }
 
+            final Map<EntityType, Collection<Entity>> deletedEntities = new HashMap<>();
             purgeTarget(targetId,
                     // If the entity is not present in the incoming snapshot, then remove it.
-                    (entity) -> !entitiesById.containsKey(entity.getId()));
+                    (entity) -> {
+                        final boolean result = !entitiesById.containsKey(entity.getId());
+                        if (result) {
+                            deletedEntities.computeIfAbsent(entity.getEntityType(),
+                                    t -> new HashSet<>()).add(entity);
+                        }
+                        return result;
+                    });
+            entitiesLogging(targetId, deletedEntities, "Deleted");
 
             final ImmutableSet.Builder<Long> newTargetEntitiesBuilder = new ImmutableSet.Builder<>();
             final Map<String, Long> newEntitiesByLocalId = new HashMap<>(entitiesById.size());
@@ -560,13 +569,14 @@ public class EntityStore {
             final Map<Long, List<String>> vmToProviderLocalIds = new HashMap<>();
             final Map<Long, List<String>> containerToProviderLocalIds = new HashMap<>();
 
+            final Map<EntityType, Collection<Entity>> addedEntities = new HashMap<>();
             // Assemble the new list of entities associated with this target.
             entitiesById.entrySet().forEach(entry -> {
                 Entity entity = entityMap.get(entry.getKey());
                 if (entity == null) {
                     entity = new Entity(entry.getKey(), entry.getValue().getEntityType());
-                    logger.debug("Adding new entity {} of type {} to the topology.", entity.getId(),
-                            entity.getEntityType());
+                    addedEntities.computeIfAbsent(entity.getEntityType(), t -> new HashSet<>()).add(
+                            entity);
                     entityMap.put(entry.getKey(), entity);
                 }
                 entity.addTargetInfo(targetId, entry.getValue());
@@ -596,6 +606,7 @@ public class EntityStore {
                             .collect(Collectors.toList()));
                 }
             });
+            entitiesLogging(targetId, addedEntities, "Added");
 
             final TargetEntityIdInfo targetIdInfo = new TargetEntityIdInfo(newTargetEntitiesBuilder.build(),
                 newEntitiesByLocalId, clock.millis());
@@ -629,6 +640,26 @@ public class EntityStore {
                                 Objects.requireNonNull(entityMap.get(entityId)).setHostedBy(targetId, pmId);
                             })
             );
+        }
+    }
+
+    private void entitiesLogging(long targetId, Map<EntityType, Collection<Entity>> entities,
+            String logPrefix) {
+        if (logger.isDebugEnabled()) {
+            entities.forEach((t, e) -> {
+                if (logger.isTraceEnabled()) {
+                    logger.trace("{} {} {} entities: {}", logPrefix, e.size(), t, e.stream()
+                            .map(en -> String.format("%s | %s | %s", en.getEntityType(), en.getId(),
+                                    en.getEntityInfo(targetId)
+                                            .map(PerTargetInfo::getEntityInfo)
+                                            .map(EntityDTO::getDisplayName)
+                                            .orElse("missing display name")))
+                            .collect(Collectors.joining(System.lineSeparator())));
+                } else {
+                    logger.debug("{} {} {} entities from target {}", logPrefix, e.size(), t,
+                            targetId);
+                }
+            });
         }
     }
 

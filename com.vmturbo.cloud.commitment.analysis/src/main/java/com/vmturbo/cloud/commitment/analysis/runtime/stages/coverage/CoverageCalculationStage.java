@@ -38,7 +38,6 @@ import com.vmturbo.cloud.commitment.analysis.runtime.stages.coverage.CoverageCal
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.AggregateCloudTierDemand;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.AggregateCloudTierDemand.CoverageInfo;
 import com.vmturbo.cloud.common.commitment.CloudCommitmentData;
-import com.vmturbo.cloud.common.data.TimeSeries;
 import com.vmturbo.cloud.common.topology.MinimalCloudTopology;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisConfig;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
@@ -189,7 +188,7 @@ public class CoverageCalculationStage extends AbstractStage<AnalysisTopology, An
         }
 
         return analysisTopology.toBuilder()
-                .segments(TimeSeries.newTimeSeries(updatedSegments))
+                .segments(updatedSegments)
                 .build();
     }
 

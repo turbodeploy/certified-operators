@@ -1,6 +1,6 @@
 {{ if .Values.global }}
-  {{ if and (not .Values.global.externalKafka) (not  .Values.global.externalKafkaIP) }}
-    {{ /* Kafka is not external, so we need to run Zookeeper as a container. Create a PVC, deployment and a service. */}}
+  {{ if and (not .Values.global.externalKafka) (not .Values.global.externalKafkaIP) }}
+    {{/* Kafka is not external, so we need to run Zookeeper as a container. Create a PVC, deployment and a service. */}}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:

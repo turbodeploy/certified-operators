@@ -36,6 +36,7 @@ import com.vmturbo.cloud.commitment.analysis.runtime.stages.recommendation.calcu
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.recommendation.calculator.SavingsCalculationContext.DemandSegment;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.AggregateCloudTierDemand;
 import com.vmturbo.cloud.commitment.analysis.spec.ReservedInstanceSpecData;
+import com.vmturbo.cloud.common.data.ImmutableTimeSeries;
 import com.vmturbo.cloud.common.data.TimeSeries;
 import com.vmturbo.cloud.common.identity.IdentityProvider;
 import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver;
@@ -128,7 +129,7 @@ public class RecommendationAnalysisTask implements Callable<CloudCommitmentRecom
         final TimeSeries<DemandSegment> demandSegmentSeries = recommendationTopology.demandSegments()
                 .stream()
                 .map(this::convertToDemandSegment)
-                .collect(TimeSeries.toTimeSeries());
+                .collect(ImmutableTimeSeries.toImmutableTimeSeries());
 
         return SavingsCalculationContext.builder()
                 .amortizedCommitmentRate(amortizedCommitmentRate)

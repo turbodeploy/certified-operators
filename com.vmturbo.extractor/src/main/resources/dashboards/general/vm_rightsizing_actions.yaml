@@ -1,0 +1,284 @@
+---
+annotations:
+  list:
+  - builtIn: 1
+    datasource: -- Grafana --
+    enable: true
+    hide: true
+    iconColor: rgba(0, 211, 255, 1)
+    name: Annotations & Alerts
+    type: dashboard
+description: This dashboard displays current scaling actions for virtual machines
+  in your on-prem environment.
+editable: false
+gnetId: null
+graphTooltip: 0
+iteration: 1600435993718
+links: []
+panels:
+- datasource: $DB
+  fieldConfig:
+    defaults:
+      custom:
+        align: null
+      mappings: []
+      thresholds:
+        mode: absolute
+        steps:
+        - color: green
+          value: null
+        - color: red
+          value: 80
+    overrides:
+    - matcher:
+        id: byName
+        options: Peak VMem
+      properties:
+      - id: unit
+        value: kbytes
+      - id: custom.width
+        value: 118
+    - matcher:
+        id: byName
+        options: Peak VCPU
+      properties:
+      - id: unit
+        value: hertz
+    - matcher:
+        id: byName
+        options: Action Details
+      properties:
+      - id: custom.width
+        value: 328
+    - matcher:
+        id: byName
+        options: From
+      properties:
+      - id: custom.width
+        value: 73
+    - matcher:
+        id: byName
+        options: To
+      properties:
+      - id: custom.width
+        value: 70
+    - matcher:
+        id: byName
+        options: Resource Type
+      properties:
+      - id: custom.width
+        value: 108
+    - matcher:
+        id: byName
+        options: Resize Type
+      properties:
+      - id: custom.width
+        value: 108
+    - matcher:
+        id: byName
+        options: Host Cluster
+      properties:
+      - id: custom.width
+        value: 259
+  gridPos:
+    h: 15
+    w: 24
+    x: 0
+    y: 0
+  id: 2
+  options:
+    showHeader: true
+    sortBy: []
+  pluginVersion: 7.0.1
+  targets:
+  - format: table
+    group: []
+    metricColumn: none
+    rawQuery: true
+    rawSql: |-
+      WITH action_data AS (
+          SELECT DISTINCT
+                 target_entity_id
+                ,savings
+                ,description
+           FROM action_spec, action
+          WHERE spec_oid = action_spec_oid
+            AND hash = action_spec_hash
+            AND type = 'RESIZE'
+            AND state = 'READY'
+            AND time between now() - interval '70 minute' and now()
+            AND (now() - interval '70 minute', now()) OVERLAPS (first_seen, last_seen)
+      ),
+
+      vms_by_cluster as (
+          SELECT DISTINCT on (e.oid) g.name as cluster_name
+                ,e.oid as vm_oid
+                ,e.name as vm_name
+                ,e.hash as vm_hash
+            FROM entity g
+            JOIN entity e on g."type" = 'COMPUTE_CLUSTER'
+             AND array[g.oid] <@ e.scope
+             AND e."type" = 'VIRTUAL_MACHINE'
+             AND e.state = 'POWERED_ON'
+             AND e.environment = 'ON_PREM'
+             AND (e.first_seen, e.last_seen) overlaps ($__timeFrom(),$__timeTo())
+             AND CASE WHEN ARRAY[ $VMGroup ]::text[] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ $VMGroup ]::bigint[]) END
+      )
+
+      SELECT *
+      FROM (
+          SELECT cluster_name as "Host Cluster"
+                ,vm_name as "VM Name"
+                --,MAX(m.current) FILTER (WHERE m.type = 'VCPU') as "Peak VCPU"
+                --,MAX(m.current) FILTER (WHERE m.type = 'VMEM') as "Peak VMem"
+                ,description as "Action Details"
+                ,btrim(regexp_matches(description, 'from ([0-9]{0,4}|[0-9]{0,4}.[0-9] GB)')::text, '{}"')  as "From"
+                ,btrim(regexp_matches(description, 'to ([0-9]{0,4}|[0-9]{0,4}.[0-9] GB)')::text, '{}"') as "To"
+                ,btrim(regexp_matches(description, 'VMem|VCPU')::text, '{}"') as "Resource Type"
+                ,CASE
+                      WHEN description similar to 'Resize down%' THEN 'Downsize'
+                      WHEN description similar to 'Resize up%' THEN 'Upsize'
+                 END as "Resize Type"
+            FROM metric as m, action_data, vms_by_cluster
+           WHERE m.entity_oid = vm_oid
+             AND m.entity_hash = vm_hash
+             AND vm_oid = action_data.target_entity_id
+             AND $__timeFilter("time")
+           GROUP BY vm_oid, description, 2, 1
+           ) as data
+      WHERE CASE WHEN ARRAY[ $ResizeType ] = ARRAY[ '0' ] THEN true ELSE ("Resize Type" = $ResizeType) END
+        AND CASE WHEN ARRAY[ $ResourceType ] = ARRAY[ '0' ] THEN true ELSE ("Resource Type" = $ResourceType) END
+      ORDER BY 2
+      ;
+    refId: A
+    select:
+    - - params:
+        - savings
+        type: column
+    table: action_spec
+    timeColumn: first_seen
+    timeColumnType: timestamp
+    where:
+    - name: $__timeFilter
+      params: []
+      type: macro
+  timeFrom: null
+  timeShift: null
+  title: Rightsizing Recommendations
+  type: table
+schemaVersion: 25
+style: dark
+tags: []
+templating:
+  list:
+  - hide: 2
+    includeAll: false
+    label: null
+    multi: false
+    name: DB
+    options: []
+    query: postgres
+    queryValue: ""
+    refresh: 1
+    regex: ""
+    skipUrlSync: false
+    type: datasource
+  - allValue: '''0'''
+    datasource: $DB
+    definition: |-
+      SELECT name as __text,
+             oid as __value
+      FROM entity
+      WHERE ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)
+      AND ((entity.type = 'GROUP'
+                AND attrs -> 'member_types' ? 'VIRTUAL_MACHINE')
+      OR entity.type = 'COMPUTE_CLUSTER')
+      GROUP BY name, oid
+      ORDER BY 1
+    hide: 0
+    includeAll: true
+    label: null
+    multi: false
+    name: VMGroup
+    options: []
+    query: |-
+      SELECT name as __text,
+             oid as __value
+      FROM entity
+      WHERE ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)
+      AND ((entity.type = 'GROUP'
+                AND attrs -> 'member_types' ? 'VIRTUAL_MACHINE')
+      OR entity.type = 'COMPUTE_CLUSTER')
+      GROUP BY name, oid
+      ORDER BY 1
+    refresh: 2
+    regex: ""
+    skipUrlSync: false
+    sort: 0
+    tagValuesQuery: ""
+    tags: []
+    tagsQuery: ""
+    type: query
+    useTags: false
+  - allValue: '''0'''
+    current:
+      selected: false
+      text: All
+      value: $__all
+    hide: 0
+    includeAll: true
+    label: null
+    multi: false
+    name: ResourceType
+    options:
+    - selected: true
+      text: All
+      value: $__all
+    - selected: false
+      text: VMem
+      value: VMem
+    - selected: false
+      text: VCPU
+      value: VCPU
+    query: VMem,VCPU
+    queryValue: ""
+    skipUrlSync: false
+    type: custom
+  - allValue: '''0'''
+    current:
+      selected: false
+      text: All
+      value: $__all
+    hide: 0
+    includeAll: true
+    label: null
+    multi: false
+    name: ResizeType
+    options:
+    - selected: true
+      text: All
+      value: $__all
+    - selected: false
+      text: Upsize
+      value: Upsize
+    - selected: false
+      text: Downsize
+      value: Downsize
+    query: Upsize,Downsize
+    queryValue: ""
+    skipUrlSync: false
+    type: custom
+timepicker:
+  refresh_intervals:
+  - 10s
+  - 30s
+  - 1m
+  - 5m
+  - 15m
+  - 30m
+  - 1h
+  - 2h
+  - 1d
+timezone: ""
+title: On-Prem Virtual Machine Rightsizing Recommendations
+uid: vm_rightsizing_actions

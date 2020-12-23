@@ -107,6 +107,7 @@ public class ActionDescriptionBuilder {
         ACTION_DESCRIPTION_MOVE_WITHOUT_SOURCE("Start {0} on {1}"),
         ACTION_DESCRIPTION_MOVE("{0} {1}{2} from {3} to {4}"),
         ACTION_DESCRIPTION_SCALE_COMMODITY_CHANGE("Scale {0} {1} for {2} from {3} to {4}"),
+        ACTION_DESCRIPTION_SCALE_COMMODITY_CHANGE_WITH_CURRENT_PROVIDER("Scale {0} {1} for {2} on {3} from {4} to {5}"),
         ACTION_DESCRIPTION_SCALE_ADDITIONAL_COMMODITY_CHANGE("{0} {1} from {2} to {3}"),
         ACTION_DESCRIPTION_BUYRI("Buy {0} {1} RIs for {2} in {3}"),
         ACTION_DESCRIPTION_ALLOCATE("Increase RI coverage for {0} in {1}"),
@@ -522,13 +523,32 @@ public class ActionDescriptionBuilder {
                 .forNumber(firstResizeInfo.getCommodityType().getType());
         String commodityTypeDisplayName = CLOUD_SCALE_ACTION_COMMODITY_TYPE_DISPLAYNAME
                 .getOrDefault(firstResizeInfoCommodityType, beautifyCommodityType(firstResizeInfo.getCommodityType()));
-        StringBuilder description = new StringBuilder(ActionMessageFormat.ACTION_DESCRIPTION_SCALE_COMMODITY_CHANGE.format(
-                firstResizeInfo.getNewCapacity() > firstResizeInfo.getOldCapacity() ? UP : DOWN,
-                commodityTypeDisplayName, beautifyEntityTypeAndName(optTargetEntity),
-                formatResizeActionCommodityValue(firstResizeInfoCommodityType,
-                        optTargetEntity.getEntityType(), firstResizeInfo.getOldCapacity()),
-                formatResizeActionCommodityValue(firstResizeInfoCommodityType,
-                        optTargetEntity.getEntityType(), firstResizeInfo.getNewCapacity())));
+
+        StringBuilder description;
+        final ActionPartialEntity primaryProviderEntity = optTargetEntity.hasPrimaryProviderId()
+                ? entitiesSnapshot.getEntityFromOid(optTargetEntity.getPrimaryProviderId()).orElse(null)
+                : null;
+        // if we do have current provider then add that to the action description
+        if (primaryProviderEntity != null) {
+            description = new StringBuilder(ActionMessageFormat.ACTION_DESCRIPTION_SCALE_COMMODITY_CHANGE_WITH_CURRENT_PROVIDER.format(
+                    firstResizeInfo.getNewCapacity() > firstResizeInfo.getOldCapacity() ? UP : DOWN,
+                    commodityTypeDisplayName,
+                    beautifyEntityTypeAndName(optTargetEntity),
+                    primaryProviderEntity.getDisplayName(),
+                    formatResizeActionCommodityValue(firstResizeInfoCommodityType,
+                            optTargetEntity.getEntityType(), firstResizeInfo.getOldCapacity()),
+                    formatResizeActionCommodityValue(firstResizeInfoCommodityType,
+                            optTargetEntity.getEntityType(), firstResizeInfo.getNewCapacity())));
+        } else {
+            description = new StringBuilder(ActionMessageFormat.ACTION_DESCRIPTION_SCALE_COMMODITY_CHANGE.format(
+                    firstResizeInfo.getNewCapacity() > firstResizeInfo.getOldCapacity() ? UP : DOWN,
+                    commodityTypeDisplayName, beautifyEntityTypeAndName(optTargetEntity),
+                    formatResizeActionCommodityValue(firstResizeInfoCommodityType,
+                            optTargetEntity.getEntityType(), firstResizeInfo.getOldCapacity()),
+                    formatResizeActionCommodityValue(firstResizeInfoCommodityType,
+                            optTargetEntity.getEntityType(), firstResizeInfo.getNewCapacity())));
+        }
+
         // Scaling more than one commodity
         for (int i = 1; i < resizeInfos.size(); i++) {
             ResizeInfo additionalResizeInfo = resizeInfos.get(i);

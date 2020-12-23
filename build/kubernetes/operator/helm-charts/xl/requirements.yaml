@@ -153,6 +153,10 @@ dependencies:
     repository: file://../base/datacloud
     version: 0.1.0
     condition: datacloud.enabled
+  - name: datacloud-graph
+    repository: file://../base/datacloud-graph
+    version: 0.1.0
+    condition: datacloud-graph.enabled
 
 # Integration dependencies
   - name: intersight-integration
@@ -273,6 +277,10 @@ dependencies:
     repository: file://../probes/mediation-hyperv
     version: 0.1.0
     condition: hyperv.enabled
+  - name: mediation-instana
+    repository: file://../probes/mediation-instana
+    version: 0.1.0
+    condition: instana.enabled
   - name: mediation-intersight
     repository: file://../probes/mediation-intersight
     version: 0.1.0
@@ -292,7 +300,7 @@ dependencies:
   - name: mediation-actionstream-kafka
     repository: file://../probes/mediation-actionstream-kafka
     version: 0.1.0
-    condition: mediation-actionstream-kafka.enabled
+    condition: actionstream-kafka.enabled
   - name: mediation-netapp
     repository: file://../probes/mediation-netapp
     version: 0.1.0

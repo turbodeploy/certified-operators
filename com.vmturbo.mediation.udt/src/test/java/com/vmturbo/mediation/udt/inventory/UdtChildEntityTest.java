@@ -17,7 +17,7 @@ public class UdtChildEntityTest {
     public void testInstanceFields() {
         EntityType type = EntityType.VIRTUAL_MACHINE;
         long oid = 908070L;
-        long udtId = 2020L;
+        String udtId = "aa2020bb";
         UdtChildEntity udtChildEntity = new UdtChildEntity(oid, type);
 
         Assert.assertEquals(oid, udtChildEntity.getOid());

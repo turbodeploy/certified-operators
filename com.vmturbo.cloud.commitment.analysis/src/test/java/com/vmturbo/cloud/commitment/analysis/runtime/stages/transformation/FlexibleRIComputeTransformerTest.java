@@ -11,6 +11,8 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.Optional;
 
+import com.google.common.collect.ImmutableSet;
+
 import org.junit.Before;
 import org.junit.Test;
 
@@ -20,7 +22,6 @@ import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.Class
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.DemandClassification;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.FlexibleRIComputeTransformer.FlexibleRIComputeTransformerFactory;
 import com.vmturbo.cloud.common.data.TimeInterval;
-import com.vmturbo.cloud.common.data.TimeSeries;
 import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver;
 import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver.ComputeTierNotFoundException;
 import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver.IncompatibleTiersException;
@@ -37,23 +38,22 @@ public class FlexibleRIComputeTransformerTest {
                     .osType(OSType.RHEL)
                     .tenancy(Tenancy.DEFAULT)
                     .build())
-            .demandIntervals(TimeSeries.singletonTimeline(
-                    TimeInterval.builder()
-                            .startTime(Instant.ofEpochSecond(Duration.ofHours(2).getSeconds()))
-                            .endTime(Instant.ofEpochSecond(Duration.ofHours(3).getSeconds()))
-                            .build()))
+            .addDemandIntervals(TimeInterval.builder()
+                    .startTime(Instant.ofEpochSecond(Duration.ofHours(2).getSeconds()))
+                    .endTime(Instant.ofEpochSecond(Duration.ofHours(3).getSeconds()))
+                    .build())
             .build();
+
     final DemandTimeSeries allocatedTimeSeries = DemandTimeSeries.builder()
             .cloudTierDemand(ComputeTierDemand.builder()
                     .cloudTierOid(1)
                     .osType(OSType.RHEL)
                     .tenancy(Tenancy.DEFAULT)
                     .build())
-            .demandIntervals(TimeSeries.singletonTimeline(
-                    TimeInterval.builder()
-                            .startTime(Instant.ofEpochSecond(Duration.ofHours(3).getSeconds()))
-                            .endTime(Instant.ofEpochSecond(Duration.ofHours(4).getSeconds()))
-                            .build()))
+            .addDemandIntervals(TimeInterval.builder()
+                    .startTime(Instant.ofEpochSecond(Duration.ofHours(3).getSeconds()))
+                    .endTime(Instant.ofEpochSecond(Duration.ofHours(4).getSeconds()))
+                    .build())
             .build();
     private final ClassifiedEntityDemandAggregate entityAggregate = ClassifiedEntityDemandAggregate.builder()
             .entityOid(1)
@@ -151,6 +151,66 @@ public class FlexibleRIComputeTransformerTest {
                                 .from(secondaryTimeSeries)
                                 .cloudTierDemand(allocatedTimeSeries.cloudTierDemand())
                                 .build()))
+                .build();
+
+        assertThat(transformedAggregate, equalTo(expectedAggregate));
+    }
+
+    /**
+     * Tests a VM in which it has two prior allocations on other instance sizes within the same family
+     * as the current allocation.
+     */
+    @Test
+    public void testMultipleFlexibleDemand() throws IncompatibleTiersException, ComputeTierNotFoundException {
+
+        final DemandTimeSeries thirdTimeSeries = DemandTimeSeries.builder()
+                .cloudTierDemand(ComputeTierDemand.builder()
+                        .cloudTierOid(3)
+                        .osType(OSType.RHEL)
+                        .tenancy(Tenancy.DEFAULT)
+                        .build())
+                .addDemandIntervals(TimeInterval.builder()
+                        .startTime(Instant.ofEpochSecond(Duration.ofHours(1).getSeconds()))
+                        .endTime(Instant.ofEpochSecond(Duration.ofHours(2).getSeconds()))
+                        .build())
+                .build();
+
+        // add flexible demand
+        final ClassifiedEntityDemandAggregate flexibleAggregate = ClassifiedEntityDemandAggregate.builder()
+                .from(entityAggregate)
+                .putClassifiedCloudTierDemand(
+                        DemandClassification.of(AllocatedDemandClassification.FLEXIBLY_ALLOCATED),
+                        ImmutableSet.of(secondaryTimeSeries, thirdTimeSeries))
+                .build();
+
+        // setup the computeTierFamilyResolver
+        when(computeTierFamilyResolver.compareTiers(
+                eq(secondaryTimeSeries.cloudTierDemand().cloudTierOid()),
+                eq(allocatedTimeSeries.cloudTierDemand().cloudTierOid()))).thenReturn(1L);
+
+        when(computeTierFamilyResolver.compareTiers(
+                eq(thirdTimeSeries.cloudTierDemand().cloudTierOid()),
+                eq(allocatedTimeSeries.cloudTierDemand().cloudTierOid()))).thenReturn(1L);
+
+        // invoke transformer
+        final FlexibleRIComputeTransformer transformer = transformerFactory.newTransformer(
+                transformationJournal, computeTierFamilyResolver);
+        final ClassifiedEntityDemandAggregate transformedAggregate = transformer.transformDemand(flexibleAggregate);
+
+        // Assertions
+        final ClassifiedEntityDemandAggregate expectedAggregate = ClassifiedEntityDemandAggregate.builder()
+                .from(entityAggregate)
+                .putClassifiedCloudTierDemand(
+                        DemandClassification.of(AllocatedDemandClassification.FLEXIBLY_ALLOCATED),
+                        ImmutableSet.of(
+                                DemandTimeSeries.builder()
+                                        .addAllDemandIntervals(secondaryTimeSeries.demandIntervals())
+                                        .cloudTierDemand(allocatedTimeSeries.cloudTierDemand())
+                                        .build(),
+                                DemandTimeSeries.builder()
+                                        .addAllDemandIntervals(thirdTimeSeries.demandIntervals())
+                                        .cloudTierDemand(allocatedTimeSeries.cloudTierDemand())
+                                        .build()))
                 .build();
 
         assertThat(transformedAggregate, equalTo(expectedAggregate));

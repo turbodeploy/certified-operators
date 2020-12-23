@@ -64,6 +64,10 @@ public class ActionStreamKafkaProbeAccount {
         return port;
     }
 
+    public String getTopic() {
+        return topic;
+    }
+
     @Override
     public boolean equals(Object obj) {
         if (!(obj instanceof ActionStreamKafkaProbeAccount)) {

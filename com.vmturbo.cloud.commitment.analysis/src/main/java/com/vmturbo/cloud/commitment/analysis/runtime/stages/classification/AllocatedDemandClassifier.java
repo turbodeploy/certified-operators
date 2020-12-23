@@ -93,12 +93,12 @@ public class AllocatedDemandClassifier {
                                         .stream()
                                         .map(demandSet -> DemandTimeSeries.builder()
                                                 .cloudTierDemand(demandSet.getKey())
-                                                .demandIntervals(TimeSeries.newTimeline(demandSet.getValue()))
+                                                .demandIntervals(demandSet.getValue())
                                                 .build())
                                         .collect(ImmutableSet.toImmutableSet()))))
                 .allocatedDemand(DemandTimeSeries.builder()
                         .cloudTierDemand(allocatedMapping.cloudTierDemand())
-                        .demandIntervals(TimeSeries.singletonTimeline(allocatedMapping.timeInterval()))
+                        .addDemandIntervals(allocatedMapping.timeInterval())
                         .build())
                 .build();
     }

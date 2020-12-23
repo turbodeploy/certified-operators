@@ -55,7 +55,7 @@ class UdtProbeConverter {
         // Create UDT children (proxy objects)
         for (UdtEntity entity : entities) {
             for (UdtChildEntity child : entity.getChildren()) {
-                String childId = String.valueOf(child.getDtoId());
+                String childId = child.getDtoId();
                 GenericEntityBuilder udtDto = entitiesDtoMap.get(entity.getId());
                 GenericEntityBuilder childDto = entitiesDtoMap
                         .getOrDefault(childId, createUdtChildDto(childId, child.getEntityType()));

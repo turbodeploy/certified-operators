@@ -1507,26 +1507,23 @@ public class ClusterMgrService {
         // 1. write to file
         final Instant start = Instant.now();
         if (writeDiagnosticsFileToDisk(diagsFile)) {
-            boolean success;
-            try {
-                // 2. invoke curl command to upload, se.g.:
-                // curl -x 10.10.172.84:3128 -F ufile=@test.log \
-                //                            http://10.10.168.175/cgi-bin/vmturboupload.cgi
-                // this runner blocks until the process completes
-                log.info("Running CURL command to upload diagnostics.");
-                String[] curlArgs = getCurlArgs(fileName, httpProxy);
-                int rc = osCommandProcessRunner.runOsCommandProcess(CURL_COMMAND, curlArgs);
-                success = rc == 0;
-                log.info("Curl command to export diags success == {}", success);
-                if (!success) {
-                    log.error("Failed to upload diags. Curl command with arguments {} did not " +
-                        "return successfully", Arrays.toString(curlArgs));
-                    return success;
-                }
-            } finally {
+            String[] curlArgs = getCurlArgs(fileName, httpProxy);
+
+            // 2. invoke curl command to upload, se.g.:
+            // curl -x 10.10.172.84:3128 -F ufile=@test.log \
+            //                            http://10.10.168.175/cgi-bin/vmturboupload.cgi
+            // this runner blocks until the process completes
+
+            log.info("Running CURL command to upload diagnostics.");
+            int rc = osCommandProcessRunner.runOsCommandProcess(CURL_COMMAND, curlArgs);
+            boolean success = rc == 0;
+
+            if (!success) {
+                log.error("Failure in uploading diagnostic file: {}", fileName);
+            } else {
                 long timeElapsed = Duration.between(start, Instant.now()).toMillis();
                 log.info("Successfully upload diagnostics file: {}, time (secs): {}", fileName,
-                    timeElapsed / 1000.0);
+                        timeElapsed / 1000.0);
             }
             return success;
         }

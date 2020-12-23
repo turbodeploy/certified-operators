@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.history;
 
+import java.io.Serializable;
 import java.util.Objects;
 
 import javax.annotation.Nonnull;
@@ -13,7 +14,8 @@ import com.vmturbo.stitching.EntityCommodityReference;
  * Reference to a historical field within a topology commodity (used or peak).
  */
 @Immutable
-public class EntityCommodityFieldReference extends EntityCommodityReference {
+public class EntityCommodityFieldReference extends EntityCommodityReference implements
+        Serializable {
     private final CommodityField field;
     private volatile EntityCommodityFieldReference liveEntityReference;
 

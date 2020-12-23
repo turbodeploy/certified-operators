@@ -18,8 +18,11 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.action.orchestrator.action.ActionSchedule;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCostType;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionDisruptiveness;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionReversibility;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionSavingsAmountRangeFilter;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionEnvironmentType;
 import com.vmturbo.common.protobuf.action.InvolvedEntityCalculation;
@@ -182,6 +185,34 @@ public class QueryFilter {
             return false;
         }
 
+        if (filter.hasDisruptiveness() && !testDisruptiveness(actionView, filter.getDisruptiveness())) {
+            return false;
+        }
+
+        if (filter.hasReversibility() && !testReversibility(actionView, filter.getReversibility())) {
+            return false;
+        }
+
+        if (filter.hasSavingsAmountRange() && !testSavingsAmountRange(actionView, filter.getSavingsAmountRange())) {
+            return false;
+        }
+
+        if (filter.hasHasSchedule() && !testSchedule(actionView, filter.getHasSchedule())) {
+            return false;
+        }
+
+        if (filter.hasHasPrerequisites() && !testPrerequisites(actionView, filter.getHasPrerequisites())) {
+            return false;
+        }
+
+        if (filter.hasDescriptionQuery() && !testDescriptionQuery(actionView, filter.getDescriptionQuery())) {
+            return false;
+        }
+
+        if (filter.hasRiskQuery() && !testRiskQuery(actionView, filter.getRiskQuery())) {
+            return false;
+        }
+
         if (filter.hasCostType()) {
             final double amount = actionView.getTranslationResultOrOriginal().getSavingsPerHour().getAmount();
 
@@ -203,5 +234,77 @@ public class QueryFilter {
 
     private static <T> boolean filterByCollection(@Nonnull Collection<T> collection, @Nonnull T element) {
         return collection.isEmpty() || collection.contains(element);
+    }
+
+    private static boolean testDescriptionQuery(@Nonnull final ActionView actionView, @Nonnull String descriptionQuery) {
+        return actionView.getDescription().matches(descriptionQuery);
+    }
+
+    private static boolean testRiskQuery(@Nonnull final ActionView actionView, @Nonnull String riskQuery) {
+        final Set<String> relatedRisks = actionView.getRelatedRisks();
+        for (String relatedRisk : relatedRisks) {
+           if (relatedRisk.matches(riskQuery)) {
+               return true;
+           }
+        }
+        return false;
+    }
+
+    private static boolean testDisruptiveness(@Nonnull final ActionView actionView, @Nonnull ActionDisruptiveness disruptiveness) {
+        if (disruptiveness == ActionDisruptiveness.DISRUPTIVE) {
+            return actionView.getRecommendation().getDisruptive();
+        }
+
+        if (disruptiveness == ActionDisruptiveness.NON_DISRUPTIVE) {
+            return !actionView.getRecommendation().getDisruptive();
+        }
+
+        return true;
+    }
+
+    private static boolean testReversibility(@Nonnull final ActionView actionView, @Nonnull ActionReversibility reversibility) {
+        if (reversibility == ActionReversibility.REVERSIBLE) {
+            return actionView.getRecommendation().getReversible();
+        }
+
+        if (reversibility == ActionReversibility.IRREVERSIBLE) {
+            return !actionView.getRecommendation().getReversible();
+        }
+
+        return true;
+    }
+
+    private static boolean testSavingsAmountRange(@Nonnull final ActionView actionView, @Nonnull ActionSavingsAmountRangeFilter savingsAmountRangeFilter) {
+        final double amount = actionView.getTranslationResultOrOriginal().getSavingsPerHour().getAmount();
+
+        if (savingsAmountRangeFilter.hasMinValue() && savingsAmountRangeFilter.hasMaxValue()) {
+            return amount >= savingsAmountRangeFilter.getMinValue() && amount <= savingsAmountRangeFilter.getMaxValue();
+        }
+
+        if (savingsAmountRangeFilter.hasMinValue()) {
+            return amount >= savingsAmountRangeFilter.getMinValue();
+        }
+
+        if (savingsAmountRangeFilter.hasMaxValue()) {
+            return amount <= savingsAmountRangeFilter.getMaxValue();
+        }
+
+        return true;
+    }
+
+    private static boolean testSchedule(@Nonnull final ActionView actionView, boolean hasSchedule) {
+        if (hasSchedule) {
+            return actionView.getSchedule().isPresent();
+        }
+
+        return !actionView.getSchedule().isPresent();
+    }
+
+    private static boolean testPrerequisites(@Nonnull final ActionView actionView, boolean hasPrerequisites) {
+        if (hasPrerequisites) {
+            return !actionView.getRecommendation().getPrerequisiteList().isEmpty();
+        }
+
+        return actionView.getRecommendation().getPrerequisiteList().isEmpty();
     }
 }

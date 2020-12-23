@@ -5,10 +5,14 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.anyByte;
 import static org.mockito.Matchers.anyInt;
+import static org.mockito.Matchers.anyVararg;
 import static org.mockito.Matchers.argThat;
+import static org.mockito.Matchers.contains;
 import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -17,6 +21,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -28,10 +33,11 @@ import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
-
 import com.google.common.collect.ImmutableMap;
 import com.orbitz.consul.model.kv.Value;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -47,6 +53,8 @@ import org.springframework.test.context.web.WebAppConfiguration;
 
 import com.vmturbo.clustermgr.api.ComponentProperties;
 import com.vmturbo.clustermgr.api.HttpProxyConfig;
+import com.vmturbo.clustermgr.management.ComponentRegistry;
+import com.vmturbo.components.common.OsCommandProcessRunner;
 
 /**
  * Test for ClusterMgr Service.
@@ -57,6 +65,10 @@ import com.vmturbo.clustermgr.api.HttpProxyConfig;
     classes = {ClusterMgrServiceTestConfiguration.class})
 public class ClusterMgrServiceTest {
 
+    @Autowired
+    ComponentRegistry serviceRegistry;
+    @Autowired
+    OsCommandProcessRunner osCommandProcessRunnerMock;
     @Autowired
     ConsulService consulServiceMock;
     @Autowired
@@ -79,8 +91,49 @@ public class ClusterMgrServiceTest {
     public void setup() {
         MockitoAnnotations.initMocks(this);
         Mockito.reset(consulServiceMock);
+        Mockito.reset(serviceRegistry);
         // note that we're returning ALL the values regardless of the query string; The code will reject the extra values
         when(consulServiceMock.getValues(anyString())).thenReturn(mockValues);
+    }
+
+    private static Logger log = LogManager.getLogger();
+
+    /**
+     * Test unsuccessful upload of diags.
+     */
+    @Test
+    public void testExportDiagnosticsWhenCurlHasError() {
+
+        when(serviceRegistry.getRegisteredComponents()).thenThrow(SkipCollectDiagsException.class);
+        when(osCommandProcessRunnerMock.runOsCommandProcess(contains("curl"), anyVararg()))
+                .thenReturn(42); // anything in the range(1, 96)
+        HttpProxyConfig pc = new HttpProxyConfig(false, null, null, null, null);
+        boolean result = clusterMgrService.exportDiagnostics(pc);
+        assertFalse(result);
+    }
+
+    /**
+     * Test a successful upload of diags.
+     */
+    @Test
+    public void testExportDiagnostics() {
+
+        when(serviceRegistry.getRegisteredComponents()).thenThrow(SkipCollectDiagsException.class);
+        when(osCommandProcessRunnerMock.runOsCommandProcess(contains("curl"), anyVararg()))
+                .thenReturn(0);
+        HttpProxyConfig pc = new HttpProxyConfig(false, null, null, null, null);
+        boolean result = clusterMgrService.exportDiagnostics(pc);
+        assertTrue(result);
+    }
+
+    /**
+     * This exception is an unchecked exception that will skip the collectComponentDiagnostics()
+     * call since we don't need the actual invocation.
+     */
+    private static class SkipCollectDiagsException extends EOFException {
+        SkipCollectDiagsException(String message) {
+            super(message);
+        }
     }
 
     @Test

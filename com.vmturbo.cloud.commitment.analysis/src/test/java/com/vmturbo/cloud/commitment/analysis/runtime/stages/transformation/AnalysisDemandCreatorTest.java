@@ -14,6 +14,7 @@ import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierDemand;
 import com.vmturbo.cloud.commitment.analysis.demand.ScopedCloudTierInfo;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.DemandClassification;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.DemandTransformationJournal.DemandTransformationResult;
+import com.vmturbo.cloud.common.data.ImmutableTimeSeries;
 import com.vmturbo.cloud.common.data.TimeInterval;
 import com.vmturbo.cloud.common.data.TimeSeries;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.AllocatedDemandClassification;
@@ -86,9 +87,9 @@ public class AnalysisDemandCreatorTest {
                 transformationResult, analysisWindow, analysisBucket);
 
         // expected result
-        final TimeSeries<TimeInterval> expectedTimeInterval = TimeSeries.newTimeline(
+        final TimeSeries<TimeInterval> expectedTimeInterval = ImmutableTimeSeries.of(
                 firstHour, secondHour, thirdHour);
-        final TimeSeries<AggregateDemandSegment> expectedAggregateDemand = TimeSeries.newTimeSeries(
+        final TimeSeries<AggregateDemandSegment> expectedAggregateDemand = ImmutableTimeSeries.of(
                 firstDemandSegment, secondDemandSegment, thirdDemandSegment);
 
         // assertions

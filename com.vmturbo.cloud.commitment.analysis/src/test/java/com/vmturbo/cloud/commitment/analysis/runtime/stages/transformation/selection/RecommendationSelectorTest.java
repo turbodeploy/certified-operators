@@ -24,7 +24,6 @@ import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.selec
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.selection.EntityStateFilter.EntityStateFilterFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.selection.RecommendationSelector.RecommendationSelectorFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.selection.ScopedEntityFilter.ScopedEntityFilterFactory;
-import com.vmturbo.cloud.common.data.TimeSeries;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.AllocatedDemandClassification;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.AllocatedDemandSelection;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
@@ -57,7 +56,6 @@ public class RecommendationSelectorTest {
                     .osType(OSType.RHEL)
                     .tenancy(Tenancy.DEFAULT)
                     .build())
-            .demandIntervals(TimeSeries.newTimeline())
             .build();
     private final DemandClassification flexibleClassification = DemandClassification.of(
             AllocatedDemandClassification.FLEXIBLY_ALLOCATED);
@@ -67,7 +65,6 @@ public class RecommendationSelectorTest {
                     .osType(OSType.RHEL)
                     .tenancy(Tenancy.DEFAULT)
                     .build())
-            .demandIntervals(TimeSeries.newTimeline())
             .build();
     private final ClassifiedEntityDemandAggregate entityAggregate = ClassifiedEntityDemandAggregate.builder()
             .entityOid(1)

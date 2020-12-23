@@ -2103,7 +2103,7 @@ services:
     extends:
       file: common-services.yml
       service: dev-mediation-component
-    image: turbonomic/com.vmturbo.mediation.kafka.component:${XL_VERSION}
+    image: turbonomic/com.vmturbo.mediation.actionstream.kafka.component:${XL_VERSION}
     depends_on: *clustermgrdep
     ports:
       - "${MEDIATION_ACTIONSTREAM_KAFKA_PORT}"

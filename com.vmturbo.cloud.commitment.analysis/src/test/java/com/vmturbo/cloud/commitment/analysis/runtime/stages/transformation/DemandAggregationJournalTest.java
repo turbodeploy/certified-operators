@@ -24,7 +24,6 @@ import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.Deman
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.AggregateCloudTierDemand.EntityInfo;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.DemandTransformationJournal.DemandTransformationResult;
 import com.vmturbo.cloud.common.data.TimeInterval;
-import com.vmturbo.cloud.common.data.TimeSeries;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.AllocatedDemandClassification;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
@@ -216,11 +215,10 @@ public class DemandAggregationJournalTest {
                         .osType(OSType.RHEL)
                         .tenancy(Tenancy.DEFAULT)
                         .build())
-                .demandIntervals(TimeSeries.newTimeline(
-                        TimeInterval.builder()
-                                .startTime(Instant.ofEpochSecond(0))
-                                .endTime(Instant.ofEpochSecond(10))
-                                .build()))
+                .addDemandIntervals(TimeInterval.builder()
+                        .startTime(Instant.ofEpochSecond(0))
+                        .endTime(Instant.ofEpochSecond(10))
+                        .build())
                 .build();
         final DemandTimeSeries seriesB = DemandTimeSeries.builder()
                 .cloudTierDemand(ComputeTierDemand.builder()
@@ -228,11 +226,10 @@ public class DemandAggregationJournalTest {
                         .osType(OSType.RHEL)
                         .tenancy(Tenancy.DEFAULT)
                         .build())
-                .demandIntervals(TimeSeries.newTimeline(
-                        TimeInterval.builder()
-                                .startTime(Instant.ofEpochSecond(20))
-                                .endTime(Instant.ofEpochSecond(40))
-                                .build()))
+                .addDemandIntervals(TimeInterval.builder()
+                        .startTime(Instant.ofEpochSecond(20))
+                        .endTime(Instant.ofEpochSecond(40))
+                        .build())
                 .build();
 
         demandTransformationJournal.recordSkippedDemand(

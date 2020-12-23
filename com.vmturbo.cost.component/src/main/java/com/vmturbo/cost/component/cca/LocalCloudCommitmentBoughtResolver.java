@@ -1,6 +1,7 @@
 package com.vmturbo.cost.component.cca;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -18,6 +19,7 @@ import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentIn
 import com.vmturbo.common.protobuf.cloud.CloudCommitment.CloudCommitmentType;
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecStore;
@@ -47,28 +49,47 @@ public class LocalCloudCommitmentBoughtResolver implements CloudCommitmentBought
 
     @Override
     public List<CloudCommitmentData> getCloudCommitment(CloudCommitmentInventory cloudCommitmentList) {
-        Set<Long> cloudCommitmentOids = new HashSet<>();
+
+        final Set<Long> reservedInstanceOids = new HashSet<>();
         for (CloudCommitment cloudCommitment: cloudCommitmentList.getCloudCommitmentList()) {
             if (cloudCommitment.getType().equals(CloudCommitmentType.RESERVED_INSTANCE)) {
-                cloudCommitmentOids.add(cloudCommitment.getOid());
+                reservedInstanceOids.add(cloudCommitment.getOid());
             } else {
                 throw new UnsupportedOperationException("A cloud commitment of type other than an Reserved Instance was found in the request");
             }
         }
-        // Get the list of ReservedInstanceBought
-        List<ReservedInstanceBought> reservedInstanceBoughtList = reservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(
-                ReservedInstanceBoughtFilter.newBuilder().riBoughtFilter(Cost.ReservedInstanceBoughtFilter.newBuilder()
-                        .addAllRiBoughtId(cloudCommitmentOids).build()).build());
 
-        Set<Long> reservedInstanceIds = reservedInstanceBoughtList.stream().map(s -> s.getReservedInstanceBoughtInfo().getReservedInstanceSpec()).collect(Collectors.toSet());
+        if (!reservedInstanceOids.isEmpty()) {
+            // Get the list of ReservedInstanceBought
+            List<ReservedInstanceBought> reservedInstanceBoughtList = reservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(
+                    ReservedInstanceBoughtFilter.newBuilder()
+                            .riBoughtFilter(Cost.ReservedInstanceBoughtFilter.newBuilder()
+                                    .addAllRiBoughtId(reservedInstanceOids)
+                                    .build())
+                            .build());
 
-        Map<Long, ReservedInstanceSpec> reservedInstanceSpecById = reservedInstanceSpecStore.getReservedInstanceSpecByIds(reservedInstanceIds).stream()
-                .collect(Collectors.toMap(ReservedInstanceSpec::getId, Function.identity()));
+            final Set<Long> reservedInstanceIds = reservedInstanceBoughtList.stream()
+                    .map(ReservedInstanceBought::getReservedInstanceBoughtInfo)
+                    .map(ReservedInstanceBoughtInfo::getReservedInstanceSpec)
+                    .collect(Collectors.toSet());
 
-        List<CloudCommitmentData> riDataList = new ArrayList<>();
-        for (ReservedInstanceBought riBought: reservedInstanceBoughtList) {
-            riDataList.add(ReservedInstanceData.builder().commitment(riBought).spec(reservedInstanceSpecById.get(riBought.getReservedInstanceBoughtInfo().getReservedInstanceSpec())).build());
+            Map<Long, ReservedInstanceSpec> reservedInstanceSpecById =
+                    reservedInstanceSpecStore.getReservedInstanceSpecByIds(reservedInstanceIds)
+                            .stream()
+                            .collect(Collectors.toMap(
+                                    ReservedInstanceSpec::getId,
+                                    Function.identity()));
+
+            List<CloudCommitmentData> riDataList = new ArrayList<>();
+            for (ReservedInstanceBought riBought : reservedInstanceBoughtList) {
+                riDataList.add(ReservedInstanceData.builder()
+                        .commitment(riBought)
+                        .spec(reservedInstanceSpecById.get(riBought.getReservedInstanceBoughtInfo().getReservedInstanceSpec()))
+                        .build());
+            }
+            return riDataList;
+        } else {
+            return Collections.EMPTY_LIST;
         }
-        return riDataList;
     }
 }

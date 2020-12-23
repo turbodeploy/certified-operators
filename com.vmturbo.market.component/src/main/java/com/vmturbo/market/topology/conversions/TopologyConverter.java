@@ -331,7 +331,7 @@ public class TopologyConverter {
      * Lazily initialized to reduce memory usage in the component until we actually need to
      * use the CommodityIndex when we convert back from market.
      */
-    private Supplier<CommodityIndex> commodityIndex;
+    private final Supplier<CommodityIndex> commodityIndex;
 
     private final TierExcluder tierExcluder;
 

@@ -27,6 +27,7 @@ import com.vmturbo.cloud.commitment.analysis.demand.TimeFilter.TimeComparator;
 import com.vmturbo.cloud.commitment.analysis.demand.store.ComputeTierAllocationStore;
 import com.vmturbo.cloud.commitment.analysis.demand.store.EntityComputeTierAllocationFilter;
 import com.vmturbo.cloud.commitment.analysis.demand.store.ImmutableEntityComputeTierAllocationFilter;
+import com.vmturbo.cloud.common.data.TimeInterval;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.DemandScope;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.DemandScope.ComputeTierDemandScope;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.HistoricalDemandSelection.CloudTierType;
@@ -51,6 +52,11 @@ public class CloudCommitmentDemandReaderTest {
 
         // Setup the input
         final Instant startTime = Instant.now().minus(5, ChronoUnit.DAYS);
+        final Instant endTime = startTime.plus(4, ChronoUnit.DAYS);
+        final TimeInterval selectionWindow = TimeInterval.builder()
+                .startTime(startTime)
+                .endTime(endTime)
+                .build();
 
         final DemandScope demandScope = DemandScope.newBuilder()
                 .addAllAccountOid(Sets.newHashSet(1L, 2L))
@@ -63,6 +69,10 @@ public class CloudCommitmentDemandReaderTest {
 
         // Setup expected invocation args for compute tier store
         final EntityComputeTierAllocationFilter allocationFilter = ImmutableEntityComputeTierAllocationFilter.builder()
+                .startTimeFilter(ImmutableTimeFilter.builder()
+                        .time(endTime)
+                        .comparator(TimeComparator.BEFORE_OR_EQUAL_TO)
+                        .build())
                 .endTimeFilter(ImmutableTimeFilter.builder()
                         .time(startTime)
                         .comparator(TimeComparator.AFTER_OR_EQUAL_TO)
@@ -84,7 +94,7 @@ public class CloudCommitmentDemandReaderTest {
         final Stream<EntityCloudTierMapping> actualDemandStream = cloudCommitmentDemandReader.getAllocationDemand(
                 CloudTierType.COMPUTE_TIER,
                 demandScope,
-                startTime);
+                selectionWindow);
 
         final Set<EntityCloudTierMapping> actualDemand = actualDemandStream.collect(Collectors.toSet());
 

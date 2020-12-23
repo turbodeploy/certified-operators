@@ -65,7 +65,8 @@ public class ActionPaginator {
             final LocalDateTime a2Time = a2.getRecommendationTime();
             return a1Time.compareTo(a2Time);
         }));
-
+        registry.put(ActionOrderBy.ACTION_DISRUPTIVENESS, Comparator.comparing(view -> view.getRecommendation().getDisruptive()));
+        registry.put(ActionOrderBy.ACTION_REVERSIBILITY, Comparator.comparing(view -> view.getRecommendation().getReversible()));
 
         COMPARATOR_REGISTRY = Collections.unmodifiableMap(registry);
     }

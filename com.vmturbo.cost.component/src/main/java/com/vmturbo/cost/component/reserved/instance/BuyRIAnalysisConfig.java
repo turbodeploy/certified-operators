@@ -92,26 +92,20 @@ public class BuyRIAnalysisConfig {
     @Value("${stopAndRunRIBuyOnNewRequest: false}")
     private boolean stopAndRunRIBuyOnNewRequest;
 
-    @Value("${allocation_terminated: false}")
+    @Value("${cca.allocationTerminated:true}")
     private boolean allocationTerminated;
 
-    @Value("${allocation_suspended: false}")
+    @Value("${cca.allocationSuspended:true}")
     private boolean allocationSuspended;
 
-    @Value("${min_Stability_millis: 0}")
+    @Value("${cca.minStabilityMillis:0}")
     private int minStabilityMillis;
 
     @Value("${cca.scopeHistoricalDemandSelection:false}")
     private boolean scopeHistoricalDemandSelection;
 
-    @Value("${allocationFlexible:false}")
+    @Value("${cca.allocationFlexible:true}")
     private boolean allocationFlexible;
-
-    @Value("${minimumSavingsOverOnDemand: 80}")
-    private float minimumsSavingsOverOnDemand;
-
-    @Value("${maxDemandPercentage: 80}")
-    private float maxDemandPercentage;
 
     /**
      * Gets Buy ReservedInstance Scheduler.
