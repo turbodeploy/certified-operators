@@ -40,13 +40,14 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEnti
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.CloudType;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetMultipleGlobalSettingsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.common.setting.CategoryPathConstants;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
@@ -179,6 +180,11 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
      * @param buyRiRequest StartBuyRIAnalysisRequest.
      */
     public void invokeBuyRIAnalysis(StartBuyRIAnalysisRequest buyRiRequest) {
+        if (areAllActionsDisabled()) {
+            logger.warn("All Actions are disabled. Hence RI Buy will not trigger. Enable all actions to run RI Buy.");
+            return;
+        }
+
         if (cloudTopology.isPresent() && !disableRealtimeRIBuyAnalysis) {
             currentRunningRIBuy.updateAndGet((currentFuture) -> {
                 if (currentFuture == null || runRIBuyOnNewRequest || currentFuture.isDone()) {
@@ -206,6 +212,14 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
                 reservedInstanceAnalyzer.clearRealtimeRIBuyActions();
             }
         }
+    }
+
+    private boolean areAllActionsDisabled() {
+        final GetGlobalSettingResponse globalSettingResponse = settingsServiceClient
+                        .getGlobalSetting(GetSingleGlobalSettingRequest.newBuilder()
+                                        .setSettingSpecName(GlobalSettingSpecs.DisableAllActions
+                                                        .getSettingName()).build());
+        return globalSettingResponse.getSetting().getBooleanSettingValue().getValue();
     }
 
     private synchronized void startRIBuyRun(StartBuyRIAnalysisRequest buyRiRequest) {
