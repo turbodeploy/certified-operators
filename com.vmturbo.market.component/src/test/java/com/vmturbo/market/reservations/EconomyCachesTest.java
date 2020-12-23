@@ -41,10 +41,14 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 public class EconomyCachesTest {
 
     private static final int PM_TYPE = EntityType.PHYSICAL_MACHINE_VALUE;
+    private static final int ST_TYPE = EntityType.STORAGE_VALUE;
     private static final int VM_TYPE = EntityType.VIRTUAL_MACHINE_VALUE;
     private static final int MEM_TYPE = CommodityType.MEM_VALUE;
+    private static final int ST_AMT_TYPE = CommodityType.STORAGE_AMOUNT_VALUE;
     private static final int CLUSTER1_COMM_SPEC_TYPE = 300;
     private static final int CLUSTER2_COMM_SPEC_TYPE = 400;
+    private static final int ST_CLUSTER1_COMM_SPEC_TYPE = 700;
+    private static final int ST_CLUSTER2_COMM_SPEC_TYPE = 800;
     private static final String cluster1Key = "cluster1";
     private static final String cluster2Key = "cluster2";
     private static final double pmMemCapacity = 100;
@@ -56,6 +60,11 @@ public class EconomyCachesTest {
     private static final double pm3MemUsed = 10;
     private static final long pm4Oid = 1114L;
     private static final double pm4MemUsed = 20;
+    private static final double stAmtCapacity = 1000;
+    private static final long st1Oid = 2111L;
+    private static final double st1AmtUsed = 100;
+    private static final long st2Oid = 2112L;
+    private static final double st2AmtUsed = 200;
     private EconomyCaches economyCaches = Mockito.spy(new EconomyCaches());
     private static final BiMap<TopologyDTO.CommodityType, Integer> commTypeToSpecMap = HashBiMap.create();
 
@@ -72,6 +81,15 @@ public class EconomyCachesTest {
         commTypeToSpecMap.put(TopologyDTO.CommodityType.newBuilder()
                 .setType(CommodityType.CLUSTER_VALUE).setKey(cluster2Key).build(),
                 CLUSTER2_COMM_SPEC_TYPE);
+        commTypeToSpecMap.put(TopologyDTO.CommodityType.newBuilder()
+                .setType(CommodityType.STORAGE_AMOUNT_VALUE).build(), ST_AMT_TYPE);
+        commTypeToSpecMap.put(TopologyDTO.CommodityType.newBuilder()
+                        .setType(CommodityType.STORAGE_CLUSTER_VALUE).setKey(cluster1Key).build(),
+                ST_CLUSTER1_COMM_SPEC_TYPE);
+        commTypeToSpecMap.put(TopologyDTO.CommodityType.newBuilder()
+                        .setType(CommodityType.STORAGE_CLUSTER_VALUE).setKey(cluster2Key).build(),
+                ST_CLUSTER2_COMM_SPEC_TYPE);
+
     }
 
     /**
@@ -641,6 +659,33 @@ public class EconomyCachesTest {
     }
 
     /**
+     * Create an economy with 2 storages. St1 is in st cluster 1 and st cluster 2. St2 is
+     * only in st cluster 2. A reservation buyer with st cluster 2 boundary finds the st1
+     * as the supplier decision.
+     * Expected: InitialPlacementUtils.extractClusterBoundary should return the sl oid to
+     * the st cluster 2 mapping.
+     */
+    @Test
+    public void testInitialPlacementUtilsExtractClusterBoundary() {
+        Economy economy = economyWithStCluster(new double[]{st1AmtUsed, st2AmtUsed});
+        long buyerOid = 10L;
+        long slOid = 120L;
+        double stAmtUsed = 50;
+        InitialPlacementBuyer buyer = initialPlacementBuyer(buyerOid, slOid, ST_TYPE,  new HashMap() {{
+            put(TopologyDTO.CommodityType.newBuilder().setType(ST_AMT_TYPE).build(), stAmtUsed);
+            put(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.STORAGE_CLUSTER_VALUE)
+                    .setKey(cluster2Key).build(), stAmtUsed);
+        }});
+        Map<Long, List<InitialPlacementDecision>> placements = new HashMap();
+        placements.put(buyerOid, new ArrayList(Arrays.asList(new InitialPlacementDecision(slOid,
+                Optional.of(st1Oid), new ArrayList<>()))));
+        Map<Long, TopologyDTO.CommodityType> map = InitialPlacementUtils.extractClusterBoundary(economy,
+                commTypeToSpecMap, placements, new ArrayList(Arrays.asList(buyer)), new HashSet<>());
+        Assert.assertTrue(map.get(slOid).getType() == CommodityType.STORAGE_CLUSTER_VALUE);
+        Assert.assertTrue(map.get(slOid).getKey() == cluster2Key);
+    }
+
+    /**
      * Create a InitialPlacementBuyer list with one object based on given parameters.
      *
      * @param buyerOid buyer oid
@@ -797,6 +842,62 @@ public class EconomyCachesTest {
         t.getModifiableTraderOids().put(pm2Oid, pm2);
         t.getModifiableTraderOids().put(pm3Oid, pm3);
         t.getModifiableTraderOids().put(pm4Oid, pm4);
+        return economy;
+    }
+
+    /**
+     * Create an economy with 2 storage clusters. Cluster1 has st1. Cluster2 has both st1 and st2.
+     *
+     * @param twoSTAmtUsed the storage amount commodity used for each storage.
+     * @return the economy.
+     */
+    private Economy economyWithStCluster(double[] twoSTAmtUsed) {
+        Topology t = new Topology();
+        Economy economy = t.getEconomyForTesting();
+        Basket basketSoldByST1 = new Basket(Arrays.asList(new CommoditySpecification(ST_AMT_TYPE),
+                new CommoditySpecification(ST_CLUSTER1_COMM_SPEC_TYPE, CommodityType.STORAGE_CLUSTER_VALUE),
+                new CommoditySpecification(ST_CLUSTER2_COMM_SPEC_TYPE, CommodityType.STORAGE_CLUSTER_VALUE)));
+        List<Long> cliques = new ArrayList<>();
+        cliques.add(455L);
+
+        Trader st1 = economy.addTrader(ST_TYPE, TraderState.ACTIVE, basketSoldByST1, cliques);
+        st1.setDebugInfoNeverUseInCode("ST1");
+        st1.getSettings().setCanAcceptNewCustomers(true);
+        st1.setOid(st1Oid);
+        int amtIndex1 = st1.getBasketSold().indexOf(ST_AMT_TYPE);
+        CommoditySold commSold = st1.getCommoditiesSold().get(amtIndex1);
+        commSold.setCapacity(stAmtCapacity);
+        commSold.setQuantity(twoSTAmtUsed[0]);
+        commSold.setPeakQuantity(twoSTAmtUsed[0]);
+        commSold.getSettings().setPriceFunction(PriceFunction.Cache.createStandardWeightedPriceFunction(7.0));
+        int stClusterIndex1 = st1.getBasketSold().indexOf(ST_CLUSTER1_COMM_SPEC_TYPE);
+        CommoditySold stClusterSold1 = st1.getCommoditiesSold().get(stClusterIndex1);
+        stClusterSold1.setCapacity(stAmtCapacity);
+        stClusterSold1.setQuantity(1);
+        stClusterSold1.setPeakQuantity(1);
+        stClusterSold1.getSettings().setPriceFunction(PriceFunction.Cache.createStandardWeightedPriceFunction(7.0));
+
+        Basket basketSoldByST2 = new Basket(Arrays.asList(new CommoditySpecification(ST_AMT_TYPE),
+                new CommoditySpecification(ST_CLUSTER2_COMM_SPEC_TYPE, CommodityType.STORAGE_CLUSTER_VALUE)));
+        Trader st2 = economy.addTrader(ST_TYPE, TraderState.ACTIVE, basketSoldByST2, cliques);
+        st2.setDebugInfoNeverUseInCode("ST2");
+        st2.getSettings().setCanAcceptNewCustomers(true);
+        st2.setOid(st2Oid);
+        int stIndex2 = st2.getBasketSold().indexOf(ST_AMT_TYPE);
+        CommoditySold commSold2 = st2.getCommoditiesSold().get(stIndex2);
+        commSold2.setCapacity(stAmtCapacity);
+        commSold2.setQuantity(twoSTAmtUsed[1]);
+        commSold2.setPeakQuantity(twoSTAmtUsed[1]);
+        commSold2.getSettings().setPriceFunction(PriceFunction.Cache.createStandardWeightedPriceFunction(7.0));
+        int stClusterIndex2 = st2.getBasketSold().indexOf(ST_CLUSTER2_COMM_SPEC_TYPE);
+        CommoditySold stClusterSold2 = st2.getCommoditiesSold().get(stClusterIndex2);
+        stClusterSold2.setCapacity(stAmtCapacity);
+        stClusterSold2.setQuantity(1);
+        stClusterSold2.setPeakQuantity(1);
+        stClusterSold2.getSettings().setPriceFunction(PriceFunction.Cache.createStandardWeightedPriceFunction(7.0));
+
+        t.getModifiableTraderOids().put(st1Oid, st1);
+        t.getModifiableTraderOids().put(st2Oid, st2);
         return economy;
     }
 }

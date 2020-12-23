@@ -293,7 +293,8 @@ public final class InitialPlacementUtils {
         for (InitialPlacementDecision placement : decisions) {
             if (placement.supplier.isPresent()) {
                 Trader supplier = economy.getTopology().getTradersByOid().get(placement.supplier.get());
-                Optional<CommodityType> commType = findBoundaryComm(supplier, commTypeToSpecMap);
+                Optional<CommodityType> commType = findBoundaryComm(Optional.of(buyer),
+                        placement.slOid, supplier, commTypeToSpecMap);
                 if (commType.isPresent()) {
                     clusterCommPerSl.put(placement.slOid, commType.get());
                 }
@@ -307,24 +308,60 @@ public final class InitialPlacementUtils {
     /**
      * Figure out the cluster or storage cluster commodity for a given trader.
      *
+     * @param originalBuyer the original {@link InitialPlacementBuyer}.
+     * @param slOid the given shopping list oid.
      * @param provider a given trader which is a supplier.
      * @param commTypeToSpecMap the commodity type to commodity specification mapping.
      * @return CommodityType corresponding to cluster boundary.
      */
-    public static Optional<TopologyDTO.CommodityType> findBoundaryComm(@Nonnull final Trader provider,
+    public static Optional<TopologyDTO.CommodityType> findBoundaryComm(
+            @Nonnull final Optional<InitialPlacementBuyer> originalBuyer,
+            final long slOid, @Nonnull final Trader provider,
             @Nonnull final BiMap<CommodityType, Integer> commTypeToSpecMap) {
-        // Assuming storage has at most 1 storage cluster commodity and pm has at most 1 cluster commodity
-        Optional<CommoditySpecification> commSpec = provider.getBasketSold().stream()
+        // Assuming  pm has at most 1 cluster commodity
+        Optional<CommoditySpecification> clusterCommSpec = provider.getBasketSold().stream()
                 .filter(c -> (provider.getType() == EntityType.PHYSICAL_MACHINE_VALUE
-                        && c.getBaseType() == CommodityDTO.CommodityType.CLUSTER_VALUE)
-                || (provider.getType() == EntityType.STORAGE_VALUE && c.getBaseType()
-                        == CommodityDTO.CommodityType.STORAGE_CLUSTER_VALUE)).findFirst();
-        if (commSpec.isPresent()) {
-            TopologyDTO.CommodityType type = commTypeToSpecMap.inverse().get(commSpec.get().getType());
-            return type == null ? Optional.empty() : Optional.of(type);
-        } else {
+                        && c.getBaseType() == CommodityDTO.CommodityType.CLUSTER_VALUE)).findFirst();
+        // Storage may sell multiple storage cluster commoities.
+        List<CommoditySpecification> stClusterComms = provider.getBasketSold().stream()
+                .filter(c -> provider.getType() == EntityType.STORAGE_VALUE
+                && c.getBaseType() == CommodityDTO.CommodityType.STORAGE_CLUSTER_VALUE).collect(
+                        Collectors.toList());
+        if (provider.getType() == EntityType.PHYSICAL_MACHINE_VALUE && clusterCommSpec.isPresent()) {
+            return Optional.ofNullable(commTypeToSpecMap.inverse()
+                    .get(clusterCommSpec.get().getType()));
+        } else if (provider.getType() == EntityType.PHYSICAL_MACHINE_VALUE) {
             return Optional.empty();
         }
+        if (!stClusterComms.isEmpty()) {
+            // In case there is 1 storage cluster comm sold, choose it as the constraint boundary.
+            if (stClusterComms.size() == 1) {
+                return Optional.ofNullable(commTypeToSpecMap.inverse()
+                        .get(stClusterComms.get(0).getType()));
+            } else if (originalBuyer.isPresent()) {
+                // For provider that sells serveral st cluster comm, choose the st cluster based on
+                // InitialPlacementBuyer. If no st cluster comm found on buyer, then choose a random one.
+                Set<TopologyDTO.CommodityType> stClusterCommBought = originalBuyer.get()
+                        .getInitialPlacementCommoditiesBoughtFromProviderList().stream()
+                        .filter(sl -> sl.getCommoditiesBoughtFromProviderId() == slOid)
+                        .map(sl -> sl.getCommoditiesBoughtFromProvider().getCommodityBoughtList())
+                        .flatMap(List::stream)
+                        .filter(commBought -> commBought.getCommodityType().getType()
+                                == CommodityDTO.CommodityType.STORAGE_CLUSTER_VALUE)
+                        .map(commBought -> commBought.getCommodityType())
+                        .collect(Collectors.toSet());
+                Optional<CommodityType> stClusterCommType = stClusterComms.stream()
+                        .map(c -> commTypeToSpecMap.inverse().get(c.getType()))
+                        .filter(c -> stClusterCommBought.contains(c)).findFirst();
+                if (stClusterCommType.isPresent()) {
+                    return stClusterCommType;
+                } else {
+                    return Optional.ofNullable(commTypeToSpecMap.inverse().get(stClusterComms.get(0)));
+                }
+            }
+        }
+        return Optional.empty();
+
     }
 
     /**
@@ -364,6 +401,7 @@ public final class InitialPlacementUtils {
      * @param economy the economy which generated the {@link InitialPlacementDecision}s.
      * @param commTypeToSpecMap the commodity type to commodity specification mapping.
      * @param placements a map of buyer oid to its list of {@link InitialPlacementDecision}s.
+     * @param originalBuyers a list of original {@link InitialPlacementBuyer}s.
      * @param buyerFailed a set of failure buyer oids.
      * @return a map of shopping list oid to its supplier's cluster commodity type.
      */
@@ -371,6 +409,7 @@ public final class InitialPlacementUtils {
             @Nonnull final Economy economy,
             @Nonnull final BiMap<CommodityType, Integer> commTypeToSpecMap,
             @Nonnull final Map<Long, List<InitialPlacementDecision>> placements,
+            @Nonnull final List<InitialPlacementBuyer> originalBuyers,
             @Nonnull final Set<Long> buyerFailed) {
         Map<Long, CommodityType> clusterCommPerSl = new HashMap();
         for (Map.Entry<Long, List<InitialPlacementDecision>> entry : placements.entrySet()) {
@@ -382,9 +421,11 @@ public final class InitialPlacementUtils {
                 } else {
                     Trader supplier = economy.getTopology().getTradersByOid()
                             .get(placement.supplier.get());
+                    Optional<InitialPlacementBuyer> originalBuyer = originalBuyers.stream()
+                            .filter(b -> b.getBuyerId() == buyerOid).findFirst();
                     if (supplier != null) {
                         Optional<CommodityType> commType = InitialPlacementUtils
-                                .findBoundaryComm(supplier, commTypeToSpecMap);
+                                .findBoundaryComm(originalBuyer, placement.slOid, supplier, commTypeToSpecMap);
                         if (commType.isPresent()) {
                             clusterCommPerSl.put(placement.slOid, commType.get());
                         }

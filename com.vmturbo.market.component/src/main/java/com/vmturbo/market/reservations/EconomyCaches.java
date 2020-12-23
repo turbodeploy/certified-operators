@@ -462,7 +462,7 @@ public class EconomyCaches {
             logger.info(logPrefix + "Placing reservation buyers on historical economy cache");
             InitialPlacementUtils.printPlacementDecisions(firstRoundPlacement);
             clusterCommPerSl.putAll(InitialPlacementUtils.extractClusterBoundary(historicalCachedEconomy,
-                    historicalCachedCommTypeMap, firstRoundPlacement, buyerFailedInHistoricalCache));
+                    historicalCachedCommTypeMap, firstRoundPlacement, buyers, buyerFailedInHistoricalCache));
         }
         if (!buyerFailedInHistoricalCache.isEmpty()) {
             // Not all buyers given to this method can find placement, we should fail the reservation
@@ -518,7 +518,7 @@ public class EconomyCaches {
         } else if (historicalCachedEconomy == null && failedBuyerOids.isEmpty()) {
             // Populate the cluster map which will be used for stats
             slToClusterMap.putAll(InitialPlacementUtils.extractClusterBoundary(realtimeCachedEconomy,
-                    realtimeCachedCommTypeMap, secondRoundPlacement, new HashSet()));
+                    realtimeCachedCommTypeMap, secondRoundPlacement, buyers, new HashSet()));
         }
         return secondRoundPlacement;
     }
