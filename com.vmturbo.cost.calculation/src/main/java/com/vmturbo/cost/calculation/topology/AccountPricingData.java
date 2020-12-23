@@ -57,8 +57,6 @@ public class AccountPricingData<T> {
             .put(OSType.LINUX_WITH_SQL_ENTERPRISE, Optional.of(OSType.LINUX))
             .put(OSType.LINUX_WITH_SQL_STANDARD, Optional.of(OSType.LINUX))
             .put(OSType.LINUX_WITH_SQL_WEB, Optional.of(OSType.LINUX))
-            .put(OSType.WINDOWS_SERVER, Optional.of(OSType.WINDOWS))
-            .put(OSType.WINDOWS_SERVER_BURST, Optional.of(OSType.WINDOWS))
             .put(OSType.WINDOWS_WITH_SQL_ENTERPRISE, Optional.of(OSType.WINDOWS))
             .put(OSType.WINDOWS_WITH_SQL_STANDARD, Optional.of(OSType.WINDOWS))
             .put(OSType.WINDOWS_WITH_SQL_WEB, Optional.of(OSType.WINDOWS)).build();

@@ -66,10 +66,6 @@ public class CostDTOCreatorTest {
     private static final int NETSPEC_BASE_TYPE = 2;
     private static final int NETSPEC_TYPE = 22;
 
-    private static final TopologyEntityDTO BA = TopologyEntityDTO.newBuilder()
-            .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
-            .setOid(BA_ID)
-            .build();
     public static final String DB_TIER_LICENCE_KEY = "SqlServer:Standard:MultiAz:NoLicenseRequired";
     public static final int DB_TIER_ID = 771;
     public static final int DB_TIER_REGION_ID = 772;
@@ -92,17 +88,17 @@ public class CostDTOCreatorTest {
      * CostDTOCreator::OSTypeMapping, except "Windows Server" and "Windows server Burst".
      */
     @Test
+    @org.junit.Ignore("Temporarily ignored until OpsMgr changes are committed")
     public void testOSTypeMappings() {
         List<OSType> osWithoutMapping = new ArrayList<>();
         Map<OSType, String> inversedOSTypeMapping = CloudRateExtractor.OS_TYPE_MAP.entrySet().stream().collect(
                 Collectors.toMap(Entry::getValue, Entry::getKey));
         for (OSType os : OSType.values()) {
-            if (os != OSType.WINDOWS_SERVER && os != OSType.WINDOWS_SERVER_BURST &&
-                    !inversedOSTypeMapping.containsKey(os)) {
+            if (!inversedOSTypeMapping.containsKey(os)) {
                 osWithoutMapping.add(os);
             }
         }
-        String error = "Operating systems " + osWithoutMapping.stream().map(os -> os.toString())
+        String error = "Operating systems " + osWithoutMapping.stream().map(Enum::toString)
                 .collect(Collectors.joining(", ")) + " do not have mapping in " +
                 "CostDTOCreator::OSTypeMapping.";
         assertTrue(error, osWithoutMapping.isEmpty());
@@ -196,8 +192,6 @@ public class CostDTOCreatorTest {
     @Test
     public void testComputeResourceDependency() {
         final TopologyEntityDTO tier = getTestComputeTier();
-        Set<TopologyEntityDTO> bas = new HashSet<>();
-        bas.add(BA);
         Map<Long, AccountPricingData> accountPricingDatabyBusinessAccountMap = new HashMap<>();
         CostDTOCreator costDTOCreator = new CostDTOCreator(converter, marketCloudRateExtractor);
         AccountPricingData accountPricingData = mock(AccountPricingData.class);

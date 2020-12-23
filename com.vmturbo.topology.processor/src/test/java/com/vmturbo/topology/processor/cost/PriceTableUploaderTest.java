@@ -109,11 +109,11 @@ public class PriceTableUploaderTest {
     public GrpcTestServer server = GrpcTestServer.newServer(priceServiceSpy);
 
     // test cost component client
-    private PricingServiceStub priceServiceClient = PricingServiceGrpc.newStub(mock(Channel.class));
+    private final PricingServiceStub priceServiceClient = PricingServiceGrpc.newStub(mock(Channel.class));
 
-    private TargetStore targetStore = mock(TargetStore.class);
+    private final TargetStore targetStore = mock(TargetStore.class);
 
-    private CloudEntitiesMap cloudEntitiesMap = mock(CloudEntitiesMap.class);
+    private final CloudEntitiesMap cloudEntitiesMap = mock(CloudEntitiesMap.class);
 
     private Map<String, Long> cloudOidByLocalId;
 
@@ -236,7 +236,7 @@ public class PriceTableUploaderTest {
     public void testLicensePrices() {
         // Build a set of cost data that the license price table will be built from
         LicensePriceEntry rhelLicense = createLicensePriceEntry(OSType.RHEL, 4, RHEL_LICENSE_PRICE);
-        LicensePriceEntry windowsLicense = createLicensePriceEntry(OSType.WINDOWS_SERVER, 4, WINDOWS_LICENSE_PRICE);
+        LicensePriceEntry windowsLicense = createLicensePriceEntry(OSType.WINDOWS, 4, WINDOWS_LICENSE_PRICE);
         PricingDTO.PriceTable sourcePriceTable = PricingDTO.PriceTable.newBuilder()
                 .addOnDemandLicensePriceTable(rhelLicense).addReservedLicensePriceTable(rhelLicense)
                         .addReservedLicensePriceTable(windowsLicense)
@@ -251,7 +251,7 @@ public class PriceTableUploaderTest {
                 .getPriceAmount().getAmount(), DELTA);
         // should have 2 entries including one from Windows.
         Assert.assertEquals(2, priceTable.getReservedLicensePricesCount());
-        Assert.assertEquals(OSType.WINDOWS_SERVER, priceTable.getReservedLicensePricesList().get(1).getOsType());
+        Assert.assertEquals(OSType.WINDOWS, priceTable.getReservedLicensePricesList().get(1).getOsType());
         LicensePriceEntry windowsEntry = priceTable.getReservedLicensePricesList().get(1);
         Assert.assertEquals(WINDOWS_LICENSE_PRICE, windowsEntry.getLicensePrices(0).getPrice()
                         .getPriceAmount().getAmount(), DELTA);
