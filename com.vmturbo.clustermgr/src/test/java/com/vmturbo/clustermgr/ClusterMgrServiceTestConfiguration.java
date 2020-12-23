@@ -7,6 +7,7 @@ import org.springframework.context.annotation.Configuration;
 
 import com.vmturbo.clustermgr.management.ComponentRegistry;
 import com.vmturbo.components.common.OsCommandProcessRunner;
+import com.vmturbo.components.common.OsProcessFactory;
 
 /**
  * Test configuration for {@link ClusterMgrServiceTest}.
@@ -16,8 +17,8 @@ public class ClusterMgrServiceTestConfiguration {
 
     @Bean
     public ClusterMgrService clusterMgrService() {
-        return new ClusterMgrService(consulService(),
-            new OsCommandProcessRunner(), mock(DiagEnvironmentSummary.class), serviceRegistry());
+        return new ClusterMgrService(consulService(), osCommandProcessRunner(),
+                mock(DiagEnvironmentSummary.class), serviceRegistry());
     }
 
     /**
@@ -33,5 +34,23 @@ public class ClusterMgrServiceTestConfiguration {
     @Bean
     public ConsulService consulService() {
         return mock(ConsulService.class);
+    }
+
+    /**
+     * Mock {@link OsCommandProcessRunner}.
+     * @return The mock.
+     */
+    @Bean
+    public OsCommandProcessRunner osCommandProcessRunner() {
+        return mock(OsCommandProcessRunner.class);
+    }
+
+    /**
+     * Mock the processFactory in {@link OsCommandProcessRunner}.
+     * @return The mock.
+     */
+    @Bean
+    public OsProcessFactory osProcessFactory() {
+        return mock(OsProcessFactory.class);
     }
 }
