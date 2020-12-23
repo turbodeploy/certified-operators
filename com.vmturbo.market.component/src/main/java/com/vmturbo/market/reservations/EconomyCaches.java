@@ -515,6 +515,10 @@ public class EconomyCaches {
             } else {
                 secondRoundPlacement.putAll(retryResult);
             }
+        } else if (historicalCachedEconomy == null && failedBuyerOids.isEmpty()) {
+            // Populate the cluster map which will be used for stats
+            slToClusterMap.putAll(InitialPlacementUtils.extractClusterBoundary(realtimeCachedEconomy,
+                    realtimeCachedCommTypeMap, secondRoundPlacement, new HashSet()));
         }
         return secondRoundPlacement;
     }
