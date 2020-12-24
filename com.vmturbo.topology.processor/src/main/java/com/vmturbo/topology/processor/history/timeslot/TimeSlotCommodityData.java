@@ -1,11 +1,11 @@
 package com.vmturbo.topology.processor.history.timeslot;
 
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -144,9 +144,9 @@ public class TimeSlotCommodityData
                          + ": cannot find capacity for commodity");
             return;
         }
-
+        long now = config.getClock().millis();
+        final int length = previousSlots.length;
         if (!context.isPlan()) {
-            long now = config.getClock().millis();
             if (lastMaintenanceTimestamp <= 0) {
                 lastMaintenanceTimestamp = now;
             }
@@ -155,12 +155,12 @@ public class TimeSlotCommodityData
             } else if (timestamp > 0
                        && (now - timestamp) / TimeUnit.HOURS.toMillis(1) > 0) {
                 // crossed the hour boundary - dump currentSlot into previousSlots
-                int slot = getSlot(timestamp, previousSlots.length);
-                float hourAverage = currentSlot.total / currentSlot.count;
+                int slot = getSlot(timestamp, length);
                 if (logger.isTraceEnabled()) {
+                    float hourAverage = currentSlot.total / currentSlot.count;
                     logger.trace(LOG_PREFIX + "adding hourly point {} to slot {} of {}", hourAverage, slot, field);
                 }
-                previousSlots[slot].accumulate(currentSlot);
+                previousSlots[slot].accumulate(currentSlot, true);
                 timestamp = now;
             }
             // add discovered point
@@ -171,16 +171,28 @@ public class TimeSlotCommodityData
             }
         }
 
+
         // set historical value in the broadcast
-        List<Double> averagedSlotUsages = Arrays.stream(previousSlots)
-                        .map(stat -> stat.count == 0 ? 0D : stat.total / stat.count)
-                        .collect(Collectors.toList());
+        final List<Double> averagedSlotUsages = getAveragedSlotUsages(now, length);
         if (logger.isTraceEnabled()) {
             logger.trace(LOG_PREFIX + "values for {}: {}", field, averagedSlotUsages);
         }
         commodityFieldsAccessor.updateHistoryValue(field,
                                                    hv -> hv.addAllTimeSlot(averagedSlotUsages),
                                                    TimeSlotEditor.class.getSimpleName());
+    }
+
+    @Nonnull
+    private List<Double> getAveragedSlotUsages(long now, int length) {
+        final List<Double> averagedSlotUsages = new ArrayList<>(length);
+        for (int i = 0; i < length; i++) {
+            final SlotStatistics previousSlot = previousSlots[i];
+            final boolean isCurrentSlot = getSlot(now, length) == i;
+            final SlotStatistics other = isCurrentSlot ? currentSlot : null;
+            final double averageValue = previousSlot.accumulate(other, !isCurrentSlot);
+            averagedSlotUsages.add(averageValue);
+        }
+        return averagedSlotUsages;
     }
 
     @Override
@@ -225,6 +237,16 @@ public class TimeSlotCommodityData
             float used = stat.getUsed().getAvg();
             slots[slot].total += used;
         }
+    }
+
+    /**
+     * Getting an array of previous slots.
+     *
+     * @return array of previous slots.
+     */
+    @VisibleForTesting
+    protected SlotStatistics[] getPreviousSlots() {
+        return previousSlots;
     }
 
     /**
@@ -294,13 +316,22 @@ public class TimeSlotCommodityData
          * Clear that other instance.
          *
          * @param other slots to accumulate in and clear
+         * @param update should we update the current instance or create a copy from the
+         *         current instance.
+         * @return average timeslot value by dividing the total / count.
          */
-        public void accumulate(@Nonnull SlotStatistics other) {
-            if (other.count > 0) {
-                count++;
-                total += other.total / other.count;
+        public double accumulate(@Nullable SlotStatistics other, boolean update) {
+            final SlotStatistics result = update ? this : new SlotStatistics(this);
+            if (other != null) {
+                if (other.count > 0) {
+                    result.count++;
+                    result.total += other.total / other.count;
+                }
+                if (update) {
+                    other.clear();
+                }
             }
-            other.clear();
+            return result.count == 0 ? 0D : result.total / result.count;
         }
 
         /**

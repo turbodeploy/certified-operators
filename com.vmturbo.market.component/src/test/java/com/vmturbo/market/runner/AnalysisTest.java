@@ -233,9 +233,10 @@ public class AnalysisTest {
         return new Analysis(topoInfo, topologySet,
             new GroupMemberRetriever(groupServiceClient), mockClock, analysisConfig,
             cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
-                wastedFilesAnalysisEngine, buyRIImpactAnalysisFactory, tierExcluderFactory,
-                listener, consistentScalingHelperFactory, initialPlacementFinder,
-                        reversibilitySettingFetcherFactory, migratedWorkloadCloudCommitmentAnalysisService);
+            wastedFilesAnalysisEngine, buyRIImpactAnalysisFactory, tierExcluderFactory,
+            listener, consistentScalingHelperFactory, initialPlacementFinder,
+            reversibilitySettingFetcherFactory, migratedWorkloadCloudCommitmentAnalysisService,
+            new CommodityIdUpdater());
     }
     /**
      * Convenience method to get an Analysis based on an analysisConfig and a set of

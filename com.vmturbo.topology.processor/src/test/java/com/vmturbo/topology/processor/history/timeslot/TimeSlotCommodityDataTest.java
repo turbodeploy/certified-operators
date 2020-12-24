@@ -115,38 +115,60 @@ public class TimeSlotCommodityDataTest extends BaseGraphRelatedTest {
         Mockito.doReturn(used2).when(accessor).getRealTimeValue(FIELD);
         tcd.aggregate(FIELD, config, context);
 
-        // should still be 0 values
+        // When calculating the average value, we take into account the current slot value immediately
+        final float expectedFirstSlotAvg = (float)((used1 + used2) / 2);
         Assert.assertTrue(commSold.hasHistoricalUsed());
         Assert.assertEquals(SLOTS, commSold.getHistoricalUsed().getTimeSlotCount());
-        Assert.assertEquals(0, commSold.getHistoricalUsed().getTimeSlot(0), DELTA);
+        Assert.assertEquals(expectedFirstSlotAvg, commSold.getHistoricalUsed().getTimeSlot(0), DELTA);
         Assert.assertEquals(0, commSold.getHistoricalUsed().getTimeSlot(1), DELTA);
+        for (SlotStatistics slot : tcd.getPreviousSlots()) {
+            Assert.assertEquals(0, slot.getCount());
+            Assert.assertEquals(0, slot.getTotal(), DELTA);
+        }
         commSold.getHistoricalUsedBuilder().clear();
 
         // advance time by an hour and add a point - previous hour should be accounted for
-        final float expectedFirstHourAvg = (float)((used1 + used2) / 2);
+        // the calculation of the average value takes into account the previous slot as well as the current slot
+        final float expectedFirstSlotAvgAfterHour = (float)((expectedFirstSlotAvg + used3) / 2);
         Mockito.doReturn(TimeUnit.HOURS.toMillis(1) + 1).when(clock).millis();
         Mockito.doReturn(used3).when(accessor).getRealTimeValue(FIELD);
         tcd.aggregate(FIELD, config, context);
-        Assert.assertEquals(expectedFirstHourAvg, commSold.getHistoricalUsed().getTimeSlot(0), DELTA);
+        Assert.assertEquals(expectedFirstSlotAvgAfterHour, commSold.getHistoricalUsed().getTimeSlot(0), DELTA);
         Assert.assertEquals(0, commSold.getHistoricalUsed().getTimeSlot(1), DELTA);
+        final SlotStatistics[] previousSlotsAfterHour = tcd.getPreviousSlots();
+        Assert.assertEquals(config.getSlots(context, FIELD), previousSlotsAfterHour.length);
+        checkPreviousSlots(previousSlotsAfterHour, 1, expectedFirstSlotAvg, 0, 0);
         commSold.getHistoricalUsedBuilder().clear();
 
         // advance time by 12 hours and add a point
-        final float expectedFirstSlotAvg = (float)((expectedFirstHourAvg + used3) / 2);
         Mockito.doReturn(TimeUnit.HOURS.toMillis(12) + 1).when(clock).millis();
         Mockito.doReturn(used4).when(accessor).getRealTimeValue(FIELD);
         tcd.aggregate(FIELD, config, context);
-        Assert.assertEquals(expectedFirstSlotAvg, commSold.getHistoricalUsed().getTimeSlot(0), DELTA);
-        Assert.assertEquals(0, commSold.getHistoricalUsed().getTimeSlot(1), DELTA);
+        Assert.assertEquals(expectedFirstSlotAvgAfterHour, commSold.getHistoricalUsed().getTimeSlot(0), DELTA);
+        Assert.assertEquals(used4, commSold.getHistoricalUsed().getTimeSlot(1), DELTA);
+
+        checkPreviousSlots(previousSlotsAfterHour, 2, expectedFirstSlotAvg + used3, 0, 0);
         commSold.getHistoricalUsedBuilder().clear();
 
         // and another hour and a point
+        final float expectedSecondSlotAvgAfterHour = (float)((used4 + used5) / 2);
         Mockito.doReturn(TimeUnit.HOURS.toMillis(13) + 1).when(clock).millis();
         Mockito.doReturn(used5).when(accessor).getRealTimeValue(FIELD);
         tcd.aggregate(FIELD, config, context);
-        Assert.assertEquals(expectedFirstSlotAvg, commSold.getHistoricalUsed().getTimeSlot(0), DELTA);
-        Assert.assertEquals(used4, commSold.getHistoricalUsed().getTimeSlot(1), DELTA);
+        Assert.assertEquals(expectedFirstSlotAvgAfterHour,
+                commSold.getHistoricalUsed().getTimeSlot(0), DELTA);
+        Assert.assertEquals(expectedSecondSlotAvgAfterHour,
+                commSold.getHistoricalUsed().getTimeSlot(1), DELTA);
+        checkPreviousSlots(previousSlotsAfterHour, 2, expectedFirstSlotAvg + used3, 1, used4);
+    }
 
+    private void checkPreviousSlots(SlotStatistics[] previousSlots, int expectedFirstTimeslotCount,
+            double expectedFirstTimeslotTotal, int expectedSecondTimeslotCount,
+            double expectedSecondTimeslotTotal) {
+        Assert.assertEquals(expectedFirstTimeslotCount, previousSlots[0].getCount());
+        Assert.assertEquals(expectedFirstTimeslotTotal, previousSlots[0].getTotal(), DELTA);
+        Assert.assertEquals(expectedSecondTimeslotCount, previousSlots[1].getCount());
+        Assert.assertEquals(expectedSecondTimeslotTotal, previousSlots[1].getTotal(), DELTA);
     }
 
     private static StatRecord createStatRecord(float capacity, float used) {

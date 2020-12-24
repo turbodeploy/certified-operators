@@ -469,8 +469,7 @@ public class TopologyEntitiesHandlerTest {
         Analysis analysis = mock(Analysis.class);
         Deactivate deactivateAction = mock(Deactivate.class);
         ReplayActions replayActions = new ReplayActions(ImmutableList.of(),
-                                                        ImmutableList.of(deactivateAction),
-                                                        new Topology());
+                                                        ImmutableList.of(deactivateAction));
         when(analysis.getReplayActions()).thenReturn(replayActions);
 
         generateEnd2EndActions(mock(Analysis.class));

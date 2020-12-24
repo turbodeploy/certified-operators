@@ -1104,8 +1104,8 @@ public class UsersService implements IUsersService {
     private void validateActiveDirectoryInput(@Nonnull final ActiveDirectoryApiDTO apiDTO) {
         if (StringUtils.isBlank(apiDTO.getDomainName()) &&
                 StringUtils.isBlank(apiDTO.getLoginProviderURI())) {
-            throw new IllegalArgumentException("Both domain name and login provider URL are" +
-                    " not specified for active directory.");
+            throw new IllegalArgumentException("Must supply either a domain name, "
+                    + "a login provider URL or both");
         }
     }
 }

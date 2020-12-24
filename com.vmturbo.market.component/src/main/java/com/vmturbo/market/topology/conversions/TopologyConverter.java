@@ -42,13 +42,13 @@ import com.google.common.collect.Sets;
 import com.google.common.collect.Table;
 import com.google.gson.Gson;
 
-import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
-import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
-
 import org.apache.commons.lang3.mutable.MutableDouble;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
+
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
@@ -202,6 +202,11 @@ public class TopologyConverter {
                 put(EntityType.DATABASE_VALUE,
                         ImmutableSet.of(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE));
             }};
+
+    /**
+     * Set of cloud entity type which uses reservations eg: cloud DB uses allocated space as reservation.
+     */
+    private static final Set<Integer> CLOUD_ENTITY_WITH_RESERVATION = ImmutableSet.of(EntityType.DATABASE_VALUE);
 
     private static final double MINIMUM_ACHIEVABLE_IOPS_PERCENTAGE = 0.05;
 
@@ -3731,6 +3736,15 @@ public class TopologyConverter {
                 usedQuantity = 1;
             }
             usedQuantity *= topologyCommBought.getScalingFactor();
+
+            // In case a reservation on the commodity exists,
+            // the projected value(usedQuantity) will be
+            // max of market's scaling factor and reserved capacity.
+            if (CLOUD_ENTITY_WITH_RESERVATION.contains(buyer.getEntityType()) &&
+                    topologyCommBought.hasReservedCapacity()) {
+                usedQuantity = Math.max(usedQuantity, (float)topologyCommBought.getReservedCapacity());
+            }
+
             float peakQuantity = getQuantity(index, peakQuantities, topologyCommBought, "peak");
             peakQuantity *= topologyCommBought.getScalingFactor();
             newQuantityList.add(new UsedAndPeak(usedQuantity, peakQuantity));

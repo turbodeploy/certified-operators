@@ -128,6 +128,8 @@ public interface AnalysisFactory {
         // Determines if the market or the SMA (Stable Marriage Algorithm) library generates compute scaling action for cloud vms
         private final MarketMode marketMode;
 
+        private final CommodityIdUpdater commodityIdUpdater;
+
         public DefaultAnalysisFactory(@Nonnull final GroupMemberRetriever groupMemberRetriever,
                                       @Nonnull final SettingServiceBlockingStub settingServiceClient,
                                       @Nonnull final MarketPriceTableFactory marketPriceTableFactory,
@@ -147,7 +149,8 @@ public interface AnalysisFactory {
                                       @Nonnull final ConsistentScalingHelperFactory consistentScalingHelperFactory,
                                       @Nonnull final ReversibilitySettingFetcherFactory reversibilitySettingFetcherFactory,
                                       @Nonnull MigratedWorkloadCloudCommitmentAnalysisService migratedWorkloadCloudCommitmentAnalysisService,
-                                      final boolean fullPriceForQuote) {
+                                      final boolean fullPriceForQuote,
+                                      @Nonnull final CommodityIdUpdater commodityIdUpdater) {
             Preconditions.checkArgument(alleviatePressureQuoteFactor >= 0f);
             Preconditions.checkArgument(alleviatePressureQuoteFactor <= 1.0f);
             Preconditions.checkArgument(standardQuoteFactor >= 0f);
@@ -174,6 +177,7 @@ public interface AnalysisFactory {
             this.consistentScalingHelperFactory = consistentScalingHelperFactory;
             this.reversibilitySettingFetcherFactory = reversibilitySettingFetcherFactory;
             this.migratedWorkloadCloudCommitmentAnalysisService = migratedWorkloadCloudCommitmentAnalysisService;
+            this.commodityIdUpdater = Objects.requireNonNull(commodityIdUpdater);
         }
 
         /**
@@ -196,7 +200,8 @@ public interface AnalysisFactory {
                 configBuilder.build(), cloudTopologyFactory,
                 topologyCostCalculatorFactory, priceTableFactory, wastedFilesAnalysisEngine,
                 buyRIImpactAnalysisFactory, tierExcluderFactory, listener, consistentScalingHelperFactory,
-                initialPlacementFinder, reversibilitySettingFetcherFactory, migratedWorkloadCloudCommitmentAnalysisService);
+                initialPlacementFinder, reversibilitySettingFetcherFactory,
+                migratedWorkloadCloudCommitmentAnalysisService, commodityIdUpdater);
         }
 
         /**

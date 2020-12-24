@@ -219,7 +219,7 @@ public class AnalysisDiagnosticsCollectorTest {
 
         Topology topology = TopologyEntitiesHandler.createTopology(traderTOs, topologyInfo.get(),
             commSpecsToAdjustOverhead);
-        Analysis analysis = createAnalysis(topology);
+        Analysis analysis = createAnalysis();
         Ede ede = new Ede();
         AnalysisResults results = TopologyEntitiesHandler.performAnalysis(
             topologyInfo.get(), analysisConfig.get(), analysis, topology, ede);
@@ -228,10 +228,10 @@ public class AnalysisDiagnosticsCollectorTest {
         assertTrue(results.getActionsList().size() > 0);
     }
 
-    private Analysis createAnalysis(Topology topology) {
+    private Analysis createAnalysis() {
         Analysis analysis = mock(Analysis.class);
         when(analysis.isStopAnalysis()).thenReturn(false);
-        ReplayActions restoredReplayActions = new ReplayActions(replayActions, replayDeactivateActions, topology);
+        ReplayActions restoredReplayActions = new ReplayActions(replayActions, replayDeactivateActions);
         when(analysis.getReplayActions()).thenReturn(restoredReplayActions);
         return analysis;
     }

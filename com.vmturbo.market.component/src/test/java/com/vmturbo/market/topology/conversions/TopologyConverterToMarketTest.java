@@ -940,6 +940,36 @@ public class TopologyConverterToMarketTest {
         assertEquals(500, to.getPeakQuantity(), DELTA);
     }
 
+
+    @Test
+    public void testDBUsedValuesWithReservedCapacity() {
+        TopologyEntityDTO entityDTO =
+                TopologyEntityDTO.newBuilder()
+                        .setEntityType(EntityType.DATABASE_VALUE)
+                        .setOid(1)
+                        .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                                .setMovable(true)
+                                .setProviderId(1005L))
+                        .build();
+        CommodityBoughtDTO boughtCommodityDTO = CommodityBoughtDTO.newBuilder()
+                .setCommodityType(CommodityType.newBuilder()
+                        .setType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE).build())
+                .setUsed(102400) // 100 GB.
+                .setPeak(512000) // 500 GB.
+                .setReservedCapacity(256000) // 250 GB.
+                .build();
+
+        final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
+                MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+                marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
+                consistentScalingHelperFactory, reversibilitySettingFetcher);
+        final List<CommodityBoughtTO> boughtTOs = converter.createAndValidateCommBoughtTO(entityDTO,
+                boughtCommodityDTO, 1005L, Optional.empty());
+        CommodityBoughtTO to = boughtTOs.iterator().next();
+        assertEquals(250, to.getQuantity(), DELTA);
+        assertEquals(500, to.getPeakQuantity(), DELTA);
+    }
+
     @Test
     public void testGetMaxDesiredUtilizationOutOfRange() {
         TopologyEntityDTO entityDTO =

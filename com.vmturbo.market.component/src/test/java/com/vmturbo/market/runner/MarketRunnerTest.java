@@ -180,7 +180,8 @@ public class MarketRunnerTest {
                     wastedFilesAnalysisEngine, buyRIImpactAnalysisFactory, tierExcluderFactory,
                     mock(AnalysisRICoverageListener.class),
                     consistentScalingHelperFactory, initialPlacementFinder,
-                    reversibilitySettingFetcherFactory, migratedWorkloadCloudCommitmentAnalysisService);
+                    reversibilitySettingFetcherFactory, migratedWorkloadCloudCommitmentAnalysisService,
+                    new CommodityIdUpdater());
         }).when(analysisFactory).newAnalysis(any(), any(), any(), any());
     }
 

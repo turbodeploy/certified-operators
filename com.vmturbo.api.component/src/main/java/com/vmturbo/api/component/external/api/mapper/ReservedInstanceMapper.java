@@ -33,6 +33,7 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceScopeInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
@@ -91,14 +92,20 @@ public class ReservedInstanceMapper {
                 throws NotFoundMatchPaymentOptionException, NotFoundMatchTenancyException,
                 NotFoundMatchOfferingClassException, NotFoundCloudTypeException {
         // TODO: set RI cost data which depends on discount information.
-        ReservedInstanceApiDTO reservedInstanceApiDTO = new ReservedInstanceApiDTO();
+
+        final ReservedInstanceApiDTO reservedInstanceApiDTO = new ReservedInstanceApiDTO();
         final ReservedInstanceBoughtInfo reservedInstanceBoughtInfo =
                 reservedInstanceBought.getReservedInstanceBoughtInfo();
+        final ReservedInstanceSpecInfo riSpecInfo = reservedInstanceSpec.getReservedInstanceSpecInfo();
+
         reservedInstanceApiDTO.setLocation(createLocationBaseApi(reservedInstanceBoughtInfo, reservedInstanceSpec,
                 serviceEntityApiDTOMap));
         final BaseApiDTO templateBaseDTO = createTemplateBaseApi(reservedInstanceSpec
                 .getReservedInstanceSpecInfo().getTierId(), serviceEntityApiDTOMap);
         reservedInstanceApiDTO.setTemplate(templateBaseDTO);
+        if (riSpecInfo.hasSizeFlexible()) {
+            reservedInstanceApiDTO.setSizeFlexible(riSpecInfo.getSizeFlexible());
+        }
         reservedInstanceApiDTO.setDisplayName(reservedInstanceBoughtInfo.getDisplayName());
         reservedInstanceApiDTO.setUuid(String.valueOf(reservedInstanceBought.getId()));
         reservedInstanceApiDTO.setClassName(RESERVED_INSTANCE);
@@ -126,14 +133,14 @@ public class ReservedInstanceMapper {
         }
 
         reservedInstanceApiDTO.setPayment(convertPaymentToApiDTO(
-                reservedInstanceSpec.getReservedInstanceSpecInfo().getType().getPaymentOption()));
+                riSpecInfo.getType().getPaymentOption()));
         reservedInstanceApiDTO.setPlatform(Platform.findFromOsName(
-                reservedInstanceSpec.getReservedInstanceSpecInfo().getOs().name()));
+                riSpecInfo.getOs().name()));
         reservedInstanceApiDTO.setTenancy(Tenancy.getByName(
-                reservedInstanceSpec.getReservedInstanceSpecInfo().getTenancy().name())
+                riSpecInfo.getTenancy().name())
                 .orElseThrow(NotFoundMatchTenancyException::new));
         reservedInstanceApiDTO.setType(convertReservedInstanceTypeToApiDTO(
-                reservedInstanceSpec.getReservedInstanceSpecInfo().getType().getOfferingClass()));
+                riSpecInfo.getType().getOfferingClass()));
         reservedInstanceApiDTO.setInstanceCount(reservedInstanceBoughtInfo.getNumBought());
         // TODO: Apply discount to RI cost
 
@@ -173,14 +180,13 @@ public class ReservedInstanceMapper {
                 (float)reservedInstanceBought.getReservedInstanceBoughtInfo()
                         .getReservedInstanceBoughtCoupons().getNumberOfCouponsUsed()));
         reservedInstanceApiDTO.setTerm(createStatApiDTO(YEAR, Optional.empty(),
-                reservedInstanceSpec
-                        .getReservedInstanceSpecInfo().getType().getTermYears()));
+                riSpecInfo.getType().getTermYears()));
         //if endTime is available use that instead of startTime + termYears.
         final long endTime =
                 reservedInstanceBought.getReservedInstanceBoughtInfo().hasEndTime() ?
                         reservedInstanceBought.getReservedInstanceBoughtInfo().getEndTime() :
                         (reservedInstanceBought.getReservedInstanceBoughtInfo().getStartTime() +
-                                reservedInstanceSpec.getReservedInstanceSpecInfo().getType().getTermYears()
+                                riSpecInfo.getType().getTermYears()
                                         * NUM_OF_MILLISECONDS_OF_YEAR);
         reservedInstanceApiDTO.setExpDateEpochTime(endTime);
         reservedInstanceApiDTO.setExpDate(DateTimeUtil.toString(endTime));

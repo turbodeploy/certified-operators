@@ -193,9 +193,19 @@ public class MarketRunnerConfig {
                 consistentResizerFactory(),
                 reversibilitySettingFetcherFactory(),
                 migratedWorkloadCloudCommitmentAnalysisService(),
-                fullPriceForQuote);
+                fullPriceForQuote,
+                commodityIdUpdater());
     }
 
+    /**
+     * Create {@link CommodityIdUpdater}.
+     *
+     * @return {@link CommodityIdUpdater}
+     */
+    @Bean
+    public CommodityIdUpdater commodityIdUpdater() {
+        return new CommodityIdUpdater();
+    }
 
     /**
      * creates a handler for analysis diagnostics collection.
