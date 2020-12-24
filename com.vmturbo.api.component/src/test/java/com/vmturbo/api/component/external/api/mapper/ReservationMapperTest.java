@@ -256,6 +256,8 @@ public class ReservationMapperTest {
                 .get(0).getConstraintType());
         assertEquals(1L, reservationApiDTO.getDemandEntities().get(0)
                 .getPlacements().getStorageResources().size());
+        assertEquals(1L, reservationApiDTO.getDemandEntities().get(0)
+                .getPlacements().getRelatedResources().size());
         final ResourceApiDTO computeResource = reservationApiDTO.getDemandEntities().get(0)
                 .getPlacements().getComputeResources().get(0);
         final ResourceApiDTO storageResource = reservationApiDTO.getDemandEntities().get(0)

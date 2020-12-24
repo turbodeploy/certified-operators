@@ -133,13 +133,9 @@ public class GenerateConstraintMap {
                     .addAllId(allClusterIds).build());
             while (membersResponseIterator.hasNext()) {
                 GetMembersResponse membersResponse = membersResponseIterator.next();
-                if (!membersResponse.getMemberIdList().isEmpty()) {
-                    Optional<Long> providerOidOptional = membersResponse.getMemberIdList()
-                            .stream().findFirst();
-                    if (!providerOidOptional.isPresent()) {
-                        continue;
-                    }
-                    Long providerOid = providerOidOptional.get();
+                boolean foundCommodityKey = false;
+                List<String> storageClusterCommodities = new ArrayList<>();
+                for (long providerOid : membersResponse.getMemberIdList()) {
                     Optional<TopologyEntity> providerOptional = topologyGraph.getEntity(providerOid);
                     if (!providerOptional.isPresent()) {
                         continue;
@@ -157,10 +153,26 @@ public class GenerateConstraintMap {
                                 .setProviderType(EntityType.PHYSICAL_MACHINE_VALUE)
                                 .setType(Type.CLUSTER).build());
                     } else if (provider.getTypeSpecificInfo().hasStorage()) {
-                        String key = provider.getTopologyEntityDtoBuilder().getCommoditySoldListList().stream()
+                        // Storage can belong to multiple storage cluster.
+                        // Keep intersecting the storage
+                        // cluster commodities sold by the storage in this
+                        // cluster until we get to a single entry
+                        List<String> currentStorageClusterCommodities = provider
+                                .getTopologyEntityDtoBuilder()
+                                .getCommoditySoldListList().stream()
                                 .filter(a -> a.getCommodityType().getType()
-                                        == CommodityType.STORAGE_CLUSTER_VALUE).findFirst().get()
-                                .getCommodityType().getKey();
+                                        == CommodityType.STORAGE_CLUSTER_VALUE)
+                                .map(b -> b.getCommodityType().getKey())
+                                .collect(Collectors.toList());
+                        if (storageClusterCommodities.isEmpty()) {
+                            storageClusterCommodities.addAll(currentStorageClusterCommodities);
+                        } else {
+                            storageClusterCommodities.retainAll(currentStorageClusterCommodities);
+                        }
+                        if (storageClusterCommodities.size() != 1) {
+                            continue;
+                        }
+                        String key = storageClusterCommodities.get(0);
                         updateConstraintMapRequest.addReservationContraintInfo(ReservationConstraintInfo
                                 .newBuilder()
                                 .setKey(key)
@@ -168,10 +180,15 @@ public class GenerateConstraintMap {
                                 .setProviderType(EntityType.STORAGE_VALUE)
                                 .setType(Type.STORAGE_CLUSTER).build());
                     }
+                    foundCommodityKey = true;
+                    break;
+                }
+                if (!foundCommodityKey) {
+                    logger.error(logPrefix + "Failed to find the commodity key for cluster with ID: "
+                            + membersResponse.getGroupId());
                 }
             }
         }
-
     }
 
     /**

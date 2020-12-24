@@ -274,10 +274,12 @@ public class ReservationMapper {
             final List<PlacementInfo> placementInfos = reservationTemplate.getReservationInstanceList().stream()
                     .map(reservationInstance -> {
                         final List<ProviderInfo> providerInfos = reservationInstance.getPlacementInfoList().stream()
-                                .map(a -> new ProviderInfo(a.getProviderId(),
+                                .map(a -> new ProviderInfo(
+                                        a.hasProviderId()
+                                                ? Optional.of(a.getProviderId()) : Optional.empty(),
                                         a.getCommodityBoughtList(),
-                                        a.hasProviderId(),
-                                        a.getClusterId(),
+                                        a.hasClusterId()
+                                                ? Optional.of(a.getClusterId()) : Optional.empty(),
                                         a.getCommodityStatsList()))
                                 .collect(Collectors.toList());
                         return new PlacementInfo(reservationInstance.getEntityId(),
@@ -441,8 +443,8 @@ public class ReservationMapper {
         Set<Long> entitiesOid = new HashSet<>();
         for (PlacementInfo placementInfo : placementInfos) {
             for (ProviderInfo providerInfo : placementInfo.getProviderInfos()) {
-                if (providerInfo.isPlaced()) {
-                    entitiesOid.add(providerInfo.getProviderId());
+                if (providerInfo.getProviderId().isPresent()) {
+                    entitiesOid.add(providerInfo.getProviderId().get());
                 }
             }
             for (UnplacementReason reason : placementInfo.getUnpalcementReasons()) {
@@ -500,7 +502,7 @@ public class ReservationMapper {
                 placementInfoApiDTO,
                 serviceEntityApiDTOMap);
         for (ProviderInfo providerInfo : placementInfo.getProviderInfos()) {
-            if (providerInfo.isPlaced()) {
+            if (providerInfo.getProviderId().isPresent()) {
                 try {
                     addResourcesApiDTO(providerInfo,
                             serviceEntityApiDTOMap, placementInfoApiDTO);
@@ -568,17 +570,24 @@ public class ReservationMapper {
                                     @Nonnull Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOMap,
                                     @Nonnull PlacementInfoDTO placementInfoApiDTO)
             throws UnknownObjectException, ProviderIdNotRecognizedException {
-        Optional<ServiceEntityApiDTO> serviceEntityApiDTO = Optional.ofNullable(serviceEntityApiDTOMap.get(providerInfo.getProviderId()));
+        if (!providerInfo.getProviderId().isPresent()) {
+            // should not be happening. The caller already verifies this.
+            return;
+        }
+        Optional<ServiceEntityApiDTO> serviceEntityApiDTO = Optional
+                .ofNullable(serviceEntityApiDTOMap
+                        .get(providerInfo.getProviderId().get()));
         // if entity id is not present, it means this reservation is unplaced.
-        if (!serviceEntityApiDTO.isPresent()) {
-            throw  new ProviderIdNotRecognizedException(providerInfo.getProviderId());
+        if (!serviceEntityApiDTO.isPresent() && providerInfo.getProviderId().isPresent()) {
+            throw  new ProviderIdNotRecognizedException(providerInfo.getProviderId().get());
         }
         final int entityType = ApiEntityType.fromString(serviceEntityApiDTO.get().getClassName()).typeNumber();
-        String clusterId = String.valueOf(providerInfo.getClusterId());
-        if (!placementInfoApiDTO.getRelatedResources().stream()
-                .anyMatch(a -> a.getResourceId().equals(clusterId))) {
+        Optional<String> clusterId = providerInfo.getClusterId().isPresent()
+                ? Optional.of(String.valueOf(providerInfo.getClusterId().get())) : Optional.empty();
+        if (clusterId.isPresent() && !placementInfoApiDTO.getRelatedResources().stream()
+                .anyMatch(a -> a.getResourceId().equals(clusterId.get()))) {
             placementInfoApiDTO.getRelatedResources()
-                    .add(generateClusterResourcesApiDTO(clusterId,
+                    .add(generateClusterResourcesApiDTO(clusterId.get(),
                             providerInfo.getCommodityStats()));
         }
         switch (entityType) {
@@ -654,7 +663,7 @@ public class ReservationMapper {
      */
     private ResourceApiDTO generateResourcesApiDTO(@Nonnull final ServiceEntityApiDTO serviceEntityApiDTO,
                                                    List<CommodityBoughtDTO> commodityBoughtDTOList,
-                                                   String clusterID) {
+                                                   Optional<String> clusterID) {
         final BaseApiDTO providerBaseApiDTO = new BaseApiDTO();
         providerBaseApiDTO.setClassName(serviceEntityApiDTO.getClassName());
         providerBaseApiDTO.setDisplayName(serviceEntityApiDTO.getDisplayName());
@@ -676,7 +685,9 @@ public class ReservationMapper {
             }
         }
         resourceApiDTO.setStats(statApiDTOS);
-        resourceApiDTO.getRelatedResources().add(clusterID);
+        if (clusterID.isPresent()) {
+            resourceApiDTO.getRelatedResources().add(clusterID.get());
+        }
         return resourceApiDTO;
     }
 
@@ -733,11 +744,10 @@ public class ReservationMapper {
     @Immutable
     public static class ProviderInfo {
 
-        private final Long providerId;
+        private final Optional<Long> providerId;
         private final List<CommodityBoughtDTO> commoditiesBought;
-        private final boolean placed;
         // the id of the cluster where the entity is placed on.
-        private final long clusterId;
+        private final Optional<Long> clusterId;
         // the stats of the cluster.
         private final List<CommodityStats> commodityStats;
 
@@ -746,27 +756,20 @@ public class ReservationMapper {
          *
          * @param providerId       the oid of the provider
          * @param commoditiesBought the commodities bought by the template from the provider.
-         * @param placed true if the reserved instance is placed.
          * @param clusterId the id of the cluster where the entity is placed on.
          * @param commodityStats the stats of the cluster.
          */
-        public ProviderInfo(final long providerId,
+        public ProviderInfo(final Optional<Long> providerId,
                             @Nonnull final List<CommodityBoughtDTO> commoditiesBought,
-                            final boolean placed,
-                            long clusterId,
+                            Optional<Long> clusterId,
                             List<CommodityStats> commodityStats) {
             this.providerId = providerId;
             this.commoditiesBought = Collections.unmodifiableList(commoditiesBought);
-            this.placed = placed;
             this.clusterId = clusterId;
             this.commodityStats = commodityStats;
         }
 
-        public boolean isPlaced() {
-            return placed;
-        }
-
-        public Long getProviderId() {
+        public Optional<Long> getProviderId() {
             return providerId;
         }
 
@@ -786,7 +789,7 @@ public class ReservationMapper {
          * getter for clusterId.
          * @return the clusterId.
          */
-        public long getClusterId() {
+        public Optional<Long> getClusterId() {
             return clusterId;
         }
     }
