@@ -154,10 +154,17 @@ public class ReservedInstanceUtilizationStore implements MultiStoreDiagnosable {
         final ReservedInstanceBoughtInfo riBoughtInfo = reservedInstanceBought.getReservedInstanceBoughtInfo();
         final long riSpecId = riBoughtInfo.getReservedInstanceSpec();
         final double riTotalCoupons = riBoughtInfo.getReservedInstanceBoughtCoupons().getNumberOfCoupons();
+        double usedCoupons = riUsedCouponsMap.getOrDefault(riId, 0.0);
+        if (usedCoupons > riTotalCoupons) {
+            logger.warn("Used coupons exceeds total coupons while creating Reserved Instance"
+                    + " utilization record for RI {}. Used coupons {} will be set to total coupons {}.",
+                    riId, usedCoupons, riTotalCoupons);
+            usedCoupons = riTotalCoupons;
+        }
         return context.newRecord(Tables.RESERVED_INSTANCE_UTILIZATION_LATEST,
                 new ReservedInstanceUtilizationLatestRecord(curTime, riId, riSpecIdToRegionMap.get(riSpecId),
                         riBoughtInfo.getAvailabilityZoneId(), riBoughtInfo.getBusinessAccountId(),
-                        riTotalCoupons, riUsedCouponsMap.getOrDefault(riId, 0.0), null,null,null));
+                        riTotalCoupons, usedCoupons, null,null,null));
     }
 
     @Override

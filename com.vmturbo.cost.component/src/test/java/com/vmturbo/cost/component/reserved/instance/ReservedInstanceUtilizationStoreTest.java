@@ -235,7 +235,10 @@ public class ReservedInstanceUtilizationStoreTest {
         assertTrue(secondRI.isPresent());
         assertTrue(thirdRI.isPresent());
         assertEquals(100.0, firstRI.get().getTotalCoupons(), DELTA);
-        assertEquals(115.0, firstRI.get().getUsedCoupons(), DELTA);
+
+        // Used coupons should not be more than total coupons
+        assertEquals(100.0, firstRI.get().getUsedCoupons(), DELTA);
+
         assertEquals(100.0, secondRI.get().getTotalCoupons(), DELTA);
         assertEquals(20.0, secondRI.get().getUsedCoupons(), DELTA);
         assertEquals(100.0, thirdRI.get().getTotalCoupons(), DELTA);
