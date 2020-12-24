@@ -1080,6 +1080,12 @@ message TopologyEntityDTO {
     }
 }
 
+message CommodityStats {
+    optional .topology.CommodityType commodity_type = 4;
+    optional double total_used = 5;
+    optional double total_capacity = 6;
+}
+
 // related information for the target that discovers the entity
 message PerTargetEntityInformation {
     // identifier for the entity as vendor sees it ("local name")

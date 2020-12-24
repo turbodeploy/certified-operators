@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.group.policy.application;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -83,8 +84,15 @@ public class AtMostNPolicyApplication extends PlacementPolicyApplication<AtMostN
                 final ApiEntityType consumerEntityType = GroupProtoUtil.getEntityTypes(consumerGroup).iterator().next();
                 final Set<Long> providers = Sets.union(groupResolver.resolve(providerGroup, topologyGraph).getEntitiesOfType(providerEntityType),
                     policy.getProviderPolicyEntities().getAdditionalEntities());
-                final Set<Long> consumers = Sets.union(groupResolver.resolve(consumerGroup, topologyGraph).getEntitiesOfType(consumerEntityType),
-                    policy.getConsumerPolicyEntities().getAdditionalEntities());
+                Set<Long> consumers = Sets.union(groupResolver.resolve(consumerGroup, topologyGraph).getEntitiesOfType(consumerEntityType),
+                        policy.getConsumerPolicyEntities().getAdditionalEntities());
+                consumers = consumers.stream().filter(id -> {
+                    Optional<TopologyEntity> entity = topologyGraph.getEntity(id);
+                    if (entity.isPresent() && entity.get().hasReservationOrigin()) {
+                        return false;
+                    }
+                    return true;
+                }).collect(Collectors.toSet());
                 consumersByPolicyId.put(policy.getPolicyDefinition().getId(), consumers);
 
                 if (consumers.isEmpty()) {

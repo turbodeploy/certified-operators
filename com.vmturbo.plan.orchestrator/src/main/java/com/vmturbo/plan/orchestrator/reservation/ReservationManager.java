@@ -25,9 +25,12 @@ import com.vmturbo.common.protobuf.market.InitialPlacement.DeleteInitialPlacemen
 import com.vmturbo.common.protobuf.market.InitialPlacement.DeleteInitialPlacementBuyerResponse;
 import com.vmturbo.common.protobuf.market.InitialPlacement.FindInitialPlacementRequest;
 import com.vmturbo.common.protobuf.market.InitialPlacement.FindInitialPlacementResponse;
+import com.vmturbo.common.protobuf.market.InitialPlacement.GetProvidersOfExistingReservationsRequest;
+import com.vmturbo.common.protobuf.market.InitialPlacement.GetProvidersOfExistingReservationsResponse;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer.InitialPlacementCommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyerPlacementInfo;
+import com.vmturbo.common.protobuf.market.InitialPlacement.UpdateHistoricalCachedEconomyRequest;
 import com.vmturbo.common.protobuf.market.InitialPlacementServiceGrpc.InitialPlacementServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.ReservationDTO;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ConstraintInfoCollection;
@@ -40,6 +43,7 @@ import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollec
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance.PlacementInfo;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo.Type;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateField;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
@@ -80,6 +84,8 @@ public class ReservationManager implements ReservationDeletedListener {
 
     private Map<Long, ReservationConstraintInfo> constraintIDToCommodityTypeMap = new HashMap<>();
 
+    private Map<String, Long> clusterCommodityKeyToClusterID = new HashMap<>();
+
     private static final String DELETED_STATUS = "DELETED";
 
     /**
@@ -109,17 +115,78 @@ public class ReservationManager implements ReservationDeletedListener {
         this.reservationDao.addListener(this);
         this.initialPlacementServiceBlockingStub = Objects.requireNonNull(initialPlacementServiceBlockingStub);
         this.templatesDao = templatesDao;
+        getProvidersOfExistingReservations();
+    }
+
+    /**
+     * Get the provider information from the market for the existing reservations.
+     * It might have been updated in market if a cluster headroom ran when PO was not up.
+     */
+    public void getProvidersOfExistingReservations() {
+        Set<Reservation> updatedReservations = new HashSet<>();
+        try {
+            final Set<Reservation> reservations = new HashSet<>();
+            reservationDao.getAllReservations().forEach(reservation -> {
+                if (reservation.getStatus() == ReservationStatus.RESERVED) {
+                    reservations.add(reservation);
+                }
+            });
+            GetProvidersOfExistingReservationsResponse response = initialPlacementServiceBlockingStub
+                    .getProvidersOfExistingReservations(GetProvidersOfExistingReservationsRequest
+                            .newBuilder().build());
+            logger.info(logPrefix + "Updating the provider info of reservations. "
+                            + "Number of reservations updated = {}",
+                    response.getInitialPlacementBuyerPlacementInfoCount());
+            updatedReservations = updateProviderInfoForReservations(
+                    response.getInitialPlacementBuyerPlacementInfoList(),
+                    reservations.stream().map(res -> res.getId()).collect(Collectors.toSet()),
+                    ReservationStatus.RESERVED);
+        } catch (Exception e) {
+            logger.warn(logPrefix
+                    + "Failed to update getProvidersOfExistingReservations  with exception {} ", e);
+        } finally {
+            updateReservationResult(updatedReservations);
+        }
     }
 
     /**
      * Add the constraint id and reservationConstraintInfo send from TP to the map for future lookup.
-     * @param constraintIDToCommodityTypeMap the map from id to reservationConstraintInfo.
+     * @param reservationConstraintInfoMap the map from id to reservationConstraintInfo.
      */
     public void addToConstraintIDToCommodityTypeMap(Map<Long, ReservationConstraintInfo>
-                                                            constraintIDToCommodityTypeMap) {
+                                                            reservationConstraintInfoMap) {
+
+
+        Set<Long> addedConstraints = reservationConstraintInfoMap.keySet().stream().filter(
+                id -> !this.constraintIDToCommodityTypeMap.containsKey(id))
+                .collect(Collectors.toSet());
+        Set<Long> deletedConstraints = this.constraintIDToCommodityTypeMap.keySet().stream().filter(
+                id -> !reservationConstraintInfoMap.containsKey(id))
+                .collect(Collectors.toSet());
+
+        if (!addedConstraints.isEmpty() || !deletedConstraints.isEmpty()) {
+            logger.info(logPrefix + "Policy/ Target changed. "
+                    + "Added Constraints: {} Deleted Constraints: {}"
+                    + "Sending trigger to market to update historical cache",
+                    addedConstraints, deletedConstraints);
+            try {
+                initialPlacementServiceBlockingStub.updateHistoricalCachedEconomy(
+                        UpdateHistoricalCachedEconomyRequest.newBuilder().build());
+            } catch (Exception e) {
+                logger.warn(logPrefix
+                        + "Failed to update market HistoricalCachedEconomy  with exception {} ", e);
+            }
+        }
+
         synchronized (reservationSetLock) {
             this.constraintIDToCommodityTypeMap.clear();
-            this.constraintIDToCommodityTypeMap.putAll(constraintIDToCommodityTypeMap);
+            this.constraintIDToCommodityTypeMap.putAll(reservationConstraintInfoMap);
+            reservationConstraintInfoMap.entrySet().stream().forEach(entry -> {
+                if (entry.getValue().getType() == Type.CLUSTER
+                        || entry.getValue().getType() == Type.STORAGE_CLUSTER) {
+                    clusterCommodityKeyToClusterID.put(entry.getValue().getKey(), entry.getKey());
+                }
+            });
         }
     }
 
@@ -184,8 +251,9 @@ public class ReservationManager implements ReservationDeletedListener {
                         buildIntialPlacementRequest(currentReservations);
                 FindInitialPlacementResponse response = initialPlacementServiceBlockingStub
                         .findInitialPlacement(initialPlacementRequest);
-                updatedReservations = updateProviderInfoForReservations(response,
-                        currentReservations.stream().map(res -> res.getId()).collect(Collectors.toSet()));
+                updatedReservations = updateProviderInfoForReservations(response.getInitialPlacementBuyerPlacementInfoList(),
+                        currentReservations.stream().map(res -> res.getId()).collect(Collectors.toSet()),
+                        ReservationStatus.INPROGRESS);
             } catch (Exception e) {
                 logger.warn(logPrefix + "findInitialPlacement was not completed successfully");
             } finally {
@@ -198,16 +266,18 @@ public class ReservationManager implements ReservationDeletedListener {
     /**
      * Update the provider info of the reservation using the initial placement response.
      *
-     * @param response            initial placement response from market.
+     * @param initialPlacementBuyerPlacementInfos            initial placement response from market.
      * @param currentReservations reservations which are sent to the market. We have to make sure
      *                            we only update the reservations which are part of the request.
+     * @param statusOfInterest status of the reservations that are currently updated by this method.
      * @return all in-progress reservations with the provider info updated.
      */
-    public Set<Reservation> updateProviderInfoForReservations(final FindInitialPlacementResponse response,
-                                                              Set<Long> currentReservations) {
+    public Set<Reservation> updateProviderInfoForReservations(final List<InitialPlacementBuyerPlacementInfo> initialPlacementBuyerPlacementInfos,
+                                                              Set<Long> currentReservations,
+                                                              ReservationStatus statusOfInterest) {
         Map<Long, Reservation> updatedReservations = new HashMap<>();
         reservationDao.getAllReservations().stream()
-                .filter(res -> res.getStatus() == ReservationStatus.INPROGRESS)
+                .filter(res -> res.getStatus() == statusOfInterest)
                 .filter(res -> currentReservations.contains(res.getId()))
                 .forEach(inProgressRes -> updatedReservations.put(inProgressRes.getId(), inProgressRes));
         Map<Long, Reservation> buyerIdToReservation = new HashMap<>();
@@ -218,12 +288,12 @@ public class ReservationManager implements ReservationDeletedListener {
                 }
             }
         }
-        for (InitialPlacementBuyerPlacementInfo initialPlacementBuyerPlacementInfo : response.getInitialPlacementBuyerPlacementInfoList()) {
+        for (InitialPlacementBuyerPlacementInfo initialPlacementBuyerPlacementInfo : initialPlacementBuyerPlacementInfos) {
             Reservation currentReservation = buyerIdToReservation.get(initialPlacementBuyerPlacementInfo.getBuyerId());
             if (currentReservation == null) {
-                logger.error(logPrefix + "The buyer id {} does not "
-                                + "correspond to any reservation in the request",
-                        initialPlacementBuyerPlacementInfo.getBuyerId());
+                logger.info(logPrefix + "The buyer id {} does not "
+                                + "correspond to any reservation with state {}",
+                        initialPlacementBuyerPlacementInfo.getBuyerId(), statusOfInterest);
                 continue;
             }
             Reservation reservation = (updatedReservations.get(currentReservation.getId()) == null)
@@ -277,6 +347,19 @@ public class ReservationManager implements ReservationDeletedListener {
                         .setProviderId(
                                 initialPlacementBuyerPlacementInfo.getInitialPlacementSuccess()
                                         .getProviderOid());
+                if (initialPlacementBuyerPlacementInfo
+                        .getInitialPlacementSuccess().hasCluster()
+                        && clusterCommodityKeyToClusterID
+                                .containsKey(initialPlacementBuyerPlacementInfo
+                                        .getInitialPlacementSuccess()
+                                        .getCluster().getKey())) {
+                    placementInfo
+                            .setClusterId(clusterCommodityKeyToClusterID
+                                    .get(initialPlacementBuyerPlacementInfo
+                                            .getInitialPlacementSuccess().getCluster().getKey()));
+                    placementInfo.addAllCommodityStats(initialPlacementBuyerPlacementInfo
+                            .getInitialPlacementSuccess().getCommodityStatsList());
+                }
                 logger.info(logPrefix + "provider: " + initialPlacementBuyerPlacementInfo
                         .getInitialPlacementSuccess().getProviderOid()
                         + " found for entity: " + reservationInstance.getEntityId()
@@ -286,6 +369,7 @@ public class ReservationManager implements ReservationDeletedListener {
                         .addAllUnplacedReason(
                                 initialPlacementBuyerPlacementInfo.getInitialPlacementFailure()
                                         .getUnplacedReasonList());
+                placementInfo.clearProviderId();
                 logger.info(logPrefix + "entity: " + reservationInstance.getEntityId()
                         + " of reservation: " + updatedReservation.getId() + " failed to get placed.");
             }
@@ -299,13 +383,12 @@ public class ReservationManager implements ReservationDeletedListener {
     }
 
     /**
-     * build a initial placement request for the given set of reservations.
-     *
-     * @param reservations the input set of reservations.
-     * @return the constructed initial placement request. buyerIdToReservation is updated.
+     * Build the InitialPlacementBuyerList.
+     * @param reservations  the input set of reservations.
+     * @return the list of InitialPlacementBuyer for the reservations.
      */
-    public FindInitialPlacementRequest buildIntialPlacementRequest(Set<Reservation> reservations) {
-        FindInitialPlacementRequest.Builder initialPlacementRequestBuilder = FindInitialPlacementRequest.newBuilder();
+    public List<InitialPlacementBuyer> buildInitialPlacementBuyerList(Set<Reservation> reservations) {
+        List<InitialPlacementBuyer> initialPlacementBuyerList = new ArrayList<>();
         for (Reservation reservation : reservations) {
             for (ReservationTemplate reservationTemplate : reservation.getReservationTemplateCollection()
                     .getReservationTemplateList()) {
@@ -322,13 +405,27 @@ public class ReservationManager implements ReservationDeletedListener {
                                                 .CommoditiesBoughtFromProvider.newBuilder()
                                                 .setProviderEntityType(placementInfo
                                                         .getProviderType())
+                                                .setProviderId(placementInfo.getProviderId())
                                                 .addAllCommodityBought(placementInfo
                                                         .getCommodityBoughtList())));
                     }
-                    initialPlacementRequestBuilder.addInitialPlacementBuyer(intialPlacementBuyerBuilder);
+                    initialPlacementBuyerList.add(intialPlacementBuyerBuilder.build());
                 }
             }
         }
+        return initialPlacementBuyerList;
+    }
+
+    /**
+     * build a initial placement request for the given set of reservations.
+     *
+     * @param reservations the input set of reservations.
+     * @return the constructed initial placement request.
+     */
+    public FindInitialPlacementRequest buildIntialPlacementRequest(Set<Reservation> reservations) {
+        FindInitialPlacementRequest.Builder initialPlacementRequestBuilder = FindInitialPlacementRequest.newBuilder();
+        buildInitialPlacementBuyerList(reservations).stream()
+                .forEach(buyer -> initialPlacementRequestBuilder.addInitialPlacementBuyer(buyer));
         return initialPlacementRequestBuilder.build();
     }
 
@@ -353,9 +450,16 @@ public class ReservationManager implements ReservationDeletedListener {
             reservationTemplateBuilder.setTemplate(template);
             final TemplateInfo templateInfo = template.getTemplateInfo();
             List<Double> diskSizes = new ArrayList<>();
+            List<Double> diskIOPs = new ArrayList<>();
+            List<Double> diskConsumedFactors = new ArrayList<>();
             double memorySize = 0;
             double numOfCpu = 0;
             double cpuSpeed = 0;
+            double cpuConsumedFactor = 0;
+            double memoryConsumedFactor = 0;
+            double ioThroughput = 0;
+            double networkThroughput = 0;
+
             for (TemplateResource templateResource : templateInfo.getResourcesList()) {
                 for (TemplateField templateField : templateResource.getFieldsList()) {
                     switch (templateField.getName()) {
@@ -363,14 +467,34 @@ public class ReservationManager implements ReservationDeletedListener {
                                 .VM_STORAGE_DISK_SIZE:
                             diskSizes.add(Double.parseDouble(templateField.getValue()));
                             break;
+                        case TemplateProtoUtil
+                                .VM_STORAGE_DISK_IOPS:
+                            diskIOPs.add(Double.parseDouble(templateField.getValue()));
+                            break;
+                        case TemplateProtoUtil
+                                .VM_STORAGE_DISK_CONSUMED_FACTOR:
+                            diskConsumedFactors.add(Double.parseDouble(templateField.getValue()));
+                            break;
                         case TemplateProtoUtil.VM_COMPUTE_VCPU_SPEED:
                             cpuSpeed = Double.parseDouble(templateField.getValue());
+                            break;
+                        case TemplateProtoUtil.VM_COMPUTE_CPU_CONSUMED_FACTOR:
+                            cpuConsumedFactor = Double.parseDouble(templateField.getValue());
                             break;
                         case TemplateProtoUtil.VM_COMPUTE_MEM_SIZE:
                             memorySize = Double.parseDouble(templateField.getValue());
                             break;
+                        case TemplateProtoUtil.VM_COMPUTE_MEM_CONSUMED_FACTOR:
+                            memoryConsumedFactor = Double.parseDouble(templateField.getValue());
+                            break;
                         case TemplateProtoUtil.VM_COMPUTE_NUM_OF_VCPU:
                             numOfCpu = Double.parseDouble(templateField.getValue());
+                            break;
+                        case TemplateProtoUtil.VM_COMPUTE_IO_THROUGHPUT:
+                            ioThroughput = Double.parseDouble(templateField.getValue());
+                            break;
+                        case TemplateProtoUtil.VM_COMPUTE_NETWORK_THROUGHPUT:
+                            networkThroughput = Double.parseDouble(templateField.getValue());
                             break;
                         default:
                             break;
@@ -378,11 +502,16 @@ public class ReservationManager implements ReservationDeletedListener {
                 }
             }
             List<PlacementInfo.Builder> storagePlacementInfos = new ArrayList<>();
-            for (Double diskSize : diskSizes) {
+            for (int i = 0; i < diskSizes.size(); i++) {
                 storagePlacementInfos.add(PlacementInfo
                         .newBuilder().clearProviderId()
                         .addCommodityBought(createCommodityBoughtDTO(CommodityDTO
-                                .CommodityType.STORAGE_PROVISIONED_VALUE, diskSize))
+                                .CommodityType.STORAGE_PROVISIONED_VALUE, diskSizes.get(i)))
+                        .addCommodityBought(createCommodityBoughtDTO(CommodityDTO
+                                .CommodityType.STORAGE_AMOUNT_VALUE,
+                                diskSizes.get(i) * diskConsumedFactors.get(i)))
+                        .addCommodityBought(createCommodityBoughtDTO(CommodityDTO
+                                .CommodityType.STORAGE_ACCESS_VALUE, diskIOPs.get(i)))
                         .setProviderType(EntityType.STORAGE_VALUE));
             }
 
@@ -390,7 +519,15 @@ public class ReservationManager implements ReservationDeletedListener {
                     .addCommodityBought(createCommodityBoughtDTO(CommodityDTO
                             .CommodityType.CPU_PROVISIONED_VALUE, numOfCpu * cpuSpeed))
                     .addCommodityBought(createCommodityBoughtDTO(CommodityDTO
+                            .CommodityType.CPU_VALUE, numOfCpu * cpuSpeed * cpuConsumedFactor))
+                    .addCommodityBought(createCommodityBoughtDTO(CommodityDTO
                             .CommodityType.MEM_PROVISIONED_VALUE, memorySize))
+                    .addCommodityBought(createCommodityBoughtDTO(CommodityDTO
+                            .CommodityType.MEM_VALUE, memorySize * memoryConsumedFactor))
+                    .addCommodityBought(createCommodityBoughtDTO(CommodityDTO
+                            .CommodityType.IO_THROUGHPUT_VALUE, ioThroughput))
+                    .addCommodityBought(createCommodityBoughtDTO(CommodityDTO
+                            .CommodityType.NET_THROUGHPUT_VALUE, networkThroughput))
                     .setProviderType(EntityType.PHYSICAL_MACHINE_VALUE);
 
             for (ReservationConstraintInfo constraintInfo
@@ -414,6 +551,12 @@ public class ReservationManager implements ReservationDeletedListener {
                             computePlacementInfo.addCommodityBought(
                                     createCommodityBoughtDTO(CommodityDTO
                                                     .CommodityType.SEGMENTATION_VALUE,
+                                            Optional.of(constraintInfo.getKey()), 1));
+                            break;
+                        case NETWORK:
+                            computePlacementInfo.addCommodityBought(
+                                    createCommodityBoughtDTO(CommodityDTO
+                                                    .CommodityType.NETWORK_VALUE,
                                             Optional.of(constraintInfo.getKey()), 1));
                             break;
                         default:

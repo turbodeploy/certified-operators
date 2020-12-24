@@ -72,6 +72,7 @@ import com.vmturbo.plan.orchestrator.plan.PlanRpcService;
 import com.vmturbo.plan.orchestrator.project.PlanProjectExecutor;
 import com.vmturbo.plan.orchestrator.project.ProjectPlanPostProcessorRegistry;
 import com.vmturbo.plan.orchestrator.project.headroom.SystemLoadCalculatedProfile.Operation;
+import com.vmturbo.plan.orchestrator.reservation.ReservationManager;
 import com.vmturbo.plan.orchestrator.templates.TemplatesDao;
 import com.vmturbo.plan.orchestrator.templates.exceptions.DuplicateTemplateException;
 import com.vmturbo.plan.orchestrator.templates.exceptions.IllegalTemplateOperationException;
@@ -123,6 +124,8 @@ public class ClusterHeadroomPlanProjectExecutor {
 
     private final long headroomPlanRerunDelayInSecond;
 
+    private final ReservationManager reservationManager;
+
     // Number of days for which system load was considered in history.
     private static final int LOOP_BACK_DAYS = 10;
 
@@ -141,6 +144,7 @@ public class ClusterHeadroomPlanProjectExecutor {
      * @param topologyProcessor a REST call to get target info
      * @param cpuCapacityEstimator estimates the scaling factor of a cpu model.
      * @param taskScheduler a taskScheduler used for scheduled plan executions
+     * @param reservationManager the reservation manager.
      */
     public ClusterHeadroomPlanProjectExecutor(@Nonnull final PlanDao planDao,
                                               @Nonnull final Channel groupChannel,
@@ -153,7 +157,8 @@ public class ClusterHeadroomPlanProjectExecutor {
                                               final long headroomPlanRerunDelayInSecond,
                                               @Nonnull final TopologyProcessor topologyProcessor,
                                               @Nonnull final CPUCapacityEstimator cpuCapacityEstimator,
-                                              @Nonnull final ThreadPoolTaskScheduler taskScheduler) {
+                                              @Nonnull final ThreadPoolTaskScheduler taskScheduler,
+                                              @Nonnull final ReservationManager reservationManager) {
         this.groupChannel = Objects.requireNonNull(groupChannel);
         this.planService = Objects.requireNonNull(planRpcService);
         this.projectPlanPostProcessorRegistry = Objects.requireNonNull(processorRegistry);
@@ -171,6 +176,7 @@ public class ClusterHeadroomPlanProjectExecutor {
         this.topologyProcessor = Objects.requireNonNull(topologyProcessor);
         this.cpuCapacityEstimator = Objects.requireNonNull(cpuCapacityEstimator);
         this.taskScheduler = taskScheduler;
+        this.reservationManager = reservationManager;
     }
 
     /**
@@ -275,7 +281,7 @@ public class ClusterHeadroomPlanProjectExecutor {
                 new ClusterHeadroomPlanPostProcessor(planInstance.getPlanId(),
                     clusters.stream().map(Grouping::getId).collect(Collectors.toSet()),
                     repositoryChannel, historyChannel, planDao, groupChannel, templatesDao,
-                    cpuCapacityEstimator);
+                    cpuCapacityEstimator, reservationManager);
             headroomPlanPostProcessor.setOnFailureHandler(handleFailure ? () ->
                 taskScheduler.schedule(() -> this.executePlanProject(planProject, false),
                     new Date(System.currentTimeMillis() + 1000 * headroomPlanRerunDelayInSecond))

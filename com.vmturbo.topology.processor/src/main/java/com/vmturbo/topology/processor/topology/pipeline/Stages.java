@@ -29,7 +29,7 @@ import org.jetbrains.annotations.NotNull;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
-import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
+import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceStub;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
@@ -440,17 +440,26 @@ public class Stages {
         public GenerateConstraintMapStage(
                 @Nonnull final PolicyManager policyManager,
                 @Nonnull final GroupServiceBlockingStub groupServiceClient,
-                @Nonnull final ReservationServiceBlockingStub reservationService
+                @Nonnull final ReservationServiceStub reservationService
         ) {
             this.generateConstraintMap = new GenerateConstraintMap(policyManager,
                     groupServiceClient, reservationService);
+        }
+
+        /**
+         * getter for generateConstraintMap.
+         * @return generateConstraintMap
+         */
+        public GenerateConstraintMap getGenerateConstraintMap() {
+            return generateConstraintMap;
         }
 
         @NotNull
         @Nonnull
         @Override
         public Status passthrough(@Nonnull final TopologyGraph<TopologyEntity> topologyGraph) {
-            return generateConstraintMap.createMap(topologyGraph, getContext().getGroupResolver());
+            generateConstraintMap.createMap(topologyGraph, getContext().getGroupResolver());
+            return Status.success();
         }
     }
 
@@ -695,9 +704,8 @@ public class Stages {
         @NotNull
         @Override
         public Status passthrough(@Nonnull final Map<Long, TopologyEntity.Builder> input) {
-            final int numAdded = reservationManager.applyReservation(input,
-                    this.getContext().getTopologyInfo());
-            return Status.success("Added " + numAdded + " reserved entities to the topology.");
+            return reservationManager.applyReservation(this.getContext()
+                    .getTopologyInfo().getTopologyType());
         }
     }
 

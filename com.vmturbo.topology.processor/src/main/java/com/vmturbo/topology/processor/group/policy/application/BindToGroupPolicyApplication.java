@@ -49,7 +49,8 @@ public class BindToGroupPolicyApplication extends PlacementPolicyApplication<Bin
                     final ApiEntityType consumerEntityType = GroupProtoUtil.getEntityTypes(consumerGroup).iterator().next();
                     final Set<Long> providers = Sets.union(groupResolver.resolve(providerGroup, topologyGraph).getEntitiesOfType(providerEntityType),
                         policy.getProviderPolicyEntities().getAdditionalEntities());
-                    Set<Long> consumers = groupResolver.resolve(consumerGroup, topologyGraph).getEntitiesOfType(consumerEntityType);
+                    Set<Long> consumers = Sets.union(groupResolver.resolve(consumerGroup, topologyGraph).getEntitiesOfType(consumerEntityType),
+                            policy.getConsumerPolicyEntities().getAdditionalEntities());
                     consumers = consumers.stream().filter(id -> {
                         Optional<TopologyEntity> entity = topologyGraph.getEntity(id);
                         if (entity.isPresent() && entity.get().hasReservationOrigin()) {
@@ -57,7 +58,6 @@ public class BindToGroupPolicyApplication extends PlacementPolicyApplication<Bin
                         }
                         return true;
                     }).collect(Collectors.toSet());
-                    consumers.addAll(policy.getConsumerPolicyEntities().getAdditionalEntities());
 
                     // Add the commodity to the appropriate entities.
                     addCommoditySold(providers, commoditySold(policy));

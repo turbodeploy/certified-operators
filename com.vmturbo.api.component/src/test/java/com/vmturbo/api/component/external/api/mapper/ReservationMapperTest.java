@@ -52,9 +52,11 @@ import com.vmturbo.common.protobuf.plan.TemplateDTOMoles.TemplateServiceMole;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityStats;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason.FailedResources;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -220,11 +222,17 @@ public class ReservationMapperTest {
                 .setCount(1)
                 .addReservationInstance(ReservationInstance.newBuilder()
                         .setEntityId(1L)
-                        .addPlacementInfo(ReservationInstance.PlacementInfo.newBuilder()
+                        .addPlacementInfo(PlacementInfo.newBuilder()
                                 .setProviderId(2L)
                                 .addCommodityBought(cpuProvisionedCommodityBoughtDTO)
-                                .addCommodityBought(memProvisionedCommodityBoughtDTO))
-                        .addPlacementInfo(ReservationInstance.PlacementInfo.newBuilder()
+                                .addCommodityBought(memProvisionedCommodityBoughtDTO)
+                                .setClusterId(123L)
+                                .addCommodityStats(CommodityStats.newBuilder()
+                                        .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                                                .setType(CommodityType.MEM_PROVISIONED_VALUE))
+                                        .setTotalCapacity(300)
+                                        .setTotalUsed(200)))
+                        .addPlacementInfo(PlacementInfo.newBuilder()
                                 .setProviderId(3L)
                                 .addCommodityBought(storageProvisionedCommodityBoughtDTO)))
                 .build();
@@ -248,24 +256,38 @@ public class ReservationMapperTest {
                 .get(0).getConstraintType());
         assertEquals(1L, reservationApiDTO.getDemandEntities().get(0)
                 .getPlacements().getStorageResources().size());
+        assertEquals(1L, reservationApiDTO.getDemandEntities().get(0)
+                .getPlacements().getRelatedResources().size());
         final ResourceApiDTO computeResource = reservationApiDTO.getDemandEntities().get(0)
                 .getPlacements().getComputeResources().get(0);
         final ResourceApiDTO storageResource = reservationApiDTO.getDemandEntities().get(0)
                 .getPlacements().getStorageResources().get(0);
+        final ResourceApiDTO clusterResource = reservationApiDTO.getDemandEntities().get(0)
+                .getPlacements().getRelatedResources().get(0);
+        assertEquals("123", clusterResource.getResourceId());
+        assertEquals("123", computeResource.getRelatedResources().get(0));
+        assertEquals(300, Math.round(clusterResource.getStats().stream().filter(a -> a.getName()
+                .equals(CommodityTypeUnits.MEM_PROVISIONED.getMixedCase())).findFirst().get().getCapacity().getAvg()));
+        assertEquals(200, Math.round(clusterResource.getStats().stream().filter(a -> a.getName()
+                .equals(CommodityTypeUnits.MEM_PROVISIONED.getMixedCase())).findFirst().get().getValues().getAvg()));
         assertEquals(pmServiceEntity.getDisplayName(), computeResource.getProvider().getDisplayName());
         assertEquals(stServiceEntity.getDisplayName(), storageResource.getProvider().getDisplayName());
         assertEquals(1000L, Math.round(computeResource.getStats()
-                .stream().filter(a -> a.getName().equals("CPU"))
+                .stream().filter(a -> a.getName().equals(CommodityTypeUnits.CPU_PROVISIONED.getMixedCase()))
                 .collect(Collectors.toList())
                 .get(0).getValue()));
         assertEquals(2000L, Math.round(computeResource.getStats()
-                .stream().filter(a -> a.getName().equals("MEM"))
+                .stream().filter(a -> a.getName().equals(CommodityTypeUnits.MEM_PROVISIONED.getMixedCase()))
                 .collect(Collectors.toList())
                 .get(0).getValue()));
         assertEquals(3000L, Math.round(storageResource.getStats()
-                .stream().filter(a -> a.getName().equals("STORAGE"))
+                .stream().filter(a -> a.getName().equals(CommodityTypeUnits.STORAGE_PROVISIONED.getMixedCase()))
                 .collect(Collectors.toList())
                 .get(0).getValue()));
+        assertEquals(CommodityTypeUnits.STORAGE_PROVISIONED.getUnits(), (storageResource.getStats()
+                .stream().filter(a -> a.getName().equals(CommodityTypeUnits.STORAGE_PROVISIONED.getMixedCase()))
+                .collect(Collectors.toList())
+                .get(0).getUnits()));
     }
 
     /**
@@ -354,7 +376,7 @@ public class ReservationMapperTest {
         ReservationFailureInfoDTO failureInfo = reservationApiDTO.getDemandEntities().get(0)
                 .getPlacements().getFailureInfos().get(0);
         assertEquals(pmServiceEntity.getDisplayName(), failureInfo.getClosestSeller().getDisplayName());
-        assertEquals("MEM", failureInfo.getResource());
+        assertEquals(CommodityTypeUnits.MEM_PROVISIONED.getMixedCase(), failureInfo.getResource());
         assertEquals(1000, Math.round(failureInfo.getMaxQuantityAvailable().doubleValue()));
         assertEquals(1200, Math.round(failureInfo.getQuantityRequested().doubleValue()));
     }

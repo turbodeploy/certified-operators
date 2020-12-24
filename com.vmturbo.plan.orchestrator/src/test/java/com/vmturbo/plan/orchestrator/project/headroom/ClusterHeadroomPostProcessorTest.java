@@ -73,6 +73,7 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
 import com.vmturbo.plan.orchestrator.project.ProjectPlanPostProcessor;
+import com.vmturbo.plan.orchestrator.reservation.ReservationManager;
 import com.vmturbo.plan.orchestrator.templates.TemplatesDao;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -112,6 +113,8 @@ public class ClusterHeadroomPostProcessorTest {
 
     private TemplatesDao templatesDao = mock(TemplatesDao.class);
 
+    private ReservationManager reservationManager = mock(ReservationManager.class);
+
     private final CPUCapacityEstimator cpuCapacityEstimator = mock(CPUCapacityEstimator.class);
 
     /**
@@ -137,7 +140,7 @@ public class ClusterHeadroomPostProcessorTest {
 
         processor = spy(new ClusterHeadroomPlanPostProcessor(PLAN_ID, Collections.singleton(CLUSTER.getId()),
             grpcTestServer.getChannel(), grpcTestServer.getChannel(),
-            planDao, grpcTestServer.getChannel(), templatesDao, cpuCapacityEstimator));
+            planDao, grpcTestServer.getChannel(), templatesDao, cpuCapacityEstimator, reservationManager));
     }
 
     /**
@@ -481,7 +484,7 @@ public class ClusterHeadroomPostProcessorTest {
         final ClusterHeadroomPlanPostProcessor processor =
             spy(new ClusterHeadroomPlanPostProcessor(PLAN_ID, Collections.singleton(CLUSTER.getId()),
                 grpcTestServer.getChannel(), grpcTestServer.getChannel(),
-                planDao, grpcTestServer.getChannel(), templatesDao, cpuCapacityEstimator));
+                planDao, grpcTestServer.getChannel(), templatesDao, cpuCapacityEstimator, reservationManager));
         Consumer<ProjectPlanPostProcessor> onCompleteHandler = mock(Consumer.class);
         processor.registerOnCompleteHandler(onCompleteHandler);
 
@@ -505,7 +508,7 @@ public class ClusterHeadroomPostProcessorTest {
         final ClusterHeadroomPlanPostProcessor processor =
             spy(new ClusterHeadroomPlanPostProcessor(PLAN_ID, Collections.singleton(CLUSTER.getId()),
                 grpcTestServer.getChannel(), grpcTestServer.getChannel(),
-                planDao, grpcTestServer.getChannel(), templatesDao, cpuCapacityEstimator));
+                planDao, grpcTestServer.getChannel(), templatesDao, cpuCapacityEstimator, reservationManager));
         Consumer<ProjectPlanPostProcessor> onCompleteHandler = mock(Consumer.class);
         processor.registerOnCompleteHandler(onCompleteHandler);
 
@@ -528,7 +531,7 @@ public class ClusterHeadroomPostProcessorTest {
 
         final ClusterHeadroomPlanPostProcessor processor = spy(new ClusterHeadroomPlanPostProcessor(PLAN_ID, ImmutableSet.of(1L),
             grpcTestServer.getChannel(), grpcTestServer.getChannel(),
-            planDao, grpcTestServer.getChannel(), templatesDao, cpuCapacityEstimator));
+            planDao, grpcTestServer.getChannel(), templatesDao, cpuCapacityEstimator, reservationManager));
 
         long mostRecentHistoricalDate = System.currentTimeMillis();
         Map<Long, Long> vmsByDate = getVMsByDate(getVMCountData(10, 5), mostRecentHistoricalDate);

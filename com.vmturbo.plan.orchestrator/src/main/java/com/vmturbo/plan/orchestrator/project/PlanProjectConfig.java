@@ -23,6 +23,7 @@ import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientImpl;
 import com.vmturbo.plan.orchestrator.cpucapacity.CpuCapacityConfig;
 import com.vmturbo.plan.orchestrator.market.PlanOrchestratorMarketConfig;
 import com.vmturbo.plan.orchestrator.plan.PlanConfig;
+import com.vmturbo.plan.orchestrator.reservation.ReservationConfig;
 import com.vmturbo.plan.orchestrator.templates.TemplatesConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 
@@ -39,7 +40,8 @@ import com.vmturbo.repository.api.impl.RepositoryClientConfig;
         TemplatesConfig.class,
         ActionOrchestratorClientConfig.class,
         PlanOrchestratorMarketConfig.class,
-        BaseKafkaProducerConfig.class})
+        BaseKafkaProducerConfig.class,
+        ReservationConfig.class})
 public class PlanProjectConfig {
     @Autowired
     private PlanOrchestratorDBConfig databaseConfig;
@@ -67,6 +69,9 @@ public class PlanProjectConfig {
 
     @Autowired
     private PlanOrchestratorMarketConfig planOrchestratorMarketConfig;
+
+    @Autowired
+    private ReservationConfig reservationConfig;
 
     @Value("${defaultHeadroomPlanProjectJsonFile:systemPlanProjects.json}")
     private String defaultHeadroomPlanProjectJsonFile;
@@ -156,7 +161,8 @@ public class PlanProjectConfig {
                 headroomPlanRerunDelayInSecond,
                 globalConfig.tpNotificationClient(),
                 cpuCapacityConfig.cpuCapacityEstimator(),
-                taskScheduler());
+                taskScheduler(),
+                reservationConfig.reservationManager());
     }
 
     /**

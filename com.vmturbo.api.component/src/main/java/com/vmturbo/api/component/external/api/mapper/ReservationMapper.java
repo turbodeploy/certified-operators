@@ -20,6 +20,7 @@ import com.google.common.collect.ImmutableMap;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -39,6 +40,7 @@ import com.vmturbo.api.dto.reservation.PlacementParametersDTO;
 import com.vmturbo.api.dto.reservation.ReservationConstraintApiDTO;
 import com.vmturbo.api.dto.reservation.ReservationFailureInfoDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
+import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.dto.template.ResourceApiDTO;
 import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.InvalidOperationException;
@@ -67,8 +69,10 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc.TemplateServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityStats;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason.FailedResources;
+import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -84,11 +88,38 @@ public class ReservationMapper {
             .put(ApiEntityType.NETWORK.typeNumber(), ReservationConstraintInfo.Type.NETWORK)
             .build();
 
-    private static final Map<Integer, String> COMMODITY_TYPE_NAME_MAP =
-            ImmutableMap.<Integer, String>builder()
-                    .put(CommodityType.CPU_PROVISIONED_VALUE, "CPU")
-                    .put(CommodityType.MEM_PROVISIONED_VALUE, "MEM")
-                    .put(CommodityType.STORAGE_PROVISIONED_VALUE, "STORAGE")
+    private static final Map<Integer, Pair<String, String>> COMMODITY_TYPE_NAME_UNIT_MAP =
+            ImmutableMap.<Integer, Pair<String, String>>builder()
+                    .put(CommodityType.CPU_PROVISIONED_VALUE,
+                            Pair.of(CommodityTypeUnits.CPU_PROVISIONED.getMixedCase(),
+                                    CommodityTypeUnits.CPU_PROVISIONED.getUnits()))
+                    .put(CommodityType.MEM_PROVISIONED_VALUE,
+                            Pair.of(CommodityTypeUnits.MEM_PROVISIONED.getMixedCase(),
+                                    CommodityTypeUnits.MEM_PROVISIONED.getUnits()))
+                    .put(CommodityType.CPU_VALUE,
+                            Pair.of(CommodityTypeUnits.CPU.getMixedCase(),
+                            CommodityTypeUnits.CPU.getUnits()))
+                    .put(CommodityType.MEM_VALUE,
+                            Pair.of(CommodityTypeUnits.MEM.getMixedCase(),
+                                    CommodityTypeUnits.MEM.getUnits()))
+                    .put(CommodityType.IO_THROUGHPUT_VALUE,
+                            Pair.of(CommodityTypeUnits.IO_THROUGHPUT.getMixedCase(),
+                                    CommodityTypeUnits.IO_THROUGHPUT.getUnits()))
+                    .put(CommodityType.NET_THROUGHPUT_VALUE,
+                            Pair.of(CommodityTypeUnits.NET_THROUGHPUT.getMixedCase(),
+                                    CommodityTypeUnits.NET_THROUGHPUT.getUnits()))
+                    .put(CommodityType.STORAGE_AMOUNT_VALUE,
+                            Pair.of(CommodityTypeUnits.STORAGE_AMOUNT.getMixedCase(),
+                                    CommodityTypeUnits.STORAGE_AMOUNT.getUnits()))
+                    .put(CommodityType.STORAGE_ACCESS_VALUE,
+                            Pair.of(CommodityTypeUnits.STORAGE_ACCESS.getMixedCase(),
+                                    CommodityTypeUnits.STORAGE_ACCESS.getUnits()))
+                    .put(CommodityType.STORAGE_PROVISIONED_VALUE,
+                            Pair.of(CommodityTypeUnits.STORAGE_PROVISIONED.getMixedCase(),
+                                    CommodityTypeUnits.STORAGE_PROVISIONED.getUnits()))
+                    .put(CommodityType.SEGMENTATION_VALUE,
+                            Pair.of(CommodityTypeUnits.SEGMENTATION.getMixedCase(),
+                                    CommodityTypeUnits.SEGMENTATION.getUnits()))
                     .build();
 
     private final Logger logger = LogManager.getLogger();
@@ -243,7 +274,13 @@ public class ReservationMapper {
             final List<PlacementInfo> placementInfos = reservationTemplate.getReservationInstanceList().stream()
                     .map(reservationInstance -> {
                         final List<ProviderInfo> providerInfos = reservationInstance.getPlacementInfoList().stream()
-                                .map(a -> new ProviderInfo(a.getProviderId(), a.getCommodityBoughtList(), a.hasProviderId()))
+                                .map(a -> new ProviderInfo(
+                                        a.hasProviderId()
+                                                ? Optional.of(a.getProviderId()) : Optional.empty(),
+                                        a.getCommodityBoughtList(),
+                                        a.hasClusterId()
+                                                ? Optional.of(a.getClusterId()) : Optional.empty(),
+                                        a.getCommodityStatsList()))
                                 .collect(Collectors.toList());
                         return new PlacementInfo(reservationInstance.getEntityId(),
                                 ImmutableList.copyOf(providerInfos), reservationInstance.getUnplacedReasonList());
@@ -406,8 +443,8 @@ public class ReservationMapper {
         Set<Long> entitiesOid = new HashSet<>();
         for (PlacementInfo placementInfo : placementInfos) {
             for (ProviderInfo providerInfo : placementInfo.getProviderInfos()) {
-                if (providerInfo.isPlaced()) {
-                    entitiesOid.add(providerInfo.getProviderId());
+                if (providerInfo.getProviderId().isPresent()) {
+                    entitiesOid.add(providerInfo.getProviderId().get());
                 }
             }
             for (UnplacementReason reason : placementInfo.getUnpalcementReasons()) {
@@ -465,7 +502,7 @@ public class ReservationMapper {
                 placementInfoApiDTO,
                 serviceEntityApiDTOMap);
         for (ProviderInfo providerInfo : placementInfo.getProviderInfos()) {
-            if (providerInfo.isPlaced()) {
+            if (providerInfo.getProviderId().isPresent()) {
                 try {
                     addResourcesApiDTO(providerInfo,
                             serviceEntityApiDTOMap, placementInfoApiDTO);
@@ -505,15 +542,16 @@ public class ReservationMapper {
                 break;
             }
             FailedResources failedResource = reason.getFailedResourcesList().get(0);
-            String resource = COMMODITY_TYPE_NAME_MAP.get(
+            Pair<String, String> resource = COMMODITY_TYPE_NAME_UNIT_MAP.get(
                     failedResource.getCommType().getType()) == null
-                    ? CommodityType.UNKNOWN.name()
-                    : COMMODITY_TYPE_NAME_MAP.get(failedResource.getCommType().getType());
+                    ? Pair.of(CommodityType.UNKNOWN.name(), CommodityType.UNKNOWN.name())
+                    : COMMODITY_TYPE_NAME_UNIT_MAP.get(failedResource.getCommType().getType());
             placementInfoApiDTO.getFailureInfos().add(new ReservationFailureInfoDTO(
-                    resource,
+                    resource.getLeft(),
                     providerBaseApiDTO,
                     failedResource.getMaxAvailable(),
-                    failedResource.getRequestedAmount()));
+                    failedResource.getRequestedAmount(),
+                    resource.getRight()));
         }
     }
 
@@ -532,19 +570,33 @@ public class ReservationMapper {
                                     @Nonnull Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOMap,
                                     @Nonnull PlacementInfoDTO placementInfoApiDTO)
             throws UnknownObjectException, ProviderIdNotRecognizedException {
-        Optional<ServiceEntityApiDTO> serviceEntityApiDTO = Optional.ofNullable(serviceEntityApiDTOMap.get(providerInfo.getProviderId()));
+        if (!providerInfo.getProviderId().isPresent()) {
+            // should not be happening. The caller already verifies this.
+            return;
+        }
+        Optional<ServiceEntityApiDTO> serviceEntityApiDTO = Optional
+                .ofNullable(serviceEntityApiDTOMap
+                        .get(providerInfo.getProviderId().get()));
         // if entity id is not present, it means this reservation is unplaced.
-        if (!serviceEntityApiDTO.isPresent()) {
-            throw  new ProviderIdNotRecognizedException(providerInfo.getProviderId());
+        if (!serviceEntityApiDTO.isPresent() && providerInfo.getProviderId().isPresent()) {
+            throw  new ProviderIdNotRecognizedException(providerInfo.getProviderId().get());
         }
         final int entityType = ApiEntityType.fromString(serviceEntityApiDTO.get().getClassName()).typeNumber();
+        Optional<String> clusterId = providerInfo.getClusterId().isPresent()
+                ? Optional.of(String.valueOf(providerInfo.getClusterId().get())) : Optional.empty();
+        if (clusterId.isPresent() && !placementInfoApiDTO.getRelatedResources().stream()
+                .anyMatch(a -> a.getResourceId().equals(clusterId.get()))) {
+            placementInfoApiDTO.getRelatedResources()
+                    .add(generateClusterResourcesApiDTO(clusterId.get(),
+                            providerInfo.getCommodityStats()));
+        }
         switch (entityType) {
             case EntityType.PHYSICAL_MACHINE_VALUE:
                 final List<ResourceApiDTO> computeResources =
                         placementInfoApiDTO.getComputeResources() != null ?
                                 placementInfoApiDTO.getComputeResources() :
                                 new ArrayList<>();
-                computeResources.add(generateResourcesApiDTO(serviceEntityApiDTO.get(), providerInfo.getCommoditiesBought()));
+                computeResources.add(generateResourcesApiDTO(serviceEntityApiDTO.get(), providerInfo.getCommoditiesBought(), clusterId));
                 placementInfoApiDTO.setComputeResources(computeResources);
                 break;
             case EntityType.STORAGE_VALUE:
@@ -552,7 +604,7 @@ public class ReservationMapper {
                         placementInfoApiDTO.getStorageResources() != null ?
                                 placementInfoApiDTO.getStorageResources() :
                                 new ArrayList<>();
-                storageResources.add(generateResourcesApiDTO(serviceEntityApiDTO.get(), providerInfo.getCommoditiesBought()));
+                storageResources.add(generateResourcesApiDTO(serviceEntityApiDTO.get(), providerInfo.getCommoditiesBought(), clusterId));
                 placementInfoApiDTO.setStorageResources(storageResources);
                 break;
             case EntityType.NETWORK_VALUE:
@@ -560,7 +612,7 @@ public class ReservationMapper {
                         placementInfoApiDTO.getNetworkResources() != null ?
                                 placementInfoApiDTO.getNetworkResources() :
                                 new ArrayList<>();
-                networkResources.add(generateResourcesApiDTO(serviceEntityApiDTO.get(), providerInfo.getCommoditiesBought()));
+                networkResources.add(generateResourcesApiDTO(serviceEntityApiDTO.get(), providerInfo.getCommoditiesBought(), clusterId));
                 placementInfoApiDTO.setNetworkResources(networkResources);
                 break;
             default:
@@ -569,15 +621,49 @@ public class ReservationMapper {
     }
 
     /**
+     * Populate cluster stats in the api response of reservation.
+     *
+     * @param clusterId the cluster id where the reservation is placed.
+     * @param commodityStats the stats of the cluster.
+     * @return cluster stats wrapped as ResourceApiDTO.
+     */
+    private ResourceApiDTO generateClusterResourcesApiDTO(@Nonnull final String clusterId,
+                                                   List<CommodityStats> commodityStats) {
+        final ResourceApiDTO resourceApiDTO = new ResourceApiDTO();
+        resourceApiDTO.setResourceId(clusterId);
+        List<StatApiDTO> statApiDTOS = new ArrayList<>();
+        for (CommodityStats commodityStat : commodityStats) {
+            Pair<String, String> commodityNameUnit = COMMODITY_TYPE_NAME_UNIT_MAP
+                    .get(commodityStat.getCommodityType().getType());
+            if (commodityNameUnit != null) {
+                final StatApiDTO statApiDTO = new StatApiDTO();
+                statApiDTO.setName(commodityNameUnit.getLeft());
+                statApiDTO.setUnits(commodityNameUnit.getRight());
+                final StatValueApiDTO statValueUsedApiDTO = new StatValueApiDTO();
+                statValueUsedApiDTO.setAvg((float)commodityStat.getTotalUsed());
+                statApiDTO.setValues(statValueUsedApiDTO);
+                final StatValueApiDTO statValueCapacityApiDTO = new StatValueApiDTO();
+                statValueCapacityApiDTO.setAvg((float)commodityStat.getTotalCapacity());
+                statApiDTO.setCapacity(statValueCapacityApiDTO);
+                statApiDTOS.add(statApiDTO);
+            }
+        }
+        resourceApiDTO.setStats(statApiDTOS);
+        return resourceApiDTO;
+    }
+
+    /**
      * Populate the stats for each of the commodity bought by the VM associated with the reservation.
      * We need the stats info to distinguish between different disk buying from different storages.
      *
      * @param serviceEntityApiDTO  The provider service entity
      * @param commodityBoughtDTOList the commodities bought by the VM associated with the reservation.
+     * @param clusterID the id of the cluster the provider belongs to.
      * @return ResourceApiDTO populated with providerID and the stats.
      */
     private ResourceApiDTO generateResourcesApiDTO(@Nonnull final ServiceEntityApiDTO serviceEntityApiDTO,
-                                                   List<CommodityBoughtDTO> commodityBoughtDTOList) {
+                                                   List<CommodityBoughtDTO> commodityBoughtDTOList,
+                                                   Optional<String> clusterID) {
         final BaseApiDTO providerBaseApiDTO = new BaseApiDTO();
         providerBaseApiDTO.setClassName(serviceEntityApiDTO.getClassName());
         providerBaseApiDTO.setDisplayName(serviceEntityApiDTO.getDisplayName());
@@ -586,15 +672,22 @@ public class ReservationMapper {
         resourceApiDTO.setProvider(providerBaseApiDTO);
         List<StatApiDTO> statApiDTOS = new ArrayList<>();
         for (CommodityBoughtDTO commodityBoughtDTO : commodityBoughtDTOList) {
-            String commodityName = COMMODITY_TYPE_NAME_MAP.get(commodityBoughtDTO.getCommodityType().getType());
-            if (commodityName != null) {
+            Pair<String, String> commodityNameUnit = COMMODITY_TYPE_NAME_UNIT_MAP.get(commodityBoughtDTO.getCommodityType().getType());
+            if (commodityNameUnit != null) {
                 final StatApiDTO statApiDTO = new StatApiDTO();
-                statApiDTO.setName(commodityName);
+                statApiDTO.setName(commodityNameUnit.getLeft());
+                statApiDTO.setUnits(commodityNameUnit.getRight());
                 statApiDTO.setValue((float)commodityBoughtDTO.getUsed());
+                final StatValueApiDTO statValueApiDTO = new StatValueApiDTO();
+                statValueApiDTO.setAvg((float)commodityBoughtDTO.getUsed());
+                statApiDTO.setValues(statValueApiDTO);
                 statApiDTOS.add(statApiDTO);
             }
         }
         resourceApiDTO.setStats(statApiDTOS);
+        if (clusterID.isPresent()) {
+            resourceApiDTO.getRelatedResources().add(clusterID.get());
+        }
         return resourceApiDTO;
     }
 
@@ -651,35 +744,53 @@ public class ReservationMapper {
     @Immutable
     public static class ProviderInfo {
 
-        private final Long providerId;
+        private final Optional<Long> providerId;
         private final List<CommodityBoughtDTO> commoditiesBought;
-        private final boolean placed;
+        // the id of the cluster where the entity is placed on.
+        private final Optional<Long> clusterId;
+        // the stats of the cluster.
+        private final List<CommodityStats> commodityStats;
 
         /**
          * Constructor.
          *
          * @param providerId       the oid of the provider
          * @param commoditiesBought the commodities bought by the template from the provider.
-         * @param placed true if the reserved instance is placed.
+         * @param clusterId the id of the cluster where the entity is placed on.
+         * @param commodityStats the stats of the cluster.
          */
-        public ProviderInfo(final long providerId,
+        public ProviderInfo(final Optional<Long> providerId,
                             @Nonnull final List<CommodityBoughtDTO> commoditiesBought,
-                            final boolean placed) {
+                            Optional<Long> clusterId,
+                            List<CommodityStats> commodityStats) {
             this.providerId = providerId;
             this.commoditiesBought = Collections.unmodifiableList(commoditiesBought);
-            this.placed = placed;
+            this.clusterId = clusterId;
+            this.commodityStats = commodityStats;
         }
 
-        public boolean isPlaced() {
-            return placed;
-        }
-
-        public Long getProviderId() {
+        public Optional<Long> getProviderId() {
             return providerId;
         }
 
         public List<CommodityBoughtDTO> getCommoditiesBought() {
             return commoditiesBought;
+        }
+
+        /**
+         * getter for commodityStats.
+         * @return the commodityStats.
+         */
+        public List<CommodityStats> getCommodityStats() {
+            return commodityStats;
+        }
+
+        /**
+         * getter for clusterId.
+         * @return the clusterId.
+         */
+        public Optional<Long> getClusterId() {
+            return clusterId;
         }
     }
 

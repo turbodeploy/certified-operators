@@ -43,6 +43,8 @@ message InitialPlacementBuyerPlacementInfo {
 
 message InitialPlacementSuccess {
     required int64 provider_oid = 1;
+    optional .topology.CommodityType cluster = 2;
+    repeated .topology.CommodityStats commodityStats = 3;
 }
 
 message InitialPlacementFailure {
@@ -61,7 +63,24 @@ message DeleteInitialPlacementBuyerResponse {
     optional bool result = 1;
 }
 
+message GetProvidersOfExistingReservationsRequest {
+
+}
+
+message GetProvidersOfExistingReservationsResponse {
+    repeated InitialPlacementBuyerPlacementInfo initialPlacementBuyerPlacementInfo = 1;
+}
+
+message UpdateHistoricalCachedEconomyRequest {
+
+}
+
+message UpdateHistoricalCachedEconomyResponse {
+}
+
 service InitialPlacementService {
     rpc FindInitialPlacement (FindInitialPlacementRequest) returns (FindInitialPlacementResponse);
     rpc DeleteInitialPlacementBuyer (DeleteInitialPlacementBuyerRequest) returns (DeleteInitialPlacementBuyerResponse);
+    rpc GetProvidersOfExistingReservations (GetProvidersOfExistingReservationsRequest) returns (GetProvidersOfExistingReservationsResponse);
+    rpc UpdateHistoricalCachedEconomy (UpdateHistoricalCachedEconomyRequest) returns (UpdateHistoricalCachedEconomyResponse);
 }

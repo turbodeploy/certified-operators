@@ -50,6 +50,8 @@ import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolver;
+import com.vmturbo.topology.processor.group.policy.application.AtMostNBoundPolicy;
+import com.vmturbo.topology.processor.group.policy.application.AtMostNPolicy;
 import com.vmturbo.topology.processor.group.policy.application.BindToGroupPolicy;
 import com.vmturbo.topology.processor.group.policy.application.BindToComplementaryGroupPolicy;
 import com.vmturbo.topology.processor.group.policy.application.BindToGroupPolicy;
@@ -246,8 +248,9 @@ public class PolicyManager {
 
         Table<Long, Integer, TopologyDTO.CommodityType> results = HashBasedTable.create();
         policiesToApply.stream().filter(policy -> policy instanceof BindToGroupPolicy
-                || policy instanceof BindToComplementaryGroupPolicy).forEach(policy ->
-
+                || policy instanceof BindToComplementaryGroupPolicy
+                || policy instanceof AtMostNBoundPolicy
+                || policy instanceof AtMostNPolicy).forEach(policy ->
                         results.put(policy
                             .getPolicyDefinition().getId(),
                                 getProviderType(policy),
@@ -293,6 +296,12 @@ public class PolicyManager {
             providerGroup =  policy.getProviderPolicyEntities().getGroup();
         } else if  (placementPolicy instanceof BindToComplementaryGroupPolicy) {
             BindToComplementaryGroupPolicy policy = (BindToComplementaryGroupPolicy)placementPolicy;
+            providerGroup = policy.getProviderPolicyEntities().getGroup();
+        } else if  (placementPolicy instanceof AtMostNBoundPolicy) {
+            AtMostNBoundPolicy policy = (AtMostNBoundPolicy)placementPolicy;
+            providerGroup = policy.getProviderPolicyEntities().getGroup();
+        } else if  (placementPolicy instanceof AtMostNPolicy) {
+            AtMostNPolicy policy = (AtMostNPolicy)placementPolicy;
             providerGroup = policy.getProviderPolicyEntities().getGroup();
         } else {
             // should never reach here. The method should be called only for BindToGroupPolicy

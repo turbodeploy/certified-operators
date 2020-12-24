@@ -11,6 +11,11 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.Table;
 import com.google.common.collect.Table.Cell;
 
+import io.grpc.stub.StreamObserver;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
@@ -19,12 +24,12 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.UpdateConstraintMapRequest;
-import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.UpdateConstraintMapResponse;
+import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceStub;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.components.common.pipeline.Pipeline.Status;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -38,7 +43,13 @@ import com.vmturbo.topology.processor.group.policy.PolicyManager;
 public class GenerateConstraintMap {
     private final PolicyManager policyManager;
     private final GroupServiceBlockingStub groupServiceClient;
-    private final ReservationServiceBlockingStub reservationService;
+    private final ReservationServiceStub reservationService;
+    // Logger
+    private static final Logger logger = LogManager.getLogger();
+    /**
+     * prefix for initial placement log messages.
+     */
+    private final String logPrefix = "FindInitialPlacement: ";
 
     /**
      * constructor for GenerateConstraintMap.
@@ -50,7 +61,7 @@ public class GenerateConstraintMap {
     public GenerateConstraintMap(
             @Nonnull final PolicyManager policyManager,
             @Nonnull final GroupServiceBlockingStub groupServiceClient,
-            @Nonnull final ReservationServiceBlockingStub reservationService
+            @Nonnull final ReservationServiceStub reservationService
     ) {
         this.policyManager = policyManager;
         this.groupServiceClient = groupServiceClient;
@@ -62,13 +73,47 @@ public class GenerateConstraintMap {
      * The constraints taken care of are cluster, datacenter and placement policy.
      * @param topologyGraph the input topology graph.
      * @param groupResolver The resolver for the groups that the policy applies to.
-     * @return success if the map is successfully loaded in the plan orchestrator.
+     * @return the constraint map send to the plan orchestrator.
      */
-    public Status createMap(@Nonnull final TopologyGraph<TopologyEntity> topologyGraph, GroupResolver groupResolver) {
+    public UpdateConstraintMapRequest createMap(@Nonnull final TopologyGraph<TopologyEntity> topologyGraph, GroupResolver groupResolver) {
 
         UpdateConstraintMapRequest.Builder updateConstraintMapRequest =
                 UpdateConstraintMapRequest.newBuilder();
 
+        updateClusters(topologyGraph, updateConstraintMapRequest);
+        updateNetworks(topologyGraph, updateConstraintMapRequest);
+        updateDatacenter(topologyGraph, updateConstraintMapRequest);
+        updatePolicies(topologyGraph, groupResolver, updateConstraintMapRequest);
+
+        UpdateConstraintMapRequest constraintMapRequest = updateConstraintMapRequest.build();
+        StreamObserver<UpdateConstraintMapResponse> response =
+                new StreamObserver<UpdateConstraintMapResponse>() {
+
+                    @Override
+                    public void onNext(UpdateConstraintMapResponse
+                                               updateConstraintMapResponse) {
+                    }
+
+                    @Override
+                    public void onError(Throwable throwable) {
+                        logger.error(logPrefix + "Failed to update PO with ConstraintMap");
+                    }
+
+                    @Override
+                    public void onCompleted() {
+                    }
+                };
+        reservationService.updateConstraintMap(constraintMapRequest, response);
+        return constraintMapRequest;
+    }
+
+    /**
+     * Identifies the commodities that the reservation instance has to buy if the user selects cluster.
+     * @param topologyGraph the input topology graph.
+     * @param updateConstraintMapRequest constraint map send to the plan orchestrator.
+     */
+    private void updateClusters(@Nonnull final TopologyGraph<TopologyEntity> topologyGraph,
+                                UpdateConstraintMapRequest.Builder updateConstraintMapRequest) {
         //go over all the clusters..Find all members(hosts) of the cluster. Pick a random
         //host. Find the cluster commodity sold by the host. Find the key associated with the
         //commodity.
@@ -88,13 +133,9 @@ public class GenerateConstraintMap {
                     .addAllId(allClusterIds).build());
             while (membersResponseIterator.hasNext()) {
                 GetMembersResponse membersResponse = membersResponseIterator.next();
-                if (!membersResponse.getMemberIdList().isEmpty()) {
-                    Optional<Long> providerOidOptional = membersResponse.getMemberIdList()
-                            .stream().findFirst();
-                    if (!providerOidOptional.isPresent()) {
-                        continue;
-                    }
-                    Long providerOid = providerOidOptional.get();
+                boolean foundCommodityKey = false;
+                List<String> storageClusterCommodities = new ArrayList<>();
+                for (long providerOid : membersResponse.getMemberIdList()) {
                     Optional<TopologyEntity> providerOptional = topologyGraph.getEntity(providerOid);
                     if (!providerOptional.isPresent()) {
                         continue;
@@ -112,10 +153,26 @@ public class GenerateConstraintMap {
                                 .setProviderType(EntityType.PHYSICAL_MACHINE_VALUE)
                                 .setType(Type.CLUSTER).build());
                     } else if (provider.getTypeSpecificInfo().hasStorage()) {
-                        String key = provider.getTopologyEntityDtoBuilder().getCommoditySoldListList().stream()
+                        // Storage can belong to multiple storage cluster.
+                        // Keep intersecting the storage
+                        // cluster commodities sold by the storage in this
+                        // cluster until we get to a single entry
+                        List<String> currentStorageClusterCommodities = provider
+                                .getTopologyEntityDtoBuilder()
+                                .getCommoditySoldListList().stream()
                                 .filter(a -> a.getCommodityType().getType()
-                                        == CommodityType.STORAGE_CLUSTER_VALUE).findFirst().get()
-                                .getCommodityType().getKey();
+                                        == CommodityType.STORAGE_CLUSTER_VALUE)
+                                .map(b -> b.getCommodityType().getKey())
+                                .collect(Collectors.toList());
+                        if (storageClusterCommodities.isEmpty()) {
+                            storageClusterCommodities.addAll(currentStorageClusterCommodities);
+                        } else {
+                            storageClusterCommodities.retainAll(currentStorageClusterCommodities);
+                        }
+                        if (storageClusterCommodities.size() != 1) {
+                            continue;
+                        }
+                        String key = storageClusterCommodities.get(0);
                         updateConstraintMapRequest.addReservationContraintInfo(ReservationConstraintInfo
                                 .newBuilder()
                                 .setKey(key)
@@ -123,10 +180,46 @@ public class GenerateConstraintMap {
                                 .setProviderType(EntityType.STORAGE_VALUE)
                                 .setType(Type.STORAGE_CLUSTER).build());
                     }
+                    foundCommodityKey = true;
+                    break;
+                }
+                if (!foundCommodityKey) {
+                    logger.error(logPrefix + "Failed to find the commodity key for cluster with ID: "
+                            + membersResponse.getGroupId());
                 }
             }
         }
+    }
 
+    /**
+     * Identifies the commodities that the reservation instance has to buy if the user selects network.
+     * @param topologyGraph the input topology graph.
+     * @param updateConstraintMapRequest constraint map send to the plan orchestrator.
+     */
+    private void updateNetworks(@Nonnull final TopologyGraph<TopologyEntity> topologyGraph,
+                                UpdateConstraintMapRequest.Builder updateConstraintMapRequest) {
+        // go over all the networks.
+        final List<TopologyEntity> allNetworks = topologyGraph
+                .entitiesOfType(EntityType.NETWORK).collect(Collectors.toList());
+        for (TopologyEntity network : allNetworks) {
+            String key = "Network::" + network.getDisplayName();
+            updateConstraintMapRequest.addReservationContraintInfo(ReservationConstraintInfo
+                    .newBuilder()
+                    .setKey(key)
+                    .setConstraintId(network.getOid())
+                    .setProviderType(EntityType.PHYSICAL_MACHINE_VALUE)
+                    .setType(Type.NETWORK).build());
+        }
+
+    }
+
+    /**
+     * Identifies the commodities that the reservation instance has to buy if the user selects dataCenter.
+     * @param topologyGraph the input topology graph.
+     * @param updateConstraintMapRequest constraint map send to the plan orchestrator.
+     */
+    private void updateDatacenter(@Nonnull final TopologyGraph<TopologyEntity> topologyGraph,
+                                UpdateConstraintMapRequest.Builder updateConstraintMapRequest) {
         // go over all the datacenter. Find a host in the datacenter. Find the
         // data center commodity sold by the host. Find the key associated with the
         // commodity.
@@ -152,7 +245,17 @@ public class GenerateConstraintMap {
                 }
             }
         }
+    }
 
+    /**
+     * Identifies the commodities that the reservation instance has to buy if the user selects placement policy.
+     * @param topologyGraph the input topology graph.
+     * @param groupResolver The resolver for the groups that the policy applies to.
+     * @param updateConstraintMapRequest constraint map send to the plan orchestrator.
+     */
+    private void updatePolicies(@Nonnull final TopologyGraph<TopologyEntity> topologyGraph,
+                                GroupResolver groupResolver,
+                                UpdateConstraintMapRequest.Builder updateConstraintMapRequest) {
         // go over all the policies and find the key of the segmentaion commodity
         // associated with the placement policy and also the provider type of the entity.
         Table<Long, Integer, TopologyDTO.CommodityType> placementPolicyIdToCommodityType = policyManager
@@ -166,11 +269,6 @@ public class GenerateConstraintMap {
                     .setProviderType(cell.getColumnKey())
                     .setType(Type.POLICY).build());
         }
-
-        // TODO handle VDC, storage clusters and Network constraints
-
-        reservationService.updateConstraintMap(updateConstraintMapRequest.build());
-        return Status.success();
     }
 
 }

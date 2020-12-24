@@ -71,9 +71,7 @@ public class CommodityTypeAllocator {
         for (Map.Entry<Integer, CommodityType> e : commoditySpecMap.entrySet()) {
             Integer type = e.getKey();
             CommodityType topologyCommType = e.getValue();
-            if (reservationConstraintCommodities.contains(topologyCommType.getType())) {
-                commTypeToSpecMap.putIfAbsent(topologyCommType, type);
-            }
+            commTypeToSpecMap.putIfAbsent(topologyCommType, type);
         }
         return commTypeToSpecMap;
     }

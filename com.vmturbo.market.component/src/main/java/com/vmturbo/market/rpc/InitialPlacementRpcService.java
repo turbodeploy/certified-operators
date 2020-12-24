@@ -16,9 +16,13 @@ import com.vmturbo.common.protobuf.market.InitialPlacement.DeleteInitialPlacemen
 import com.vmturbo.common.protobuf.market.InitialPlacement.DeleteInitialPlacementBuyerResponse;
 import com.vmturbo.common.protobuf.market.InitialPlacement.FindInitialPlacementRequest;
 import com.vmturbo.common.protobuf.market.InitialPlacement.FindInitialPlacementResponse;
+import com.vmturbo.common.protobuf.market.InitialPlacement.GetProvidersOfExistingReservationsRequest;
+import com.vmturbo.common.protobuf.market.InitialPlacement.GetProvidersOfExistingReservationsResponse;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyerPlacementInfo;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementFailure;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementSuccess;
+import com.vmturbo.common.protobuf.market.InitialPlacement.UpdateHistoricalCachedEconomyRequest;
+import com.vmturbo.common.protobuf.market.InitialPlacement.UpdateHistoricalCachedEconomyResponse;
 import com.vmturbo.common.protobuf.market.InitialPlacementServiceGrpc.InitialPlacementServiceImplBase;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason;
@@ -33,6 +37,12 @@ import com.vmturbo.market.reservations.InitialPlacementFinderResult.FailureInfo;
 public class InitialPlacementRpcService extends InitialPlacementServiceImplBase {
     private final Logger logger = LogManager.getLogger();
 
+    /**
+     * prefix for initial placement log messages.
+     */
+    private final String logPrefix = "FindInitialPlacement: ";
+
+
     private final InitialPlacementFinder initPlacementFinder;
 
     /**
@@ -45,10 +55,27 @@ public class InitialPlacementRpcService extends InitialPlacementServiceImplBase 
     }
 
     @Override
+    public void getProvidersOfExistingReservations(final GetProvidersOfExistingReservationsRequest request,
+                                                           final StreamObserver<GetProvidersOfExistingReservationsResponse> responseObserver) {
+        GetProvidersOfExistingReservationsResponse response =
+                initPlacementFinder.buildGetProvidersOfExistingReservationsResponse();
+        try {
+            responseObserver.onNext(response);
+            responseObserver.onCompleted();
+        } catch (Exception e) {
+            responseObserver.onError(Status.INTERNAL
+                    .withDescription("Failed to create ProvidersOfExistingReservations.")
+                    .asException());
+        }
+        return;
+    }
+
+    @Override
     public void findInitialPlacement(final FindInitialPlacementRequest request,
                                      final StreamObserver<FindInitialPlacementResponse> responseObserver) {
-        logger.info("The number of workloads to find inital placement is " + request.getInitialPlacementBuyerList().size());
-        Table<Long, Long, InitialPlacementFinderResult> result = initPlacementFinder.findPlacement(request.getInitialPlacementBuyerList());
+        logger.info(logPrefix + "The number of workloads to find initial placement is " + request.getInitialPlacementBuyerList().size());
+        Table<Long, Long, InitialPlacementFinderResult> result = initPlacementFinder
+                .findPlacement(request.getInitialPlacementBuyerList());
         FindInitialPlacementResponse.Builder response = FindInitialPlacementResponse.newBuilder();
         for (Table.Cell<Long, Long, InitialPlacementFinderResult> triplet : result.cellSet()) {
             InitialPlacementBuyerPlacementInfo.Builder builder = InitialPlacementBuyerPlacementInfo
@@ -58,9 +85,13 @@ public class InitialPlacementRpcService extends InitialPlacementServiceImplBase 
             // InitialPlacementFinderResult provider oid exist means placement succeeded
             InitialPlacementFinderResult reservationResult = triplet.getValue();
             if (reservationResult.getProviderOid().isPresent()) {
-                builder.setInitialPlacementSuccess(
-                        InitialPlacementSuccess.newBuilder().setProviderOid(reservationResult
-                                .getProviderOid().get()));
+                InitialPlacementSuccess.Builder successBuilder = InitialPlacementSuccess.newBuilder()
+                        .setProviderOid(reservationResult.getProviderOid().get())
+                        .addAllCommodityStats(reservationResult.getClusterStats());
+                if (reservationResult.getClusterComm().isPresent()) {
+                    successBuilder.setCluster(reservationResult.getClusterComm().get());
+                }
+                builder.setInitialPlacementSuccess(successBuilder);
             } else {
                 InitialPlacementFailure.Builder failureBuilder = InitialPlacementFailure.newBuilder();
                 for (FailureInfo info: triplet.getValue().getFailureInfoList()) {
@@ -91,7 +122,7 @@ public class InitialPlacementRpcService extends InitialPlacementServiceImplBase 
     @Override
     public void deleteInitialPlacementBuyer(final DeleteInitialPlacementBuyerRequest request,
                                             final StreamObserver<DeleteInitialPlacementBuyerResponse> responseObserver) {
-        logger.info("The number of workloads to delete is " + request.getBuyerIdList().size());
+        logger.info(logPrefix + "The number of workloads to delete is " + request.getBuyerIdList().size());
         boolean remove = initPlacementFinder.buyersToBeDeleted(request.getBuyerIdList());
         DeleteInitialPlacementBuyerResponse.Builder response = DeleteInitialPlacementBuyerResponse
                 .newBuilder().setResult(remove);
@@ -107,5 +138,22 @@ public class InitialPlacementRpcService extends InitialPlacementServiceImplBase 
 
     }
 
+    @Override
+    public void updateHistoricalCachedEconomy(final UpdateHistoricalCachedEconomyRequest request,
+                                      final StreamObserver<UpdateHistoricalCachedEconomyResponse> responseObserver) {
+        logger.info(logPrefix + "Received a request to update historical cache from Plan Orchestrator");
+        initPlacementFinder.clearHistoricalCachedEconomy();
+        UpdateHistoricalCachedEconomyResponse.Builder response = UpdateHistoricalCachedEconomyResponse
+                .newBuilder();
+        try {
+            responseObserver.onNext(response.build());
+            responseObserver.onCompleted();
+        } catch (Exception e) {
+            responseObserver.onError(Status.INTERNAL
+                    .withDescription("Failed to update historical cached economy.")
+                    .asException());
+        }
+        return;
+    }
 
 }

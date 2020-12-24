@@ -80,6 +80,7 @@ import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
 import com.vmturbo.plan.orchestrator.project.ProjectPlanPostProcessor;
+import com.vmturbo.plan.orchestrator.reservation.ReservationManager;
 import com.vmturbo.plan.orchestrator.templates.TemplatesDao;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -148,6 +149,8 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
 
     private Runnable onFailureHandler;
 
+    private final ReservationManager reservationManager;
+
     /**
      * A constant holding a big number of days when exhaustion days is infinite.
      */
@@ -189,6 +192,7 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
      * @param groupChannel Access to group's gRPC services.
      * @param templatesDao Access to templates.
      * @param cpuCapacityEstimator estimates the scaling factor of a cpu model.
+     * @param reservationManager the reservation manager.
      */
     public ClusterHeadroomPlanPostProcessor(final long planId,
                                             @Nonnull final Set<Long> clusterIds,
@@ -197,7 +201,8 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
                                             @Nonnull final PlanDao planDao,
                                             @Nonnull final Channel groupChannel,
                                             @Nonnull final TemplatesDao templatesDao,
-                                            @Nonnull final CPUCapacityEstimator cpuCapacityEstimator) {
+                                            @Nonnull final CPUCapacityEstimator cpuCapacityEstimator,
+                                            @Nonnull final ReservationManager reservationManager) {
         this.planId = planId;
         this.statsHistoryService =
             StatsHistoryServiceGrpc.newBlockingStub(Objects.requireNonNull(historyChannel));
@@ -215,6 +220,7 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
                 .addAllId(clusterIds))
             .build())
             .forEachRemaining(this.clusters::add);
+        this.reservationManager = reservationManager;
     }
 
     @Override
@@ -243,6 +249,9 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
                 logger.info("Cluster headroom plan for cluster {} was stopped!", displayName);
             } else {
                 logger.info("Cluster headroom plan for cluster {} completed!", displayName);
+                // Once the cluster headroom is successful we have to fetch the providers
+                // of reservations which was updated by the market.
+                reservationManager.getProvidersOfExistingReservations();
             }
 
             try {

@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
+import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.ImmutableMap;
 
 import org.junit.Assert;
@@ -31,6 +32,10 @@ import com.vmturbo.common.protobuf.group.GroupDTOMoles;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.UpdateConstraintMapRequest;
+import com.vmturbo.common.protobuf.plan.ReservationDTOMoles;
+import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc;
+import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceStub;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
@@ -48,6 +53,7 @@ import com.vmturbo.components.common.pipeline.Pipeline.PipelineStageException;
 import com.vmturbo.components.common.pipeline.Pipeline.StageResult;
 import com.vmturbo.components.common.pipeline.Pipeline.Status;
 import com.vmturbo.matrix.component.TheMatrix;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.TopologyEntity;
@@ -92,6 +98,7 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.ChangeAppCommodit
 import com.vmturbo.topology.processor.topology.pipeline.Stages.DummySettingsResolutionStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.EntityValidationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.EphemeralEntityHistoryStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.GenerateConstraintMapStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.GraphCreationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PlanScopingStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PolicyStage;
@@ -115,10 +122,18 @@ public class StagesTest {
             .setEntityType(10)
             .setOid(7L);
 
+    final TopologyEntityDTO.Builder networkEntity = TopologyEntityDTO.newBuilder()
+            .setEntityType(10)
+            .setDisplayName("VM-Network")
+            .setOid(7L);
+
     @SuppressWarnings("unchecked")
     final StitchingJournal<TopologyEntity> journal = mock(StitchingJournal.class);
 
     private GrpcTestServer testServer;
+
+    private GrpcTestServer reservationServer;
+
 
     @Test
     public void testUploadGroupsStage() {
@@ -580,6 +595,48 @@ public class StagesTest {
         final EntityValidationStage entityValidationStage = new EntityValidationStage(entityValidator, false);
         entityValidationStage.passthrough(graphWithSettings);
         verify(entityValidator).validateTopologyEntities(any(), eq(false));
+    }
+
+    /**
+     * test GenerateConstraintMapStage.
+     * @throws Exception during server start.
+     */
+    @Test
+    public void testGenerateConstraintMap() throws Exception {
+        final GroupDTOMoles.GroupServiceMole groupServiceMole =
+                spy(GroupDTOMoles.GroupServiceMole.class);
+        testServer = GrpcTestServer.newServer(groupServiceMole);
+        testServer.start();
+        final GroupServiceBlockingStub groupService = GroupServiceGrpc
+                .newBlockingStub(testServer.getChannel());
+
+        final ReservationDTOMoles.ReservationServiceMole reservationServiceMole =
+                spy(ReservationDTOMoles.ReservationServiceMole.class);
+        reservationServer = GrpcTestServer.newServer(reservationServiceMole);
+        reservationServer.start();
+        ReservationServiceStub reservationService = ReservationServiceGrpc
+                .newStub(reservationServer.getChannel());
+
+        final GroupResolver groupResolver = mock(GroupResolver.class);
+        PolicyManager policyManager = mock(PolicyManager.class);
+
+        final TopologyGraph<TopologyEntity> topologyGraph = mock(TopologyGraph.class);
+        final GenerateConstraintMapStage generateConstraintMapStage =
+                new GenerateConstraintMapStage(policyManager, groupService, reservationService);
+        final TopologyEntity entity = TopologyEntity.newBuilder(this.networkEntity).build();
+        when(topologyGraph.entitiesOfType(EntityType.NETWORK))
+                .thenReturn(Stream.of(entity));
+        when(topologyGraph.entitiesOfType(EntityType.DATACENTER))
+                .thenReturn(Stream.empty());
+        when(policyManager.getPlacementPolicyIdToCommodityType(any(), any()))
+                .thenReturn(HashBasedTable.create());
+        UpdateConstraintMapRequest updateConstraintMapRequest =
+                generateConstraintMapStage.getGenerateConstraintMap()
+                        .createMap(topologyGraph, groupResolver);
+        testServer.close();
+        reservationServer.close();
+        Assert.assertEquals("Network::VM-Network",
+                updateConstraintMapRequest.getReservationContraintInfoList().get(0).getKey());
     }
 
     @Test

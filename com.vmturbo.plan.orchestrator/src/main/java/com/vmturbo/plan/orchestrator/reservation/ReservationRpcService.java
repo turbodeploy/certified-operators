@@ -21,6 +21,8 @@ import org.springframework.dao.DataIntegrityViolationException;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.CreateReservationRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.DeleteReservationByIdRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.GetAllReservationsRequest;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.GetBuyersOfExistingReservationsRequest;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.GetBuyersOfExistingReservationsResponse;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.GetReservationByIdRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.GetReservationByStatusRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
@@ -66,6 +68,37 @@ public class ReservationRpcService extends ReservationServiceImplBase {
         this.reservationDao = Objects.requireNonNull(reservationDao);
         this.reservationManager = Objects.requireNonNull(reservationManager);
 
+    }
+
+    /**
+     * rpc call to get all the buyers associated with RESERVED reservations.
+     * @param request this is a dummy request with nothing in it.
+     * @param responseObserver response with all the buyers.
+     */
+    @Override
+    public void getBuyersOfExistingReservations(GetBuyersOfExistingReservationsRequest request,
+                                                StreamObserver<GetBuyersOfExistingReservationsResponse> responseObserver) {
+
+        try {
+            final Set<Reservation> reservations = new HashSet<>();
+            reservationDao.getAllReservations().forEach(reservation -> {
+                if (reservation.getStatus() == ReservationStatus.RESERVED) {
+                    reservations.add(reservation);
+                }
+            });
+            GetBuyersOfExistingReservationsResponse.Builder response
+                    = GetBuyersOfExistingReservationsResponse.newBuilder();
+            reservationManager.buildInitialPlacementBuyerList(reservations).stream()
+                    .forEach(buyer -> response.addInitialPlacementBuyer(buyer));
+
+            responseObserver.onNext(response.build());
+            responseObserver.onCompleted();
+        } catch (Exception e) {
+            responseObserver.onError(Status.INTERNAL
+                    .withDescription("Failed to send existing reservation.")
+                    .asException());
+        }
+        return;
     }
 
 
@@ -238,8 +271,7 @@ public class ReservationRpcService extends ReservationServiceImplBase {
                 } else if (reservation.getStatus() == ReservationStatus.FUTURE
                         && reservationManager.isReservationActiveNow(reservation)) {
                     reservationsToStart.add(reservation);
-                } else if (reservation.getStatus() == ReservationStatus.INVALID
-                        || reservation.getStatus() == ReservationStatus.PLACEMENT_FAILED) {
+                } else if (reservation.getStatus() == ReservationStatus.INVALID) {
                     // Reservations that are invalid may have become valid (e.g. if the entity
                     // they are constrained by was temporarily absent from the Topology).
                     // Also retry the failed reservations now.
