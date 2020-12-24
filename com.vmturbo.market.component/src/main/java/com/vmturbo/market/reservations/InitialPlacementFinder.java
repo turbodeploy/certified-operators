@@ -246,7 +246,7 @@ public class InitialPlacementFinder {
                         b.getInitialPlacementCommoditiesBoughtFromProviderList().stream()
                                 .map(sl -> sl.getCommoditiesBoughtFromProviderId())
                                 .forEach(id -> emptyDecisions.add(new InitialPlacementDecision(
-                                        b.getBuyerId(), Optional.of(id), new ArrayList())));
+                                        b.getBuyerId(), Optional.empty(), new ArrayList())));
                         initialPlacements.put(b.getBuyerId(), emptyDecisions);
                     });
                 }

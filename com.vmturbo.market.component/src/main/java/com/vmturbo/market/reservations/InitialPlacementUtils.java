@@ -599,7 +599,6 @@ public final class InitialPlacementUtils {
         Set<Integer> clusterCommSpecSet = clusterCommPerSl.values().stream()
                 .map(c -> commTypeMap.get(c)).collect(Collectors.toSet());
         Set<Long> ineligibleSellers = new HashSet();
-        economy.clearSellersFromMarkets();
         economy.getTraders().stream().forEach(t -> {
             if (t.getBasketSold().stream().anyMatch(cs -> clusterCommSpecSet.contains(cs.getType()))) {
                 // make all sellers that sell this cluster comm as CanAcceptNewCustomer false

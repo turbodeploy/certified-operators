@@ -291,9 +291,9 @@ public class ReservationManager implements ReservationDeletedListener {
         for (InitialPlacementBuyerPlacementInfo initialPlacementBuyerPlacementInfo : initialPlacementBuyerPlacementInfos) {
             Reservation currentReservation = buyerIdToReservation.get(initialPlacementBuyerPlacementInfo.getBuyerId());
             if (currentReservation == null) {
-                logger.error(logPrefix + "The buyer id {} does not "
-                                + "correspond to any reservation in the request",
-                        initialPlacementBuyerPlacementInfo.getBuyerId());
+                logger.info(logPrefix + "The buyer id {} does not "
+                                + "correspond to any reservation with state {}",
+                        initialPlacementBuyerPlacementInfo.getBuyerId(), statusOfInterest);
                 continue;
             }
             Reservation reservation = (updatedReservations.get(currentReservation.getId()) == null)
