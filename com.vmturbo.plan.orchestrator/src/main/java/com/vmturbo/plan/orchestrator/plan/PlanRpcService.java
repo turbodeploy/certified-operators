@@ -137,14 +137,14 @@ public class PlanRpcService extends PlanServiceImplBase {
         logger.debug("Creating a plan {}", request::toString);
         try {
             final PlanInstance plan = planDao.createPlanInstance(request);
-            responseObserver.onNext(plan);
-            responseObserver.onCompleted();
             // save the user selected RI/Coupons included in the plan.
             PlanReservedInstanceClient planRIClient = new PlanReservedInstanceClient(
                          planRIService, reservedInstanceBoughtService, realtimeTopologyContextId);
             planRIClient.savePlanIncludedCoupons(plan, PlanRpcServiceUtil.getRIRequestScopeSeedIds(plan,
                     this.groupServiceClient, this.repositoryServiceClient, this.supplyChainService));
             logger.info("Plan {} successfully created", plan.getPlanId());
+            responseObserver.onNext(plan);
+            responseObserver.onCompleted();
         } catch (IntegrityException e) {
             logger.warn("Error creating a plan " + request, e);
             responseObserver.onError(
