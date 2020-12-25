@@ -9,17 +9,20 @@ import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
 
+import javax.annotation.Nonnull;
+
 import com.google.common.collect.Lists;
+
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 
 import org.junit.Before;
 import org.junit.Test;
-
-import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
@@ -49,7 +52,7 @@ public class CpuScalingFactorPostStitchingOperationTest {
 
     private CpuCapacityStore cpuCapacityStore = mock(CpuCapacityStore.class);
     private final CpuScalingFactorPostStitchingOperation operation =
-            new CpuScalingFactorPostStitchingOperation(cpuCapacityStore);
+            new CpuScalingFactorPostStitchingOperation(cpuCapacityStore, true);
     private EntityChangesBuilder<TopologyEntity> resultBuilder;
 
     private final EntitySettingsCollection settingsMock = mock(EntitySettingsCollection.class);
@@ -232,26 +235,33 @@ public class CpuScalingFactorPostStitchingOperationTest {
         final CommoditySoldDTO vcpuComm = makeCommoditySold(CommodityType.VCPU, CPU_CAPACITY);
         final CommoditySoldDTO vcpuLimitQuotaComm = makeCommoditySold(CommodityType.VCPU_LIMIT_QUOTA,
             CPU_CAPACITY);
+        final CommoditySoldDTO vcpuRequestComm = makeCommoditySold(CommodityType.VCPU_REQUEST, CPU_CAPACITY);
+        final CommoditySoldDTO vcpuRequestQuotaComm = makeCommoditySold(CommodityType.VCPU_REQUEST_QUOTA,
+            CPU_CAPACITY);
+
         final CommodityBoughtDTO vcpuBoughtComm = vcpuBoughtCommodity;
+        final CommodityBoughtDTO vcpuRequestBoughtComm = makeCommodityBought(CommodityType.VCPU_REQUEST);
+        final CommodityBoughtDTO vcpuLimitQuotaBoughtComm = makeCommodityBought(CommodityType.VCPU_LIMIT_QUOTA);
+        final CommodityBoughtDTO vcpuRequestQuotaBoughtComm = makeCommodityBought(CommodityType.VCPU_REQUEST_QUOTA);
 
         final TopologyEntity.Builder container = makeTopologyEntityBuilder(1L,
             EntityType.CONTAINER_VALUE,
-            Collections.singletonList(vcpuComm),
-            // Buying VCPU from pod.
-            Collections.singletonList(vcpuBoughtComm));
+            Arrays.asList(vcpuComm, vcpuRequestComm),
+            // Buying VCPU & Request from pod.
+            Arrays.asList(vcpuBoughtComm, vcpuRequestBoughtComm));
         final TopologyEntity.Builder pod = makeTopologyEntityBuilder(2L,
             EntityType.CONTAINER_POD_VALUE,
-            Collections.singletonList(vcpuComm),
-            // Buying VCPU bought from workload controller.
-            Collections.singletonList(vcpuBoughtComm));
+            Arrays.asList(vcpuComm, vcpuRequestComm),
+            // Buying VCPU & Request bought from workload controller.
+            Arrays.asList(vcpuBoughtComm, vcpuRequestBoughtComm));
         final TopologyEntity.Builder wc = makeTopologyEntityBuilder(3L,
             EntityType.WORKLOAD_CONTROLLER_VALUE,
-            Collections.singletonList(vcpuLimitQuotaComm),
-            // Buying VCPU bought from namespace.
-            Collections.singletonList(vcpuBoughtComm));
+            Arrays.asList(vcpuLimitQuotaComm, vcpuRequestQuotaComm),
+            // Buying VCPUQuota & RequestQuota bought from namespace.
+            Arrays.asList(vcpuLimitQuotaBoughtComm, vcpuRequestQuotaBoughtComm));
         final TopologyEntity.Builder ns = makeTopologyEntityBuilder(4L,
             EntityType.NAMESPACE_VALUE,
-            Collections.singletonList(vcpuLimitQuotaComm),
+            Arrays.asList(vcpuLimitQuotaComm, vcpuRequestQuotaComm),
             Collections.emptyList());
 
         container.addProvider(pod);
@@ -267,30 +277,148 @@ public class CpuScalingFactorPostStitchingOperationTest {
         final CommoditySoldDTO expectedVcpuComm = vcpuComm.toBuilder()
             .setScalingFactor(CPU_SCALE_FACTOR)
             .build();
-        final CommoditySoldDTO expectedCcpuLimitQuotaComm = vcpuLimitQuotaComm.toBuilder()
+        final CommoditySoldDTO expectedVcpuLimitQuotaComm = vcpuLimitQuotaComm.toBuilder()
             .setScalingFactor(CPU_SCALE_FACTOR)
             .build();
+        final CommoditySoldDTO expectedVcpuRequestComm = vcpuRequestComm.toBuilder()
+            .setScalingFactor(CPU_SCALE_FACTOR)
+            .build();
+        final CommoditySoldDTO expectedVcpuRequestQuotaComm = vcpuRequestQuotaComm.toBuilder()
+            .setScalingFactor(CPU_SCALE_FACTOR)
+            .build();
+
         final CommodityBoughtDTO expectedVcpuBoughtComm = vcpuBoughtComm.toBuilder()
+                .setScalingFactor(CPU_SCALE_FACTOR)
+                .build();
+        final CommodityBoughtDTO expectedLimitVcpuQuotaBoughtComm = vcpuLimitQuotaBoughtComm.toBuilder()
+                .setScalingFactor(CPU_SCALE_FACTOR)
+                .build();
+        final CommodityBoughtDTO expectedVcpuRequestBoughtComm = vcpuRequestBoughtComm.toBuilder()
+                .setScalingFactor(CPU_SCALE_FACTOR)
+                .build();
+        final CommodityBoughtDTO expectedVcpuRequestQuotaBoughtComm = vcpuRequestQuotaBoughtComm.toBuilder()
                 .setScalingFactor(CPU_SCALE_FACTOR)
                 .build();
 
         operation.updateScalingFactorForEntity(pod.build(), CPU_SCALE_FACTOR, new LongOpenHashSet());
 
-        List<CommoditySoldDTO> containerCommSoldList = container.getEntityBuilder().getCommoditySoldListList();
-        assertEquals(1, containerCommSoldList.size());
-        assertThat(containerCommSoldList, containsInAnyOrder(expectedVcpuComm));
+        assertSelling(container, expectedVcpuComm, expectedVcpuRequestComm);
+        assertBuying(container, expectedVcpuBoughtComm, expectedVcpuRequestBoughtComm);
 
-        List<CommoditySoldDTO> podCommSoldList = pod.getEntityBuilder().getCommoditySoldListList();
-        assertEquals(1, podCommSoldList.size());
-        assertThat(podCommSoldList, containsInAnyOrder(expectedVcpuComm));
+        assertSelling(pod, expectedVcpuComm, expectedVcpuRequestComm);
+        assertBuying(pod, expectedVcpuBoughtComm, expectedVcpuRequestBoughtComm);
 
-        List<CommoditySoldDTO> wcCommSoldList = wc.getEntityBuilder().getCommoditySoldListList();
-        assertEquals(1, wcCommSoldList .size());
-        assertThat(wcCommSoldList, containsInAnyOrder(expectedCcpuLimitQuotaComm));
+        assertSelling(wc, expectedVcpuLimitQuotaComm, expectedVcpuRequestQuotaComm);
+        assertBuying(wc, expectedLimitVcpuQuotaBoughtComm, expectedVcpuRequestQuotaBoughtComm);
 
-        List<CommoditySoldDTO> nsCommSoldList = wc.getEntityBuilder().getCommoditySoldListList();
-        assertEquals(1, nsCommSoldList .size());
-        assertThat(nsCommSoldList, containsInAnyOrder(expectedCcpuLimitQuotaComm));
+        assertSelling(ns, expectedVcpuLimitQuotaComm, expectedVcpuRequestQuotaComm);
     }
 
+    /**
+     * Some entities like namespaces may be connected to multiple hosts.
+     * In these cases, we would like the namespace to get the largest scalingFactor of all hosts
+     * that it is connected to.
+     */
+    @Test
+    public void testUpdateMaxScalingFactor() {
+        final CommoditySoldDTO vcpuLimitQuotaComm = makeCommoditySold(CommodityType.VCPU_LIMIT_QUOTA,
+            CPU_CAPACITY);
+        final CommodityBoughtDTO vcpuLimitQuotaBoughtComm =
+            makeCommodityBought(CommodityType.VCPU_LIMIT_QUOTA);
+
+        final TopologyEntity.Builder wc1 = makeTopologyEntityBuilder(3L,
+            EntityType.WORKLOAD_CONTROLLER_VALUE,
+            Collections.singletonList(vcpuLimitQuotaComm),
+            // Buying VCPUQuota & RequestQuota bought from namespace.
+            Collections.singletonList(vcpuLimitQuotaBoughtComm));
+        final TopologyEntity.Builder wc2 = makeTopologyEntityBuilder(4L,
+            EntityType.WORKLOAD_CONTROLLER_VALUE,
+            Collections.singletonList(vcpuLimitQuotaComm),
+            // Buying VCPUQuota & RequestQuota bought from namespace.
+            Collections.singletonList(vcpuLimitQuotaBoughtComm));
+        final TopologyEntity.Builder wc3 = makeTopologyEntityBuilder(5L,
+            EntityType.WORKLOAD_CONTROLLER_VALUE,
+            Collections.singletonList(vcpuLimitQuotaComm),
+            // Buying VCPUQuota & RequestQuota bought from namespace.
+            Collections.singletonList(vcpuLimitQuotaBoughtComm));
+
+        final TopologyEntity.Builder ns = makeTopologyEntityBuilder(4L,
+            EntityType.NAMESPACE_VALUE,
+            Collections.singletonList(vcpuLimitQuotaComm),
+            Collections.emptyList());
+        Stream.of(wc1, wc2, wc3).forEach(wc -> {
+            ns.addConsumer(wc);
+            wc.addProvider(ns);
+        });
+
+        final LongOpenHashSet visited = new LongOpenHashSet();
+        operation.updateScalingFactorForEntity(wc1.build(), 2.0, visited);
+        operation.updateScalingFactorForEntity(wc2.build(), 3.0, visited);
+        operation.updateScalingFactorForEntity(wc3.build(), 1.0, visited);
+        assertSelling(ns, vcpuLimitQuotaComm.toBuilder().setScalingFactor(3.0).build());
+    }
+
+    /**
+     * Some entities like namespaces may be connected to multiple hosts.
+     * In these cases, we would like the namespace to get the largest scalingFactor of all hosts
+     * that it is connected to. With heterogeneous scaling disabled we should just take
+     * the first update to the namespace.
+     */
+    @Test
+    public void testUpdateMaxScalingFactorHeterogeneousScalingDisabled() {
+        final CommoditySoldDTO vcpuLimitQuotaComm = makeCommoditySold(CommodityType.VCPU_LIMIT_QUOTA,
+            CPU_CAPACITY);
+        final CommodityBoughtDTO vcpuLimitQuotaBoughtComm =
+            makeCommodityBought(CommodityType.VCPU_LIMIT_QUOTA);
+
+        final TopologyEntity.Builder wc1 = makeTopologyEntityBuilder(3L,
+            EntityType.WORKLOAD_CONTROLLER_VALUE,
+            Collections.singletonList(vcpuLimitQuotaComm),
+            // Buying VCPUQuota & RequestQuota bought from namespace.
+            Collections.singletonList(vcpuLimitQuotaBoughtComm));
+        final TopologyEntity.Builder wc2 = makeTopologyEntityBuilder(4L,
+            EntityType.WORKLOAD_CONTROLLER_VALUE,
+            Collections.singletonList(vcpuLimitQuotaComm),
+            // Buying VCPUQuota & RequestQuota bought from namespace.
+            Collections.singletonList(vcpuLimitQuotaBoughtComm));
+        final TopologyEntity.Builder wc3 = makeTopologyEntityBuilder(5L,
+            EntityType.WORKLOAD_CONTROLLER_VALUE,
+            Collections.singletonList(vcpuLimitQuotaComm),
+            // Buying VCPUQuota & RequestQuota bought from namespace.
+            Collections.singletonList(vcpuLimitQuotaBoughtComm));
+
+        final TopologyEntity.Builder ns = makeTopologyEntityBuilder(4L,
+            EntityType.NAMESPACE_VALUE,
+            Collections.singletonList(vcpuLimitQuotaComm),
+            Collections.emptyList());
+        Stream.of(wc1, wc2, wc3).forEach(wc -> {
+            ns.addConsumer(wc);
+            wc.addProvider(ns);
+        });
+
+        // Test with consistentScalingOnHeterogenousSuppliers disabled. We should still early
+        // exit after the first update.
+        final LongOpenHashSet visited = new LongOpenHashSet();
+        final CpuScalingFactorPostStitchingOperation disabledOperation =
+            new CpuScalingFactorPostStitchingOperation(cpuCapacityStore, false);
+        visited.clear();
+        disabledOperation.updateScalingFactorForEntity(wc1.build(), 2.0, visited);
+        disabledOperation.updateScalingFactorForEntity(wc2.build(), 3.0, visited);
+        disabledOperation.updateScalingFactorForEntity(wc3.build(), 1.0, visited);
+        assertSelling(ns, vcpuLimitQuotaComm.toBuilder().setScalingFactor(2.0).build());
+    }
+
+    private static void assertSelling(@Nonnull final TopologyEntity.Builder entity,
+                                      @Nonnull final CommoditySoldDTO... expectedSold) {
+        final List<CommoditySoldDTO> sold = entity.getEntityBuilder().getCommoditySoldListList();
+        assertThat(sold, containsInAnyOrder(expectedSold));
+    }
+
+    private static void assertBuying(@Nonnull final TopologyEntity.Builder entity,
+                                     @Nonnull final CommodityBoughtDTO... expectedBought) {
+        final List<CommodityBoughtDTO> bought = entity.getEntityBuilder()
+            .getCommoditiesBoughtFromProvidersList().get(0)
+            .getCommodityBoughtList();
+        assertThat(bought, containsInAnyOrder(expectedBought));
+    }
 }

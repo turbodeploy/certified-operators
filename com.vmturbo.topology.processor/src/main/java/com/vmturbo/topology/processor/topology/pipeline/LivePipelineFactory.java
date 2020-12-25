@@ -164,6 +164,8 @@ public class LivePipelineFactory {
 
     private final int supplyChainValidationFrequency;
 
+    private final boolean enableConsistentScalingOnHeterogeneousProviders;
+
     private long broadcastCount = 0;
 
     public LivePipelineFactory(@Nonnull final TopoBroadcastManager topoBroadcastManager,
@@ -199,7 +201,8 @@ public class LivePipelineFactory {
             @Nonnull final ReservationServiceStub reservationService,
             @Nonnull final GroupResolverSearchFilterResolver searchFilterResolver,
             @Nonnull final GroupScopeResolver groupScopeResolver,
-            final int supplyChainValidationFrequency) {
+            final int supplyChainValidationFrequency,
+            final boolean enableConsistentScalingOnHeterogeneousProviders) {
         this.topoBroadcastManager = topoBroadcastManager;
         this.policyManager = policyManager;
         this.stitchingManager = stitchingManager;
@@ -234,6 +237,7 @@ public class LivePipelineFactory {
         this.searchFilterResolver = Objects.requireNonNull(searchFilterResolver);
         this.groupScopeResolver = Objects.requireNonNull(groupScopeResolver);
         this.supplyChainValidationFrequency = supplyChainValidationFrequency;
+        this.enableConsistentScalingOnHeterogeneousProviders = enableConsistentScalingOnHeterogeneousProviders;
     }
 
     /**
@@ -351,7 +355,7 @@ public class LivePipelineFactory {
                 .addStage(new ExtractTopologyGraphStage())
                 .addStage(new HistoricalUtilizationStage(historicalEditor))
                 .addStage(new RequestAndLimitCommodityThresholdsStage(requestAndLimitCommodityThresholdsInjector))
-                .addStage(new EphemeralEntityHistoryStage(ephemeralEntityEditor))
+                .addStage(new EphemeralEntityHistoryStage(ephemeralEntityEditor, enableConsistentScalingOnHeterogeneousProviders))
                 .addStage(new ProbeActionCapabilitiesApplicatorStage(applicatorEditor))
                 .addStage(new UploadAtomicActionSpecsStage(actionMergeSpecsUploader))
                 .addStage(new TopSortStage())

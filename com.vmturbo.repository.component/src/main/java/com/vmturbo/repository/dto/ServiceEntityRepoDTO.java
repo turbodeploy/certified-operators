@@ -63,6 +63,7 @@ public class ServiceEntityRepoDTO {
     private DesktopPoolInfoRepoDTO desktopPoolInfoRepoDTO;
     private BusinessUserInfoRepoDTO businessUserInfoRepoDTO;
     private WorkloadControllerInfoRepoDTO workloadControllerInfoRepoDTO;
+    private NamespaceInfoRepoDTO namespaceInfoRepoDTO;
 
     public String getUuid() {
         return uuid;
@@ -278,6 +279,14 @@ public class ServiceEntityRepoDTO {
 
     public void setWorkloadControllerInfoRepoDTO(final WorkloadControllerInfoRepoDTO workloadControllerInfoRepoDTO) {
         this.workloadControllerInfoRepoDTO = workloadControllerInfoRepoDTO;
+    }
+
+    public void setNamespaceInfoRepoDTO(final NamespaceInfoRepoDTO namespaceInfoRepoDTO) {
+        this.namespaceInfoRepoDTO = namespaceInfoRepoDTO;
+    }
+
+    public NamespaceInfoRepoDTO getNamespaceInfoRepoDTO() {
+        return namespaceInfoRepoDTO;
     }
 
     public EntityPipelineErrorsRepoDTO getEntityPipelineErrorsRepoDTO() {

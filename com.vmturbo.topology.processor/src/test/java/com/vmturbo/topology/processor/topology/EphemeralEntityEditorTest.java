@@ -1,8 +1,10 @@
 package com.vmturbo.topology.processor.topology;
 
 import static org.hamcrest.core.Is.is;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -23,13 +25,18 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
+import com.vmturbo.topology.processor.topology.EphemeralEntityEditor.EditSummary;
 
 /**
  * Tests {@link EphemeralEntityEditor}.
@@ -42,9 +49,14 @@ public class EphemeralEntityEditorTest {
 
     private final TopologyEntity container = mock(TopologyEntity.class);
 
+    private final TopologyEntity container2 = mock(TopologyEntity.class);
+
     private final EphemeralEntityEditor editor = new EphemeralEntityEditor();
 
     private final TopologyEntityDTO.Builder ephemeralBuilder = TopologyEntityDTO.newBuilder()
+        .setEntityType(EntityType.CONTAINER.getNumber());
+
+    private final TopologyEntityDTO.Builder ephemeralBuilder2 = TopologyEntityDTO.newBuilder()
         .setEntityType(EntityType.CONTAINER.getNumber());
 
     private final HistoricalValues peakValues = HistoricalValues.newBuilder()
@@ -94,6 +106,9 @@ public class EphemeralEntityEditorTest {
 
         when(container.getEntityType()).thenReturn(EntityType.CONTAINER.getNumber());
         when(container.getTopologyEntityDtoBuilder()).thenReturn(ephemeralBuilder);
+
+        when(container2.getEntityType()).thenReturn(EntityType.CONTAINER.getNumber());
+        when(container2.getTopologyEntityDtoBuilder()).thenReturn(ephemeralBuilder2);
     }
 
     /**
@@ -102,7 +117,7 @@ public class EphemeralEntityEditorTest {
     @Test
     public void testEmptyGraph() {
         when(graph.entitiesOfType(EntityType.CONTAINER_SPEC.getNumber())).thenReturn(Stream.empty());
-        editor.applyEdits(graph);
+        editor.applyEdits(graph, true);
     }
 
     /**
@@ -114,7 +129,7 @@ public class EphemeralEntityEditorTest {
         when(graph.entitiesOfType(EntityType.CONTAINER_SPEC.getNumber())).thenReturn(Stream.of(containerSpec));
         when(containerSpec.getAggregatedEntities()).thenReturn(Collections.emptyList());
 
-        editor.applyEdits(graph);
+        editor.applyEdits(graph, true);
     }
 
     /**
@@ -127,7 +142,7 @@ public class EphemeralEntityEditorTest {
         when(containerSpec.getAggregatedEntities()).thenReturn(Collections.singletonList(container));
         when(containerSpec.soldCommoditiesByType()).thenReturn(Collections.emptyMap());
 
-        editor.applyEdits(graph);
+        editor.applyEdits(graph, true);
     }
 
     /**
@@ -145,7 +160,7 @@ public class EphemeralEntityEditorTest {
         final CommoditySoldDTO beforeEdits = ephemeralCommSold.build();
         ephemeralBuilder.addCommoditySoldList(ephemeralCommSold);
 
-        editor.applyEdits(graph);
+        editor.applyEdits(graph, true);
         assertThat(ephemeralBuilder.getCommoditySoldList(0), matchesHistory(beforeEdits));
     }
 
@@ -163,7 +178,7 @@ public class EphemeralEntityEditorTest {
             .setCommodityType(CommodityType.newBuilder().setType(COMM_1_TYPE));
         ephemeralBuilder.addCommoditySoldList(ephemeralCommSold);
 
-        editor.applyEdits(graph);
+        editor.applyEdits(graph, true);
         assertThat(ephemeralBuilder.getCommoditySoldList(0), matchesHistory(sold1));
     }
 
@@ -182,7 +197,7 @@ public class EphemeralEntityEditorTest {
         final CommoditySoldDTO beforeEdits = ephemeralCommSold.build();
         ephemeralBuilder.addCommoditySoldList(ephemeralCommSold);
 
-        editor.applyEdits(graph);
+        editor.applyEdits(graph, true);
         assertThat(ephemeralBuilder.getCommoditySoldList(0), matchesHistory(beforeEdits));
     }
 
@@ -200,7 +215,7 @@ public class EphemeralEntityEditorTest {
             .setCommodityType(CommodityType.newBuilder().setType(COMM_2_TYPE).setKey("foo"));
         ephemeralBuilder.addCommoditySoldList(ephemeralCommSold);
 
-        editor.applyEdits(graph);
+        editor.applyEdits(graph, true);
         assertThat(ephemeralBuilder.getCommoditySoldList(0), matchesHistory(sold2WithKey));
     }
 
@@ -220,7 +235,7 @@ public class EphemeralEntityEditorTest {
             .setIsResizeable(false);
         ephemeralBuilder.addCommoditySoldList(ephemeralCommSold);
 
-        editor.applyEdits(graph);
+        editor.applyEdits(graph, true);
         assertThat(ephemeralBuilder.getCommoditySoldList(0).getIsResizeable(), is(false));
     }
 
@@ -239,7 +254,7 @@ public class EphemeralEntityEditorTest {
             .setIsResizeable(true);
         ephemeralBuilder.addCommoditySoldList(ephemeralCommSold);
 
-        editor.applyEdits(graph);
+        editor.applyEdits(graph, true);
         assertThat(ephemeralBuilder.getCommoditySoldList(0).getIsResizeable(), is(false));
     }
 
@@ -260,7 +275,7 @@ public class EphemeralEntityEditorTest {
         ephemeralBuilder.addCommoditySoldList(first);
         ephemeralBuilder.addCommoditySoldList(second);
 
-        editor.applyEdits(graph);
+        editor.applyEdits(graph, true);
         assertThat(ephemeralBuilder.getCommoditySoldList(0), matchesHistory(sold1));
         assertThat(ephemeralBuilder.getCommoditySoldList(1), matchesHistory(sold2NoKey));
     }
@@ -271,13 +286,6 @@ public class EphemeralEntityEditorTest {
      */
     @Test
     public void testMultipleEntities() {
-        final TopologyEntity container2 = mock(TopologyEntity.class);
-        final TopologyEntityDTO.Builder ephemeralBuilder2 = TopologyEntityDTO.newBuilder()
-            .setEntityType(EntityType.CONTAINER.getNumber());
-
-        when(container2.getEntityType()).thenReturn(EntityType.CONTAINER.getNumber());
-        when(container2.getTopologyEntityDtoBuilder()).thenReturn(ephemeralBuilder2);
-
         when(graph.entitiesOfType(EntityType.CONTAINER_SPEC.getNumber())).thenReturn(Stream.of(containerSpec));
         when(containerSpec.getAggregatedEntities()).thenReturn(Arrays.asList(container, container2));
         when(containerSpec.soldCommoditiesByType()).thenReturn(persistentCommsSold);
@@ -291,7 +299,7 @@ public class EphemeralEntityEditorTest {
         ephemeralBuilder2.addCommoditySoldList(CommoditySoldDTO.newBuilder()
             .setCommodityType(CommodityType.newBuilder().setType(COMM_2_TYPE).setKey("foo")));
 
-        editor.applyEdits(graph);
+        editor.applyEdits(graph, true);
         assertThat(ephemeralBuilder.getCommoditySoldList(0), matchesHistory(sold1));
         assertThat(ephemeralBuilder.getCommoditySoldList(1), matchesHistory(sold2NoKey));
         assertThat(ephemeralBuilder2.getCommoditySoldList(0), matchesHistory(sold2WithKey));
@@ -303,13 +311,6 @@ public class EphemeralEntityEditorTest {
      */
     @Test
     public void testDisableInconsistentCapacities() {
-        final TopologyEntity container2 = mock(TopologyEntity.class);
-        final TopologyEntityDTO.Builder ephemeralBuilder2 = TopologyEntityDTO.newBuilder()
-            .setEntityType(EntityType.CONTAINER.getNumber());
-
-        when(container2.getEntityType()).thenReturn(EntityType.CONTAINER.getNumber());
-        when(container2.getTopologyEntityDtoBuilder()).thenReturn(ephemeralBuilder2);
-
         when(graph.entitiesOfType(EntityType.CONTAINER_SPEC.getNumber())).thenReturn(Stream.of(containerSpec));
         when(containerSpec.getAggregatedEntities()).thenReturn(Arrays.asList(container, container2));
         when(containerSpec.soldCommoditiesByType()).thenReturn(persistentCommsSold);
@@ -327,7 +328,7 @@ public class EphemeralEntityEditorTest {
         ephemeralBuilder2.addCommoditySoldList(vcpuSold.setCapacity(11.0));
         ephemeralBuilder2.addCommoditySoldList(vcpuRequestSold.setCapacity(9.0));
 
-        editor.applyEdits(graph);
+        editor.applyEdits(graph, true);
         assertCommoditiesNotResizable(ephemeralBuilder);
         assertCommoditiesNotResizable(ephemeralBuilder2);
     }
@@ -338,31 +339,114 @@ public class EphemeralEntityEditorTest {
      */
     @Test
     public void testDisableInconsistentCapacitiesBecauseOfScalingFactor() {
+        when(graph.entitiesOfType(EntityType.CONTAINER_SPEC.getNumber())).thenReturn(Stream.of(containerSpec));
+        when(containerSpec.getAggregatedEntities()).thenReturn(Arrays.asList(container, container2));
+        when(containerSpec.soldCommoditiesByType()).thenReturn(persistentCommsSold);
+
+        ephemeralBuilder.addCommoditySoldList(vcpuSold());
+        ephemeralBuilder.addCommoditySoldList(vcpuRequestSold());
+        ephemeralBuilder2.addCommoditySoldList(vcpuSold().setScalingFactor(11.0));
+        ephemeralBuilder2.addCommoditySoldList(vcpuRequestSold().setCapacity(9.0));
+
+        editor.applyEdits(graph, true);
+        assertCommoditiesNotResizable(ephemeralBuilder);
+        assertCommoditiesNotResizable(ephemeralBuilder2);
+    }
+
+    /**
+     * Test that containers running on nodes with different speeds are still resizable
+     * when they have capacities that are consistent in millicores after applying
+     * the consistent scaling factor.
+     */
+    @Test
+    public void testSetConsistentScalingFactor() {
         final TopologyEntity container2 = mock(TopologyEntity.class);
         final TopologyEntityDTO.Builder ephemeralBuilder2 = TopologyEntityDTO.newBuilder()
             .setEntityType(EntityType.CONTAINER.getNumber());
 
         when(container2.getEntityType()).thenReturn(EntityType.CONTAINER.getNumber());
         when(container2.getTopologyEntityDtoBuilder()).thenReturn(ephemeralBuilder2);
+        setupVmProvider(container, 111L, 1.0, 6, 1.0f);
+        setupVmProvider(container2, 222L, 2.0, 3, 0.5f);
 
         when(graph.entitiesOfType(EntityType.CONTAINER_SPEC.getNumber())).thenReturn(Stream.of(containerSpec));
         when(containerSpec.getAggregatedEntities()).thenReturn(Arrays.asList(container, container2));
         when(containerSpec.soldCommoditiesByType()).thenReturn(persistentCommsSold);
 
-        final CommoditySoldDTO.Builder vcpuSold = CommoditySoldDTO.newBuilder()
-            .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE))
-            .setCapacity(10.0)
-            .setIsResizeable(true);
-        final CommoditySoldDTO.Builder vcpuRequestSold = CommoditySoldDTO.newBuilder()
-            .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE))
-            .setCapacity(10.0)
-            .setIsResizeable(true);
-        ephemeralBuilder.addCommoditySoldList(vcpuSold);
-        ephemeralBuilder.addCommoditySoldList(vcpuRequestSold);
-        ephemeralBuilder2.addCommoditySoldList(vcpuSold.setScalingFactor(11.0));
-        ephemeralBuilder2.addCommoditySoldList(vcpuRequestSold.setCapacity(9.0));
+        ephemeralBuilder.addCommoditySoldList(vcpuSold().setScalingFactor(1.0));
+        ephemeralBuilder.addCommoditySoldList(vcpuRequestSold().setScalingFactor(1.0));
+        ephemeralBuilder2.addCommoditySoldList(vcpuSold().setScalingFactor(2.0));
+        ephemeralBuilder2.addCommoditySoldList(vcpuRequestSold().setScalingFactor(2.0));
 
-        editor.applyEdits(graph);
+        assertFalse(ephemeralBuilder.getAnalysisSettings().hasConsistentScalingFactor());
+        assertFalse(ephemeralBuilder2.getAnalysisSettings().hasConsistentScalingFactor());
+
+        final EditSummary editSummary = editor.applyEdits(graph, true);
+        assertCommoditiesResizable(ephemeralBuilder);
+        assertCommoditiesResizable(ephemeralBuilder2);
+        assertEquals(2, editSummary.getContainerConsistentScalingFactorSet());
+        assertTrue(ephemeralBuilder.getAnalysisSettings().hasConsistentScalingFactor());
+        assertTrue(ephemeralBuilder2.getAnalysisSettings().hasConsistentScalingFactor());
+        assertEquals(0.5f, ephemeralBuilder2.getAnalysisSettings().getConsistentScalingFactor(), 0);
+    }
+
+    /**
+     * Check that with the consistent scaling feature flag disabled we always get a value of
+     * 1.0 for the CSF.
+     */
+    @Test
+    public void testSetConsistentScalingFeatureFlagDisabled() {
+        final TopologyEntity container2 = mock(TopologyEntity.class);
+        final TopologyEntityDTO.Builder ephemeralBuilder2 = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.CONTAINER.getNumber());
+
+        when(container2.getEntityType()).thenReturn(EntityType.CONTAINER.getNumber());
+        when(container2.getTopologyEntityDtoBuilder()).thenReturn(ephemeralBuilder2);
+        setupVmProvider(container, 111L, 1.0, 6, 1.0f);
+        setupVmProvider(container2, 222L, 2.0, 3, 0.5f);
+
+        when(graph.entitiesOfType(EntityType.CONTAINER_SPEC.getNumber())).thenReturn(Stream.of(containerSpec));
+        when(containerSpec.getAggregatedEntities()).thenReturn(Arrays.asList(container, container2));
+        when(containerSpec.soldCommoditiesByType()).thenReturn(persistentCommsSold);
+
+        ephemeralBuilder.addCommoditySoldList(vcpuSold().setScalingFactor(1.0));
+        ephemeralBuilder.addCommoditySoldList(vcpuRequestSold().setScalingFactor(1.0));
+        ephemeralBuilder2.addCommoditySoldList(vcpuSold().setScalingFactor(2.0));
+        ephemeralBuilder2.addCommoditySoldList(vcpuRequestSold().setScalingFactor(2.0));
+
+        editor.applyEdits(graph, false);
+        assertCommoditiesNotResizable(ephemeralBuilder);
+        assertCommoditiesNotResizable(ephemeralBuilder2);
+        assertEquals(1.0f, ephemeralBuilder.getAnalysisSettings().getConsistentScalingFactor(), 0);
+        assertEquals(1.0f, ephemeralBuilder2.getAnalysisSettings().getConsistentScalingFactor(), 0);
+    }
+
+    /**
+     * Test that containers running on nodes with different speeds are not resizable
+     * when they have capacities that are inconsistent in millicores after applying
+     * the consistent scaling factor.
+     */
+    @Test
+    public void testConsistentScalingFactorStillDifferent() {
+        final TopologyEntity container2 = mock(TopologyEntity.class);
+        final TopologyEntityDTO.Builder ephemeralBuilder2 = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.CONTAINER.getNumber());
+
+        when(container2.getEntityType()).thenReturn(EntityType.CONTAINER.getNumber());
+        when(container2.getTopologyEntityDtoBuilder()).thenReturn(ephemeralBuilder2);
+        setupVmProvider(container, 111L, 1.0, 6, 1.0f);
+        setupVmProvider(container2, 222L, 3.0, 3, 1.0f);
+
+        when(graph.entitiesOfType(EntityType.CONTAINER_SPEC.getNumber())).thenReturn(Stream.of(containerSpec));
+        when(containerSpec.getAggregatedEntities()).thenReturn(Arrays.asList(container, container2));
+        when(containerSpec.soldCommoditiesByType()).thenReturn(persistentCommsSold);
+
+        ephemeralBuilder.addCommoditySoldList(vcpuSold().setScalingFactor(1.0));
+        ephemeralBuilder.addCommoditySoldList(vcpuRequestSold().setScalingFactor(1.0));
+        ephemeralBuilder2.addCommoditySoldList(vcpuSold().setScalingFactor(3.0));
+        ephemeralBuilder2.addCommoditySoldList(vcpuRequestSold().setScalingFactor(3.0));
+
+        editor.applyEdits(graph, true);
         assertCommoditiesNotResizable(ephemeralBuilder);
         assertCommoditiesNotResizable(ephemeralBuilder2);
     }
@@ -371,6 +455,54 @@ public class EphemeralEntityEditorTest {
         ephemeralBuilder.getCommoditySoldListList().forEach(commSold -> {
             assertFalse(commSold.getIsResizeable());
         });
+    }
+
+    private void assertCommoditiesResizable(TopologyEntityDTO.Builder ephemeralBuilder) {
+        ephemeralBuilder.getCommoditySoldListList().forEach(commSold -> {
+            assertTrue(commSold.getIsResizeable());
+        });
+    }
+
+    private CommoditySoldDTO.Builder vcpuSold() {
+        return CommoditySoldDTO.newBuilder()
+            .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE))
+            .setCapacity(10.0)
+            .setIsResizeable(true);
+    }
+
+    private CommoditySoldDTO.Builder vcpuRequestSold() {
+        return CommoditySoldDTO.newBuilder()
+            .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE))
+            .setCapacity(10.0)
+            .setIsResizeable(true);
+    }
+
+    private void setupVmProvider(@Nonnull final TopologyEntity container,
+                                 final long vmOid,
+                                 final double scalingFactor,
+                                 final int numCpus,
+                                 final float consistentScalingFactor) {
+        final TopologyEntity pod = mock(TopologyEntity.class);
+        when(pod.getEntityType()).thenReturn(EntityType.CONTAINER_POD_VALUE);
+
+        final TopologyEntityDTO.Builder vmBuilder = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .setAnalysisSettings(AnalysisSettings.newBuilder()
+                .setConsistentScalingFactor(consistentScalingFactor))
+            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setVirtualMachine(
+                VirtualMachineInfo.newBuilder().setNumCpus(numCpus)));
+        final Builder vcpuSold = vcpuSold();
+        vcpuSold.setCapacity(vcpuSold.getCapacity() * numCpus);
+        vcpuSold().setScalingFactor(scalingFactor);
+        vmBuilder.addCommoditySoldList(vcpuSold);
+
+        final TopologyEntity vm = mock(TopologyEntity.class);
+        when(vm.getOid()).thenReturn(vmOid);
+        when(vm.getEntityType()).thenReturn(EntityType.VIRTUAL_MACHINE_VALUE);
+        when(vm.getTopologyEntityDtoBuilder()).thenReturn(vmBuilder);
+
+        when(pod.getProviders()).thenReturn(Collections.singletonList(vm));
+        when(container.getProviders()).thenReturn(Collections.singletonList(pod));
     }
 
     /**

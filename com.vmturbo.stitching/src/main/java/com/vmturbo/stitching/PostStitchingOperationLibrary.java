@@ -17,6 +17,8 @@ import com.vmturbo.stitching.poststitching.CommodityPostStitchingOperationConfig
 import com.vmturbo.stitching.poststitching.ComputedQxVcpuUsedValuePostStitchingOperation;
 import com.vmturbo.stitching.poststitching.ComputedUsedValuePostStitchingOperation;
 import com.vmturbo.stitching.poststitching.CpuCapacityPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.CpuConsistentScalingFactorPostStitchingOperation.NamespaceConsistentScalingFactorPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.CpuConsistentScalingFactorPostStitchingOperation.VirtualMachineConsistentScalingFactorPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.CpuScalingFactorPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.DiskCapacityCalculator;
 import com.vmturbo.stitching.poststitching.GuestLoadAppPostStitchingOperation;
@@ -82,6 +84,8 @@ public class PostStitchingOperationLibrary {
      * @param diskCapacityCalculator The {@link DiskCapacityCalculator}.
      * @param maxCapacityCache The {@link MaxCapacityCache}.
      * @param resizeDownWarmUpIntervalHours See: {@link SetResizeDownAnalysisSettingPostStitchingOperation}.
+     * @param enableConsistentScalingOnHeterogeneousProviders Whether to enable consistent scaling for containers
+     *                                                        on heterogeneous providers.
      */
     public PostStitchingOperationLibrary(
             @Nonnull CommodityPostStitchingOperationConfig commodityPostStitchingOperationConfig,
@@ -89,7 +93,8 @@ public class PostStitchingOperationLibrary {
             @Nonnull final CpuCapacityStore cpuCapacityStore,
             @Nonnull final Clock clock,
             final double resizeDownWarmUpIntervalHours,
-            @Nonnull final MaxCapacityCache maxCapacityCache) {
+            @Nonnull final MaxCapacityCache maxCapacityCache,
+            final boolean enableConsistentScalingOnHeterogeneousProviders) {
         postStitchingOperations = ImmutableList.of(
             new PropagateStorageAccessAndLatencyPostStitchingOperation(),
             new MemoryProvisionedPostStitchingOperation(),
@@ -121,7 +126,12 @@ public class PostStitchingOperationLibrary {
             new UseHypervisorVmemForResizingPostStitchingOperation(),
             new SetResizeDownAnalysisSettingPostStitchingOperation(resizeDownWarmUpIntervalHours, clock),
             new ComputedQxVcpuUsedValuePostStitchingOperation(),
-            new CpuScalingFactorPostStitchingOperation(cpuCapacityStore),
+            new CpuScalingFactorPostStitchingOperation(cpuCapacityStore,
+                enableConsistentScalingOnHeterogeneousProviders),
+            new VirtualMachineConsistentScalingFactorPostStitchingOperation(
+                enableConsistentScalingOnHeterogeneousProviders),
+            new NamespaceConsistentScalingFactorPostStitchingOperation(
+                enableConsistentScalingOnHeterogeneousProviders),
             // Set capacity from settings for entities coming from public cloud
             new SetCommodityCapacityFromSettingPostStitchingOperation(EntityType.SERVICE,
                 ProbeCategory.CLOUD_MANAGEMENT,

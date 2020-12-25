@@ -124,6 +124,8 @@ public class ServiceEntityRepoDTOConverter {
             typeSpecificInfoRepoDTO = serviceEntityRepoDTO.getDesktopPoolInfoRepoDTO();
         } else if (serviceEntityRepoDTO.getWorkloadControllerInfoRepoDTO() != null) {
             typeSpecificInfoRepoDTO = serviceEntityRepoDTO.getWorkloadControllerInfoRepoDTO();
+        } else if (serviceEntityRepoDTO.getNamespaceInfoRepoDTO() != null) {
+            typeSpecificInfoRepoDTO = serviceEntityRepoDTO.getNamespaceInfoRepoDTO();
         }
 
         // if present, convert this RepoDTO type specific info into Topology TypeSpecificInfo oneof

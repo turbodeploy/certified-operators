@@ -2816,7 +2816,8 @@ public class TopologyConverter {
                             : liveMarketMoveCostFactor)
                     .setProviderMustClone(isProviderMustClone)
                     .setDaemon(topologyDTO.getAnalysisSettings().getDaemon())
-                    .setRateOfResize(topologyDTO.getAnalysisSettings().getRateOfResize());
+                    .setRateOfResize(topologyDTO.getAnalysisSettings().getRateOfResize())
+                    .setConsistentScalingFactor(topologyDTO.getAnalysisSettings().getConsistentScalingFactor());
 
             final float rateOfResize = topologyDTO.getAnalysisSettings().getRateOfResize();
             if (rateOfResizeTranslationMap.containsKey(rateOfResize)) {

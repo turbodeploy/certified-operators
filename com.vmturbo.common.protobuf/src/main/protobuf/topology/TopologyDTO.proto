@@ -819,6 +819,17 @@ message TopologyEntityDTO {
 
         // Can we reconfigure this trader.
         optional bool reconfigurable = 14;
+
+        // The consistent scaling factor is used in the market on entities that consistently
+        // scale. It converts values on commodities from the normalized units that the market
+        // uses for computations back into the unit that commodities need to be consistent in
+        // in the real world. For example, on containers in a scaling group that are required
+        // to have a VCPU capacity consistent in millicores, the consistent_scaling_factor
+        // can be used to convert VCPU capacities, used values, etc. from the normalized MHz
+        // values that the market uses into millicores. This is important to ensure the market
+        // generates actions that make sense in the unit the consistent scaling group must be
+        // consistent in.
+        optional float consistent_scaling_factor = 15 [default = 1.0];
     }
 
     optional Origin origin = 10;

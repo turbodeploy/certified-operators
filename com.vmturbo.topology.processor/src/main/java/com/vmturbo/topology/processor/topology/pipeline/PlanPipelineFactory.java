@@ -145,6 +145,8 @@ public class PlanPipelineFactory {
 
     private final CloudMigrationPlanHelper cloudMigrationPlanHelper;
 
+    private final boolean enableConsistentScalingOnHeterogeneousProviders;
+
     private boolean firstPlanOverLive = true;
 
     private boolean firstPlanOverPlan = true;
@@ -175,7 +177,8 @@ public class PlanPipelineFactory {
                                @Nonnull final RequestAndLimitCommodityThresholdsInjector requestAndLimitCommodityThresholdsInjector,
                                @Nonnull final EphemeralEntityEditor ephemeralEntityEditor,
                                @Nonnull final GroupResolverSearchFilterResolver searchFilterResolver,
-                               @Nonnull final CloudMigrationPlanHelper cloudMigrationPlanHelper) {
+                               @Nonnull final CloudMigrationPlanHelper cloudMigrationPlanHelper,
+                               final boolean enableConsistentScalingOnHeterogeneousProviders) {
         this.topoBroadcastManager = topoBroadcastManager;
         this.policyManager = policyManager;
         this.stitchingManager = stitchingManager;
@@ -203,6 +206,7 @@ public class PlanPipelineFactory {
         this.ephemeralEntityEditor = Objects.requireNonNull(ephemeralEntityEditor);
         this.searchFilterResolver = Objects.requireNonNull(searchFilterResolver);
         this.cloudMigrationPlanHelper = Objects.requireNonNull(cloudMigrationPlanHelper);
+        this.enableConsistentScalingOnHeterogeneousProviders = enableConsistentScalingOnHeterogeneousProviders;
     }
 
     /**
@@ -226,16 +230,16 @@ public class PlanPipelineFactory {
      *         and return the {@link TopologyBroadcastInfo} of the successful broadcast.
      */
     TopologyPipeline<EntityStore, TopologyBroadcastInfo> planOverLiveTopology(
-            @Nonnull final TopologyInfo topologyInfo,
-            @Nonnull final List<ScenarioChange> changes,
-            @Nullable final PlanScope scope,
-            @Nonnull final StitchingJournalFactory journalFactory) {
+        @Nonnull final TopologyInfo topologyInfo,
+        @Nonnull final List<ScenarioChange> changes,
+        @Nullable final PlanScope scope,
+        @Nonnull final StitchingJournalFactory journalFactory) {
         final TopologyPipelineContext context = new TopologyPipelineContext(topologyInfo);
         // if the constructed topology is already in the cache from the realtime topology, just
         // add the stage that will read it from the cache, otherwise add the stitching stage
         // and the construct topology stage so we can build the topology
         PipelineDefinitionBuilder<EntityStore, TopologyBroadcastInfo, EntityStore, TopologyPipelineContext> topoPipelineBuilder =
-                PipelineDefinition.newBuilder(context);
+            PipelineDefinition.newBuilder(context);
         topoPipelineBuilder.initialContextMember(TopologyPipelineContextMembers.GROUP_RESOLVER,
             () -> new GroupResolver(searchResolver, groupServiceClient, searchFilterResolver))
             .initialContextMember(TopologyPipelineContextMembers.STITCHING_JOURNAL_CONTAINER,
@@ -278,7 +282,7 @@ public class PlanPipelineFactory {
             .addStage(new HistoricalUtilizationStage(historicalEditor, changes))
             .addStage(new OverrideWorkLoadDemandStage(demandOverriddenCommodityEditor, searchResolver, groupServiceClient, changes, searchFilterResolver))
             .addStage(new RequestAndLimitCommodityThresholdsStage(requestAndLimitCommodityThresholdsInjector))
-            .addStage(new EphemeralEntityHistoryStage(ephemeralEntityEditor))
+            .addStage(new EphemeralEntityHistoryStage(ephemeralEntityEditor, enableConsistentScalingOnHeterogeneousProviders))
             .addStage(new ProbeActionCapabilitiesApplicatorStage(applicatorEditor))
             .addStage(new TopSortStage())
             .finalStage(new BroadcastStage(Collections.singletonList(topoBroadcastManager), matrix)));
@@ -301,9 +305,9 @@ public class PlanPipelineFactory {
      *         topology) and return the {@link TopologyBroadcastInfo} of the successful broadcast.
      */
     TopologyPipeline<Long, TopologyBroadcastInfo> planOverOldTopology(
-            @Nonnull final TopologyInfo topologyInfo,
-            @Nonnull final List<ScenarioChange> changes,
-            @Nullable final PlanScope scope) {
+        @Nonnull final TopologyInfo topologyInfo,
+        @Nonnull final List<ScenarioChange> changes,
+        @Nullable final PlanScope scope) {
         final TopologyPipelineContext context = new TopologyPipelineContext(topologyInfo);
         final TopologyPipeline<Long, TopologyBroadcastInfo> pipeline = new TopologyPipeline<>(PipelineDefinition.<Long, TopologyBroadcastInfo, TopologyPipelineContext>newBuilder(context)
             .initialContextMember(TopologyPipelineContextMembers.GROUP_RESOLVER,

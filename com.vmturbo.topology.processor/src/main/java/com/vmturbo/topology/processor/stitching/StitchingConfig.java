@@ -95,6 +95,13 @@ public class StitchingConfig {
     @Value("${maxQueryOnTPStartup:true}")
     private boolean maxQueryOnTPStartup;
 
+    /**
+     * Feature flag for whether to enable consistent scaling of containers when they are running on
+     * nodes with different speeds (see OM-65078).
+     */
+    @Value("${enableConsistentScalingOnHeterogeneousProviders:false}")
+    private boolean enableConsistentScalingOnHeterogeneousProviders;
+
     @Autowired
     private ClockConfig clockConfig;
 
@@ -109,8 +116,6 @@ public class StitchingConfig {
 
     @Autowired
     private CpuCapacityConfig cpuCapacityConfig;
-
-
 
     @Bean
     public StitchingOperationLibrary stitchingOperationLibrary() {
@@ -179,7 +184,9 @@ public class StitchingConfig {
                 diskPropertyCalculator(),
                 cpuCapacityConfig.cpucCapacityStore(),
                 clockConfig.clock(),
-                resizeDownWarmUpIntervalHours, maxCapacityCache());
+                resizeDownWarmUpIntervalHours,
+                maxCapacityCache(),
+                enableConsistentScalingOnHeterogeneousProviders);
         maxCapacityCache().initializeFromStitchingOperations(postStitchingOperationLibrary);
         return postStitchingOperationLibrary;
     }
@@ -201,5 +208,15 @@ public class StitchingConfig {
         } else {
             return StitchingJournalFactory.emptyStitchingJournalFactory();
         }
+    }
+
+    /**
+     * Feature flag for whether to enable consistent scaling of containers when they are running on
+     * nodes with different speeds (see OM-65078).
+     *
+     * @return The feature flag value.
+     */
+    public boolean getEnableConsistentScalingOnHeterogeneousProviders() {
+        return enableConsistentScalingOnHeterogeneousProviders;
     }
 }

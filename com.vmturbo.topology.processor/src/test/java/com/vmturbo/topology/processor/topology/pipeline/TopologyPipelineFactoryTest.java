@@ -200,7 +200,8 @@ public class TopologyPipelineFactoryTest {
             reservationServiceStub,
             mock(GroupResolverSearchFilterResolver.class),
             mock(GroupScopeResolver.class),
-            10);
+            10,
+            true);
     }
 
     private PlanPipelineFactory planPipelineFactory() {
@@ -232,7 +233,8 @@ public class TopologyPipelineFactoryTest {
             mock(RequestAndLimitCommodityThresholdsInjector.class),
             mock(EphemeralEntityEditor.class),
             mock(GroupResolverSearchFilterResolver.class),
-            mock(CloudMigrationPlanHelper.class));
+            mock(CloudMigrationPlanHelper.class),
+            true);
 
         return ppf;
     }

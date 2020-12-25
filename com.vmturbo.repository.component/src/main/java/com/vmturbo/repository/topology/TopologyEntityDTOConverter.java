@@ -31,6 +31,7 @@ import com.vmturbo.repository.dto.DesktopPoolInfoRepoDTO;
 import com.vmturbo.repository.dto.DiskArrayInfoRepoDTO;
 import com.vmturbo.repository.dto.EntityPipelineErrorsRepoDTO;
 import com.vmturbo.repository.dto.LogicalPoolInfoRepoDTO;
+import com.vmturbo.repository.dto.NamespaceInfoRepoDTO;
 import com.vmturbo.repository.dto.PhysicalMachineInfoRepoDTO;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
 import com.vmturbo.repository.dto.StorageControllerInfoRepoDTO;
@@ -63,6 +64,7 @@ class TopologyEntityDTOConverter {
                     .put(TypeCase.DESKTOP_POOL, DesktopPoolInfoRepoDTO.class)
                     .put(TypeCase.BUSINESS_USER, BusinessUserInfoRepoDTO.class)
                     .put(TypeCase.WORKLOAD_CONTROLLER, WorkloadControllerInfoRepoDTO.class)
+                    .put(TypeCase.NAMESPACE, NamespaceInfoRepoDTO.class)
                     .put(TypeCase.CLOUD_COMMITMENT_DATA, CloudCommitmentInfoRepoDTO.class)
                     .build();
 

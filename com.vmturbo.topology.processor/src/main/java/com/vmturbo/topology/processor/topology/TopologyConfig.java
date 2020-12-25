@@ -189,10 +189,10 @@ public class TopologyConfig {
     @Bean
     public TopologyEditor topologyEditor() {
         return new TopologyEditor(identityProviderConfig.identityProvider(),
-                templateConfig.templateConverterFactory(),
-                // we don't use groupResolver cache here because we want
-                // up-to-date results.
-                groupConfig.groupServiceBlockingStub());
+            templateConfig.templateConverterFactory(),
+            // we don't use groupResolver cache here because we want
+            // up-to-date results.
+            groupConfig.groupServiceBlockingStub());
     }
 
     @Bean
@@ -227,8 +227,8 @@ public class TopologyConfig {
     @Bean
     public CloudMigrationPlanHelper cloudMigrationPlanHelper() {
         return new CloudMigrationPlanHelper(
-                groupConfig.groupServiceBlockingStub(),
-                historyClient());
+            groupConfig.groupServiceBlockingStub(),
+            historyClient());
     }
 
     /**
@@ -271,7 +271,8 @@ public class TopologyConfig {
                 ReservationServiceGrpc.newStub(planClientConfig.planOrchestratorChannel()),
                 topologyProcessorRpcConfig.groupResolverSearchFilterResolver(),
                 targetConfig.groupScopeResolver(),
-                supplyChainValidationFrequency
+                supplyChainValidationFrequency,
+                stitchingConfig.getEnableConsistentScalingOnHeterogeneousProviders()
         );
     }
 
@@ -308,7 +309,8 @@ public class TopologyConfig {
                 requestCommodityThresholdsInjector(),
                 ephemeralEntityEditor(),
                 topologyProcessorRpcConfig.groupResolverSearchFilterResolver(),
-                cloudMigrationPlanHelper()
+                cloudMigrationPlanHelper(),
+                stitchingConfig.getEnableConsistentScalingOnHeterogeneousProviders()
         );
     }
 

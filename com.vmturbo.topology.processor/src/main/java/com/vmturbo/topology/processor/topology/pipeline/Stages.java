@@ -1750,19 +1750,27 @@ public class Stages {
     public static class EphemeralEntityHistoryStage extends PassthroughStage<TopologyGraph<TopologyEntity>> {
         private final EphemeralEntityEditor ephemeralEntityEditor;
 
+        private final boolean enableConsistentScalingOnHeterogeneousProviders;
+
         /**
          * Create a new {@link EphemeralEntityHistoryStage}.
          * @param ephemeralEntityEditor The {@link EphemeralEntityEditor} to be run in this stage.
+         * @param enableConsistentScalingOnHeterogeneousProviders Whether to enable consistent scaling on
+         *                                                        heterogeneous providers.
          */
-        public EphemeralEntityHistoryStage(@Nonnull final EphemeralEntityEditor ephemeralEntityEditor) {
+        public EphemeralEntityHistoryStage(@Nonnull final EphemeralEntityEditor ephemeralEntityEditor,
+                                           final boolean enableConsistentScalingOnHeterogeneousProviders) {
             this.ephemeralEntityEditor = Objects.requireNonNull(ephemeralEntityEditor);
+            this.enableConsistentScalingOnHeterogeneousProviders =
+                enableConsistentScalingOnHeterogeneousProviders;
         }
 
         @NotNull
         @Override
         @Nonnull
         public Status passthrough(@Nonnull TopologyGraph<TopologyEntity> graph) throws PipelineStageException {
-            final EditSummary editSummary = ephemeralEntityEditor.applyEdits(graph);
+            final EditSummary editSummary = ephemeralEntityEditor.applyEdits(graph,
+                enableConsistentScalingOnHeterogeneousProviders);
 
             final StringBuilder statusBuilder = new StringBuilder();
             if (editSummary.getCommoditiesAdjusted() > 0) {
@@ -1780,7 +1788,12 @@ public class Stages {
                     .append(editSummary.getInconsistentScalingGroups())
                     .append(" consistent scaling groups (of ")
                     .append(editSummary.getTotalScalingGroups())
-                    .append(" total) due to inconsistent capacities.");
+                    .append(" total) due to inconsistent capacities.\n");
+            }
+            if (editSummary.getContainerConsistentScalingFactorSet() > 0) {
+                statusBuilder.append("Set ConsistentScalingFactor on ")
+                    .append(editSummary.getContainerConsistentScalingFactorSet())
+                    .append(" Container commodities.\n");
             }
 
             // We want to warn when there are inconsistent scaling groups. Ideally we want to

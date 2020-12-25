@@ -18,6 +18,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.Builder;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -60,6 +61,8 @@ import com.vmturbo.topology.graph.TopologyGraph;
  */
 public class EphemeralEntityEditor {
     private static final Logger logger = LogManager.getLogger();
+    private static final float DEFAULT_CONSISTENT_SCALING_FACTOR = AnalysisSettings.newBuilder()
+        .getConsistentScalingFactor();
 
     /**
      * CONTAINER_SPEC entity store shared, persistent history for ephemeral CONTAINER replicas.
@@ -89,7 +92,7 @@ public class EphemeralEntityEditor {
     private static final Set<Integer> REQUIRED_CONSISTENT_COMMODITIES =
         ImmutableSet.of(CommodityType.VCPU_VALUE, CommodityType.VCPU_REQUEST_VALUE);
 
-    private static final double DBL_EPSILON = Math.ulp(1.0);
+    private static final double DBL_EPSILON = 0.0001;
 
     /**
      * Apply edits to commodities sold by ephemeral entities by copying their
@@ -97,13 +100,20 @@ public class EphemeralEntityEditor {
      *
      * @param graph The {@link TopologyGraph} containing all the entities in
      *              the topology and their relationships.
+     * @param enableConsistentScalingOnHeterogeneousProviders Whether to enable consistent scaling on
+     *                                                        heterogeneous providers. If enabled,
+     *                                                        set consistentScalingFactor on ephemeral
+     *                                                        entities.
      * @return a summary of the edits made to the topology by applying edits.
      */
-    public EditSummary applyEdits(@Nonnull final TopologyGraph<TopologyEntity> graph) {
+    public EditSummary applyEdits(@Nonnull final TopologyGraph<TopologyEntity> graph,
+                                  final boolean enableConsistentScalingOnHeterogeneousProviders) {
         final EditSummary editSummary = new EditSummary();
+        final ConsistentScalingCache consistentScalingCache = new ConsistentScalingCache(
+            enableConsistentScalingOnHeterogeneousProviders);
         ROOT_PERSISTENT_ENTITY_TYPES.stream().forEach(entityType ->
             graph.entitiesOfType(entityType)
-                .forEach(persistentEntity -> applyEdits(persistentEntity, editSummary)));
+                .forEach(persistentEntity -> applyEdits(persistentEntity, editSummary, consistentScalingCache)));
 
         if (editSummary.getInconsistentScalingGroups() > 0) {
             logger.warn("Disabled resize on {} scaling groups due to capacity inconsistencies.",
@@ -115,13 +125,14 @@ public class EphemeralEntityEditor {
     /**
      * Copy the commodity history from the persistent entity onto the related
      * ephemeral entities.
-     *
-     * @param persistentEntity The persistent entity responsible for aggregating
+     *  @param persistentEntity The persistent entity responsible for aggregating
      *                         the shared history for ephemeral entity replicas.
      * @param editSummary A summary of the edits made.
+     * @param consistentScalingCache A cache of the nodes (VMs) that provide to containers.
      */
     private void applyEdits(@Nonnull final TopologyEntity persistentEntity,
-                            @Nonnull final EditSummary editSummary) {
+                            @Nonnull final EditSummary editSummary,
+                            @Nonnull final ConsistentScalingCache consistentScalingCache) {
         final Map<Integer, List<CommoditySoldDTO>> persistentSoldCommodities =
             persistentEntity.soldCommoditiesByType();
         final Map<Integer, Double> requiredConsistentCommodityValues = new HashMap<>();
@@ -134,8 +145,8 @@ public class EphemeralEntityEditor {
             copyCommodityHistory(persistentSoldCommodities,
                 ephemeralEntity.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList(),
                 editSummary);
-            identifyInconsistentCommodities(requiredConsistentCommodityValues,
-                inconsistentCommodities, ephemeralEntity);
+            handleHeterogeneousProviders(requiredConsistentCommodityValues,
+                inconsistentCommodities, ephemeralEntity, consistentScalingCache, editSummary);
         });
 
         editSummary.incrementTotalScalingGroups();
@@ -151,32 +162,59 @@ public class EphemeralEntityEditor {
     }
 
     /**
-     * Identify commodities whose capacities are inconsistent across the scaling group.
+     * When members of a consistent scaling group run on providers with different CPU speeds,
+     * it causes issues in consistent scaling
+     * (see https://vmturbo.atlassian.net/wiki/spaces/AE/pages/1952219225/Millicore+Support).
+     * To fix this, we introduce "ConsistentScalingFactor" which permits the market to consistently
+     * scale CPU-related commodities supplied by providers with different speeds by converting them
+     * from normalized MHz to millicores.
+     * <p/>
+     * When we are unable to compute a ConsistentScalingFactor to address the problems noted above,
+     * we disable scaling on all members of the group to avoid the generation of nonsense actions.
+     * <p/>
+     * We keep statistics on the adjustments made to service entities to fulfill the above goals.
      *
-     * @param commodityTypeToCapacity Map of commodities to the detected capacity of that commodity for the
+     *  @param commodityTypeToCapacity Map of commodities to the detected capacity of that commodity for the
      *                                scaling group.
      * @param inconsistentCommodities The inconsistent commodities detected so far.
      * @param ephemeralEntity The entity whose commodities should be scanned for inconsistencies with
-     *                        the other scaling group members.
+     * @param consistentScalingCache A cache of the nodes (VMs) that provide to containers.
+     * @param editSummary A summary to capture edits made.
      */
-    private void identifyInconsistentCommodities(@Nonnull final Map<Integer, Double> commodityTypeToCapacity,
-                                                 @Nonnull final Set<Integer> inconsistentCommodities,
-                                                 @Nonnull final TopologyEntity ephemeralEntity) {
+    private void handleHeterogeneousProviders(@Nonnull final Map<Integer, Double> commodityTypeToCapacity,
+                                              @Nonnull final Set<Integer> inconsistentCommodities,
+                                              @Nonnull final TopologyEntity ephemeralEntity,
+                                              @Nonnull final ConsistentScalingCache consistentScalingCache,
+                                              @Nonnull final EditSummary editSummary) {
         ephemeralEntity.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList().stream()
             .filter(builder -> REQUIRED_CONSISTENT_COMMODITIES.contains(builder.getCommodityType().getType()))
             .forEach(builder -> {
-                final Integer type = builder.getCommodityType().getType();
-                final Double otherMemberCapacity = commodityTypeToCapacity.get(type);
-                // Be sure to scale by scaling factor because the market will do so.
-                final double scaledCapacity = builder.getCapacity() * builder.getScalingFactor();
-                if (otherMemberCapacity != null) {
-                    // Compare for relative equality.
-                    if (Math.abs(otherMemberCapacity - scaledCapacity) > DBL_EPSILON) {
-                        inconsistentCommodities.add(type);
-                    }
+                final AnalysisSettings.Builder analysisSettingsBuilder =
+                    ephemeralEntity.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder();
+                // Configure the ConsistentScalingFactor for the ephemeral entity.
+                if (!analysisSettingsBuilder.hasConsistentScalingFactor()) {
+                    analysisSettingsBuilder.setConsistentScalingFactor(
+                        consistentScalingCache.lookupConsistentScalingFactor(ephemeralEntity));
+                    editSummary.containerConsistentScalingFactorSet++;
                 }
 
-                commodityTypeToCapacity.put(type, scaledCapacity);
+                // Only look for inconsistent commodities on commodities that are resizable
+                // because if the commodity is not resizable there's no point in disabling
+                // resize on it again.
+                if (builder.getIsResizeable()) {
+                    final Integer type = builder.getCommodityType().getType();
+                    final Double otherMemberCapacity = commodityTypeToCapacity.get(type);
+                    // Be sure to scale by scaling factor because the market will do so.
+                    final double scaledCapacity = builder.getCapacity() * builder.getScalingFactor()
+                        * analysisSettingsBuilder.getConsistentScalingFactor();
+                    if (otherMemberCapacity != null) {
+                        // Compare for relative equality.
+                        if (Math.abs(otherMemberCapacity - scaledCapacity) > DBL_EPSILON) {
+                            inconsistentCommodities.add(type);
+                        }
+                    }
+                    commodityTypeToCapacity.put(type, scaledCapacity);
+                }
             });
     }
 
@@ -213,7 +251,9 @@ public class EphemeralEntityEditor {
                 if (persistentCommSold.hasIsResizeable()) {
                     if (!ephemeralCommSold.hasIsResizeable() || ephemeralCommSold.getIsResizeable()) {
                         ephemeralCommSold.setIsResizeable(persistentCommSold.getIsResizeable());
-                        editSummary.incrementInsufficientData();
+                        if (!persistentCommSold.getIsResizeable()) {
+                            editSummary.incrementInsufficientData();
+                        }
                     }
                 }
 
@@ -266,6 +306,64 @@ public class EphemeralEntityEditor {
     }
 
     /**
+     * A cache of consistent scaling values. It will also set the ConsistentScalingFactor on the
+     * AnalysisSettings of the nodes (VMs) hosting containers.
+     * <p/>
+     * A new cache is created each time the editor is run (once per pipeline).
+     */
+    public static class ConsistentScalingCache {
+        private final HashMap<Long, Float> cache;
+
+        private final boolean enableConsistentScalingOnHeterogeneousProviders;
+
+        /**
+         * Create a new {@link ConsistentScalingCache}.
+         *
+         * @param enableConsistentScalingOnHeterogeneousProviders Whether or not to enable consistent scaling.
+         *                                                        If disabled, the consistent scaling factor will be
+         *                                                        set to 1.
+         */
+        public ConsistentScalingCache(final boolean enableConsistentScalingOnHeterogeneousProviders) {
+            cache = new HashMap<>();
+            this.enableConsistentScalingOnHeterogeneousProviders =
+                enableConsistentScalingOnHeterogeneousProviders;
+        }
+
+        /**
+         * Lookup the consistent scaling factor to use for a particular container entity.
+         * If the node (VM) entity hosting this entity does not already have a consistent scaling factor,
+         * set the value on the node as well.
+         * <p/>
+         * When multiplying (VCPU capacity * scalingFactor) on the container by the CSF should yield
+         * the VCPU capacity of the container in millicores.
+         *
+         * @param container The container entity whose CSF was calculated.
+         * @return The consistent scaling factor for the container.
+         */
+        public float lookupConsistentScalingFactor(@Nonnull final TopologyEntity container) {
+            if (!enableConsistentScalingOnHeterogeneousProviders) {
+                // If we don't want to enable consistent scaling, just return a CSF of 1.0 to
+                // retain the behavior without CSF.
+                return DEFAULT_CONSISTENT_SCALING_FACTOR;
+            }
+
+            final Optional<TopologyEntity> vmProvider = container.getProviders().stream()
+                .filter(containerProvider -> containerProvider.getEntityType() == EntityType.CONTAINER_POD_VALUE)
+                .flatMap(pod -> pod.getProviders().stream()
+                    .filter(podProvider -> podProvider.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE))
+                .findAny();
+
+            return vmProvider.map(vm -> cache.computeIfAbsent(vm.getOid(), vmOid -> {
+                final AnalysisSettings.Builder analysisSettingsBuilder =
+                    vm.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder();
+                // The CSF on the VM's analysis settings should have been set in PostStitching by
+                // {@link VirtualMachineConsistentScalingFactorPostStitchingOperation}.
+                return analysisSettingsBuilder.getConsistentScalingFactor();
+            })).orElse(DEFAULT_CONSISTENT_SCALING_FACTOR);
+        }
+    }
+
+    /**
      * Helper class summarizing the edits made by the {@link EphemeralEntityEditor}.
      */
     public static class EditSummary {
@@ -273,6 +371,7 @@ public class EphemeralEntityEditor {
         private long commoditiesWithInsufficientData;
         private long inconsistentScalingGroups;
         private long totalScalingGroups;
+        private long containerConsistentScalingFactorSet;
 
         /**
          * Increment the number of commodities adjusted.
@@ -336,6 +435,15 @@ public class EphemeralEntityEditor {
          */
         public long getTotalScalingGroups() {
             return totalScalingGroups;
+        }
+
+        /**
+         * Get the number of containers whose ConsistentScalingFactor was successfully set.
+         *
+         * @return the number of containers whose ConsistentScalingFactor was successfully set.
+         */
+        public long getContainerConsistentScalingFactorSet() {
+            return containerConsistentScalingFactorSet;
         }
     }
 }
