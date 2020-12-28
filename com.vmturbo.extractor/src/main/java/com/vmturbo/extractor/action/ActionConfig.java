@@ -83,6 +83,16 @@ public class ActionConfig {
     }
 
     /**
+     * See {@link ActionHashManager}.
+     *
+     * @return The {@link ActionHashManager}.
+     */
+    @Bean
+    public ActionHashManager actionHashManager() {
+        return new ActionHashManager(topologyListenerConfig.writerConfig());
+    }
+
+    /**
      * Service for fetching actions.
      *
      * @return {@link ActionsServiceBlockingStub}
@@ -129,13 +139,14 @@ public class ActionConfig {
      * @return supplier of ReportingActionWriter
      */
     @Bean
-    public Supplier<ReportPendingActionWriter> reportingActionWriterSupplier() {
-        return () -> new ReportPendingActionWriter(
+    public Supplier<ReportingActionWriter> reportingActionWriterSupplier() {
+        return () -> new ReportingActionWriter(
                 Clock.systemUTC(),
                 topologyListenerConfig.pool(),
                 extractorDbConfig.ingesterEndpoint(),
                 topologyListenerConfig.writerConfig(),
                 actionConverter(),
+                actionHashManager(),
                 TimeUnit.MINUTES.toMillis(actionMetricsWritingIntervalMins));
     }
 

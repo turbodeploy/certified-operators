@@ -1,5 +1,6 @@
 package com.vmturbo.extractor.action;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.collect.BiMap;
@@ -86,27 +87,31 @@ public class ActionConverter {
                     .build();
 
     /**
-     * Create a record for the pending action table from a particular {@link ActionSpec}.
+     * Create a record for the action spec table
+     * from a particular {@link ActionSpec}.
+     *
+     * <p/>Note - not all fields will be set. The caller is responsible for setting the hash, first seen,
+     * and last seen fields later using the {@link ActionHashManager}.
      *
      * @param actionSpec The {@link ActionSpec} from the action orchestrator.
      * @return The database {@link Record}, or null if the action is unsupported.
      */
     @Nullable
-    Record makePendingActionRecord(ActionSpec actionSpec) {
-        final Record actionSpecRecord = new Record(ActionModel.PendingAction.TABLE);
+    Record makeActionSpecRecord(ActionSpec actionSpec) {
+        final Record actionSpecRecord = new Record(ActionModel.ActionSpec.TABLE);
         try {
             final long primaryEntityId = ActionDTOUtil.getPrimaryEntity(actionSpec.getRecommendation()).getId();
-            actionSpecRecord.set(ActionModel.PendingAction.ACTION_OID, actionSpec.getRecommendation().getId());
-            actionSpecRecord.set(ActionModel.PendingAction.TYPE, extractType(actionSpec));
-            actionSpecRecord.set(ActionModel.PendingAction.CATEGORY, extractCategory(actionSpec));
-            actionSpecRecord.set(ActionModel.PendingAction.SEVERITY, extractSeverity(actionSpec));
-            actionSpecRecord.set(ActionModel.PendingAction.TARGET_ENTITY, primaryEntityId);
-            actionSpecRecord.set(ActionModel.PendingAction.INVOLVED_ENTITIES,
+            actionSpecRecord.set(ActionModel.ActionSpec.TYPE, extractType(actionSpec));
+            actionSpecRecord.set(ActionModel.ActionSpec.CATEGORY, extractCategory(actionSpec));
+            actionSpecRecord.set(ActionModel.ActionSpec.SEVERITY, extractSeverity(actionSpec));
+            actionSpecRecord.set(ActionModel.ActionSpec.TARGET_ENTITY, primaryEntityId);
+            actionSpecRecord.set(ActionModel.ActionSpec.INVOLVED_ENTITIES,
                     ActionDTOUtil.getInvolvedEntityIds(actionSpec.getRecommendation())
                             .toArray(new Long[0]));
-            actionSpecRecord.set(ActionModel.PendingAction.DESCRIPTION, actionSpec.getDescription());
-            actionSpecRecord.set(ActionModel.PendingAction.SAVINGS,
+            actionSpecRecord.set(ActionModel.ActionSpec.DESCRIPTION, actionSpec.getDescription());
+            actionSpecRecord.set(ActionModel.ActionSpec.SAVINGS,
                     actionSpec.getRecommendation().getSavingsPerHour().getAmount());
+            actionSpecRecord.set(ActionModel.ActionSpec.SPEC_OID, actionSpec.getRecommendationId());
 
             // We don't set the hash here. We set it when we write the data.
 
@@ -114,6 +119,38 @@ public class ActionConverter {
         } catch (UnsupportedActionException e) {
             return null;
         }
+    }
+
+    /**
+     * Create a record for the action (metric) table from a particular {@link ActionSpec}.
+     *
+     * <p/>Note - not all fields will be set. The caller is responsible for setting the hash
+     * later using the {@link ActionHashManager}.
+     *
+     * @param actionSpec The {@link ActionSpec} from the action orchestrator.
+     * @param actionSpecRecord The record for the {@link ActionSpec}, obtained by a preceding call
+     *     to {@link ActionConverter#makeActionSpecRecord(ActionSpec)}.
+     * @return The {@link Record}.
+     */
+    @Nonnull
+    Record makeActionRecord(ActionSpec actionSpec, Record actionSpecRecord) {
+        Record actionRecord = new Record(ActionModel.ActionMetric.TABLE);
+        // We set the timestamp when writing, not when converting.
+        actionRecord.set(ActionModel.ActionMetric.STATE, mapState(actionSpec.getActionState()));
+        actionRecord.set(ActionModel.ActionMetric.ACTION_SPEC_OID,
+                actionSpecRecord.get(ActionModel.ActionSpec.SPEC_OID));
+        actionRecord.set(ActionModel.ActionMetric.ACTION_OID, actionSpec.getRecommendation().getId());
+
+        // We don't set the hash here. We set it when we write the data.
+
+        final String user;
+        if (actionSpec.getDecision().getExecutionDecision().hasUserUuid()) {
+            user = actionSpec.getDecision().getExecutionDecision().getUserUuid();
+        } else {
+            user = null;
+        }
+        actionRecord.set(ActionModel.ActionMetric.USER, user);
+        return actionRecord;
     }
 
     private ActionCategory extractCategory(ActionSpec spec) {
