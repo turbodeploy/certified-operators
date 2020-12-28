@@ -7,7 +7,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -77,7 +76,7 @@ public class ActionWriter implements ActionsListener {
 
     private final boolean enableSearchActionIngestion;
 
-    private final Supplier<ReportingActionWriter> reportingActionWriterSupplier;
+    private final Supplier<ReportPendingActionWriter> reportingActionWriterSupplier;
 
     private final Supplier<SearchActionWriter> searchActionWriterSupplier;
 
@@ -96,7 +95,7 @@ public class ActionWriter implements ActionsListener {
             final boolean enableReportingActionIngestion,
             final boolean enableSearchActionIngestion,
             final long realtimeContextId,
-            final Supplier<ReportingActionWriter> reportingActionWriterSupplier,
+            final Supplier<ReportPendingActionWriter> reportingActionWriterSupplier,
             final Supplier<SearchActionWriter> searchActionWriterSupplier) {
         this.clock = clock;
         this.actionService = actionService;
@@ -226,7 +225,7 @@ public class ActionWriter implements ActionsListener {
                         response.getActionChunk().getActionsList();
                 actionsList.forEach(aoAction -> {
                     if (aoAction.hasActionSpec()) {
-                        actionConsumers.forEach(actionConsumer -> actionConsumer.accept(aoAction));
+                        actionConsumers.forEach(actionConsumer -> actionConsumer.recordAction(aoAction));
                     }
                 });
                 totalActionsCount.add(actionsList.size());
@@ -267,8 +266,10 @@ public class ActionWriter implements ActionsListener {
     /**
      * Interface for writing actions and severities.
      */
-    interface IActionWriter extends Consumer<ActionOrchestratorAction> {
+    interface IActionWriter {
         default void acceptSeverity(SeverityMap severityMap) {}
+
+        void recordAction(ActionOrchestratorAction action);
 
         void write(Map<ActionPlanInfo.TypeInfoCase, Long> lastActionWrite,
                 TypeInfoCase actionPlanType, MultiStageTimer timer)

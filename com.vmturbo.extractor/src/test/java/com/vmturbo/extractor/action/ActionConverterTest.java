@@ -24,10 +24,9 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderEx
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.extractor.models.ActionModel;
-import com.vmturbo.extractor.models.ActionModel.ActionMetric;
+import com.vmturbo.extractor.models.ActionModel.PendingAction;
 import com.vmturbo.extractor.models.Table.Record;
 import com.vmturbo.extractor.schema.enums.ActionCategory;
-import com.vmturbo.extractor.schema.enums.ActionState;
 import com.vmturbo.extractor.schema.enums.ActionType;
 import com.vmturbo.extractor.schema.enums.Severity;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -40,12 +39,12 @@ public class ActionConverterTest {
 
     private final String description = "My action description.";
     private final double savings = 8;
-    private final long specOid = 870;
+    private final long actionOid = 870;
     private final ActionSpec actionSpec = ActionSpec.newBuilder()
-            .setRecommendationId(specOid)
+            .setRecommendationId(7L)
             .setRecommendation(Action.newBuilder()
                     .setDeprecatedImportance(123)
-                    .setId(7L)
+                    .setId(actionOid)
                     .setSavingsPerHour(CurrencyAmount.newBuilder()
                             .setAmount(savings))
                     .setExplanation(Explanation.newBuilder()
@@ -81,35 +80,18 @@ public class ActionConverterTest {
      */
     @Test
     public void testActionSpecRecord() {
-        Record record = actionConverter.makeActionSpecRecord(actionSpec);
-        assertThat(record.get(ActionModel.ActionSpec.TYPE), is(ActionType.MOVE));
-        assertThat(record.get(ActionModel.ActionSpec.CATEGORY), is(ActionCategory.COMPLIANCE));
-        assertThat(record.get(ActionModel.ActionSpec.SEVERITY), is(Severity.CRITICAL));
-        assertThat(record.get(ActionModel.ActionSpec.TARGET_ENTITY), is(123L));
+        Record record = actionConverter.makePendingActionRecord(actionSpec);
+        assertThat(record.get(ActionModel.PendingAction.TYPE), is(ActionType.MOVE));
+        assertThat(record.get(ActionModel.PendingAction.CATEGORY), is(ActionCategory.COMPLIANCE));
+        assertThat(record.get(ActionModel.PendingAction.SEVERITY), is(Severity.CRITICAL));
+        assertThat(record.get(ActionModel.PendingAction.TARGET_ENTITY), is(123L));
         Set<Long> s = new HashSet<>();
-        for (long l : record.get(ActionModel.ActionSpec.INVOLVED_ENTITIES)) {
+        for (long l : record.get(ActionModel.PendingAction.INVOLVED_ENTITIES)) {
             s.add(l);
         }
         assertThat(s, containsInAnyOrder(123L, 234L, 345L));
-        assertThat(record.get(ActionModel.ActionSpec.DESCRIPTION), is(description));
-        assertThat(record.get(ActionModel.ActionSpec.SAVINGS), is(savings));
-        assertThat(record.get(ActionModel.ActionSpec.SPEC_OID), is(specOid));
+        assertThat(record.get(ActionModel.PendingAction.DESCRIPTION), is(description));
+        assertThat(record.get(ActionModel.PendingAction.SAVINGS), is(savings));
+        assertThat(record.get(PendingAction.ACTION_OID), is(actionOid));
     }
-
-    /**
-     * Test converting an {@link ActionSpec} to a metric record.
-     */
-    @Test
-    public void testActionRecord() {
-        Record actionSpecRecord = new Record(ActionMetric.TABLE);
-        actionSpecRecord.set(ActionModel.ActionSpec.SPEC_OID, specOid);
-
-        Record actionRecord = actionConverter.makeActionRecord(actionSpec, actionSpecRecord);
-        assertThat(actionRecord.get(ActionMetric.STATE), is(ActionState.IN_PROGRESS));
-        assertThat(actionRecord.get(ActionMetric.ACTION_SPEC_OID), is(specOid));
-        assertThat(actionRecord.get(ActionMetric.ACTION_OID),
-            is(actionSpec.getRecommendation().getId()));
-        assertThat(actionRecord.get(ActionMetric.USER), is("me"));
-    }
-
 }

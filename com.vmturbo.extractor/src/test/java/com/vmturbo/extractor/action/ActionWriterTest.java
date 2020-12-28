@@ -54,7 +54,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.extractor.ExtractorDbConfig;
-import com.vmturbo.extractor.RecordHashManager.SnapshotManager;
 import com.vmturbo.extractor.schema.ExtractorDbBaseConfig;
 import com.vmturbo.extractor.topology.DataProvider;
 import com.vmturbo.extractor.topology.ImmutableWriterConfig;
@@ -91,8 +90,6 @@ public class ActionWriterTest {
 
     private MutableFixedClock clock = new MutableFixedClock(1_000_000);
 
-    private ActionHashManager actionHashManager = mock(ActionHashManager.class);
-
     private ActionsServiceMole actionsBackend = spy(ActionsServiceMole.class);
 
     private EntitySeverityService severityService = new EntitySeverityService();
@@ -107,9 +104,9 @@ public class ActionWriterTest {
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(actionsBackend, severityService);
 
-    private ReportingActionWriter reportingActionWriter = mock(ReportingActionWriter.class);
+    private ReportPendingActionWriter reportPendingActionWriter = mock(ReportPendingActionWriter.class);
     private SearchActionWriter searchActionWriter = mock(SearchActionWriter.class);
-    private Supplier<ReportingActionWriter> reportingActionWriterSupplier = mock(Supplier.class);
+    private Supplier<ReportPendingActionWriter> reportingActionWriterSupplier = mock(Supplier.class);
     private Supplier<SearchActionWriter> searchActionWriterSupplier = mock(Supplier.class);
 
     private ActionWriter actionWriter;
@@ -123,8 +120,8 @@ public class ActionWriterTest {
     public void setup() throws Exception {
         final DbEndpoint endpoint = spy(dbConfig.ingesterEndpoint());
         doReturn(mock(DSLContext.class)).when(endpoint).dslContext();
-        doReturn(new ReportingActionWriter(clock, pool, endpoint, writerConfig, actionConverter,
-                actionHashManager, ACTION_WRITING_INTERVAL_MS)).when(reportingActionWriterSupplier).get();
+        doReturn(new ReportPendingActionWriter(clock, pool, endpoint, writerConfig, actionConverter,
+                ACTION_WRITING_INTERVAL_MS)).when(reportingActionWriterSupplier).get();
         doReturn(new SearchActionWriter(dataProvider, endpoint, writerConfig, pool))
                 .when(searchActionWriterSupplier).get();
 
@@ -147,7 +144,6 @@ public class ActionWriterTest {
                 .build()));
         severityService.setSeveritySupplier(Collections::emptyList);
         doAnswer(inv -> null).when(dataProvider).getTopologyGraph();
-        when(actionHashManager.open(clock.millis())).thenReturn(mock(SnapshotManager.class));
     }
 
     /**
@@ -173,8 +169,6 @@ public class ActionWriterTest {
         doAnswer(invocation -> {
             return null;
         }).when(actionWriter).fetchActions(any());
-        SnapshotManager snapshotManager = mock(SnapshotManager.class);
-        when(actionHashManager.open(anyLong())).thenReturn(snapshotManager);
 
         actionWriter.onActionsUpdated(actionsUpdated(REALTIME_CONTEXT));
         verify(actionWriter, times(1)).fetchActions(any());
@@ -220,7 +214,7 @@ public class ActionWriterTest {
      */
     @Test
     public void testUnsupportedDialectException() throws Exception {
-        doThrow(new UnsupportedDialectException("bad!")).when(reportingActionWriter).write(any(), any(), any());
+        doThrow(new UnsupportedDialectException("bad!")).when(reportPendingActionWriter).write(any(), any(), any());
         actionWriter.onActionsUpdated(actionsUpdated(REALTIME_CONTEXT));
     }
 
@@ -231,7 +225,7 @@ public class ActionWriterTest {
      */
     @Test
     public void testSQLException() throws Exception {
-        doThrow(new SQLException("bad!", "SQL:FOO", 123)).when(reportingActionWriter).write(any(), any(), any());
+        doThrow(new SQLException("bad!", "SQL:FOO", 123)).when(reportPendingActionWriter).write(any(), any(), any());
         actionWriter.onActionsUpdated(actionsUpdated(REALTIME_CONTEXT));
     }
 
