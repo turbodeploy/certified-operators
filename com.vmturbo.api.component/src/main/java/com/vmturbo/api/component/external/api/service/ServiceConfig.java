@@ -380,7 +380,8 @@ public class ServiceConfig {
                 entitySettingQueryExecutor(),
                 mapperConfig.groupFilterMapper(),
                 businessAccountRetriever(),
-                communicationConfig.serviceProviderExpander());
+                communicationConfig.serviceProviderExpander(),
+                mapperConfig.paginationMapper());
     }
 
     @Bean

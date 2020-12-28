@@ -195,7 +195,7 @@ public class SupplyChainFetcherFactoryTest {
             .build());
         when(groupAndMembers.members()).thenReturn(Collections.emptySet());
         when(groupAndMembers.entities()).thenReturn(Collections.emptySet());
-        when(groupExpander.getGroupWithMembers("x")).thenReturn(Optional.of(groupAndMembers));
+        when(groupExpander.getGroupWithMembersAndEntities("x")).thenReturn(Optional.of(groupAndMembers));
 
 
         // act
@@ -236,7 +236,7 @@ public class SupplyChainFetcherFactoryTest {
             .addExpectedTypes(MemberType.newBuilder()
                 .setEntity(ApiEntityType.VIRTUAL_VOLUME.typeNumber()))
             .build());
-        when(groupExpander.getGroupWithMembers(searchUuids.get(0)))
+        when(groupExpander.getGroupWithMembersAndEntities(searchUuids.get(0)))
             .thenReturn(Optional.of(groupAndMembers));
 
         // Set up to return a VirtualVolume
@@ -442,7 +442,7 @@ public class SupplyChainFetcherFactoryTest {
                 .addExpectedTypes(MemberType.newBuilder()
                         .setEntity(ApiEntityType.VIRTUAL_MACHINE.typeNumber()))
                 .build());
-        when(groupExpander.getGroupWithMembers(searchUuids.get(0))).thenReturn(
+        when(groupExpander.getGroupWithMembersAndEntities(searchUuids.get(0))).thenReturn(
                 Optional.of(groupAndMembers));
 
         // Set up to return a VirtualMachine
@@ -657,7 +657,7 @@ public class SupplyChainFetcherFactoryTest {
                                                                                                         .typeNumber()))))
                                         ).build());
         when(groupAndMembers.members()).thenReturn(Arrays.asList());
-        when(groupExpander.getGroupWithMembers("group1")).thenReturn(Optional.of(groupAndMembers));
+        when(groupExpander.getGroupWithMembersAndEntities("group1")).thenReturn(Optional.of(groupAndMembers));
 
         final SupplyChainNode vms = SupplyChainNode.newBuilder()
             .setEntityType(VM.typeNumber())
@@ -707,7 +707,7 @@ public class SupplyChainFetcherFactoryTest {
                 .build());
         when(groupAndMembers.members()).thenReturn(Arrays.asList(vmId1, vmId2));
         when(groupAndMembers.entities()).thenReturn(Arrays.asList(vmId1, vmId2));
-        when(groupExpander.getGroupWithMembers(groupId)).thenReturn(Optional.of(groupAndMembers));
+        when(groupExpander.getGroupWithMembersAndEntities(groupId)).thenReturn(Optional.of(groupAndMembers));
         when(groupExpander.expandUuidToTypeToEntitiesMap(eq(1L))).thenReturn(
             ImmutableMap.of(ApiEntityType.VIRTUAL_MACHINE, ImmutableSet.of(vmId1, vmId2)));
 
@@ -1053,7 +1053,7 @@ public class SupplyChainFetcherFactoryTest {
         when(groupAndMembers.members()).thenReturn(Arrays.asList(rgAppOid, rgVmOid));
         when(groupAndMembers.entities()).thenReturn(Arrays.asList(rgAppOid, rgVmOid));
 
-        when(groupExpander.getGroupWithMembers(rgOidStr))
+        when(groupExpander.getGroupWithMembersAndEntities(rgOidStr))
             .thenReturn(Optional.of(groupAndMembers));
 
         RepositoryApi.MultiEntityRequest multiEntityRequest = mock(RepositoryApi.MultiEntityRequest.class);
@@ -1227,7 +1227,7 @@ public class SupplyChainFetcherFactoryTest {
         when(groupAndMembers.members()).thenReturn(Arrays.asList(hybridId, onpremId, cloudId));
         when(groupAndMembers.entities()).thenReturn(Arrays.asList(hybridId, onpremId, cloudId));
 
-        when(groupExpander.getGroupWithMembers(rgIdStr)).thenReturn(Optional.of(groupAndMembers));
+        when(groupExpander.getGroupWithMembersAndEntities(rgIdStr)).thenReturn(Optional.of(groupAndMembers));
 
         RepositoryApi.MultiEntityRequest multiEntityRequest = mock(RepositoryApi.MultiEntityRequest.class);
         when(repositoryApiBackend.entitiesRequest(any())).thenReturn(multiEntityRequest);

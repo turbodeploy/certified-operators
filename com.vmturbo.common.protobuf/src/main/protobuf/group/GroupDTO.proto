@@ -487,6 +487,20 @@ message CountGroupsResponse {
     optional int32 count = 1;
 }
 
+message GetGroupAndImmediateMembersRequest {
+    required int64 group_id = 1;
+}
+
+message GetGroupAndImmediateMembersResponse {
+    // If present, the group associated with the input ID.
+    // If not present, the requested group does not exist.
+    optional Grouping group = 1;
+
+    // Immediate static or dynamic members 1 level below associated group.
+    // For group of groups this is the collection of groups ids.
+    // For group of entities this is collection of entity ids.
+    repeated int64 immediate_members = 2;
+}
 // A service responsible for group operations.
 service GroupService {
 
@@ -494,6 +508,10 @@ service GroupService {
 
     // Get a group
     rpc GetGroup(GroupID) returns (GetGroupResponse);
+
+    // Get a static or dynamic group with its immediate members.
+    // Immediate members are 1 level removed, will not expand nested groups.
+    rpc GetGroupAndImmediateMembers(GetGroupAndImmediateMembersRequest) returns (GetGroupAndImmediateMembersResponse);
 
     // Get groups based on the query
     rpc GetGroups(GetGroupsRequest) returns (stream Grouping);

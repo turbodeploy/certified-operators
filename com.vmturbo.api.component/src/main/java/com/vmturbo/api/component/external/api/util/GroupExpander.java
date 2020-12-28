@@ -14,6 +14,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
@@ -26,6 +27,8 @@ import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupAndImmediateMembersRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupAndImmediateMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetOwnersRequest;
@@ -38,6 +41,7 @@ import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.group.api.GroupMemberRetriever;
+import com.vmturbo.group.api.ImmutableGroupAndMembers;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
 /**
@@ -47,7 +51,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
  **/
 public class GroupExpander {
 
-    private static final Set<String> GLOBAL_SCOPE_SUPPLY_CHAIN = ImmutableSet.of(
+    @VisibleForTesting
+    static final Set<String> GLOBAL_SCOPE_SUPPLY_CHAIN = ImmutableSet.of(
         "GROUP-VirtualMachine", "GROUP-PhysicalMachineByCluster", "Market");
 
     private final GroupServiceBlockingStub groupServiceGrpc;
@@ -103,7 +108,7 @@ public class GroupExpander {
      */
     public Map<ApiEntityType, Set<Long>> expandUuidToTypeToEntitiesMap(Long groupUuid) {
 
-        Optional<GroupAndMembers> groupAndMembers = getGroupWithMembers(String.valueOf(groupUuid));
+        Optional<GroupAndMembers> groupAndMembers = getGroupWithMembersAndEntities(String.valueOf(groupUuid));
         if (groupAndMembers.isPresent()) {
             if (groupAndMembers.get().entities().size() == 0) {
                 return  Collections.emptyMap();
@@ -176,7 +181,7 @@ public class GroupExpander {
      *         {@link Optional} otherwise.
      */
     @Nonnull
-    public Optional<GroupAndMembers> getGroupWithMembers(@Nonnull final String uuid) {
+    public Optional<GroupAndMembers> getGroupWithMembersAndEntities(@Nonnull final String uuid) {
         // These magic UI strings currently have no associated group in XL, so they are not valid.
         if (uuid.equals(DefaultCloudGroupProducer.ALL_CLOULD_WORKLOAD_AWS_AND_AZURE_UUID) ||
             uuid.equals(DefaultCloudGroupProducer.ALL_CLOUD_VM_UUID)) {
@@ -186,9 +191,46 @@ public class GroupExpander {
         if (GLOBAL_SCOPE_SUPPLY_CHAIN.contains(uuid)) {
             return Optional.empty();
         }
-
+        //TODO: Optimization
+        //Add option to getGroup RPC call to get nested groups members,  this will undo
+        //this::getMembersForGroup going back to group to get dynamic members
         return getGroup(uuid)
             .map(this::getMembersForGroup);
+    }
+
+    /**
+     * Get the group associated with a particular UUID, as well as its members.
+     *
+     * @param uuid The string UUID. This may be the OID of a group, an entity, or a magic string.
+     * @return If the UUID refers to a group, an {@link Optional} containing the
+     *         {@link GroupAndMembers} describing the group and its members. An empty
+     *         {@link Optional} otherwise.
+     */
+    @Nonnull
+    public Optional<GroupAndMembers> getGroupWithImmediateMembersOnly(@Nonnull final String uuid) {
+        // These magic UI strings currently have no associated group in XL, so they are not valid.
+        if (uuid.equals(DefaultCloudGroupProducer.ALL_CLOULD_WORKLOAD_AWS_AND_AZURE_UUID) //Magic UI String
+            || uuid.equals(DefaultCloudGroupProducer.ALL_CLOUD_VM_UUID) //Magic UI String
+            || GLOBAL_SCOPE_SUPPLY_CHAIN.contains(uuid)
+            || !StringUtils.isNumeric(uuid)) {
+            return Optional.empty();
+        }
+
+        final GetGroupAndImmediateMembersResponse response = groupServiceGrpc.getGroupAndImmediateMembers(
+                        GetGroupAndImmediateMembersRequest.newBuilder()
+                        .setGroupId(Long.parseLong(uuid))
+                        .build());
+
+        if (!response.hasGroup()) {
+            return Optional.empty();
+        }
+
+        final GroupAndMembers groupAndMembers = ImmutableGroupAndMembers.builder()
+                    .group(response.getGroup())
+                    .members(response.getImmediateMembersList())
+                    .entities(response.getImmediateMembersList())
+                    .build();
+        return Optional.of(groupAndMembers);
     }
 
     /**
@@ -203,7 +245,7 @@ public class GroupExpander {
      */
     @Nonnull
     public GroupAndMembers getMembersForGroup(@Nonnull final Grouping group) {
-        return groupMemberRetriever.getMembersForGroup(Collections.singletonList(group))
+        return groupMemberRetriever.getMembersAndEntitiesForGroups(Collections.singletonList(group))
                 .iterator()
                 .next();
     }
@@ -217,7 +259,7 @@ public class GroupExpander {
      */
     @Nonnull
     public List<GroupAndMembers> getMembersForGroups(@Nonnull final List<Grouping> groups) {
-        return groupMemberRetriever.getMembersForGroup(groups);
+        return groupMemberRetriever.getMembersAndEntitiesForGroups(groups);
     }
 
     /**
