@@ -891,7 +891,7 @@ public class SupplyChainFetcherFactory {
                     && seedUuids.size() == 1) {
                 final String groupUuid = seedUuids.iterator().next();
                 final Optional<GroupAndMembers> groupWithMembers =
-                    groupExpander.getGroupWithMembers(groupUuid);
+                    groupExpander.getGroupWithMembersAndEntities(groupUuid);
 
                 if (groupWithMembers.isPresent()) {
                     final Grouping group = groupWithMembers.get().group();
