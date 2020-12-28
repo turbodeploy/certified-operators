@@ -6,20 +6,22 @@ import static org.hamcrest.core.IsEqual.equalTo;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
+
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -30,7 +32,6 @@ import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.common.protobuf.group.GroupDTO;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupAndImmediateMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetOwnersRequest;
@@ -46,7 +47,6 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
@@ -349,59 +349,4 @@ public class GroupExpanderTest {
         assertEquals(ownersIds,
                 groupExpander.getGroupOwners(Collections.singletonList(groupId), groupType));
     }
-
-    /**
-     * Tests uuids that affect early exit of code.
-     */
-    @Test
-    public void testGetGroupWithImmediateMembersOnlyEarlyExits() {
-        assertFalse(groupExpander.getGroupWithImmediateMembersOnly(DefaultCloudGroupProducer.ALL_CLOULD_WORKLOAD_AWS_AND_AZURE_UUID).isPresent());
-        assertFalse(groupExpander.getGroupWithImmediateMembersOnly(DefaultCloudGroupProducer.ALL_CLOUD_VM_UUID).isPresent());
-        GroupExpander.GLOBAL_SCOPE_SUPPLY_CHAIN.stream().forEach(uuid ->
-                        assertFalse(groupExpander.getGroupWithImmediateMembersOnly(uuid).isPresent()));
-        assertFalse(groupExpander.getGroupWithImmediateMembersOnly("nonNumeric").isPresent());
-    }
-
-    /**
-     * Expect empty optional result if group not found.
-     */
-    @Test
-    public void testGetGroupWithImmediateMembersOnlyGroupNotFound() {
-        //GIVEN
-        String groupID = "123";
-
-        //WHEN
-        Optional<GroupAndMembers> response = groupExpander.getGroupWithImmediateMembersOnly(groupID);
-
-        //THEN
-        assertFalse(response.isPresent());
-    }
-
-    /**
-     * Test calling to get group, members and the response.
-     */
-    @Test
-    public void testGetGroupWithImmediateMembersOnly() {
-        //GIVEN
-        String groupID = "123";
-        List<Long> members = Arrays.asList(1L, 2L, 3L, 4L);
-        GetGroupAndImmediateMembersResponse rpcResponse = GetGroupAndImmediateMembersResponse.newBuilder()
-                        .setGroup(Grouping.newBuilder().setId(Long.parseLong(groupID)))
-                        .addAllImmediateMembers(members)
-                        .build();
-        doReturn(rpcResponse).when(groupServiceSpy).getGroupAndImmediateMembers(Mockito.any());
-
-        //WHEN
-        Optional<GroupAndMembers> response = groupExpander.getGroupWithImmediateMembersOnly(groupID);
-
-        //THEN
-        GroupAndMembers groupAndMembers = response.get();
-
-        assertEquals(groupAndMembers.group(), rpcResponse.getGroup());
-        assertEquals(groupAndMembers.members(), rpcResponse.getImmediateMembersList());
-        assertEquals(groupAndMembers.entities(), rpcResponse.getImmediateMembersList());
-    }
-
-
-
 }

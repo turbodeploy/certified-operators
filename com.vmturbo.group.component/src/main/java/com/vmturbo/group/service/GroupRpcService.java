@@ -13,7 +13,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeoutException;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -24,7 +23,6 @@ import com.google.common.collect.ImmutableTable;
 import com.google.common.collect.Table;
 
 import io.grpc.Status;
-import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 
 import org.apache.commons.lang3.StringUtils;
@@ -47,13 +45,10 @@ import com.vmturbo.common.protobuf.group.GroupDTO.DeleteGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredGroupsPoliciesSettings;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredPolicyInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredSettingPolicyInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupAndImmediateMembersRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupAndImmediateMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsForEntitiesRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsForEntitiesResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetOwnersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetOwnersResponse;
@@ -425,43 +420,75 @@ public class GroupRpcService extends GroupServiceImplBase {
     public void getMembers(final GroupDTO.GetMembersRequest request,
             final StreamObserver<GroupDTO.GetMembersResponse> responseObserver) {
         grpcTransactionUtil.executeOperation(responseObserver,
-                (stores) -> getMembersResponse(stores.getGroupStore(), request, responseObserver));
+                (stores) -> getMembers(stores.getGroupStore(), request, responseObserver));
     }
 
-    /**
-     * Iterates groups in request and streams results to consumer.
-     * @param groupStore store to query groups
-     * @param request request config for members
-     * @param getMembersResponseConsumer {@link Consumer} accepting {@link GetMembersResponse} results
-     * @throws StoreOperationException If there is an error interacting with the {@link IGroupStore}
-     * @throws StatusRuntimeException Invalid argument, groupId not found
-     */
     private void getMembers(@Nonnull IGroupStore groupStore,
-                            final GroupDTO.GetMembersRequest request,
-                            final Consumer<GetMembersResponse> getMembersResponseConsumer)
-                    throws StoreOperationException, StatusRuntimeException {
-
+            final GroupDTO.GetMembersRequest request,
+            final StreamObserver<GroupDTO.GetMembersResponse> responseObserver)
+            throws StoreOperationException {
         if (request.getIdCount() == 0) {
             final String errMsg = "Group ID is missing for the getMembers request";
             logger.error(errMsg);
-            throw new StatusRuntimeException(Status.INVALID_ARGUMENT.withDescription(errMsg));
+            responseObserver.onError(
+                    Status.INVALID_ARGUMENT.withDescription(errMsg).asRuntimeException());
+            return;
         }
 
-        final Collection<Grouping> tmpGroups = getTemporaryGroups(request.getIdList());
+        final Collection<Grouping> tmpGroups = request.getIdList()
+                .stream()
+                .map(tempGroupCache::getGrouping)
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .collect(Collectors.toList());
         for (Grouping group: tmpGroups) {
-            GetMembersResponse getMembersResponse = getMembersResponseForGroup(groupStore, request, group);
-            getMembersResponseConsumer.accept(getMembersResponse);
+            final Set<Long> members = memberCalculator.getGroupMembers(groupStore, group.getDefinition(),
+                    request.getExpandNestedGroups());
+            // verify the user has access to all of the group members before returning any of them.
+            if (request.getEnforceUserScope() && userSessionContext.isUserScoped()) {
+                if (!request.getExpandNestedGroups()) {
+                    // Need to use the expanded members for checking access, if we didn't already fetch them
+                    UserScopeUtils.checkAccess(userSessionContext,
+                            memberCalculator.getGroupMembers(groupStore, group.getDefinition(), true));
+                } else {
+                    UserScopeUtils.checkAccess(userSessionContext, members);
+                }
+            }
+            // return members
+            logger.trace("Returning group ({}) with {} members", group.getId(), members.size());
+            responseObserver.onNext(makeMembersResponse(group.getId(), members));
         }
-
         // Real (non-temporary groups)
         final Set<Long> realGroupIds = new HashSet<>(request.getIdList());
         realGroupIds.removeAll(Collections2.transform(tmpGroups, Grouping::getId));
-        validateIfNotAllGroupsPresentThrowError(groupStore, request.getExpectPresent(), realGroupIds);
-
+        if (request.getExpectPresent()) {
+            final Set<Long> existingRealGroups = groupStore.getExistingGroupIds(realGroupIds);
+            if (!realGroupIds.equals(existingRealGroups)) {
+                realGroupIds.removeAll(existingRealGroups);
+                final String errMsg = "Cannot find groups with ids " + realGroupIds;
+                logger.error(errMsg);
+                responseObserver.onError(
+                        Status.NOT_FOUND.withDescription(errMsg).asRuntimeException());
+                return;
+            }
+        }
         for (Long groupId: realGroupIds) {
             try {
-                GetMembersResponse getMembersResponse = getMembersResponseForGroup(groupStore, request, groupId);
-                getMembersResponseConsumer.accept(getMembersResponse);
+                final Set<Long> members = memberCalculator.getGroupMembers(groupStore, Collections.singleton(groupId),
+                    request.getExpandNestedGroups());
+                // verify the user has access to all of the group members before returning any of them.
+                if (request.getEnforceUserScope() && userSessionContext.isUserScoped()) {
+                    if (!request.getExpandNestedGroups()) {
+                        // Need to use the expanded members for checking access, if we didn't already fetch them
+                        UserScopeUtils.checkAccess(userSessionContext,
+                            memberCalculator.getGroupMembers(groupStore, Collections.singleton(groupId), true));
+                    } else {
+                        UserScopeUtils.checkAccess(userSessionContext, members);
+                    }
+                }
+                // return members
+                logger.trace("Returning group ({}) with {} members", groupId, members.size());
+                responseObserver.onNext(makeMembersResponse(groupId, members));
             } catch (StoreOperationException | RuntimeException e) {
                 // We don't want a failure to retrieve the members of one group to result in a failure
                 // to retrieve members of all groups.
@@ -470,120 +497,7 @@ public class GroupRpcService extends GroupServiceImplBase {
                 logger.error("Failed to retrieve members for group " + groupId, e);
             }
         }
-    }
-
-    /**
-     * Gets member responses to streamObserver.
-     * @param groupStore store to query groups
-     * @param request request config for members
-     * @param responseObserver observers stream of messages
-     * @throws StoreOperationException If there is an error interacting with the {@link IGroupStore}
-     */
-    private void getMembersResponse(@Nonnull IGroupStore groupStore,
-                                    final GroupDTO.GetMembersRequest request,
-                                    final StreamObserver<GroupDTO.GetMembersResponse> responseObserver)
-                    throws StoreOperationException {
-        try {
-            Consumer<GetMembersResponse> getMembersResponseConsumer = (getMembersResponse -> responseObserver.onNext(getMembersResponse));
-            getMembers(groupStore, request, getMembersResponseConsumer);
-            responseObserver.onCompleted();
-        } catch (StatusRuntimeException e) {
-            responseObserver.onError(e);
-        }
-    }
-
-    /**
-     * If requested in {@link GroupDTO.GetMembersRequest}, throws error if not all groups exist.
-     * @param groupStore used to query groups
-     * @param throwErrorOnFailedValidation whether error should be thrown or not
-     * @param nonTemporaryGroupIds collection of real group ids, temporary groups should be excluded
-     * @throws StatusRuntimeException Invalid argument, groupId not found
-     */
-    private void validateIfNotAllGroupsPresentThrowError(@Nonnull IGroupStore groupStore,
-                                                            boolean throwErrorOnFailedValidation,
-                                                            @Nonnull Set<Long> nonTemporaryGroupIds)
-                    throws StatusRuntimeException {
-        if (throwErrorOnFailedValidation) {
-            final Set<Long> existingRealGroups = groupStore.getExistingGroupIds(nonTemporaryGroupIds);
-            if (!nonTemporaryGroupIds.equals(existingRealGroups)) {
-                nonTemporaryGroupIds.removeAll(existingRealGroups);
-                final String errMsg = "Cannot find groups with ids " + nonTemporaryGroupIds;
-                logger.error(errMsg);
-                throw new StatusRuntimeException(Status.NOT_FOUND.withDescription(errMsg));
-            }
-        }
-    }
-
-    /**
-     * Get {@link GetMembersResponse} for groups.
-     * @param groupStore used to query groups
-     * @param request  request with different options to apply on members discovered
-     * @param group the group in focus
-     * @return {@link GetMembersResponse}
-     * @throws StoreOperationException If there is an error interacting with the {@link IGroupStore}
-     */
-    private GetMembersResponse getMembersResponseForGroup(@Nonnull IGroupStore groupStore,
-                                            GroupDTO.GetMembersRequest request,
-                                            Grouping group) throws StoreOperationException {
-        final Set<Long> members = memberCalculator.getGroupMembers(groupStore, group.getDefinition(),
-                                                                   request.getExpandNestedGroups());
-        // verify the user has access to all of the group members before returning any of them.
-        if (request.getEnforceUserScope() && userSessionContext.isUserScoped()) {
-            if (!request.getExpandNestedGroups()) {
-                // Need to use the expanded members for checking access, if we didn't already fetch them
-                UserScopeUtils.checkAccess(userSessionContext,
-                        memberCalculator.getGroupMembers(groupStore, group.getDefinition(), true));
-            } else {
-                UserScopeUtils.checkAccess(userSessionContext, members);
-            }
-        }
-        // return members
-        logger.trace("Returning group ({}) with {} members", group.getId(), members.size());
-        return makeMembersResponse(group.getId(), members);
-    }
-
-    /**
-     * Get {@link GetMembersResponse} for groups.
-     * @param groupStore used to query groups
-     * @param request  request with different options to apply on memebers discovered
-     * @param groupId groupUuid of focus
-     * @return {@link GetMembersResponse}
-     * @throws StoreOperationException If there is an error interacting with the {@link IGroupStore}
-     */
-    private GetMembersResponse getMembersResponseForGroup(@Nonnull IGroupStore groupStore,
-                                                          GroupDTO.GetMembersRequest request,
-                                                          Long groupId) throws StoreOperationException {
-        final Set<Long> members = memberCalculator.getGroupMembers(groupStore, Collections.singleton(
-                        groupId),
-                                                                   request.getExpandNestedGroups());
-        // verify the user has access to all of the group members before returning any of them.
-        if (request.getEnforceUserScope() && userSessionContext.isUserScoped()) {
-            if (!request.getExpandNestedGroups()) {
-                // Need to use the expanded members for checking access, if we didn't already fetch them
-                UserScopeUtils.checkAccess(userSessionContext,
-                                           memberCalculator.getGroupMembers(groupStore, Collections.singleton(groupId), true));
-            } else {
-                UserScopeUtils.checkAccess(userSessionContext, members);
-            }
-        }
-        // return members
-        logger.trace("Returning group ({}) with {} members", groupId, members.size());
-        return makeMembersResponse(groupId, members);
-    }
-
-    /**
-     * Returns only temporary groups from list of ids.
-     * @param groupIds list of ids to focus
-     * @return List of temporary {@link Grouping}
-     */
-    @Nonnull
-    private List<Grouping> getTemporaryGroups(@Nonnull final List<Long> groupIds) {
-        return groupIds
-            .stream()
-            .map(tempGroupCache::getGrouping)
-            .filter(Optional::isPresent)
-            .map(Optional::get)
-            .collect(Collectors.toList());
+        responseObserver.onCompleted();
     }
 
     @Override
@@ -905,7 +819,7 @@ public class GroupRpcService extends GroupServiceImplBase {
     }
 
     private void getGroup(@Nonnull IGroupStore groupStore, @Nonnull GroupID request,
-                          @Nonnull StreamObserver<GetGroupResponse> responseObserver) {
+                    @Nonnull StreamObserver<GetGroupResponse> responseObserver) {
         if (!request.hasId()) {
             final String errMsg = "Invalid GroupID input for get a group: No group ID specified";
             logger.error(errMsg);
@@ -931,10 +845,10 @@ public class GroupRpcService extends GroupServiceImplBase {
             responseObserver.onCompleted();
         } catch (DataAccessException e) {
             final String errorMsg = String.format("Failed to retrieve group: %s due to data access error: %s",
-                                                  request.getId(), e.getLocalizedMessage());
+                            request.getId(), e.getLocalizedMessage());
             logger.error(errorMsg, e);
             responseObserver.onError(Status.INTERNAL
-                                                     .withDescription(errorMsg).asRuntimeException());
+                .withDescription(errorMsg).asRuntimeException());
         }
     }
 
@@ -948,77 +862,8 @@ public class GroupRpcService extends GroupServiceImplBase {
         }
     }
 
-    @Override
-    public void getGroupAndImmediateMembers(@Nonnull GetGroupAndImmediateMembersRequest request,
-                         @Nonnull StreamObserver<GetGroupAndImmediateMembersResponse> responseObserver) {
-        grpcTransactionUtil.executeOperation(responseObserver,
-                                             stores -> getGroupAndImmediateMembers(stores.getGroupStore(), request, responseObserver));
-    }
-
-    /**
-     * Get a static or dynamic group with its immediate members.
-     *
-     * <p>Immediate members are 1 level removed, will not expand nested groups</p>
-     * @param groupStore store to query groups
-     * @param request request config for members
-     * @param responseObserver the observer which notifies client of any result
-     */
-    private void getGroupAndImmediateMembers(@Nonnull IGroupStore groupStore, @Nonnull GetGroupAndImmediateMembersRequest request,
-                          @Nonnull StreamObserver<GetGroupAndImmediateMembersResponse> responseObserver) {
-        if (!request.hasGroupId()) {
-            final String errMsg = "Invalid GroupID input for get a group: No group ID specified";
-            logger.error(errMsg);
-            responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(errMsg).asException());
-            return;
-        }
-
-        logger.debug("Attempting to retrieve group: {}", request);
-
-        try {
-            Optional<Grouping> group = getGroupById(groupStore, request.getGroupId());
-            GetGroupAndImmediateMembersResponse.Builder builder = GetGroupAndImmediateMembersResponse.newBuilder();
-
-            if (group.isPresent()) {
-                //Get the group members
-                builder.setGroup(group.get());
-                if (group.get().getDefinition().hasStaticGroupMembers()) {
-                    //Static group members exist already exist on the groupDefinition
-                    List<Long> staticMemberIds = group.get()
-                                    .getDefinition()
-                                    .getStaticGroupMembers()
-                                    .getMembersByType(0)
-                                    .getMembersList();
-                    builder.addAllImmediateMembers(staticMemberIds);
-                } else {
-                    //dynamic groups
-                    GetMembersRequest getMembersRequest = GetMembersRequest.newBuilder()
-                                    .addId(request.getGroupId())
-                                    .setExpectPresent(true)
-                                    .build();
-                    Consumer<GetMembersResponse> getMembersResponseConsumer =
-                                    (getMembersResponse -> builder.addAllImmediateMembers(getMembersResponse.getMemberIdList()));
-
-                    getMembers(groupStore, getMembersRequest, getMembersResponseConsumer);
-                }
-            }
-
-            responseObserver.onNext(builder.build());
-            responseObserver.onCompleted();
-        } catch (DataAccessException e) {
-            final String errorMsg = String.format("Failed to retrieve group: %s due to data access error: %s",
-                                                  request.hasGroupId(), e.getLocalizedMessage());
-            logger.error(errorMsg, e);
-            responseObserver.onError(Status.INTERNAL.withDescription(errorMsg).asRuntimeException());
-        } catch (StatusRuntimeException e) {
-            responseObserver.onError(e);
-        } catch (StoreOperationException e) {
-            final String errorMsg = "Failed to retrieve members";
-            responseObserver.onError(Status.INTERNAL.withDescription(errorMsg).asRuntimeException());
-        }
-    }
-
     @Nonnull
-    Optional<Grouping> getGroupById(@Nonnull IGroupStore groupStore, long groupId) {
+    private Optional<Grouping> getGroupById(@Nonnull IGroupStore groupStore, long groupId) {
         // Check the temporary groups cache first
         Optional<Grouping> group = tempGroupCache.getGrouping(groupId);
         if (!group.isPresent()) {

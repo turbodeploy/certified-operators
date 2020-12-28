@@ -47,7 +47,7 @@ public class GroupMemberRetriever {
         while (retIt.hasNext()) {
             groups.add(retIt.next());
         }
-        return getMembersAndEntitiesForGroups(groups);
+        return getMembersForGroup(groups);
     }
 
     /**
@@ -60,7 +60,7 @@ public class GroupMemberRetriever {
      * @return  The {@link GroupAndMembers} describing the groups and its members.
      */
     @Nonnull
-    public List<GroupAndMembers> getMembersAndEntitiesForGroups(@Nonnull final List<Grouping> groups) {
+    public List<GroupAndMembers> getMembersForGroup(@Nonnull final List<Grouping> groups) {
         final Map<Long, List<Long>> members = new HashMap<>();
         final GetMembersRequest.Builder membersBuilder =
                 GetMembersRequest.newBuilder().setExpectPresent(true);
@@ -69,7 +69,6 @@ public class GroupMemberRetriever {
             if (group.getDefinition().hasStaticGroupMembers()) {
                 members.put(group.getId(), GroupProtoUtil.getStaticMembers(group));
             } else {
-                //Dynamic group
                 membersBuilder.addId(group.getId());
             }
         }

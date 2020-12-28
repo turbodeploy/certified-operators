@@ -5,14 +5,11 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -46,6 +43,7 @@ import io.grpc.Status.Code;
 import io.grpc.StatusException;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
+import kotlin.collections.EmptySet;
 
 import org.assertj.core.util.Lists;
 import org.hamcrest.CoreMatchers;
@@ -72,8 +70,6 @@ import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredGroupsPoliciesSettings;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredGroupsPoliciesSettings.UploadedGroup;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupAndImmediateMembersRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupAndImmediateMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsForEntitiesRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsForEntitiesResponse;
@@ -163,7 +159,6 @@ public class GroupRpcServiceTest {
     private IdentityProvider identityProvider;
     private DiscoveredSettingPoliciesUpdater settingPolicyUpdater;
     private DiscoveredPlacementPolicyUpdater placementPolicyUpdater;
-    private GroupMemberCalculator groupMemberCalculatorSpy;
 
     private final GroupDefinition testGrouping = GroupDefinition.newBuilder()
                     .setType(GroupType.REGULAR)
@@ -217,7 +212,6 @@ public class GroupRpcServiceTest {
         groupStoreDAO = transactionProvider.getGroupStore();
         settingPolicyUpdater = Mockito.mock(DiscoveredSettingPoliciesUpdater.class);
         placementPolicyUpdater = Mockito.mock(DiscoveredPlacementPolicyUpdater.class);
-        groupMemberCalculatorSpy = spy(new GroupMemberCalculatorImpl(targetSearchServiceRpc, searchServiceRpc));
         groupRpcService = new GroupRpcService(temporaryGroupCache,
                 searchServiceRpc,
                 userSessionContext,
@@ -227,7 +221,7 @@ public class GroupRpcServiceTest {
                 targetSearchServiceRpc,
                 settingPolicyUpdater,
                 placementPolicyUpdater,
-                groupMemberCalculatorSpy,
+                new GroupMemberCalculatorImpl(targetSearchServiceRpc, searchServiceRpc),
                 2, 120);
         when(temporaryGroupCache.getGrouping(anyLong())).thenReturn(Optional.empty());
         when(temporaryGroupCache.deleteGrouping(anyLong())).thenReturn(Optional.empty());
@@ -2727,142 +2721,10 @@ public class GroupRpcServiceTest {
      * match orderless collections inside.
      */
     private static class GetMembersMatcher extends ProtobufMessageMatcher<GetMembersResponse> {
+
         GetMembersMatcher(@Nonnull GetMembersResponse expected) {
             super(expected, Collections.singleton("member_id"));
         }
     }
 
-    /**
-     * Tests getGroupAndImmediateMembers for static groups returns static members.
-     */
-    @Test
-    public void testGetGroupAndImmediateMembersForStaticGroup() {
-        //GIVEN
-        long groupId = 123L;
-        GetGroupAndImmediateMembersRequest getGroupAndImmediateMembersRequest =
-                        GetGroupAndImmediateMembersRequest.newBuilder()
-                                        .setGroupId(groupId)
-                                        .build();
-        final StreamObserver<GetGroupAndImmediateMembersResponse> responseObserverMock =
-                        Mockito.mock(StreamObserver.class);
-
-        Grouping grouping = Grouping.newBuilder().setId(123L)
-                        .setDefinition(testGrouping)
-                        .build();
-        doReturn(Optional.of(grouping)).when(temporaryGroupCache).getGrouping(groupId);
-
-        //WHEN
-        groupRpcService.getGroupAndImmediateMembers(getGroupAndImmediateMembersRequest, responseObserverMock);
-
-        //THEN
-        ArgumentCaptor<GetGroupAndImmediateMembersResponse> captor = ArgumentCaptor.forClass(GetGroupAndImmediateMembersResponse.class);
-        verify(responseObserverMock, Mockito.times(1)).onNext(captor.capture());
-        GetGroupAndImmediateMembersResponse response = captor.getValue();
-
-        assertEquals(response.getGroup(), grouping);
-        Set<Long> memberIds = new HashSet<>(grouping.getDefinition().getStaticGroupMembers().getMembersByType(0).getMembersList());
-        assertEquals(memberIds.size(), response.getImmediateMembersList().size());
-        assertTrue(memberIds.contains(response.getImmediateMembersList().get(0)));
-        assertTrue(memberIds.contains(response.getImmediateMembersList().get(1)));
-    }
-
-    /**
-     * Tests getGroupAndImmediateMembers for dynamic temporary groups returns members.
-     * @throws Exception Something went wrong
-     */
-    @Test
-    public void testGetGroupAndImmediateMembersForDynamicTemporaryGroup()
-                    throws Exception {
-        //GIVEN
-        long groupId = 123L;
-        GetGroupAndImmediateMembersRequest getGroupAndImmediateMembersRequest =
-                        GetGroupAndImmediateMembersRequest.newBuilder()
-                                        .setGroupId(groupId)
-                                        .build();
-        final StreamObserver<GetGroupAndImmediateMembersResponse> responseObserverMock =
-                        Mockito.mock(StreamObserver.class);
-
-        Grouping grouping = Grouping.newBuilder().setId(123L).build();
-        doReturn(Optional.of(grouping)).when(temporaryGroupCache).getGrouping(groupId);
-        Set<Long> membersList = Collections.singleton(1L);
-        doReturn(membersList).when(groupMemberCalculatorSpy)
-                        .getGroupMembers(groupStoreDAO, grouping.getDefinition(), false);
-
-        //WHEN
-        groupRpcService.getGroupAndImmediateMembers(getGroupAndImmediateMembersRequest, responseObserverMock);
-
-        //THEN
-        ArgumentCaptor<GetGroupAndImmediateMembersResponse> captor = ArgumentCaptor.forClass(GetGroupAndImmediateMembersResponse.class);
-        verify(responseObserverMock, Mockito.times(1)).onNext(captor.capture());
-        GetGroupAndImmediateMembersResponse response = captor.getValue();
-        assertEquals(response.getGroup(), grouping);
-        assertEquals(response.getImmediateMembersList().size(), membersList.size());
-        response.getImmediateMembersList().forEach(id -> assertTrue(membersList.contains(id)));
-    }
-
-    /**
-     * Get group and member data for real group.
-     * @throws Exception Something went wrong
-     */
-    @Test
-    public void testGetGroupAndImmediateMembersForDynamicRealGroup()
-                    throws Exception {
-        //GIVEN
-        final StreamObserver<GetGroupAndImmediateMembersResponse> responseObserverMock =
-                        Mockito.mock(StreamObserver.class);
-
-        Grouping grouping = Grouping.newBuilder().setId(123L).build();
-        long groupId = 123L;
-        doReturn(Optional.empty()).when(temporaryGroupCache).getGrouping(groupId);
-        groupStoreDAO.addGroup(grouping);
-        Set<Long> membersList = Collections.singleton(1L);
-        doReturn(membersList).when(groupMemberCalculatorSpy)
-                        .getGroupMembers(groupStoreDAO, Collections.singleton(groupId), false);
-        GetGroupAndImmediateMembersRequest getGroupAndImmediateMembersRequest =
-                        GetGroupAndImmediateMembersRequest.newBuilder()
-                                        .setGroupId(groupId)
-                                        .build();
-        //WHEN
-        groupRpcService.getGroupAndImmediateMembers(getGroupAndImmediateMembersRequest, responseObserverMock);
-
-        //THEN
-        ArgumentCaptor<GetGroupAndImmediateMembersResponse> captor = ArgumentCaptor.forClass(GetGroupAndImmediateMembersResponse.class);
-        verify(responseObserverMock, Mockito.times(1)).onNext(captor.capture());
-        GetGroupAndImmediateMembersResponse response = captor.getValue();
-
-        assertEquals(response.getGroup(), grouping);
-        assertEquals(response.getImmediateMembersList().size(), membersList.size());
-        response.getImmediateMembersList().forEach(id -> assertTrue(membersList.contains(id)));
-    }
-
-    /**
-     * Group not found, return emtpy response.
-     */
-
-    @Test
-    public void testGetGroupAndImmediateMembersGroupNotFound() {
-        //GIVEN
-        long groupId = 123L;
-        GetGroupAndImmediateMembersRequest getGroupAndImmediateMembersRequest =
-                        GetGroupAndImmediateMembersRequest.newBuilder()
-                                        .setGroupId(groupId)
-                                        .build();
-        final StreamObserver<GetGroupAndImmediateMembersResponse> responseObserverMock =
-                        Mockito.mock(StreamObserver.class);
-
-        Grouping grouping = Grouping.newBuilder().setId(123L).build();
-
-        doReturn(Optional.empty()).when(temporaryGroupCache).getGrouping(groupId);
-        doReturn(Collections.emptyList()).when(groupStoreDAO).getGroupsById(Collections.singleton(groupId));
-        Set<Long> membersList = Collections.singleton(1L);
-        //WHEN
-        groupRpcService.getGroupAndImmediateMembers(getGroupAndImmediateMembersRequest,
-                                                    responseObserverMock);
-
-        //Then
-        ArgumentCaptor<GetGroupAndImmediateMembersResponse> captor = ArgumentCaptor.forClass(GetGroupAndImmediateMembersResponse.class);
-        verify(responseObserverMock, Mockito.times(1)).onNext(captor.capture());
-        GetGroupAndImmediateMembersResponse response = captor.getValue();
-        assertFalse(response.hasGroup());
-    }
 }

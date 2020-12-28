@@ -30,21 +30,20 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
-import io.grpc.Status.Code;
-import io.grpc.StatusRuntimeException;
-
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.validation.Errors;
 
+import io.grpc.Status.Code;
+import io.grpc.StatusRuntimeException;
+
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.RepositoryRequestResult;
 import com.vmturbo.api.component.external.api.mapper.ActionCountsMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupFilterMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
-import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.PriceIndexPopulator;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
@@ -99,21 +98,17 @@ import com.vmturbo.api.serviceinterfaces.IGroupsService;
 import com.vmturbo.auth.api.authentication.credentials.SAMLUserUtils;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
-import com.vmturbo.common.protobuf.PaginationProtoUtil;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.TemplateProtoUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCategoryStatsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCategoryStatsResponse;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
-import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.DeleteGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetPaginatedGroupsRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetPaginatedGroupsResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
@@ -193,11 +188,9 @@ public class GroupsService implements IGroupsService {
      */
     @VisibleForTesting
     static final String USER_GROUPS = "GROUP-MyGroups";
-    @VisibleForTesting
-    static final String CLUSTER_HEADROOM_GROUP_UUID = "GROUP-PhysicalMachineByCluster";
-    @VisibleForTesting
-    static final String STORAGE_CLUSTER_HEADROOM_GROUP_UUID = "GROUP-StorageByStorageCluster";
 
+    private static final String CLUSTER_HEADROOM_GROUP_UUID = "GROUP-PhysicalMachineByCluster";
+    private static final String STORAGE_CLUSTER_HEADROOM_GROUP_UUID = "GROUP-StorageByStorageCluster";
     private final ActionsServiceBlockingStub actionOrchestratorRpc;
 
     private final GroupServiceBlockingStub groupServiceRpc;
@@ -246,8 +239,6 @@ public class GroupsService implements IGroupsService {
 
     private final ServiceProviderExpander serviceProviderExpander;
 
-    private final PaginationMapper paginationMapper;
-
     GroupsService(@Nonnull final ActionsServiceBlockingStub actionOrchestratorRpcService,
                   @Nonnull final GroupServiceBlockingStub groupServiceRpc,
                   @Nonnull final GroupMapper groupMapper,
@@ -269,8 +260,7 @@ public class GroupsService implements IGroupsService {
                   @Nonnull final EntitySettingQueryExecutor entitySettingQueryExecutor,
                   @Nonnull final GroupFilterMapper groupFilterMapper,
                   @Nonnull final BusinessAccountRetriever businessAccountRetriever,
-                  @Nonnull final ServiceProviderExpander serviceProviderExpander,
-                  @Nonnull final PaginationMapper paginationMapper) {
+                  @Nonnull final ServiceProviderExpander serviceProviderExpander) {
         this.actionOrchestratorRpc = Objects.requireNonNull(actionOrchestratorRpcService);
         this.groupServiceRpc = Objects.requireNonNull(groupServiceRpc);
         this.groupMapper = Objects.requireNonNull(groupMapper);
@@ -293,7 +283,6 @@ public class GroupsService implements IGroupsService {
         this.groupFilterMapper = Objects.requireNonNull(groupFilterMapper);
         this.businessAccountRetriever = Objects.requireNonNull(businessAccountRetriever);
         this.serviceProviderExpander = Objects.requireNonNull(serviceProviderExpander);
-        this.paginationMapper = Objects.requireNonNull(paginationMapper);
     }
 
     /**
@@ -366,7 +355,7 @@ public class GroupsService implements IGroupsService {
 
         final Set<Long> leafEntities;
         // first check if it's group
-        final Optional<GroupAndMembers> groupAndMembers = groupExpander.getGroupWithMembersAndEntities(uuid);
+        final Optional<GroupAndMembers> groupAndMembers = groupExpander.getGroupWithMembers(uuid);
         if (groupAndMembers.isPresent()) {
             leafEntities = Sets.newHashSet(groupAndMembers.get().entities());
         } else if (apiId.isTarget()) {
@@ -935,164 +924,108 @@ public class GroupsService implements IGroupsService {
         return statsService.getStatsByEntityQuery(uuid, inputDto);
     }
 
-    /**
-     * Gets groups for magic UI groupUuid.
-     * @param uuid group uuid
-     * @param request paginated request
-     * @return {@link GroupMembersPaginationResponse} containing groups for uuid
-     * @throws InterruptedException if current thread has been interrupted
-     * @throws InvalidOperationException if invalid request has been passed
-     * @throws ConversionException if error faced converting objects to API DTOs
-     * @throws OperationFailedException when the filters don't match the group type
-     */
-    @VisibleForTesting
-    @Nonnull
-    GroupMembersPaginationResponse getMembersForUIMagicGroupUuid(@Nonnull String uuid,
-                                                                         @Nonnull final GroupMembersPaginationRequest request)
-                    throws InterruptedException, InvalidOperationException, ConversionException,
-                    OperationFailedException {
+    @Override
+    public GroupMembersPaginationResponse getMembersByGroupUuid(String uuid,
+            final GroupMembersPaginationRequest request)
+            throws InvalidOperationException, OperationFailedException, ConversionException,
+            InterruptedException {
         if (CLUSTER_HEADROOM_GROUP_UUID.equals(uuid)) {
             return request.allResultsResponse(getGroupsByType(GroupType.COMPUTE_HOST_CLUSTER, Collections.emptyList(),
-                                                              Collections.emptyList())
-                                                              .stream()
-                                                              // TODO: The next line is a workaround of a UI limitation. The UI only accepts groups
-                                                              // with classname "Group" This line can be removed when bug OM-30381 is fixed.
-                                                              .peek(groupApiDTO -> groupApiDTO.setClassName(StringConstants.GROUP))
-                                                              .collect(Collectors.toList()));
+                Collections.emptyList())
+                .stream()
+                // TODO: The next line is a workaround of a UI limitation. The UI only accepts groups
+                // with classname "Group" This line can be removed when bug OM-30381 is fixed.
+                .peek(groupApiDTO -> groupApiDTO.setClassName(StringConstants.GROUP))
+                .collect(Collectors.toList()));
         } else if (STORAGE_CLUSTER_HEADROOM_GROUP_UUID.equals(uuid)) {
-            return request.allResultsResponse(getGroupsByType(GroupType.STORAGE_CLUSTER, Collections.emptyList(), Collections.emptyList())
-                                                              .stream()
-                                                              // TODO: The next line is a workaround of a UI limitation. The UI only accepts groups
-                                                              // with classname "Group" This line can be removed when bug OM-30381 is fixed.
-                                                              .peek(groupApiDTO -> groupApiDTO.setClassName(StringConstants.GROUP))
-                                                              .collect(Collectors.toList()));
+             return request.allResultsResponse(getGroupsByType(GroupType.STORAGE_CLUSTER, Collections.emptyList(), Collections.emptyList())
+                 .stream()
+                 // TODO: The next line is a workaround of a UI limitation. The UI only accepts groups
+                 // with classname "Group" This line can be removed when bug OM-30381 is fixed.
+                 .peek(groupApiDTO -> groupApiDTO.setClassName(StringConstants.GROUP))
+                 .collect(Collectors.toList()));
         } else if (USER_GROUPS.equals(uuid)) { // Get all user-created groups
             final Collection<GroupApiDTO> groups = getGroupApiDTOS(GetGroupsRequest.newBuilder()
-                                                                                   .setGroupFilter(GroupFilter.newBuilder().setOriginFilter(OriginFilter
-                                                                                                                                                            .newBuilder().addOrigin(GroupDTO.Origin.Type.USER)))
-                                                                                   .build(), true);
-            return request.allResultsResponse(Lists.newArrayList(groups));
-        }
-        return request.allResultsResponse(Collections.emptyList());
-    }
-
-    /**
-     * Checks if groupUuid is magic UI string referring to particular set of groups.
-     * @param groupUuid groupUuid of focus
-     * @return true if groupUuid is magic UI string
-     */
-    @VisibleForTesting
-    boolean isMagicUiStringGroupUuid(@Nonnull String groupUuid) {
-        return CLUSTER_HEADROOM_GROUP_UUID.equals(groupUuid)
-                || STORAGE_CLUSTER_HEADROOM_GROUP_UUID.equals(groupUuid)
-                || USER_GROUPS.equals(groupUuid);
-    }
-
-    /**
-     * Gets {@link GroupAndMembers} with immediate groups only from groupUuid, or throws error.
-     * @param groupUuid groupUuid of focus
-     * @return GroupAndMembers group and only immediate members set to members and entities on object
-     * @throws IllegalArgumentException invalid groupUuid, unable to get members
-     */
-    @VisibleForTesting
-    GroupAndMembers getGroupWithImmediateMembersOnly(String groupUuid) throws IllegalArgumentException {
-        return groupExpander.getGroupWithImmediateMembersOnly(groupUuid)
-                        .orElseThrow(() ->
-                     new IllegalArgumentException("Can't get members of an invalid group: " + groupUuid));
-    }
-
-    /**
-     * Get members info for groupUuid.
-     * @param groupUuid groupUuid to request
-     * @param request paginated request parameters
-     * @return {@link GroupMembersPaginationResponse}
-     * @throws InterruptedException if current thread has been interrupted
-     * @throws InvalidOperationException if invalid request has been passed
-     * @throws ConversionException if error faced converting objects to API DTOs
-     * @throws OperationFailedException when the filters don't match the group type
-     **/
-    @Override
-    public GroupMembersPaginationResponse getMembersByGroupUuid(@Nonnull String groupUuid,
-                                                                @Nonnull final GroupMembersPaginationRequest request)
-                    throws InterruptedException, InvalidOperationException, ConversionException,
-                    OperationFailedException {
-
-        if (isMagicUiStringGroupUuid(groupUuid)) {
-            return getMembersForUIMagicGroupUuid(groupUuid, request);
-        }
-
-        // Get members of the group with the uuid (oid)
-        final GroupAndMembers groupAndMembers = getGroupWithImmediateMembersOnly(groupUuid);
-
-        logger.info("Number of members for group {} is {}", groupUuid, groupAndMembers.members().size());
-
-        // If members is empty, there are no groups or entities to return
-        if (groupAndMembers.members().isEmpty() ) {
-           return request.allResultsResponse( Collections.emptyList());
-        }
-
-        if (GroupProtoUtil.isNestedGroup(groupAndMembers.group())) {
-            //Check to see if pagination is requested... else use legacy code path with no pagination for backwards compatibility.
-            if (request.hasLimit() || request.getCursor().isPresent()) {
-                //Pagination applied in group component
-                return getGroupsPaginatedCall(groupAndMembers.members(), request);
+                .setGroupFilter(GroupFilter.newBuilder().setOriginFilter(OriginFilter
+                                .newBuilder().addOrigin(GroupDTO.Origin.Type.USER)))
+                .build(), true);
+             return request.allResultsResponse(Lists.newArrayList(groups));
+        } else { // Get members of the group with the uuid (oid)
+            final GroupAndMembers groupAndMembers =
+                groupExpander.getGroupWithMembers(uuid)
+                .orElseThrow(() ->
+                    new IllegalArgumentException("Can't get members in invalid group: " + uuid));
+            logger.info("Number of members for group {} is {}", uuid, groupAndMembers.members().size());
+            if ( groupAndMembers.members().isEmpty() ) {
+               return request.allResultsResponse( Collections.emptyList());
             }
-            final Collection<GroupApiDTO> groups =
-                            getGroupApiDTOS(GetGroupsRequest.newBuilder()
-                               .setGroupFilter(GroupFilter
-                                   .newBuilder()
-                                   .addAllId(groupAndMembers.members()))
-                               .build(), true);
-            return request.allResultsResponse(Lists.newArrayList(groups));
-        }
-        // Group members are entities or business accounts, call repository component
-        final long skipCount;
-        if (request.getCursor().isPresent()) {
-            try {
-                skipCount = Long.parseLong(request.getCursor().get());
-                if (skipCount < 0) {
-                    throw new InvalidOperationException("Illegal cursor: " +
-                        skipCount + ". Must be be a positive integer");
+
+            if (GroupProtoUtil.isNestedGroup(groupAndMembers.group())) {
+                final Collection<GroupApiDTO> groups = getGroupApiDTOS(GetGroupsRequest.newBuilder()
+                                .setGroupFilter(GroupFilter
+                                                .newBuilder()
+                                                .addAllId(groupAndMembers.members()))
+                    .build(), true);
+                return request.allResultsResponse(Lists.newArrayList(groups));
+
+            } else {
+                // Special handling for the empty member list, because passing empty to
+                // repositoryApi returns all entities.
+                if (groupAndMembers.members().isEmpty()) {
+                    return request.allResultsResponse(Collections.emptyList());
+                } else {
+                    // Get entities of group members from the repository component
+                    final long skipCount;
+                    if (request.getCursor().isPresent()) {
+                        try {
+                            skipCount = Long.parseLong(request.getCursor().get());
+                            if (skipCount < 0) {
+                                throw new InvalidOperationException("Illegal cursor: " +
+                                    skipCount + ". Must be be a positive integer");
+                            }
+                        } catch (NumberFormatException e) {
+                            throw new InvalidOperationException("Cursor " + request.getCursor() +
+                                " is invalid. Should be a number.");
+                        }
+
+                    } else {
+                        skipCount = 0;
+                    }
+                    if (request.getOrderBy() != GroupMemberOrderBy.ID) {
+                        throw new InvalidOperationException("Order " + request.getOrderBy().name() +
+                            " is invalid. The only supported order is by id");
+                    }
+                    final int memberCount = groupAndMembers.members().size();
+                    int actualFoundCount = memberCount;
+                    final Set<Long> nextPageIds = groupAndMembers.members().stream()
+                        .sorted()
+                        .skip(skipCount)
+                        .limit(request.getLimit())
+                        .collect(Collectors.toSet());
+                    final RepositoryRequestResult entities =
+                            repositoryApi.getByIds(nextPageIds, Collections.emptySet(), false);
+                    final Collection<BaseApiDTO> results = new ArrayList<>(
+                            entities.getBusinessAccounts().size() +
+                                    entities.getServiceEntities().size());
+                    results.addAll(entities.getBusinessAccounts());
+                    results.addAll(entities.getServiceEntities());
+
+                    final int missingEntities = nextPageIds.size() - results.size();
+                    if (missingEntities > 0) {
+                        logger.warn("{} group members from group {} not found in repository.",
+                            missingEntities, uuid);
+                        actualFoundCount -= missingEntities;
+                    }
+                    Long nextCursor = skipCount + nextPageIds.size();
+                    if (nextCursor == memberCount) {
+                        return request.finalPageResponse(Lists.newArrayList(results), actualFoundCount);
+                    }
+                    return request.nextPageResponse(Lists.newArrayList(results),
+                        Long.toString(nextCursor), actualFoundCount);
+
                 }
-            } catch (NumberFormatException e) {
-                throw new InvalidOperationException("Cursor " + request.getCursor() +
-                    " is invalid. Should be a number.");
             }
-
-        } else {
-            skipCount = 0;
         }
-        if (request.getOrderBy() != GroupMemberOrderBy.ID) {
-            throw new InvalidOperationException("Order " + request.getOrderBy().name() +
-                " is invalid. The only supported order is by id");
-        }
-        final int memberCount = groupAndMembers.members().size();
-        int actualFoundCount = memberCount;
-        final List<Long> nextPageIds = groupAndMembers.members().stream()
-            .sorted(request.isAscending() ? Comparator.naturalOrder() : Comparator.reverseOrder())
-            .skip(skipCount)
-            .limit(request.getLimit())
-            .collect(Collectors.toList());
-        final RepositoryRequestResult entities =
-                repositoryApi.getByIds(nextPageIds, Collections.emptySet(), false);
-        final Collection<BaseApiDTO> results = new ArrayList<>(
-                entities.getBusinessAccounts().size() +
-                        entities.getServiceEntities().size());
-        results.addAll(entities.getBusinessAccounts());
-        results.addAll(entities.getServiceEntities());
-
-        final int missingEntities = nextPageIds.size() - results.size();
-        if (missingEntities > 0) {
-            logger.warn("{} group members from group {} not found in repository.",
-                missingEntities, groupUuid);
-            actualFoundCount -= missingEntities;
-        }
-        Long nextCursor = skipCount + nextPageIds.size();
-        if (nextCursor == memberCount) {
-            return request.finalPageResponse(Lists.newArrayList(results), actualFoundCount);
-        }
-        return request.nextPageResponse(Lists.newArrayList(results),
-            Long.toString(nextCursor), actualFoundCount);
     }
 
     @Override
@@ -1132,8 +1065,6 @@ public class GroupsService implements IGroupsService {
     private List<GroupApiDTO> getGroupApiDTOS(final GetGroupsRequest groupsRequest,
             final boolean populateSeverity, @Nullable final EnvironmentType environmentType)
             throws ConversionException, InterruptedException {
-        //TODO: OM-65316  Group component will support severity soon, can transfer logic of getting
-        //severity to group Component side
         final Iterator<Grouping> response = groupServiceRpc.getGroups(groupsRequest);
         final List<Grouping> groups = new ArrayList<>();
         response.forEachRemaining(group -> {
@@ -1167,50 +1098,6 @@ public class GroupsService implements IGroupsService {
     public List<GroupApiDTO> getGroupApiDTOS(final GetGroupsRequest groupsRequest,
             final boolean populateSeverity) throws ConversionException, InterruptedException {
         return getGroupApiDTOS(groupsRequest, populateSeverity, null);
-    }
-
-    /**
-     * Calls group component to get members of groupAndMembers.
-     * @param groupUuids groups ids to request and paginate
-     * @param groupMembersPaginationRequest pagination request
-     * @return paginated response
-     * @throws ConversionException Error converting groups
-     */
-    @Nonnull
-    @VisibleForTesting
-    GroupMembersPaginationResponse getGroupsPaginatedCall(@Nonnull Collection<Long> groupUuids,
-                      @Nonnull final GroupMembersPaginationRequest groupMembersPaginationRequest)
-                    throws ConversionException {
-        final GroupFilter groupFilter = GroupFilter.newBuilder()
-                        .addAllId(groupUuids)
-                        .setIncludeHidden(false)
-                        .build();
-
-        final PaginationParameters paginationParameters = paginationMapper.toProtoParams(groupMembersPaginationRequest);
-
-        final GetPaginatedGroupsRequest getPaginatedGroupsRequest =
-                        GetPaginatedGroupsRequest.newBuilder()
-                            .setGroupFilter(groupFilter)
-                            .setPaginationParameters(paginationParameters)
-                            .build();
-
-        final GetPaginatedGroupsResponse paginatedGroupsResponse =
-                        groupServiceRpc.getPaginatedGroups(getPaginatedGroupsRequest);
-        List<Grouping> groupings = paginatedGroupsResponse.getGroupsList();
-
-        final ObjectsPage<GroupApiDTO> result;
-        try {
-            result = groupMapper.toGroupApiDto(groupings, true, null, null);
-        } catch (InvalidOperationException | ConversionException | InterruptedException e) {
-            throw new ConversionException("Error faced converting groups "
-                                          + groupings.stream().map(Grouping::getId).collect(Collectors.toList()), e);
-        }
-        final List<BaseApiDTO> groupApiDTOS = Lists.newArrayList(result.getObjects());
-        return PaginationProtoUtil.getNextCursor(paginatedGroupsResponse.getPaginationResponse())
-                        .map(nextCursor -> groupMembersPaginationRequest.nextPageResponse(groupApiDTOS, nextCursor,
-                            paginatedGroupsResponse.getPaginationResponse().getTotalRecordCount()))
-                        .orElseGet(() -> groupMembersPaginationRequest.finalPageResponse(groupApiDTOS,
-                            paginatedGroupsResponse.getPaginationResponse().getTotalRecordCount()));
     }
 
     /**
@@ -1463,7 +1350,7 @@ public class GroupsService implements IGroupsService {
                         filterList);
         GroupFilter.Builder builder = GroupFilter.newBuilder(reqBuilder.getGroupFilter());
         scopes.stream()
-            .map(groupExpander::getGroupWithMembersAndEntities)
+            .map(groupExpander::getGroupWithMembers)
             .filter(Optional::isPresent)
             .map(Optional::get)
             .forEach(grAndMem -> {
@@ -1643,7 +1530,7 @@ public class GroupsService implements IGroupsService {
      * Get all members of a given group uuid and return in the form of TopologyEntityDTO.
      */
     private List<TopologyEntityDTO> getGroupMembers(@Nonnull String uuid) throws UnknownObjectException {
-        final GroupAndMembers groupAndMembers = groupExpander.getGroupWithMembersAndEntities(uuid)
+        final GroupAndMembers groupAndMembers = groupExpander.getGroupWithMembers(uuid)
             .orElseThrow(() -> new UnknownObjectException("Group not found: " + uuid));
         if (GroupProtoUtil.isNestedGroup(groupAndMembers.group())) {
             // The members of a nested group (e.g. group of clusters) don't have TopologyEntityDTO

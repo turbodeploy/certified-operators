@@ -57,6 +57,7 @@ import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.db.tables.records.ComputeTierTypeHourlyByWeekRecord;
 import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsStore;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalysisScope;
+import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstancePurchaseConstraints;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.inventory.ImmutableReservedInstanceSpecData;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.inventory.RegionalRIMatcherCache;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.inventory.RegionalRIMatcherCacheFactory;
@@ -262,7 +263,7 @@ public class RIBuyAnalysisContextProviderTest {
         when(billingFamily.group()).thenReturn(group);
         when(billingFamily.members()).thenReturn(ImmutableList.of(ACCOUNT_ID, MASTER_ACCOUNT_1_OID));
         final List<GroupAndMembers> billingFamilygroups = ImmutableList.of(billingFamily);
-        when(groupMemberRetriever.getMembersAndEntitiesForGroups(any(List.class))).thenReturn(ImmutableList.of(ACCOUNT_ID, MASTER_ACCOUNT_1_OID));
+        when(groupMemberRetriever.getMembersForGroup(any(List.class))).thenReturn(ImmutableList.of(ACCOUNT_ID, MASTER_ACCOUNT_1_OID));
         when(groupMemberRetriever.getGroupsWithMembers(any(GetGroupsRequest.class))).thenReturn(billingFamilygroups);
         return groupMemberRetriever;
     }
