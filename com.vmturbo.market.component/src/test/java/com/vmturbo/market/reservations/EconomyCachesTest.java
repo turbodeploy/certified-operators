@@ -515,6 +515,7 @@ public class EconomyCachesTest {
      * PM4 mem used in historical cache 30, in realtime cache 95, capacity is 100.
      * VM1 mem used 5, VM2 mem used 15.
      * Expected: vm1 should choose PM3. vm2 first failed in cluster 2 then retry and place on PM1.
+     * A new reservation after a retry should happen without any exception.
      */
     @Test
     public void testFindInitialPlacementRetry() {
@@ -579,6 +580,23 @@ public class EconomyCachesTest {
         });
         Assert.assertEquals(6, economyCaches.historicalCachedEconomy.getTraders().size());
         Assert.assertEquals(6, economyCaches.realtimeCachedEconomy.getTraders().size());
+
+        long buyer3Oid = 3234L;
+        long buyer3SlOid = 3000L;
+        double buyer3MemUsed = 15;
+        InitialPlacementBuyer buyer3 = initialPlacementBuyer(buyer3Oid, buyer3SlOid, VM_TYPE, new HashMap() {{
+            put(TopologyDTO.CommodityType.newBuilder().setType(MEM_TYPE).build(), new Double(buyer3MemUsed));
+        }});
+
+        // In case of retry we modify the canAcceptNewCustomers and activeSellersAvailableForPlacement_.
+        // And we eventually restore the values too.
+        // If they both are not updated correctly we might end up with wrong results in future reservations.
+        // It can also cause some exceptions.
+        Map<Long, List<InitialPlacementDecision>> sanityCheckRetry = economyCaches.findInitialPlacement(
+                new ArrayList(Arrays.asList(buyer3)), new HashMap(), 1);
+        Assert.assertEquals(7, economyCaches.historicalCachedEconomy.getTraders().size());
+        Assert.assertEquals(7, economyCaches.realtimeCachedEconomy.getTraders().size());
+        sanityCheckRetry.get(buyer3Oid).stream().allMatch(pl -> pl.supplier.get() == pm1Oid);
     }
 
     /**

@@ -596,6 +596,7 @@ public final class InitialPlacementUtils {
     public static Set<Long> setSellersNotAcceptCustomers(@Nonnull final Economy economy,
             @Nonnull final BiMap<CommodityType, Integer> commTypeMap,
             @Nonnull final Map<Long, CommodityType> clusterCommPerSl) {
+        economy.clearSellersFromMarkets();
         Set<Integer> clusterCommSpecSet = clusterCommPerSl.values().stream()
                 .map(c -> commTypeMap.get(c)).collect(Collectors.toSet());
         Set<Long> ineligibleSellers = new HashSet();
@@ -619,6 +620,7 @@ public final class InitialPlacementUtils {
      */
     public static void restoreCanNotAcceptNewCustomerSellers(@Nonnull final Economy economy,
             @Nonnull final Set<Long> ineligibleSellers) {
+        economy.clearSellersFromMarkets();
         economy.getTraders().stream().forEach(t -> {
             if (ineligibleSellers.contains(t.getOid())) {
                 t.getSettings().setCanAcceptNewCustomers(true);

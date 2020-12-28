@@ -591,6 +591,13 @@ public class EconomyCaches {
     private Map<Long, List<InitialPlacementDecision>> placeBuyerInCachedEconomy(
             @Nonnull final List<TraderTO> traderTOs, @Nonnull final Economy economy,
             @Nonnull final BiMap<CommodityType, Integer> commTypeToSpecMap) {
+
+        // make all shopping list of all traders except the current traders movable false.
+        for (Trader trader : economy.getTraders()) {
+            for (ShoppingList sl : economy.getMarketsAsBuyer(trader).keySet()) {
+                sl.setMovable(false);
+            }
+        }
         Map<Long, List<InitialPlacementDecision>> traderIdToPlacement = new HashMap();
         traderTOs.stream().forEach(
                 trader -> ProtobufToAnalysis.addTrader(economy.getTopology(), trader));
