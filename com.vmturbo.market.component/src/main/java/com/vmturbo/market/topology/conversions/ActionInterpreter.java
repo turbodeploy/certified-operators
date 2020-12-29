@@ -1510,7 +1510,34 @@ public class ActionInterpreter {
             return freeScaleUpExplanation;
         }
 
+        // Seventh, check if we got an action with zero savings and the same projected capacities.
+        // E.g. it happens when AWS IO1 volume is scaled to IO2. Both IO1 and IO2 provide the same
+        // capacities and costs but IO2 is newer and has better durability.
+        final Optional<ChangeProviderExplanation.Builder> zeroSavingsExplanation =
+                getZeroSavingsAndNoCommodityChangeExplanation(moveTO, savings,
+                        lowerProjectedCapacityComms, higherProjectedCapacityComms);
+        if (zeroSavingsExplanation.isPresent()) {
+            return zeroSavingsExplanation;
+        }
+
         return getDefaultExplanationForCloud(actionTargetId, moveTO);
+    }
+
+    private Optional<ChangeProviderExplanation.Builder> getZeroSavingsAndNoCommodityChangeExplanation(
+            @Nonnull final MoveTO moveTO,
+            @Nonnull final CalculatedSavings savings,
+            @Nonnull final Set<CommodityType> lowerProjectedCapacityComms,
+            @Nonnull final Set<CommodityType> higherProjectedCapacityComms) {
+        // Check if this is a Cloud Move action with zero savings and no commodity changes
+        if (cloudTc.isMarketTier(moveTO.getSource())
+                && cloudTc.isMarketTier(moveTO.getDestination())
+                && savings.savingsAmount.getValue() == 0
+                && lowerProjectedCapacityComms.isEmpty()
+                && higherProjectedCapacityComms.isEmpty()) {
+            return Optional.of(ChangeProviderExplanation.newBuilder().setEfficiency(
+                    Efficiency.newBuilder()));
+        }
+        return Optional.empty();
     }
 
     private Optional<ChangeProviderExplanation.Builder> getFreeScaleUpExplanation(

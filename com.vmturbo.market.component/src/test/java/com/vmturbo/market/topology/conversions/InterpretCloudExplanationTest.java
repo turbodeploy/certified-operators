@@ -31,6 +31,7 @@ import org.junit.Test;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Efficiency;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
@@ -401,6 +402,43 @@ public class InterpretCloudExplanationTest {
         assertTrue(efficiency.getUnderUtilizedCommoditiesList().isEmpty());
         assertFalse(efficiency.getIsRiCoverageIncreased());
         assertTrue(efficiency.getIsWastedCost());
+    }
+
+    /**
+     * A VM does not have any congested/under-utilized commodities. Action results in zero
+     * savings/investment. In this case the action should be explained as "efficiency". This test
+     * covers explanation of AWS volume move from IO1 to IO2.
+     */
+    @Test
+    public void testInterpretZeroCostWithNoCommodityChangeAction() {
+        // Empty congested / under-utilized commodities
+        when(commoditiesResizeTracker.getCongestedCommodityTypes(VM1_OID, TIER1_OID))
+                .thenReturn(Collections.emptySet());
+        when(commoditiesResizeTracker.getUnderutilizedCommodityTypes(VM1_OID, TIER1_OID))
+                .thenReturn(Collections.emptySet());
+
+        // Zero savings
+        doReturn(new CalculatedSavings(trax(0))).when(ai)
+                .calculateActionSavings(move, originalCloudTopology, projectedCosts,
+                        topologyCostCalculator);
+
+        // RI Coverage remains same
+        when(cloudTc.getRiCoverageForEntity(VM1_OID)).thenReturn(initialCoverage);
+        projectedRiCoverage.put(VM1_OID, initialCoverage.get());
+
+        final List<Action> actions = ai.interpretAction(move, projectedTopology,
+                originalCloudTopology, projectedCosts, topologyCostCalculator);
+
+        assertEquals(1, actions.size());
+        final ChangeProviderExplanation explanation = actions.get(0).getExplanation().getMove()
+                .getChangeProviderExplanation(0);
+        // We expect efficiency explanation with no additional fields populated
+        assertTrue(explanation.hasEfficiency());
+        final Efficiency efficiency = explanation.getEfficiency();
+        assertTrue(efficiency.getUnderUtilizedCommoditiesList().isEmpty());
+        assertFalse(efficiency.getIsRiCoverageIncreased());
+        assertFalse(efficiency.getIsWastedCost());
+        assertTrue(efficiency.getScaleUpCommodityList().isEmpty());
     }
 
     /**

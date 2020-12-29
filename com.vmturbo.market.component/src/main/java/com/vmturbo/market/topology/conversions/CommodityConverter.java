@@ -617,7 +617,7 @@ public class CommodityConverter {
     @Nonnull
     public Collection<CommoditySpecificationTO> commoditySpecification(
             @Nonnull final CommodityType topologyCommodity,
-            @Nonnull final int numberOfSlots) {
+            final int numberOfSlots) {
         return commodityTypeAllocator.commoditySpecification(topologyCommodity, numberOfSlots);
     }
 
