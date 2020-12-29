@@ -169,7 +169,6 @@
         "usedIncrement_VStorage",
         "usedIncrement_StAmt",
         "excludedTemplatesOids",
-        "slaCapacity",
         "responseTimeSLO",
         "responseTimeSLOEnabled",
         "transactionSLO",

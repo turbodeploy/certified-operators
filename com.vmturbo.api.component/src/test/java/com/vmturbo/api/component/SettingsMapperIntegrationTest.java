@@ -134,6 +134,7 @@ public class SettingsMapperIntegrationTest {
         Assert.assertTrue(enumSettingsNames.remove("autoSetResponseTimeCapacity"));
         Assert.assertTrue(enumSettingsNames.remove("transactionsCapacity"));
         Assert.assertTrue(enumSettingsNames.remove("autoSetTransactionsCapacity"));
+        Assert.assertTrue(enumSettingsNames.remove("slaCapacity"));
 
         Assert.assertEquals(testError(enumSettingsNames, visibleSettings), enumSettingsNames, visibleSettings);
 
