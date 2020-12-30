@@ -6,6 +6,7 @@ package com.vmturbo.topology.processor.group.settings.applicators;
 
 import java.util.Collection;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -104,38 +105,39 @@ public class InstanceStoreSettingApplicator extends SingleSettingApplicator {
 
     private void populateInstanceStoreCommodities(@Nonnull Builder entity) {
         final CommoditiesBoughtFromProvider.Builder computeTierProvider =
-                        getProvider(entity, EntityType.COMPUTE_TIER);
+                getProvider(entity, EntityType.COMPUTE_TIER);
         if (computeTierProvider == null) {
             // Normal use-case for on-prem VMs
             return;
         }
-        topologyGraph.getEntity(computeTierProvider.getProviderId())
+        final Optional<ComputeTierInfo> ct =
+                topologyGraph.getEntity(computeTierProvider.getProviderId())
                         .map(TopologyEntity::getTopologyEntityDtoBuilder)
                         .filter(InstanceStoreSettingApplicator::hasComputeTierInfo)
-                        .map(item -> item.getTypeSpecificInfo().getComputeTier())
-                        .ifPresent(computeTierInfo -> createCommodities(computeTierProvider,
-                                        computeTierInfo));
+                        .map(item -> item.getTypeSpecificInfo().getComputeTier());
+        ct.ifPresent(computeTierInfo-> {
+            final Collection<CommodityBoughtDTO.Builder> boughtCommodities = vmCommoditiesCreator
+                    .create(CommoditiesBoughtFromProvider.Builder::getCommodityBoughtBuilderList,
+                            computeTierProvider, computeTierInfo);
+            if (!boughtCommodities.isEmpty()) {
+                boughtCommodities.forEach(computeTierProvider::addCommodityBought);
+                if (!computeTiersCommoditiesCreated) {
+                    createSoldCommodities();
+                }
+            }
+        });
     }
 
-    private void createCommodities(CommoditiesBoughtFromProvider.Builder computeTierProvider,
-                    ComputeTierInfo computeTierInfo) {
-        final Collection<CommodityBoughtDTO.Builder> commodities = vmCommoditiesCreator
-                        .create(CommoditiesBoughtFromProvider.Builder::getCommodityBoughtBuilderList,
-                                        computeTierProvider, computeTierInfo);
-        if (!commodities.isEmpty() && !computeTiersCommoditiesCreated) {
-            commodities.forEach(computeTierProvider::addCommodityBought);
-            final Stream<TopologyEntity> computeTiers =
-                            topologyGraph.entitiesOfType(EntityType.COMPUTE_TIER);
-            computeTiers.map(TopologyEntity::getTopologyEntityDtoBuilder).forEach(ct -> {
-                final Collection<CommoditySoldDTO.Builder> ctCommodities =
-                                computeTierCommoditiesCreator
-                                                .create(Builder::getCommoditySoldListBuilderList,
-                                                                ct, ct.getTypeSpecificInfo()
-                                                                                .getComputeTier());
-                ctCommodities.forEach(ct::addCommoditySoldList);
-            });
-            computeTiersCommoditiesCreated = true;
-        }
+    private void createSoldCommodities() {
+        final Stream<TopologyEntity> computeTiers =
+                topologyGraph.entitiesOfType(EntityType.COMPUTE_TIER);
+        computeTiers.map(TopologyEntity::getTopologyEntityDtoBuilder).forEach(ct -> {
+            final Collection<CommoditySoldDTO.Builder> ctCommodities = computeTierCommoditiesCreator
+                    .create(Builder::getCommoditySoldListBuilderList, ct,
+                            ct.getTypeSpecificInfo().getComputeTier());
+            ctCommodities.forEach(ct::addCommoditySoldList);
+        });
+        computeTiersCommoditiesCreated = true;
     }
 
     /**
