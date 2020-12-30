@@ -117,8 +117,8 @@ public abstract class InstanceStoreCommoditiesCreator<B> {
                         .add(createCommodityBuilder(CommodityDTO.CommodityType.INSTANCE_DISK_SIZE,
                                         null, value.doubleValue())));
         getNumInstanceDisks(computeTierInfo).ifPresent(value -> result
-                        .add(createCommodityBuilder(CommodityDTO.CommodityType.INSTANCE_DISK_COUNT,
-                                null, value.doubleValue())));
+                        .add(createCommodityBuilder(CommodityDTO.CommodityType.NUM_DISK, null,
+                                        value.doubleValue())));
         getInstanceStoreDiskType(computeTierInfo).ifPresent(value -> result
                         .add(createCommodityBuilder(CommodityDTO.CommodityType.INSTANCE_DISK_TYPE,
                                         value, null)));
