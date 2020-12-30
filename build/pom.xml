@@ -421,6 +421,7 @@
                 <module>../com.vmturbo.mediation.database.mysql.component</module>
                 <module>../com.vmturbo.mediation.database.oracle.component</module>
                 <module>../com.vmturbo.mediation.tomcat.component</module>
+                <module>../com.vmturbo.mediation.instana.component</module>
                 <module>../com.vmturbo.mediation.jvm.component</module>
                 <module>../com.vmturbo.mediation.datadog.component</module>
                 <module>../com.vmturbo.mediation.delegatingprobe.component</module>
@@ -766,6 +767,13 @@
             <id>mediation-tomcat</id>
             <modules>
                 <module>../com.vmturbo.mediation.tomcat.component</module>
+            </modules>
+        </profile>
+
+        <profile>
+            <id>mediation-instana</id>
+            <modules>
+                <module>../com.vmturbo.mediation.instana.component</module>
             </modules>
         </profile>
 
@@ -1266,6 +1274,7 @@
                 <module>../com.vmturbo.mediation.database.mysql.component</module>
                 <module>../com.vmturbo.mediation.database.oracle.component</module>
                 <module>../com.vmturbo.mediation.tomcat.component</module>
+                <module>../com.vmturbo.mediation.instana.component</module>
                 <module>../com.vmturbo.mediation.jvm.component</module>
                 <module>../com.vmturbo.mediation.datadog.component</module>
                 <module>../com.vmturbo.mediation.dynatrace.component</module>
