@@ -65,10 +65,7 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription.Top
  * Spring configuration for topology ingestion components.
  */
 @Configuration
-@Import({HistoryApiConfig.class,
-         TopologyProcessorClientConfig.class,
-         GroupClientConfig.class,
-         MarketClientConfig.class})
+@Import({HistoryApiConfig.class, TopologyProcessorClientConfig.class, GroupClientConfig.class})
 public class IngestersConfig {
     @Autowired
     private StatsConfig statsConfig;
@@ -80,13 +77,13 @@ public class IngestersConfig {
     private HistoryDbConfig historyDbConfig;
 
     @Autowired
+    private HistoryApiConfig apiConfig;
+
+    @Autowired
     private GroupClientConfig groupClientConfig;
 
     @Autowired
     private TopologyProcessorClientConfig topologyClientConfig;
-
-    @Autowired
-    private MarketClientConfig marketClientConfig;
 
     @Value("${ingest.perChunkCommit:false}")
     private boolean perChunkCommit;
@@ -154,6 +151,11 @@ public class IngestersConfig {
     @Value("${ingest.saveGuestLoadEntityStats:false}")
     private boolean saveGuestLoadEntityStats;
 
+    @Bean
+    MarketClientConfig marketClientConfig() {
+        return new MarketClientConfig();
+    }
+
     /**
      * Set up kafka subscriptions for topics published by topology processor.
      *
@@ -178,7 +180,7 @@ public class IngestersConfig {
      */
     @Bean
     MarketComponent marketComponent() {
-        final MarketComponent market = marketClientConfig.marketComponent(
+        final MarketComponent market = marketClientConfig().marketComponent(
                 MarketSubscription.forTopic(MarketSubscription.Topic.ProjectedTopologies),
                 MarketSubscription.forTopic(MarketSubscription.Topic.PlanAnalysisTopologies),
                 MarketSubscription.forTopic(MarketSubscription.Topic.AnalysisSummary));

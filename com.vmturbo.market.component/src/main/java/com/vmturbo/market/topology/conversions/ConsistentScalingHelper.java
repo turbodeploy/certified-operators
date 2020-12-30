@@ -38,10 +38,13 @@ public class ConsistentScalingHelper {
     private static final Logger logger = LogManager.getLogger();
 
     /**
-     * This is the list of commodities to not level usage for in cloud scaling groups.
+     * This is the list of commodities that are taken into consideration when leveling usage for
+     * cloud scaling groups.
      */
-    private static final ImmutableSet<Integer> nonConsistentScalingCommodities = ImmutableSet.of(
-        CommodityType.COUPON_VALUE
+    private static final ImmutableSet<Integer> consistentScalingCommodities = ImmutableSet.of(
+        CommodityDTO.CommodityType.CPU_VALUE, CommodityType.CPU_PROVISIONED_VALUE,
+        CommodityDTO.CommodityType.MEM_VALUE, CommodityType.MEM_PROVISIONED_VALUE,
+        CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE
     );
 
     private final SettingPolicyServiceBlockingStub settingPolicyService;
@@ -227,7 +230,8 @@ public class ConsistentScalingHelper {
      * @return true if we consistently scale this commodity type.
      */
     public boolean isCommodityConsistentlyScalable(final TopologyDTO.CommodityType commodityType) {
-        return commodityType != null && !nonConsistentScalingCommodities.contains(commodityType.getType());
+        return commodityType != null &&
+            consistentScalingCommodities.contains(commodityType.getType());
     }
 
     /**
