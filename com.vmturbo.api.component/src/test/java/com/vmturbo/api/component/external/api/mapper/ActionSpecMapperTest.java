@@ -260,7 +260,8 @@ public class ActionSpecMapperTest {
             PolicyResponse.newBuilder().setPolicy(Policy.newBuilder()
                 .setId(POLICY_ID)
                 .setPolicyInfo(PolicyInfo.newBuilder()
-                    .setName(POLICY_NAME)))
+                    .setName(POLICY_NAME)
+                    .setDisplayName(POLICY_NAME)))
                 .build());
         Mockito.when(policyMole.getPolicies(any())).thenReturn(policyResponses);
         PolicyServiceGrpc.PolicyServiceBlockingStub policyService =

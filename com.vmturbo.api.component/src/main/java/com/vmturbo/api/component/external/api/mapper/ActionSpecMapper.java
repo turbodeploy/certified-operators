@@ -1015,7 +1015,7 @@ public class ActionSpecMapper {
                 return actionSpec.getExplanation();
             }
             if (actionSpec.getRecommendation().getExplanation().hasProvision()) {
-                return String.format("%s violation", policy.get().getPolicyInfo().getName());
+                return String.format("%s violation", policy.get().getPolicyInfo().getDisplayName());
             } else {
                 // constructing risk with policyName for move and reconfigure
                 final Optional<String> commNames =
@@ -1025,7 +1025,7 @@ public class ActionSpecMapper {
                         serviceEntity.isPresent() ? serviceEntity.get().getDisplayName() :
                                 String.format("\"%s(%d)\"", EntityType.forNumber(entity.getType()),
                                         entity.getId()),
-                        policy.get().getPolicyInfo().getName(),
+                        policy.get().getPolicyInfo().getDisplayName(),
                         commNames.isPresent() ? ", " + commNames.get() : "");
             }
         }
