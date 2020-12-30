@@ -53,6 +53,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.common.pipeline.Pipeline.PipelineStageException;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.LicenseModel;
@@ -860,6 +861,134 @@ public class CloudMigrationPlanHelperTest {
                 .findFirst().orElse(null);
         assertNotNull(numDiskComm);
         assertEquals(expectedNumDiskUsed, numDiskComm.getUsed(), 0);
+    }
+
+    /**
+     * Checks if commodities are getting skipped correctly when doing on-prem to cloud migration.
+     * Certain on-prem commodities don't apply to cloud and are thus not sold by cloud tiers,
+     * so those are being removed from TopologyEntity, before they can be migrated to cloud.
+     * Note: This test was moved here from CommoditiesEditorTest as
+     */
+    @Test
+    public void skipCommoditiesOnMigration() {
+        TopologyEntityDTO.Builder dtoBuilder = TopologyEntityDTO.newBuilder();
+        long pmProviderId = 101L;
+        long storageVolumeProviderId = 102L;
+        List<CommoditiesBoughtFromProvider> commoditiesByProvider =
+                getCommoditiesBoughtFromProviders(pmProviderId, storageVolumeProviderId);
+
+        // First check whether skip works for PM provider commodities.
+        CommoditiesBoughtFromProvider checkPmProvider = commoditiesByProvider.get(0);
+        assertEquals(pmProviderId, checkPmProvider.getProviderId());
+        assertEquals(3, checkPmProvider.getCommodityBoughtCount());
+        final List<CommodityBoughtDTO> remainingBoughtPm = cloudMigrationPlanHelper
+                .getUpdatedCommBought(checkPmProvider, consumptionTopologyInfo,
+                        dtoBuilder, Collections.emptyMap(), true, true);
+        assertEquals(2, remainingBoughtPm.size());
+
+        // These 2 commodities (cpu & mem) should not be getting filtered out, only Q2_VCPU should.
+        boolean hasCpu = false;
+        boolean hasMem = false;
+        for (CommodityBoughtDTO boughtDTO : remainingBoughtPm) {
+            if (boughtDTO.getCommodityType().getType() == CommodityDTO.CommodityType.CPU_VALUE) {
+                hasCpu = true;
+            }
+            if (boughtDTO.getCommodityType().getType() == CommodityDTO.CommodityType.MEM_VALUE) {
+                hasMem = true;
+            }
+        }
+        assertTrue(hasCpu);
+        assertTrue(hasMem);
+
+        // Now check skip for Storage provider commodities.
+        CommoditiesBoughtFromProvider checkStorageProvider = commoditiesByProvider.get(1);
+        assertEquals(storageVolumeProviderId, checkStorageProvider.getProviderId());
+        assertEquals(3, checkStorageProvider.getCommodityBoughtCount());
+        final List<CommodityBoughtDTO> remainingBoughtStorage = cloudMigrationPlanHelper
+                .getUpdatedCommBought(checkStorageProvider, consumptionTopologyInfo,
+                        dtoBuilder, Collections.emptyMap(), true, true);
+        // There should not be any instance store commodities after the skip.
+        assertEquals(0, remainingBoughtStorage.size());
+    }
+
+    /**
+     * Gets a list of CommoditiesBoughtFromProvider - one for PM and other for storage volume.
+     *
+     * @param pmProviderId Id of PM provider.
+     * @param storageVolumeProviderId Id of storage volume provider.
+     * @return List of CommoditiesBoughtFromProvider with dummy commodities added.
+     */
+    @Nonnull
+    private List<CommoditiesBoughtFromProvider> getCommoditiesBoughtFromProviders(
+            long pmProviderId, long storageVolumeProviderId) {
+        List<CommoditiesBoughtFromProvider> commoditiesByProvider = new ArrayList<>();
+        commoditiesByProvider.add(
+                CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderId(pmProviderId)
+                        .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                        .addCommodityBought(
+                                CommodityBoughtDTO.newBuilder()
+                                        .setActive(true)
+                                        .setCommodityType(
+                                                TopologyDTO.CommodityType.newBuilder()
+                                                        .setType(CommodityDTO.CommodityType
+                                                                .Q2_VCPU.getNumber())
+                                                        .build())
+                                        .build())
+                        .addCommodityBought(
+                                CommodityBoughtDTO.newBuilder()
+                                        .setActive(true)
+                                        .setCommodityType(
+                                                TopologyDTO.CommodityType.newBuilder()
+                                                        .setType(CommodityDTO.CommodityType
+                                                                .CPU.getNumber())
+                                                        .build())
+                                        .build())
+                        .addCommodityBought(
+                                CommodityBoughtDTO.newBuilder()
+                                        .setActive(true)
+                                        .setCommodityType(
+                                                TopologyDTO.CommodityType.newBuilder()
+                                                        .setType(CommodityDTO.CommodityType
+                                                                .MEM.getNumber())
+                                                        .build())
+                                        .build())
+                        .build());
+
+        commoditiesByProvider.add(
+                CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderId(storageVolumeProviderId)
+                        .setProviderEntityType(EntityType.STORAGE_VOLUME_VALUE)
+                        .addCommodityBought(
+                                CommodityBoughtDTO.newBuilder()
+                                        .setActive(true)
+                                        .setCommodityType(
+                                                TopologyDTO.CommodityType.newBuilder()
+                                                        .setType(CommodityDTO.CommodityType
+                                                                .INSTANCE_DISK_SIZE.getNumber())
+                                                        .build())
+                                        .build())
+                        .addCommodityBought(
+                                CommodityBoughtDTO.newBuilder()
+                                        .setActive(true)
+                                        .setCommodityType(
+                                                TopologyDTO.CommodityType.newBuilder()
+                                                        .setType(CommodityDTO.CommodityType
+                                                                .INSTANCE_DISK_TYPE.getNumber())
+                                                        .build())
+                                        .build())
+                        .addCommodityBought(
+                                CommodityBoughtDTO.newBuilder()
+                                        .setActive(true)
+                                        .setCommodityType(
+                                                TopologyDTO.CommodityType.newBuilder()
+                                                        .setType(CommodityDTO.CommodityType
+                                                                .INSTANCE_DISK_COUNT.getNumber())
+                                                        .build())
+                                        .build())
+                        .build());
+
+        return commoditiesByProvider;
     }
 }
 

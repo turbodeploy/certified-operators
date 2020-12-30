@@ -198,6 +198,7 @@ public class ClassicEnumMapper {
         IMAGE_STORAGE("ImageStorage", "MB"),
         INSTANCE_DISK_SIZE("InstanceDiskSize", "MB"),
         INSTANCE_DISK_TYPE("InstanceDiskType", ""),
+        INSTANCE_DISK_COUNT("InstanceDiskCount", ""),
         IO_THROUGHPUT("IOThroughput", "KByte/sec"),
         KPI("KPI", ""),
         LICENSE_ACCESS("LicenseAccess", ""),

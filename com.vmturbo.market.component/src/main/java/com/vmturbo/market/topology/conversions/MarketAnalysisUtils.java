@@ -270,6 +270,7 @@ public final class MarketAnalysisUtils {
     public static final Set<Integer> IGNORE_UPDATE_TYPES =
                     ImmutableSet.of(CommodityDTO.CommodityType.INSTANCE_DISK_SIZE_VALUE,
                                     CommodityDTO.CommodityType.INSTANCE_DISK_TYPE_VALUE,
+                                    CommodityDTO.CommodityType.INSTANCE_DISK_COUNT_VALUE,
                                     CommodityDTO.CommodityType.IMAGE_CPU_VALUE,
                                     CommodityDTO.CommodityType.IMAGE_MEM_VALUE,
                                     CommodityDTO.CommodityType.IMAGE_STORAGE_VALUE);

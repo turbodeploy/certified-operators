@@ -82,6 +82,8 @@ public enum UICommodityType {
     INSTANCE_DISK_SIZE("InstanceDiskSize", CommodityType.INSTANCE_DISK_SIZE, "Instance Disk Size"),
     /** The commodity INSTANCE_DISK_TYPE. */
     INSTANCE_DISK_TYPE("InstanceDiskType", CommodityType.INSTANCE_DISK_TYPE, "Instance Disk Type"),
+    /** The commodity INSTANCE_DISK_COUNT. */
+    INSTANCE_DISK_COUNT("InstanceDiskCount", CommodityType.INSTANCE_DISK_COUNT, "Instance Disk Count"),
     /** The commodity IO_THROUGHPUT. */
     IO_THROUGHPUT("IOThroughput", CommodityType.IO_THROUGHPUT, "IO Throughput"),
     /** The commodity LICENSE_ACCESS. */

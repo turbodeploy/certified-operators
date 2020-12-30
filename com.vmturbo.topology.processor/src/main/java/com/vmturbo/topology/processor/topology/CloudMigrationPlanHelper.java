@@ -182,7 +182,8 @@ public class CloudMigrationPlanHelper {
             CommodityType.CPU_PROVISIONED,
             CommodityType.MEM_PROVISIONED,
             CommodityType.INSTANCE_DISK_SIZE,
-            CommodityType.INSTANCE_DISK_TYPE
+            CommodityType.INSTANCE_DISK_TYPE,
+            CommodityType.INSTANCE_DISK_COUNT
     );
 
     /**
@@ -1008,7 +1009,8 @@ public class CloudMigrationPlanHelper {
      * @return Updated list of only applicable CommBoughtDTOs.
      */
     @Nonnull
-    private List<CommodityBoughtDTO> getUpdatedCommBought(
+    @VisibleForTesting
+    List<CommodityBoughtDTO> getUpdatedCommBought(
             @Nonnull final CommoditiesBoughtFromProvider commBoughtGrouping,
             @Nonnull final TopologyInfo topologyInfo,
             final TopologyEntityDTO.Builder dtoBuilder,

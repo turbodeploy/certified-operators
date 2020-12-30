@@ -1383,7 +1383,7 @@ public class EntitySettingsApplicatorTest {
                                         .map(TopologyDTO.CommodityType::getType)
                                         .map(CommodityType::forNumber).collect(Collectors.toSet());
         Assert.assertThat(soldCommodities.size(), CoreMatchers.is(3));
-        Assert.assertThat(commodityTypes, Matchers.containsInAnyOrder(CommodityType.NUM_DISK,
+        Assert.assertThat(commodityTypes, Matchers.containsInAnyOrder(CommodityType.INSTANCE_DISK_COUNT,
                         CommodityType.INSTANCE_DISK_TYPE, CommodityType.INSTANCE_DISK_SIZE));
         Assert.assertThat(soldCommodities.stream().map(CommoditySoldDTO.Builder::getIsResizeable)
                                         .collect(Collectors.toSet()),
@@ -1393,7 +1393,7 @@ public class EntitySettingsApplicatorTest {
                         CoreMatchers.is(Collections.singleton(true)));
         Assert.assertThat(getCommodityCapacity(soldCommodities, CommodityType.INSTANCE_DISK_SIZE),
                         CoreMatchers.is(INSTANCE_DISK_SIZE_GB * 1024D));
-        Assert.assertThat(getCommodityCapacity(soldCommodities, CommodityType.NUM_DISK),
+        Assert.assertThat(getCommodityCapacity(soldCommodities, CommodityType.INSTANCE_DISK_COUNT),
                         CoreMatchers.is(NUM_DISKS));
         final String instanceTypeKey = findCommodity(soldCommodities,
                         c -> c.getCommodityType().getType()
@@ -1524,7 +1524,7 @@ public class EntitySettingsApplicatorTest {
         Assert.assertThat(boughtCommodities.size(), CoreMatchers.is(3));
         Assert.assertThat(getCommodityUsage(boughtCommodities, CommodityType.INSTANCE_DISK_SIZE),
                         CoreMatchers.is(INSTANCE_DISK_SIZE_GB * 1024D));
-        Assert.assertThat(getCommodityUsage(boughtCommodities, CommodityType.NUM_DISK),
+        Assert.assertThat(getCommodityUsage(boughtCommodities, CommodityType.INSTANCE_DISK_COUNT),
                         CoreMatchers.is(NUM_DISKS));
         final String instanceTypeKey = findCommodity(boughtCommodities,
                         c -> c.getCommodityType().getType()
