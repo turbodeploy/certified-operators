@@ -25,12 +25,12 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
-import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
-import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
-
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
@@ -97,7 +97,7 @@ public class PercentileEditor extends
      * {@link PercentileEditor#ENABLED_BOUGHT_COMMODITY_TYPES}
      */
     private static final Set<EntityType> NOT_APPLICABLE_ENTITY_TYPES =
-            ImmutableSet.of(EntityType.DATABASE_SERVER, EntityType.CONTAINER,
+            ImmutableSet.of(EntityType.CONTAINER,
                 EntityType.CONTAINER_POD);
     private static final DataMetricSummary SETTINGS_CHANGE_SUMMARY_METRIC =
                 DataMetricSummary.builder()

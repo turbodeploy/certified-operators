@@ -64,7 +64,6 @@ import com.vmturbo.topology.processor.KVConfig;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.history.AbstractCachingHistoricalEditor.CacheBackup;
 import com.vmturbo.topology.processor.history.BaseGraphRelatedTest;
-import com.vmturbo.topology.processor.history.CachingHistoricalEditorConfig;
 import com.vmturbo.topology.processor.history.CommodityField;
 import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
 import com.vmturbo.topology.processor.history.HistoryAggregationContext;
@@ -211,12 +210,6 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
      */
     @Test
     public void testIsEntityApplicable() {
-        // Percentile should not be set for database server entities
-        Assert.assertFalse(percentileEditor.isEntityApplicable(TopologyEntity.newBuilder(
-                TopologyEntityDTO.newBuilder()
-                        .setOid(DATABASE_SERVER_OID)
-                        .setEntityType(EntityType.DATABASE_SERVER_VALUE)).build()));
-
         // Percentile should not be set for container entities
         Assert.assertFalse(percentileEditor.isEntityApplicable(TopologyEntity.newBuilder(
             TopologyEntityDTO.newBuilder()
@@ -255,6 +248,20 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
                         .setAnalysisSettings(
                                 AnalysisSettings.newBuilder().setControllable(false).build()))
                 .build()));
+
+        // Percentile should be be set for database server entities.
+        Assert.assertTrue(percentileEditor.isEntityApplicable(TopologyEntity.newBuilder(
+                TopologyEntityDTO.newBuilder()
+                        .setOid(DATABASE_SERVER_OID)
+                        .setAnalysisSettings(
+                                AnalysisSettings.newBuilder().setControllable(true))
+                        .setOrigin(Origin.newBuilder()
+                                .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                                        .putDiscoveredTargetData(1L,
+                                                PerTargetEntityInformation.newBuilder()
+                                                        .setOrigin(EntityOrigin.DISCOVERED)
+                                                        .build())))
+                        .setEntityType(EntityType.DATABASE_SERVER_VALUE)).build()));
     }
 
     /**
