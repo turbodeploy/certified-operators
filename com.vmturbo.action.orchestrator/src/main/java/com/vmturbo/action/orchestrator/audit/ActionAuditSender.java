@@ -78,7 +78,7 @@ public class ActionAuditSender {
      *         notifications
      * @throws InterruptedException if current thread has been interrupted
      */
-    public void sendActionEvents(@Nonnull Collection<ActionView> actions)
+    public void sendActionEvents(@Nonnull Collection<? extends ActionView> actions)
             throws CommunicationException, InterruptedException {
         final MutableInt auditedActions = new MutableInt(0);
         for (ActionView action : actions) {
@@ -123,7 +123,7 @@ public class ActionAuditSender {
         }
     }
 
-    private void processCanceledActions(@Nonnull Collection<ActionView> actions)
+    private void processCanceledActions(@Nonnull Collection<? extends ActionView> actions)
             throws CommunicationException, InterruptedException {
         final Set<Long> currentActions =
                 actions.stream().map(ActionView::getRecommendationOid).collect(Collectors.toSet());

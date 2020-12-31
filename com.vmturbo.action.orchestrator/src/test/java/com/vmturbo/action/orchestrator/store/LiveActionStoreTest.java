@@ -82,6 +82,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.MarketActionPlanInfo;
@@ -223,10 +224,12 @@ public class LiveActionStoreTest {
     private Collection<Long> atomicActionTargetEntities;
     private Collection<Long> actionPlanTargetEntities;
     private ActionPlanInfo actionPlanInfo;
+    private ActionAuditSender actionAuditSender;
 
     @SuppressWarnings("unchecked")
     @Before
     public void setup() {
+        actionAuditSender = mock(ActionAuditSender.class);
         // license check client will default to acting as if a valid license is installed.
         when(licenseCheckClient.hasValidNonExpiredLicense()).thenReturn(true);
         final IdentityDataStore<ActionInfoModel> idDataStore = new InMemoryIdentityStore<>();
@@ -238,8 +241,8 @@ public class LiveActionStoreTest {
                 probeCapabilityCache, entitySettingsCache, actionHistoryDao, actionsStatistician,
                 actionTranslator, atomicActionFactory, clock, userSessionContext,
                 licenseCheckClient, acceptedActionsStore, rejectedActionsStore,
-                actionIdentityService, involvedEntitiesExpander,
-                Mockito.mock(ActionAuditSender.class), entitySeverityCache, 60, workflowStore);
+                actionIdentityService, involvedEntitiesExpander, actionAuditSender,
+                entitySeverityCache, 60, workflowStore);
 
         when(targetSelector.getTargetsForActions(any(), any(), any())).thenAnswer(invocation -> {
             Stream<ActionDTO.Action> actions = invocation.getArgumentAt(0, Stream.class);
@@ -1612,6 +1615,46 @@ public class LiveActionStoreTest {
         // Same is true for the atomic actions on both the container specs
         assertEquals(csOid1, csOid3);
         assertEquals(csOid2, csOid4);
+    }
+
+    /**
+     * Tests sending atomic actions for audit.
+     *
+     * @throws Exception if something goes wrong
+     */
+    @Test
+    public void testAuditAtomicActions() throws Exception {
+        final ActionDTO.Action.Builder resize1 = resize(container1);
+        final ActionDTO.Action.Builder resize2 = resize(container2);
+
+        final ActionPlan firstPlan = ActionPlan.newBuilder()
+                .setInfo(actionPlanInfo)
+                .setId(firstPlanId)
+                .addAction(resize1)
+                .addAction(resize2)
+                .build();
+
+        actionStore.populateRecommendedActions(firstPlan);
+        Assert.assertEquals(2, actionStore.size());
+        Assert.assertTrue(isAllActionAreAtomic(actionStore.getActions()
+                .values()
+                .stream()
+                .map(Action::getRecommendation)
+                .collect(Collectors.toList())));
+
+        Mockito.verify(actionAuditSender, Mockito.times(1))
+                .sendActionEvents(actionsCaptor.capture());
+        final Collection<ActionView> auditedActions = actionsCaptor.getValue();
+        Assert.assertTrue(isAllActionAreAtomic(auditedActions.stream()
+                .map(ActionView::getRecommendation)
+                .collect(Collectors.toList())));
+    }
+
+    private boolean isAllActionAreAtomic(@Nonnull Collection<ActionDTO.Action> actions) {
+        return actions.stream()
+                .allMatch(action -> action.getInfo()
+                        .getActionTypeCase()
+                        .equals(ActionTypeCase.ATOMICRESIZE));
     }
 
     /**

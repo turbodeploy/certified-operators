@@ -27,7 +27,6 @@ import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 
 import org.apache.commons.collections4.SetUtils;
 import org.apache.commons.lang3.mutable.MutableInt;
@@ -376,8 +375,6 @@ public class LiveActionStore implements ActionStore {
             // Apply addition and removal to the internal store atomically.
             final List<ActionView> completedSinceLastPopulate = new ArrayList<>();
             final List<Action> actionsToRemove = new ArrayList<>();
-            final Set<Long> newActionIds = Sets.newHashSet();
-            final Set<Long> existingActionIds = Sets.newHashSet();
 
             actions.doForEachMarketAction(action -> {
                 // Retain QUEUED, PRE_IN_PROGRESS, IN-PROGRESS, POST_IN_PROGRESS, ACCEPTED,
@@ -406,7 +403,6 @@ public class LiveActionStore implements ActionStore {
                     case FAILED:
                         completedSinceLastPopulate.add(action);
                         actionsToRemove.add(action);
-                        existingActionIds.add(action.getId());
                         break;
                     default:
                         actionsToRemove.add(action);
@@ -474,7 +470,6 @@ public class LiveActionStore implements ActionStore {
                 } else {
                     newActionCounts.getAndIncrement();
                     action = actionFactory.newAction(recommendedAction, planId, recommendationOid);
-                    newActionIds.add(action.getId());
                 }
 
                 // while iterating over action views for action dTOs, save the action views
@@ -485,7 +480,6 @@ public class LiveActionStore implements ActionStore {
                     aa.updateActionView(recommendedAction.getId(), action);
                 }
 
-                existingActionIds.add(action.getId());
                 final ActionState actionState = action.getState();
                 if (actionState == ActionState.READY || actionState == ActionState.ACCEPTED || actionState == ActionState.REJECTED) {
                     actionsToTranslate.add(action);
@@ -558,12 +552,15 @@ public class LiveActionStore implements ActionStore {
             final int deletedActions =
                 entitiesWithNewStateCache.clearActionsAndUpdateCache(sourceTopologyInfo.getTopologyId());
 
-            // this seems related to workflow actions
-            final List<ActionView> existingActions = existingActionIds.stream().map(actions::get)
+            // Get actions for audit. Don't use directly translatedActionsToAdd because it could
+            // contain actions that were merged (during populating atomic actions) and as a result
+            // some of initially recommended actions were removed.
+            final List<ActionView> actionsForAudit = translatedActionsToAdd.stream()
+                    .map(action -> actions.get(action.getId()))
                     .filter(Optional::isPresent)
                     .map(Optional::get)
                     .collect(Collectors.toList());
-            auditOnGeneration(existingActions);
+            auditOnGeneration(actionsForAudit);
             if (deletedActions > 0) {
                 severityCache.refresh(this);
             }
@@ -578,10 +575,12 @@ public class LiveActionStore implements ActionStore {
         return true;
     }
 
-    private void auditOnGeneration(@Nonnull Collection<ActionView> newActions)
+    private void auditOnGeneration(@Nonnull Collection<? extends ActionView> newActions)
             throws InterruptedException {
         try {
-            actionAuditSender.sendActionEvents(newActions);
+            if (!newActions.isEmpty()) {
+                actionAuditSender.sendActionEvents(newActions);
+            }
         } catch (CommunicationException e) {
             logger.warn(
                     "Failed sending audit event \"on generation event\" for actions " + newActions,
@@ -787,14 +786,15 @@ public class LiveActionStore implements ActionStore {
      *                                              recently executed actions used in the call
      *                                              to set support levels for the atomic actions
      * @param snapshot  {@link EntitiesAndSettingsSnapshot}
-     *
+     * @throws InterruptedException if current thread has been interrupted
      * @return true if the atomic actions are updated without any errors
      */
     private boolean populateAtomicActions(long planId,
                                           Map<Long, AggregatedAction> aggregatedActions,
                                           Map<Long, Action> mergedActionViews,
                                           RecommendationTracker lastExecutedRecommendationsTracker,
-                                          EntitiesAndSettingsSnapshot snapshot) {
+                                          EntitiesAndSettingsSnapshot snapshot)
+            throws InterruptedException {
         // First create the action DTOs for the atomic actions
         List<AtomicActionResult> atomicActionResults = atomicActionFactory.atomicActions(aggregatedActions);
 
@@ -898,7 +898,7 @@ public class LiveActionStore implements ActionStore {
         final Stream<Action> translatedReadyActions =
                 actionTranslator.translate(actionsToTranslate.stream(), snapshot);
         final List<Action> translatedActionsToAdd = new ArrayList<>();
-        translatedReadyActions.forEach(action -> translatedActionsToAdd.add(action));
+        translatedReadyActions.forEach(translatedActionsToAdd::add);
 
         actions.updateAtomicActions(atomicActionsToRemove, translatedActionsToAdd,
                                     mergedActionViews.values(), snapshot);
@@ -914,6 +914,8 @@ public class LiveActionStore implements ActionStore {
                     action.receive(new NotRecommendedEvent(planId));
 
                 });
+        // send atomic actions for audit
+        auditOnGeneration(translatedActionsToAdd);
 
         return true;
     }
