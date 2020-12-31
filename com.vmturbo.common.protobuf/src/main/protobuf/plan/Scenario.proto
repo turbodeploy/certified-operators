@@ -122,6 +122,8 @@ message ScenarioChange {
 
         optional IncludedCoupons included_coupons = 7;
 
+        optional BusinessAccount subscription = 8;
+
         message IncludedCoupons {
            // User selected OIDs of RIs/Coupons to include in OC plans.
            repeated int64 included_coupon_oids = 1;
@@ -205,6 +207,24 @@ message ScenarioChange {
             // It is milliseconds elapsed since epoch.
             required int64 baseline_date = 1;
         }
+
+        // Representation of BusinessAccountApiDTO.  Add fields as required.
+        message BusinessAccount {
+            // Account uuid.
+            optional string uuid = 1;
+
+            // Account id.
+            optional string account_id = 2;
+
+            // Account Display Name.
+            optional string display_name = 3;
+
+            // Account Class Name.
+            optional string class_name = 4;
+
+            // Account Cloud Type ): allowableValues = "AWS, AZURE, GCP, UNKNOWN"
+            optional string cloud_type = 5;
+        }
     }
 
     // A change to supply or demand made by cloning an entity in the topology
@@ -242,6 +262,8 @@ message ScenarioChange {
         required DestinationEntityType destination_entity_type = 5;
 
         repeated OSMigration os_migrations = 6;
+
+        optional MigrationReference destination_account = 7;
 
         enum DestinationEntityType {
             // Virtual Machine group

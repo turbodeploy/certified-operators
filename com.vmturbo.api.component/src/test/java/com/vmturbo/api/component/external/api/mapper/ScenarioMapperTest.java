@@ -62,6 +62,7 @@ import com.vmturbo.api.component.external.api.service.PoliciesService;
 import com.vmturbo.api.component.external.api.service.SettingsService;
 import com.vmturbo.api.component.external.api.util.TemplatesUtils;
 import com.vmturbo.api.dto.BaseApiDTO;
+import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.scenario.AddObjectApiDTO;
@@ -102,6 +103,7 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.Scenario;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.DetailsCase;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.BusinessAccount;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.GlobalIgnoreEntityType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.HistoricalBaseline;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.IgnoreConstraint;
@@ -112,6 +114,7 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.RISett
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.SettingOverride;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyAddition;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyMigration;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyMigration.MigrationReference;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyMigration.OSMigration;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyRemoval;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyReplace;
@@ -2612,6 +2615,74 @@ public class ScenarioMapperTest {
         assertOsMigration(result, OSType.RHEL, OSType.SUSE, true);
         assertOsMigration(result, OSType.SUSE, OSType.SUSE, false);
         assertOsMigration(result, OSType.WINDOWS, OSType.WINDOWS, true);
+    }
+
+    /**
+     * Tests destination business account present in plan {@link ScenarioApiDTO}.
+     *
+     * @throws OperationFailedException if retrieval of ScenarioInfo were to fail.
+     * @throws UnknownObjectException if creation of ScenarioApiDTO were to fail.
+     */
+    @Test
+    public void testScenarioAndMigrationConfigWithBusinessAccount() throws OperationFailedException, UnknownObjectException {
+        final long sourceVmOid = 1;
+        BaseApiDTO source = new BaseApiDTO();
+        source.setUuid(String.valueOf(sourceVmOid));
+        source.setDisplayName("theVMs");
+        source.setClassName("VirtualMachine");
+
+        final long destinationOid = 2;
+        BaseApiDTO destination = new BaseApiDTO();
+        destination.setUuid(String.valueOf(destinationOid));
+        destination.setDisplayName("theRegion");
+        destination.setClassName("Region");
+
+        MigrateObjectApiDTO dto = new MigrateObjectApiDTO();
+        dto.setSource(source);
+        dto.setDestination(destination);
+        dto.setDestinationEntityType(DestinationEntityType.VirtualMachine);
+        dto.setRemoveNonMigratingWorkloads(true);
+        dto.setProjectionDay(0);
+
+        TopologyChangesApiDTO topoChanges = new TopologyChangesApiDTO();
+        topoChanges.setMigrateList(Collections.singletonList(dto));
+
+        final String name = "aScenario";
+        ScenarioApiDTO scenarioApiDTO = scenarioApiDTO(topoChanges);
+        scenarioApiDTO.setType("CloudMigration");
+
+        long destinationAccountOid = 3;
+        final String accountId = "xxx-yyy-zzz";
+        BusinessUnitApiDTO destinationAccount = new BusinessUnitApiDTO();
+        destinationAccount.setAccountId(accountId);
+        destinationAccount.setUuid(String.valueOf(destinationAccountOid));
+        destinationAccount.setDisplayName("TestDisplayName");
+        destinationAccount.setClassName("BusinessAccount");
+        destinationAccount.setCloudType(com.vmturbo.api.enums.CloudType.AZURE);
+        final ConfigChangesApiDTO configChanges = new ConfigChangesApiDTO();
+        configChanges.setSubscription(destinationAccount);
+        scenarioApiDTO.setConfigChanges(configChanges);
+
+        ScenarioInfo info = getScenarioInfo(name, scenarioApiDTO);
+
+        final Optional<MigrationReference> destinationAccountFromScenario = info.getChangesList().stream()
+            .filter(ScenarioChange::hasTopologyMigration)
+            .map(ScenarioChange::getTopologyMigration)
+            .map(TopologyMigration::getDestinationAccount)
+            .findFirst();
+        assertTrue(destinationAccountFromScenario.isPresent());
+        assertEquals(destinationAccountOid, destinationAccountFromScenario.get().getOid());
+        assertEquals(EntityType.BUSINESS_ACCOUNT_VALUE, destinationAccountFromScenario.get().getEntityType());
+
+        List<ScenarioChange> scenarioChanges = info.getChangesList();
+        final List<PlanChanges> allPlanChanges = scenarioChanges.stream()
+                        .filter(ScenarioChange::hasPlanChanges).map(ScenarioChange::getPlanChanges)
+                        .collect(Collectors.toList());
+        Optional<BusinessAccount> subscription = allPlanChanges
+                        .stream().filter(PlanChanges::hasSubscription)
+                        .map(PlanChanges::getSubscription)
+                        .findFirst();
+        assertTrue(subscription.isPresent());
     }
 
     /**

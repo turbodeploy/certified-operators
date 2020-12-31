@@ -59,6 +59,7 @@ import com.vmturbo.api.component.external.api.service.PoliciesService;
 import com.vmturbo.api.component.external.api.service.SettingsService;
 import com.vmturbo.api.component.external.api.util.TemplatesUtils;
 import com.vmturbo.api.dto.BaseApiDTO;
+import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.policy.PolicyApiDTO;
@@ -78,6 +79,7 @@ import com.vmturbo.api.dto.scenario.UtilizationApiDTO;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
+//import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.api.enums.ConstraintType;
 import com.vmturbo.api.enums.DestinationEntityType;
 import com.vmturbo.api.exceptions.ConversionException;
@@ -104,6 +106,7 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.Scenario;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.DetailsCase;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.BusinessAccount;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.ConstraintGroup;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.GlobalIgnoreEntityType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.HistoricalBaseline;
@@ -144,6 +147,7 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.DemandType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.OfferingClass;
 import com.vmturbo.platform.sdk.common.CommonCost.PaymentOption;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 
 /**
  * Maps scenarios between their API DTO representation and their protobuf representation.
@@ -192,6 +196,14 @@ public class ScenarioMapper {
                             AzurePreferredTerm, RIDemandType,
                             CloudCommitmentHistoricalLookbackPeriod,
                             CloudCommitmentIncludeTerminatedEntities);
+
+    /**
+     * Map of source of target type from where the business account originates indexed by probe type.
+     */
+    private static final Map<String, CloudType> SUPPORTED_CLOUD_TYPE = ImmutableMap.of(
+            SDKProbeType.AWS.getProbeType(), CloudType.AWS,
+            SDKProbeType.AWS_BILLING.getProbeType(), CloudType.AWS,
+            SDKProbeType.AZURE.getProbeType(), CloudType.AZURE);
 
     static {
         MARKET_PLAN_SCOPE = new BaseApiDTO();
@@ -1002,6 +1014,42 @@ public class ScenarioMapper {
             }
         }
 
+        final BusinessUnitApiDTO businessUnitApiDTO = configChanges.getSubscription();
+        // Make sure all the fields being set are present.
+        if (businessUnitApiDTO != null) {
+            final PlanChanges.Builder planChangesBuilder = PlanChanges.newBuilder();
+            BusinessAccount.Builder subscription = BusinessAccount.newBuilder();
+            final String uuid = businessUnitApiDTO.getUuid();
+            if (!StringUtils.isEmpty(uuid)) {
+                subscription.setUuid(uuid);
+            }
+            final String accountId = businessUnitApiDTO.getUuid();
+            if (!StringUtils.isEmpty(accountId)) {
+                subscription.setAccountId(accountId);
+            }
+            final String displayName = businessUnitApiDTO.getDisplayName();
+            if (!StringUtils.isEmpty(displayName)) {
+                subscription.setDisplayName(displayName);
+            }
+            final String className = businessUnitApiDTO.getClassName();
+            if (!StringUtils.isEmpty(className)) {
+                subscription.setClassName(className);
+            }
+            final com.vmturbo.api.enums.CloudType cloudType = businessUnitApiDTO.getCloudType();
+            if (cloudType != null) {
+                subscription.setCloudType(cloudType.name());
+            }
+            planChangesBuilder.setSubscription(subscription.build());
+            scenarioChanges.add(ScenarioChange.newBuilder()
+                            .setPlanChanges(planChangesBuilder.build()).build());
+        }
+
+        // For a Migration plan, the business account in configChanges pertains to the destination
+        // account and/or rate card/discount account.  For another plan type it may have a
+        // different use case in the future.  If a business account is present, process it along
+        // with the TopologyMigration PlanChanges for an MPC plan, and in the appropriate PlanChanges
+        // type for other plans.
+
         return scenarioChanges.build();
     }
 
@@ -1445,6 +1493,7 @@ public class ScenarioMapper {
                 }
             });
 
+
         MigrateObjectApiDTO firstMigrateObject = migrateObjects.get(0);
             final TopologyMigration.Builder migrationBuilder = TopologyMigration.newBuilder()
                 .addAllSource(sources)
@@ -1454,10 +1503,20 @@ public class ScenarioMapper {
                         : TopologyMigration.DestinationEntityType.DATABASE_SERVER)
                 .setRemoveNonMigratingWorkloads(firstMigrateObject.getRemoveNonMigratingWorkloads())
                 .addAllOsMigrations(buildOsMigrations(configChanges));
+        if (configChanges != null) {
+            final BusinessUnitApiDTO destinationAccountDto = configChanges.getSubscription();
+            if (destinationAccountDto != null) {
+                final MigrationReference destinationAccount = MigrationReference.newBuilder()
+                                .setOid(Long.valueOf(destinationAccountDto.getUuid()))
+                                .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
+                                .build();
+                migrationBuilder.setDestinationAccount(destinationAccount);
+            }
+        }
 
-            return ScenarioChange.newBuilder()
-                    .setTopologyMigration(migrationBuilder)
-                    .build();
+        return ScenarioChange.newBuilder()
+                        .setTopologyMigration(migrationBuilder)
+                        .build();
     }
 
     @VisibleForTesting
@@ -1609,6 +1668,53 @@ public class ScenarioMapper {
         // projection changes used by the UI here.
         return Collections.singletonList(0);
         // --- END HAX ---
+    }
+
+
+    /**
+     * Get Key from Value in a Map.
+     *
+     * @param <K>     the type of the map keys.
+     * @param <V>     the type of the map values
+     * @param map the map with keys of type K and values of type V.
+     * @param value the value for which to get the key.
+     * @return a stream of related keys for a value in map.
+     */
+    private <K, V> Stream<K> keys(Map<K, V> map, V value) {
+        return map
+          .entrySet()
+          .stream()
+          .filter(entry -> value.equals(entry.getValue()))
+          .map(Map.Entry::getKey);
+    }
+
+    /**
+     * Convert {@link BusinessAccount} to a list of {@link BusinessUnitApiDTO}.
+     *
+     * @param ba the BusinessAccount
+     * @return the {@link BusinessUnitApiDTO}
+     */
+    private BusinessUnitApiDTO createBusinessUnitApiDTO(BusinessAccount ba) {
+        BusinessUnitApiDTO businessAccount = new BusinessUnitApiDTO();
+        businessAccount.setUuid(ba.getUuid());
+        businessAccount.setAccountId(ba.getAccountId());
+        businessAccount.setDisplayName(ba.getDisplayName());
+        businessAccount.setClassName(ba.getClassName());
+        final String cloudTypeName = ba.getCloudType();
+        Optional<CloudType> cloudTypeOpt = CloudType.fromString(cloudTypeName);
+        if (cloudTypeOpt.isPresent()) {
+            final CloudType cloudType = cloudTypeOpt.get();
+            if (SUPPORTED_CLOUD_TYPE.containsValue(cloudType)) {
+                Optional<String> sdkCloudTypeName = keys(SUPPORTED_CLOUD_TYPE, cloudType).findFirst();
+                if (sdkCloudTypeName.isPresent()) {
+                    businessAccount.setCloudType(SUPPORTED_CLOUD_TYPE.containsValue(cloudType)
+                                    ? com.vmturbo.api.enums.CloudType
+                                                    .fromProbeType(sdkCloudTypeName.get())
+                                    : com.vmturbo.api.enums.CloudType.UNKNOWN);
+                }
+            }
+        }
+        return businessAccount;
     }
 
     /**
@@ -1944,7 +2050,7 @@ public class ScenarioMapper {
                 .flatMap(ri -> createRiSettingApiDTOs(ri).stream())
                 .collect(Collectors.toList());
 
-        final List<RemoveConstraintApiDTO> removeConstraintApiDTOS = getRemoveConstraintsDtos(allPlanChanges, mappingContext );
+        final List<RemoveConstraintApiDTO> removeConstraintApiDTOS = getRemoveConstraintsDtos(allPlanChanges, mappingContext);
 
         final ConfigChangesApiDTO outputChanges = new ConfigChangesApiDTO();
 
@@ -1978,6 +2084,16 @@ public class ScenarioMapper {
                         && change.getPlanChanges().hasPolicyChange())
                 .forEach(change -> buildApiPolicyChange(
                         change.getPlanChanges().getPolicyChange(), outputChanges, policiesService));
+
+        Optional<BusinessAccount> subscription = allPlanChanges
+                        .stream().filter(PlanChanges::hasSubscription)
+                        .map(PlanChanges::getSubscription)
+                        .findFirst();
+        if (subscription.isPresent()) {
+            final BusinessUnitApiDTO businessAccountApiDto = createBusinessUnitApiDTO(subscription
+                            .get());
+            outputChanges.setSubscription(businessAccountApiDto);
+        }
         return outputChanges;
     }
 
@@ -2260,7 +2376,7 @@ public class ScenarioMapper {
         migrateObjectApiDTO.setDestinations(destinationDtos);
         migrateObjectApiDTO.setRemoveNonMigratingWorkloads(removeNonMigratingWorkloads);
         migrateObjectApiDTO.setDestinationEntityType(destinationEntityType);
-        // this is the default value- we do not support projection in migration plans
+        // this is the default value - we do not support projection in migration plans
         migrateObjectApiDTO.setProjectionDay(0);
         return Lists.newArrayList(migrateObjectApiDTO);
     }
