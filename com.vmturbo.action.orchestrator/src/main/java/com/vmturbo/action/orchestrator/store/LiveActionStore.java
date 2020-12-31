@@ -444,6 +444,7 @@ public class LiveActionStore implements ActionStore {
             final List<Action> actionsToTranslate = new ArrayList<>(allActionsWithAdditionalInfo.size());
             // mapping of market action Id to the associated action view
             final Map<Long, Action> mergedActionViews = new HashMap<>();
+            final List<Action> translatedActionsToAdd = new ArrayList<>();
             for (ActionDTO.Action recommendedAction : allActionsWithAdditionalInfo) {
                 final long recommendationOid = recommendationOids.next();
                 final Optional<Action> existingActionOpt = recommendations.take(recommendationOid);
@@ -481,8 +482,15 @@ public class LiveActionStore implements ActionStore {
                 }
 
                 final ActionState actionState = action.getState();
-                if (actionState == ActionState.READY || actionState == ActionState.ACCEPTED || actionState == ActionState.REJECTED) {
+                if (actionState == ActionState.READY || actionState == ActionState.ACCEPTED
+                        || actionState == ActionState.REJECTED) {
                     actionsToTranslate.add(action);
+                } else if (actionState == ActionState.QUEUED
+                        || actionState == ActionState.PRE_IN_PROGRESS
+                        || actionState == ActionState.IN_PROGRESS
+                        || actionState == ActionState.POST_IN_PROGRESS) {
+                    // retain the action which is in progress of executing, but without updating translation for it
+                    translatedActionsToAdd.add(action);
                 }
             }
 
@@ -490,7 +498,6 @@ public class LiveActionStore implements ActionStore {
                     actionTranslator.translate(actionsToTranslate.stream(), snapshot);
 
             final MutableInt removedCount = new MutableInt(0);
-            final List<Action> translatedActionsToAdd = new ArrayList<>();
 
 
             // This actually drains the stream defined above, updating the recommendation, creating
