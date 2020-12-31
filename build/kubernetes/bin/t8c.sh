@@ -277,9 +277,11 @@ cat << EOF >> /tmp/topology.json
         }
 EOF
 
-cp "${glusterStorageJson}.template" "${glusterStorageJson}"
-sed -i '/nodes/r /tmp/topology.json' "${glusterStorageJson}"
-rm -rf /tmp/topology.json
+# This is commented out to use a specific private ip to set the storage ep
+# If a multi-node env is required, this will have to be revisited.
+#cp "${glusterStorageJson}.template" "${glusterStorageJson}"
+#sed -i '/nodes/r /tmp/topology.json' "${glusterStorageJson}"
+#rm -rf /tmp/topology.json
 
 # Set the heketi admin key (used also in the turboEnv.sh script
 export ADMIN_KEY=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)
