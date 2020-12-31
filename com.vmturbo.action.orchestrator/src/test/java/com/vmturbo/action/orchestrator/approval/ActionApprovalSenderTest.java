@@ -19,6 +19,7 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
+import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionApprovalRequests;
@@ -28,6 +29,7 @@ import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory;
 import com.vmturbo.action.orchestrator.store.LiveActionStore;
 import com.vmturbo.action.orchestrator.store.PlanActionStore;
+import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
@@ -65,6 +67,8 @@ public class ActionApprovalSenderTest {
     @Mock
     private EntitiesAndSettingsSnapshotFactory entitySettingsCache;
 
+    private ActionTranslator actionTranslator = ActionOrchestratorTestUtils.passthroughTranslator();
+
     /**
      * Initializes the tests.
      */
@@ -84,7 +88,8 @@ public class ActionApprovalSenderTest {
         Mockito.when(actionTargetSelector.getTargetForAction(Mockito.any(ActionDTO.Action.class),
                 Mockito.any(EntitiesAndSettingsSnapshotFactory.class), Mockito.any(Optional.class)))
                 .thenReturn(actionTargetInfo);
-        this.aas = new ActionApprovalSender(workflowStore, requestSender, actionTargetSelector, entitySettingsCache);
+        this.aas = new ActionApprovalSender(workflowStore, requestSender, actionTargetSelector,
+            entitySettingsCache, actionTranslator);
     }
 
     /**
@@ -259,9 +264,6 @@ public class ActionApprovalSenderTest {
             captor.getAllValues()
                 .get(0)
                 .getActionsList().size());
-        Assert.assertEquals(ActionState.READY,
-            captor.getAllValues().get(0)
-                .getActionsList().get(0).getActionState());
     }
 
     private Action createAction(

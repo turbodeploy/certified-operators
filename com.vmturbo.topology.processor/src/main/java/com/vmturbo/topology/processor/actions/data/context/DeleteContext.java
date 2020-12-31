@@ -9,6 +9,7 @@ import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
+import com.vmturbo.topology.processor.actions.data.PolicyRetriever;
 import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.probes.ProbeStore;
@@ -24,13 +25,15 @@ public class DeleteContext extends AbstractActionExecutionContext {
                             @Nonnull final EntityStore entityStore,
                             @Nonnull final EntityRetriever entityRetriever,
                             @Nonnull final TargetStore targetStore,
-                            @Nonnull final ProbeStore probeStore) {
+                            @Nonnull final ProbeStore probeStore,
+                            @Nonnull final PolicyRetriever policyRetriever) {
         super(Objects.requireNonNull(request),
               Objects.requireNonNull(dataManager),
               Objects.requireNonNull(entityStore),
               Objects.requireNonNull(entityRetriever),
               targetStore,
-              probeStore);
+              probeStore,
+              policyRetriever);
     }
 
     /**

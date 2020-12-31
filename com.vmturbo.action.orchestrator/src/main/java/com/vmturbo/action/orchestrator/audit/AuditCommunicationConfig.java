@@ -7,6 +7,7 @@ import org.springframework.context.annotation.Import;
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
 import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionEvent;
 import com.vmturbo.action.orchestrator.topology.TopologyProcessorConfig;
+import com.vmturbo.action.orchestrator.translation.ActionTranslationConfig;
 import com.vmturbo.action.orchestrator.workflow.config.WorkflowConfig;
 import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
 import com.vmturbo.components.api.server.IMessageSender;
@@ -18,14 +19,16 @@ import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 @Import({
         BaseKafkaProducerConfig.class,
         WorkflowConfig.class,
-        TopologyProcessorConfig.class
+        TopologyProcessorConfig.class,
+        ActionTranslationConfig.class
 })
 public class AuditCommunicationConfig {
     @Autowired
     private BaseKafkaProducerConfig kafkaProducerConfig;
     @Autowired
     private WorkflowConfig workflowConfig;
-
+    @Autowired
+    private ActionTranslationConfig actionTranslationConfig;
     @Autowired
     private TopologyProcessorConfig tpConfig;
 
@@ -47,7 +50,8 @@ public class AuditCommunicationConfig {
      */
     @Bean
     public ActionAuditSender actionAuditSender() {
-        return new ActionAuditSender(workflowConfig.workflowStore(), auditMessageSender(), thinTargetCache());
+        return new ActionAuditSender(workflowConfig.workflowStore(), auditMessageSender(),
+            thinTargetCache(), actionTranslationConfig.actionTranslator());
     }
 
     /**

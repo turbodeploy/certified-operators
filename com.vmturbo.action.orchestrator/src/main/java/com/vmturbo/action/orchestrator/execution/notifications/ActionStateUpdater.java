@@ -28,6 +28,7 @@ import com.vmturbo.action.orchestrator.execution.FailedCloudVMGroupProcessor;
 import com.vmturbo.action.orchestrator.state.machine.Transition.TransitionResult;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
+import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStoreException;
 import com.vmturbo.auth.api.auditing.AuditAction;
@@ -90,6 +91,8 @@ public class ActionStateUpdater implements ActionExecutionListener {
 
     private final IMessageSender<ActionResponse> actionUpdatesSender;
 
+    private final ActionTranslator actionTranslator;
+
     /**
      * Create a new {@link ActionStateUpdater}.
      *
@@ -104,6 +107,7 @@ public class ActionStateUpdater implements ActionExecutionListener {
      * @param failedCloudVMGroupProcessor to process failed actions and add VM entities to a group.
      * @param auditSender audit events message sender to report for finished actions
      * @param actionStateUpdatesSender action state updates sender
+     * @param actionTranslator the action translator
      */
     public ActionStateUpdater(@Nonnull final ActionStorehouse actionStorehouse,
             @Nonnull final ActionOrchestratorNotificationSender notificationSender,
@@ -113,7 +117,8 @@ public class ActionStateUpdater implements ActionExecutionListener {
             @Nonnull final WorkflowStore workflowStore, final long realtimeTopologyContextId,
             final FailedCloudVMGroupProcessor failedCloudVMGroupProcessor,
             @Nonnull final ActionAuditSender auditSender,
-            @Nonnull final IMessageSender<ActionResponse> actionStateUpdatesSender) {
+            @Nonnull final IMessageSender<ActionResponse> actionStateUpdatesSender,
+            @Nonnull final ActionTranslator actionTranslator) {
         this.actionStorehouse = Objects.requireNonNull(actionStorehouse);
         this.actionHistoryDao = Objects.requireNonNull(actionHistoryDao);
         this.acceptedActionsStore = acceptedActionsStore;
@@ -124,6 +129,7 @@ public class ActionStateUpdater implements ActionExecutionListener {
         this.failedCloudVMGroupProcessor = failedCloudVMGroupProcessor;
         this.auditSender = Objects.requireNonNull(auditSender);
         this.actionUpdatesSender = Objects.requireNonNull(actionStateUpdatesSender);
+        this.actionTranslator = Objects.requireNonNull(actionTranslator);
     }
 
 
@@ -480,9 +486,8 @@ public class ActionStateUpdater implements ActionExecutionListener {
             long targetId = action.getCurrentExecutableStep().get().getTargetId();
             // execute the action, passing the workflow override (if any)
             try {
-                actionExecutor.execute(targetId, translatedRecommendation.get(),
-                    action.getWorkflow(workflowStore, action.getState()),
-                    action.getState());
+                actionExecutor.execute(targetId, actionTranslator.translateToSpec(action),
+                    action.getWorkflow(workflowStore, action.getState()));
             } catch (ExecutionStartException | WorkflowStoreException e) {
                 logger.error("Failed to start next executable step of action " + action.getId()
                     + " due to error: " + e.getMessage(), e);

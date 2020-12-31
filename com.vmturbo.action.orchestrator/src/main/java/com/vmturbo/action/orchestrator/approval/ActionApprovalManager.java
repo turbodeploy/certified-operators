@@ -234,8 +234,8 @@ public class ActionApprovalManager {
                             .getTranslatedRecommendation();
             if (translatedRecommendation.isPresent()) {
                 // execute the action, passing the workflow override (if any)
-                actionExecutor.execute(targetId, translatedRecommendation.get(),
-                        action.getWorkflow(workflowStore, action.getState()), action.getState());
+                actionExecutor.execute(targetId, actionTranslator.translateToSpec(action),
+                        action.getWorkflow(workflowStore, action.getState()));
                 return AcceptActionResponse.newBuilder()
                         .setActionSpec(actionTranslator.translateToSpec(action))
                         .build();

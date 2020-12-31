@@ -14,9 +14,11 @@ import com.vmturbo.common.protobuf.topology.ActionExecution;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.CommodityAttribute;
+import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
+import com.vmturbo.topology.processor.actions.data.PolicyRetriever;
 import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.probes.ProbeStore;
@@ -37,14 +39,17 @@ public class AtomicResizeContext extends AbstractActionExecutionContext {
      * @param entityRetriever entity retriever
      * @param targetStore the target store.
      * @param probeStore the probe store.
+     * @param policyRetriever the policy retriever.
      */
     public AtomicResizeContext(@Nonnull final ActionExecution.ExecuteActionRequest request,
                                @Nonnull final ActionDataManager dataManager,
                                @Nonnull final EntityStore entityStore,
                                @Nonnull final EntityRetriever entityRetriever,
                                @Nonnull final TargetStore targetStore,
-                               @Nonnull final ProbeStore probeStore) {
-        super(request, dataManager, entityStore, entityRetriever, targetStore, probeStore);
+                               @Nonnull final ProbeStore probeStore,
+                               @Nonnull final PolicyRetriever policyRetriever) {
+        super(request, dataManager, entityStore, entityRetriever, targetStore, probeStore,
+            policyRetriever);
     }
 
     @Override
@@ -80,11 +85,20 @@ public class AtomicResizeContext extends AbstractActionExecutionContext {
                                                 resizeInfo.getNewCapacity(),
                                                 resizeInfo));
 
+            // set the risk for action item
+            actionItemBuilder.setRisk(ActionItemDTO.Risk.newBuilder().addAffectedCommodity(
+                CommonDTO.CommodityDTO.CommodityType.forNumber(
+                    resizeInfo.getCommodityType().getType())
+            ).build());
+
             builders.add(actionItemBuilder);
             logger.trace("created action item for {}:{}:{}",
                         originalEntityDTO.getEntityType(), originalEntityDTO.getDisplayName(),
                         commodityType);
         }
+
+        // populate description, risk, execution characteristics
+        populatedPrimaryActionAdditionalFields(builders);
 
         return builders;
     }

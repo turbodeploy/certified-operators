@@ -18,6 +18,7 @@ import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.topology.processor.actions.ActionExecutionTestUtils;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
+import com.vmturbo.topology.processor.actions.data.PolicyRetriever;
 import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.probes.ProbeStore;
@@ -53,19 +54,29 @@ public class MoveContextTest {
     @Mock
     private Target target;
 
+    @Mock
+    private PolicyRetriever policyRetriever;
+
     private final ActionDTO.ActionInfo actionInfo = ActionDTO.ActionInfo.newBuilder()
         .setMove(ActionDTO.Move.newBuilder()
             .setTarget(ActionExecutionTestUtils.createActionEntity(ENTITY_ID))
         )
         .build();
 
+    private final ActionDTO.ActionSpec actionSpec = ActionDTO.ActionSpec.newBuilder()
+        .setRecommendation(ActionDTO.Action.newBuilder()
+            .setExplanation(ActionDTO.Explanation.getDefaultInstance())
+            .setDeprecatedImportance(0)
+            .setId(ACTION_ID).setInfo(actionInfo))
+        .setActionState(ActionState.IN_PROGRESS)
+        .build();
+
     private final ActionExecution.ExecuteActionRequest actionRequest =
         ActionExecution.ExecuteActionRequest.newBuilder()
         .setActionId(ACTION_ID)
         .setTargetId(TARGET_ID)
-        .setActionInfo(actionInfo)
+        .setActionSpec(actionSpec)
         .setActionType(ActionDTO.ActionType.RESIZE)
-        .setActionState(ActionState.IN_PROGRESS)
         .build();
 
     /**
@@ -94,7 +105,7 @@ public class MoveContextTest {
 
         Mockito.when(probeStore.getProbe(PROBE_ID)).thenReturn(Optional.of(probeInfo));
         MoveContext context = new MoveContext(actionRequest, actionDataManager, entityStore,
-            entityRetriever, targetStore, probeStore);
+            entityRetriever, targetStore, probeStore, policyRetriever);
         Assert.assertThat(context.getSDKActionType(),
             is(ActionType.RIGHT_SIZE));
     }
@@ -116,7 +127,7 @@ public class MoveContextTest {
 
         Mockito.when(probeStore.getProbe(PROBE_ID)).thenReturn(Optional.of(probeInfo));
         MoveContext context = new MoveContext(actionRequest, actionDataManager, entityStore,
-            entityRetriever, targetStore, probeStore);
+            entityRetriever, targetStore, probeStore, policyRetriever);
         Assert.assertThat(context.getSDKActionType(),
             is(ActionType.RESIZE));
     }
@@ -138,7 +149,7 @@ public class MoveContextTest {
         Mockito.when(targetStore.getTarget(TARGET_ID)).thenReturn(Optional.empty());
         Mockito.when(probeStore.getProbe(PROBE_ID)).thenReturn(Optional.of(probeInfo));
         MoveContext context = new MoveContext(actionRequest, actionDataManager, entityStore,
-            entityRetriever, targetStore, probeStore);
+            entityRetriever, targetStore, probeStore, policyRetriever);
         context.getSDKActionType();
     }
 
@@ -152,7 +163,7 @@ public class MoveContextTest {
     public void testGetSDKActionTypeNoProbe() throws ContextCreationException {
         Mockito.when(probeStore.getProbe(PROBE_ID)).thenReturn(Optional.empty());
         MoveContext context = new MoveContext(actionRequest, actionDataManager, entityStore,
-            entityRetriever, targetStore, probeStore);
+            entityRetriever, targetStore, probeStore, policyRetriever);
         context.getSDKActionType();
     }
 

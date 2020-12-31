@@ -47,6 +47,7 @@ import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.store.query.QueryableActionViews;
+import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
@@ -81,6 +82,7 @@ public class ActionStateUpdaterTest {
     private final ActionHistoryDao actionHistoryDao = mock(ActionHistoryDao.class);
     private final ActionExecutor actionExecutorMock = mock(ActionExecutor.class);
     private final WorkflowStore workflowStoreMock = mock(WorkflowStore.class);
+    private final ActionTranslator actionTranslator = mock(ActionTranslator.class);
     private final FailedCloudVMGroupProcessor failedCloudVMGroupProcessor = mock(FailedCloudVMGroupProcessor.class);
     private final long realtimeTopologyContextId = 0;
     private ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
@@ -122,7 +124,7 @@ public class ActionStateUpdaterTest {
                 new ActionStateUpdater(actionStorehouse, notificationSender, actionHistoryDao,
                         acceptedActionsStore, actionExecutorMock, workflowStoreMock,
                         realtimeTopologyContextId, failedCloudVMGroupProcessor, actionAuditSender,
-                        actionStateUpdatesSender);
+                        actionStateUpdatesSender, actionTranslator);
         when(entitySettingsCache.getSettingsForEntity(eq(actionTargetId1))).thenReturn(
                 makeActionModeSetting(ActionMode.EXTERNAL_APPROVAL));
         when(entitySettingsCache.getSettingsForEntity(eq(actionTargetId2))).thenReturn(

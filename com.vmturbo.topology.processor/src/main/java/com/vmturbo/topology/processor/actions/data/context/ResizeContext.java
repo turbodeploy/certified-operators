@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.actions.data.context;
 
+import java.util.Collections;
 import java.util.List;
 
 import javax.annotation.Nonnull;
@@ -19,6 +20,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.VCpuData;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.VMemData;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
+import com.vmturbo.topology.processor.actions.data.PolicyRetriever;
 import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.probes.ProbeStore;
@@ -36,8 +38,10 @@ public class ResizeContext extends AbstractActionExecutionContext {
                          @Nonnull final EntityStore entityStore,
                          @Nonnull final EntityRetriever entityRetriever,
                          @Nonnull final TargetStore targetStore,
-                         @Nonnull final ProbeStore probeStore) {
-        super(request, dataManager, entityStore, entityRetriever, targetStore, probeStore);
+                         @Nonnull final ProbeStore probeStore,
+                         @Nonnull final PolicyRetriever policyRetriever) {
+        super(request, dataManager, entityStore, entityRetriever, targetStore, probeStore,
+            policyRetriever);
     }
 
     /**
@@ -93,6 +97,9 @@ public class ResizeContext extends AbstractActionExecutionContext {
             actionItemBuilder.setConsistentScalingCompliance(true);
         }
 
+        // populate description, risk, execution characteristics
+        populatedPrimaryActionAdditionalFields(builders);
+
         return builders;
     }
 
@@ -140,5 +147,11 @@ public class ResizeContext extends AbstractActionExecutionContext {
         }
 
         return commodity;
+    }
+
+    @Nonnull
+    @Override
+    public List<CommodityType> getRiskCommodities() {
+        return Collections.singletonList(getActionInfo().getResize().getCommodityType());
     }
 }

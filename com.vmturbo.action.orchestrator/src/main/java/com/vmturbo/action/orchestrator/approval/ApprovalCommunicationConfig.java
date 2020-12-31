@@ -69,6 +69,6 @@ public class ApprovalCommunicationConfig {
     public ActionApprovalSender approvalRequester() {
         return new ActionApprovalSender(workflowConfig.workflowStore(), approvalRequestsSender(),
                 actionExecutionConfig.actionTargetSelector(),
-                actionStoreConfig.entitySettingsCache());
+                actionStoreConfig.entitySettingsCache(), actionTranslationConfig.actionTranslator());
     }
 }

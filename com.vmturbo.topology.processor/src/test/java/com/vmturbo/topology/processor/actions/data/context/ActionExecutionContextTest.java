@@ -26,6 +26,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.MediationMessage;
 import com.vmturbo.topology.processor.actions.ActionExecutionTestUtils;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
+import com.vmturbo.topology.processor.actions.data.PolicyRetriever;
 import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.entity.Entity;
 import com.vmturbo.topology.processor.entity.EntityStore;
@@ -50,6 +51,7 @@ public class ActionExecutionContextTest {
 
     private final ProbeStore probeStoreMock = Mockito.mock(ProbeStore.class);
 
+    private PolicyRetriever policyRetrieverMock = Mockito.mock(PolicyRetriever.class);
 
     // Builds the class under test
     private ActionExecutionContextFactory actionExecutionContextFactory;
@@ -69,7 +71,8 @@ public class ActionExecutionContextTest {
                 entityStoreMock,
                 entityRetrieverMock,
                 targetStoreMock,
-                probeStoreMock);
+                probeStoreMock,
+                policyRetrieverMock);
     }
 
     /**
@@ -90,9 +93,13 @@ public class ActionExecutionContextTest {
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
                 .setActionId(actionId)
                 .setTargetId(targetId)
-                .setActionInfo(activate)
+                .setActionSpec(ActionDTO.ActionSpec.newBuilder()
+                    .setRecommendation(ActionDTO.Action.newBuilder().setId(actionId)
+                        .setDeprecatedImportance(0)
+                        .setExplanation(ActionDTO.Explanation.getDefaultInstance())
+                        .setInfo(activate))
+                    .setActionState(ActionState.IN_PROGRESS).build())
                 .setActionType(ActionDTO.ActionType.ACTIVATE)
-                .setActionState(ActionState.IN_PROGRESS)
                 .build();
 
         // Set up the mocks
@@ -171,9 +178,13 @@ public class ActionExecutionContextTest {
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
                 .setActionId(actionId)
                 .setTargetId(targetId)
-                .setActionInfo(deactivate)
+                .setActionSpec(ActionDTO.ActionSpec.newBuilder()
+                    .setRecommendation(ActionDTO.Action.newBuilder().setId(actionId)
+                        .setExplanation(ActionDTO.Explanation.getDefaultInstance())
+                        .setDeprecatedImportance(0)
+                        .setInfo(deactivate))
+                    .setActionState(ActionState.IN_PROGRESS).build())
                 .setActionType(ActionDTO.ActionType.DEACTIVATE)
-                .setActionState(ActionState.IN_PROGRESS)
                 .build();
 
         // Set up the mocks
@@ -248,9 +259,13 @@ public class ActionExecutionContextTest {
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
                 .setActionId(actionId)
                 .setTargetId(targetId)
-                .setActionInfo(resize)
+                .setActionSpec(ActionDTO.ActionSpec.newBuilder()
+                    .setRecommendation(ActionDTO.Action.newBuilder().setId(actionId)
+                        .setExplanation(ActionDTO.Explanation.getDefaultInstance())
+                        .setDeprecatedImportance(0)
+                        .setInfo(resize))
+                    .setActionState(ActionState.IN_PROGRESS).build())
                 .setActionType(ActionDTO.ActionType.RESIZE)
-                .setActionState(ActionState.IN_PROGRESS)
                 .build();
 
         // Set up the mocks
@@ -342,9 +357,13 @@ public class ActionExecutionContextTest {
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
                 .setActionId(actionId)
                 .setTargetId(targetId)
-                .setActionInfo(provision)
+                .setActionSpec(ActionDTO.ActionSpec.newBuilder()
+                    .setRecommendation(ActionDTO.Action.newBuilder().setId(actionId)
+                        .setDeprecatedImportance(0)
+                        .setExplanation(ActionDTO.Explanation.getDefaultInstance())
+                        .setInfo(provision))
+                    .setActionState(ActionState.IN_PROGRESS).build())
                 .setActionType(ActionDTO.ActionType.PROVISION)
-                .setActionState(ActionState.IN_PROGRESS)
                 .build();
 
         // Set up the mocks
@@ -465,9 +484,13 @@ public class ActionExecutionContextTest {
         final ExecuteActionRequest templateAction = ExecuteActionRequest.newBuilder()
             .setActionId(actionId)
             .setTargetId(targetId)
-            .setActionInfo(resize)
+            .setActionSpec(ActionDTO.ActionSpec.newBuilder()
+                .setRecommendation(ActionDTO.Action.newBuilder().setId(actionId)
+                    .setExplanation(ActionDTO.Explanation.getDefaultInstance())
+                    .setDeprecatedImportance(0)
+                    .setInfo(resize))
+                .setActionState(ActionState.IN_PROGRESS).build())
             .setActionType(ActionDTO.ActionType.RESIZE)
-            .setActionState(ActionState.IN_PROGRESS)
             .build();
 
         assertActionState(templateAction, ActionState.READY, ActionResponseState.PENDING_ACCEPT);
@@ -488,7 +511,7 @@ public class ActionExecutionContextTest {
             ActionState stateInActionOrchestrator,
             ActionResponseState expectedState) throws ContextCreationException {
         final ExecuteActionRequest inputRequest = templateAction.toBuilder()
-            .setActionState(stateInActionOrchestrator)
+            .setActionSpec(templateAction.getActionSpec().toBuilder().setActionState(stateInActionOrchestrator))
             .build();
         final ActionExecutionContext actionExecutionContext =
             actionExecutionContextFactory.getActionExecutionContext(inputRequest);

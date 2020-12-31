@@ -17,6 +17,7 @@ import javax.annotation.Nonnull;
 
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
@@ -33,6 +34,7 @@ import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.actions.ActionExecutionTestUtils;
 import com.vmturbo.topology.processor.actions.data.EntityRetrievalException;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
+import com.vmturbo.topology.processor.actions.data.PolicyRetriever;
 import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.entity.Entity;
 import com.vmturbo.topology.processor.entity.EntityStore;
@@ -56,6 +58,8 @@ public class DeleteContextTest {
 
     private final ProbeStore probeStoreMock = mock(ProbeStore.class);
 
+    private PolicyRetriever policyRetrieverMock = Mockito.mock(PolicyRetriever.class);
+
     private final int awsTargetId = 2;
 
     // Builds the class under test
@@ -71,7 +75,8 @@ public class DeleteContextTest {
             entityStoreMock,
             entityRetrieverMock,
             targetStoreMock,
-            probeStoreMock);
+            probeStoreMock,
+            policyRetrieverMock);
 
         // Setup for AWS Probe
         when(targetStoreMock.getProbeTypeForTarget(awsTargetId)).thenReturn(Optional.of(SDKProbeType.AWS));
@@ -111,9 +116,13 @@ public class DeleteContextTest {
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
             .setActionId(actionId)
             .setTargetId(awsTargetId)
-            .setActionInfo(delete)
+            .setActionSpec(ActionDTO.ActionSpec.newBuilder()
+                .setRecommendation(ActionDTO.Action.newBuilder().setId(actionId)
+                    .setDeprecatedImportance(0)
+                    .setExplanation(ActionDTO.Explanation.getDefaultInstance())
+                    .setInfo(delete))
+                .setActionState(ActionState.IN_PROGRESS).build())
             .setActionType(ActionDTO.ActionType.DELETE)
-            .setActionState(ActionState.IN_PROGRESS)
             .build();
 
         // Setup VV entity in entityStore
@@ -166,9 +175,14 @@ public class DeleteContextTest {
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
             .setActionId(actionId)
             .setTargetId(awsTargetId)
-            .setActionInfo(delete)
+            .setActionSpec(ActionDTO.ActionSpec.newBuilder()
+                .setRecommendation(ActionDTO.Action.newBuilder()
+                    .setId(actionId)
+                    .setDeprecatedImportance(0)
+                    .setExplanation(ActionDTO.Explanation.getDefaultInstance())
+                    .setInfo(delete))
+                .setActionState(ActionState.IN_PROGRESS).build())
             .setActionType(ActionDTO.ActionType.DELETE)
-            .setActionState(ActionState.IN_PROGRESS)
             .build();
 
         // Setup VV entity in entityStore
@@ -176,7 +190,7 @@ public class DeleteContextTest {
         destinationEntity.setHostedBy(awsTargetId, sourceEntityId);
 
         DeleteContext context = new DeleteContext(request, actionDataManagerMock,
-            entityStoreMock, entityRetrieverMock, targetStoreMock, probeStoreMock);
+            entityStoreMock, entityRetrieverMock, targetStoreMock, probeStoreMock, policyRetrieverMock);
 
         long result = context.getPrimaryEntityId();
         assertEquals(destinationEntityId, result);

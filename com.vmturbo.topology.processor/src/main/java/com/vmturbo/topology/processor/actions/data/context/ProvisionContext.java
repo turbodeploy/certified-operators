@@ -1,16 +1,19 @@
 package com.vmturbo.topology.processor.actions.data.context;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
@@ -19,6 +22,7 @@ import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
+import com.vmturbo.topology.processor.actions.data.PolicyRetriever;
 import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.probes.ProbeStore;
@@ -34,8 +38,9 @@ public class ProvisionContext extends AbstractActionExecutionContext {
                             @Nonnull final EntityStore entityStore,
                             @Nonnull final EntityRetriever entityRetriever,
                             @Nonnull final TargetStore targetStore,
-                            @Nonnull final ProbeStore probeStore) {
-        super(request, dataManager, entityStore, entityRetriever, targetStore, probeStore);
+                            @Nonnull final ProbeStore probeStore,
+                            @Nonnull final PolicyRetriever policyRetriever) {
+        super(request, dataManager, entityStore, entityRetriever, targetStore, probeStore, policyRetriever);
     }
 
     /**
@@ -89,6 +94,10 @@ public class ProvisionContext extends AbstractActionExecutionContext {
                 .forEach(entityDTO -> builders.add(
                     createAddProviderActionItem(entityToCloneSdkDTO, entityDTO)));
         }
+
+        // populate description, risk, execution characteristics
+        populatedPrimaryActionAdditionalFields(builders);
+
         return builders;
     }
 
@@ -127,5 +136,24 @@ public class ProvisionContext extends AbstractActionExecutionContext {
         actionItemBuilder.setTargetSE(entityToCloneDTO);
         actionItemBuilder.setNewSE(providerEntityDTO);
         return actionItemBuilder;
+    }
+
+    @Nonnull
+    @Override
+    public List<TopologyDTO.CommodityType> getRiskCommodities() {
+        final ActionDTO.Explanation.ProvisionExplanation provision =
+            actionSpec.getRecommendation().getExplanation().getProvision();
+        if (provision.hasProvisionBySupplyExplanation()) {
+            return Collections.singletonList(provision.getProvisionBySupplyExplanation()
+                .getMostExpensiveCommodityInfo().getCommodityType());
+        } else if (provision.hasProvisionByDemandExplanation()) {
+            return provision.getProvisionByDemandExplanation()
+                .getCommodityNewCapacityEntryList().stream()
+                .map(ActionDTO.Explanation.ProvisionExplanation
+                    .ProvisionByDemandExplanation.CommodityNewCapacityEntry::getCommodityBaseType)
+                .map(type -> TopologyDTO.CommodityType.newBuilder().setType(type).build())
+                .collect(Collectors.toList());
+        }
+        return Collections.emptyList();
     }
 }

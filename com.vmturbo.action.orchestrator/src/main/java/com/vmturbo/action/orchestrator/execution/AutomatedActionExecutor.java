@@ -36,11 +36,11 @@ import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTarg
 import com.vmturbo.action.orchestrator.state.machine.UnexpectedEventException;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory;
+import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.auth.api.auditing.AuditLogUtils;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
-import com.vmturbo.common.protobuf.schedule.ScheduleServiceGrpc.ScheduleServiceBlockingStub;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 
 /**
@@ -79,8 +79,7 @@ public class AutomatedActionExecutor {
      * The store for all the known {@link WorkflowDTO.Workflow} items.
      */
     private final WorkflowStore workflowStore;
-
-    private final ScheduleServiceBlockingStub scheduleService;
+    private final ActionTranslator actionTranslator;
 
     /**
      * Creates a AutomatedActionExecutor that talks will all the provided services.
@@ -90,18 +89,20 @@ public class AutomatedActionExecutor {
      * @param workflowStore to determine if any workflows should be used to execute actions
      * @param actionTargetSelector to select which target/probe to execute each action against
      * @param entitySettingsCache an entity snapshot factory used for creating entity snapshot.
-     * @param scheduleService the service to use to retrieve schedules.
+     * @param actionTranslator the action translator.
      */
-    public AutomatedActionExecutor(@Nonnull final ActionExecutor actionExecutor, @Nonnull final ExecutorService executorService,
-            @Nonnull final WorkflowStore workflowStore, @Nonnull final ActionTargetSelector actionTargetSelector,
+    public AutomatedActionExecutor(@Nonnull final ActionExecutor actionExecutor,
+            @Nonnull final ExecutorService executorService,
+            @Nonnull final WorkflowStore workflowStore,
+            @Nonnull final ActionTargetSelector actionTargetSelector,
             @Nonnull final EntitiesAndSettingsSnapshotFactory entitySettingsCache,
-            @Nonnull final ScheduleServiceBlockingStub scheduleService) {
+            @Nonnull final ActionTranslator actionTranslator) {
         this.actionExecutor = Objects.requireNonNull(actionExecutor);
         this.executionService = Objects.requireNonNull(executorService);
         this.workflowStore = Objects.requireNonNull(workflowStore);
         this.actionTargetSelector = Objects.requireNonNull(actionTargetSelector);
         this.entitySettingsCache = Objects.requireNonNull(entitySettingsCache);
-        this.scheduleService = Objects.requireNonNull(scheduleService);
+        this.actionTranslator = Objects.requireNonNull(actionTranslator);
     }
 
     /**
@@ -198,9 +199,7 @@ public class AutomatedActionExecutor {
 
         // Build up a map from (target id) -> (iterator over actions to execute for the target).
         final Map<Long, Iterator<Long>> actionItsByTargetId = new HashMap<>();
-        actionsByTarget.forEach((targetId, actionSet) -> {
-            actionItsByTargetId.put(targetId, actionSet.iterator());
-        });
+        actionsByTarget.forEach((targetId, actionSet) -> actionItsByTargetId.put(targetId, actionSet.iterator()));
 
         // Breadth-first traversal over the (target id) -> (iterator over action ids) map.
         while (!actionItsByTargetId.isEmpty()) {
@@ -252,8 +251,8 @@ public class AutomatedActionExecutor {
                                             action.getWorkflow(workflowStore, action.getState());
                                     // Execute the Action on the given target, or the Workflow target
                                     // if a Workflow is specified.
-                                    actionExecutor.executeSynchronously(targetId, translated.get(),
-                                            workflowOpt, action.getState());
+                                    actionExecutor.executeSynchronously(targetId,
+                                        actionTranslator.translateToSpec(action), workflowOpt);
                                 } catch (ExecutionStartException e) {
                                     final String errorMsg = String.format(EXECUTION_START_MSG, actionId);
                                     logger.error(errorMsg, e);

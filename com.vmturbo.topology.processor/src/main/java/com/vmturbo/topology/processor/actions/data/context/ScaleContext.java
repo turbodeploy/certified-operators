@@ -19,6 +19,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
+import com.vmturbo.topology.processor.actions.data.PolicyRetriever;
 import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.probes.ProbeStore;
@@ -40,14 +41,17 @@ public class ScaleContext extends ChangeProviderContext {
      * @param entityRetriever {@link EntityRetriever} instance.
      * @param targetStore the target store.
      * @param probeStore the probe store.
+     * @param policyRetriever the policy retriever.
      */
     public ScaleContext(@Nonnull final ExecuteActionRequest request,
                         @Nonnull final ActionDataManager dataManager,
                         @Nonnull final EntityStore entityStore,
                         @Nonnull final EntityRetriever entityRetriever,
                         @Nonnull final TargetStore targetStore,
-                        @Nonnull final ProbeStore probeStore) {
-        super(request, dataManager, entityStore, entityRetriever, targetStore, probeStore);
+                        @Nonnull final ProbeStore probeStore,
+                        @Nonnull final PolicyRetriever policyRetriever) {
+        super(request, dataManager, entityStore, entityRetriever, targetStore, probeStore,
+            policyRetriever);
     }
 
     @Override
@@ -102,6 +106,10 @@ public class ScaleContext extends ChangeProviderContext {
                     fullEntityDTO.getEntityType(), fullEntityDTO.getDisplayName(),
                     commodityType);
         }
+
+        // populate description, risk, execution characteristics
+        populatedPrimaryActionAdditionalFields(builders);
+
         return builders;
     }
 }

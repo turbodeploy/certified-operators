@@ -2,8 +2,6 @@ package com.vmturbo.api.component.external.api.mapper;
 
 import static com.vmturbo.common.protobuf.action.ActionDTO.ActionType.BUY_RI;
 import static com.vmturbo.common.protobuf.action.ActionDTO.ActionType.SCALE;
-import static com.vmturbo.common.protobuf.action.ActionDTOUtil.TRANSLATION_PATTERN;
-import static com.vmturbo.common.protobuf.action.ActionDTOUtil.TRANSLATION_PREFIX;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -24,14 +22,12 @@ import java.util.TimeZone;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 import java.util.function.Predicate;
-import java.util.regex.Matcher;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.commons.beanutils.BeanUtils;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -118,6 +114,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.action.RiskUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.cost.Cost;
@@ -138,10 +135,8 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc;
-import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.stats.Stats;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
@@ -554,7 +549,8 @@ public class ActionSpecMapper {
         // Set prerequisites for actionApiDTO if actionSpec has any pre-requisite description.
         if (!actionSpec.getPrerequisiteDescriptionList().isEmpty()) {
             actionApiDTO.setPrerequisites(actionSpec.getPrerequisiteDescriptionList().stream()
-                .map(description -> translateExplanation(description, context))
+                .map(description -> RiskUtil.translateExplanation(description,
+                    oid -> context.getEntity(oid).map(BaseApiDTO::getDisplayName).orElse(null)))
                 .collect(Collectors.toList()));
         }
 
@@ -999,186 +995,12 @@ public class ActionSpecMapper {
             });
     }
 
-
     @Nonnull
     private String createRiskDescription(@Nonnull final ActionSpec actionSpec,
-                    @Nonnull final ActionSpecMappingContext context) throws UnsupportedActionException {
-        final Optional<String> policyId = tryExtractPlacementPolicyId(actionSpec.getRecommendation());
-        if (policyId.isPresent()) {
-            final ActionEntity entity =
-                    ActionDTOUtil.getPrimaryEntity(actionSpec.getRecommendation());
-            final long policyOid = Long.parseLong(policyId.get());
-
-            final Optional<PolicyDTO.Policy> policy =
-                    Optional.ofNullable(context.getPolicy(policyOid));
-            if (!policy.isPresent()) {
-                return actionSpec.getExplanation();
-            }
-            if (actionSpec.getRecommendation().getExplanation().hasProvision()) {
-                return String.format("%s violation", policy.get().getPolicyInfo().getDisplayName());
-            } else {
-                // constructing risk with policyName for move and reconfigure
-                final Optional<String> commNames =
-                        nonSegmentationCommoditiesToString(actionSpec.getRecommendation());
-                final Optional<ServiceEntityApiDTO> serviceEntity = context.getEntity(entity.getId());
-                return String.format("\"%s\" doesn't comply with \"%s\"%s",
-                        serviceEntity.isPresent() ? serviceEntity.get().getDisplayName() :
-                                String.format("\"%s(%d)\"", EntityType.forNumber(entity.getType()),
-                                        entity.getId()),
-                        policy.get().getPolicyInfo().getDisplayName(),
-                        commNames.isPresent() ? ", " + commNames.get() : "");
-            }
-        }
-        return translateExplanation(actionSpec.getExplanation(), context);
-    }
-
-    /**
-     * Return comma seperated list of commodities to be reconfigured on the consumer
-     *
-     * @param recommendation contains the entityId for the action
-     * @return String
-     */
-    private Optional<String> nonSegmentationCommoditiesToString(@Nonnull ActionDTO.Action recommendation) {
-        if (!recommendation.getInfo().hasReconfigure()) {
-            return Optional.empty();
-        }
-        // if its a reconfigure due to SEGMENTATION commodity (among other commodities),
-        // we override the explanation generated by market eg., "Enable supplier to offer requested resource(s) Segmentation, Network networkABC"
-        // with "vmName doesn't comply with policyName, networkABC"
-        if (recommendation.getExplanation().getReconfigure().getReconfigureCommodityCount() < 1) {
-            return Optional.empty();
-        }
-        String commNames = ActionDTOUtil.getReasonCommodities(recommendation)
-                .filter(comm -> comm.getCommodityType().getType()
-                        != CommodityDTO.CommodityType.SEGMENTATION_VALUE)
-                .map(ReasonCommodity::getCommodityType)
-                .map(commType -> commodityDisplayName(commType, false))
-                .collect(Collectors.joining(", "));
-        if (commNames.isEmpty()) {
-            return Optional.empty();
-        }
-        return Optional.of(commNames);
-    }
-
-    @Nonnull
-    private String commodityDisplayName(@Nonnull final TopologyDTO.CommodityType commType, final boolean keepItShort) {
-        if (keepItShort) {
-            return UICommodityType.fromType(commType).apiStr();
-        } else {
-            return ActionDTOUtil.getCommodityDisplayName(commType);
-        }
-    }
-
-    /**
-     * Translates placeholders in the input string with values from the {@link ActionSpecMappingContext}.
-     *
-     * If the string doesn't start with the TRANSLATION_PREFIX, return the original string.
-     *
-     * Otherwise, translate any translation fragments into text. Translation fragments have the
-     * syntax:
-     *     {entity:(oid):(field-name):(default-value)}
-     *
-     * Where "entity" is a static prefix, (oid) is the entity oid to look up, and (field-name) is the
-     * name of the entity property to fetch. The entity property value will be substituted into the
-     * string. If the entity is not found, or there is an error getting the property value, the
-     * (default-value) will be used instead.
-     *
-     * @param input
-     * @param context
-     * @return
-     */
-    @VisibleForTesting
-    public static String translateExplanation(String input, @Nonnull final ActionSpecMappingContext context) {
-        if (! input.startsWith(TRANSLATION_PREFIX)) {
-            // most of the time, we probably won't need to translate anything.
-            return input;
-        }
-
-        StringBuilder sb = new StringBuilder();
-        int lastOffset = TRANSLATION_PREFIX.length(); // offset to start appending from
-        // we do need some minor translation. fill in the blanks here.
-        Matcher matcher = TRANSLATION_PATTERN.matcher(input);
-        while (matcher.find()) {
-            // append the part of the string between regions
-            sb.append(input, lastOffset, matcher.start());
-            lastOffset = matcher.end();
-            // replace the pattern
-            try {
-                long oid = Long.valueOf(matcher.group(1));
-                final Optional<ServiceEntityApiDTO> entity = context.getEntity(oid);
-                if (entity.isPresent()) {
-                    // invoke the getter via reflection
-                    final Object fieldValue = BeanUtils.getProperty(entity.get(), matcher.group(2));
-                    sb.append(fieldValue);
-                } else {
-                    // use the substitute/fallback value because there is no entity in topology
-                    sb.append(matcher.group(3));
-                }
-            } catch (Exception e) {
-                logger.warn("Couldn't translate entity {}:{} -- using default value {}",
-                        matcher.group(1), matcher.group(2), matcher.group(3), e);
-                // use the substitute/fallback value
-                sb.append(matcher.group(3));
-            }
-        }
-        // add the remainder of the input string
-        sb.append(input, lastOffset, input.length());
-        return sb.toString();
-    }
-
-    private Optional<String> tryExtractPlacementPolicyId(@Nonnull ActionDTO.Action recommendation) {
-        if (!recommendation.hasExplanation()) {
-            return Optional.empty();
-        }
-        if (recommendation.getExplanation().hasMove()) {
-
-            if (recommendation.getExplanation().getMove().getChangeProviderExplanationCount() < 1) {
-                return Optional.empty();
-            }
-
-            List<ChangeProviderExplanation> explanations = recommendation.getExplanation()
-                    .getMove().getChangeProviderExplanationList();
-
-            // We always go with the primary explanation if available
-            Optional<ChangeProviderExplanation> primaryExp = explanations.stream()
-                    .filter(ChangeProviderExplanation::getIsPrimaryChangeProviderExplanation).findFirst();
-            final ChangeProviderExplanation explanation = primaryExp.orElse(explanations.get(0));
-
-            if (!explanation.hasCompliance()) {
-                return Optional.empty();
-            }
-            if (explanation.getCompliance().getMissingCommoditiesCount() < 1) {
-                return Optional.empty();
-            }
-            if (explanation.getCompliance().getMissingCommodities(0).getCommodityType()
-                    .getType() != CommodityDTO.CommodityType.SEGMENTATION_VALUE) {
-                return Optional.empty();
-            }
-            return Optional.of(explanation.getCompliance().getMissingCommodities(0).getCommodityType()
-                    .getKey());
-        } else if (recommendation.getExplanation().hasReconfigure()) {
-            if (recommendation.getExplanation().getReconfigure().getReconfigureCommodityCount() < 1) {
-                return Optional.empty();
-            }
-            Optional<ReasonCommodity> reasonCommodity = recommendation.getExplanation().getReconfigure().getReconfigureCommodityList().stream()
-                    .filter(comm -> comm.getCommodityType().getType()
-                            == CommodityDTO.CommodityType.SEGMENTATION_VALUE).findFirst();
-            if (!reasonCommodity.isPresent()) {
-                return Optional.empty();
-            }
-            return Optional.of(reasonCommodity.get().getCommodityType().getKey());
-        } else if (recommendation.getExplanation().hasProvision()) {
-            if (!recommendation.getExplanation().getProvision().hasProvisionBySupplyExplanation()) {
-                return Optional.empty();
-            }
-            ReasonCommodity reasonCommodity = recommendation.getExplanation().getProvision().getProvisionBySupplyExplanation().getMostExpensiveCommodityInfo();
-            if (reasonCommodity.getCommodityType().getType() != CommodityDTO.CommodityType.SEGMENTATION_VALUE) {
-                return Optional.empty();
-            }
-            return Optional.of(reasonCommodity.getCommodityType().getKey());
-        } else {
-            return Optional.empty();
-        }
+              @Nonnull final ActionSpecMappingContext context) throws UnsupportedActionException {
+        return RiskUtil.createRiskDescription(actionSpec,
+            context::getPolicy,
+            oid -> context.getEntity(oid).map(BaseApiDTO::getDisplayName).orElse(null));
     }
 
     /**

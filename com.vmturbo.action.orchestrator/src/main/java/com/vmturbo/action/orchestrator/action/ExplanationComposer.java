@@ -53,6 +53,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ScaleExplanation
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.action.ActionDTOUtil.EntityField;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
@@ -1170,6 +1171,6 @@ public class ExplanationComposer {
         return topology
             .flatMap(topo -> topo.getEntity(entityOid))
             .map(BaseGraphEntity::getDisplayName)
-            .orElse(ActionDTOUtil.createTranslationBlock(entityOid, ActionDTOUtil.DISPLAY_NAME, defaultName));
+            .orElse(ActionDTOUtil.createTranslationBlock(entityOid, EntityField.DISPLAY_NAME, defaultName));
     }
 }

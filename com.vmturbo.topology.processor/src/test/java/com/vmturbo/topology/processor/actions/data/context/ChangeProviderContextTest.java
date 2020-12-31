@@ -33,6 +33,7 @@ import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.actions.ActionExecutionTestUtils;
 import com.vmturbo.topology.processor.actions.data.EntityRetrievalException;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
+import com.vmturbo.topology.processor.actions.data.PolicyRetriever;
 import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.entity.Entity;
 import com.vmturbo.topology.processor.entity.EntityStore;
@@ -56,6 +57,8 @@ public class ChangeProviderContextTest {
 
     private final ProbeStore probeStoreMock = Mockito.mock(ProbeStore.class);
 
+    private PolicyRetriever policyRetrieverMock = Mockito.mock(PolicyRetriever.class);
+
     private final int targetId = 2;
 
     private final int primaryTargetId = 2;
@@ -72,7 +75,8 @@ public class ChangeProviderContextTest {
                 entityStoreMock,
                 entityRetrieverMock,
                 targetStoreMock,
-                probeStoreMock);
+                probeStoreMock,
+                policyRetrieverMock);
         Mockito.when(targetStoreMock.getProbeTypeForTarget(targetId))
             .thenReturn(Optional.of(SDKProbeType.VCENTER));
         final Target target = Mockito.mock(Target.class);
@@ -112,9 +116,14 @@ public class ChangeProviderContextTest {
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
                 .setActionId(actionId)
                 .setTargetId(targetId)
-                .setActionInfo(move)
+                .setActionSpec(ActionDTO.ActionSpec.newBuilder()
+                    .setRecommendation(ActionDTO.Action.newBuilder().setId(actionId)
+                        .setDeprecatedImportance(0)
+                        .setExplanation(ActionDTO.Explanation.getDefaultInstance())
+                        .setInfo(move))
+                    .setActionState(ActionState.IN_PROGRESS).build())
                 .setActionType(ActionDTO.ActionType.MOVE)
-                .setActionState(ActionState.IN_PROGRESS)
+
                 .build();
 
         // Set up the mocks
@@ -182,9 +191,13 @@ public class ChangeProviderContextTest {
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
                 .setActionId(actionId)
                 .setTargetId(targetId)
-                .setActionInfo(move)
+                .setActionSpec(ActionDTO.ActionSpec.newBuilder()
+                    .setRecommendation(ActionDTO.Action.newBuilder().setId(actionId)
+                        .setExplanation(ActionDTO.Explanation.getDefaultInstance())
+                        .setDeprecatedImportance(0)
+                        .setInfo(move))
+                    .setActionState(ActionState.IN_PROGRESS).build())
                 .setActionType(ActionDTO.ActionType.MOVE)
-                .setActionState(ActionState.IN_PROGRESS)
                 .build();
 
         // Set up the mocks
@@ -256,9 +269,13 @@ public class ChangeProviderContextTest {
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
                 .setActionId(actionId)
                 .setTargetId(primaryTargetId)
-                .setActionInfo(move)
+                .setActionSpec(ActionDTO.ActionSpec.newBuilder()
+                    .setRecommendation(ActionDTO.Action.newBuilder().setId(actionId)
+                        .setExplanation(ActionDTO.Explanation.getDefaultInstance())
+                        .setDeprecatedImportance(0)
+                        .setInfo(move))
+                    .setActionState(ActionState.IN_PROGRESS).build())
                 .setActionType(ActionDTO.ActionType.MOVE)
-                .setActionState(ActionState.IN_PROGRESS)
                 .build();
 
         // Set up the mocks
@@ -389,9 +406,13 @@ public class ChangeProviderContextTest {
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
             .setActionId(actionId)
             .setTargetId(primaryTargetId)
-            .setActionInfo(move)
+            .setActionSpec(ActionDTO.ActionSpec.newBuilder()
+                .setRecommendation(ActionDTO.Action.newBuilder().setId(actionId)
+                    .setDeprecatedImportance(0)
+                    .setExplanation(ActionDTO.Explanation.getDefaultInstance())
+                    .setInfo(move))
+                .setActionState(ActionState.IN_PROGRESS).build())
             .setActionType(ActionDTO.ActionType.MOVE)
-            .setActionState(ActionState.IN_PROGRESS)
             .build();
 
         // Set up the mocks
@@ -498,9 +519,13 @@ public class ChangeProviderContextTest {
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
             .setActionId(actionId)
             .setTargetId(primaryTargetId)
-            .setActionInfo(move)
+            .setActionSpec(ActionDTO.ActionSpec.newBuilder()
+                .setRecommendation(ActionDTO.Action.newBuilder()
+                    .setExplanation(ActionDTO.Explanation.getDefaultInstance())
+                    .setDeprecatedImportance(0)
+                    .setId(actionId).setInfo(move))
+                .setActionState(ActionState.IN_PROGRESS).build())
             .setActionType(ActionDTO.ActionType.MOVE)
-            .setActionState(ActionState.IN_PROGRESS)
             .build();
 
         // Set up the mocks
@@ -605,9 +630,13 @@ public class ChangeProviderContextTest {
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
             .setActionId(actionId)
             .setTargetId(primaryTargetId)
-            .setActionInfo(move)
+            .setActionSpec(ActionDTO.ActionSpec.newBuilder()
+                .setRecommendation(ActionDTO.Action.newBuilder().setId(actionId)
+                    .setExplanation(ActionDTO.Explanation.getDefaultInstance())
+                    .setDeprecatedImportance(0)
+                    .setInfo(move))
+                .setActionState(ActionState.IN_PROGRESS).build())
             .setActionType(ActionDTO.ActionType.MOVE)
-            .setActionState(ActionState.IN_PROGRESS)
             .build();
 
         // Set up the mocks
@@ -662,9 +691,13 @@ public class ChangeProviderContextTest {
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
             .setActionId(actionId)
             .setTargetId(primaryTargetId)
-            .setActionInfo(move)
+            .setActionSpec(ActionDTO.ActionSpec.newBuilder()
+                .setRecommendation(ActionDTO.Action.newBuilder().setId(actionId)
+                    .setExplanation(ActionDTO.Explanation.getDefaultInstance())
+                    .setDeprecatedImportance(0)
+                    .setInfo(move))
+                .setActionState(ActionState.IN_PROGRESS).build())
             .setActionType(ActionDTO.ActionType.MOVE)
-            .setActionState(ActionState.IN_PROGRESS)
             .build();
 
         // Set up the mocks
@@ -737,9 +770,13 @@ public class ChangeProviderContextTest {
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
                 .setActionId(actionId)
                 .setTargetId(targetId)
-                .setActionInfo(move)
+                .setActionSpec(ActionDTO.ActionSpec.newBuilder()
+                    .setRecommendation(ActionDTO.Action.newBuilder().setId(actionId)
+                        .setExplanation(ActionDTO.Explanation.getDefaultInstance())
+                        .setDeprecatedImportance(0)
+                        .setInfo(move))
+                    .setActionState(ActionState.IN_PROGRESS).build())
                 .setActionType(ActionDTO.ActionType.MOVE)
-                .setActionState(ActionState.IN_PROGRESS)
                 .build();
 
         final ActionExecutionContext actionExecutionContext =
@@ -778,9 +815,13 @@ public class ChangeProviderContextTest {
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
                 .setActionId(actionId)
                 .setTargetId(targetId)
-                .setActionInfo(scale)
+                .setActionSpec(ActionDTO.ActionSpec.newBuilder()
+                    .setRecommendation(ActionDTO.Action.newBuilder().setId(actionId)
+                        .setExplanation(ActionDTO.Explanation.getDefaultInstance())
+                        .setDeprecatedImportance(0)
+                        .setInfo(scale))
+                    .setActionState(ActionState.IN_PROGRESS).build())
                 .setActionType(ActionDTO.ActionType.SCALE)
-            .setActionState(ActionState.IN_PROGRESS)
                 .build();
 
         // Set up the mocks

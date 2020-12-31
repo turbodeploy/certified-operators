@@ -7,6 +7,7 @@ import javax.annotation.Nonnull;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
+import com.vmturbo.topology.processor.actions.data.PolicyRetriever;
 import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.probes.ProbeStore;
@@ -47,16 +48,23 @@ public class ActionExecutionContextFactory {
      */
     private final ProbeStore probeStore;
 
+    /**
+     * Retrieves policies required for action execution.
+     */
+    protected final PolicyRetriever policyRetriever;
+
     public ActionExecutionContextFactory(@Nonnull final ActionDataManager actionDataManager,
                                          @Nonnull final EntityStore entityStore,
                                          @Nonnull final EntityRetriever entityRetriever,
                                          @Nonnull final TargetStore targetStore,
-                                         @Nonnull final ProbeStore probeStore) {
+                                         @Nonnull final ProbeStore probeStore,
+                                         @Nonnull final PolicyRetriever policyRetriever) {
         this.actionDataManager = Objects.requireNonNull(actionDataManager);
         this.entityStore = Objects.requireNonNull(entityStore);
         this.entityRetriever = Objects.requireNonNull(entityRetriever);
         this.targetStore = Objects.requireNonNull(targetStore);
         this.probeStore = Objects.requireNonNull(probeStore);
+        this.policyRetriever = Objects.requireNonNull(policyRetriever);
     }
 
     /**
@@ -76,7 +84,8 @@ public class ActionExecutionContextFactory {
                 entityStore,
                 entityRetriever,
                 targetStore,
-                probeStore);
+                probeStore,
+                policyRetriever);
     }
 
     /**
@@ -90,6 +99,7 @@ public class ActionExecutionContextFactory {
      *                        data for action execution.
      * @param targetStore used to check crossTarget move in MoveContext.
      * @param probeStore used for determining the action policy of a given target.
+     * @param policyRetriever the object for retrieving policies.
      * @return an {@link ActionExecutionContext} to collect additional data needed in order to
      *         execute the provided action.
      */
@@ -100,37 +110,39 @@ public class ActionExecutionContextFactory {
             @Nonnull final EntityStore entityStore,
             @Nonnull final EntityRetriever entityRetriever,
             @Nonnull final TargetStore targetStore,
-            @Nonnull final ProbeStore probeStore) {
-        if( ! request.hasActionInfo()) {
+            @Nonnull final ProbeStore probeStore,
+            @Nonnull final PolicyRetriever policyRetriever
+            ) {
+        if (!request.hasActionSpec()) {
             throw new IllegalArgumentException("Cannot execute action with no action info. "
                     + "Action request: " + request.toString());
         }
-        ActionInfo actionInfo = request.getActionInfo();
+        ActionInfo actionInfo = request.getActionSpec().getRecommendation().getInfo();
         switch (actionInfo.getActionTypeCase()) {
             case MOVE:
                 return new MoveContext(request, dataManager, entityStore, entityRetriever,
-                    targetStore, probeStore);
+                    targetStore, probeStore, policyRetriever);
             case SCALE:
                 return new ScaleContext(request, dataManager, entityStore, entityRetriever,
-                    targetStore, probeStore);
+                    targetStore, probeStore, policyRetriever);
             case RESIZE:
                 return new ResizeContext(request, dataManager, entityStore, entityRetriever,
-                    targetStore, probeStore);
+                    targetStore, probeStore, policyRetriever);
             case ACTIVATE:
                 return new ActivateContext(request, dataManager, entityStore, entityRetriever,
-                    targetStore, probeStore);
+                    targetStore, probeStore, policyRetriever);
             case DEACTIVATE:
                 return  new DeactivateContext(request, dataManager, entityStore, entityRetriever,
-                    targetStore, probeStore);
+                    targetStore, probeStore, policyRetriever);
             case PROVISION:
                 return new ProvisionContext(request, dataManager, entityStore, entityRetriever,
-                    targetStore, probeStore);
+                    targetStore, probeStore, policyRetriever);
             case DELETE:
                 return new DeleteContext(request, dataManager, entityStore, entityRetriever,
-                    targetStore, probeStore);
+                    targetStore, probeStore, policyRetriever);
             case ATOMICRESIZE:
                 return new AtomicResizeContext(request, dataManager, entityStore, entityRetriever,
-                    targetStore, probeStore);
+                    targetStore, probeStore, policyRetriever);
             default:
                 throw new IllegalArgumentException("Unsupported action type: " +
                         actionInfo.getActionTypeCase());

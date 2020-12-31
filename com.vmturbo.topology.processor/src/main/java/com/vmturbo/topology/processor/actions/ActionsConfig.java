@@ -26,12 +26,14 @@ import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionApprovalResponse;
 import com.vmturbo.platform.sdk.common.MediationMessage.GetActionStateResponse;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
+import com.vmturbo.topology.processor.actions.data.PolicyRetriever;
 import com.vmturbo.topology.processor.actions.data.context.ActionExecutionContextFactory;
 import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClient;
 import com.vmturbo.topology.processor.controllable.ControllableConfig;
 import com.vmturbo.topology.processor.conversions.TopologyToSdkEntityConverter;
 import com.vmturbo.topology.processor.entity.EntityConfig;
+import com.vmturbo.topology.processor.group.GroupConfig;
 import com.vmturbo.topology.processor.operation.OperationConfig;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
 import com.vmturbo.topology.processor.repository.RepositoryConfig;
@@ -67,6 +69,9 @@ public class ActionsConfig {
 
     @Autowired
     private ProbeConfig probeConfig;
+
+    @Autowired
+    private GroupConfig groupConfig;
 
     @Autowired
     private ActionOrchestratorClientConfig aoClientConfig;
@@ -135,7 +140,7 @@ public class ActionsConfig {
     }
 
     /**
-     * Entity retrieber. It is able to retrieve entities from toplogy cached by the previous
+     * Entity retriever. It is able to retrieve entities from toplogy cached by the previous
      * broadcast or fall back to repository request.
      *
      * @return the bean created
@@ -149,13 +154,24 @@ public class ActionsConfig {
                 realtimeTopologyContextId);
     }
 
+    /**
+     * Policy retriever. It is required to get information about policy for action execution.
+     *
+     * @return the bean created.
+     */
+    @Bean
+    public PolicyRetriever policyRetriever() {
+        return new PolicyRetriever(groupConfig.policyRpcService());
+    }
+
     @Bean
     public ActionExecutionContextFactory actionExecutionContextFactory() {
         return new ActionExecutionContextFactory(actionDataManager(),
                 entityConfig.entityStore(),
                 entityRetriever(),
                 targetConfig.targetStore(),
-                probeConfig.probeStore());
+                probeConfig.probeStore(),
+                policyRetriever());
     }
 
     @Bean

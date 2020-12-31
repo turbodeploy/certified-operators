@@ -25,6 +25,8 @@ import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 import org.springframework.web.socket.server.standard.ServerEndpointExporter;
 
+import com.vmturbo.common.protobuf.group.PolicyDTOMoles;
+import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
@@ -51,6 +53,7 @@ import com.vmturbo.topology.processor.TestIdentityStore;
 import com.vmturbo.topology.processor.TestProbeStore;
 import com.vmturbo.topology.processor.actions.ActionExecutionRpcService;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
+import com.vmturbo.topology.processor.actions.data.PolicyRetriever;
 import com.vmturbo.topology.processor.actions.data.context.ActionExecutionContextFactory;
 import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
@@ -390,7 +393,7 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
         try {
             final GrpcTestServer testServer =
                     GrpcTestServer.newServer(searchService(), settingPolicyService(),
-                            workflowService());
+                            workflowService(), policyService());
             testServer.start();
             return testServer;
         } catch (IOException e) {
@@ -416,6 +419,16 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
     @Bean
     public SettingPolicyServiceMole settingPolicyService() {
         return Mockito.spy(new SettingPolicyServiceMole());
+    }
+
+    /**
+     * Policy service.
+     *
+     * @return the instance of policy service.
+     */
+    @Bean
+    public PolicyDTOMoles.PolicyServiceMole policyService() {
+        return Mockito.spy(new PolicyDTOMoles.PolicyServiceMole());
     }
 
     /**
@@ -446,6 +459,16 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
     @Bean
     public SettingPolicyServiceBlockingStub settingPolicyServiceBlockingStub() {
         return SettingPolicyServiceGrpc.newBlockingStub(grpcTestServer().getChannel());
+    }
+
+    /**
+     * Bean which can be used to interact with policy rpc service in group-component.
+     *
+     * @return a new PolicyServiceBlockingStub
+     */
+    @Bean
+    public PolicyServiceGrpc.PolicyServiceBlockingStub policyServiceBlockingStub() {
+        return PolicyServiceGrpc.newBlockingStub(grpcTestServer().getChannel());
     }
 
     /**
@@ -489,6 +512,16 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
     }
 
     /**
+     * The policy retriever object.
+     *
+     * @return the policy retriever object.
+     */
+    @Bean
+    public PolicyRetriever policyRetriever() {
+        return new PolicyRetriever(policyServiceBlockingStub());
+    }
+
+    /**
      * Cached topology.
      *
      * @return the bean created
@@ -501,7 +534,7 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
     @Bean
     public ActionExecutionContextFactory actionExecutionContextFactory() {
         return new ActionExecutionContextFactory(actionDataManager(), entityRepository(),
-                entityRetriever(), targetStore(), probeStore());
+                entityRetriever(), targetStore(), probeStore(), policyRetriever());
     }
 
     @Bean

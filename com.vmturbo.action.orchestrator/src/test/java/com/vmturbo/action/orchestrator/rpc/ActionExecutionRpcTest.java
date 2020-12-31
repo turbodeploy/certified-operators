@@ -517,7 +517,7 @@ public class ActionExecutionRpcTest {
                 .targetId(targetId)
                 .build());
         doThrow(new ExecutionStartException("ERROR!"))
-            .when(actionExecutor).execute(eq(targetId), eq(recommendation), eq(EMPTY_WORKFLOW_OPTIONAL), any());
+            .when(actionExecutor).execute(eq(targetId), any(), eq(EMPTY_WORKFLOW_OPTIONAL));
 
 
         try {

@@ -17,10 +17,11 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.action.RiskUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowParameter;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowProperty;
@@ -28,15 +29,18 @@ import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.Builder;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.Risk;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionResponseState;
 import com.vmturbo.platform.common.dto.ActionExecution.Workflow;
 import com.vmturbo.platform.common.dto.ActionExecution.Workflow.ActionScriptPhase;
+import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.ContextData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.MediationMessage;
 import com.vmturbo.topology.processor.actions.data.EntityRetrievalException;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
+import com.vmturbo.topology.processor.actions.data.PolicyRetriever;
 import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.entity.Entity.PerTargetInfo;
 import com.vmturbo.topology.processor.entity.EntityStore;
@@ -76,11 +80,6 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
     private final Workflow workflow;
 
     /**
-     * The action type-specific data associated with this action, as sent from Action Orchestrator.
-     */
-    private final ActionInfo actionInfo;
-
-    /**
      * Provides additional data for handling action execution special cases (i.e. complex actions)
      */
     private final ActionDataManager dataManager;
@@ -107,6 +106,11 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
     protected final EntityRetriever entityRetriever;
 
     /**
+     * Retrieves policies required for action execution.
+     */
+    protected final PolicyRetriever policyRetriever;
+
+    /**
      * A list of {@link ActionItemDTO} to send to the probe for action execution.
      * This is the main carrier of data to the probes when executing an action.
      * By convention, the first ActionItem in the list will declare the overarching type of the
@@ -114,6 +118,8 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
      *   the action.
      */
     protected List<ActionItemDTO> actionItems;
+
+    protected final ActionDTO.ActionSpec actionSpec;
 
     /**
      * The SDK (probe-facing) type that will be sent to the probes.
@@ -125,19 +131,17 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
     @Nullable
     protected final String explanation;
 
-    private final ActionState actionState;
-
     protected AbstractActionExecutionContext(@Nonnull final ExecuteActionRequest request,
                                              @Nonnull final ActionDataManager dataManager,
                                              @Nonnull final EntityStore entityStore,
                                              @Nonnull final EntityRetriever entityRetriever,
                                              @Nonnull final TargetStore targetStore,
-                                             @Nonnull final ProbeStore probeStore) {
+                                             @Nonnull final ProbeStore probeStore,
+                                             @Nonnull final PolicyRetriever policyRetriever) {
         Objects.requireNonNull(request);
         this.actionId = request.getActionId();
         this.targetId = request.getTargetId();
         this.workflow = request.hasWorkflowInfo() ? buildWorkflow(request.getWorkflowInfo()) : null;
-        this.actionInfo = Objects.requireNonNull(request.getActionInfo());
         this.dataManager = Objects.requireNonNull(dataManager);
         this.entityStore = Objects.requireNonNull(entityStore);
         this.entityRetriever = Objects.requireNonNull(entityRetriever);
@@ -145,7 +149,8 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
         this.probeStore = Objects.requireNonNull(probeStore);
         this.actionType = Objects.requireNonNull(request.getActionType());
         this.explanation = request.getExplanation();
-        this.actionState = request.getActionState();
+        this.actionSpec = request.getActionSpec();
+        this.policyRetriever = Objects.requireNonNull(policyRetriever);
     }
 
     @Nonnull
@@ -341,7 +346,7 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
     protected abstract long getPrimaryEntityId();
 
     protected ActionInfo getActionInfo() {
-        return actionInfo;
+        return actionSpec.getRecommendation().getInfo();
     }
 
     protected EntityStore getEntityStore() {
@@ -393,7 +398,27 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
         // can add additional items
         List<ActionItemDTO.Builder> builders = new ArrayList<>();
         builders.add(actionItemBuilder);
+
+        // populate description, risk, execution characteristics
+        populatedPrimaryActionAdditionalFields(builders);
         return builders;
+    }
+
+    /**
+     * Populates some fields that are specific to primary action.
+     *
+     * @param builders the list of builders.
+     * @throws ContextCreationException if there is no action builder.
+     */
+    protected void populatedPrimaryActionAdditionalFields(List<ActionItemDTO.Builder> builders)
+          throws ContextCreationException {
+        ActionItemDTO.Builder primaryAction = getPrimaryActionItemBuilder(builders);
+        // set the risk
+        primaryAction.setRisk(getRisk());
+        // set the description
+        primaryAction.setDescription(getActionDescription());
+        // set execution characteristics
+        getExecutionCharacteristics().ifPresent(primaryAction::setCharacteristics);
     }
 
     protected EntityDTO getFullEntityDTO(long entityId) throws ContextCreationException {
@@ -445,12 +470,56 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
      * @return a set of context data containing data related to action execution
      */
     protected List<ContextData> getContextData() {
-        return dataManager.getContextData(actionInfo);
+        return dataManager.getContextData(actionSpec.getRecommendation().getInfo());
     }
 
-    private static ActionResponseState convertInternalToExternalState(
-            ActionState actionOrchestratorState) {
-        switch (actionOrchestratorState) {
+    @Override
+    @Nonnull
+    public ActionExecutionDTO buildActionExecutionDto() throws ContextCreationException {
+        final ActionExecutionDTO.Builder actionExecutionBuilder = ActionExecutionDTO.newBuilder()
+                .setActionOid(getActionId())
+                .setActionType(getSDKActionType())
+                .setActionState(getActionState())
+                .addAllActionItem(getActionItems());
+
+        if (actionSpec.hasRecommendationTime()) {
+            actionExecutionBuilder.setCreateTime(actionSpec.getRecommendationTime());
+        }
+
+        if (actionSpec.hasDecision()
+            && actionSpec.getDecision().hasDecisionTime()) {
+            actionExecutionBuilder.setUpdateTime(actionSpec.getDecision().getDecisionTime());
+        }
+
+        // populate the user uuid for the action that is manually accepted
+        if (actionSpec.hasDecision()
+            && actionSpec.getDecision().hasExecutionDecision()
+            && actionSpec.getDecision().getExecutionDecision().hasUserUuid()) {
+            actionExecutionBuilder.setAcceptedBy(
+                actionSpec.getDecision().getExecutionDecision().getUserUuid());
+        } else if (actionSpec.hasActionSchedule()
+            && actionSpec.getActionSchedule().hasAcceptingUser()) {
+            // set the accepting user from schedule
+            actionExecutionBuilder.setAcceptedBy(actionSpec.getActionSchedule().getAcceptingUser());
+        }
+
+        if (explanation != null) {
+            actionExecutionBuilder.setExplanation(explanation);
+        }
+
+        // if a WorkflowInfo action execution override is present, translate it to a NonMarketEntity
+        // and include it in the ActionExecution to be sent to the target
+        getWorkflow().ifPresent(actionExecutionBuilder::setWorkflow);
+        return actionExecutionBuilder.build();
+    }
+
+    /**
+     * Gets the state of the action.
+     *
+     * @return the state of action.
+     */
+    public ActionResponseState getActionState() {
+        switch (actionSpec.getActionState()) {
             case READY:
                 return ActionResponseState.PENDING_ACCEPT;
             case QUEUED:
@@ -473,27 +542,132 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
                 return ActionResponseState.FAILED;
             default:
                 throw new IllegalStateException("ActionState from action orchestrator "
-                    + actionOrchestratorState + " is not supported yet");
+                    + actionSpec.getActionState() + " is not supported yet");
         }
     }
 
-    @Override
-    @Nonnull
-    public ActionExecutionDTO buildActionExecutionDto() throws ContextCreationException {
-        final ActionExecutionDTO.Builder actionExecutionBuilder = ActionExecutionDTO.newBuilder()
-                .setActionOid(getActionId())
-                .setActionType(getSDKActionType())
-                .setActionState(convertInternalToExternalState(actionState))
-                .addAllActionItem(getActionItems());
+    /**
+     * Get the description of action.
+     *
+     * @return the human readable action.
+     */
+    public String getActionDescription() {
+        return actionSpec.getDescription();
+    }
 
-        if (explanation != null) {
-            actionExecutionBuilder.setExplanation(explanation);
+    /**
+     * Gets the risk for primary action.
+     *
+     * @return the risk for the main action.
+     */
+    public Risk getRisk() {
+        Risk.Builder risk = Risk.newBuilder();
+        risk.setDescription(getActionRiskDescription());
+        Risk.Category category = convertCategory(actionSpec.getCategory());
+        if (category != null) {
+            risk.setCategory(category);
         }
 
-        // if a WorkflowInfo action execution override is present, translate it to a NonMarketEntity
-        // and include it in the ActionExecution to be sent to the target
-        getWorkflow().ifPresent(actionExecutionBuilder::setWorkflow);
-        return actionExecutionBuilder.build();
+        // add the affected commodities
+        getRiskCommodities().stream()
+            .map(c -> CommonDTO.CommodityDTO.CommodityType.forNumber(c.getType()))
+            .forEach(risk::addAffectedCommodity);
+
+        risk.setSeverity(convertSeverity(actionSpec.getSeverity()));
+        return risk.build();
+    }
+
+    /**
+     * Gets the risk commodity for the action or empty list if there is no risk.
+     *
+     * @return the list of commodities at risk.
+     */
+    @Nonnull
+    public List<TopologyDTO.CommodityType> getRiskCommodities() {
+        // many of actions don't have a risk so we return no risk by default.
+        return Collections.emptyList();
+    }
+
+    /**
+     * Gets the execution characteristics.
+     *
+     * @return the execution characteristics.
+     */
+    public Optional<ActionItemDTO.ExecutionCharacteristics> getExecutionCharacteristics() {
+        if (actionSpec.getRecommendation().hasDisruptive()
+                || actionSpec.getRecommendation().hasReversible()) {
+            ActionItemDTO.ExecutionCharacteristics.Builder characteristics =
+                ActionItemDTO.ExecutionCharacteristics.newBuilder();
+            if (actionSpec.getRecommendation().hasDisruptive()) {
+                characteristics.setDisruptive(actionSpec.getRecommendation().getDisruptive());
+            }
+            if (actionSpec.getRecommendation().hasReversible()) {
+                characteristics.setReversible(actionSpec.getRecommendation().getReversible());
+            }
+            return Optional.of(characteristics.build());
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * Converts action category to risk category.
+     *
+     * @param category the category.
+     * @return the converted category.
+     */
+    @Nullable
+    protected Risk.Category convertCategory(ActionDTO.ActionCategory category) {
+        switch (category) {
+            case PERFORMANCE_ASSURANCE:
+                return Risk.Category.PERFORMANCE_ASSURANCE;
+            case EFFICIENCY_IMPROVEMENT:
+                return Risk.Category.EFFICIENCY_IMPROVEMENT;
+            case PREVENTION:
+                return Risk.Category.PREVENTION;
+            case COMPLIANCE:
+                return Risk.Category.COMPLIANCE;
+            default:
+                return null;
+        }
+    }
+
+    /**
+     * Converts action severity to sdk action severity.
+     *
+     * @param severity the action severity.
+     * @return the converted severity.
+     */
+    @Nullable
+    protected Risk.Severity convertSeverity(ActionDTO.Severity severity) {
+        switch (severity) {
+            case NORMAL:
+                return Risk.Severity.NORMAL;
+            case MINOR:
+                return Risk.Severity.MINOR;
+            case MAJOR:
+                return Risk.Severity.MAJOR;
+            case CRITICAL:
+                return Risk.Severity.CRITICAL;
+            default:
+                return Risk.Severity.UNKNOWN;
+        }
+    }
+
+    @Nullable
+    protected String getActionRiskDescription() {
+        try {
+            return RiskUtil.createRiskDescription(actionSpec,
+                policyRetriever::retrievePolicy,
+                oid -> entityRetriever.retrieveTopologyEntity(oid)
+                    .map(TopologyDTO.TopologyEntityDTO::getDisplayName)
+                    .orElse(null));
+        } catch (UnsupportedActionException e) {
+            logger.error("Cannot calculate the risk for action with oid {} and type {} as it is "
+                + "unsupported",
+                actionSpec.getRecommendationId(),
+                actionSpec.getRecommendation().getInfo().getActionTypeCase());
+            return null;
+        }
     }
 
     /**
@@ -597,7 +771,7 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
         Optional<Target> target = targetStore.getTarget(targetId);
         if (!target.isPresent()) {
             logger.error("Couldn't find the target with ID {} for action \"{}\" ", getTargetId(),
-                actionInfo);
+                actionSpec.getRecommendation().getInfo());
             return Optional.empty();
         }
 

@@ -35,6 +35,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Matchers;
 import org.mockito.Mockito;
 
+import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
@@ -510,25 +511,29 @@ public class ClientApiCallsTest extends AbstractApiCallsTest {
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
                 .setActionId(0L)
                 .setTargetId(target)
-                .setActionState(ActionState.IN_PROGRESS)
-                .setActionInfo(ActionInfo.newBuilder()
-                    .setMove(Move.newBuilder()
-                        .addChanges(ChangeProvider.newBuilder()
-                            .setSource(ActionEntity.newBuilder()
-                                .setId(1)
-                                .setType(1)
+                .setActionSpec(ActionDTO.ActionSpec.newBuilder()
+                    .setRecommendation(ActionDTO.Action.newBuilder()
+                        .setExplanation(ActionDTO.Explanation.getDefaultInstance())
+                        .setDeprecatedImportance(0)
+                        .setId(0L).setInfo(ActionInfo.newBuilder()
+                            .setMove(Move.newBuilder()
+                                .addChanges(ChangeProvider.newBuilder()
+                                    .setSource(ActionEntity.newBuilder()
+                                        .setId(1)
+                                        .setType(1)
+                                        .build())
+                                    .setDestination(ActionEntity.newBuilder()
+                                        .setId(2)
+                                        .setType(1)
+                                        .build())
+                                    .build())
+                                .setTarget(ActionEntity.newBuilder()
+                                    .setId(3)
+                                    .setType(1)
+                                    .build())
                                 .build())
-                            .setDestination(ActionEntity.newBuilder()
-                                .setId(2)
-                                .setType(1)
-                                .build())
-                            .build())
-                        .setTarget(ActionEntity.newBuilder()
-                            .setId(3)
-                            .setType(1)
-                            .build())
-                        .build())
-                    .build())
+                            .build()))
+                    .setActionState(ActionState.IN_PROGRESS).build())
                 .build();
 
         final ActionExecutionListener listener = mock(ActionExecutionListener.class);

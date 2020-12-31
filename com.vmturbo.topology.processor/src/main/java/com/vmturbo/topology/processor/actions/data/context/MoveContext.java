@@ -29,6 +29,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.MediationMessage;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
+import com.vmturbo.topology.processor.actions.data.PolicyRetriever;
 import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.entity.Entity;
 import com.vmturbo.topology.processor.entity.EntityStore;
@@ -56,8 +57,10 @@ public class MoveContext extends ChangeProviderContext {
                        @Nonnull final EntityStore entityStore,
                        @Nonnull final EntityRetriever entityRetriever,
                        @Nonnull final TargetStore targetStore,
-                       @Nonnull final ProbeStore probeStore) {
-        super(request, dataManager, entityStore, entityRetriever, targetStore, probeStore);
+                       @Nonnull final ProbeStore probeStore,
+                       @Nonnull final PolicyRetriever policyRetriever) {
+        super(request, dataManager, entityStore, entityRetriever, targetStore, probeStore,
+            policyRetriever);
     }
 
     @Override

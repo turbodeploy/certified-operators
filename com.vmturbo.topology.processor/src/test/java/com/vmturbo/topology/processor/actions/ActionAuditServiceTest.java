@@ -24,6 +24,7 @@ import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
 import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionEvent;
+import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
@@ -45,6 +46,7 @@ import com.vmturbo.platform.sdk.common.MediationMessage.ActionAuditFeature;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionErrorsResponse;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
+import com.vmturbo.topology.processor.actions.data.PolicyRetriever;
 import com.vmturbo.topology.processor.actions.data.context.ActionExecutionContextFactory;
 import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.conversions.TopologyToSdkEntityConverter;
@@ -132,6 +134,7 @@ public class ActionAuditServiceTest {
         final ActionDataManager actionDataManagerMock = Mockito.mock(ActionDataManager.class);
         final EntityStore entityStoreMock = Mockito.mock(EntityStore.class);
         final EntityRetriever entityRetriever = Mockito.mock(EntityRetriever.class);
+        final PolicyRetriever policyRetriever = Mockito.mock(PolicyRetriever.class);
         final TopologyEntityDTO vmTopology = TopologyEntityDTO
                 .newBuilder()
                 .setOid(ENTITY_ID)
@@ -153,7 +156,7 @@ public class ActionAuditServiceTest {
         Mockito.when(topologyToSdkEntityConverter.convertToEntityDTO(vmTopology)).thenReturn(vm);
         Mockito.when(entityStoreMock.getEntity(ENTITY_ID)).thenReturn(Optional.of(vmEntity));
         this.contextFactory = new ActionExecutionContextFactory(actionDataManagerMock,
-                entityStoreMock, entityRetriever, targetStore, probeStore);
+                entityStoreMock, entityRetriever, targetStore, probeStore, policyRetriever);
         identityProvider = Mockito.mock(IdentityProvider.class);
         Mockito.when(identityProvider.generateOperationId()).thenAnswer(
                 invocation -> counter.getAndIncrement());
@@ -337,13 +340,19 @@ public class ActionAuditServiceTest {
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
                 .setActionId(oid)
                 .setTargetId(AUDIT_TARGET)
-                .setActionState(ActionState.IN_PROGRESS)
-                .setActionInfo(ActionInfo.newBuilder()
-                        .setDelete(Delete.newBuilder()
+                .setActionSpec(
+                    ActionDTO.ActionSpec.newBuilder()
+                        .setRecommendation(ActionDTO.Action.newBuilder().setId(oid)
+                        .setDeprecatedImportance(0)
+                        .setExplanation(ActionDTO.Explanation.getDefaultInstance())
+                        .setInfo(ActionInfo.newBuilder()
+                            .setDelete(Delete.newBuilder()
                                 .setTarget(ActionEntity
-                                        .newBuilder()
-                                        .setType(1)
-                                        .setId(ENTITY_ID))))
+                                    .newBuilder()
+                                    .setType(1)
+                                    .setId(ENTITY_ID)))))
+                        .setActionState(ActionState.IN_PROGRESS)
+                        .build())
                 .build();
         return ActionEvent.newBuilder()
                 .setAcceptedBy("Albus Dumbldore")

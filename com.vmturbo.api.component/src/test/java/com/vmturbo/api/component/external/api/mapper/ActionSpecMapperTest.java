@@ -2174,46 +2174,6 @@ public class ActionSpecMapperTest {
     }
 
     @Test
-    public void testTranslateExplanation() {
-        Map<Long, ApiPartialEntity> entitiesMap = new HashMap<>();
-        ApiPartialEntity entity = topologyEntityDTO("Test Entity", 1L, EntityType.VIRTUAL_MACHINE_VALUE);
-        entitiesMap.put(1L, entity);
-        ActionSpecMappingContext context = new ActionSpecMappingContext(entitiesMap,
-            Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
-            Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
-            Collections.emptyMap(), serviceEntityMapper, false, Collections.emptyList());
-        context.getEntity(1L).get().setCostPrice(1.0f);
-
-        String noTranslationNeeded = "Simple string";
-        Assert.assertEquals("Simple string", ActionSpecMapper.translateExplanation(noTranslationNeeded, context));
-
-        // test display name
-        String translateName = ActionDTOUtil.TRANSLATION_PREFIX +"The entity name is "
-                + ActionDTOUtil.createTranslationBlock(1, "displayName", "default");
-        Assert.assertEquals("The entity name is Test Entity", ActionSpecMapper.translateExplanation(translateName, context));
-
-        // test cost (numeric field)
-        String translateCost = ActionDTOUtil.TRANSLATION_PREFIX +"The entity cost is "
-                + ActionDTOUtil.createTranslationBlock(1, "costPrice", "I dunno, must be expensive");
-        Assert.assertEquals("The entity cost is 1.0", ActionSpecMapper.translateExplanation(translateCost, context));
-
-        // test fallback value
-        String testFallback = ActionDTOUtil.TRANSLATION_PREFIX +"The entity madeup field is "
-                + ActionDTOUtil.createTranslationBlock(1, "madeup", "fallback value");
-        Assert.assertEquals("The entity madeup field is fallback value", ActionSpecMapper.translateExplanation(testFallback, context));
-        // test blank fallback value
-        String testBlankFallback = ActionDTOUtil.TRANSLATION_PREFIX +"The entity madeup field is "
-                + ActionDTOUtil.createTranslationBlock(1, "madeup", "");
-        Assert.assertEquals("The entity madeup field is ", ActionSpecMapper.translateExplanation(testBlankFallback, context));
-
-        // test block at start of string
-        String testStart = ActionDTOUtil.TRANSLATION_PREFIX
-                + ActionDTOUtil.createTranslationBlock(1, "displayName", "default") +" and stuff";
-        Assert.assertEquals("Test Entity and stuff", ActionSpecMapper.translateExplanation(testStart, context));
-
-    }
-
-    @Test
     public void testMapClearedState() {
         Optional<ActionDTO.ActionState> state = ActionSpecMapper.mapApiStateToXl(com.vmturbo.api.enums.ActionState.CLEARED);
         assertThat(state.get(), is(ActionDTO.ActionState.CLEARED));

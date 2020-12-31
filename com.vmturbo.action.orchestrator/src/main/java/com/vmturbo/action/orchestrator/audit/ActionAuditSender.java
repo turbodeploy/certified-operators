@@ -22,6 +22,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionEvent;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
+import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStoreException;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
@@ -55,6 +56,8 @@ public class ActionAuditSender {
     // TODO OM-64028: clean actions if target discovered workflow was removed
     private final Table<Long, Long, ActionView> sentActionsToWorkflowCache =
             HashBasedTable.create();
+    private final ActionTranslator actionTranslator;
+
 
     /**
      * Constructs action audit sender.
@@ -62,19 +65,23 @@ public class ActionAuditSender {
      * @param workflowStore workflow store
      * @param messageSender notifications sender
      * @param thinTargetCache target cache
+     * @param actionTranslator action translator
      */
     public ActionAuditSender(@Nonnull WorkflowStore workflowStore,
-            @Nonnull IMessageSender<ActionEvent> messageSender, @Nonnull ThinTargetCache thinTargetCache) {
+            @Nonnull IMessageSender<ActionEvent> messageSender,
+            @Nonnull ThinTargetCache thinTargetCache,
+            @Nonnull ActionTranslator actionTranslator) {
         this.workflowStore = Objects.requireNonNull(workflowStore);
         this.messageSender = Objects.requireNonNull(messageSender);
         this.thinTargetCache = Objects.requireNonNull(thinTargetCache);
+        this.actionTranslator = Objects.requireNonNull(actionTranslator);
     }
 
     /**
      * Receives new actions.
      *
      * @param actions new actions received.
-     * @throws CommunicationException if communicatino error occurred while sending
+     * @throws CommunicationException if communication error occurred while sending
      *         notifications
      * @throws InterruptedException if current thread has been interrupted
      */
@@ -244,8 +251,8 @@ public class ActionAuditSender {
             @Nonnull ActionResponseState oldState, @Nonnull ActionResponseState newState) {
         final ExecuteActionRequest request =
                 ActionExecutor.createRequest(workflow.getWorkflowInfo().getTargetId(),
-                        action.getRecommendation(), Optional.of(workflow), action.getDescription(),
-                        action.getRecommendationOid(), action.getState());
+                    actionTranslator.translateToSpec(action), Optional.of(workflow),
+                    action.getDescription(), action.getRecommendationOid());
         return ActionEvent.newBuilder()
                 .setOldState(oldState)
                 .setNewState(newState)

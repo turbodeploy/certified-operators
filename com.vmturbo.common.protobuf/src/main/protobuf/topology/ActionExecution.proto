@@ -18,7 +18,7 @@ message ExecuteActionRequest {
     optional int64 target_id = 2;
 
     // The action information.
-    optional action.ActionInfo action_info = 3;
+    optional action.ActionSpec action_spec = 3;
 
     // Any action may be overridden by a "workflow" specification
     optional workflow.WorkflowInfo workflow_info = 4;
@@ -27,9 +27,6 @@ message ExecuteActionRequest {
     optional action.ActionType action_type = 5;
 
     optional string explanation = 6;
-
-    // The state that action orchestrator reports.
-    required action.ActionState actionState = 7;
 }
 
 message ExecuteActionResponse {}

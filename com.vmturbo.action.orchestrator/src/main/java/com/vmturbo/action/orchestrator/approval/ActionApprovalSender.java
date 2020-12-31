@@ -17,6 +17,7 @@ import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTarg
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory;
 import com.vmturbo.action.orchestrator.store.PlanActionStore;
+import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStoreException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
@@ -39,6 +40,7 @@ public class ActionApprovalSender {
     private final IMessageSender<ActionApprovalRequests> messageSender;
     private final ActionTargetSelector actionTargetSelector;
     private final EntitiesAndSettingsSnapshotFactory entitySettingsCache;
+    private final ActionTranslator actionTranslator;
 
     /**
      * Constructs action approval sender.
@@ -47,15 +49,18 @@ public class ActionApprovalSender {
      * @param messageSender message sender
      * @param actionTargetSelector selects which target/probe to execute each action against
      * @param entitySettingsCache cache of entity settings
+     * @param actionTranslator the action translator
      */
     public ActionApprovalSender(@Nonnull WorkflowStore workflowStore,
             @Nonnull IMessageSender<ActionApprovalRequests> messageSender,
             @Nonnull ActionTargetSelector actionTargetSelector,
-            @Nonnull EntitiesAndSettingsSnapshotFactory entitySettingsCache) {
+            @Nonnull EntitiesAndSettingsSnapshotFactory entitySettingsCache,
+            @Nonnull ActionTranslator actionTranslator) {
         this.workflowStore = Objects.requireNonNull(workflowStore);
         this.messageSender = Objects.requireNonNull(messageSender);
         this.actionTargetSelector = Objects.requireNonNull(actionTargetSelector);
         this.entitySettingsCache = Objects.requireNonNull(entitySettingsCache);
+        this.actionTranslator = Objects.requireNonNull(actionTranslator);
     }
 
     /**
@@ -90,9 +95,8 @@ public class ActionApprovalSender {
                         if (targetForAction.isPresent()) {
                             final ExecuteActionRequest request =
                                     ActionExecutor.createRequest(targetForAction.get(),
-                                    recommendation, workflowOpt,
-                                            action.getDescription(), action.getRecommendationOid(),
-                                            action.getState());
+                                    actionTranslator.translateToSpec(action), workflowOpt,
+                                            action.getDescription(), action.getRecommendationOid());
                             builder.addActions(request);
                         } else {
                             logger.warn(

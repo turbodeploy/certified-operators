@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.actions;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -34,17 +35,31 @@ public class ActionItemDTOValidator {
     private ActionItemDTOValidator() { }
 
     public static void validateRequest(@Nonnull final List<ActionItemDTO> actionItems) throws ValidationError {
+        boolean isPrimary = true;
         for (ActionItemDTO actionItem : actionItems) {
-            validateRequest(actionItem);
+            validateRequest(actionItem, isPrimary);
+            isPrimary = false;
         }
     }
 
     public static void validateRequest(@Nonnull final ActionItemDTO actionItem)
             throws ValidationError {
+        validateRequest(actionItem, true);
+    }
+
+    /**
+     * Validates the fields of action item.
+     *
+     * @param actionItem the action item to verify.
+     * @param isPrimary if this is the primary action.
+     * @throws ValidationError if there is a validation error.
+     */
+    public static void validateRequest(@Nonnull final ActionItemDTO actionItem, boolean isPrimary)
+            throws ValidationError {
         switch (actionItem.getActionType()) {
             case MOVE:
             case CHANGE:
-                validateMove(actionItem);
+                validateMove(actionItem, isPrimary);
                 break;
             case RIGHT_SIZE:
             case RESIZE:
@@ -69,7 +84,7 @@ public class ActionItemDTOValidator {
         final ValidationErrors errors = new ValidationErrors();
 
         if (start.getTargetSE().getEntityType().equals(EntityType.VIRTUAL_MACHINE)) {
-            errors.exactOptionalFields(start, "hostedBySE");
+            errors.exactOptionalFields(start, Arrays.asList("hostedBySE", "risk", "description"));
         }
 
         errors.throwIfError();
@@ -80,7 +95,7 @@ public class ActionItemDTOValidator {
         final ValidationErrors errors = new ValidationErrors();
 
         if (suspend.getTargetSE().getEntityType().equals(EntityType.VIRTUAL_MACHINE)) {
-            errors.exactOptionalFields(suspend, "hostedBySE");
+            errors.exactOptionalFields(suspend, Arrays.asList("hostedBySE", "risk", "description"));
         }
 
         errors.throwIfError();
@@ -92,10 +107,11 @@ public class ActionItemDTOValidator {
 
         if (resizeItem.getTargetSE().getEntityType() == EntityType.VIRTUAL_MACHINE) {
             errors.exactOptionalFields(resizeItem,
-                "currentComm", "newComm", "commodityAttribute", "hostedBySE");
+                Arrays.asList("currentComm", "newComm", "commodityAttribute", "hostedBySE",
+                    "risk", "description"));
         } else {
             errors.exactOptionalFields(resizeItem,
-                "currentComm", "newComm", "commodityAttribute");
+                Arrays.asList("currentComm", "newComm", "commodityAttribute", "risk", "description"));
         }
 
         // TODO (roman, May 16 2017): Should validate that the (entity type, commodity type) tuple
@@ -104,16 +120,27 @@ public class ActionItemDTOValidator {
         errors.throwIfError();
     }
 
-    private static void validateMove(@Nonnull final ActionItemDTO moveItem)
+    private static void validateMove(@Nonnull final ActionItemDTO moveItem, boolean isPrimary)
             throws ValidationError {
         final ValidationErrors errors = new ValidationErrors();
+
+        List<String> fields = new ArrayList<>();
+        fields.add("currentSE");
+        fields.add("newSE");
+
         if (moveItem.getTargetSE().getEntityType() == EntityType.VIRTUAL_MACHINE) {
-            errors.exactOptionalFields(moveItem, "currentSE", "newSE", "hostedBySE");
-        } else {
-            errors.exactOptionalFields(moveItem, "currentSE", "newSE");
+            fields.add("hostedBySE");
         }
 
-        // CHANGE is a storage move.
+        if (isPrimary) {
+            fields.add("risk");
+            fields.add("description");
+            fields.add("characteristics");
+        }
+
+        errors.exactOptionalFields(moveItem, fields);
+
+            // CHANGE is a storage move.
         if (moveItem.getActionType().equals(ActionType.CHANGE)) {
             errors.checkEntitiesType(EntityType.STORAGE, moveItem.getCurrentSE(), moveItem.getNewSE());
         } else if (moveItem.getActionType().equals(ActionType.MOVE)) {
@@ -153,9 +180,8 @@ public class ActionItemDTOValidator {
         }
 
         public void exactOptionalFields(@Nonnull final ActionItemDTO action,
-                                        String... expectedOptionalFields) {
-            final Set<String> expected = new HashSet<>();
-            Collections.addAll(expected, expectedOptionalFields);
+                                        List<String> expectedOptionalFields) {
+            final Set<String> expected = new HashSet<>(expectedOptionalFields);
 
             final Set<String> setOptionalFields = action.getAllFields().keySet().stream()
                     .filter(descriptor -> !descriptor.isRequired())

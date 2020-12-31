@@ -26,9 +26,9 @@ import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
 import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionApprovalRequests;
+import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -50,6 +50,7 @@ import com.vmturbo.platform.sdk.common.MediationMessage.ActionApprovalResponse;
 import com.vmturbo.platform.sdk.common.MediationMessage.GetActionStateResponse;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
+import com.vmturbo.topology.processor.actions.data.PolicyRetriever;
 import com.vmturbo.topology.processor.actions.data.context.ActionExecutionContextFactory;
 import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.AccountValue;
@@ -116,6 +117,7 @@ public class ActionApprovalServiceTest {
         final ActionDataManager actionDataManagerMock = Mockito.mock(ActionDataManager.class);
         final EntityStore entityStoreMock = Mockito.mock(EntityStore.class);
         final EntityRetriever entityRetriever = Mockito.mock(EntityRetriever.class);
+        final PolicyRetriever policyRetriever = Mockito.mock(PolicyRetriever.class);
         final TopologyEntityDTO vmTopology = TopologyEntityDTO.newBuilder()
                 .setOid(ENTITY_ID)
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
@@ -168,7 +170,7 @@ public class ActionApprovalServiceTest {
                 invocation -> new GetActionState(PROBE_ID, TGT_ID, identityProvider));
 
         this.contextFactory = new ActionExecutionContextFactory(actionDataManagerMock,
-                entityStoreMock, entityRetriever, targetStore, probeStore);
+                entityStoreMock, entityRetriever, targetStore, probeStore, policyRetriever);
         final ActionApprovalService svc = new ActionApprovalService(actionApprovalRequests,
                 actionStateSender, approvalResponseSender, operationManager, contextFactory,
                 targetStore, scheduledService, 10);
@@ -459,13 +461,16 @@ public class ActionApprovalServiceTest {
         return ExecuteActionRequest.newBuilder()
                 .setActionId(oid)
                 .setTargetId(TGT_ID)
-                .setActionState(ActionState.IN_PROGRESS)
-                .setActionInfo(ActionInfo.newBuilder()
-                        .setDelete(Delete.newBuilder()
+                .setActionSpec(ActionDTO.ActionSpec.newBuilder()
+                    .setRecommendation(ActionDTO.Action.newBuilder().setId(oid)
+                        .setExplanation(ActionDTO.Explanation.getDefaultInstance())
+                        .setDeprecatedImportance(0)
+                        .setInfo(ActionInfo.newBuilder()
+                            .setDelete(Delete.newBuilder()
                                 .setTarget(ActionEntity.newBuilder()
-                                        .setType(1)
-                                        .setId(ENTITY_ID)
-                                        .build())))
+                                    .setType(1)
+                                    .setId(ENTITY_ID)
+                                    .build())))))
                 .build();
     }
 

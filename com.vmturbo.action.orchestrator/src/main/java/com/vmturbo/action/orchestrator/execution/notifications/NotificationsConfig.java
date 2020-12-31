@@ -12,6 +12,7 @@ import com.vmturbo.action.orchestrator.audit.AuditCommunicationConfig;
 import com.vmturbo.action.orchestrator.execution.ActionExecutionConfig;
 import com.vmturbo.action.orchestrator.store.ActionStoreConfig;
 import com.vmturbo.action.orchestrator.topology.TopologyProcessorConfig;
+import com.vmturbo.action.orchestrator.translation.ActionTranslationConfig;
 import com.vmturbo.action.orchestrator.workflow.config.WorkflowConfig;
 import com.vmturbo.topology.processor.api.ActionExecutionListener;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClient;
@@ -27,7 +28,8 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClient;
     TopologyProcessorConfig.class,
     WorkflowConfig.class,
     AuditCommunicationConfig.class,
-    ApprovalCommunicationConfig.class})
+    ApprovalCommunicationConfig.class,
+    ActionTranslationConfig.class})
 public class NotificationsConfig {
 
     @Autowired
@@ -53,6 +55,9 @@ public class NotificationsConfig {
     @Autowired
     private ApprovalCommunicationConfig approvalCommunicationConfig;
 
+    @Autowired
+    private ActionTranslationConfig actionTranslationConfig;
+
     /**
      * Bean for {@link ActionExecutionListener}.
      * @return The {@link ActionExecutionListener}.
@@ -67,7 +72,8 @@ public class NotificationsConfig {
                         tpConfig.realtimeTopologyContextId(),
                         actionExecutionConfig.failedCloudVMGroupProcessor(),
                         auditCommunicationConfig.actionAuditSender(),
-                        approvalCommunicationConfig.actionStateUpdatesSender());
+                        approvalCommunicationConfig.actionStateUpdatesSender(),
+                        actionTranslationConfig.actionTranslator());
         tpConfig.topologyProcessor().addActionListener(executionListener);
         return executionListener;
     }

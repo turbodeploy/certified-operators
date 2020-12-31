@@ -45,7 +45,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionMergeSpecDTO.AtomicActionSpec;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
-import com.vmturbo.common.protobuf.schedule.ScheduleServiceGrpc;
 import com.vmturbo.components.common.utils.RteLoggingRunnable;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.plan.orchestrator.api.impl.PlanGarbageDetector;
@@ -221,7 +220,7 @@ public class ActionStoreConfig {
         return new AutomatedActionExecutor(actionExecutionConfig.actionExecutor(),
                 automatedActionThreadpool(), workflowConfig.workflowStore(),
                 actionExecutionConfig.actionTargetSelector(), entitySettingsCache(),
-                ScheduleServiceGrpc.newBlockingStub(groupClientConfig.groupChannel()));
+                actionTranslationConfig.actionTranslator());
     }
 
     /**

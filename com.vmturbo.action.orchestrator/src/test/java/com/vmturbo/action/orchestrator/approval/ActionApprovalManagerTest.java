@@ -3,7 +3,6 @@ package com.vmturbo.action.orchestrator.approval;
 import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -212,7 +211,7 @@ public class ActionApprovalManagerTest {
             ActionDTO.Action.newBuilder().buildPartial());
         when(action.getState()).thenReturn(ActionState.READY);
         actionApprovalManager.attemptAndExecute(actionStore, EXTERNAL_USER_ID, action);
-        verify(actionExecutor, times(1)).execute(anyLong(), any(), any(), eq(ActionState.READY));
+        verify(actionExecutor, times(1)).execute(anyLong(), any(), any());
     }
 
     /**

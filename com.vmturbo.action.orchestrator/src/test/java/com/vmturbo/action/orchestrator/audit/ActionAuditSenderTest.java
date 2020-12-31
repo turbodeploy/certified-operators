@@ -15,9 +15,11 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
+import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionEvent;
+import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStoreException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
@@ -61,6 +63,9 @@ public class ActionAuditSenderTest {
     private WorkflowStore workflowStore;
     @Mock
     private ThinTargetCache thinTargetCache;
+
+    private ActionTranslator actionTranslator = ActionOrchestratorTestUtils.passthroughTranslator();
+
     @Captor
     private ArgumentCaptor<ActionEvent> messageCaptor;
 
@@ -104,7 +109,7 @@ public class ActionAuditSenderTest {
     @Test
     public void testSendingActionEvents() throws Exception {
         final ActionAuditSender sender = new ActionAuditSender(workflowStore, messageSender,
-                thinTargetCache);
+                thinTargetCache, actionTranslator);
         final Workflow workflow1 = Workflow.newBuilder().setId(WORKFLOW_ID1).setWorkflowInfo(
                 WorkflowInfo.newBuilder()
                         .setActionPhase(ActionPhase.ON_GENERATION)
@@ -154,7 +159,7 @@ public class ActionAuditSenderTest {
     @Test
     public void testSendingActionsForServiceNowAuditEveryTime() throws Exception {
         final ActionAuditSender sender =
-                new ActionAuditSender(workflowStore, messageSender, thinTargetCache);
+                new ActionAuditSender(workflowStore, messageSender, thinTargetCache, actionTranslator);
         final Workflow workflow1 = Workflow.newBuilder()
                 .setId(WORKFLOW_ID1)
                 .setWorkflowInfo(WorkflowInfo.newBuilder()
@@ -208,7 +213,7 @@ public class ActionAuditSenderTest {
     @Test
     public void testSendingOnlyNewActionEvents() throws Exception {
         final ActionAuditSender sender = new ActionAuditSender(workflowStore, messageSender,
-                thinTargetCache);
+                thinTargetCache, actionTranslator);
         final Workflow workflow1 = Workflow.newBuilder().setId(WORKFLOW_ID1).setWorkflowInfo(
                 WorkflowInfo.newBuilder()
                         .setActionPhase(ActionPhase.ON_GENERATION)
@@ -249,7 +254,7 @@ public class ActionAuditSenderTest {
     @Test
     public void testSendingClearedEvents() throws Exception {
         final ActionAuditSender sender = new ActionAuditSender(workflowStore, messageSender,
-                thinTargetCache);
+                thinTargetCache, actionTranslator);
         final Workflow workflow1 = Workflow.newBuilder().setId(WORKFLOW_ID1).setWorkflowInfo(
                 WorkflowInfo.newBuilder()
                         .setActionPhase(ActionPhase.ON_GENERATION)
@@ -299,7 +304,7 @@ public class ActionAuditSenderTest {
     @Test
     public void testRemovingSentClearedActionsFromCache() throws Exception {
         final ActionAuditSender sender = new ActionAuditSender(workflowStore, messageSender,
-                thinTargetCache);
+                thinTargetCache, actionTranslator);
         final Workflow workflow1 = Workflow.newBuilder().setId(WORKFLOW_ID1).setWorkflowInfo(
                 WorkflowInfo.newBuilder()
                         .setActionPhase(ActionPhase.ON_GENERATION)

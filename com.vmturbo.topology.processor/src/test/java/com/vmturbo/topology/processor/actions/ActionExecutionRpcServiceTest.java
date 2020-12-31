@@ -1,5 +1,8 @@
 package com.vmturbo.topology.processor.actions;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -46,6 +49,7 @@ import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.actions.data.EntityRetrievalException;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
+import com.vmturbo.topology.processor.actions.data.PolicyRetriever;
 import com.vmturbo.topology.processor.actions.data.context.ActionExecutionContextFactory;
 import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.entity.Entity;
@@ -57,6 +61,11 @@ import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.util.SdkActionPolicyBuilder;
 
 public class ActionExecutionRpcServiceTest {
+    private static final String ACTION_DESCRIPTION = "Action Description";
+    private static final long RECOMMENDATION_TIME = 1609346497000L;
+    private static final long UPDATE_TIME = 1609347497000L;
+    private static final String ACCEPTING_USER = "admin1";
+    private static final String IMPROVE_EFFICIENCY = "Improve overall performance";
 
     private EntityStore entityStore = Mockito.mock(EntityStore.class);
 
@@ -66,13 +75,15 @@ public class ActionExecutionRpcServiceTest {
 
     private EntityRetriever entityRetriever = Mockito.mock(EntityRetriever.class);
 
+    private PolicyRetriever policyRetrieverMock = Mockito.mock(PolicyRetriever.class);
+
     private final TargetStore targetStoreMock = Mockito.mock(TargetStore.class);
 
     private final ProbeStore probeStoreMock = Mockito.mock(ProbeStore.class);
 
     private ActionExecutionContextFactory actionExecutionContextFactory =
             new ActionExecutionContextFactory(actionDataManager, entityStore, entityRetriever,
-                    targetStoreMock, probeStoreMock);
+                    targetStoreMock, probeStoreMock, policyRetrieverMock);
 
     private ActionExecutionRpcService actionExecutionBackend = new ActionExecutionRpcService(
             operationManager, actionExecutionContextFactory);
@@ -131,8 +142,27 @@ public class ActionExecutionRpcServiceTest {
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
                 .setActionId(0)
                 .setTargetId(targetId)
-                .setActionInfo(ActionInfo.newBuilder().setMove(moveSpec))
-                .setActionState(ActionState.IN_PROGRESS)
+                .setActionSpec(ActionDTO.ActionSpec.newBuilder()
+                    .setDescription(ACTION_DESCRIPTION)
+                    .setRecommendationTime(RECOMMENDATION_TIME)
+                    .setCategory(ActionDTO.ActionCategory.PERFORMANCE_ASSURANCE)
+                    .setSeverity(ActionDTO.Severity.CRITICAL)
+                    .setExplanation(IMPROVE_EFFICIENCY)
+                    .setDecision(ActionDTO.ActionDecision.newBuilder()
+                        .setDecisionTime(UPDATE_TIME)
+                        .setExecutionDecision(ActionDTO.ActionDecision.ExecutionDecision
+                            .newBuilder()
+                            .setReason(ActionDTO.ActionDecision.ExecutionDecision.Reason.MANUALLY_ACCEPTED)
+                            .setUserUuid(ACCEPTING_USER)
+                            .build())
+                        .build())
+                    .setRecommendation(ActionDTO.Action.newBuilder().setId(0)
+                        .setExplanation(ActionDTO.Explanation.getDefaultInstance())
+                        .setDeprecatedImportance(0)
+                        .setDisruptive(true)
+                        .setReversible(true)
+                        .setInfo(ActionInfo.newBuilder().setMove(moveSpec)))
+                    .setActionState(ActionState.IN_PROGRESS).build())
                 .build();
 
         List<ChangeProvider> changes = moveSpec.getChangesList();
@@ -151,20 +181,41 @@ public class ActionExecutionRpcServiceTest {
                 Mockito.eq(targetId), Mockito.anyLong(),
                 Mockito.eq(Stream.of(1L, 2L, 3L, 4L, 5L).collect(Collectors.toSet())));
 
-        Assert.assertEquals(request.getActionId(), actionExecutionCaptor.getValue().getActionOid());
-        final List<ActionItemDTO> dtos = actionExecutionCaptor.getValue().getActionItemList();
+        final ActionExecutionDTO executionDto = actionExecutionCaptor.getValue();
+
+        // verify execution dto fields
+        assertEquals(request.getActionId(), executionDto.getActionOid());
+        assertEquals(RECOMMENDATION_TIME, executionDto.getCreateTime());
+        assertEquals(UPDATE_TIME, executionDto.getUpdateTime());
+        assertEquals(ACCEPTING_USER, executionDto.getAcceptedBy());
+
+        final List<ActionItemDTO> dtos = executionDto.getActionItemList();
 
         ActionItemDTOValidator.validateRequest(dtos);
 
-        Assert.assertEquals(entities.get(moveSpec.getTarget().getId())
+        // verify primary action fields
+        ActionItemDTO primaryAction = dtos.get(0);
+        assertEquals(ACTION_DESCRIPTION, primaryAction.getDescription());
+
+        final ActionItemDTO.Risk risk = primaryAction.getRisk();
+        assertEquals(IMPROVE_EFFICIENCY, risk.getDescription());
+        assertEquals(ActionItemDTO.Risk.Category.PERFORMANCE_ASSURANCE, risk.getCategory());
+        assertEquals(ActionItemDTO.Risk.Severity.CRITICAL, risk.getSeverity());
+        assertTrue(risk.getAffectedCommodityList().isEmpty());
+
+        ActionItemDTO.ExecutionCharacteristics characteristics = primaryAction.getCharacteristics();
+        assertTrue(characteristics.getDisruptive());
+        assertTrue(characteristics.getReversible());
+
+        assertEquals(entities.get(moveSpec.getTarget().getId())
                 .getTargetInfo(targetId)
                 .get()
                 .getEntityInfo(), dtos.get(0).getTargetSE());
-        Assert.assertEquals(entities.get(moveSpec.getChanges(0).getSource().getId()).getTargetInfo(
+        assertEquals(entities.get(moveSpec.getChanges(0).getSource().getId()).getTargetInfo(
                 targetId).get().getEntityInfo(), dtos.get(0).getHostedBySE());
-        Assert.assertEquals(entities.get(moveSpec.getChanges(0).getSource().getId()).getTargetInfo(
+        assertEquals(entities.get(moveSpec.getChanges(0).getSource().getId()).getTargetInfo(
                 targetId).get().getEntityInfo(), dtos.get(0).getCurrentSE());
-        Assert.assertEquals(entities.get(moveSpec.getChanges(0).getDestination().getId())
+        assertEquals(entities.get(moveSpec.getChanges(0).getDestination().getId())
                 .getTargetInfo(targetId)
                 .get()
                 .getEntityInfo(), dtos.get(0).getNewSE());
@@ -188,8 +239,12 @@ public class ActionExecutionRpcServiceTest {
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
                 .setTargetId(targetId)
                 .setActionId(0L)
-                .setActionInfo(ActionInfo.newBuilder().setMove(move))
-                .setActionState(ActionState.IN_PROGRESS)
+                .setActionSpec(ActionDTO.ActionSpec.newBuilder()
+                    .setRecommendation(ActionDTO.Action.newBuilder().setId(0)
+                        .setExplanation(ActionDTO.Explanation.getDefaultInstance())
+                        .setDeprecatedImportance(0)
+                        .setInfo(ActionInfo.newBuilder().setMove(move)))
+                    .setActionState(ActionState.IN_PROGRESS).build())
                 .build();
 
         // Entity with ID 3 (destination) is missing.
@@ -220,9 +275,15 @@ public class ActionExecutionRpcServiceTest {
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
                 .setActionId(0)
                 .setTargetId(targetId)
-                .setActionInfo(ActionInfo.newBuilder().setMove(moveSpec))
+                .setActionSpec(ActionDTO.ActionSpec.newBuilder()
+                    .setRecommendation(ActionDTO.Action.newBuilder().setId(0)
+                        .setExplanation(ActionDTO.Explanation.getDefaultInstance())
+                        .setDeprecatedImportance(0)
+                        .setDisruptive(false)
+                        .setReversible(false)
+                        .setInfo(ActionInfo.newBuilder().setMove(moveSpec)))
+                    .setActionState(ActionState.IN_PROGRESS).build())
                 .setActionType(ActionDTO.ActionType.MOVE)
-            .setActionState(ActionState.IN_PROGRESS)
                 .build();
 
         final Map<Long, Entity> entities = initializeTopology(targetId,
@@ -241,20 +302,20 @@ public class ActionExecutionRpcServiceTest {
                 // Storage move is a CHANGE in the SDK
                 Mockito.eq(Stream.of(1L, 2L, 3L).collect(Collectors.toSet())));
 
-        Assert.assertEquals(request.getActionId(), actionExecutionCaptor.getValue().getActionOid());
+        assertEquals(request.getActionId(), actionExecutionCaptor.getValue().getActionOid());
         final List<ActionItemDTO> dtos = actionExecutionCaptor.getValue().getActionItemList();
 
         ActionItemDTOValidator.validateRequest(dtos);
 
-        Assert.assertEquals(entities.get(moveSpec.getTarget().getId())
+        assertEquals(entities.get(moveSpec.getTarget().getId())
                 .getTargetInfo(targetId)
                 .get()
                 .getEntityInfo(), dtos.get(0).getTargetSE());
-        Assert.assertEquals(entities.get(moveSpec.getChanges(0).getSource().getId()).getTargetInfo(
+        assertEquals(entities.get(moveSpec.getChanges(0).getSource().getId()).getTargetInfo(
                 targetId).get().getEntityInfo(), dtos.get(0).getHostedBySE());
-        Assert.assertEquals(entities.get(moveSpec.getChanges(0).getSource().getId()).getTargetInfo(
+        assertEquals(entities.get(moveSpec.getChanges(0).getSource().getId()).getTargetInfo(
                 targetId).get().getEntityInfo(), dtos.get(0).getCurrentSE());
-        Assert.assertEquals(entities.get(moveSpec.getChanges(0).getDestination().getId())
+        assertEquals(entities.get(moveSpec.getChanges(0).getDestination().getId())
                 .getTargetInfo(targetId)
                 .get()
                 .getEntityInfo(), dtos.get(0).getNewSE());
@@ -272,8 +333,14 @@ public class ActionExecutionRpcServiceTest {
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
                 .setActionId(0)
                 .setTargetId(targetId)
-                .setActionInfo(ActionInfo.newBuilder().setMove(moveSpec))
-                .setActionState(ActionState.IN_PROGRESS)
+                .setActionSpec(ActionDTO.ActionSpec.newBuilder()
+                    .setRecommendation(ActionDTO.Action.newBuilder().setId(0)
+                        .setExplanation(ActionDTO.Explanation.getDefaultInstance())
+                        .setDeprecatedImportance(0)
+                        .setDisruptive(false)
+                        .setReversible(true)
+                        .setInfo(ActionInfo.newBuilder().setMove(moveSpec)))
+                    .setActionState(ActionState.IN_PROGRESS).build())
                 .build();
 
         final Map<Long, Entity> entities = initializeTopology(targetId,
@@ -288,19 +355,19 @@ public class ActionExecutionRpcServiceTest {
                 Mockito.eq(targetId), Mockito.anyLong(),
                 Mockito.eq(Stream.of(1L, 2L, 3L).collect(Collectors.toSet())));
 
-        Assert.assertEquals(request.getActionId(), actionExecutionCaptor.getValue().getActionOid());
+        assertEquals(request.getActionId(), actionExecutionCaptor.getValue().getActionOid());
         final List<ActionItemDTO> dtos = actionExecutionCaptor.getValue().getActionItemList();
 
         ActionItemDTOValidator.validateRequest(dtos);
 
-        Assert.assertEquals(entities.get(moveSpec.getTarget().getId())
+        assertEquals(entities.get(moveSpec.getTarget().getId())
                 .getTargetInfo(targetId)
                 .get()
                 .getEntityInfo(), dtos.get(0).getTargetSE());
         Assert.assertFalse(dtos.get(0).hasHostedBySE());
-        Assert.assertEquals(entities.get(moveSpec.getChanges(0).getSource().getId()).getTargetInfo(
+        assertEquals(entities.get(moveSpec.getChanges(0).getSource().getId()).getTargetInfo(
                 targetId).get().getEntityInfo(), dtos.get(0).getCurrentSE());
-        Assert.assertEquals(entities.get(moveSpec.getChanges(0).getDestination().getId())
+        assertEquals(entities.get(moveSpec.getChanges(0).getDestination().getId())
                 .getTargetInfo(targetId)
                 .get()
                 .getEntityInfo(), dtos.get(0).getNewSE());
@@ -319,8 +386,12 @@ public class ActionExecutionRpcServiceTest {
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
                 .setTargetId(targetId1)
                 .setActionId(0L)
-                .setActionInfo(ActionInfo.newBuilder().setMove(move))
-                .setActionState(ActionState.IN_PROGRESS)
+                .setActionSpec(ActionDTO.ActionSpec.newBuilder()
+                    .setRecommendation(ActionDTO.Action.newBuilder().setId(0)
+                        .setExplanation(ActionDTO.Explanation.getDefaultInstance())
+                        .setDeprecatedImportance(0)
+                        .setInfo(ActionInfo.newBuilder().setMove(move)))
+                    .setActionState(ActionState.IN_PROGRESS).build())
                 .build();
 
         initializeTopology(targetId1, NewEntityRequest.virtualMachine(move.getTarget().getId(), move
@@ -348,9 +419,13 @@ public class ActionExecutionRpcServiceTest {
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
                 .setActionId(0)
                 .setTargetId(targetId)
-                .setActionInfo(ActionInfo.newBuilder().setResize(resizeSpec))
+                .setActionSpec(ActionDTO.ActionSpec.newBuilder()
+                    .setRecommendation(ActionDTO.Action.newBuilder().setId(0)
+                        .setExplanation(ActionDTO.Explanation.getDefaultInstance())
+                        .setDeprecatedImportance(0)
+                        .setInfo(ActionInfo.newBuilder().setResize(resizeSpec)))
+                    .setActionState(ActionState.IN_PROGRESS).build())
                 .setActionType(ActionDTO.ActionType.RESIZE)
-                .setActionState(ActionState.IN_PROGRESS)
                 .build();
 
         final Map<Long, Entity> entities = initializeTopology(targetId,
@@ -362,24 +437,24 @@ public class ActionExecutionRpcServiceTest {
         Mockito.verify(operationManager).requestActions(actionExecutionCaptor.capture(),
                 Mockito.eq(targetId), Mockito.anyLong(), Mockito.eq(Collections.singleton(1L)));
 
-        Assert.assertEquals(request.getActionId(), actionExecutionCaptor.getValue().getActionOid());
+        assertEquals(request.getActionId(), actionExecutionCaptor.getValue().getActionOid());
         final List<ActionItemDTO> dtos = actionExecutionCaptor.getValue().getActionItemList();
 
         //        ActionItemDTOValidator.validateRequest(dto);
 
-        Assert.assertEquals(entities.get(resizeSpec.getTarget().getId())
+        assertEquals(entities.get(resizeSpec.getTarget().getId())
                 .getTargetInfo(targetId)
                 .get()
                 .getEntityInfo(), dtos.get(0).getTargetSE());
-        Assert.assertEquals(CommodityAttribute.Capacity, dtos.get(0).getCommodityAttribute());
-        Assert.assertEquals(CommodityDTO.CommodityType.MEM, dtos.get(0)
+        assertEquals(CommodityAttribute.Capacity, dtos.get(0).getCommodityAttribute());
+        assertEquals(CommodityDTO.CommodityType.MEM, dtos.get(0)
                 .getCurrentComm()
                 .getCommodityType());
-        Assert.assertEquals(10, dtos.get(0).getCurrentComm().getCapacity(), 0);
-        Assert.assertEquals(CommodityDTO.CommodityType.MEM, dtos.get(0)
+        assertEquals(10, dtos.get(0).getCurrentComm().getCapacity(), 0);
+        assertEquals(CommodityDTO.CommodityType.MEM, dtos.get(0)
                 .getNewComm()
                 .getCommodityType());
-        Assert.assertEquals(20, dtos.get(0).getNewComm().getCapacity(), 0);
+        assertEquals(20, dtos.get(0).getNewComm().getCapacity(), 0);
     }
 
     @Test
@@ -395,8 +470,12 @@ public class ActionExecutionRpcServiceTest {
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
                 .setActionId(0)
                 .setTargetId(targetId)
-                .setActionInfo(ActionInfo.newBuilder().setResize(resizeSpec))
-                .setActionState(ActionState.IN_PROGRESS)
+                .setActionSpec(ActionDTO.ActionSpec.newBuilder()
+                    .setRecommendation(ActionDTO.Action.newBuilder().setId(0)
+                        .setExplanation(ActionDTO.Explanation.getDefaultInstance())
+                        .setDeprecatedImportance(0)
+                        .setInfo(ActionInfo.newBuilder().setResize(resizeSpec)))
+                    .setActionState(ActionState.IN_PROGRESS).build())
                 .build();
 
         // No entities in topology; target entity is missing.
@@ -420,8 +499,12 @@ public class ActionExecutionRpcServiceTest {
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
                 .setActionId(0)
                 .setTargetId(targetId)
-                .setActionInfo(ActionInfo.newBuilder().setResize(resizeSpec))
-                .setActionState(ActionState.IN_PROGRESS)
+                .setActionSpec(ActionDTO.ActionSpec.newBuilder()
+                    .setRecommendation(ActionDTO.Action.newBuilder().setId(0)
+                        .setExplanation(ActionDTO.Explanation.getDefaultInstance())
+                        .setDeprecatedImportance(0)
+                        .setInfo(ActionInfo.newBuilder().setResize(resizeSpec)))
+                    .setActionState(ActionState.IN_PROGRESS).build())
                 .build();
 
         // Include a virtual machine, but no host that matches the host ID.
@@ -444,8 +527,12 @@ public class ActionExecutionRpcServiceTest {
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
                 .setActionId(0)
                 .setTargetId(targetId)
-                .setActionInfo(ActionInfo.newBuilder().setActivate(activate))
-                .setActionState(ActionState.IN_PROGRESS)
+                .setActionSpec(ActionDTO.ActionSpec.newBuilder()
+                    .setRecommendation(ActionDTO.Action.newBuilder().setId(0)
+                        .setExplanation(ActionDTO.Explanation.getDefaultInstance())
+                        .setDeprecatedImportance(0)
+                        .setInfo(ActionInfo.newBuilder().setActivate(activate)))
+                    .setActionState(ActionState.IN_PROGRESS).build())
                 .build();
 
         final Map<Long, Entity> entities = initializeTopology(targetId,
@@ -457,17 +544,17 @@ public class ActionExecutionRpcServiceTest {
         Mockito.verify(operationManager).requestActions(actionExecutionCaptor.capture(),
                 Mockito.eq(targetId), Mockito.anyLong(), Mockito.eq(Collections.singleton(1L)));
 
-        Assert.assertEquals(request.getActionId(), actionExecutionCaptor.getValue().getActionOid());
+        assertEquals(request.getActionId(), actionExecutionCaptor.getValue().getActionOid());
         final List<ActionItemDTO> dtos = actionExecutionCaptor.getValue().getActionItemList();
 
         //        ActionItemDTOValidator.validateRequest(dto);
 
-        Assert.assertEquals(Long.toString(0), dtos.get(0).getUuid());
-        Assert.assertEquals(entities.get(activate.getTarget().getId())
+        assertEquals(Long.toString(0), dtos.get(0).getUuid());
+        assertEquals(entities.get(activate.getTarget().getId())
                 .getTargetInfo(targetId)
                 .get()
                 .getEntityInfo(), dtos.get(0).getTargetSE());
-        Assert.assertEquals(entities.get(7L).getTargetInfo(targetId).get().getEntityInfo(),
+        assertEquals(entities.get(7L).getTargetInfo(targetId).get().getEntityInfo(),
                 dtos.get(0).getHostedBySE());
     }
 
@@ -484,8 +571,12 @@ public class ActionExecutionRpcServiceTest {
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
                 .setActionId(0)
                 .setTargetId(targetId)
-                .setActionInfo(ActionInfo.newBuilder().setActivate(activate))
-                .setActionState(ActionState.IN_PROGRESS)
+                .setActionSpec(ActionDTO.ActionSpec.newBuilder()
+                    .setRecommendation(ActionDTO.Action.newBuilder().setId(0)
+                        .setExplanation(ActionDTO.Explanation.getDefaultInstance())
+                        .setDeprecatedImportance(0)
+                        .setInfo(ActionInfo.newBuilder().setActivate(activate)))
+                    .setActionState(ActionState.IN_PROGRESS).build())
                 .build();
 
         final Map<Long, Entity> entities = initializeTopology(targetId,
@@ -496,13 +587,13 @@ public class ActionExecutionRpcServiceTest {
         Mockito.verify(operationManager).requestActions(actionExecutionCaptor.capture(),
                 Mockito.eq(targetId), Mockito.anyLong(), Mockito.eq(Collections.singleton(1L)));
 
-        Assert.assertEquals(request.getActionId(), actionExecutionCaptor.getValue().getActionOid());
+        assertEquals(request.getActionId(), actionExecutionCaptor.getValue().getActionOid());
         final List<ActionItemDTO> dtos = actionExecutionCaptor.getValue().getActionItemList();
 
         ActionItemDTOValidator.validateRequest(dtos);
 
-        Assert.assertEquals(Long.toString(0), dtos.get(0).getUuid());
-        Assert.assertEquals(entities.get(activate.getTarget().getId())
+        assertEquals(Long.toString(0), dtos.get(0).getUuid());
+        assertEquals(entities.get(activate.getTarget().getId())
                 .getTargetInfo(targetId)
                 .get()
                 .getEntityInfo(), dtos.get(0).getTargetSE());
@@ -519,9 +610,13 @@ public class ActionExecutionRpcServiceTest {
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
                 .setActionId(0)
                 .setTargetId(targetId)
-                .setActionInfo(ActionInfo.newBuilder().setActivate(activate))
+                .setActionSpec(ActionDTO.ActionSpec.newBuilder()
+                    .setRecommendation(ActionDTO.Action.newBuilder().setId(0)
+                        .setExplanation(ActionDTO.Explanation.getDefaultInstance())
+                        .setDeprecatedImportance(0)
+                        .setInfo(ActionInfo.newBuilder().setActivate(activate)))
+                    .setActionState(ActionState.IN_PROGRESS).build())
                 .setActionType(ActionDTO.ActionType.ACTIVATE)
-                .setActionState(ActionState.IN_PROGRESS)
                 .build();
 
         final Map<Long, Entity> entities = initializeTopology(targetId,
@@ -532,13 +627,13 @@ public class ActionExecutionRpcServiceTest {
         Mockito.verify(operationManager).requestActions(actionExecutionCaptor.capture(),
                 Mockito.eq(targetId), Mockito.anyLong(), Mockito.eq(Collections.singleton(1L)));
 
-        Assert.assertEquals(request.getActionId(), actionExecutionCaptor.getValue().getActionOid());
+        assertEquals(request.getActionId(), actionExecutionCaptor.getValue().getActionOid());
         final List<ActionItemDTO> dtos = actionExecutionCaptor.getValue().getActionItemList();
 
         ActionItemDTOValidator.validateRequest(dtos);
 
-        Assert.assertEquals(Long.toString(0), dtos.get(0).getUuid());
-        Assert.assertEquals(entities.get(activate.getTarget().getId())
+        assertEquals(Long.toString(0), dtos.get(0).getUuid());
+        assertEquals(entities.get(activate.getTarget().getId())
                 .getTargetInfo(targetId)
                 .get()
                 .getEntityInfo(), dtos.get(0).getTargetSE());
@@ -555,8 +650,12 @@ public class ActionExecutionRpcServiceTest {
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
                 .setActionId(0)
                 .setTargetId(targetId)
-                .setActionInfo(ActionInfo.newBuilder().setActivate(activate))
-                .setActionState(ActionState.IN_PROGRESS)
+                .setActionSpec(ActionDTO.ActionSpec.newBuilder()
+                    .setRecommendation(ActionDTO.Action.newBuilder().setId(0)
+                        .setExplanation(ActionDTO.Explanation.getDefaultInstance())
+                        .setDeprecatedImportance(0)
+                        .setInfo(ActionInfo.newBuilder().setActivate(activate)))
+                    .setActionState(ActionState.IN_PROGRESS).build())
                 .build();
 
         // Empty topology.
@@ -578,8 +677,12 @@ public class ActionExecutionRpcServiceTest {
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
                 .setActionId(0)
                 .setTargetId(targetId)
-                .setActionInfo(ActionInfo.newBuilder().setActivate(activate))
-                .setActionState(ActionState.IN_PROGRESS)
+                .setActionSpec(ActionDTO.ActionSpec.newBuilder()
+                    .setRecommendation(ActionDTO.Action.newBuilder().setId(0)
+                        .setExplanation(ActionDTO.Explanation.getDefaultInstance())
+                        .setDeprecatedImportance(0)
+                        .setInfo(ActionInfo.newBuilder().setActivate(activate)))
+                    .setActionState(ActionState.IN_PROGRESS).build())
                 .build();
 
         // No host for VM topology.
@@ -601,8 +704,12 @@ public class ActionExecutionRpcServiceTest {
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
                 .setActionId(0)
                 .setTargetId(targetId)
-                .setActionInfo(ActionInfo.newBuilder().setDeactivate(deactivate))
-                .setActionState(ActionState.IN_PROGRESS)
+                .setActionSpec(ActionDTO.ActionSpec.newBuilder()
+                    .setRecommendation(ActionDTO.Action.newBuilder().setId(0)
+                        .setExplanation(ActionDTO.Explanation.getDefaultInstance())
+                        .setDeprecatedImportance(0)
+                        .setInfo(ActionInfo.newBuilder().setDeactivate(deactivate)))
+                    .setActionState(ActionState.IN_PROGRESS).build())
                 .build();
 
         final Map<Long, Entity> entities = initializeTopology(targetId,
@@ -615,17 +722,17 @@ public class ActionExecutionRpcServiceTest {
                 Mockito.eq(targetId), Mockito.anyLong(),
                 Mockito.eq(Collections.singleton(entityId)));
 
-        Assert.assertEquals(request.getActionId(), actionExecutionCaptor.getValue().getActionOid());
+        assertEquals(request.getActionId(), actionExecutionCaptor.getValue().getActionOid());
         final List<ActionItemDTO> dtos = actionExecutionCaptor.getValue().getActionItemList();
 
         ActionItemDTOValidator.validateRequest(dtos);
 
-        Assert.assertEquals(Long.toString(0), dtos.get(0).getUuid());
-        Assert.assertEquals(entities.get(deactivate.getTarget().getId())
+        assertEquals(Long.toString(0), dtos.get(0).getUuid());
+        assertEquals(entities.get(deactivate.getTarget().getId())
                 .getTargetInfo(targetId)
                 .get()
                 .getEntityInfo(), dtos.get(0).getTargetSE());
-        Assert.assertEquals(entities.get(7L).getTargetInfo(targetId).get().getEntityInfo(),
+        assertEquals(entities.get(7L).getTargetInfo(targetId).get().getEntityInfo(),
                 dtos.get(0).getHostedBySE());
     }
 
@@ -642,8 +749,12 @@ public class ActionExecutionRpcServiceTest {
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
                 .setActionId(0)
                 .setTargetId(targetId)
-                .setActionInfo(ActionInfo.newBuilder().setDeactivate(deactivate))
-                .setActionState(ActionState.IN_PROGRESS)
+                .setActionSpec(ActionDTO.ActionSpec.newBuilder()
+                    .setRecommendation(ActionDTO.Action.newBuilder().setId(0)
+                        .setExplanation(ActionDTO.Explanation.getDefaultInstance())
+                        .setDeprecatedImportance(0)
+                        .setInfo(ActionInfo.newBuilder().setDeactivate(deactivate)))
+                    .setActionState(ActionState.IN_PROGRESS).build())
                 .build();
 
         final Map<Long, Entity> entities = initializeTopology(targetId,
@@ -655,13 +766,13 @@ public class ActionExecutionRpcServiceTest {
                 Mockito.eq(targetId), Mockito.anyLong(),
                 Mockito.eq(Collections.singleton(entityId)));
 
-        Assert.assertEquals(request.getActionId(), actionExecutionCaptor.getValue().getActionOid());
+        assertEquals(request.getActionId(), actionExecutionCaptor.getValue().getActionOid());
         final List<ActionItemDTO> dtos = actionExecutionCaptor.getValue().getActionItemList();
 
         ActionItemDTOValidator.validateRequest(dtos);
 
-        Assert.assertEquals(Long.toString(0), dtos.get(0).getUuid());
-        Assert.assertEquals(entities.get(deactivate.getTarget().getId())
+        assertEquals(Long.toString(0), dtos.get(0).getUuid());
+        assertEquals(entities.get(deactivate.getTarget().getId())
                 .getTargetInfo(targetId)
                 .get()
                 .getEntityInfo(), dtos.get(0).getTargetSE());
@@ -678,9 +789,13 @@ public class ActionExecutionRpcServiceTest {
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
                 .setActionId(0)
                 .setTargetId(targetId)
-                .setActionInfo(ActionInfo.newBuilder().setDeactivate(deactivate))
+                .setActionSpec(ActionDTO.ActionSpec.newBuilder()
+                    .setRecommendation(ActionDTO.Action.newBuilder().setId(0)
+                        .setExplanation(ActionDTO.Explanation.getDefaultInstance())
+                        .setDeprecatedImportance(0)
+                        .setInfo(ActionInfo.newBuilder().setDeactivate(deactivate)))
+                    .setActionState(ActionState.IN_PROGRESS).build())
                 .setActionType(ActionDTO.ActionType.DEACTIVATE)
-                .setActionState(ActionState.IN_PROGRESS)
                 .build();
 
         final Map<Long, Entity> entities = initializeTopology(targetId,
@@ -692,13 +807,13 @@ public class ActionExecutionRpcServiceTest {
                 Mockito.eq(targetId), Mockito.anyLong(),
                 Mockito.eq(Collections.singleton(entityId)));
 
-        Assert.assertEquals(request.getActionId(), actionExecutionCaptor.getValue().getActionOid());
+        assertEquals(request.getActionId(), actionExecutionCaptor.getValue().getActionOid());
         final List<ActionItemDTO> dtos = actionExecutionCaptor.getValue().getActionItemList();
 
         ActionItemDTOValidator.validateRequest(dtos);
 
-        Assert.assertEquals(Long.toString(0), dtos.get(0).getUuid());
-        Assert.assertEquals(entities.get(deactivate.getTarget().getId())
+        assertEquals(Long.toString(0), dtos.get(0).getUuid());
+        assertEquals(entities.get(deactivate.getTarget().getId())
                 .getTargetInfo(targetId)
                 .get()
                 .getEntityInfo(), dtos.get(0).getTargetSE());
@@ -715,8 +830,12 @@ public class ActionExecutionRpcServiceTest {
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
                 .setActionId(0)
                 .setTargetId(targetId)
-                .setActionInfo(ActionInfo.newBuilder().setDeactivate(deactivate))
-                .setActionState(ActionState.IN_PROGRESS)
+                .setActionSpec(ActionDTO.ActionSpec.newBuilder()
+                    .setRecommendation(ActionDTO.Action.newBuilder().setId(0)
+                        .setDeprecatedImportance(0)
+                        .setExplanation(ActionDTO.Explanation.getDefaultInstance())
+                        .setInfo(ActionInfo.newBuilder().setDeactivate(deactivate)))
+                    .setActionState(ActionState.IN_PROGRESS).build())
                 .build();
 
         // Empty topology.
@@ -738,8 +857,12 @@ public class ActionExecutionRpcServiceTest {
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
                 .setActionId(0)
                 .setTargetId(targetId)
-                .setActionInfo(ActionInfo.newBuilder().setDeactivate(deactivate))
-                .setActionState(ActionState.IN_PROGRESS)
+                .setActionSpec(ActionDTO.ActionSpec.newBuilder()
+                    .setRecommendation(ActionDTO.Action.newBuilder().setId(0)
+                        .setExplanation(ActionDTO.Explanation.getDefaultInstance())
+                        .setDeprecatedImportance(0)
+                        .setInfo(ActionInfo.newBuilder().setDeactivate(deactivate)))
+                    .setActionState(ActionState.IN_PROGRESS).build())
                 .build();
 
         // No host for VM topology.

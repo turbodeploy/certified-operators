@@ -99,9 +99,6 @@ public class ActionDTOUtil {
             EntityType.COMPUTE_TIER_VALUE, EntityType.DATABASE_SERVER_TIER_VALUE,
             EntityType.STORAGE_TIER_VALUE, EntityType.DATABASE_TIER_VALUE);
 
-    // String constant for displayName.
-    public static final String DISPLAY_NAME = "displayName";
-
     private static final ImmutableMap<Integer, String> CLOUD_SCALE_ACTION_ENTITY_TYPE_DISPLAYNAME
             = ImmutableMap.of(EntityType.VIRTUAL_VOLUME_VALUE, "Volume");
 
@@ -1005,13 +1002,13 @@ public class ActionDTOUtil {
     /**
      * Create a translation chunk using the given properties.
      *
-     * @param entityOid
-     * @param field
-     * @param defaultValue
-     * @return
+     * @param entityOid the oid of entity.
+     * @param field  the field.
+     * @param defaultValue the default value.
+     * @return the translate block.
      */
-    public static String createTranslationBlock(long entityOid, @Nonnull String field, @Nonnull String defaultValue) {
-        return "{entity:"+ entityOid +":"+ field +":"+ defaultValue +"}";
+    public static String createTranslationBlock(long entityOid, @Nonnull EntityField field, @Nonnull String defaultValue) {
+        return "{entity:" + entityOid + ":" + field.getPlaceholder() + ":" + defaultValue + "}";
     }
 
     /**
@@ -1021,7 +1018,7 @@ public class ActionDTOUtil {
      * @return the translation
      */
     public static String buildEntityName(ActionEntity entity) {
-        return ActionDTOUtil.createTranslationBlock(entity.getId(), DISPLAY_NAME, "");
+        return ActionDTOUtil.createTranslationBlock(entity.getId(), EntityField.DISPLAY_NAME, "");
     }
 
     /**
@@ -1034,7 +1031,7 @@ public class ActionDTOUtil {
      */
     public static String buildEntityTypeAndName(ActionEntity entity) {
         return ActionDTOUtil.upperUnderScoreToMixedSpaces(EntityType.forNumber(entity.getType()).name())
-            + " " + ActionDTOUtil.createTranslationBlock(entity.getId(), DISPLAY_NAME, "");
+            + " " + ActionDTOUtil.createTranslationBlock(entity.getId(), EntityField.DISPLAY_NAME, "");
     }
 
     /**
@@ -1049,7 +1046,7 @@ public class ActionDTOUtil {
      * @return the translation
      */
     public static String buildEntityNameOrType(ActionEntity entity) {
-        return ActionDTOUtil.createTranslationBlock(entity.getId(), DISPLAY_NAME,
+        return ActionDTOUtil.createTranslationBlock(entity.getId(), EntityField.DISPLAY_NAME,
             ActionDTOUtil.upperUnderScoreToMixedSpaces(EntityType.forNumber(entity.getType()).name()));
     }
 
@@ -1109,4 +1106,48 @@ public class ActionDTOUtil {
                 .toString();
     }
 
+    /**
+     * The different accessible fields for an entity.
+     */
+    public enum EntityField {
+        /**
+         * The display name of the entity.
+         */
+        DISPLAY_NAME("displayName");
+
+        private final String placeholder;
+
+        /**
+         * The constructor for enum.
+         *
+         * @param placeholder the placeholder in the translation block.
+         */
+        EntityField(String placeholder) {
+            this.placeholder = placeholder;
+        }
+
+        /**
+         * The placeholder text for the field.
+         *
+         * @return the placeholder text.
+         */
+        public String getPlaceholder() {
+            return placeholder;
+        }
+
+        /**
+         * Gets the field based on the input placeholder.
+         *
+         * @param placeholder the placeholder text.
+         * @return the entity field.
+         */
+        public static Optional<EntityField> findFieldBasedOnPlaceholder(@Nonnull String placeholder) {
+            for (EntityField field : EntityField.values()) {
+                if (field.getPlaceholder().equals(placeholder)) {
+                    return Optional.of(field);
+                }
+            }
+            return Optional.empty();
+        }
+    }
 }

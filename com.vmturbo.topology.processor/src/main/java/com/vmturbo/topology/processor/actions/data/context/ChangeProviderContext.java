@@ -26,6 +26,7 @@ import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
+import com.vmturbo.topology.processor.actions.data.PolicyRetriever;
 import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.probes.ProbeStore;
@@ -51,8 +52,10 @@ public abstract class ChangeProviderContext extends AbstractActionExecutionConte
                         @Nonnull final EntityStore entityStore,
                         @Nonnull final EntityRetriever entityRetriever,
                         @Nonnull final TargetStore targetStore,
-                        @Nonnull final ProbeStore probeStore) {
-        super(request, dataManager, entityStore, entityRetriever, targetStore, probeStore);
+                        @Nonnull final ProbeStore probeStore,
+                        @Nonnull final PolicyRetriever policyRetriever) {
+        super(request, dataManager, entityStore, entityRetriever, targetStore, probeStore,
+            policyRetriever);
     }
 
     /**
@@ -140,6 +143,10 @@ public abstract class ChangeProviderContext extends AbstractActionExecutionConte
             builders.addAll(getActionItemsForUnchangedStorageProviders(fullEntityDTO,
                     changeProviderList));
         }
+
+        // populate description, risk, execution characteristics
+        populatedPrimaryActionAdditionalFields(builders);
+
         logger.info("ActionDTO builders created for action {}", getActionId());
         return builders;
     }

@@ -36,7 +36,6 @@ import com.vmturbo.action.orchestrator.execution.ActionExecutor.SynchronousExecu
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionFailure;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionSuccess;
@@ -86,8 +85,11 @@ public class ActionExecutorTest {
 
     private final long targetEntityId = 1L;
 
-    private final ActionDTO.Action testAction =
-        testActionBuilder.buildMoveAction(targetEntityId, 2L, 1, 3L, 1);
+    private final ActionDTO.ActionSpec testAction = ActionDTO.ActionSpec.newBuilder()
+        .setRecommendation(
+            testActionBuilder
+                .buildMoveAction(targetEntityId, 2L, 1, 3L, 1))
+        .build();
 
     private final LicenseCheckClient licenseCheckClient = mock(LicenseCheckClient.class);
 
@@ -172,7 +174,7 @@ public class ActionExecutorTest {
     public void testMove() {
 
         try {
-            actionExecutor.execute(targetId, testAction, workflowOpt, ActionState.IN_PROGRESS);
+            actionExecutor.execute(targetId, testAction, workflowOpt);
         } catch (ExecutionStartException e) {
             // We expect this to happen, since the backend implementation
             // is not implemented.
@@ -182,9 +184,10 @@ public class ActionExecutorTest {
         // and examine the arguments.
         verify(actionExecutionBackend).executeAction(actionSpecCaptor.capture(), any());
         final ExecuteActionRequest sentSpec = actionSpecCaptor.getValue();
-        assertTrue(sentSpec.hasActionInfo());
-        Assert.assertEquals(ActionTypeCase.MOVE, sentSpec.getActionInfo().getActionTypeCase());
-        final Move move = sentSpec.getActionInfo().getMove();
+        ActionDTO.ActionInfo info = sentSpec.getActionSpec().getRecommendation().getInfo();
+        assertTrue(sentSpec.hasActionSpec());
+        Assert.assertEquals(ActionTypeCase.MOVE, info.getActionTypeCase());
+        final Move move = info.getMove();
         Assert.assertEquals(targetId, sentSpec.getTargetId());
         Assert.assertEquals(targetEntityId, move.getTarget().getId());
         Assert.assertEquals(1, move.getChangesCount());
@@ -207,10 +210,11 @@ public class ActionExecutorTest {
         when(executionStateFactory.newState()).thenReturn(state);
 
         try {
-            actionExecutor.executeSynchronously(targetId, testAction, workflowOpt, ActionState.IN_PROGRESS);
+            actionExecutor.executeSynchronously(targetId, testAction, workflowOpt);
             Assert.fail("Expected synchronous execution exception.");
         } catch (SynchronousExecutionException e) {
-            Assert.assertEquals(testAction.getId(), e.getFailure().getActionId());
+            Assert.assertEquals(testAction.getRecommendation().getId(),
+                e.getFailure().getActionId());
             assertTrue(e.getFailure().getErrorDescription().contains("Action timed out"));
         }
     }
@@ -226,10 +230,10 @@ public class ActionExecutorTest {
         when(executionStateFactory.newState()).thenReturn(state);
 
         // This should return, because the mock SynchronousExecutionState is not blocking.
-        actionExecutor.executeSynchronously(targetId, testAction, workflowOpt, ActionState.IN_PROGRESS);
+        actionExecutor.executeSynchronously(targetId, testAction, workflowOpt);
 
         actionExecutor.onActionSuccess(ActionSuccess.newBuilder()
-            .setActionId(testAction.getId())
+            .setActionId(testAction.getRecommendation().getId())
             .build());
 
         // We should find the state, and complete it.
@@ -247,11 +251,11 @@ public class ActionExecutorTest {
         when(executionStateFactory.newState()).thenReturn(state);
 
         // This should return, because the mock SynchronousExecutionState is not blocking.
-        actionExecutor.executeSynchronously(targetId, testAction, workflowOpt, ActionState.IN_PROGRESS);
+        actionExecutor.executeSynchronously(targetId, testAction, workflowOpt);
 
         // Notify about the failure.
         ActionFailure failure = ActionFailure.newBuilder()
-            .setActionId(testAction.getId())
+            .setActionId(testAction.getRecommendation().getId())
             .setErrorDescription("boo")
             .build();
         actionExecutor.onActionFailure(failure);
@@ -275,15 +279,17 @@ public class ActionExecutorTest {
         when(executionStateFactory.newState()).thenReturn(state1, state2);
 
         // This should return, because the mock SynchronousExecutionState is not blocking.
-        actionExecutor.executeSynchronously(targetId, testAction, workflowOpt, ActionState.IN_PROGRESS);
+        actionExecutor.executeSynchronously(targetId, testAction, workflowOpt);
         // Fake-execute another action. We want to make sure this one DOESN'T get lost.
-        actionExecutor.executeSynchronously(targetId, testAction.toBuilder()
-            .setId(testAction.getId() + 1)
-            .build(), workflowOpt, ActionState.IN_PROGRESS);
+        ActionDTO.ActionSpec modifiedSpec = ActionDTO.ActionSpec.newBuilder()
+            .setRecommendation(testAction.getRecommendation().toBuilder().setId(
+                testAction.getRecommendation().getId() + 1))
+            .build();
+        actionExecutor.executeSynchronously(targetId, modifiedSpec, workflowOpt);
 
         final ActionsLost lost = ActionsLost.newBuilder()
             .setLostActionId(ActionIds.newBuilder()
-                .addActionIds(testAction.getId()))
+                .addActionIds(testAction.getRecommendation().getId()))
             .build();
         actionExecutor.onActionsLost(lost);
 
@@ -292,7 +298,7 @@ public class ActionExecutorTest {
         verify(state1).complete(exceptionCaptor.capture());
 
         assertThat(exceptionCaptor.getValue().getFailure(), is(ActionFailure.newBuilder()
-            .setActionId(testAction.getId())
+            .setActionId(testAction.getRecommendation().getId())
             .setErrorDescription("Topology Processor lost action state.")
             .build()));
 
@@ -319,11 +325,13 @@ public class ActionExecutorTest {
         when(executionStateFactory.newState()).thenReturn(state1, state2);
 
         // This should return, because the mock SynchronousExecutionState is not blocking.
-        actionExecutor.executeSynchronously(targetId, testAction, workflowOpt, ActionState.IN_PROGRESS);
+        actionExecutor.executeSynchronously(targetId, testAction, workflowOpt);
         // Fake-execute another action. We want to make sure this one DOESN'T get lost.
-        actionExecutor.executeSynchronously(targetId, testAction.toBuilder()
-            .setId(testAction.getId() + 1)
-            .build(), workflowOpt, ActionState.IN_PROGRESS);
+        ActionDTO.ActionSpec modifiedSpec = ActionDTO.ActionSpec.newBuilder()
+            .setRecommendation(testAction.getRecommendation().toBuilder().setId(
+                testAction.getRecommendation().getId() + 1))
+            .build();
+        actionExecutor.executeSynchronously(targetId, modifiedSpec, workflowOpt);
         actionExecutor.onActionsLost(lost);
 
         // We should find the state for the action that started before the time, and complete it.
@@ -332,7 +340,7 @@ public class ActionExecutorTest {
         verify(state1).complete(exceptionCaptor.capture());
 
         assertThat(exceptionCaptor.getValue().getFailure(), is(ActionFailure.newBuilder()
-            .setActionId(testAction.getId())
+            .setActionId(testAction.getRecommendation().getId())
             .setErrorDescription("Topology Processor lost action state.")
             .build()));
 
@@ -346,6 +354,6 @@ public class ActionExecutorTest {
     @Test(expected = ExecutionStartException.class)
     public void testActionWithInvalidLicense() throws ExecutionStartException {
         when(licenseCheckClient.hasValidNonExpiredLicense()).thenReturn(false);
-        actionExecutor.execute(targetId, testAction, workflowOpt, ActionState.IN_PROGRESS);
+        actionExecutor.execute(targetId, testAction, workflowOpt);
     }
 }
