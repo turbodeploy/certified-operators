@@ -450,5 +450,6 @@ then
   kubectl create -f ${roleBindingFile} -n turbonomic
   kubectl create -f ${crdsFile} -n turbonomic
   kubectl create -f ${operetorFile} -n turbonomic
+  sleep 10
   kubectl create -f ${chartsFile} -n turbonomic
 fi
