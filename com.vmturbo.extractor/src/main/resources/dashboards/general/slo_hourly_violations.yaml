@@ -1,0 +1,587 @@
+---
+annotations:
+  list:
+    - builtIn: 1
+      datasource: "-- Grafana --"
+      enable: true
+      hide: true
+      iconColor: rgba(0, 211, 255, 1)
+      name: Annotations & Alerts
+      type: dashboard
+editable: false
+gnetId:
+graphTooltip: 1
+iteration: 1609561574546
+links: []
+panels:
+  - aliasColors: {}
+    bars: false
+    dashLength: 10
+    dashes: false
+    datasource: "$DB"
+    fieldConfig:
+      defaults:
+        custom: {}
+      overrides: []
+    fill: 0
+    fillGradient: 0
+    gridPos:
+      h: 10
+      w: 24
+      x: 0
+      y: 0
+    hiddenSeries: false
+    id: 5
+    legend:
+      avg: false
+      current: false
+      max: false
+      min: false
+      show: true
+      total: false
+      values: false
+    lines: true
+    linewidth: 3
+    nullPointMode: 'null'
+    percentage: false
+    pluginVersion: 7.1.1
+    pointradius: 2
+    points: false
+    renderer: flot
+    seriesOverrides:
+      - alias: Daily Error
+        bars: true
+        lines: false
+    spaceLength: 10
+    stack: false
+    steppedLine: false
+    targets:
+      - format: time_series
+        group: []
+        metricColumn: none
+        rawQuery: true
+        rawSql: |-
+                  SELECT hour as time
+                        ,error as "Hourly Error"
+                        ,AVG(error) OVER (ORDER BY hour ROWS BETWEEN $ma_hours - 1 PRECEDING AND CURRENT ROW) as "Moving Error"
+
+                  FROM
+                       (SELECT DATE_TRUNC('hour', time) as hour
+                              ,SUM(CASE WHEN current - capacity*$desired_factor > 0
+                                        THEN current - capacity*$desired_factor
+                                        ELSE 0
+                                   END) as error
+                          FROM metric
+                         WHERE type = ${metric_type:singlequote}
+                           AND time BETWEEN $__timeFrom() AND $__timeTo()
+                         GROUP BY 1) as data;
+        refId: A
+        select:
+          - - params:
+                - savings
+              type: column
+        table: action_spec
+        timeColumn: first_seen
+        timeColumnType: timestamp
+        where:
+          - name: "$__timeFilter"
+            params: []
+            type: macro
+    thresholds: []
+    timeFrom:
+    timeRegions: []
+    timeShift:
+    title: Environment Out of Compliance
+    tooltip:
+      shared: true
+      sort: 0
+      value_type: individual
+    type: graph
+    xaxis:
+      buckets:
+      mode: time
+      name:
+      show: true
+      values: []
+    yaxes:
+      - format: short
+        label:
+        logBase: 1
+        max:
+        min:
+        show: true
+      - format: short
+        label:
+        logBase: 1
+        max:
+        min:
+        show: true
+    yaxis:
+      align: false
+      alignLevel:
+  - aliasColors: {}
+    bars: true
+    dashLength: 10
+    dashes: false
+    datasource: "$DB"
+    fieldConfig:
+      defaults:
+        custom: {}
+      overrides: []
+    fill: 1
+    fillGradient: 0
+    gridPos:
+      h: 8
+      w: 24
+      x: 0
+      y: 10
+    hiddenSeries: false
+    id: 10
+    legend:
+      avg: false
+      current: false
+      max: false
+      min: false
+      show: true
+      total: false
+      values: false
+    lines: false
+    linewidth: 1
+    nullPointMode: 'null'
+    percentage: false
+    pluginVersion: 7.1.1
+    pointradius: 2
+    points: false
+    renderer: flot
+    seriesOverrides: []
+    spaceLength: 10
+    stack: true
+    steppedLine: false
+    targets:
+      - format: time_series
+        group: []
+        metricColumn: none
+        rawQuery: true
+        rawSql: |-
+                SELECT
+                    DATE_TRUNC('hour', time) as time,
+                    count(DISTINCT action_oid) FILTER (
+                 where
+                    state = 'READY') as "Generated",
+                    count(DISTINCT action_oid) FILTER (
+                 where
+                    state = 'SUCCEEDED') as "Successful" FROM (
+                    SELECT
+                       time, action_oid, state
+                    FROM
+                       action
+                       JOIN
+                          action_spec
+                          on action_spec.spec_oid = action.action_spec_oid
+                          and action_spec.hash = action.action_spec_hash
+                    WHERE
+                       time BETWEEN $__timeFrom() AND $__timeTo()
+                       AND
+                       (
+                          $__timeFrom(),
+                          $__timeTo()
+                       )
+                       OVERLAPS (first_seen, last_seen)
+                       AND state in
+                       (
+                          'SUCCEEDED',
+                          'READY'
+                       )
+                 ) as data GROUP BY 1
+        refId: A
+        select:
+          - - params:
+                - value
+              type: column
+        timeColumn: time
+        where:
+          - name: "$__timeFilter"
+            params: []
+            type: macro
+    thresholds: []
+    timeFrom:
+    timeRegions: []
+    timeShift:
+    title: Actions by State per Day
+    tooltip:
+      shared: true
+      sort: 0
+      value_type: individual
+    type: graph
+    xaxis:
+      buckets:
+      mode: time
+      name:
+      show: true
+      values: []
+    yaxes:
+      - format: short
+        label:
+        logBase: 1
+        max:
+        min:
+        show: true
+      - format: short
+        label:
+        logBase: 1
+        max:
+        min:
+        show: true
+    yaxis:
+      align: false
+      alignLevel:
+  - aliasColors: {}
+    bars: true
+    dashLength: 10
+    dashes: false
+    datasource: "$DB"
+    fieldConfig:
+      defaults:
+        custom: {}
+      overrides: []
+    fill: 1
+    fillGradient: 0
+    gridPos:
+      h: 8
+      w: 24
+      x: 0
+      y: 18
+    hiddenSeries: false
+    id: 4
+    legend:
+      avg: false
+      current: false
+      max: false
+      min: false
+      show: true
+      total: false
+      values: false
+    lines: false
+    linewidth: 1
+    nullPointMode: 'null'
+    percentage: false
+    pluginVersion: 7.1.1
+    pointradius: 2
+    points: false
+    renderer: flot
+    seriesOverrides: []
+    spaceLength: 10
+    stack: true
+    steppedLine: false
+    targets:
+      - format: time_series
+        group: []
+        metricColumn: none
+        rawQuery: true
+        rawSql: |-
+                SELECT
+                    DATE_TRUNC('hour', time) as time,
+                    count(DISTINCT action_oid) FILTER (
+                 where
+                    type = 'MOVE') as "MOVE",
+                    count(DISTINCT action_oid) FILTER (
+                 where
+                    type = 'PROVISION') as "PROVISION",
+                    count(DISTINCT action_oid) FILTER (
+                 where
+                    type = 'RESIZE') as "RESIZE",
+                    count(DISTINCT action_oid) FILTER (
+                 where
+                    type = 'DEACTIVATE') as "DEACTIVATE" FROM (
+                    SELECT
+                       time, action_oid, type
+                    FROM
+                       action
+                       JOIN
+                          action_spec
+                          on action_spec.spec_oid = action.action_spec_oid
+                          and action_spec.hash = action.action_spec_hash
+                    WHERE
+                       time BETWEEN $__timeFrom() AND $__timeTo()
+                       AND
+                       (
+                          $__timeFrom(),
+                          $__timeTo()
+                       )
+                       OVERLAPS (first_seen, last_seen)
+                       AND state = 'SUCCEEDED') as data GROUP BY 1
+        refId: A
+        select:
+          - - params:
+                - value
+              type: column
+        timeColumn: time
+        where:
+          - name: "$__timeFilter"
+            params: []
+            type: macro
+    thresholds: []
+    timeFrom:
+    timeRegions: []
+    timeShift:
+    title: Successful Actions by Type per Day
+    tooltip:
+      shared: true
+      sort: 0
+      value_type: individual
+    type: graph
+    xaxis:
+      buckets:
+      mode: time
+      name:
+      show: true
+      values: []
+    yaxes:
+      - format: short
+        label:
+        logBase: 1
+        max:
+        min:
+        show: true
+      - format: short
+        label:
+        logBase: 1
+        max:
+        min:
+        show: true
+    yaxis:
+      align: false
+      alignLevel:
+  - aliasColors: {}
+    bars: true
+    dashLength: 10
+    dashes: false
+    datasource: "$DB"
+    fieldConfig:
+      defaults:
+        custom: {}
+      overrides: []
+    fill: 1
+    fillGradient: 0
+    gridPos:
+      h: 8
+      w: 24
+      x: 0
+      y: 26
+    hiddenSeries: false
+    id: 9
+    legend:
+      avg: false
+      current: false
+      max: false
+      min: false
+      show: true
+      total: false
+      values: false
+    lines: false
+    linewidth: 1
+    nullPointMode: 'null'
+    percentage: false
+    pluginVersion: 7.1.1
+    pointradius: 2
+    points: false
+    renderer: flot
+    seriesOverrides: []
+    spaceLength: 10
+    stack: true
+    steppedLine: false
+    targets:
+      - format: time_series
+        group: []
+        metricColumn: none
+        rawQuery: true
+        rawSql: |-
+                SELECT
+                    DATE_TRUNC('hour', time) as time,
+                    count(DISTINCT action_oid) FILTER (
+                 where
+                    type = 'MOVE') as "MOVE",
+                    count(DISTINCT action_oid) FILTER (
+                 where
+                    type = 'PROVISION') as "PROVISION",
+                    count(DISTINCT action_oid) FILTER (
+                 where
+                    type = 'RESIZE') as "RESIZE",
+                    count(DISTINCT action_oid) FILTER (
+                 where
+                    type = 'DEACTIVATE') as "DEACTIVATE" FROM (
+                    SELECT
+                       time, action_oid, type
+                    FROM
+                       action
+                       JOIN
+                          action_spec
+                          on action_spec.spec_oid = action.action_spec_oid
+                          and action_spec.hash = action.action_spec_hash
+                    WHERE
+                       time BETWEEN $__timeFrom() AND $__timeTo()
+                       AND
+                       (
+                          $__timeFrom(),
+                          $__timeTo()
+                       )
+                       OVERLAPS (first_seen, last_seen)
+                       AND state = 'READY') as data GROUP BY 1
+        refId: A
+        select:
+          - - params:
+                - value
+              type: column
+        timeColumn: time
+        where:
+          - name: "$__timeFilter"
+            params: []
+            type: macro
+    thresholds: []
+    timeFrom:
+    timeRegions: []
+    timeShift:
+    title: Pending Actions by Type per Day
+    tooltip:
+      shared: true
+      sort: 0
+      value_type: individual
+    type: graph
+    xaxis:
+      buckets:
+      mode: time
+      name:
+      show: true
+      values: []
+    yaxes:
+      - format: short
+        label:
+        logBase: 1
+        max:
+        min:
+        show: true
+      - format: short
+        label:
+        logBase: 1
+        max:
+        min:
+        show: true
+    yaxis:
+      align: false
+      alignLevel:
+schemaVersion: 26
+style: dark
+tags: []
+templating:
+  list:
+    - allValue:
+      current:
+        selected: true
+        text: RESPONSE_TIME
+        value: RESPONSE_TIME
+      datasource: Turbo Timescale
+      definition: SELECT DISTINCT type FROM metric WHERE $__timeFilter(time) ORDER BY 1
+      hide: 0
+      includeAll: false
+      label: Metric Type
+      multi: false
+      name: metric_type
+      options: []
+      query: SELECT DISTINCT type FROM metric WHERE $__timeFilter(time) ORDER BY 1
+      refresh: 2
+      regex: ''
+      skipUrlSync: false
+      sort: 0
+      tagValuesQuery: ''
+      tags: []
+      tagsQuery: ''
+      type: query
+      useTags: false
+    - allValue:
+      current:
+        selected: true
+        text: 70%
+        value: '0.7'
+      datasource: Turbo Timescale
+      definition: SELECT generate_series || '%' as __text, generate_series*.01 as __value
+        FROM generate_series(10,100,10)
+      hide: 0
+      includeAll: false
+      label: Target Utilization
+      multi: false
+      name: desired_factor
+      options: []
+      query: SELECT generate_series || '%' as __text, generate_series*.01 as __value
+        FROM generate_series(10,100,10)
+      refresh: 2
+      regex: ''
+      skipUrlSync: false
+      sort: 0
+      tagValuesQuery: ''
+      tags: []
+      tagsQuery: ''
+      type: query
+      useTags: false
+    - allValue:
+      current:
+        selected: true
+        text: '1'
+        value: '1'
+      hide: 0
+      includeAll: false
+      label: Moving Avg Hours
+      multi: false
+      name: ma_hours
+      options:
+        - selected: true
+          text: '1'
+          value: '1'
+        - selected: false
+          text: '6'
+          value: '6'
+        - selected: false
+          text: '12'
+          value: '12'
+        - selected: false
+          text: '24'
+          value: '24'
+        - selected: false
+          text: '48'
+          value: '48'
+      query: '1,6,12,24,48'
+      queryValue: ''
+      skipUrlSync: false
+      type: custom
+    - current:
+        selected: true
+        text: Turbo Timescale
+        value: Turbo Timescale
+      hide: 0
+      includeAll: false
+      label:
+      multi: false
+      name: DB
+      options: []
+      query: postgres
+      queryValue: ''
+      refresh: 1
+      regex: ''
+      skipUrlSync: false
+      type: datasource
+time:
+  from: now-7d
+  to: now
+timepicker:
+  refresh_intervals:
+    - 10s
+    - 30s
+    - 1m
+    - 5m
+    - 15m
+    - 30m
+    - 1h
+    - 2h
+    - 1d
+timezone: ''
+title: SLO Hourly Violations Dashboard
+uid: slo_hourly_violations
