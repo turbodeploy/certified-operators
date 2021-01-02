@@ -51,7 +51,7 @@ public class DatasourceInput {
     private String access = "proxy";
 
     @SerializedName("isDefault")
-    private boolean isDefault = true;
+    private boolean isDefault = false;
 
     // TODO (roman, June 5 2020: We can have the jsonData be a templated field, and plug
     // datasource-specific DTOs. Right now we only care about postgres.

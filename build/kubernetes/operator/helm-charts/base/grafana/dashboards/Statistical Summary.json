@@ -33,6 +33,7 @@
           "value": "max"
         }
       ],
+      "datasource": "Prometheus",
       "filterNull": false,
       "fontSize": "100%",
       "gridPos": {
@@ -98,6 +99,7 @@
           "value": "max"
         }
       ],
+      "datasource": "Prometheus",
       "filterNull": false,
       "fontSize": "100%",
       "gridPos": {
@@ -155,6 +157,7 @@
           "value": "avg"
         }
       ],
+      "datasource": "Prometheus",
       "filterNull": false,
       "fontSize": "100%",
       "gridPos": {
@@ -220,6 +223,7 @@
           "value": "max"
         }
       ],
+      "datasource": "Prometheus",
       "filterNull": false,
       "fontSize": "100%",
       "gridPos": {
@@ -287,6 +291,7 @@
           "value": "max"
         }
       ],
+      "datasource": "Prometheus",
       "filterNull": false,
       "fontSize": "100%",
       "gridPos": {
@@ -353,6 +358,7 @@
           "value": "max"
         }
       ],
+      "datasource": "Prometheus",
       "filterNull": false,
       "fontSize": "100%",
       "gridPos": {
@@ -418,6 +424,7 @@
           "value": "max"
         }
       ],
+      "datasource": "Prometheus",
       "filterNull": false,
       "fontSize": "100%",
       "gridPos": {

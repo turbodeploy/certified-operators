@@ -23,6 +23,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
+      "datasource": "Prometheus",
       "description": "See https://vmturbo.atlassian.net/wiki/display/Home/XL+200k+Performance+Thought for what this means.",
       "fill": 1,
       "gridPos": {
@@ -129,6 +130,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
+      "datasource": "Prometheus",
       "description": "See https://vmturbo.atlassian.net/wiki/display/Home/XL+200k+Performance+Thought for what this means.",
       "fill": 1,
       "gridPos": {
@@ -235,6 +237,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
+      "datasource": "Prometheus",
       "description": "See https://vmturbo.atlassian.net/wiki/display/Home/XL+200k+Performance+Thought for what this means.",
       "fill": 1,
       "gridPos": {
@@ -334,6 +337,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
+      "datasource": "Prometheus",
       "description": "See https://vmturbo.atlassian.net/wiki/display/Home/XL+200k+Performance+Thought for what this means.",
       "fill": 1,
       "gridPos": {
@@ -447,6 +451,7 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
+      "datasource": "Prometheus",
       "description": "See https://vmturbo.atlassian.net/wiki/display/Home/XL+200k+Performance+Thought for what this means.",
       "fill": 1,
       "gridPos": {
