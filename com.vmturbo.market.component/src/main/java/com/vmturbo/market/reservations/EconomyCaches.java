@@ -454,8 +454,13 @@ public class EconomyCaches {
         final Map<Long, CommodityType> clusterCommPerSl = new HashMap();
         if (historicalCachedEconomy != null) {
             for (InitialPlacementBuyer buyer : buyers) {
-                traderTOs.add(InitialPlacementUtils.constructTraderTO(buyer, historicalCachedCommTypeMap,
-                        new HashMap()));
+                Optional<TraderTO> traderTO = InitialPlacementUtils.constructTraderTO(buyer, historicalCachedCommTypeMap,
+                        new HashMap());
+                if (traderTO.isPresent()) {
+                    traderTOs.add(traderTO.get());
+                } else {
+                    return new HashMap();
+                }
             }
             firstRoundPlacement = placeBuyerInCachedEconomy(traderTOs, historicalCachedEconomy,
                     historicalCachedCommTypeMap);
@@ -480,8 +485,13 @@ public class EconomyCaches {
         //construct traderTO from InitialPlacementBuyer including cluster boundary
         for (InitialPlacementBuyer buyer : buyers) {
             // Construct traderTO with cluster boundaries provided in clusterCommPerSl
-            placedBuyerTOs.add(InitialPlacementUtils.constructTraderTO(buyer,
-                    realtimeCachedCommTypeMap, clusterCommPerSl));
+            Optional<TraderTO> traderTO = InitialPlacementUtils.constructTraderTO(buyer,
+                    realtimeCachedCommTypeMap, clusterCommPerSl);
+            if (traderTO.isPresent()) {
+                placedBuyerTOs.add(traderTO.get());
+            } else {
+                return new HashMap();
+            }
         }
         Map<Long, List<InitialPlacementDecision>> secondRoundPlacement =
                 placeBuyerInCachedEconomy(placedBuyerTOs, realtimeCachedEconomy,

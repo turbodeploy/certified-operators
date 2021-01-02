@@ -103,9 +103,9 @@ public class InitialPlacementFinderTest {
         InitialPlacementFinder pf = new InitialPlacementFinder(executorService, reservationServiceBlockingStub,
                 true, 1);
         pf.updateCachedEconomy(getOriginalEconomy(), commTypeToSpecMap, true);
-        TraderTO vmTO = InitialPlacementUtils.constructTraderTO(
+        TraderTO vmTO = (TraderTO)InitialPlacementUtils.constructTraderTO(
                 getTradersToPlace(vmID, pmSlOid, PM_TYPE, MEM_TYPE, 100), commTypeToSpecMap,
-                new HashMap());
+                new HashMap()).get();
         assertTrue(vmTO.getOid() == vmID);
         ShoppingListTO pmSlTO = vmTO.getShoppingLists(0);
         assertTrue(pmSlTO.getMovable() == true);
@@ -113,6 +113,21 @@ public class InitialPlacementFinderTest {
         assertTrue(pmSlTO.getCommoditiesBoughtList().get(0).getQuantity() == 100);
         assertTrue(pmSlTO.getCommoditiesBought(0).getPeakQuantity() == 100);
         assertTrue(pmSlTO.getCommoditiesBought(0).getSpecification().getType() == MEM_TYPE);
+    }
+
+    /**
+     * Test InitialPlacementBuyer to TraderTO conversion error scenario.
+     */
+    @Test
+    public void testConstructTraderTOsWithException() {
+        InitialPlacementFinder pf = new InitialPlacementFinder(executorService, reservationServiceBlockingStub,
+                true, 1);
+        pf.updateCachedEconomy(getOriginalEconomy(), commTypeToSpecMap, true);
+        // Create Trader with invalid commodity Type 1000.
+        Optional<TraderTO> vmTO = InitialPlacementUtils.constructTraderTO(
+                getTradersToPlace(vmID, pmSlOid, PM_TYPE, 1000, 100), commTypeToSpecMap,
+                new HashMap());
+        assertTrue(!vmTO.isPresent());
     }
 
     /**

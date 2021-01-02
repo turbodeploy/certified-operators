@@ -142,44 +142,46 @@ public final class InitialPlacementUtils {
      * @param clusterCommPerSl the shopping list oid to boundary commodity type mapping.
      * @return a list of traderTOs.
      */
-    public static TraderTO constructTraderTO(@Nonnull final InitialPlacementBuyer buyer,
+    public static Optional<TraderTO> constructTraderTO(@Nonnull final InitialPlacementBuyer buyer,
             @Nonnull final BiMap<CommodityType, Integer> commTypeToSpecMap,
             @Nonnull final Map<Long, CommodityType> clusterCommPerSl) {
-        TraderTO.Builder traderTO = TraderTO.newBuilder();
-        boolean validConstraint = true;
-        for (InitialPlacementCommoditiesBoughtFromProvider sl
-                : buyer.getInitialPlacementCommoditiesBoughtFromProviderList()) {
-            long slOid = sl.getCommoditiesBoughtFromProviderId();
-            CommodityType boundaryCommType = clusterCommPerSl.get(slOid);
-            List<CommodityBoughtTO> commBoughtTOs = constructCommBoughtTO(
+        try {
+            TraderTO.Builder traderTO = TraderTO.newBuilder();
+            for (InitialPlacementCommoditiesBoughtFromProvider sl
+                    : buyer.getInitialPlacementCommoditiesBoughtFromProviderList()) {
+                long slOid = sl.getCommoditiesBoughtFromProviderId();
+                CommodityType boundaryCommType = clusterCommPerSl.get(slOid);
+                List<CommodityBoughtTO> commBoughtTOs = constructCommBoughtTO(
                         sl.getCommoditiesBoughtFromProvider().getCommodityBoughtList(),
                         commTypeToSpecMap, boundaryCommType);
-            if (commBoughtTOs.isEmpty()) {
-                logger.warn(logPrefix + "Empty commodity bought created in this trader {} sl {}, skipping"
-                                + " reservation for it", buyer.getBuyerId(),
-                        sl.getCommoditiesBoughtFromProviderId());
-                validConstraint = false;
-                break;
+                if (commBoughtTOs.isEmpty()) {
+                    logger.warn(logPrefix + "Cannot create trader {} due to invalid constraint, skipping"
+                            + " reservation for it", buyer.getBuyerId());
+                    return Optional.empty();
+                }
+                // NOTE: InitialPlacementShoppingList has a provider type attribute, but sl doesnt
+                // have a counterpart representing it.
+                ShoppingListTO slTO = ShoppingListTO.newBuilder()
+                        .setOid(sl.getCommoditiesBoughtFromProviderId())
+                        .setMovable(true)
+                        .addAllCommoditiesBought(commBoughtTOs)
+                        .build();
+                traderTO.addShoppingLists(slTO);
             }
-            // NOTE: InitialPlacementShoppingList has a provider type attribute, but sl doesnt
-            // have a counterpart representing it.
-            ShoppingListTO slTO = ShoppingListTO.newBuilder()
-                    .setOid(sl.getCommoditiesBoughtFromProviderId())
-                    .setMovable(true)
-                    .addAllCommoditiesBought(commBoughtTOs)
-                    .build();
-            traderTO.addShoppingLists(slTO);
-        }
-        if (validConstraint) {
             traderTO.setOid(buyer.getBuyerId()).setDebugInfoNeverUseInCode(
-                    buyer.getBuyerId() + PLACEMENT_CLONE_SUFFIX)
-                    .setState(TraderStateTO.ACTIVE)
-                    .setSettings(TraderSettingsTO.newBuilder()
-                            .setIsShopTogether(true)
-                            .setQuoteFunction(QuoteFunctionDTO.newBuilder()
-                                    .setSumOfCommodity(SumOfCommodity.newBuilder().build())));
+                        buyer.getBuyerId() + PLACEMENT_CLONE_SUFFIX)
+                        .setState(TraderStateTO.ACTIVE)
+                        .setSettings(TraderSettingsTO.newBuilder()
+                                .setIsShopTogether(true)
+                                .setQuoteFunction(QuoteFunctionDTO.newBuilder()
+                                        .setSumOfCommodity(SumOfCommodity.newBuilder().build())));
+            return Optional.of(traderTO.build());
+
+        } catch (Exception e) {
+            logger.error(logPrefix + "Cannot create trader with ID {} because of exception {}",
+                    buyer.getBuyerId(), e);
+            return Optional.empty();
         }
-        return traderTO.build();
     }
 
     /**
@@ -266,8 +268,11 @@ public final class InitialPlacementUtils {
                         .allMatch(r -> r.supplier.isPresent())) {
                     // When all shopping lists of a buyer have a supplier, figure out the cluster
                     // boundaries from the suppliers.
-                    placedBuyers.add(constructTraderTOWithBoundary(economy, commTypeToSpecMap,
-                            placementPerBuyer, buyer));
+                    Optional<TraderTO> traderTO = constructTraderTOWithBoundary(economy, commTypeToSpecMap,
+                            placementPerBuyer, buyer);
+                    if (traderTO.isPresent()) {
+                        placedBuyers.add(traderTO.get());
+                    }
                 }
             });
             placedBuyersPerRes.add(placedBuyers);
@@ -284,25 +289,36 @@ public final class InitialPlacementUtils {
      * @param buyer the given reservation buyer.
      * @return {@link TraderTO} representing the buyer.
      */
-    public static TraderTO constructTraderTOWithBoundary(
+    public static Optional<TraderTO> constructTraderTOWithBoundary(
             @Nonnull final Economy economy,
             @Nonnull final BiMap<CommodityType, Integer> commTypeToSpecMap,
             @Nonnull final List<InitialPlacementDecision> decisions,
             @Nonnull final InitialPlacementBuyer buyer) {
         Map<Long, CommodityType> clusterCommPerSl = new HashMap();
-        for (InitialPlacementDecision placement : decisions) {
-            if (placement.supplier.isPresent()) {
-                Trader supplier = economy.getTopology().getTradersByOid().get(placement.supplier.get());
-                Optional<CommodityType> commType = findBoundaryComm(Optional.of(buyer),
-                        placement.slOid, supplier, commTypeToSpecMap);
-                if (commType.isPresent()) {
-                    clusterCommPerSl.put(placement.slOid, commType.get());
+        try {
+            for (InitialPlacementDecision placement : decisions) {
+                if (placement.supplier.isPresent()) {
+                    Trader supplier = economy.getTopology().getTradersByOid().get(placement.supplier.get());
+                    if (supplier == null) {
+                        logger.error(logPrefix + "Cannot create trader with ID {} because of invalid supplier",
+                                buyer.getBuyerId());
+                        return Optional.empty();
+                    }
+                    Optional<CommodityType> commType = findBoundaryComm(Optional.of(buyer),
+                            placement.slOid, supplier, commTypeToSpecMap);
+                    if (commType.isPresent()) {
+                        clusterCommPerSl.put(placement.slOid, commType.get());
+                    }
                 }
             }
+        } catch (Exception e) {
+            logger.error(logPrefix + "Cannot create trader with ID {} because of exception {}",
+                    buyer.getBuyerId(), e);
+            return Optional.empty();
         }
-        //construct traderTO from InitialPlacementBuyer including cluster boundary
+            //construct traderTO from InitialPlacementBuyer including cluster boundary
         return InitialPlacementUtils.constructTraderTO(buyer, commTypeToSpecMap,
-                clusterCommPerSl);
+                    clusterCommPerSl);
     }
 
     /**
