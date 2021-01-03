@@ -1023,7 +1023,7 @@ public class ScenarioMapper {
             if (!StringUtils.isEmpty(uuid)) {
                 subscription.setUuid(uuid);
             }
-            final String accountId = businessUnitApiDTO.getUuid();
+            final String accountId = businessUnitApiDTO.getAccountId();
             if (!StringUtils.isEmpty(accountId)) {
                 subscription.setAccountId(accountId);
             }
