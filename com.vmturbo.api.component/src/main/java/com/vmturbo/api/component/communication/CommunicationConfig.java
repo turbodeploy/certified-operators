@@ -295,6 +295,7 @@ public class CommunicationConfig {
             businessAccountMapper(),
             mapperConfig.paginationMapper(),
             mapperConfig.entityDetailsMapper(),
+            priceIndexPopulator(),
             realtimeTopologyContextId);
     }
 

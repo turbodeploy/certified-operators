@@ -37,6 +37,7 @@ import java.util.stream.LongStream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
@@ -52,6 +53,7 @@ import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
+import org.springframework.http.ResponseEntity;
 
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
@@ -63,10 +65,8 @@ import com.vmturbo.api.component.external.api.mapper.EntityFilterMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupFilterMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
-import com.vmturbo.api.component.external.api.mapper.PriceIndexPopulator;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
-import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedGroupInfo;
@@ -92,10 +92,13 @@ import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.enums.ActionCostType;
 import com.vmturbo.api.enums.EnvironmentType;
+import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.GroupMembersPaginationRequest;
 import com.vmturbo.api.pagination.GroupMembersPaginationRequest.GroupMemberOrderBy;
 import com.vmturbo.api.pagination.GroupMembersPaginationRequest.GroupMembersPaginationResponse;
+import com.vmturbo.api.pagination.PaginationUtil;
+import com.vmturbo.api.pagination.SearchOrderBy;
 import com.vmturbo.api.pagination.SearchPaginationRequest;
 import com.vmturbo.api.pagination.SearchPaginationRequest.SearchPaginationResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
@@ -187,25 +190,16 @@ public class GroupsServiceTest {
     private GroupFilterMapper groupFilterMapper;
 
     @Mock
-    private PaginationMapper paginationMapperMock;
-
-    @Mock
     private EntityAspectMapper entityAspectMapper;
 
     @Mock
-    private RepositoryApi repositoryApi;
+    private RepositoryApi repositoryApiMock;
 
     @Mock
     private UuidMapper uuidMapper;
 
     @Mock
-    private GroupExpander groupExpander;
-
-    @Mock
-    private SeverityPopulator severityPopulator;
-
-    @Mock
-    private PriceIndexPopulator priceIndexPopulator;
+    private GroupExpander groupExpanderMock;
 
     @Mock
     private ActionStatsQueryExecutor actionStatsQueryExecutor;
@@ -222,26 +216,35 @@ public class GroupsServiceTest {
     @Mock
     private SettingsMapper settingsMapper;
 
+    @Mock
+    private ServiceProviderExpander serviceProviderExpander;
+
+    @Mock
+    private PaginationMapper paginationMapperMock;
+
     @Captor
     private ArgumentCaptor<GetGroupsRequest> getGroupsRequestCaptor;
 
-    private GroupServiceMole groupServiceSpyMole = spy(new GroupServiceMole());
+    private final GroupServiceMole groupServiceSpy = spy(new GroupServiceMole());
 
-    private TemplateServiceMole templateServiceSpy = spy(new TemplateServiceMole());
+    private final TemplateServiceMole templateServiceSpy = spy(new TemplateServiceMole());
+    private final GroupServiceMole groupServiceSpyMole = spy(new GroupServiceMole());
 
-    private ActionsServiceMole actionServiceSpy = spy(new ActionsServiceMole());
+    private final ActionsServiceMole actionServiceSpy = spy(new ActionsServiceMole());
 
-    private SettingPolicyServiceMole settingPolicyServiceSpy = spy(new SettingPolicyServiceMole());
-    private FilterApiDTO groupFilterApiDTO = new FilterApiDTO();
-    private FilterApiDTO clusterFilterApiDTO = new FilterApiDTO();
+    private final SettingPolicyServiceMole settingPolicyServiceSpy = spy(new SettingPolicyServiceMole());
+
+    private final FilterApiDTO groupFilterApiDTO = new FilterApiDTO();
+    private final FilterApiDTO clusterFilterApiDTO = new FilterApiDTO();
+
     private BusinessAccountRetriever businessAccountRetriever;
-    private final ServiceProviderExpander serviceProviderExpander = mock(ServiceProviderExpander.class);
 
     @Rule
     public GrpcTestServer grpcServer =
         GrpcTestServer.newServer(groupServiceSpyMole, templateServiceSpy, actionServiceSpy,
                 settingPolicyServiceSpy);
 
+    private static final String UI_REAL_TIME_MARKET = "Market";
     private static final long CONTEXT_ID = 7777777;
     private Map<Long, GroupApiDTO> mappedGroups;
 
@@ -257,26 +260,23 @@ public class GroupsServiceTest {
         final ActionSearchUtil actionSearchUtil =
                 new ActionSearchUtil(
                                 actionOrchestratorRpcService, actionSpecMapper,
-                                paginationMapperMock, supplyChainFetcherFactory, groupExpander,
+                                paginationMapperMock, supplyChainFetcherFactory, groupExpanderMock,
                                 serviceProviderExpander,
                                 CONTEXT_ID);
-        final SettingsMapper settingsMapper = mock(SettingsMapper.class);
         this.businessAccountRetriever = Mockito.mock(BusinessAccountRetriever.class);
         groupsService =
             new GroupsService(
                 actionOrchestratorRpcService,
                 GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 groupMapper,
-                groupExpander,
+                groupExpanderMock,
                 uuidMapper,
-                repositoryApi,
+                repositoryApiMock,
                 CONTEXT_ID,
                 mock(SettingsManagerMapping.class),
                 TemplateServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 entityAspectMapper,
                 actionStatsQueryExecutor,
-                severityPopulator,
-                priceIndexPopulator,
                 supplyChainFetcherFactory,
                 actionSearchUtil,
                 settingPolicyStub,
@@ -491,7 +491,7 @@ public class GroupsServiceTest {
         Mockito.when(groupMapper.groupsToGroupApiDto(Collections.singletonList(xlGroup), true))
                 .thenReturn(Collections.singletonMap(1L, apiGroup));
 
-        Mockito.when(groupExpander.getGroup("1")).thenReturn(Optional.of(xlGroup));
+        Mockito.when(groupExpanderMock.getGroup("1")).thenReturn(Optional.of(xlGroup));
 
         final GroupApiDTO retGroup = groupsService.getGroupByUuid("1", false);
         assertEquals(apiGroup.getDisplayName(), retGroup.getDisplayName());
@@ -619,7 +619,7 @@ public class GroupsServiceTest {
 
     @Test(expected = UnknownObjectException.class)
     public void testGroupAndClusterNotFound() throws Exception {
-        when(groupExpander.getGroup("1")).thenReturn(Optional.empty());
+        when(groupExpanderMock.getGroup("1")).thenReturn(Optional.empty());
         groupsService.getGroupByUuid("1", false);
     }
 
@@ -643,14 +643,14 @@ public class GroupsServiceTest {
         member2Dto.setUuid(Long.toString(member2Id));
 
         Mockito.when(
-                repositoryApi.getByIds(Collections.singletonList(member2Id), Collections.emptySet(),
+                repositoryApiMock.getByIds(Collections.singletonList(member2Id), Collections.emptySet(),
                         false))
                 .thenReturn(new RepositoryRequestResult(Collections.emptySet(),
                         Collections.singleton(member2Dto)));
 
         final GroupAndMembers groupAndMembers =
             groupAndMembers(1L, GroupType.REGULAR, new HashSet<>(Arrays.asList(7L, 8L)));
-        when(groupExpander.getGroupWithImmediateMembersOnly("1")).thenReturn(Optional.of(groupAndMembers));
+        when(groupExpanderMock.getGroupWithImmediateMembersOnly("1")).thenReturn(Optional.of(groupAndMembers));
         GroupMembersPaginationRequest request = new GroupMembersPaginationRequest("1",
             DEFAULT_N_ENTITIES,
             true, GroupMemberOrderBy.DEFAULT);
@@ -899,8 +899,8 @@ public class GroupsServiceTest {
                         MemberType.newBuilder().setEntity(EntityType.BUSINESS_ACCOUNT_VALUE))
                 .build();
         final GroupAndMembers groupAndMembers = groupAndMembers(group, membersSet);
-        Mockito.when(groupExpander.getGroupWithImmediateMembersOnly("1")).thenReturn(Optional.of(groupAndMembers));
-        Mockito.when(repositoryApi.getByIds(Arrays.asList(member1Id, member2Id),
+        Mockito.when(groupExpanderMock.getGroupWithImmediateMembersOnly("1")).thenReturn(Optional.of(groupAndMembers));
+        Mockito.when(repositoryApiMock.getByIds(Arrays.asList(member1Id, member2Id),
                 Collections.emptySet(), false))
                 .thenReturn(new RepositoryRequestResult(Arrays.asList(member1Dto, member2Dto),
                         Collections.emptySet()));
@@ -949,7 +949,7 @@ public class GroupsServiceTest {
             .thenReturn(Collections.singletonList(GetMembersResponse.newBuilder().setGroupId(1L)
                 .build()));
 
-        when(groupExpander.getGroupWithImmediateMembersOnly("1"))
+        when(groupExpanderMock.getGroupWithImmediateMembersOnly("1"))
             .thenReturn(Optional.of(groupAndMembers(1L, GroupType.REGULAR, Collections.emptySet())));
 
         // Act
@@ -961,8 +961,8 @@ public class GroupsServiceTest {
         // Assert
         assertTrue(response.getRestResponse().getBody().isEmpty());
         // Should be no call to repository to get entity information.
-        verify(groupServiceSpyMole, never()).getGroups( GetGroupsRequest.getDefaultInstance());
-        verifyZeroInteractions(repositoryApi);
+        verify(groupServiceSpy, never()).getGroups( GetGroupsRequest.getDefaultInstance());
+        verifyZeroInteractions(repositoryApiMock);
     }
 
     /**
@@ -993,9 +993,9 @@ public class GroupsServiceTest {
                 MemberType.newBuilder().setEntity(EntityType.VIRTUAL_MACHINE_VALUE))
             .build();
         final GroupAndMembers groupAndMembers = groupAndMembers(group, membersSet);
-        Mockito.when(groupExpander.getGroupWithImmediateMembersOnly("1")).thenReturn(Optional.of(groupAndMembers));
+        Mockito.when(groupExpanderMock.getGroupWithImmediateMembersOnly("1")).thenReturn(Optional.of(groupAndMembers));
         final ArgumentCaptor<Collection<Long>> collectionCaptor = ArgumentCaptor.forClass((Class)Collection.class);
-        Mockito.when(repositoryApi.getByIds(collectionCaptor.capture(), eq(Collections.emptySet()), eq(false)))
+        Mockito.when(repositoryApiMock.getByIds(collectionCaptor.capture(), eq(Collections.emptySet()), eq(false)))
             .thenReturn(new RepositoryRequestResult(
                 Collections.emptyList(),
                 // We assume that we were asked for 20, return 20, and check to make sure we asked
@@ -1227,7 +1227,7 @@ public class GroupsServiceTest {
             .entities(Arrays.asList(3L, 4L))
             .build();
 
-        when(groupExpander.getGroupWithMembersAndEntities("1"))
+        when(groupExpanderMock.getGroupWithMembersAndEntities("1"))
             .thenReturn(Optional.of(groupAndMembers));
 
 
@@ -1255,7 +1255,7 @@ public class GroupsServiceTest {
             .entities(Collections.singletonList(11L))
             .build();
 
-        when(groupExpander.getGroupWithMembersAndEntities("10"))
+        when(groupExpanderMock.getGroupWithMembersAndEntities("10"))
             .thenReturn(Optional.of(vmGroupAndMembers));
 
         final GroupFilter groupFilter = GroupFilter.newBuilder()
@@ -1344,7 +1344,7 @@ public class GroupsServiceTest {
                 .entities(Arrays.asList(2L, 3L))
                 .build();
 
-        when(groupExpander.getGroupWithMembersAndEntities("1"))
+        when(groupExpanderMock.getGroupWithMembersAndEntities("1"))
                 .thenReturn(Optional.of(rgGroupAndMembers));
 
         final GroupFilter groupFilter = GroupFilter.newBuilder()
@@ -1408,7 +1408,7 @@ public class GroupsServiceTest {
             MinimalEntity.newBuilder().setOid(entityId12).setEntityType(EntityType.PHYSICAL_MACHINE_VALUE).build(),
             MinimalEntity.newBuilder().setOid(entityId21).setEntityType(EntityType.VIRTUAL_MACHINE_VALUE).build()));
 
-        when(repositoryApi.newSearchRequest(SearchParameters.newBuilder()
+        when(repositoryApiMock.newSearchRequest(SearchParameters.newBuilder()
             .setStartingFilter(SearchProtoUtil.discoveredBy(Arrays.asList(1L, 2L)))
             .build())).thenReturn(req);
 
@@ -1519,8 +1519,8 @@ public class GroupsServiceTest {
         MultiEntityRequest multiEntityRequest = mock(MultiEntityRequest.class);
         ImmutableGroupAndMembers groupAndMembers = ImmutableGroupAndMembers.builder()
                 .group(Grouping.getDefaultInstance()).members(members).entities(members).build();
-        when(groupExpander.getGroupWithMembersAndEntities(groupUuid)).thenReturn(Optional.of(groupAndMembers));
-        when(repositoryApi.entitiesRequest(Sets.newHashSet(groupAndMembers.members())))
+        when(groupExpanderMock.getGroupWithMembersAndEntities(groupUuid)).thenReturn(Optional.of(groupAndMembers));
+        when(repositoryApiMock.entitiesRequest(Sets.newHashSet(groupAndMembers.members())))
               .thenReturn(multiEntityRequest);
         when(multiEntityRequest.getFullEntities()).thenReturn(entities.stream());
         groupsService.getSettingPoliciesByGroupUuid(groupUuid);
@@ -1553,7 +1553,7 @@ public class GroupsServiceTest {
         final ApiId entityApiId = mock(ApiId.class);
         when(entityApiId.isGroup()).thenReturn(true);
         when(uuidMapper.fromUuid(groupOfAccountsId.toString())).thenReturn(entityApiId);
-        when(groupExpander.getGroupWithMembersAndEntities(groupOfAccountsId.toString())).thenReturn(
+        when(groupExpanderMock.getGroupWithMembersAndEntities(groupOfAccountsId.toString())).thenReturn(
                 Optional.of(groupAndMembers));
         final PropertyFilter propertyFilter = PropertyFilter.newBuilder()
                 .setPropertyName("accountID")
@@ -1651,7 +1651,7 @@ public class GroupsServiceTest {
                         .setOriginFilter(OriginFilter.newBuilder()
                                 .addOrigin(Type.USER)))
                 .build();
-        Mockito.when(groupExpander.getGroupsWithMembers(expectedRequest)).thenReturn(
+        Mockito.when(groupExpanderMock.getGroupsWithMembers(expectedRequest)).thenReturn(
                 Collections.emptyList());
 
         groupsService.getPaginatedGroupApiDTOs(Collections.emptyList(),
@@ -1891,13 +1891,281 @@ public class GroupsServiceTest {
     }
 
     /**
+     * Tests getting leaf entities for a group and members by groupId via the groupExpander.
+     *
+     * @throws Exception any error happens
+     */
+    @Test
+    public void testGetLeafEntitiesByGroupUuid() throws Exception {
+        // GIVEN
+        final Long groupId = 111L;
+        final Long hostEntityId1 = 1L;
+        final Long hostEntityId2 = 2L;
+
+        final Grouping hostsGrouping = Grouping.newBuilder()
+                .setId(groupId)
+                .addExpectedTypes(MemberType.newBuilder()
+                        .setEntity(EntityType.PHYSICAL_MACHINE_VALUE)
+                        .build())
+                .build();
+
+        final Optional<GroupAndMembers> groupAndMembers = Optional.of(ImmutableGroupAndMembers.builder()
+                .group(hostsGrouping)
+                .members(Arrays.asList(hostEntityId1, hostEntityId2))
+                .entities(Arrays.asList(hostEntityId1, hostEntityId2))
+                .build());
+
+        final ApiId entityApiId = mock(ApiId.class);
+
+        doReturn(groupAndMembers).when(groupExpanderMock).getGroupWithMembersAndEntities(groupId.toString());
+
+        // WHEN
+        final Set<Long> leafEntities = groupsService.getLeafEntitiesByGroupUuid(groupId.toString(), entityApiId);
+
+        // THEN
+        assertEquals(leafEntities.size(), 2);
+        assertThat(leafEntities, containsInAnyOrder(hostEntityId1, hostEntityId2));
+    }
+
+    /**
+     * Tests getting leaf entities when groupId is for a Target.
+     *
+     * @throws Exception any error happens
+     */
+    @Test
+    public void testGetLeafEntitiesByGroupUuidForTarget() throws Exception {
+        // GIVEN
+        final Long targetId = 111L;
+        final Long targetVM = 2L;
+        final Long targetStorage = 3L;
+        final Long targetHost = 4L;
+        final ApiId entityApiId = mock(ApiId.class);
+
+        when(entityApiId.isTarget()).thenReturn(true);
+        when(groupExpanderMock.getGroupWithMembersAndEntities(targetId.toString())).thenReturn(Optional.empty());
+
+        final GroupsService groupsServiceSpy = spy(groupsService);
+        doReturn(Sets.newHashSet(targetVM, targetHost, targetStorage)).when(groupsServiceSpy)
+                .expandUuids(Collections.singleton(targetId.toString()), Collections.emptyList(), null);
+
+        // WHEN
+        final Set<Long> leafEntitiesFromTarget = groupsServiceSpy.getLeafEntitiesByGroupUuid(targetId.toString(), entityApiId);
+
+        // THEN
+        assertThat(leafEntitiesFromTarget, containsInAnyOrder(targetHost, targetStorage, targetVM));
+    }
+
+    /**
+     * Test getting leaf entities when the groupId references a supported grouping-entity type.
+     *
+     * @throws Exception any error happens
+     */
+    @Test
+    public void testGetLeafEntitiesByGroupUuidForGroupingEntity() throws Exception {
+        // GIVEN
+        final Long datacenterId = 111L;
+        final Long datacenterHost1 = 2L;
+        final Long datacenterHost2 = 3L;
+
+        final ApiId entityApiId = mock(ApiId.class);
+        when(entityApiId.isTarget()).thenReturn(false);
+
+        when(groupExpanderMock.getGroupWithMembersAndEntities(datacenterId.toString())).thenReturn(Optional.empty());
+
+        final RepositoryApi.SingleEntityRequest singleEntityRequestMock = mock(RepositoryApi.SingleEntityRequest.class);
+        doReturn(singleEntityRequestMock).when(repositoryApiMock).entityRequest(datacenterId);
+
+        final MinimalEntity minimalEntityMock = MinimalEntity.newBuilder().setOid(5L).setEntityType(EntityType.DATACENTER_VALUE).build();
+        doReturn(Optional.of(minimalEntityMock)).when(singleEntityRequestMock).getMinimalEntity();
+        final GroupsService groupsServiceSpy = spy(groupsService);
+        doReturn(Sets.newHashSet(datacenterHost1, datacenterHost2)).when(groupsServiceSpy)
+                .expandUuids(Collections.singleton(datacenterId.toString()), ImmutableList.of(ApiEntityType.PHYSICAL_MACHINE.apiStr()), null);
+
+        // WHEN
+        final Set<Long> leafHostsFromDatacenter = groupsServiceSpy.getLeafEntitiesByGroupUuid(datacenterId.toString(), entityApiId);
+
+        // THEN
+        assertThat(leafHostsFromDatacenter, containsInAnyOrder(datacenterHost1, datacenterHost2));
+    }
+
+    /**
+     * Test that the response result contains pagination-related headers when called with non-null value for
+     * {@link SearchPaginationRequest} argument.
+     *
+     * @throws Exception if generic error
+     */
+    @Test
+    public void testGetGroupEntitiesPaginated() throws Exception {
+        // GIVEN
+        final String groupUuid = UI_REAL_TIME_MARKET;
+        final String cursor = "1";
+        final String nextCursor = "11";
+        final String previousCursor = "5";
+        final Integer totalRecordCount = 100;
+
+        final SearchPaginationRequest searchPaginationRequest =
+                new SearchPaginationRequest(cursor, 10, true, SearchOrderBy.DEFAULT);
+
+        final ApiId apiIdMock = mock(ApiId.class);
+        doReturn(apiIdMock).when(uuidMapper).fromUuid(groupUuid);
+        doReturn(true).when(apiIdMock).isRealtimeMarket();
+
+        final SearchRequest searchRequestMock = mock(SearchRequest.class);
+        doReturn(searchRequestMock).when(repositoryApiMock).newSearchRequest(Mockito.any(SearchParameters.class));
+
+        final ResponseEntity<List<ServiceEntityApiDTO>> responseEntitiesMock =
+                PaginationUtil.buildResponseEntity(Collections.emptyList(), previousCursor, nextCursor, totalRecordCount);
+
+        doReturn(responseEntitiesMock).when(searchRequestMock).getPaginatedSEList(Mockito.any(Pagination.PaginationParameters.class));
+
+        // WHEN
+        final ResponseEntity<List<ServiceEntityApiDTO>> entitiesResponse =
+                groupsService.getEntitiesByGroupUuid(groupUuid, searchPaginationRequest);
+
+        // THEN
+        assertEquals(entitiesResponse.getHeaders().get("X-Previous-Cursor").get(0), previousCursor);
+        assertEquals(entitiesResponse.getHeaders().get("X-Next-Cursor").get(0), nextCursor);
+        assertEquals(entitiesResponse.getHeaders().get("X-Total-Record-Count").get(0), totalRecordCount.toString());
+    }
+
+    /**
+     * Test that the response result does not contain pagination-related headers when called with null value for
+     * {@link SearchPaginationRequest} argument.
+     *
+     * @throws Exception if generic error
+     */
+    @Test
+    public void testGetGroupEntitiesNotPaginated() throws Exception {
+        // GIVEN
+        final String groupUuid = UI_REAL_TIME_MARKET;
+
+        final ApiId apiIdMock = mock(ApiId.class);
+        doReturn(apiIdMock).when(uuidMapper).fromUuid(groupUuid);
+        doReturn(true).when(apiIdMock).isRealtimeMarket();
+
+        final SearchRequest searchRequestMock = mock(SearchRequest.class);
+        doReturn(searchRequestMock).when(repositoryApiMock).newSearchRequest(Mockito.any(SearchParameters.class));
+
+        doReturn(Collections.emptyList()).when(searchRequestMock).getSEList();
+
+        // WHEN
+        final ResponseEntity<List<ServiceEntityApiDTO>> entitiesResponse =
+                groupsService.getEntitiesByGroupUuid(groupUuid, null);
+
+        // THEN
+        assertNull(entitiesResponse.getHeaders().get("X-Previous-Cursor"));
+        assertNull(entitiesResponse.getHeaders().get("X-Next-Cursor").get(0));
+        assertNull(entitiesResponse.getHeaders().get("X-Total-Record-Count"));
+    }
+
+    /**
+     * Test getting entities by groupID where the group is the canonical global "Market" string.
+     *
+     * @throws Exception if generic error
+     */
+    @Test
+    public void testGetGroupEntitiesForGlobalMarket() throws Exception {
+        // GIVEN
+        final ServiceEntityApiDTO vmEntity1 = new ServiceEntityApiDTO();
+        vmEntity1.setUuid("1");
+        final ServiceEntityApiDTO hostEntity = new ServiceEntityApiDTO();
+        hostEntity.setUuid("3");
+
+        final ApiId apiIdMock = mock(ApiId.class);
+        doReturn(apiIdMock).when(uuidMapper).fromUuid(UI_REAL_TIME_MARKET);
+        doReturn(true).when(apiIdMock).isRealtimeMarket();
+
+        final SearchRequest searchRequestMock = mock(SearchRequest.class);
+        final ArgumentCaptor<SearchParameters> searchRequestArgs = ArgumentCaptor.forClass(SearchParameters.class);
+        doReturn(searchRequestMock).when(repositoryApiMock).newSearchRequest(searchRequestArgs.capture());
+
+        doReturn(Lists.newArrayList(vmEntity1, hostEntity)).when(searchRequestMock).getSEList();
+
+        // WHEN
+        final ResponseEntity<List<ServiceEntityApiDTO>> nonPaginatedResponse =
+                groupsService.getEntitiesByGroupUuid(UI_REAL_TIME_MARKET, null);
+
+        // THEN
+        final SearchParameters searchParameters = searchRequestArgs.getValue();
+        Assert.assertEquals(searchParameters.getStartingFilter(), SearchProtoUtil.entityTypeFilter(SearchProtoUtil.SEARCH_ALL_TYPES));
+
+        assertThat(nonPaginatedResponse.getBody(), containsInAnyOrder(vmEntity1, hostEntity));
+    }
+
+    /**
+     * Test getting entities by groupID.
+     *
+     * @throws Exception if generic error
+     */
+    @Test
+    public void testGetGroupEntitiesByUuid() throws Exception {
+        // GIVEN
+        final String groupUuid = "123456789";
+
+        final ServiceEntityApiDTO vmEntity1 = new ServiceEntityApiDTO();
+        vmEntity1.setUuid("1");
+        final ServiceEntityApiDTO vmEntity2 = new ServiceEntityApiDTO();
+        vmEntity2.setUuid("2");
+
+        final ApiId apiIdMock = mock(ApiId.class);
+        doReturn(apiIdMock).when(uuidMapper).fromUuid(groupUuid);
+        doReturn(false).when(apiIdMock).isRealtimeMarket();
+
+        final Set<Long> leafEntities = Collections.singleton(13L);
+        final GroupsService groupServiceSpy = spy(groupsService);
+        doReturn(leafEntities).when(groupServiceSpy).getLeafEntitiesByGroupUuid(groupUuid, apiIdMock);
+        final SearchRequest searchRequestMock = mock(SearchRequest.class);
+        final ArgumentCaptor<SearchParameters> searchRequestArgs = ArgumentCaptor.forClass(SearchParameters.class);
+        doReturn(searchRequestMock).when(repositoryApiMock).newSearchRequest(searchRequestArgs.capture());
+        doReturn(Lists.newArrayList(vmEntity1, vmEntity2)).when(searchRequestMock).getSEList();
+
+        // WHEN
+        final ResponseEntity<List<ServiceEntityApiDTO>> entitiesResponse =
+                groupServiceSpy.getEntitiesByGroupUuid(groupUuid, null);
+
+        // THEN
+        final SearchParameters searchParameters = searchRequestArgs.getValue();
+        Assert.assertEquals(searchParameters.getStartingFilter(), SearchProtoUtil.idFilter(leafEntities));
+        assertThat(entitiesResponse.getBody(), containsInAnyOrder(vmEntity1, vmEntity2));
+    }
+
+    /**
+     * Test getting paginated entities by groupID - unsupported SearchOrderBy should throw Exception.
+     *
+     * @throws Exception if generic error
+     */
+    @Test(expected = InvalidOperationException.class)
+    public void testGetGroupEntitiesByUuidPaginatedUnsupportedSearchOrderBy() throws Exception {
+        // GIVEN
+        final String groupUuid = "Market";
+        int limit = 10;
+        final boolean ascending = true;
+        final String searchOrderBy = "NONSENSE";
+
+        final ApiId apiIdMock = mock(ApiId.class);
+        doReturn(apiIdMock).when(uuidMapper).fromUuid(groupUuid);
+        doReturn(true).when(apiIdMock).isRealtimeMarket();
+
+        final SearchRequest searchRequestMock = mock(SearchRequest.class);
+        doReturn(searchRequestMock).when(repositoryApiMock).newSearchRequest(Mockito.any(SearchParameters.class));
+
+        doReturn(null).when(searchRequestMock).getPaginatedSEList(Mockito.any());
+
+        final SearchPaginationRequest searchPaginationRequest =
+                new SearchPaginationRequest(null, limit, ascending, searchOrderBy);
+
+        // WHEN
+        groupsService.getEntitiesByGroupUuid(groupUuid, searchPaginationRequest);
+    }
+
+    /**
      * Expect error thrown when not group is found.
      */
     @Test(expected = IllegalArgumentException.class)
     public void getGroupWithImmediateMembersOnlyThrowErrorOnEmptyResults() {
         //GIVEN
         String groupUuid = "123";
-        doReturn(Optional.empty()).when(groupExpander).getGroupWithImmediateMembersOnly(groupUuid);
+        doReturn(Optional.empty()).when(groupExpanderMock).getGroupWithImmediateMembersOnly(groupUuid);
 
         //WHEN
         groupsService.getGroupWithImmediateMembersOnly(groupUuid);
