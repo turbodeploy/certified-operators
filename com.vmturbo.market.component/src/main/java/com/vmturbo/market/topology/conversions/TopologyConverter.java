@@ -2914,11 +2914,18 @@ public class TopologyConverter {
         Map<Long, Long> providers = TopologyDTOUtil.parseOldProvidersMap(topologyEntity, gson);
         List<ShoppingListTO> shoppingLists = new ArrayList<>();
         Long computeTierProviderId = null;
-        // Sort the commBoughtGroupings based on provider type and then by volume id so
-        // that the input into analysis is consistent every cycle
+        // We want the input into M2 to be consistent across cycles. So, we sort the commBoughtGroupings.
+        // 1. First based on provider type. So this way, for VMs, the storage SLs appear
+        //    followed by the PM SL. And we can use this fact in SNM for a performance gain. We can
+        //    ignore the simulation of the last 2 SLs (the last storage SL and the PM SL).
+        // 2. Next, sort by volumeId. This is needed for VMs that have multiple volumes.
+        // 3. And lastly, by providerId. This was needed for VSAN DataStores, which have multiple PM SLs.
+        //    To consistently order these, we sort by the providerId of the SL.
         List<CommoditiesBoughtFromProvider> sortedCommBoughtGrouping = topologyEntity.getCommoditiesBoughtFromProvidersList().stream()
                 .sorted(Comparator.comparing(CommoditiesBoughtFromProvider::getProviderEntityType)
-                .thenComparing(CommoditiesBoughtFromProvider::getVolumeId)).collect(Collectors.toList());
+                .thenComparing(CommoditiesBoughtFromProvider::getVolumeId)
+                .thenComparing(CommoditiesBoughtFromProvider::getProviderId))
+            .collect(Collectors.toList());
         for (TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider commBoughtGrouping : sortedCommBoughtGrouping) {
             // skip converting shoppinglist that buys from VDC
             // TODO: we also skip the sl that consumes AZ which contains Zone commodity because zonal RI is not yet supported

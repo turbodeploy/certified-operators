@@ -1,0 +1,85 @@
+{
+  "entityType": 2,
+  "oid": 206,
+  "displayName": "DS:1",
+  "commoditySoldList": [
+    {
+      "commodityType": {
+        "type": 8,
+        "key": ""
+      },
+      "used": 0.0,
+      "peak": 0.0,
+      "capacity": 777216.0,
+      "effectiveCapacityPercentage": 0.0,
+      "reservedCapacity": 0.0,
+      "isThin": true
+    }
+  ],
+  "commoditiesBoughtFromProviders" : [
+    {
+      "providerId" : 102,
+      "providerEntityType" : 14,
+      "commodityBought": [
+        {
+          "commodityType": {
+            "type": 21,
+            "key": ""
+          },
+          "used": 50.0,
+          "peak": 80.0,
+          "historicalUsed": {
+            "histUtilization": 50.0
+          },
+          "historicalPeak": {
+            "histUtilization": 80.0
+          }
+        }
+      ]
+    },
+    {
+      "providerId" : 88,
+      "providerEntityType" : 14,
+      "commodityBought": [
+        {
+          "commodityType": {
+            "type": 21,
+            "key": ""
+          },
+          "used": 50.0,
+          "peak": 80.0,
+          "historicalUsed": {
+            "histUtilization": 50.0
+          },
+          "historicalPeak": {
+            "histUtilization": 80.0
+          }
+        }
+      ]
+    },
+    {
+      "providerId" : 77,
+      "providerEntityType" : 14,
+      "commodityBought": [
+        {
+          "commodityType": {
+            "type": 21,
+            "key": ""
+          },
+          "used": 50.0,
+          "peak": 80.0,
+          "historicalUsed": {
+            "histUtilization": 50.0
+          },
+          "historicalPeak": {
+            "histUtilization": 80.0
+          }
+        }
+      ]
+    }
+  ],
+  "entityState": "POWERED_ON",
+  "entityPropertyMap" : {
+    "shopTogether" : "false"
+  }
+}

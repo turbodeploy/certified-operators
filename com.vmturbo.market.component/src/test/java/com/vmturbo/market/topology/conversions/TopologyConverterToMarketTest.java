@@ -1,6 +1,7 @@
 package com.vmturbo.market.topology.conversions;
 
 import static java.util.stream.Collectors.toList;
+import static org.apache.commons.lang3.ArrayUtils.isSorted;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -462,21 +463,22 @@ public class TopologyConverterToMarketTest {
      */
     @Test
     public void testShoppingListSorting() throws IOException {
-        TopologyEntityDTO entityDTO = messageFromJsonFile("protobuf/messages/vm-1.dto.json");
-        CommoditiesBoughtFromProvider.Builder pmCommBoughtGrouping = entityDTO
+        TopologyEntityDTO vmDTO = messageFromJsonFile("protobuf/messages/vm-1.dto.json");
+        final TopologyEntityDTO vsanDsDTO = messageFromJsonFile("protobuf/messages/vsan-ds-1.dto.json");
+        CommoditiesBoughtFromProvider.Builder pmCommBoughtGrouping = vmDTO
             .getCommoditiesBoughtFromProvidersList().get(0).toBuilder();
-        CommoditiesBoughtFromProvider.Builder volume1CommBoughtGrouping = entityDTO
+        CommoditiesBoughtFromProvider.Builder volume1CommBoughtGrouping = vmDTO
             .getCommoditiesBoughtFromProvidersList().get(1).toBuilder();
-        CommoditiesBoughtFromProvider.Builder volume2CommBoughtGrouping = entityDTO
+        CommoditiesBoughtFromProvider.Builder volume2CommBoughtGrouping = vmDTO
             .getCommoditiesBoughtFromProvidersList().get(2).toBuilder();
         pmCommBoughtGrouping.clearVolumeId();
         volume1CommBoughtGrouping.setVolumeId(9L);
         volume2CommBoughtGrouping.setVolumeId(10L);
-        TopologyEntityDTO.Builder entityDTOBuilder = entityDTO.toBuilder();
+        TopologyEntityDTO.Builder entityDTOBuilder = vmDTO.toBuilder();
         entityDTOBuilder.clearCommoditiesBoughtFromProviders();
         entityDTOBuilder.addAllCommoditiesBoughtFromProviders(Arrays.asList(pmCommBoughtGrouping.build(),
             volume2CommBoughtGrouping.build(), volume1CommBoughtGrouping.build()));
-        entityDTO = entityDTOBuilder.build();
+        vmDTO = entityDTOBuilder.build();
 
         final TopologyConverter converter =
             new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, MarketAnalysisUtils.QUOTE_FACTOR,
@@ -486,9 +488,13 @@ public class TopologyConverterToMarketTest {
                 tierExcluderFactory,
                 consistentScalingHelperFactory,
                 reversibilitySettingFetcher);
-        Collection<TraderTO> vmTrader = converter.convertToMarket(ImmutableMap.of(entityDTO.getOid(), entityDTO));
+        Collection<TraderTO> traders = converter.convertToMarket(ImmutableMap.of(
+            vmDTO.getOid(), vmDTO,
+            vsanDsDTO.getOid(), vsanDsDTO));
 
-        TraderTO vm = vmTrader.iterator().next();
+        Map<Integer, TraderTO> traderByType = traders.stream().collect(
+            Collectors.toMap(TraderTO::getType, Function.identity()));
+        TraderTO vm = traderByType.get(EntityType.VIRTUAL_MACHINE_VALUE);
         ShoppingListInfo volume1slInfo = converter.getShoppingListOidToInfos().get(
             vm.getShoppingListsList().get(0).getOid());
         assertEquals(9L, (long)volume1slInfo.getResourceId().get());
@@ -498,6 +504,12 @@ public class TopologyConverterToMarketTest {
         ShoppingListInfo pmSlInfo = converter.getShoppingListOidToInfos().get(
             vm.getShoppingListsList().get(2).getOid());
         assertEquals(14, (int)pmSlInfo.getSellerEntityType().get());
+
+        TraderTO vsanDataStore = traderByType.get(EntityType.STORAGE_VALUE);
+        Long[] slProviderOids = new Long[3];
+        vsanDataStore.getShoppingListsList().stream()
+            .map(ShoppingListTO::getSupplier).collect(Collectors.toList()).toArray(slProviderOids);
+        assertTrue(isSorted(slProviderOids));
     }
 
     /**
