@@ -52,6 +52,8 @@ public class MediationComponentMain extends BaseVmtComponent {
     private long chunkTimeoutSec;
     @Value("${mediation.dataSharingMaxSizeKb:10240}")
     private long dataSharingMaxSizeKb;
+    @Value("${communicationBindingChannel:#{null}}")
+    private String communicationBindingChannel;
 
     @Autowired
     private MediationDiagnosticsConfig diagnosticsConfig;
@@ -71,7 +73,8 @@ public class MediationComponentMain extends BaseVmtComponent {
     public RemoteComposer remoteComposer() {
         try {
             return new RemoteComposer(probePropertiesCollection(), config(), lifecycleListener(), threadPool(),
-                negotiationTimeoutSec, keepAliveIntervalSec, chunkSendDelay, chunkTimeoutSec, dataSharingMaxSizeKb);
+                negotiationTimeoutSec, keepAliveIntervalSec, chunkSendDelay, chunkTimeoutSec,
+                dataSharingMaxSizeKb, communicationBindingChannel);
         } catch (ProbeConfigurationLoadException e) {
             throw new RuntimeException(e);
         }
