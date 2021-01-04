@@ -130,7 +130,7 @@ get_current_ip() {
 # if set on the command line, ignore
 if [ -z $bootproto ]; then
     echo ""
-    read -e -p "Do you want to use DHCP or set a static IP (dhcp/static) :: " bootproto
+    read -e -p "Do you want to use DHCP or set a static IP (DHCP is for test environments only) (dhcp/static) :: " bootproto
 fi
 
 #dbf
