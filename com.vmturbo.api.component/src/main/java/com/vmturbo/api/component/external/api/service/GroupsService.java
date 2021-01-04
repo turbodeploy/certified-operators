@@ -37,6 +37,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.http.ResponseEntity;
 import org.springframework.validation.Errors;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
@@ -45,10 +46,8 @@ import com.vmturbo.api.component.external.api.mapper.ActionCountsMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupFilterMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
-import com.vmturbo.api.component.external.api.mapper.PriceIndexPopulator;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
-import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedGroupInfo;
@@ -93,6 +92,7 @@ import com.vmturbo.api.pagination.ActionPaginationRequest.ActionPaginationRespon
 import com.vmturbo.api.pagination.GroupMembersPaginationRequest;
 import com.vmturbo.api.pagination.GroupMembersPaginationRequest.GroupMemberOrderBy;
 import com.vmturbo.api.pagination.GroupMembersPaginationRequest.GroupMembersPaginationResponse;
+import com.vmturbo.api.pagination.PaginationUtil;
 import com.vmturbo.api.pagination.SearchPaginationRequest;
 import com.vmturbo.api.pagination.SearchPaginationRequest.SearchPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IGroupsService;
@@ -105,6 +105,7 @@ import com.vmturbo.common.protobuf.TemplateProtoUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCategoryStatsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCategoryStatsResponse;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import com.vmturbo.common.protobuf.common.Pagination;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupRequest;
@@ -132,6 +133,7 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.GetHeadroomTemplateResponse;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc.TemplateServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
+import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.LogicalOperator;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
@@ -222,10 +224,6 @@ public class GroupsService implements IGroupsService {
 
     private final ActionStatsQueryExecutor actionStatsQueryExecutor;
 
-    private final SeverityPopulator severityPopulator;
-
-    private final PriceIndexPopulator priceIndexPopulator;
-
     private final SupplyChainFetcherFactory supplyChainFetcherFactory;
 
     private StatsService statsService = null;
@@ -259,8 +257,6 @@ public class GroupsService implements IGroupsService {
                   @Nonnull final TemplateServiceBlockingStub templateService,
                   @Nonnull final EntityAspectMapper entityAspectMapper,
                   @Nonnull final ActionStatsQueryExecutor actionStatsQueryExecutor,
-                  @Nonnull final SeverityPopulator severityPopulator,
-                  @Nonnull final PriceIndexPopulator priceIndexPopulator,
                   @Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
                   @Nonnull final ActionSearchUtil actionSearchUtil,
                   @Nonnull final SettingPolicyServiceBlockingStub settingPolicyServiceBlockingStub,
@@ -282,8 +278,6 @@ public class GroupsService implements IGroupsService {
         this.templateService = templateService;
         this.entityAspectMapper = entityAspectMapper;
         this.actionStatsQueryExecutor = Objects.requireNonNull(actionStatsQueryExecutor);
-        this.severityPopulator = Objects.requireNonNull(severityPopulator);
-        this.priceIndexPopulator = Objects.requireNonNull(priceIndexPopulator);
         this.supplyChainFetcherFactory = Objects.requireNonNull(supplyChainFetcherFactory);
         this.settingPolicyServiceBlockingStub = Objects.requireNonNull(settingPolicyServiceBlockingStub);
         this.actionSearchUtil = Objects.requireNonNull(actionSearchUtil);
@@ -348,63 +342,76 @@ public class GroupsService implements IGroupsService {
         }
     }
 
-    @Override
-    public List<?> getEntitiesByGroupUuid(String uuid) throws Exception {
-        final ApiId apiId = uuidMapper.fromUuid(uuid);
-        // check if scope is real time market, return all entities in the market
-        if (apiId.isRealtimeMarket()) {
-            final List<ServiceEntityApiDTO> entities = repositoryApi.newSearchRequest(
-                    SearchProtoUtil.makeSearchParameters(
-                            SearchProtoUtil.entityTypeFilter(SearchProtoUtil.SEARCH_ALL_TYPES))
-                            .build()).getSEList();
-            // populate priceIndex on the entity
-            priceIndexPopulator.populateRealTimeEntities(entities);
-            // populate severity on the entity
-            severityPopulator.populate(realtimeTopologyContextId, entities);
-            return entities;
-        }
+    /**
+     * Get Ids of all entities from a given group by expanding and traversing through its members.
+     * @param groupUuid - unique ID for the parent group object
+     * @param apiId - derived ApiId from the group
+     * @return a Set containing entity ids for the group
+     * @throws OperationFailedException - the entity-grouping type is not supported
+     */
+    @Nonnull
+    @VisibleForTesting
+    Set<Long> getLeafEntitiesByGroupUuid(@Nonnull String groupUuid, @Nonnull ApiId apiId)
+            throws OperationFailedException {
 
-        final Set<Long> leafEntities;
         // first check if it's group
-        final Optional<GroupAndMembers> groupAndMembers = groupExpander.getGroupWithMembersAndEntities(uuid);
+        final Optional<GroupAndMembers> groupAndMembers = groupExpander.getGroupWithMembersAndEntities(groupUuid);
         if (groupAndMembers.isPresent()) {
-            leafEntities = Sets.newHashSet(groupAndMembers.get().entities());
-        } else if (apiId.isTarget()) {
-            // check if it's target
-            leafEntities = expandUuids(Collections.singleton(uuid), Collections.emptyList(), null);
-        } else {
-            // check if scope is entity, if not, throw exception
-            MinimalEntity entity = repositoryApi.entityRequest(Long.parseLong(uuid)).getMinimalEntity()
-                .orElseThrow(() -> new UnsupportedOperationException("Scope: " + uuid + " is not supported"));
-            // check if supported grouping entity
-            if (!GROUPING_ENTITY_TYPES_TO_EXPAND.containsKey(entity.getEntityType())) {
-                throw new UnsupportedOperationException("Entity: " + uuid + " is not supported");
-            }
-            leafEntities = expandUuids(Collections.singleton(uuid),
+            return Sets.newHashSet(groupAndMembers.get().entities());
+        }
+
+        if (apiId.isTarget()) {
+            return expandUuids(Collections.singleton(groupUuid), Collections.emptyList(), null);
+        }
+
+        // check if scope is entity, if not, throw exception
+        final MinimalEntity entity = repositoryApi.entityRequest(Long.parseLong(groupUuid)).getMinimalEntity()
+                .orElseThrow(() -> new UnsupportedOperationException("Scope: " + groupUuid + " is not supported"));
+        // check if supported grouping entity
+        if (!GROUPING_ENTITY_TYPES_TO_EXPAND.containsKey(entity.getEntityType())) {
+            throw new UnsupportedOperationException("Entity: " + groupUuid + " is not supported");
+        }
+        return expandUuids(Collections.singleton(groupUuid),
                 GROUPING_ENTITY_TYPES_TO_EXPAND.get(entity.getEntityType()), null);
+    }
+
+    @Override
+    public ResponseEntity<List<ServiceEntityApiDTO>> getEntitiesByGroupUuid(@Nonnull String uuid,
+                                                                            @Nullable SearchPaginationRequest searchPagination) throws Exception {
+        final ApiId apiId = uuidMapper.fromUuid(uuid);
+        final Search.SearchParameters.Builder searchBuilder = Search.SearchParameters.newBuilder();
+        Set<Long> leafEntities = Collections.emptySet();
+
+        if (apiId.isRealtimeMarket()) {
+            searchBuilder.setStartingFilter(SearchProtoUtil.entityTypeFilter(SearchProtoUtil.SEARCH_ALL_TYPES));
+        } else {
+            leafEntities = this.getLeafEntitiesByGroupUuid(uuid, apiId);
+
+            // Special handling for the empty member list, because passing empty to repositoryApi returns all entities.
+            if (leafEntities.isEmpty()) {
+                return PaginationUtil.buildResponseEntity(Collections.emptyList(), null, null, null);
+            }
+            searchBuilder.setStartingFilter(SearchProtoUtil.idFilter(leafEntities));
         }
 
-        // Special handling for the empty member list, because passing empty to repositoryApi returns all entities.
-        if (leafEntities.isEmpty()) {
-            return Collections.emptyList();
+        final RepositoryApi.SearchRequest searchRequest = repositoryApi.newSearchRequest(searchBuilder.build());
+        searchRequest.usePriceIndexPopulator(true);
+
+        // Handle paginated request/response
+        if (searchPagination != null) {
+            final Pagination.PaginationParameters paginationParameters = paginationMapper.toProtoParams(searchPagination);
+            return searchRequest.getPaginatedSEList(paginationParameters);
         }
 
-
-        // Get entities from the repository component
-        final List<ServiceEntityApiDTO> entities = repositoryApi.entitiesRequest(leafEntities)
-            .getSEList();
+        // Handle non-paginated request/response
+        final List<ServiceEntityApiDTO> entities = searchRequest.getSEList();
 
         int missingEntities = leafEntities.size() - entities.size();
         if (missingEntities > 0) {
             logger.warn("{} entities from scope {} not found in repository.", missingEntities, uuid);
         }
 
-        // populate priceIndex on the entity
-        priceIndexPopulator.populateRealTimeEntities(entities);
-        // populate severity on the entity
-        severityPopulator.populate(realtimeTopologyContextId, entities);
-
-        return entities;
+        return PaginationUtil.buildResponseEntity(entities, null, null, null);
     }
 
     @Override

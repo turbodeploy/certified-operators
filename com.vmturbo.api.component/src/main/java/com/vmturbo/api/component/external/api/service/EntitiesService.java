@@ -292,7 +292,7 @@ public class EntitiesService implements IEntitiesService {
                 "Market Entities"));
         result.add(
             generateLinkTo(
-                ControllerLinkBuilder.methodOn(GroupsController.class).getEntitiesByGroupUuid(REPLACEME),
+                ControllerLinkBuilder.methodOn(GroupsController.class).getEntitiesByGroupUuid(REPLACEME, null, null, null, null),
                 "Group entities"));
         return result;
     }

@@ -370,8 +370,6 @@ public class ServiceConfig {
                 communicationConfig.templateServiceBlockingStub(),
                 mapperConfig.entityAspectMapper(),
                 actionStatsQueryExecutor(),
-                communicationConfig.severityPopulator(),
-                communicationConfig.priceIndexPopulator(),
                 communicationConfig.supplyChainFetcher(),
                 actionSearchUtil(),
                 communicationConfig.settingPolicyRpcService(),

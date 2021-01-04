@@ -30,6 +30,7 @@ import org.springframework.util.CollectionUtils;
 
 import com.vmturbo.api.component.external.api.mapper.EntityDetailsMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
+import com.vmturbo.api.component.external.api.mapper.PriceIndexPopulator;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
@@ -104,6 +105,7 @@ public class RepositoryApi {
     private final BusinessAccountMapper businessAccountMapper;
     private final PaginationMapper paginationMapper;
     private final EntityDetailsMapper entityDetailsMapper;
+    private final PriceIndexPopulator priceIndexPopulator;
 
     public RepositoryApi(@Nonnull final SeverityPopulator severityPopulator,
                          @Nonnull final RepositoryServiceBlockingStub repositoryService,
@@ -114,6 +116,7 @@ public class RepositoryApi {
                          @Nonnull BusinessAccountMapper businessAccountMapper,
                          @Nonnull final PaginationMapper paginationMapper,
                          @Nonnull final EntityDetailsMapper entityDetailsMapper,
+                         @Nonnull final PriceIndexPopulator priceIndexPopulator,
                          final long realtimeTopologyContextId) {
         this.severityPopulator = Objects.requireNonNull(severityPopulator);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
@@ -124,6 +127,7 @@ public class RepositoryApi {
         this.businessAccountMapper = Objects.requireNonNull(businessAccountMapper);
         this.repositoryServiceAsyncStub = Objects.requireNonNull(repositoryServiceAsyncStub);
         this.entityDetailsMapper = Objects.requireNonNull(entityDetailsMapper);
+        this.priceIndexPopulator = Objects.requireNonNull(priceIndexPopulator);
         this.paginationMapper = paginationMapper;
     }
 
@@ -159,7 +163,7 @@ public class RepositoryApi {
     public SearchRequest newSearchRequestMulti(@Nonnull Collection<SearchParameters> params) {
         return new SearchRequest(realtimeTopologyContextId, searchServiceBlockingStub,
                 searchServiceAsyncStub, severityPopulator, serviceEntityMapper,
-                entityDetailsMapper, params);
+                entityDetailsMapper, priceIndexPopulator, params);
     }
 
     /**
@@ -240,7 +244,7 @@ public class RepositoryApi {
         return new SearchRequest(realtimeTopologyContextId, searchServiceBlockingStub,
                                  searchServiceAsyncStub,
                                  severityPopulator, serviceEntityMapper, entityDetailsMapper,
-                                 Collections.singleton(searchParameters));
+                                 priceIndexPopulator, Collections.singleton(searchParameters));
     }
 
     /**
@@ -570,7 +574,11 @@ public class RepositoryApi {
 
         private EntityAspectMapper aspectMapper = null;
 
+        private final PriceIndexPopulator priceIndexPopulator;
+
         private PartialEntityRetriever retriever;
+
+        private boolean populatePriceIndex = false;
 
         private SearchRequest(final long realtimeContextId,
                              @Nonnull final SearchServiceBlockingStub searchServiceBlockingStub,
@@ -578,12 +586,14 @@ public class RepositoryApi {
                              @Nonnull final SeverityPopulator severityPopulator,
                              @Nonnull final ServiceEntityMapper serviceEntityMapper,
                              @Nonnull final EntityDetailsMapper entityDetailsMapper,
+                             @Nonnull final PriceIndexPopulator priceIndexPopulator,
                              @Nonnull final Collection<SearchParameters> params) {
             this.realtimeContextId = realtimeContextId;
             this.searchServiceBlockingStub = searchServiceBlockingStub;
             this.searchServiceStub = Objects.requireNonNull(searchServiceStub);
             this.serviceEntityMapper = serviceEntityMapper;
             this.severityPopulator = severityPopulator;
+            this.priceIndexPopulator = priceIndexPopulator;
             this.params = params;
 
             this.retriever = new PartialEntityRetriever(type ->
@@ -609,6 +619,18 @@ public class RepositoryApi {
         @Nonnull
         public SearchRequest useAspectMapper(@Nonnull final EntityAspectMapper aspectMapper) {
             this.aspectMapper = aspectMapper;
+            return this;
+        }
+
+        /**
+         * Use {@link PriceIndexPopulator} to populate priceIndex info in response to
+         * this request's list of {@link ServiceEntityApiDTO}s.
+         * @param populatePriceIndex - flag to determine if priceIndex should be included in response
+         * @return The request, for chaining.
+         */
+        @Nonnull
+        public SearchRequest usePriceIndexPopulator(boolean populatePriceIndex) {
+            this.populatePriceIndex = populatePriceIndex;
             return this;
         }
 
@@ -642,6 +664,10 @@ public class RepositoryApi {
 
             //Add severityInfo
             severityPopulator.populate(realtimeContextId, serviceEntityApiDTOList);
+
+            if (this.populatePriceIndex) {
+                this.priceIndexPopulator.populateRealTimeEntities(serviceEntityApiDTOList);
+            }
 
             return PaginationUtil.buildResponseEntity(serviceEntityApiDTOList, null, paginationResponse.getNextCursor(), paginationResponse.getTotalRecordCount());
         }
@@ -744,7 +770,11 @@ public class RepositoryApi {
         @Nonnull
         public List<ServiceEntityApiDTO> getSEList()
                 throws InterruptedException, ConversionException {
-            return retriever.getSEList(realtimeContextId, aspectMapper, null);
+            final List<ServiceEntityApiDTO> serviceEntityApiDTOList = retriever.getSEList(realtimeContextId, aspectMapper, null);
+            if (this.populatePriceIndex) {
+                this.priceIndexPopulator.populateRealTimeEntities(serviceEntityApiDTOList);
+            }
+            return serviceEntityApiDTOList;
         }
 
     }

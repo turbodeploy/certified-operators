@@ -38,6 +38,7 @@ import com.vmturbo.api.component.communication.RepositoryApi.RepositoryRequestRe
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.external.api.mapper.EntityDetailsMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
+import com.vmturbo.api.component.external.api.mapper.PriceIndexPopulator;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
@@ -87,6 +88,8 @@ public class RepositoryApiTest {
 
     private final SeverityPopulator severityPopulator = mock(SeverityPopulator.class);
 
+    private final PriceIndexPopulator priceIndexPopulatorMock = mock(PriceIndexPopulator.class);
+
     private final SearchServiceMole searchBackend = Mockito.spy(new SearchServiceMole());
 
     private final RepositoryServiceMole repoBackend = Mockito.spy(new RepositoryServiceMole());
@@ -110,7 +113,7 @@ public class RepositoryApiTest {
                 RepositoryServiceGrpc.newStub(grpcChannel),
                 SearchServiceGrpc.newBlockingStub(grpcChannel),
                 SearchServiceGrpc.newStub(grpcChannel), serviceEntityMapper, businessAccountMapper,
-                paginationMapper, entityDetailsMapper,
+                paginationMapper, entityDetailsMapper, priceIndexPopulatorMock,
                 realtimeContextId);
     }
 
@@ -747,6 +750,81 @@ public class RepositoryApiTest {
         Assert.assertTrue(severityPopulatorSEs.getValue().contains(se));
     }
 
+    /**
+     * Test that the PriceIndexPopulator#populateRealTimeEntities method is called when flag is set to True.
+     *
+     * @throws Exception if any error occurs
+     */
+    @Test
+    public void testSearchSEListUsesPriceIndexPopulator() throws Exception {
+        // GIVEN
+        final EntityAspectMapper aspectMapperMock = mock(EntityAspectMapper.class);
+        final ServiceEntityApiDTO serviceEntity1 = new ServiceEntityApiDTO();
+        serviceEntity1.setUuid("7");
+
+        final TopologyEntityDTO topologyEntityDTO = full(7L);
+        Mockito.when(
+                serviceEntityMapper.entitiesWithAspects(Mockito.anyListOf(TopologyEntityDTO.class),
+                        Mockito.eq(aspectMapperMock), Mockito.eq(null)))
+                .thenReturn(Collections.singletonMap(topologyEntityDTO.getOid(), serviceEntity1));
+
+        final List<PartialEntityBatch> partialEntityBatch = Collections.singletonList(PartialEntityBatch.newBuilder()
+                        .addEntities(PartialEntity.newBuilder().setFullEntity(topologyEntityDTO))
+                        .build());
+        Mockito.doReturn(partialEntityBatch).when(searchBackend).searchEntitiesStream(org.mockito.Matchers.any());
+
+        // WHEN
+        final List<ServiceEntityApiDTO> serviceEntitiesList = repositoryApi.newSearchRequest(SEARCH_PARAMS)
+                .usePriceIndexPopulator(true)
+                .useAspectMapper(aspectMapperMock)
+                .getSEList();
+
+        // EXPECT
+        MatcherAssert.assertThat(serviceEntitiesList, Matchers.contains(serviceEntity1));
+
+        // Check to make sure we used the priceIndexPopulator.
+        final ArgumentCaptor<List> priceIndexCapturedSEs =
+                ArgumentCaptor.forClass(List.class);
+        Mockito.verify(priceIndexPopulatorMock)
+                .populateRealTimeEntities(priceIndexCapturedSEs.capture());
+        Assert.assertTrue(priceIndexCapturedSEs.getValue().contains(serviceEntity1));
+    }
+
+    /**
+     * Test that the PriceIndexPopulator#populateRealTimeEntities method is NOT called by default.
+     *
+     * @throws Exception if any error occurs
+     */
+    @Test
+    public void testSearchSEListNotUsingPriceIndexPopulator() throws Exception {
+        // GIVEN
+        final EntityAspectMapper aspectMapperMock = mock(EntityAspectMapper.class);
+        final ServiceEntityApiDTO serviceEntity1 = new ServiceEntityApiDTO();
+        serviceEntity1.setUuid("7");
+
+        final TopologyEntityDTO topologyEntityDTO = full(7L);
+        Mockito.when(
+                serviceEntityMapper.entitiesWithAspects(Mockito.anyListOf(TopologyEntityDTO.class),
+                        Mockito.eq(aspectMapperMock), Mockito.eq(null)))
+                .thenReturn(Collections.singletonMap(topologyEntityDTO.getOid(), serviceEntity1));
+
+        final List<PartialEntityBatch> partialEntityBatch = Collections.singletonList(PartialEntityBatch.newBuilder()
+                .addEntities(PartialEntity.newBuilder().setFullEntity(topologyEntityDTO))
+                .build());
+        Mockito.doReturn(partialEntityBatch).when(searchBackend).searchEntitiesStream(org.mockito.Matchers.any());
+
+        // WHEN
+        final List<ServiceEntityApiDTO> serviceEntitiesList = repositoryApi.newSearchRequest(SEARCH_PARAMS)
+                .useAspectMapper(aspectMapperMock)
+                .getSEList();
+
+        // EXPECT
+        MatcherAssert.assertThat(serviceEntitiesList, Matchers.contains(serviceEntity1));
+
+        // Check to make sure we do not use the priceIndexPopulator by default
+        Mockito.verifyZeroInteractions(priceIndexPopulatorMock);
+    }
+
     @Test
     public void testSearchSEMap() throws Exception {
         final ServiceEntityApiDTO se = new ServiceEntityApiDTO();
@@ -1022,6 +1100,8 @@ public class RepositoryApiTest {
                 .build();
         RepositoryApi.SearchRequest searchRequest = repositoryApi.newSearchRequest(build);
 
+        searchRequest.usePriceIndexPopulator(true);
+
         final String cursor = "cursor";
         int totalRecordCount = 100;
         PaginationResponse paginationResponse = PaginationResponse.newBuilder().setNextCursor(
@@ -1060,6 +1140,7 @@ public class RepositoryApiTest {
         verify(this.serviceEntityMapper).toServiceEntityApiDTO(Collections.singletonList(apiPartialEntity));
         //Checks that severity information populated to dtos
         verify(this.severityPopulator).populate(this.realtimeContextId, serviceEntityApiDTOList);
+        verify(priceIndexPopulatorMock, times(1)).populateRealTimeEntities(serviceEntityApiDTOList);
     }
 
     /**
