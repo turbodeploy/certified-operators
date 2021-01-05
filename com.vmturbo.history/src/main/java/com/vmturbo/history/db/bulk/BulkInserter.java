@@ -5,8 +5,11 @@ import static com.vmturbo.sql.utils.JooqQueryTrimmer.trimJooqErrorMessage;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletionService;
 import java.util.concurrent.ExecutionException;
@@ -14,7 +17,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.annotation.Nonnull;
 
@@ -103,10 +105,10 @@ public class BulkInserter<InT extends Record, OutT extends Record> implements Bu
     // true once this inserter has been closed; inserts are then disallowed
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
-    // Number of executions that have been submitted for execution but have not yet completed.
-    // This is mostly used in close processing so we can complain if,
-    // after allowing the throttling executor to quiesce, we still have outstanding tasks.
-    private final AtomicInteger pendingExecutions = new AtomicInteger(0);
+    // Executions that have been submitted for execution but have not yet completed. This is mostly
+    // used in close processing so we can complain if, after allowing the throttling executor to
+    // quiesce, we still have outstanding tasks.
+    private final Set<Future<BatchStats>> pendingExecutions = Collections.synchronizedSet(new HashSet<>());
 
     private final Table<InT> inTable;
     private final Table<OutT> outTable;
@@ -195,8 +197,9 @@ public class BulkInserter<InT extends Record, OutT extends Record> implements Bu
         // no longer locking the pending insertions queue... submit new batch
         try {
             final InsertTask task = new InsertTask(dbInserter, thisBatchNo, batch);
-            batchCompletionService.submit(task, this::handleBatchCompletion);
-            pendingExecutions.incrementAndGet();
+            final Future<BatchStats> future =
+                    batchCompletionService.submit(task, this::handleBatchCompletion);
+            pendingExecutions.add(future);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
@@ -212,7 +215,7 @@ public class BulkInserter<InT extends Record, OutT extends Record> implements Bu
             logger.error("Batch completion sent before task was complete; canceling: {}", future);
             future.cancel(true);
         }
-        pendingExecutions.decrementAndGet();
+        pendingExecutions.remove(future);
         if (future.isDone()) {
             try {
                 final BatchStats batchStats = future.get();
@@ -365,7 +368,7 @@ public class BulkInserter<InT extends Record, OutT extends Record> implements Bu
         synchronized (this) {
             if (!closed.getAndSet(true)) {
                 flush(true);
-                if (!(pendingExecutions.get() > 0)) {
+                if (!pendingExecutions.isEmpty()) {
                     logger.warn("Some batch executions still pending at close for out table {}",
                             outTable.getName());
                 }

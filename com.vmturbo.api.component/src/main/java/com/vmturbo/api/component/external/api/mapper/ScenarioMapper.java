@@ -1020,23 +1020,28 @@ public class ScenarioMapper {
             final PlanChanges.Builder planChangesBuilder = PlanChanges.newBuilder();
             BusinessAccount.Builder subscription = BusinessAccount.newBuilder();
             final String uuid = businessUnitApiDTO.getUuid();
-            final String accountId = businessUnitApiDTO.getAccountId();
-            final String displayName = businessUnitApiDTO.getDisplayName();
-            final String className = businessUnitApiDTO.getClassName();
-            final com.vmturbo.api.enums.CloudType cloudType = businessUnitApiDTO.getCloudType();
-            // Please see this UI improvement for Scenario Business Account Validation.
-            // https://vmturbo.atlassian.net/browse/OM-65467
-            if (StringUtils.isNoneBlank(uuid, accountId, displayName, className)
-                && cloudType != null) {
+            if (!StringUtils.isEmpty(uuid)) {
                 subscription.setUuid(uuid);
-                subscription.setAccountId(accountId);
-                subscription.setDisplayName(displayName);
-                subscription.setClassName(className);
-                subscription.setCloudType(cloudType.name());
-                planChangesBuilder.setSubscription(subscription.build());
-                scenarioChanges.add(ScenarioChange.newBuilder()
-                                .setPlanChanges(planChangesBuilder.build()).build());
             }
+            final String accountId = businessUnitApiDTO.getAccountId();
+            if (!StringUtils.isEmpty(accountId)) {
+                subscription.setAccountId(accountId);
+            }
+            final String displayName = businessUnitApiDTO.getDisplayName();
+            if (!StringUtils.isEmpty(displayName)) {
+                subscription.setDisplayName(displayName);
+            }
+            final String className = businessUnitApiDTO.getClassName();
+            if (!StringUtils.isEmpty(className)) {
+                subscription.setClassName(className);
+            }
+            final com.vmturbo.api.enums.CloudType cloudType = businessUnitApiDTO.getCloudType();
+            if (cloudType != null) {
+                subscription.setCloudType(cloudType.name());
+            }
+            planChangesBuilder.setSubscription(subscription.build());
+            scenarioChanges.add(ScenarioChange.newBuilder()
+                            .setPlanChanges(planChangesBuilder.build()).build());
         }
 
         // For a Migration plan, the business account in configChanges pertains to the destination
@@ -1500,9 +1505,7 @@ public class ScenarioMapper {
                 .addAllOsMigrations(buildOsMigrations(configChanges));
         if (configChanges != null) {
             final BusinessUnitApiDTO destinationAccountDto = configChanges.getSubscription();
-            if (destinationAccountDto != null
-                && !StringUtils.isBlank(destinationAccountDto.getUuid())) {
-                System.out.println("uuid in migration:" + destinationAccountDto.getUuid());
+            if (destinationAccountDto != null) {
                 final MigrationReference destinationAccount = MigrationReference.newBuilder()
                                 .setOid(Long.valueOf(destinationAccountDto.getUuid()))
                                 .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)

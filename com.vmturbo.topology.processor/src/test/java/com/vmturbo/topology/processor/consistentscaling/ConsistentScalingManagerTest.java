@@ -296,6 +296,22 @@ public class ConsistentScalingManagerTest {
     }
 
     /**
+     * Ensure CSM state is cleared correctly.
+     */
+    @Test
+    public void testClear() {
+        ConsistentScalingManager csm = createCSM(true);
+        // Build groups and verify group membership of an entity
+        populateCSMWithTestData(csm);
+        Map<Long, Map<String, SettingAndPolicyIdRecord>> settingsMaps = buildScalingGroups(csm);
+        Assert.assertTrue(csm.getScalingGroupId(1L).isPresent());
+        // VM-9 is in a scaling group, so it should be in the settings map
+        Assert.assertNotNull(settingsMaps.get(9L));
+        csm.clear();
+        Assert.assertFalse(csm.getScalingGroupId(1L).isPresent());
+    }
+
+    /**
      * Ensure scaling groups are built and merged correctly.
      */
     @Test

@@ -203,10 +203,6 @@
             <groupId>org.roaringbitmap</groupId>
             <artifactId>RoaringBitmap</artifactId>
         </dependency>
-        <dependency>
-            <groupId>de.vandermeer</groupId>
-            <artifactId>asciitable</artifactId>
-        </dependency>
 
         <!-- test dependencies -->
         <dependency>

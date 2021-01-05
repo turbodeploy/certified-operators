@@ -10,6 +10,11 @@ public class ConsistentScalingConfig {
     private boolean enabled = true;
 
     @Bean
+    public ConsistentScalingManager consistentScalingManager() {
+        return new ConsistentScalingManager(this);
+    }
+
+    @Bean
     public ConsistentScalingConfig consistentScalingConfig() {
         return this;
     }

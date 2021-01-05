@@ -8,11 +8,10 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.action.orchestrator.ActionOrchestratorGlobalConfig;
 import com.vmturbo.action.orchestrator.api.ActionOrchestratorApiConfig;
+import com.vmturbo.action.orchestrator.execution.ActionExecutionConfig;
 import com.vmturbo.action.orchestrator.store.ActionStoreConfig;
-import com.vmturbo.action.orchestrator.store.pipeline.LiveActionPipelineFactory;
-import com.vmturbo.action.orchestrator.store.pipeline.PlanActionPipelineFactory;
-import com.vmturbo.action.orchestrator.topology.TopologyProcessorConfig;
 import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings.StartFrom;
 import com.vmturbo.market.component.api.MarketComponent;
 import com.vmturbo.market.component.api.impl.MarketClientConfig;
@@ -26,13 +25,17 @@ import com.vmturbo.market.component.api.impl.MarketSubscription.Topic;
 @Import({
     ActionOrchestratorApiConfig.class,
     ActionStoreConfig.class,
+    ActionExecutionConfig.class,
     MarketClientConfig.class,
-    TopologyProcessorConfig.class
+    ActionOrchestratorGlobalConfig.class
 })
 public class MarketConfig {
 
     @Autowired
     private ActionOrchestratorApiConfig apiConfig;
+
+    @Autowired
+    private ActionExecutionConfig executionConfig;
 
     @Autowired
     private ActionStoreConfig actionStoreConfig;
@@ -41,7 +44,7 @@ public class MarketConfig {
     private MarketClientConfig marketClientConfig;
 
     @Autowired
-    private TopologyProcessorConfig topologyProcessorConfig;
+    private ActionOrchestratorGlobalConfig actionOrchestratorGlobalConfig;
 
     /**
      * The maximum allowed age of an action plan in seconds.
@@ -58,35 +61,9 @@ public class MarketConfig {
     }
 
     @Bean
-    public LiveActionPipelineFactory liveActionPipelineFactory() {
-        return new LiveActionPipelineFactory(actionStoreConfig.actionStorehouse(),
-            actionStoreConfig.automationManager());
-    }
-
-    /**
-     * The planActionPipelineFactory.
-     *
-     * @return The planActionPipelineFactory.
-     */
-    @Bean
-    public PlanActionPipelineFactory planActionPipelineFactory() {
-        return new PlanActionPipelineFactory(actionStoreConfig.actionStorehouse());
-    }
-
-    /**
-     * The orchestrator for actions.
-     *
-     * @return The orchestrator for actions.
-     */
-    @Bean
-    public ActionOrchestrator orchestrator() {
-        return new ActionOrchestrator(liveActionPipelineFactory(), planActionPipelineFactory(),
-            apiConfig.actionOrchestratorNotificationSender(), topologyProcessorConfig.realtimeTopologyContextId());
-    }
-
-    @Bean
     public MarketActionListener marketActionListener() {
-        return new MarketActionListener(orchestrator(), actionPlanAssessor());
+        return new MarketActionListener(apiConfig.actionOrchestratorNotificationSender(),
+                actionStoreConfig.actionStorehouse(), actionPlanAssessor());
     }
 
     @Bean

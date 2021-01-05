@@ -156,33 +156,34 @@ public class PlanTopologyScopeEditor {
      *
      * @param topologyInfo Plan topology info.
      * @param graph Topology graph.
-     * @param sourceEntities The source entities for the plan.
+     * @param context Plan pipeline context.
      * @return {@link TopologyGraph} topology entity graph after applying scope.
      */
     public TopologyGraph<TopologyEntity> scopeTopology(
             @Nonnull final TopologyInfo topologyInfo,
             @Nonnull final TopologyGraph<TopologyEntity> graph,
-            @Nonnull final Set<Long> sourceEntities) {
+            @Nonnull final TopologyPipelineContext context) {
 
         final Set<Long> cloudSourceEntities = new HashSet<>();
         final Set<Long> onPremSourceEntities = new HashSet<>();
-        sourceEntities.stream()
-            .map(graph::getEntity)
-            .filter(Optional::isPresent)
-            .map(Optional::get)
-            .forEach(entity -> {
-                // Split source entities into cloud and on-prem.
-                // Env type doesn't seem to be set for some reason, so check owner instead.
-                if (entity.getOwner().isPresent()
-                    && entity.getOwner().get().getEntityType() == BUSINESS_ACCOUNT_VALUE) {
-                    cloudSourceEntities.add(entity.getOid());
-                } else if (EnvironmentType.ON_PREM == entity.getEnvironmentType()) {
-                    onPremSourceEntities.add(entity.getOid());
-                } else {
-                    logger.debug("Entity {} oid: {} not cloud or on-prem - excluding from plan",
-                        entity.getDisplayName(), entity.getOid());
-                }
-            });
+        context.getSourceEntities()
+                .stream()
+                .map(graph::getEntity)
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .forEach(entity -> {
+                    // Split source entities into cloud and on-prem.
+                    // Env type doesn't seem to be set for some reason, so check owner instead.
+                    if (entity.getOwner().isPresent()
+                            && entity.getOwner().get().getEntityType() == BUSINESS_ACCOUNT_VALUE) {
+                        cloudSourceEntities.add(entity.getOid());
+                    } else if (EnvironmentType.ON_PREM == entity.getEnvironmentType()) {
+                        onPremSourceEntities.add(entity.getOid());
+                    } else {
+                        logger.debug("Entity {} oid: {} not cloud or on-prem - excluding from plan",
+                                entity.getDisplayName(), entity.getOid());
+                    }
+                });
 
         final Long2ObjectMap<TopologyEntity.Builder> resultEntityMap =
                 new Long2ObjectOpenHashMap<>(cloudSourceEntities.size() + onPremSourceEntities.size());

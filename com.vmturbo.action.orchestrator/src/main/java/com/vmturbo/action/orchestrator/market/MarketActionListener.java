@@ -12,9 +12,14 @@ import io.opentracing.SpanContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.action.orchestrator.api.ActionOrchestratorNotificationSender;
+import com.vmturbo.action.orchestrator.store.ActionStore;
+import com.vmturbo.action.orchestrator.store.ActionStorehouse;
+import com.vmturbo.common.protobuf.PlanDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisSummary;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
+import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.tracing.Tracing;
 import com.vmturbo.components.api.tracing.Tracing.TracingScope;
 import com.vmturbo.market.component.api.ActionsListener;
@@ -27,7 +32,9 @@ public class MarketActionListener implements ActionsListener, AnalysisSummaryLis
 
     private static final Logger logger = LogManager.getLogger();
 
-    private final ActionOrchestrator orchestrator;
+    private final ActionOrchestratorNotificationSender notificationSender;
+
+    private final ActionStorehouse actionStorehouse;
 
     private final ActionPlanAssessor actionPlanAssessor;
 
@@ -41,12 +48,15 @@ public class MarketActionListener implements ActionsListener, AnalysisSummaryLis
     /**
      * Constructs new instance of {@code MarketActionListener}.
      *
-     * @param actionOrchestrator The orchestrator that handles the processing of a new action plan.
+     * @param notificationSender Notification sender.
+     * @param actionStorehouse Action store house.
      * @param actionPlanAssessor Action plan assessor.
      */
-    public MarketActionListener(@Nonnull final ActionOrchestrator actionOrchestrator,
+    public MarketActionListener(@Nonnull final ActionOrchestratorNotificationSender notificationSender,
+                                @Nonnull final ActionStorehouse actionStorehouse,
                                 @Nonnull final ActionPlanAssessor actionPlanAssessor) {
-        this.orchestrator = Objects.requireNonNull(actionOrchestrator);
+        this.notificationSender = Objects.requireNonNull(notificationSender);
+        this.actionStorehouse = Objects.requireNonNull(actionStorehouse);
         this.actionPlanAssessor = Objects.requireNonNull(actionPlanAssessor);
     }
 
@@ -94,21 +104,49 @@ public class MarketActionListener implements ActionsListener, AnalysisSummaryLis
             orderedActions.getActionList().forEach(action -> logger.debug("Received action: " + action));
         }
 
-        final LocalDateTime analysisStart = localDateTimeFromSystemTime(orderedActions.getAnalysisCompleteTimestamp());
-        final LocalDateTime analysisEnd = localDateTimeFromSystemTime(orderedActions.getAnalysisCompleteTimestamp());
         if (shouldSkip(orderedActions)) {
             logger.warn("Dropping action plan {} (info: {}) " +
                             "with {} actions (analysis start [{}] completion [{}])",
                     orderedActions.getId(),
                     orderedActions.getInfo(),
                     orderedActions.getActionCount(),
-                    analysisStart,
-                    analysisEnd);
-        } else {
-            // Populate the store with the new recommendations and refresh the cache.
-            try (TracingScope tracingScope = Tracing.trace("on_actions_received", tracingContext)) {
-                orchestrator.processActions(orderedActions, analysisStart, analysisEnd);
+                    localDateTimeFromSystemTime(orderedActions.getAnalysisStartTimestamp()),
+                    localDateTimeFromSystemTime(orderedActions.getAnalysisCompleteTimestamp()));
+            return;
+        }
+
+        // Populate the store with the new recommendations and refresh the cache.
+        try (TracingScope tracingScope = Tracing.trace("on_actions_received", tracingContext)) {
+            // We don't store "transient" plan actions.
+            // However, for transient plans we still want to send the actions update notification
+            // so the plan lifecycle can continue as normal.
+            if (PlanDTOUtil.isTransientPlan(orderedActions.getInfo().getMarket().getSourceTopologyInfo())) {
+                logger.info("Skipping persistence of {} actions for transient plan {}",
+                    orderedActions.getActionCount(), orderedActions.getInfo().getMarket().getSourceTopologyInfo().getTopologyContextId());
+            } else {
+                final ActionStore actionStore = actionStorehouse.storeActions(orderedActions);
+                logger.info("Received {} actions in action plan {} (info: {})" +
+                        " (analysis start [{}] completion [{}])" +
+                        " (store population: {}).",
+                    orderedActions.getActionCount(),
+                    orderedActions.getId(),
+                    orderedActions.getInfo(),
+                    localDateTimeFromSystemTime(orderedActions.getAnalysisStartTimestamp()),
+                    localDateTimeFromSystemTime(orderedActions.getAnalysisCompleteTimestamp()),
+                    actionStore.size());
             }
+            // Notify listeners that actions are ready for retrieval.
+            try {
+                notificationSender.notifyActionsUpdated(orderedActions);
+            } catch (CommunicationException e) {
+                logger.error("Could not send actions recommended notification for "
+                        + orderedActions.getId(), e);
+            }
+        } catch (InterruptedException e) {
+            logger.info("Thread interrupted while processing received actions", e);
+        } catch (Exception e) {
+            logger.error("An error happened while populating the actions.", e);
+            notificationSender.notifyActionsUpdateFailure(orderedActions);
         }
     }
 

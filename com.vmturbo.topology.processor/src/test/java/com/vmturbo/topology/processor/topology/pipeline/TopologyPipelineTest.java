@@ -76,7 +76,7 @@ public class TopologyPipelineTest {
         @NotNull
         @Nonnull
         @Override
-        public StageResult<Long> executeStage(@NotNull @Nonnull final Long input)
+        public StageResult<Long> execute(@NotNull @Nonnull final Long input)
                 throws PipelineStageException, InterruptedException {
             return StageResult.withResult(input)
                 .andStatus(Status.success());

@@ -36,6 +36,7 @@ import com.vmturbo.topology.processor.repository.RepositoryConfig;
 import com.vmturbo.topology.processor.reservation.ReservationConfig;
 import com.vmturbo.topology.processor.rpc.TopologyProcessorRpcConfig;
 import com.vmturbo.topology.processor.stitching.StitchingConfig;
+import com.vmturbo.topology.processor.stitching.StitchingGroupFixer;
 import com.vmturbo.topology.processor.supplychain.SupplyChainValidationConfig;
 import com.vmturbo.topology.processor.targets.TargetConfig;
 import com.vmturbo.topology.processor.template.TemplateConfig;
@@ -263,7 +264,7 @@ public class TopologyConfig {
                 probeActionCapabilitiesApplicatorEditor(),
                 historyAggregationConfig.historyAggregationStage(),
                 licenseCheckClientConfig.licenseCheckClient(),
-                consistentScalingConfig.consistentScalingConfig(),
+                consistentScalingConfig.consistentScalingManager(),
                 actionsConfig.actionConstraintsUploader(),
                 actionsConfig.actionMergeSpecsUploader(),
                 requestCommodityThresholdsInjector(),
@@ -304,7 +305,7 @@ public class TopologyConfig {
                 actionsConfig.cachedTopology(),
                 historyAggregationConfig.historyAggregationStage(),
                 dmandOverriddenCommodityEditor(),
-                consistentScalingConfig.consistentScalingConfig(),
+                consistentScalingConfig.consistentScalingManager(),
                 requestCommodityThresholdsInjector(),
                 ephemeralEntityEditor(),
                 topologyProcessorRpcConfig.groupResolverSearchFilterResolver(),

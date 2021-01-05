@@ -80,6 +80,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.common.dto.CommonDTOREST;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
+import com.vmturbo.topology.processor.consistentscaling.ConsistentScalingManager;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.ResolvedGroup;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
@@ -280,9 +281,6 @@ public class TopologyEditorTest {
             .setTopologyType(TopologyType.PLAN)
             .build();
 
-    private final Set<Long> sourceEntities = new HashSet<>();
-    private final Set<Long> destinationEntities = new HashSet<>();
-
     /**
      * How many times is the dummy clone id to be compared to the entity id.
      */
@@ -292,7 +290,8 @@ public class TopologyEditorTest {
     public void setup() {
         when(identityProvider.getCloneId(any(TopologyEntityDTO.class)))
             .thenAnswer(invocation -> cloneId++);
-        context = new TopologyPipelineContext(topologyInfo);
+        context = new TopologyPipelineContext(groupResolver, topologyInfo,
+                mock(ConsistentScalingManager.class));
         topologyEditor = new TopologyEditor(identityProvider,
                 templateConverterFactory,
                 GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()));
@@ -469,7 +468,7 @@ public class TopologyEditorTest {
 
         assertEquals(10, topology.size());
         topologyEditor.editTopology(topology,
-                Lists.newArrayList(migrateVm), context, groupResolver, sourceEntities, destinationEntities);
+                Lists.newArrayList(migrateVm), context, groupResolver);
 
         // TODO: rework needed here, no longer using clones. Scoping for MCP not the same as OCP.
         assertEquals(10, topology.size());
@@ -488,7 +487,7 @@ public class TopologyEditorTest {
                 && zoneConnectedEntityToRemove.getEntityBuilder().getEdit().hasRemoved());
 
         // Verify that the cloned source VM id has been added to the addedEntityOids.
-        Collection<Long> clonedSourceVms = sourceEntities;
+        Collection<Long> clonedSourceVms = context.getSourceEntities();
         assertFalse(clonedSourceVms.isEmpty());
         assertTrue(clonedSourceVms.contains(vmCloneId));
     }
@@ -539,7 +538,7 @@ public class TopologyEditorTest {
                 .collect(Collectors.toMap(TopologyEntity.Builder::getOid, Function.identity()));
         List<ScenarioChange> changes = Lists.newArrayList(ADD_VM);
 
-        topologyEditor.editTopology(topology, changes, context, groupResolver, sourceEntities, destinationEntities);
+        topologyEditor.editTopology(topology, changes, context, groupResolver);
 
         List<TopologyEntity.Builder> clones = topology.values().stream()
                 .filter(entity -> entity.getOid() != vm.getOid())
@@ -596,7 +595,7 @@ public class TopologyEditorTest {
         List<ScenarioChange> changes = Lists.newArrayList(ADD_HOST);
         changes.addAll(Lists.newArrayList(ADD_STORAGE));
 
-        topologyEditor.editTopology(topology, changes, context, groupResolver, sourceEntities, destinationEntities);
+        topologyEditor.editTopology(topology, changes, context, groupResolver);
         List<TopologyEntity.Builder> pmClones = topology.values().stream()
                         .filter(entity -> entity.getOid() != pm.getOid())
                         .filter(entity -> entity.getEntityType() == pm.getEntityType())
@@ -706,7 +705,7 @@ public class TopologyEditorTest {
         when(groupResolver.resolve(eq(group), isA(TopologyGraph.class)))
             .thenReturn(resolvedGroup(group, ApiEntityType.PHYSICAL_MACHINE, pmId));
         when(identityProvider.getCloneId(any(TopologyEntityDTO.class))).thenReturn(pmCloneId);
-        topologyEditor.editTopology(topology, changes, context, groupResolver, sourceEntities, destinationEntities);
+        topologyEditor.editTopology(topology, changes, context, groupResolver);
 
         assertTrue(topology.containsKey(pmCloneId));
         final TopologyEntity.Builder cloneBuilder = topology.get(pmCloneId);
@@ -750,7 +749,7 @@ public class TopologyEditorTest {
         when(groupServiceSpy.getGroups(any())).thenReturn(Collections.singletonList(group));
         when(groupResolver.resolve(eq(group), isA(TopologyGraph.class)))
             .thenReturn(resolvedGroup(group, ApiEntityType.PHYSICAL_MACHINE, pmId));
-        topologyEditor.editTopology(topology, changes, context, groupResolver, sourceEntities, destinationEntities);
+        topologyEditor.editTopology(topology, changes, context, groupResolver);
 
         TopologyEntity.Builder pmToRemove = topology.get(pmId);
         assertTrue(pmToRemove.getEntityBuilder().hasEdit()
@@ -784,7 +783,7 @@ public class TopologyEditorTest {
         when(groupResolver.resolve(eq(group), isA(TopologyGraph.class)))
             .thenReturn(resolvedGroup(group, ApiEntityType.STORAGE, stId));
         when(identityProvider.getCloneId(any(TopologyEntityDTO.class))).thenReturn(stCloneId);
-        topologyEditor.editTopology(topology, changes, context, groupResolver, sourceEntities, destinationEntities);
+        topologyEditor.editTopology(topology, changes, context, groupResolver);
 
         assertTrue(topology.containsKey(stCloneId));
         final TopologyEntity.Builder cloneBuilder = topology.get(stCloneId);
@@ -820,7 +819,7 @@ public class TopologyEditorTest {
         when(groupServiceSpy.getGroups(any())).thenReturn(Collections.singletonList(group));
         when(groupResolver.resolve(eq(group), isA(TopologyGraph.class)))
             .thenReturn(resolvedGroup(group, ApiEntityType.STORAGE, stId));
-        topologyEditor.editTopology(topology, changes, context, groupResolver, sourceEntities, destinationEntities);
+        topologyEditor.editTopology(topology, changes, context, groupResolver);
 
         TopologyEntity.Builder stToRemove = topology.get(stId);
         assertTrue(stToRemove.getEntityBuilder().hasEdit()
@@ -856,7 +855,7 @@ public class TopologyEditorTest {
             .thenReturn(resolvedGroup(group, ApiEntityType.PHYSICAL_MACHINE, hostId));
         when(identityProvider.getCloneId(any(TopologyEntityDTO.class))).thenReturn(vmCloneId);
 
-        topologyEditor.editTopology(topology, changes, context, groupResolver, sourceEntities, destinationEntities);
+        topologyEditor.editTopology(topology, changes, context, groupResolver);
 
         assertTrue(topology.containsKey(vmCloneId));
         final TopologyEntity.Builder cloneBuilder = topology.get(vmCloneId);
@@ -892,7 +891,7 @@ public class TopologyEditorTest {
         when(groupServiceSpy.getGroups(any())).thenReturn(Collections.singletonList(group));
         when(groupResolver.resolve(eq(group), isA(TopologyGraph.class)))
             .thenReturn(resolvedGroup(group, ApiEntityType.PHYSICAL_MACHINE, hostId));
-        topologyEditor.editTopology(topology, changes, context, groupResolver, sourceEntities, destinationEntities);
+        topologyEditor.editTopology(topology, changes, context, groupResolver);
 
         TopologyEntity.Builder vmToRemove = topology.get(vmId);
         assertTrue(vmToRemove.getEntityBuilder().hasEdit()
@@ -926,7 +925,7 @@ public class TopologyEditorTest {
             .thenReturn(resolvedGroup(group, ApiEntityType.VIRTUAL_MACHINE, vmId));
         when(identityProvider.getCloneId(any(TopologyEntityDTO.class))).thenReturn(vmCloneId);
 
-        topologyEditor.editTopology(topology, changes, context, groupResolver, sourceEntities, destinationEntities);
+        topologyEditor.editTopology(topology, changes, context, groupResolver);
 
         assertTrue(topology.containsKey(vmCloneId));
         final TopologyEntity.Builder cloneBuilder = topology.get(vmCloneId);
@@ -950,7 +949,7 @@ public class TopologyEditorTest {
                 UtilizationLevel.newBuilder().setPercentage(50).build()
             ).build()
         ).build());
-        topologyEditor.editTopology(topology, changes, context, groupResolver, sourceEntities, destinationEntities);
+        topologyEditor.editTopology(topology, changes, context, groupResolver);
         final List<CommodityBoughtDTO> vmCommodities = topology.get(vmId)
             .getEntityBuilder()
             .getCommoditiesBoughtFromProvidersList().stream()
@@ -987,7 +986,7 @@ public class TopologyEditorTest {
                         UtilizationLevel.newBuilder().setPercentage(50).build()
                 ).build()
         ).build());
-        topologyEditor.editTopology(topology, changes, context, groupResolver, sourceEntities, destinationEntities);
+        topologyEditor.editTopology(topology, changes, context, groupResolver);
         final List<CommodityBoughtDTO> vmCommodities = topology.get(vmId)
                 .getEntityBuilder()
                 .getCommoditiesBoughtFromProvidersList().stream()
@@ -1028,7 +1027,7 @@ public class TopologyEditorTest {
                     .setOid(1234L)
                     .setDisplayName("Test PM1")));
 
-        topologyEditor.editTopology(topology, changes, context, groupResolver, sourceEntities, destinationEntities);
+        topologyEditor.editTopology(topology, changes, context, groupResolver);
         final List<TopologyEntityDTO> topologyEntityDTOS = topology.entrySet().stream()
                 .map(Entry::getValue)
                 .map(entity -> entity.getEntityBuilder().build())
@@ -1050,7 +1049,7 @@ public class TopologyEditorTest {
             .collect(Collectors.toMap(TopologyEntity.Builder::getOid, Function.identity()));
         List<ScenarioChange> changes = Lists.newArrayList(ADD_POD);
 
-        topologyEditor.editTopology(topology, changes, context, groupResolver, sourceEntities, destinationEntities);
+        topologyEditor.editTopology(topology, changes, context, groupResolver);
 
         List<TopologyEntity.Builder> clones = topology.values().stream()
             .filter(entity -> entity.getOid() != pod.getOid())

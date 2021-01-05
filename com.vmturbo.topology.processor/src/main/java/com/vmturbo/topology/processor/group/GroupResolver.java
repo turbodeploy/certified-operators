@@ -217,15 +217,6 @@ public class GroupResolver {
         return new ResolvedGroup(group, result);
     }
 
-    /**
-     * Get the size of the group resolver cache.
-     *
-     * @return the size of the group resolver cache.
-     */
-    public int getCacheSize() {
-        return groupResolverCache.size();
-    }
-
     public GroupServiceGrpc.GroupServiceBlockingStub getGroupServiceClient() {
         return groupServiceClient;
     }

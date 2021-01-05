@@ -238,10 +238,11 @@ public class CloudMigrationPlanHelperTest {
         TopologyMigration migration = TopologyMigration.getDefaultInstance();
 
         TopologyPipelineContext context = mock(TopologyPipelineContext.class);
+        when(context.getSourceEntities()).thenReturn(Collections.singleton(azureVm.getOid()));
         when(context.getTopologyInfo()).thenReturn(consumptionTopologyInfo);
 
         cloudMigrationPlanHelper.prepareEntities(context, graph, migration, Collections.EMPTY_MAP,
-            Collections.singleton(azureVm.getOid()), true);
+            true);
 
         TopologyEntity resultVm = graph.getEntity(azureVm.getOid()).orElse(null);
         assertNotNull(resultVm);
@@ -275,10 +276,11 @@ public class CloudMigrationPlanHelperTest {
         TopologyMigration migration = TopologyMigration.getDefaultInstance();
 
         TopologyPipelineContext context = mock(TopologyPipelineContext.class);
+        when(context.getSourceEntities()).thenReturn(Collections.singleton(vm1OnPrem.getOid()));
         when(context.getTopologyInfo()).thenReturn(allocationTopologyInfo);
 
         cloudMigrationPlanHelper.prepareEntities(context, graph, migration, Collections.EMPTY_MAP,
-            Collections.singleton(vm1OnPrem.getOid()), true);
+                true);
 
         TopologyEntity resultStorage = graph.getEntity(storage2OnPrem.getOid()).orElse(null);
         assertNotNull(resultStorage);
@@ -610,6 +612,9 @@ public class CloudMigrationPlanHelperTest {
      */
     @Test
     public void testSettingsPolicyEditor() {
+        TopologyPipelineContext context = mock(TopologyPipelineContext.class);
+        when(context.getSourceEntities()).thenReturn(MIGRATING_VM_OIDS);
+
         Grouping existingCloudVMsGrouping = PolicyManager.generateStaticGroup(
             EXISTING_CLOUD_VM_OIDS,
             VIRTUAL_MACHINE_VALUE,
@@ -830,13 +835,15 @@ public class CloudMigrationPlanHelperTest {
         when(context.getTopologyInfo()).thenReturn(consumptionTopologyInfo);
 
         // AWS to Azure
+        when(context.getSourceEntities()).thenReturn(Collections.singleton(awsVm.getOid()));
         cloudMigrationPlanHelper.prepareEntities(context, awsGraph, migration, Collections.EMPTY_MAP,
-            Collections.singleton(awsVm.getOid()), false);
+                false);
         assertNumDiskCommodity(awsGraph, awsVm.getOid(), EntityType.COMPUTE_TIER_VALUE, 1);
 
         // OnPrem to Azure
+        when(context.getSourceEntities()).thenReturn(Collections.singleton(onPremVm.getOid()));
         cloudMigrationPlanHelper.prepareEntities(context, onPremGraph, migration, Collections.EMPTY_MAP,
-            Collections.singleton(onPremVm.getOid()), false);
+                false);
         assertNumDiskCommodity(onPremGraph, onPremVm.getOid(), EntityType.PHYSICAL_MACHINE_VALUE, 4);
     }
 

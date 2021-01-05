@@ -9,8 +9,8 @@ import javax.annotation.concurrent.ThreadSafe;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.api.FormattedString;
+import com.vmturbo.components.common.pipeline.Pipeline;
 import com.vmturbo.components.common.pipeline.PipelineSummary;
-import com.vmturbo.components.common.pipeline.Stage;
 
 /**
  * The summary of {@link TopologyPipeline}, intended to be a quick way to visualize what went
@@ -26,7 +26,7 @@ public class TopologyPipelineSummary extends PipelineSummary {
 
     TopologyPipelineSummary(@Nonnull final Clock clock,
                             @Nonnull final TopologyPipelineContext context,
-                            @Nonnull final List<Stage> stages) {
+                            @Nonnull final List<Pipeline.Stage> stages) {
         super(clock, stages);
         this.context = Objects.requireNonNull(context);
     }

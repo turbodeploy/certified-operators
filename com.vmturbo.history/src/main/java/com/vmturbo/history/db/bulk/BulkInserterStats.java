@@ -3,7 +3,6 @@ package com.vmturbo.history.db.bulk;
 import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
-import javax.annotation.concurrent.ThreadSafe;
 
 import org.apache.commons.lang3.time.DurationFormatUtils;
 import org.apache.logging.log4j.Logger;
@@ -14,7 +13,6 @@ import com.vmturbo.history.db.bulk.BulkInserter.BatchStats;
 /**
  * Class to accumulate statistics for a {@link BulkInserter} instance.
  */
-@ThreadSafe
 public class BulkInserterStats {
 
     private final Object key;
@@ -65,7 +63,7 @@ public class BulkInserterStats {
      *
      * @return number of records written
      */
-    public synchronized long getWritten() {
+    public long getWritten() {
         return written;
     }
 
@@ -74,7 +72,7 @@ public class BulkInserterStats {
      *
      * @return number of batches
      */
-    public synchronized int getBatches() {
+    public int getBatches() {
         return batches;
     }
 
@@ -83,7 +81,7 @@ public class BulkInserterStats {
      *
      * @return number of failed batches
      */
-    public synchronized int getFailedBatches() {
+    public int getFailedBatches() {
         return failedBatches;
     }
 
@@ -92,7 +90,7 @@ public class BulkInserterStats {
      *
      * @return work time, in nanoseconds
      */
-    public synchronized long getWorkTimeNanos() {
+    public long getWorkTimeNanos() {
         return workTimeNanos;
     }
 
@@ -101,7 +99,7 @@ public class BulkInserterStats {
      *
      * @return lost time, in nanoseconds
      */
-    public synchronized long getLostTimeNanos() {
+    public long getLostTimeNanos() {
         return lostTimeNanos;
     }
 
@@ -110,7 +108,7 @@ public class BulkInserterStats {
      *
      * @param batchStats {@link BulkInserter.BatchStats} object
      */
-    synchronized void updateForBatch(BatchStats batchStats) {
+    void updateForBatch(BatchStats batchStats) {
         if (batchStats.isFailed()) {
             failedBatches += 1;
         } else {
@@ -130,7 +128,7 @@ public class BulkInserterStats {
      * @param workTimeNanos addition to work time
      * @param lostTimeNanos addition to lost time
      */
-    public synchronized void update(final long written,
+    public void update(final long written,
                        final int batches,
                        final int failedBatches,
                        final long workTimeNanos,
@@ -145,7 +143,7 @@ public class BulkInserterStats {
     /**
      * Register a failed batch.
      */
-    synchronized void failedBatch() {
+    void failedBatch() {
         this.failedBatches += 1;
     }
 
@@ -154,7 +152,7 @@ public class BulkInserterStats {
      *
      * @param logger a logger to use in making the report
      */
-    public synchronized void logStats(Logger logger) {
+    public void logStats(Logger logger) {
         double workSecs = TimeUnit.NANOSECONDS.toSeconds(workTimeNanos);
         final String ratePerSec = String.format("%.1f",
                 // don't go with written / secs cuz latter is often rounded to zero

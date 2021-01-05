@@ -8,9 +8,6 @@ import java.util.Objects;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
@@ -23,7 +20,7 @@ import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.TopologyEntity.Builder;
 import com.vmturbo.topology.graph.search.SearchResolver;
 import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
-import com.vmturbo.topology.processor.consistentscaling.ConsistentScalingConfig;
+import com.vmturbo.topology.processor.consistentscaling.ConsistentScalingManager;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.entity.EntityValidator;
 import com.vmturbo.topology.processor.group.GroupResolver;
@@ -34,7 +31,6 @@ import com.vmturbo.topology.processor.group.settings.EntitySettingsApplicator;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
 import com.vmturbo.topology.processor.reservation.ReservationManager;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
-import com.vmturbo.topology.processor.stitching.journal.StitchingJournal.StitchingJournalContainer;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.topology.ApplicationCommodityKeyChanger;
 import com.vmturbo.topology.processor.topology.CloudMigrationPlanHelper;
@@ -89,7 +85,6 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.TopologyEditStage
  * {@link PlanPipelineFactory#planOverLiveTopology(TopologyInfo, List, PlanScope, StitchingJournalFactory)}.
  */
 public class PlanPipelineFactory {
-    private static final Logger logger = LogManager.getLogger();
 
     private final TopoBroadcastManager topoBroadcastManager;
 
@@ -119,7 +114,7 @@ public class PlanPipelineFactory {
 
     private final EntityValidator entityValidator;
 
-    private final ConsistentScalingConfig consistentScalingConfig;
+    private final ConsistentScalingManager consistentScalingManager;
 
     private final CommoditiesEditor commoditiesEditor;
 
@@ -145,10 +140,6 @@ public class PlanPipelineFactory {
 
     private final CloudMigrationPlanHelper cloudMigrationPlanHelper;
 
-    private boolean firstPlanOverLive = true;
-
-    private boolean firstPlanOverPlan = true;
-
     public PlanPipelineFactory(@Nonnull final TopoBroadcastManager topoBroadcastManager,
                                @Nonnull final PolicyManager policyManager,
                                @Nonnull final StitchingManager stitchingManager,
@@ -171,7 +162,7 @@ public class PlanPipelineFactory {
                                @Nonnull final CachedTopology constructTopologyStageCache,
                                @Nonnull HistoryAggregator historyAggregationStage,
                                @Nonnull DemandOverriddenCommodityEditor demandOverriddenCommodityEditor,
-                               @Nonnull final ConsistentScalingConfig consistentScalingConfig,
+                               @Nonnull final ConsistentScalingManager consistentScalingManager,
                                @Nonnull final RequestAndLimitCommodityThresholdsInjector requestAndLimitCommodityThresholdsInjector,
                                @Nonnull final EphemeralEntityEditor ephemeralEntityEditor,
                                @Nonnull final GroupResolverSearchFilterResolver searchFilterResolver,
@@ -190,7 +181,7 @@ public class PlanPipelineFactory {
         this.discoveredClusterConstraintCache = Objects.requireNonNull(discoveredClusterConstraintCache);
         this.applicationCommodityKeyChanger = Objects.requireNonNull(applicationCommodityKeyChanger);
         this.entityValidator = Objects.requireNonNull(entityValidator);
-        this.consistentScalingConfig = Objects.requireNonNull(consistentScalingConfig);
+        this.consistentScalingManager = Objects.requireNonNull(consistentScalingManager);
         this.commoditiesEditor = Objects.requireNonNull(commoditiesEditor);
         this.planTopologyScopeEditor = planTopologyScopeEditor;
         this.applicatorEditor = applicatorEditor;
@@ -230,21 +221,18 @@ public class PlanPipelineFactory {
             @Nonnull final List<ScenarioChange> changes,
             @Nullable final PlanScope scope,
             @Nonnull final StitchingJournalFactory journalFactory) {
-        final TopologyPipelineContext context = new TopologyPipelineContext(topologyInfo);
+        final TopologyPipelineContext context =
+                new TopologyPipelineContext(new GroupResolver(searchResolver, groupServiceClient,
+                        searchFilterResolver), topologyInfo, consistentScalingManager);
         // if the constructed topology is already in the cache from the realtime topology, just
         // add the stage that will read it from the cache, otherwise add the stitching stage
         // and the construct topology stage so we can build the topology
         PipelineDefinitionBuilder<EntityStore, TopologyBroadcastInfo, EntityStore, TopologyPipelineContext> topoPipelineBuilder =
                 PipelineDefinition.newBuilder(context);
-        topoPipelineBuilder.initialContextMember(TopologyPipelineContextMembers.GROUP_RESOLVER,
-            () -> new GroupResolver(searchResolver, groupServiceClient, searchFilterResolver))
-            .initialContextMember(TopologyPipelineContextMembers.STITCHING_JOURNAL_CONTAINER,
-                StitchingJournalContainer::new);
-
         PipelineDefinitionBuilder<EntityStore, TopologyBroadcastInfo, Map<Long, Builder>, TopologyPipelineContext> builderContinuation;
         if (constructTopologyStageCache.isEmpty()) {
             builderContinuation = topoPipelineBuilder
-                .addStage(new StitchingStage(stitchingManager, journalFactory, new StitchingJournalContainer()))
+                .addStage(new StitchingStage(stitchingManager, journalFactory))
                 .addStage(new ConstructTopologyFromStitchingContextStage())
                 .addStage(new InitializeTopologyEntitiesStage());
         } else {
@@ -252,42 +240,36 @@ public class PlanPipelineFactory {
                 .addStage(new CachingConstructTopologyFromStitchingContextStage(constructTopologyStageCache))
                 .addStage(new InitializeTopologyEntitiesStage());
         }
-        final TopologyPipeline<EntityStore, TopologyBroadcastInfo> pipeline = new TopologyPipeline<>(builderContinuation
-            .addStage(new ReservationStage(reservationManager))
+        return new TopologyPipeline<>(builderContinuation
+                .addStage(new ReservationStage(reservationManager))
                 // TODO: Move the ToplogyEditStage after the GraphCreationStage
                 // That way the editstage can work on the graph instead of a
                 // separate structure.
-            .addStage(new TopologyEditStage(topologyEditor, searchResolver, changes, groupServiceClient, searchFilterResolver))
-            .addStage(new GraphCreationStage())
-            .addStage(new ApplyClusterCommodityStage(discoveredClusterConstraintCache))
-            .addStage(new ChangeAppCommodityKeyOnVMAndAppStage(applicationCommodityKeyChanger))
-            .addStage(new ScopeResolutionStage(groupServiceClient, scope))
-            .addStage(new EnvironmentTypeStage(environmentTypeInjector))
-            .addStage(new PlanScopingStage(planTopologyScopeEditor, scope, searchResolver, changes, groupServiceClient, searchFilterResolver))
-            .addStage(new CloudMigrationPlanStage(cloudMigrationPlanHelper, scope, changes))
-            .addStage(new PolicyStage(policyManager, changes))
-            .addStage(new IgnoreConstraintsStage(groupServiceClient, changes))
-            .addStage(new CommoditiesEditStage(commoditiesEditor, changes, scope))
-            .addStage(SettingsResolutionStage.plan(entitySettingsResolver, changes, consistentScalingConfig))
-            .addStage(new SettingsUploadStage(entitySettingsResolver))
-            .addStage(new SettingsApplicationStage(settingsApplicator))
-            .addStage(new PostStitchingStage(stitchingManager))
-            .addStage(new EntityValidationStage(entityValidator, true))
-            .addStage(new HistoryAggregationStage(historyAggregator, changes, topologyInfo, scope))
-            .addStage(new ExtractTopologyGraphStage())
-            .addStage(new HistoricalUtilizationStage(historicalEditor, changes))
-            .addStage(new OverrideWorkLoadDemandStage(demandOverriddenCommodityEditor, searchResolver, groupServiceClient, changes, searchFilterResolver))
-            .addStage(new RequestAndLimitCommodityThresholdsStage(requestAndLimitCommodityThresholdsInjector))
-            .addStage(new EphemeralEntityHistoryStage(ephemeralEntityEditor))
-            .addStage(new ProbeActionCapabilitiesApplicatorStage(applicatorEditor))
-            .addStage(new TopSortStage())
-            .finalStage(new BroadcastStage(Collections.singletonList(topoBroadcastManager), matrix)));
-
-        if (firstPlanOverLive) {
-            firstPlanOverLive = false;
-            logger.info("\n" + pipeline.tabularDescription("PlanOverLive Topology Pipeline"));
-        }
-        return pipeline;
+                .addStage(new TopologyEditStage(topologyEditor, searchResolver, changes, groupServiceClient, searchFilterResolver))
+                .addStage(new GraphCreationStage())
+                .addStage(new ApplyClusterCommodityStage(discoveredClusterConstraintCache))
+                .addStage(new ChangeAppCommodityKeyOnVMAndAppStage(applicationCommodityKeyChanger))
+                .addStage(new ScopeResolutionStage(groupServiceClient, scope))
+                .addStage(new EnvironmentTypeStage(environmentTypeInjector))
+                .addStage(new PlanScopingStage(planTopologyScopeEditor, scope, searchResolver, changes, groupServiceClient, searchFilterResolver))
+                .addStage(new CloudMigrationPlanStage(cloudMigrationPlanHelper, scope, changes))
+                .addStage(new PolicyStage(policyManager, changes))
+                .addStage(new IgnoreConstraintsStage(context.getGroupResolver(), groupServiceClient, changes))
+                .addStage(new CommoditiesEditStage(commoditiesEditor, changes, scope))
+                .addStage(SettingsResolutionStage.plan(entitySettingsResolver, changes, consistentScalingManager))
+                .addStage(new SettingsUploadStage(entitySettingsResolver))
+                .addStage(new SettingsApplicationStage(settingsApplicator))
+                .addStage(new PostStitchingStage(stitchingManager))
+                .addStage(new EntityValidationStage(entityValidator, true))
+                .addStage(new HistoryAggregationStage(historyAggregator, changes, topologyInfo, scope))
+                .addStage(new ExtractTopologyGraphStage())
+                .addStage(new HistoricalUtilizationStage(historicalEditor, changes))
+                .addStage(new OverrideWorkLoadDemandStage(demandOverriddenCommodityEditor, searchResolver, groupServiceClient, changes, searchFilterResolver))
+                .addStage(new RequestAndLimitCommodityThresholdsStage(requestAndLimitCommodityThresholdsInjector))
+                .addStage(new EphemeralEntityHistoryStage(ephemeralEntityEditor))
+                .addStage(new ProbeActionCapabilitiesApplicatorStage(applicatorEditor))
+                .addStage(new TopSortStage())
+                .finalStage(new BroadcastStage(Collections.singletonList(topoBroadcastManager), matrix)));
     }
 
     /**
@@ -304,30 +286,24 @@ public class PlanPipelineFactory {
             @Nonnull final TopologyInfo topologyInfo,
             @Nonnull final List<ScenarioChange> changes,
             @Nullable final PlanScope scope) {
-        final TopologyPipelineContext context = new TopologyPipelineContext(topologyInfo);
-        final TopologyPipeline<Long, TopologyBroadcastInfo> pipeline = new TopologyPipeline<>(PipelineDefinition.<Long, TopologyBroadcastInfo, TopologyPipelineContext>newBuilder(context)
-            .initialContextMember(TopologyPipelineContextMembers.GROUP_RESOLVER,
-                () -> new GroupResolver(searchResolver, groupServiceClient, searchFilterResolver))
+        final TopologyPipelineContext context =
+                new TopologyPipelineContext(new GroupResolver(searchResolver, groupServiceClient,
+                        searchFilterResolver), topologyInfo, consistentScalingManager);
+        return new TopologyPipeline<>(PipelineDefinition.<Long, TopologyBroadcastInfo, TopologyPipelineContext>newBuilder(context)
             .addStage(new TopologyAcquisitionStage(repositoryClient))
             .addStage(new TopologyEditStage(topologyEditor, searchResolver, changes, groupServiceClient, searchFilterResolver))
             .addStage(new GraphCreationStage())
             .addStage(new ScopeResolutionStage(groupServiceClient, scope))
             .addStage(new CommoditiesEditStage(commoditiesEditor, changes, scope))
-                // TODO (roman, Nov 2017): We need to do policy and setting application for
-                // plan-over-plan as well. However, the topology we get from the repository
-                // already has some policies and settings applied to it. In order to run those
-                // stages here we need to be able to apply policies/settings on top of existing ones.
-                //
-                // One approach is to clear settings/policies from a topology, and then run the
-                // stages. The other approach is to extend the stages to handle already-existing
-                // policies/settings.
+            // TODO (roman, Nov 2017): We need to do policy and setting application for
+            // plan-over-plan as well. However, the topology we get from the repository
+            // already has some policies and settings applied to it. In order to run those
+            // stages here we need to be able to apply policies/settings on top of existing ones.
+            //
+            // One approach is to clear settings/policies from a topology, and then run the
+            // stages. The other approach is to extend the stages to handle already-existing
+            // policies/settings.
             .addStage(new TopSortStage())
             .finalStage(new BroadcastStage(Collections.singletonList(topoBroadcastManager), matrix)));
-
-        if (firstPlanOverPlan) {
-            firstPlanOverPlan = false;
-            logger.info("\n" + pipeline.tabularDescription("PlanOverPlan Topology Pipeline"));
-        }
-        return pipeline;
     }
 }
