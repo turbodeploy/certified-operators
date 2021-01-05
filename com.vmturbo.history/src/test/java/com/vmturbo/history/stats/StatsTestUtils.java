@@ -337,9 +337,31 @@ public class StatsTestUtils {
                                                        final float testValue,
                                                        @Nonnull final String propType,
                                                        @Nonnull final String propSubType,
-                                                       @Nonnull String producerUuid) {
+                                                       @Nonnull String producerUuid,
+                                                       @Nullable final String key) {
         return newStatRecordWithKeyAndEffectiveCapacityAndProducerUuid(snapshotTime, testValue,
-            1.0, propType, propSubType, null, producerUuid);
+            1.0, propType, propSubType, key, producerUuid);
+    }
+
+    /**
+     * Create a record with a specific producer uuid.
+     *
+     * @param snapshotTime timestamp of snapshot
+     * @param testValue record stat value to set
+     * @param propType property type of stat record
+     * @param propSubType property subtype of stat record
+     * @param producerUuid uuid of producer
+     * @return the StatRecord
+     */
+
+    @Nonnull
+    public static Record newStatRecordWithProducerUuid(@Nonnull final Timestamp snapshotTime,
+                                                       final float testValue,
+                                                       @Nonnull final String propType,
+                                                       @Nonnull final String propSubType,
+                                                       @Nonnull String producerUuid) {
+        return newStatRecordWithProducerUuid(snapshotTime, testValue, propType,
+                                             propSubType, producerUuid, null);
     }
 
     @Nonnull

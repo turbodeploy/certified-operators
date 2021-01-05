@@ -11,6 +11,7 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue
 import com.vmturbo.commons.Pair;
 import com.vmturbo.components.common.stats.StatsAccumulator;
 import com.vmturbo.history.stats.snapshots.ProducerIdVisitor.ProviderInformation;
+import com.vmturbo.history.stats.snapshots.PropertyTypeVisitor.PropertyInformation;
 
 /**
  * A helper class to create {@link StatRecord} objects out of nullable fields. The default protobuf
@@ -79,7 +80,7 @@ public interface StatRecordBuilder {
         private final BiConsumer<StatRecord.Builder, String> relationPopulator;
         private final BiConsumer<StatRecord.Builder, Pair<StatValue, String>> usageRecordPopulator;
         private final BiConsumer<StatRecord.Builder, Pair<StatValue, Float>> capacityPopulator;
-        private final BiConsumer<StatRecord.Builder, Pair<String, String>> propertyTypePopulator;
+        private final BiConsumer<StatRecord.Builder, PropertyInformation> propertyTypePopulator;
         private final BiConsumer<StatRecord.Builder, ProviderInformation> producerIdPopulator;
 
         public DefaultStatRecordBuilder(
@@ -87,7 +88,7 @@ public interface StatRecordBuilder {
                         @Nonnull BiConsumer<Builder, String> relationPopulator,
                         @Nonnull BiConsumer<Builder, Pair<StatValue, String>> usageRecordPopulator,
                         @Nonnull BiConsumer<Builder, Pair<StatValue, Float>> capacityPopulator,
-                        @Nonnull BiConsumer<Builder, Pair<String, String>> propertyTypePopulator,
+                        @Nonnull BiConsumer<Builder, PropertyInformation> propertyTypePopulator,
                         @Nonnull BiConsumer<Builder, ProviderInformation> producerIdPopulator) {
             this.relatedEntityTypePopulator = relatedEntityTypePopulator;
             this.relationPopulator = relationPopulator;
@@ -106,7 +107,7 @@ public interface StatRecordBuilder {
                         @Nullable final StatValue statValue, @Nullable final String commodityKey,
                         @Nullable final String relation) {
             final StatRecord.Builder builder = StatRecord.newBuilder();
-            propertyTypePopulator.accept(builder, new Pair<>(propertyType, commodityKey));
+            propertyTypePopulator.accept(builder, new PropertyInformation(propertyType, commodityKey));
             usageRecordPopulator.accept(builder, new Pair<>(statValue, propertySubtype));
             relationPopulator.accept(builder, relation);
             relatedEntityTypePopulator.accept(builder, relatedEntityType);

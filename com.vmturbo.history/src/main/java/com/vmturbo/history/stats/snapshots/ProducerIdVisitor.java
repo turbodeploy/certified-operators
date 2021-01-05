@@ -135,7 +135,7 @@ public class ProducerIdVisitor extends AbstractVisitor<Record, ProviderInformati
      * full market, no uuid is remembered.
      */
     @NotThreadSafe
-    public static class ProviderInformation {
+    public static class ProviderInformation  implements InformationState {
         private boolean isEmpty = true;
         private Long providerId;
 
@@ -164,7 +164,7 @@ public class ProducerIdVisitor extends AbstractVisitor<Record, ProviderInformati
          *
          * @param newProviderId provider id to record
          */
-        public void newProviderId(long newProviderId) {
+        public void newProviderId(Long newProviderId) {
             if (isEmpty) {
                 providerId = newProviderId;
                 isEmpty = false;
@@ -193,8 +193,14 @@ public class ProducerIdVisitor extends AbstractVisitor<Record, ProviderInformati
          *
          * @return true if and only if this object has never recorded a provider id
          */
+        @Override
         public boolean isEmpty() {
             return isEmpty;
+        }
+
+        @Override
+        public boolean isMultiple() {
+            return !isEmpty() && getProviderId() == null;
         }
     }
 }

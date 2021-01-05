@@ -56,6 +56,7 @@ import com.vmturbo.history.schema.abstraction.tables.records.VmStatsLatestRecord
 import com.vmturbo.history.stats.readers.LiveStatsReader;
 import com.vmturbo.history.stats.snapshots.ProducerIdVisitor;
 import com.vmturbo.history.stats.snapshots.ProducerIdVisitor.ProducerIdPopulator;
+import com.vmturbo.history.stats.snapshots.PropertyTypeVisitor;
 import com.vmturbo.history.stats.snapshots.SnapshotCreator;
 import com.vmturbo.history.stats.snapshots.StatSnapshotCreator;
 
@@ -81,8 +82,8 @@ public class StatSnapshotCreatorTest {
     private static final Double MAX_USED = 700D;
     private static final Double DELTA = 0.0001D;
 
-    private LiveStatsReader liveStatsReader = Mockito.mock(LiveStatsReader.class);
-    private StatSnapshotCreator snapshotCreator = StatsConfig.createStatSnapshotCreator(liveStatsReader);
+    private final LiveStatsReader liveStatsReader = Mockito.mock(LiveStatsReader.class);
+    private final StatSnapshotCreator snapshotCreator = StatsConfig.createStatSnapshotCreator(liveStatsReader);
 
     @Test
     public void testGroupByKey() {
@@ -272,14 +273,16 @@ public class StatSnapshotCreatorTest {
         final long providerId2 = 200;
         final String provider1 = "provider1";
         final String provider2 = "provider2";
+        final String key1 = "key1";
+        final String key2 = "key2";
         final float smallValue = 15.0f;
         final float bigValue = 20.0f;
 
         final List<Record> statsRecordsList = Lists.newArrayList(
                 newStatRecordWithProducerUuid(
-                        SNAPSHOT_TIME, smallValue, C_1, USED, Long.toString(providerId1)),
+                        SNAPSHOT_TIME, smallValue, C_1, USED, Long.toString(providerId1), key1),
                 newStatRecordWithProducerUuid(
-                        SNAPSHOT_TIME, bigValue, C_1, USED, Long.toString(providerId2)));
+                        SNAPSHOT_TIME, bigValue, C_1, USED, Long.toString(providerId2), key2));
         when(liveStatsReader.getEntityDisplayNameForId(providerId1)).thenReturn(provider1);
         when(liveStatsReader.getEntityDisplayNameForId(providerId2)).thenReturn(provider2);
 
@@ -298,6 +301,7 @@ public class StatSnapshotCreatorTest {
         Assert.assertTrue(record.hasProviderDisplayName());
         Assert.assertEquals(ProducerIdVisitor.MULTIPLE_PROVIDERS, record.getProviderDisplayName());
         Assert.assertFalse(record.hasProviderUuid());
+        Assert.assertEquals(PropertyTypeVisitor.MULTIPLE_KEYS, record.getStatKey());
 
         final StatValue statValue = record.getUsed();
         Assert.assertEquals(bigValue * 2, statValue.getMax(), FLOAT_COMPARISON_EPSILON);
@@ -320,11 +324,12 @@ public class StatSnapshotCreatorTest {
                         .build());
         final long providerId = 100;
         final String provider = "provider";
+        final String key = "key";
         final float value = 20.0f;
 
         final List<Record> statsRecordsList =
                 Collections.singletonList(newStatRecordWithProducerUuid(
-                        SNAPSHOT_TIME, value, C_1, USED, Long.toString(providerId)));
+                        SNAPSHOT_TIME, value, C_1, USED, Long.toString(providerId), key));
         when(liveStatsReader.getEntityDisplayNameForId(providerId)).thenReturn(provider);
 
         // act
@@ -343,6 +348,7 @@ public class StatSnapshotCreatorTest {
         Assert.assertEquals(provider, record.getProviderDisplayName());
         Assert.assertTrue(record.hasProviderUuid());
         Assert.assertEquals(Long.toString(providerId), record.getProviderUuid());
+        Assert.assertEquals(key, record.getStatKey());
 
         final StatValue statValue = record.getUsed();
         Assert.assertEquals(value * 2, statValue.getMax(), FLOAT_COMPARISON_EPSILON);
