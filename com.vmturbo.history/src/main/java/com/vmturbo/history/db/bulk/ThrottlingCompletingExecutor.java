@@ -2,23 +2,21 @@ package com.vmturbo.history.db.bulk;
 
 import java.util.Map;
 import java.util.concurrent.Callable;
-import java.util.concurrent.CompletionService;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadFactory;
 import java.util.function.Consumer;
 
-import javax.annotation.Nonnull;
-
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jetbrains.annotations.NotNull;
+
+import com.vmturbo.components.api.StackTrace;
 
 /**
  * This class implements an {@link Executor} that uses an underlying {@link ExecutorService} to
@@ -31,15 +29,9 @@ import org.jetbrains.annotations.NotNull;
  * <p>The completion feature means that when a task completes, its future is immediately
  * passed back to the submitter via a consumer method provided in the submission.</p>
  *
- * <p>The {@link Executor#execute(Runnable)} method is incapable of performing completion
- * processing becasue the interface does not involve a {@link Future}. However, the method {@link
- * #execute(Runnable, Object, Consumer)} takes its cue from {@link CompletionService#submit(Runnable,
- * Object)} by scheduling a {@link Runnable} for execution and returning a {@link Future} holding a
- * value supplied by the submittor upon completion.</p>
- *
  * @param <T> type of task result
  */
-public class ThrottlingCompletingExecutor<T> implements Executor {
+public class ThrottlingCompletingExecutor<T> {
     private static final Logger logger = LogManager.getLogger();
 
     private static final ThreadFactory completerThreadFactory = new ThreadFactoryBuilder()
@@ -49,7 +41,8 @@ public class ThrottlingCompletingExecutor<T> implements Executor {
 
     private int highWater = 0;
 
-    private final ExecutorCompletionService<T> completer;
+    private final ExecutorService threadPool;
+    private final int maxPending;
     private final Semaphore semaphore;
 
     private final Map<Future<T>, Consumer<Future<T>>> pendingExecutions = new ConcurrentHashMap<>();
@@ -63,9 +56,9 @@ public class ThrottlingCompletingExecutor<T> implements Executor {
      *                   submission becomes a blocking operation
      */
     public ThrottlingCompletingExecutor(ExecutorService pool, int maxPending) {
-        this.completer = new ExecutorCompletionService<>(pool);
-        this.semaphore = new Semaphore(maxPending);
-        startCompleterThread();
+        this.threadPool = pool;
+        this.maxPending = maxPending;
+        this.semaphore = new Semaphore(this.maxPending);
     }
 
     /**
@@ -76,83 +69,45 @@ public class ThrottlingCompletingExecutor<T> implements Executor {
      *
      * @param task    the {@link Callable} to be executed
      * @param handler the {@link Consumer} to receive the {@link Future} upon completion
-     * @return The (probably not net completed) {@link Future} potentially useful for bookkeeping in
-     * the caller
+     *                We use a future here to allow the handler to catch any exceptions.
      * @throws InterruptedException if interrutped
      */
-    public Future<T> submit(Callable<T> task, Consumer<Future<T>> handler) throws InterruptedException {
+    public void submit(Callable<T> task, Consumer<Future<T>> handler) throws InterruptedException {
         semaphore.acquire();
         synchronized (this) {
             if (!closed) {
-                final Future<T> future = completer.submit(task);
-                pendingExecutions.put(future, handler);
+                threadPool.execute(() -> {
+                    // Wrap the result of calling the task in a future that will get passed back
+                    // to the handler.
+                    final CompletableFuture<T> f = new CompletableFuture<>();
+                    try {
+                        T result = task.call();
+                        f.complete(result);
+                    } catch (Exception e) {
+                        // An exception by the task gets passed to the handler.
+                        f.completeExceptionally(e);
+                    }
+
+                    try {
+                        handler.accept(f);
+                    } catch (RuntimeException e) {
+                        // An exception
+                        logger.error("Handler passed to executor ({}) encountered an error.",
+                                StackTrace.getCallerOutsideClass(), e);
+                    } finally {
+                        // Release the semaphore now that the thread is done processing the task.
+                        semaphore.release();
+                        // Unblock any threads waiting for handlers to complete.
+                        synchronized (this) {
+                            this.notifyAll();
+                        }
+                    }
+                });
                 highWater = Math.max(highWater, pendingExecutions.size());
-                return future;
             } else {
                 throw new IllegalStateException("Batch completer is closed");
             }
         }
-    }
-
-    @Override
-    public void execute(@NotNull final Runnable command) {
-        try {
-            execute(command, null, value -> {
-            });
-        } catch (InterruptedException e) {
-            logger.warn("Interrupted while scheduling a Runnable for execution", e);
-            Thread.currentThread().interrupt();
-        }
-    }
-
-    /**
-     * Submit a {@link Runnable} for execution.
-     *
-     * @param command     the {@link Runnable} to be executed
-     * @param returnValue return value to be conveyed back to submitter (as a {@link Future}) upon
-     *                    completion
-     * @param handler     the {@link Consumer} to receive the {@link Future} upon completion
-     * @return the (probably not yet completed) future containing the return value
-     * @throws InterruptedException if interrupted
-     */
-    public Future<T> execute(@Nonnull final Runnable command, final T returnValue,
-            Consumer<Future<T>> handler) throws InterruptedException {
-        semaphore.acquire();
-        synchronized (this) {
-            if (!closed) {
-                final Future<T> future = completer.submit(command, returnValue);
-                pendingExecutions.put(future, handler);
-                highWater = Math.max(highWater, pendingExecutions.size());
-                return future;
-            } else {
-                throw new IllegalStateException("Batch completer is closed");
-            }
-        }
-    }
-
-    private void startCompleterThread() {
-        final Thread thread = completerThreadFactory.newThread(() -> {
-            while (true) {
-                try {
-                    Future<T> next = completer.take();
-                    semaphore.release();
-                    final Consumer<Future<T>> handler = pendingExecutions.remove(next);
-                    if (handler != null) {
-                        handler.accept(next);
-                    } else {
-                        logger.warn("No handler registered for completion of future: {}", next);
-                    }
-                    synchronized (this) {
-                        this.notifyAll();
-                    }
-                } catch (InterruptedException e) {
-                    logger.warn("Completer thread interrupted {}, exiting",
-                            Thread.currentThread().getName());
-                    break;
-                }
-            }
-        });
-        thread.start();
     }
 
     /**
@@ -166,7 +121,7 @@ public class ThrottlingCompletingExecutor<T> implements Executor {
     public void drain() throws InterruptedException {
         while (true) {
             synchronized (this) {
-                if (pendingExecutions.isEmpty()) {
+                if (semaphore.availablePermits() == maxPending) {
                     this.notify();
                     return;
                 }
