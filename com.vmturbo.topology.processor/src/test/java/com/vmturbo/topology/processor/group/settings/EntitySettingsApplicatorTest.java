@@ -70,6 +70,7 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.ScalingPolicyEnum;
+import com.vmturbo.platform.common.builders.SDKConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.InstanceDiskType;
@@ -1395,6 +1396,8 @@ public class EntitySettingsApplicatorTest {
                         CoreMatchers.is(INSTANCE_DISK_SIZE_GB * 1024D));
         Assert.assertThat(getCommodityCapacity(soldCommodities, CommodityType.INSTANCE_DISK_COUNT),
                         CoreMatchers.is(NUM_DISKS));
+        Assert.assertThat(getCommodityCapacity(soldCommodities, CommodityType.INSTANCE_DISK_TYPE),
+                CoreMatchers.is(SDKConstants.ACCESS_COMMODITY_CAPACITY));
         final String instanceTypeKey = findCommodity(soldCommodities,
                         c -> c.getCommodityType().getType()
                                         == CommodityType.INSTANCE_DISK_TYPE_VALUE)

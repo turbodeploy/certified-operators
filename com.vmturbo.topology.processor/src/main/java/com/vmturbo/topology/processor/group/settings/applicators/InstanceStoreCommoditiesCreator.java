@@ -25,6 +25,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.mediation.util.units.MemoryUnit;
 import com.vmturbo.mediation.util.units.ValueWithUnitFactory;
+import com.vmturbo.platform.common.builders.SDKConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.InstanceDiskType;
 
@@ -121,7 +122,7 @@ public abstract class InstanceStoreCommoditiesCreator<B> {
                                 null, value.doubleValue())));
         getInstanceStoreDiskType(computeTierInfo).ifPresent(value -> result
                         .add(createCommodityBuilder(CommodityDTO.CommodityType.INSTANCE_DISK_TYPE,
-                                        value, null)));
+                                        value, SDKConstants.ACCESS_COMMODITY_CAPACITY)));
         return Collections.unmodifiableCollection(result);
     }
 
