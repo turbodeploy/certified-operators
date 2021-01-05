@@ -91,6 +91,13 @@ public class RpcConfig {
     private boolean grpcDebugServicesEnabled;
 
     /**
+     * Flag that enables all action uuids come from the stable impact oid instead of the
+     * unstable action instance id.
+     */
+    @Value("${useStableActionIdAsUuid:false}")
+    private boolean useStableActionIdAsUuid;
+
+    /**
      * Returns the the object that implements protobuf ActionsService.
      *
      * @return the the object that implements protobuf ActionsService.
@@ -108,7 +115,8 @@ public class RpcConfig {
             userSessionConfig.userSessionContext(),
             actionStoreConfig.acceptedActionsStore(),
             actionStoreConfig.rejectedActionsStore(),
-            actionPaginationMaxLimit);
+            actionPaginationMaxLimit,
+            useStableActionIdAsUuid);
     }
 
     /**

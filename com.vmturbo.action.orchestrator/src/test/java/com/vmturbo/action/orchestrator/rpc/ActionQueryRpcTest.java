@@ -114,8 +114,6 @@ public class ActionQueryRpcTest {
 
     private ActionsServiceBlockingStub actionOrchestratorServiceClient;
 
-    private ActionsServiceBlockingStub actionOrchestratorServiceClientForFailedTranslation;
-
     private final ActionStorehouse actionStorehouse = Mockito.mock(ActionStorehouse.class);
     private final ActionStore actionStore = Mockito.mock(ActionStore.class);
     private final HistoricalActionStatReader historicalStatReader = mock(HistoricalActionStatReader.class);
@@ -158,23 +156,39 @@ public class ActionQueryRpcTest {
     public void setup() throws Exception {
         approvalManager = Mockito.mock(ActionApprovalManager.class);
         actionsRpcService =
-                new ActionsRpcService(clock, actionStorehouse, approvalManager, actionTranslator,
-                        paginatorFactory, historicalStatReader, liveStatReader, userSessionContext,
-                        acceptedActionsStore, rejectedActionsStore, 500);
+                new ActionsRpcService(
+                    clock,
+                    actionStorehouse,
+                    approvalManager,
+                    actionTranslator,
+                    paginatorFactory,
+                    historicalStatReader,
+                    liveStatReader,
+                    userSessionContext,
+                    acceptedActionsStore,
+                    rejectedActionsStore,
+                    500,
+                    false);
         grpcServer = GrpcTestServer.newServer(actionsRpcService);
         grpcServer.start();
 
-        actionsRpcServiceWithFailedTranslator =
-                new ActionsRpcService(clock, actionStorehouse, approvalManager,
-                        actionTranslatorWithFailedTranslation, paginatorFactory,
-                        historicalStatReader, liveStatReader, userSessionContext,
-                        acceptedActionsStore, rejectedActionsStore, 500);
+        actionsRpcServiceWithFailedTranslator = new ActionsRpcService(
+            clock,
+            actionStorehouse,
+            approvalManager,
+            actionTranslatorWithFailedTranslation,
+            paginatorFactory,
+            historicalStatReader,
+            liveStatReader,
+            userSessionContext,
+            acceptedActionsStore,
+            rejectedActionsStore,
+            500,
+        false);
         IdentityGenerator.initPrefix(0);
         actionOrchestratorServiceClient = ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel());
         grpcServerForFailedTranslation = GrpcTestServer.newServer(actionsRpcServiceWithFailedTranslator);
         grpcServerForFailedTranslation.start();
-        actionOrchestratorServiceClientForFailedTranslation =
-                ActionsServiceGrpc.newBlockingStub(grpcServerForFailedTranslation.getChannel());
 
         when(actionStorehouse.getStore(topologyContextId)).thenReturn(Optional.of(actionStore));
     }

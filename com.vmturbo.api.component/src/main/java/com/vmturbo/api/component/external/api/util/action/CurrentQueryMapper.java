@@ -10,7 +10,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -137,7 +136,7 @@ class CurrentQueryMapper {
 
             if (query.actionInput().getActionStateList() == null) {
                 // if there is no filter from the UI query, filter out just ready, queued and in_progress actions
-                Stream.of(ActionSpecMapper.OPERATIONAL_ACTION_STATES).forEach(agFilterBldr::addActionState);
+                ActionSpecMapper.OPERATIONAL_ACTION_STATES.forEach(agFilterBldr::addActionState);
             } else {
                 query.actionInput().getActionStateList().stream()
                         .map(ActionSpecMapper::mapApiStateToXl)

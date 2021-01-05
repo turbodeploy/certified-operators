@@ -210,26 +210,17 @@ public class PlanActionStore implements ActionStore {
             actionPlanData(actionPlan, LocalDateTime.now()));
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public int size() {
         return dsl.fetchCount(dsl.selectFrom(MARKET_ACTION)
             .where(MARKET_ACTION.TOPOLOGY_CONTEXT_ID.eq(topologyContextId)));
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public boolean allowsExecution() {
         return false;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Nonnull
     @Override
     public Optional<ActionView> getActionView(long actionId) {
@@ -240,9 +231,6 @@ public class PlanActionStore implements ActionStore {
             .map(Function.identity());
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Nonnull
     @Override
     public Optional<Action> getAction(long actionId) {
@@ -268,9 +256,16 @@ public class PlanActionStore implements ActionStore {
                 .findFirst();
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    @Nonnull
+    @Override
+    public Optional<ActionView> getActionViewByRecommendationId(long recommendationId) {
+        // The map operation is necessary because of how Java handles generics via type erasure.
+        // An Optional<Action> is not directly assignable to an Optional<ActionView> even though an
+        // Action is an ActionView.
+        return getActionByRecommendationId(recommendationId)
+            .map(Function.identity());
+    }
+
     @Nonnull
     @Override
     public QueryableActionViews getActionViews() {
@@ -280,9 +275,6 @@ public class PlanActionStore implements ActionStore {
         return new MapBackedActionViews(Collections.unmodifiableMap(getActions()));
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Nonnull
     @Override
     public Map<Long, Action> getActions() {
@@ -312,9 +304,6 @@ public class PlanActionStore implements ActionStore {
                 .collect(Collectors.toList())));
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public boolean overwriteActions(@Nonnull final Map<ActionPlanType, List<Action>> newActions) {
         boolean overwriteResult = true;
@@ -713,9 +702,6 @@ public class PlanActionStore implements ActionStore {
             this.licenseCheckClient = licenseCheckClient;
         }
 
-        /**
-         * {@inheritDoc}
-         */
         @Override
         public List<ActionStore> loadActionStores() {
             try {

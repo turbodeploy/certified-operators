@@ -177,6 +177,8 @@ public class ActionSpecMapperTest {
     private static final String ENTITY_TO_RESIZE_NAME = "EntityToResize";
     private static final long REAL_TIME_TOPOLOGY_CONTEXT_ID = 777777L;
     private static final long CONTEXT_ID = 777L;
+    private static final long ACTION_LEGACY_INSTANCE_ID = 123L;
+    private static final long ACTION_STABLE_IMPACT_ID = 321L;
 
     private static final ReasonCommodity MEM =
                     createReasonCommodity(CommodityDTO.CommodityType.MEM_VALUE, "grah");
@@ -212,6 +214,7 @@ public class ActionSpecMapperTest {
         "https://dev77145.service-now.com/change_request.do?sys_id=ee362595db02101093ac84da0b9619d9";
 
     private ActionSpecMapper mapper;
+    private ActionSpecMapper mapperWithStableIdEnabled;
 
     private PoliciesService policiesService = mock(PoliciesService.class);
     private final ReservedInstancesService reservedInstancesService =
@@ -323,10 +326,26 @@ public class ActionSpecMapperTest {
         when(virtualVolumeAspectMapper.mapVirtualMachines(anySetOf(Long.class), anyLong())).thenReturn(Collections.emptyMap());
         when(virtualVolumeAspectMapper.mapVirtualVolumes(anySetOf(Long.class), anyLong(), anyBoolean())).thenReturn(new HashMap<>());
 
-        mapper = new ActionSpecMapper(actionSpecMappingContextFactory,
-            serviceEntityMapper, policiesService, reservedInstanceMapper, riBuyContextFetchServiceStub, costServiceBlockingStub,
-                reservedInstanceUtilizationCoverageServiceBlockingStub, buyRiScopeHandler,
-                REAL_TIME_TOPOLOGY_CONTEXT_ID, uuidMapper);
+        mapper = new ActionSpecMapper(
+            actionSpecMappingContextFactory,
+            reservedInstanceMapper,
+            riBuyContextFetchServiceStub,
+            costServiceBlockingStub,
+            reservedInstanceUtilizationCoverageServiceBlockingStub,
+            buyRiScopeHandler,
+            REAL_TIME_TOPOLOGY_CONTEXT_ID,
+            uuidMapper,
+            false);
+        mapperWithStableIdEnabled = new ActionSpecMapper(
+            actionSpecMappingContextFactory,
+            reservedInstanceMapper,
+            riBuyContextFetchServiceStub,
+            costServiceBlockingStub,
+            reservedInstanceUtilizationCoverageServiceBlockingStub,
+            buyRiScopeHandler,
+            REAL_TIME_TOPOLOGY_CONTEXT_ID,
+            uuidMapper,
+            true);
     }
 
     /**
@@ -1459,6 +1478,75 @@ public class ActionSpecMapperTest {
     }
 
     /**
+     * Action uuid should only be the stable impact id when the feature flag is enabled and from
+     * the live market.
+     *
+     * @throws Exception should not be thrown.
+     */
+    @Test
+    public void testUuidIsStableOnlyWhenEnabledAndLiveMarket() throws Exception {
+        final long targetId = 1;
+        final ActionInfo resizeInfo = ActionInfo.newBuilder()
+            .setResize(Resize.newBuilder()
+                .setTarget(ApiUtilsTest.createActionEntity(targetId))
+                .setOldCapacity(9)
+                .setNewCapacity(10)
+                .setCommodityType(CPU.getCommodityType()))
+            .build();
+
+        Explanation resize = Explanation.newBuilder()
+            .setResize(ResizeExplanation.newBuilder()
+                .setDeprecatedStartUtilization(0.2f)
+                .setDeprecatedEndUtilization(0.4f).build())
+            .build();
+
+        final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReq(topologyEntityDTOList(Lists.newArrayList(
+            new TestEntity(ENTITY_TO_RESIZE_NAME, targetId, EntityType.VIRTUAL_MACHINE_VALUE),
+            new TestEntity(DC1_NAME, DATACENTER1_ID, EntityType.DATACENTER_VALUE),
+            new TestEntity(DC2_NAME, DATACENTER2_ID, EntityType.DATACENTER_VALUE))));
+        when(repositoryApi.entitiesRequest(Sets.newHashSet(targetId)))
+            .thenReturn(req);
+
+        ActionSpec actionSpecTemplate = buildActionSpec(resizeInfo, resize);
+        ActionSpec resizeActionSpec = actionSpecTemplate.toBuilder()
+            .setRecommendationId(ACTION_STABLE_IMPACT_ID)
+            .setRecommendation(actionSpecTemplate.getRecommendation().toBuilder()
+                .setId(ACTION_LEGACY_INSTANCE_ID)
+                .build())
+            .build();
+
+        final ActionApiDTO stableEnabledButPlanMarket =
+            mapperWithStableIdEnabled.mapActionSpecToActionApiDTO(resizeActionSpec, CONTEXT_ID);
+        assertEquals(String.valueOf(ACTION_LEGACY_INSTANCE_ID),
+            stableEnabledButPlanMarket.getUuid());
+        assertEquals(ACTION_LEGACY_INSTANCE_ID,
+            stableEnabledButPlanMarket.getActionID().longValue());
+        assertEquals(ACTION_STABLE_IMPACT_ID,
+            stableEnabledButPlanMarket.getActionImpactID().longValue());
+
+        final ActionApiDTO stableEnabledAndLiveMarket =
+            mapperWithStableIdEnabled.mapActionSpecToActionApiDTO(resizeActionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID);
+        // Both uuid and ActionID need to be the stable id when the feature flag is enabled and
+        // the action is from the realtime market.
+        assertEquals(String.valueOf(ACTION_STABLE_IMPACT_ID),
+            stableEnabledAndLiveMarket.getUuid());
+        assertEquals(ACTION_STABLE_IMPACT_ID,
+            stableEnabledAndLiveMarket.getActionID().longValue());
+        assertEquals(ACTION_STABLE_IMPACT_ID,
+            stableEnabledAndLiveMarket.getActionImpactID().longValue());
+
+        final ActionApiDTO stableDisabledAndLiveMarket =
+            mapper.mapActionSpecToActionApiDTO(resizeActionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID);
+        assertEquals(String.valueOf(ACTION_LEGACY_INSTANCE_ID),
+            stableDisabledAndLiveMarket.getUuid());
+        assertEquals(ACTION_LEGACY_INSTANCE_ID,
+            stableDisabledAndLiveMarket.getActionID().longValue());
+        assertEquals(ACTION_STABLE_IMPACT_ID,
+            stableDisabledAndLiveMarket.getActionImpactID().longValue());
+
+    }
+
+    /**
      * Tests proper translation of action severity from the internal
      * XL format to the API action class.
      *
@@ -2186,7 +2274,7 @@ public class ActionSpecMapperTest {
 
         final ActionQueryFilter filter = createFilter(inputDto);
         Assert.assertThat(filter.getStatesList(),
-            containsInAnyOrder(ActionSpecMapper.OPERATIONAL_ACTION_STATES));
+            containsInAnyOrder(ActionSpecMapper.OPERATIONAL_ACTION_STATES.toArray()));
     }
 
     // Similar fixes as in OM-24590: Do not show executed actions as pending,
@@ -2195,7 +2283,7 @@ public class ActionSpecMapperTest {
     public void testCreateActionFilterWithNoStateFilterAndNoInputDTO() {
         final ActionQueryFilter filter = createFilter(null);
         Assert.assertThat(filter.getStatesList(),
-                containsInAnyOrder(ActionSpecMapper.OPERATIONAL_ACTION_STATES));
+                containsInAnyOrder(ActionSpecMapper.OPERATIONAL_ACTION_STATES.toArray()));
     }
 
     @Test
@@ -2504,8 +2592,7 @@ public class ActionSpecMapperTest {
     }
 
     /**
-     * {@link ActionSpec#getHasFailure()} should chnage the value of
-     * {@link ActionApiDTO#getActionState()}.
+     * Verifies the conversion from XL ActionState to API ActionState.
      *
      * @throws Exception should not be thrown.
      */

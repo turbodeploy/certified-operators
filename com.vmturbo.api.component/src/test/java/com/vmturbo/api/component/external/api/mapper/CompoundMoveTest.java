@@ -171,15 +171,14 @@ public class CompoundMoveTest {
 
         mapper = new ActionSpecMapper(
                 actionSpecMappingContextFactory,
-                serviceEntityMapper,
-                mock(PoliciesService.class),
                 mock(ReservedInstanceMapper.class),
                 riBuyContextFetchServiceStub,
                 costServiceBlockingStub,
                 reservedInstanceUtilizationCoverageServiceBlockingStub,
                 mock(BuyRiScopeHandler.class),
                 REAL_TIME_TOPOLOGY_CONTEXT_ID,
-                mock(UuidMapper.class));
+                mock(UuidMapper.class),
+                false);
         IdentityGenerator.initPrefix(0);
 
         final MultiEntityRequest multiReq = ApiTestUtils.mockMultiEntityReq(topologyEntityDTOList(Lists.newArrayList(

@@ -223,7 +223,7 @@
                <artifactId>spotbugs-maven-plugin</artifactId>
                <version>${spotbugs.version}</version>
                <configuration>
-                   <maxAllowedViolations>7</maxAllowedViolations>
+                   <maxAllowedViolations>6</maxAllowedViolations>
                    <failOnError>true</failOnError>
                </configuration>
                <executions>
@@ -313,6 +313,12 @@
         <dependency>
             <groupId>javax.persistence</groupId>
             <artifactId>javax.persistence-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.github.spotbugs</groupId>
+            <artifactId>spotbugs-annotations</artifactId>
+            <version>4.2.0</version>
+            <optional>true</optional>
         </dependency>
 
         <!-- test dependencies -->

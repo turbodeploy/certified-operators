@@ -91,6 +91,19 @@ public interface ActionStore {
     Optional<Action> getActionByRecommendationId(long recommendationId);
 
     /**
+     * Get a view of an action that provides accessors to the property of that action.
+     * Clients who do not need to mutate the state of an action should prefer
+     * to access the actions via an {@link ActionView}.
+     * To get a mutable reference to an individual action, use {@link #getActionByRecommendationId(long)}.
+     *
+     * @param recommendationId The stable ID of the action to retrieve.
+     * @return A spec describing the Action with the corresponding recommendation ID, or
+     * Optional.empty if no action with the given ID can be found.
+     */
+    @Nonnull
+    Optional<ActionView> getActionViewByRecommendationId(long recommendationId);
+
+    /**
      * Get views of the actions in the store that provide accessors to the properties of the actions.
      * Clients who do not need to mutate the state of actions should prefer to access actions
      * via their {@link ActionView}s.

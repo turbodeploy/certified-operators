@@ -351,6 +351,7 @@ public class Action implements ActionView {
     public String toString() {
         synchronized (recommendationLock) {
             return "Action Id=" + getId()
+                    + ", RecommendationOid=" + getRecommendationOid()
                     + ", Type=" + recommendation.getInfo().getActionTypeCase()
                     + ", Mode=" + getMode()
                     + ", State=" + getState()

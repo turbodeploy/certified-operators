@@ -915,39 +915,37 @@ public class LiveActionStore implements ActionStore {
         return true;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public int size() {
         return actions.size();
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public boolean allowsExecution() {
         // if the license is invalid, then disallow execution.
         return licenseCheckClient.hasValidNonExpiredLicense();
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Nonnull
     @Override
     public Optional<Action> getAction(long actionId) {
         return actions.getAction(actionId);
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Nonnull
     @Override
     public Optional<Action> getActionByRecommendationId(long recommendationId) {
         return actions.getActionByRecommendationId(recommendationId);
+    }
+
+    @Nonnull
+    @Override
+    public Optional<ActionView> getActionViewByRecommendationId(long recommendationId) {
+        // The map operation is necessary because of how Java handles generics via type erasure.
+        // An Optional<Action> is not directly assignable to an Optional<ActionView> even though an
+        // Action is an ActionView.
+        return getActionByRecommendationId(recommendationId)
+            .map(Function.identity());
     }
 
     @Nonnull
@@ -972,9 +970,6 @@ public class LiveActionStore implements ActionStore {
             .map(Function.identity());
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Nonnull
     @Override
     public QueryableActionViews getActionViews() {
@@ -1001,8 +996,9 @@ public class LiveActionStore implements ActionStore {
     }
 
     /**
-     * {@inheritDoc}
      * The {@link LiveActionStore} does not permit this operation.
+     *
+     * @return nothing will ever return since this operation always throws an exception.
      */
     @Override
     public boolean clear() {

@@ -67,6 +67,13 @@ public class MapperConfig {
     @Value("${enableCloudScaleEnhancement:true}")
     private boolean enableCloudScaleEnhancement;
 
+    /**
+     * Flag that enables all action uuids come from the stable recommendation oid instead of the
+     * unstable action instance id.
+     */
+    @Value("${useStableActionIdAsUuid:false}")
+    private boolean useStableActionIdAsUuid;
+
     @Autowired
     private CommunicationConfig communicationConfig;
 
@@ -94,15 +101,14 @@ public class MapperConfig {
     public ActionSpecMapper actionSpecMapper() {
         return new ActionSpecMapper(
             actionSpecMappingContextFactory(),
-            communicationConfig.serviceEntityMapper(),
-            serviceConfig.policiesService(),
             mapperConfig.reservedInstanceMapper(),
             communicationConfig.riBuyContextFetchStub(),
             communicationConfig.costServiceBlockingStub(),
             communicationConfig.reservedInstanceUtilizationCoverageServiceBlockingStub(),
             mapperConfig.buyRiScopeHandler(),
             communicationConfig.getRealtimeTopologyContextId(),
-            uuidMapper());
+            uuidMapper(),
+            useStableActionIdAsUuid);
     }
 
     @Bean

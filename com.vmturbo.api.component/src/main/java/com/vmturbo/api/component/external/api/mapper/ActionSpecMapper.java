@@ -23,16 +23,9 @@ import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.lang.StringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.util.Strings;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
@@ -42,13 +35,18 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.util.Strings;
+
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMappingContextFactory.ActionSpecMappingContext;
 import com.vmturbo.api.component.external.api.mapper.ReservedInstanceMapper.NotFoundCloudTypeException;
 import com.vmturbo.api.component.external.api.mapper.ReservedInstanceMapper.NotFoundMatchOfferingClassException;
 import com.vmturbo.api.component.external.api.mapper.ReservedInstanceMapper.NotFoundMatchPaymentOptionException;
 import com.vmturbo.api.component.external.api.mapper.ReservedInstanceMapper.NotFoundMatchTenancyException;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
-import com.vmturbo.api.component.external.api.service.PoliciesService;
 import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
@@ -213,10 +211,6 @@ public class ActionSpecMapper {
 
     private final ActionSpecMappingContextFactory actionSpecMappingContextFactory;
 
-    private final ServiceEntityMapper serviceEntityMapper;
-
-    private final PoliciesService policiesService;
-
     private final long realtimeTopologyContextId;
 
     private static final Logger logger = LogManager.getLogger();
@@ -234,6 +228,13 @@ public class ActionSpecMapper {
 
     private final UuidMapper uuidMapper;
 
+    /**
+     * Flag that enables all action uuids come from the stable recommendation oid instead of the
+     * unstable action instance id.
+     */
+    private final boolean useStableActionIdAsUuid;
+
+
     private final Map<Long, Map<EntityFilter, Map<Long, Cost.EntityReservedInstanceCoverage>>> topologyContextIdToEntityFilterToEntityRiCoverage =
             Maps.newHashMap();
 
@@ -246,26 +247,37 @@ public class ActionSpecMapper {
      * The set of action states for operational actions (ie actions that have not
      * completed execution).
      */
-    public static final ActionDTO.ActionState[] OPERATIONAL_ACTION_STATES = {
+    public static final List<ActionDTO.ActionState> OPERATIONAL_ACTION_STATES = ImmutableList.of(
         ActionDTO.ActionState.READY,
         ActionDTO.ActionState.ACCEPTED,
         ActionDTO.ActionState.QUEUED,
         ActionDTO.ActionState.IN_PROGRESS
-    };
+    );
 
+    /**
+     * Initialized the ActionSpecMapper with the provided implementations.
+     *
+     * @param actionSpecMappingContextFactory factory for getting AO contexts.
+     * @param reservedInstanceMapper converts between API and XL representation of RIs.
+     * @param riStub service for grabbing RI info.
+     * @param costServiceBlockingStub service for grabbing cost info.
+     * @param reservedInstanceUtilizationCoverageServiceBlockingStub service for grabbing RI Util info.
+     * @param buyRiScopeHandler service for grabbing buy RI info.
+     * @param realtimeTopologyContextId the topology id of the live, real market.
+     * @param uuidMapper coverts between API ids and XL ids.
+     * @param useStableActionIdAsUuid true when should use stable action recommendation oid instead
+     *                                   of legacy action instance id as the uuid.
+     */
     public ActionSpecMapper(@Nonnull ActionSpecMappingContextFactory actionSpecMappingContextFactory,
-                            @Nonnull final ServiceEntityMapper serviceEntityMapper,
-                            @Nonnull final PoliciesService policiesService,
                             @Nonnull final ReservedInstanceMapper reservedInstanceMapper,
                             @Nullable final RIBuyContextFetchServiceGrpc.RIBuyContextFetchServiceBlockingStub riStub,
                             @Nonnull final CostServiceBlockingStub costServiceBlockingStub,
                             @Nonnull final ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub reservedInstanceUtilizationCoverageServiceBlockingStub,
                             @Nonnull final BuyRiScopeHandler buyRiScopeHandler,
                             final long realtimeTopologyContextId,
-                            @Nonnull final UuidMapper uuidMapper) {
+                            @Nonnull final UuidMapper uuidMapper,
+                            final boolean useStableActionIdAsUuid) {
         this.actionSpecMappingContextFactory = Objects.requireNonNull(actionSpecMappingContextFactory);
-        this.serviceEntityMapper = Objects.requireNonNull(serviceEntityMapper);
-        this.policiesService  = Objects.requireNonNull(policiesService);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.reservedInstanceMapper = Objects.requireNonNull(reservedInstanceMapper);
         this.costServiceBlockingStub = Objects.requireNonNull(costServiceBlockingStub);
@@ -273,6 +285,7 @@ public class ActionSpecMapper {
         this.reservedInstanceUtilizationCoverageServiceBlockingStub = reservedInstanceUtilizationCoverageServiceBlockingStub;
         this.buyRiScopeHandler = buyRiScopeHandler;
         this.uuidMapper = uuidMapper;
+        this.useStableActionIdAsUuid = useStableActionIdAsUuid;
     }
 
     /**
@@ -306,7 +319,7 @@ public class ActionSpecMapper {
      * for a collection of {@link ActionSpec}s.
      *
      * <p>Processes the input specs atomically. If there is an error processing an individual action spec
-     * that action is skipped and an error is logged.
+     * that action is skipped and an error is logged.</p>
      *
      * @param actionSpecs       The collection of {@link ActionSpec}s to convert.
      * @param topologyContextId The topology context within which the {@link ActionSpec}s were
@@ -316,8 +329,10 @@ public class ActionSpecMapper {
      * @return A collection of {@link ActionApiDTO}s in the same order as the incoming actionSpecs.
      * @throws UnsupportedActionException If the action type of the {@link ActionSpec}
      *                                    is not supported.
-     * @throws ExecutionException
-     * @throws InterruptedException
+     * @throws UnsupportedActionException when the action type is not supported.
+     * @throws ExecutionException on failure getting entities.
+     * @throws InterruptedException if thread has been interrupted.
+     * @throws ConversionException if errors faced during converting data to API DTOs.
      */
     @Nonnull
     public List<ActionApiDTO> mapActionSpecsToActionApiDTOs(
@@ -356,13 +371,12 @@ public class ActionSpecMapper {
      * Map an ActionSpec returned from the ActionOrchestratorComponent into an {@link ActionApiDTO}
      * to be returned from the API.
      *
-     * The detail level returned in the {@link ActionApiDTO} is STANDARD.
+     * <p>The detail level returned in the {@link ActionApiDTO} is STANDARD.</p>
      *
-     * When required, a displayName value for a given Service Entity ID is gathered from the
-     * Repository service.
+     * <p>When required, a displayName value for a given Service Entity ID is gathered from the
+     * Repository service.</p>
      *
-     * Some fields are returned as a constant:
-     * Some fields are ignored:
+     * <p>Some fields are returned as a constant. Some fields are ignored.</p>
      *
      * @param actionSpec The {@link ActionSpec} object to be mapped into an {@link ActionApiDTO}.
      * @param topologyContextId The topology context within which the {@link ActionSpec} was
@@ -386,12 +400,11 @@ public class ActionSpecMapper {
     /**
      * Map an ActionSpec returned from the ActionOrchestratorComponent into an {@link ActionApiDTO}
      * to be returned from the API.
-     * <p>
-     * When required, a displayName value for a given Service Entity ID is gathered from the
-     * Repository service.
-     * <p>
-     * Some fields are returned as a constant:
-     * Some fields are ignored:
+     *
+     * <p>When required, a displayName value for a given Service Entity ID is gathered from the
+     * Repository service.</p>
+     *
+     * <p>Some fields are returned as a constant. Some fields are ignored.</p>
      *
      * @param actionSpec        The {@link ActionSpec} object to be mapped into an {@link ActionApiDTO}.
      * @param topologyContextId The topology context within which the {@link ActionSpec} was
@@ -521,9 +534,13 @@ public class ActionSpecMapper {
             throws UnsupportedActionException {
         // Construct a response ActionApiDTO to return
         final ActionApiDTO actionApiDTO = new ActionApiDTO();
-        // actionID and uuid are the same
-        actionApiDTO.setUuid(Long.toString(actionSpec.getRecommendation().getId()));
-        actionApiDTO.setActionID(actionSpec.getRecommendation().getId());
+        if (useStableActionIdAsUuid && topologyContextId == realtimeTopologyContextId) {
+            actionApiDTO.setUuid(Long.toString(actionSpec.getRecommendationId()));
+            actionApiDTO.setActionID(actionSpec.getRecommendationId());
+        } else {
+            actionApiDTO.setUuid(Long.toString(actionSpec.getRecommendation().getId()));
+            actionApiDTO.setActionID(actionSpec.getRecommendation().getId());
+        }
         // Populate the action OID
         actionApiDTO.setActionImpactID(actionSpec.getRecommendationId());
         // set ID of topology/market for which the action is generated
@@ -882,7 +899,7 @@ public class ActionSpecMapper {
     }
 
     /**
-     * Creates the stats for the given actionSpec
+     * Creates the stats for the given actionSpec.
      *
      * @param source the actionSpec for which stats are to be created
      * @return a list of stats to be added to the ActionApiDto
@@ -896,7 +913,7 @@ public class ActionSpecMapper {
     }
 
     /**
-     * Creates the savings stats
+     * Creates the savings stats.
      *
      * @param savingsPerHour the savings per hour
      * @return the savings stats
@@ -1203,9 +1220,9 @@ public class ActionSpecMapper {
             final Optional<ServiceEntityApiDTO> destination = context.getEntity(destinationId);
             final Optional<ServiceEntityApiDTO> source = context.getEntity(sourceId);
             final String verb =
-                SCALE_TIER_VALUES.contains(destination.map(BaseApiDTO::getClassName).orElse("")) &&
-                    SCALE_TIER_VALUES.contains(source.map(BaseApiDTO::getClassName).orElse("")) ?
-                "Scale" : "Move";
+                SCALE_TIER_VALUES.contains(destination.map(BaseApiDTO::getClassName).orElse(""))
+                    && SCALE_TIER_VALUES.contains(source.map(BaseApiDTO::getClassName).orElse(""))
+                    ? "Scale" : "Move";
             String resource = "";
             if (change.hasResource()) {
                 final long resourceId = change.getResource().getId();
@@ -1355,8 +1372,8 @@ public class ActionSpecMapper {
             if (provisionedEntity.isPresent()) {
                 newEntity = ServiceEntityMapper.copyServiceEntityAPIDTO(provisionedEntity.get());
             } else {
-                logger.error("There is no provisioned entity {} in projected topology. Populate " +
-                        "new entity using information from current entity.", provisionedSellerId);
+                logger.error("There is no provisioned entity {} in projected topology. Populate "
+                        + "new entity using information from current entity.", provisionedSellerId);
                 newEntity = new ServiceEntityApiDTO();
                 newEntity.setUuid(String.valueOf(provisionedSellerId));
                 newEntity.setClassName(ApiEntityType.fromType(currentEntity.getType()).apiStr());
@@ -1759,17 +1776,17 @@ public class ActionSpecMapper {
     /**
      * Return a nicely formatted string like:
      *
-     * <p><code>Virtual Machine vm-test 01 for now</code>
+     * <p><code>Virtual Machine vm-test 01 for now</code></p>
      *
      * <p>in which the entity type is expanded from camel case to words, and the displayName()
-     * is surrounded with single quotes.
+     * is surrounded with single quotes.</p>
      *
-     * The regex uses zero-length pattern matching with lookbehind and lookforward, and is
-     * taken from - http://stackoverflow.com/questions/2559759.
+     * <p>The regex uses zero-length pattern matching with lookbehind and lookforward, and is
+     * taken from - http://stackoverflow.com/questions/2559759.</p>
      *
-     * It converts camel case (e.g. PhysicalMachine) into strings with the same
+     * <p>It converts camel case (e.g. PhysicalMachine) into strings with the same
      * capitalization plus blank spaces (e.g. "Physical Machine"). It also splits numbers,
-     * e.g. "May5" -> "May 5" and respects upper case runs, e.g. (PDFLoader -> "PDF Loader").
+     * e.g. "May5" -> "May 5" and respects upper case runs, e.g. (PDFLoader -> "PDF Loader").</p>
      *
      * @param entityDTO the entity for which the readable name is to be created
      * @return a string with the entity type, with blanks inserted, plus displayName with
@@ -1810,7 +1827,7 @@ public class ActionSpecMapper {
                 // TODO: (DavidBlinn, 3/15/2018): The UI request for "Pending Actions" does not
                 // include any action states in its filter even though it wants to exclude executed
                 // actions. Request only operational action states.
-                Stream.of(OPERATIONAL_ACTION_STATES).forEach(queryBuilder::addStates);
+                OPERATIONAL_ACTION_STATES.forEach(queryBuilder::addStates);
             }
 
             if (inputDto.getRiskSeverityList() != null) {
@@ -1898,7 +1915,7 @@ public class ActionSpecMapper {
 
         } else {
             // When "inputDto" is null, we should automatically insert the operational action states.
-            Stream.of(OPERATIONAL_ACTION_STATES).forEach(queryBuilder::addStates);
+            OPERATIONAL_ACTION_STATES.forEach(queryBuilder::addStates);
         }
 
         // Set involved entities from user input and Buy RI scope
@@ -1944,8 +1961,8 @@ public class ActionSpecMapper {
 
             if (startTime > now) {
                 // start time is in the future.
-                throw new IllegalArgumentException("startTime " + startTimeString +
-                        " can't be in the future");
+                throw new IllegalArgumentException("startTime " + startTimeString
+                        + " can't be in the future");
             }
             queryBuilder.setStartDate(startTime);
 
@@ -1953,8 +1970,8 @@ public class ActionSpecMapper {
                 final long endTime = DateTimeUtil.parseTime(endTimeString);
                 if (endTime < startTime) {
                     // end time is before start time
-                    throw new IllegalArgumentException("startTime " + startTimeString +
-                            " must precede endTime " + endTimeString);
+                    throw new IllegalArgumentException("startTime " + startTimeString
+                            + " must precede endTime " + endTimeString);
                 }
                 queryBuilder.setEndDate(endTime);
             } else {
@@ -1989,9 +2006,15 @@ public class ActionSpecMapper {
         return severity.name();
     }
 
+    /**
+     * Converts the api action state into xl action state.
+     *
+     * @param apiActionState the api's version of the action state.
+     * @return the api action state represented in xl action state.
+     */
     @Nonnull
-    public static Optional<ActionDTO.ActionState> mapApiStateToXl(final ActionState stateStr) {
-        switch (stateStr) {
+    public static Optional<ActionDTO.ActionState> mapApiStateToXl(final ActionState apiActionState) {
+        switch (apiActionState) {
             case READY:
                 return Optional.of(ActionDTO.ActionState.READY);
             case ACCEPTED:
@@ -2007,8 +2030,8 @@ public class ActionSpecMapper {
             case CLEARED:
                 return Optional.of(ActionDTO.ActionState.CLEARED);
             default:
-                logger.error("Unknown action state {}", stateStr);
-                throw new IllegalArgumentException("Unsupported action state " + stateStr);
+                logger.error("Unknown action state {}", apiActionState);
+                throw new IllegalArgumentException("Unsupported action state " + apiActionState);
         }
     }
 
@@ -2222,8 +2245,8 @@ public class ActionSpecMapper {
         final Iterator<GetCloudCostStatsResponse> response =
                 costServiceBlockingStub.getCloudCostStats(cloudCostStatsRequest);
         Map<Long, List<StatRecord>> recordsByTime = new HashMap<>();
-        while(response.hasNext()) {
-            for(CloudCostStatRecord rec: response.next().getCloudStatRecordList()) {
+        while (response.hasNext()) {
+            for (CloudCostStatRecord rec: response.next().getCloudStatRecordList()) {
                 recordsByTime.computeIfAbsent(rec.getSnapshotDate(), x -> new ArrayList<>()).addAll(rec.getStatRecordsList());
             }
         }
@@ -2536,8 +2559,9 @@ public class ActionSpecMapper {
 
     /**
      * Create RI historical Context Stat Snapshot DTOs.
+     *
      * @param snapshots - template demand snapshots
-     * @return
+     * @return list of StatSnapshotApiDTO each translated from the provided Stats.StatSnapshot snapshots.
      */
     @Nonnull
     private List<StatSnapshotApiDTO> createRiHistoricalContextStatSnapshotDTO(final List<Stats.StatSnapshot> snapshots) {

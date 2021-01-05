@@ -23,6 +23,8 @@ import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 import com.google.protobuf.util.JsonFormat;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
@@ -45,6 +47,7 @@ import com.vmturbo.action.orchestrator.stats.query.live.FailedActionQueryExcepti
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse.StoreDeletionException;
+import com.vmturbo.action.orchestrator.store.LiveActionStore;
 import com.vmturbo.action.orchestrator.store.query.QueryableActionViews;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.auth.api.auditing.AuditLogUtils;
@@ -141,6 +144,12 @@ public class ActionsRpcService extends ActionsServiceImplBase {
     private final int actionPaginationMaxLimit;
 
     /**
+     * Flag that enables all action uuids come from the stable recommendation oid instead of the
+     * unstable action instance id.
+     */
+    private final boolean useStableActionIdAsUuid;
+
+    /**
      * Create a new ActionsRpcService.
      *
      * @param clock the {@link Clock}
@@ -154,6 +163,9 @@ public class ActionsRpcService extends ActionsServiceImplBase {
      * @param acceptedActionsStore dao layer working with accepted actions
      * @param rejectedActionsStore dao layer working with rejected actions
      * @param actionPaginationMaxLimit max number of actions to return in a single pagination page
+     * @param useStableActionIdAsUuid flag that enables all action uuids come from the stable
+     *                                   recommendation oid instead of the unstable action instance
+     *                                   id.
      */
     public ActionsRpcService(@Nonnull final Clock clock,
             @Nonnull final ActionStorehouse actionStorehouse,
@@ -165,7 +177,8 @@ public class ActionsRpcService extends ActionsServiceImplBase {
             @Nonnull final UserSessionContext userSessionContext,
             @Nonnull final AcceptedActionsDAO acceptedActionsStore,
             @Nonnull final RejectedActionsDAO rejectedActionsStore,
-            final int actionPaginationMaxLimit) {
+            final int actionPaginationMaxLimit,
+            final boolean useStableActionIdAsUuid) {
         this.clock = clock;
         this.actionStorehouse = Objects.requireNonNull(actionStorehouse);
         this.actionApprovalManager = Objects.requireNonNull(actionApprovalManager);
@@ -177,11 +190,9 @@ public class ActionsRpcService extends ActionsServiceImplBase {
         this.acceptedActionsStore = Objects.requireNonNull(acceptedActionsStore);
         this.rejectedActionsStore = Objects.requireNonNull(rejectedActionsStore);
         this.actionPaginationMaxLimit = actionPaginationMaxLimit;
+        this.useStableActionIdAsUuid = useStableActionIdAsUuid;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public void acceptAction(SingleActionRequest request,
                              StreamObserver<AcceptActionResponse> responseObserver) {
@@ -206,7 +217,13 @@ public class ActionsRpcService extends ActionsServiceImplBase {
         }
 
         final ActionStore store = optionalStore.get();
-        final Optional<Action> actionOpt = store.getAction(request.getActionId());
+
+        final Optional<Action> actionOpt;
+        if (useStableActionIdAsUuid) {
+            actionOpt = store.getActionByRecommendationId(request.getActionId());
+        } else {
+            actionOpt = store.getAction(request.getActionId());
+        }
         if (!actionOpt.isPresent()) {
             responseObserver.onError(Status.NOT_FOUND.withDescription(
                 "Action " + request.getActionId() + " doesn't exist.").asException());
@@ -244,9 +261,6 @@ public class ActionsRpcService extends ActionsServiceImplBase {
             && !action.getSchedule().get().isActiveScheduleNow();
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public void getAction(SingleActionRequest request,
                           StreamObserver<ActionOrchestratorAction> responseObserver) {
@@ -257,12 +271,20 @@ public class ActionsRpcService extends ActionsServiceImplBase {
             return;
         }
 
-        final Optional<ActionStore> store = actionStorehouse.getStore(request.getTopologyContextId());
-        if (store.isPresent()) {
-            final Optional<ActionSpec> optionalSpec = store.get()
-                    .getActionView(request.getActionId())
-                    .map(actionTranslator::translateToSpec);
+        final Optional<ActionStore> storeOpt = actionStorehouse.getStore(request.getTopologyContextId());
+        if (storeOpt.isPresent()) {
+            ActionStore store = storeOpt.get();
 
+
+            final Optional<ActionView> optionalView;
+            if (useStableActionIdAsUuid && LiveActionStore.STORE_TYPE_NAME.equals(store.getStoreTypeName())) {
+                optionalView = store.getActionViewByRecommendationId(request.getActionId());
+            } else {
+                optionalView = store.getActionView(request.getActionId());
+            }
+
+
+            final Optional<ActionSpec> optionalSpec = optionalView.map(actionTranslator::translateToSpec);
             responseObserver.onNext(aoAction(request.getActionId(), optionalSpec));
             responseObserver.onCompleted();
         } else {
@@ -270,9 +292,6 @@ public class ActionsRpcService extends ActionsServiceImplBase {
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public void getAllActions(FilteredActionRequest request,
                               StreamObserver<FilteredActionResponse> responseObserver) {
@@ -298,9 +317,9 @@ public class ActionsRpcService extends ActionsServiceImplBase {
                         paginatedViewsByQuery.put(null, allViewsPaginated);
                     }
                     queries.forEach(query -> {
-                        final Stream<ActionView> filteredViews = query.hasQueryFilter() ?
-                            actionStore.getActionViews().get(query.getQueryFilter()) :
-                            actionStore.getActionViews().getAll();
+                        final Stream<ActionView> filteredViews = query.hasQueryFilter()
+                            ? actionStore.getActionViews().get(query.getQueryFilter())
+                            : actionStore.getActionViews().getAll();
                         final PaginatedActionViews filteredViewsPaginated =
                             paginator.applyPagination(filteredViews, request.getPaginationParams());
                         paginatedViewsByQuery.put(query, filteredViewsPaginated);
@@ -352,9 +371,6 @@ public class ActionsRpcService extends ActionsServiceImplBase {
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public void getActions(MultiActionRequest request,
                            StreamObserver<ActionOrchestratorAction> responseObserver) {
@@ -391,9 +407,6 @@ public class ActionsRpcService extends ActionsServiceImplBase {
         responseObserver.onCompleted();
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public void getTopologyContextInfo(TopologyContextInfoRequest request,
                                        StreamObserver<TopologyContextResponse> responseObserver) {
@@ -424,10 +437,6 @@ public class ActionsRpcService extends ActionsServiceImplBase {
         }
     }
 
-
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public void getActionCountsByDate(GetActionCountsRequest request,
                                       StreamObserver<GetActionCountsByDateResponse> response) {
@@ -501,9 +510,6 @@ public class ActionsRpcService extends ActionsServiceImplBase {
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public void deleteActions(DeleteActionsRequest request,
                               StreamObserver<DeleteActionsResponse> responseObserver) {
@@ -542,9 +548,6 @@ public class ActionsRpcService extends ActionsServiceImplBase {
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public void cancelQueuedActions(
             CancelQueuedActionsRequest request,
@@ -558,9 +561,6 @@ public class ActionsRpcService extends ActionsServiceImplBase {
         responseObserver.onCompleted();
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public void getActionCategoryStats(GetActionCategoryStatsRequest request,
                                        StreamObserver<GetActionCategoryStatsResponse> responseObserver) {
@@ -843,7 +843,7 @@ public class ActionsRpcService extends ActionsServiceImplBase {
 
         Set<Integer> entityTypesToInclude;
 
-        public ActionCategoryStats(@Nonnull  Set<Integer> entityTypesToInclude) {
+        private ActionCategoryStats(@Nonnull  Set<Integer> entityTypesToInclude) {
             this.entities = new HashSet<>();
             this.entityTypesToInclude = Objects.requireNonNull(entityTypesToInclude);
         }
@@ -889,6 +889,9 @@ public class ActionsRpcService extends ActionsServiceImplBase {
             return Objects.hash(numActions, entities, totalSavings, totalInvestment);
         }
 
+        @SuppressFBWarnings(
+            value = "FE_FLOATING_POINT_EQUALITY",
+            justification = "tolerance violates equals() transitive and hashCode() equals consistency contracts")
         @Override
         public boolean equals(final Object obj) {
             if (obj == this) {
@@ -897,11 +900,11 @@ public class ActionsRpcService extends ActionsServiceImplBase {
             if (!(obj instanceof ActionCategoryStats)) {
                 return false;
             }
-            ActionCategoryStats that = (ActionCategoryStats) obj;
-            return (numActions == that.numActions &&
-                    Objects.equals(entities, that.entities) &&
-                    totalSavings == that.totalSavings &&
-                    totalInvestment == that.totalInvestment);
+            ActionCategoryStats other = (ActionCategoryStats)obj;
+            return (numActions == other.numActions
+                    && Objects.equals(entities, other.entities)
+                    && totalSavings == other.totalSavings
+                    && totalInvestment == other.totalInvestment);
         }
     }
 }

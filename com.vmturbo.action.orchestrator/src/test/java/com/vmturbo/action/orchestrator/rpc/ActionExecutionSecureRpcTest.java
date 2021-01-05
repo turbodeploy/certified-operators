@@ -174,10 +174,19 @@ public class ActionExecutionSecureRpcTest {
     private final InvolvedEntitiesExpander involvedEntitiesExpander =
         mock(InvolvedEntitiesExpander.class);
 
-    private final ActionsRpcService actionsRpcService =
-            new ActionsRpcService(clock, actionStorehouse, actionApprovalManager, actionTranslator,
-                    paginatorFactory, statReader, currentActionStatReader, userSessionContext,
-                    acceptedActionsStore, rejectedActionsStore, 500);
+    private final ActionsRpcService actionsRpcService = new ActionsRpcService(
+        clock,
+        actionStorehouse,
+        actionApprovalManager,
+        actionTranslator,
+        paginatorFactory,
+        statReader,
+        currentActionStatReader,
+        userSessionContext,
+        acceptedActionsStore,
+        rejectedActionsStore,
+        500,
+        false);
     private ActionsServiceBlockingStub actionOrchestratorServiceClient;
     private ActionsServiceBlockingStub actionOrchestratorServiceClientWithInterceptor;
     private ActionStore actionStoreSpy;

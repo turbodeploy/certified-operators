@@ -69,9 +69,19 @@ public class ActionDeletionRpcTest {
     public void setup() throws Exception {
         IdentityGenerator.initPrefix(0);
         approvalManager = Mockito.mock(ActionApprovalManager.class);
-        actionsRpcService = new ActionsRpcService(clock, actionStorehouse, approvalManager,
-                mock(ActionTranslator.class), paginatorFactory, statReader, liveStatReader,
-                userSessionContext, acceptedActionsStore, rejectedActionsStore, 500);
+        actionsRpcService = new ActionsRpcService(
+            clock,
+            actionStorehouse,
+            approvalManager,
+            mock(ActionTranslator.class),
+            paginatorFactory,
+            statReader,
+            liveStatReader,
+            userSessionContext,
+            acceptedActionsStore,
+            rejectedActionsStore,
+            500,
+            false);
         grpcServer = GrpcTestServer.newServer(actionsRpcService);
         grpcServer.start();
         actionOrchestratorServiceClient = ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel());

@@ -185,9 +185,19 @@ public class ActionExecutionRpcTest {
         actionIdentityService = Mockito.mock(IdentityServiceImpl.class);
         Mockito.when(actionIdentityService.getOidsForObjects(Mockito.any()))
                 .thenReturn(Arrays.asList(1L, 2L, 3L, 4L, 5L, 6L, 7L));
-        actionsRpcService = new ActionsRpcService(clock, actionStorehouse, actionApprovalManager,
-                actionTranslator, paginatorFactory, statReader, liveStatReader, userSessionContext,
-                acceptedActionsStore, rejectedActionsStore, 500);
+        actionsRpcService = new ActionsRpcService(
+            clock,
+            actionStorehouse,
+            actionApprovalManager,
+            actionTranslator,
+            paginatorFactory,
+            statReader,
+            liveStatReader,
+            userSessionContext,
+            acceptedActionsStore,
+            rejectedActionsStore,
+            500,
+            false);
         grpcServer = GrpcTestServer.newServer(actionsRpcService, settingPolicyServiceMole,
                 supplyChainServiceMole, repositoryServiceMole);
         grpcServer.start();
@@ -557,9 +567,19 @@ public class ActionExecutionRpcTest {
         // appropriate action mode (>= MANUAL). As a result action can be available for acceptance
         // and possible execution.
         final ActionsRpcService actionsRpcService =
-                new ActionsRpcService(clock, actionStorehouse, actionApprovalManager,
-                        actionTranslator, paginatorFactory, statReader, liveStatReader,
-                        userSessionContext, acceptedActionsStore, rejectedActionsStore, 500);
+                new ActionsRpcService(
+                    clock,
+                    actionStorehouse,
+                    actionApprovalManager,
+                    actionTranslator,
+                    paginatorFactory,
+                    statReader,
+                    liveStatReader,
+                    userSessionContext,
+                    acceptedActionsStore,
+                    rejectedActionsStore,
+                    500,
+                    false);
         final GrpcTestServer grpcServer = GrpcTestServer.newServer(actionsRpcService,
                 supplyChainServiceMole, repositoryServiceMole);
         grpcServer.start();
