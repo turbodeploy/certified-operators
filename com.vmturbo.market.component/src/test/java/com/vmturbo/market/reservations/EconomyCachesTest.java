@@ -601,21 +601,35 @@ public class EconomyCachesTest {
 
     /**
      * Test InitialPlacementUtils.setSellersNotAcceptCustomers.
+     * Expected: only pms in the economy should be set with canAcceptNewCustomers false. Storages
+     * should still have the setting true even if the cluster commodity map contains the storage
+     * cluster comm.
      */
     @Test
     public void testSetSellersNotAcceptCustomers() {
-        long buyerSlOid = 1000L;
+        long buyerSlOid1 = 1000L;
+        long buyerSlOid2 = 2000L;
         Map<Long, TopologyDTO.CommodityType> clusterCommPerSl = new HashMap() {{
-            put(buyerSlOid, TopologyDTO.CommodityType.newBuilder().setType(CommodityType.CLUSTER_VALUE)
+            put(buyerSlOid1, TopologyDTO.CommodityType.newBuilder().setType(CommodityType.CLUSTER_VALUE)
                     .setKey(cluster1Key).build());
+            put(buyerSlOid2, TopologyDTO.CommodityType.newBuilder()
+                    .setType(CommodityType.STORAGE_CLUSTER_VALUE).setKey(cluster1Key).build());
         }};
-        Economy economy = economyWithCluster(new double[]{pm1MemUsed, pm2MemUsed,
+        Economy pmEconomy = economyWithCluster(new double[]{pm1MemUsed, pm2MemUsed,
                 pm3MemUsed, pm4MemUsed});
         // Mark entities in cluster 1 as can not accept customers
-        InitialPlacementUtils.setSellersNotAcceptCustomers(economy, commTypeToSpecMap, clusterCommPerSl);
-        List<Trader> pmInCluster1 = economy.getTraders().stream().filter(t -> t.getOid() == pm1Oid
+        InitialPlacementUtils.setSellersNotAcceptCustomers(pmEconomy, commTypeToSpecMap, clusterCommPerSl);
+        List<Trader> pmInCluster1 = pmEconomy.getTraders().stream().filter(t -> t.getOid() == pm1Oid
                 || t.getOid() == pm2Oid).collect(Collectors.toList());
         Assert.assertTrue(pmInCluster1.stream().allMatch(p -> p.getSettings().canAcceptNewCustomers() == false));
+
+        Economy stEconomy = economyWithStCluster(new double[]{st1AmtUsed, st2AmtUsed});
+        // Mark entities in cluster 1 as can not accept customers
+        InitialPlacementUtils.setSellersNotAcceptCustomers(stEconomy, commTypeToSpecMap, clusterCommPerSl);
+        List<Trader> stInCluster1 = stEconomy.getTraders().stream().filter(t -> t.getOid() == st1Oid
+                || t.getOid() == st2Oid).collect(Collectors.toList());
+        Assert.assertTrue(stInCluster1.stream().allMatch(p -> p.getSettings().canAcceptNewCustomers() == true));
+
     }
 
     /**

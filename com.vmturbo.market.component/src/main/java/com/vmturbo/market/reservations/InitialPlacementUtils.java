@@ -602,7 +602,7 @@ public final class InitialPlacementUtils {
     }
 
     /**
-     * Make sellers that sell the given cluster commodities not eligible for placement.
+     * Make physical machine sellers that sell the given cluster commodities not eligible for placement.
      *
      * @param economy the economy.
      * @param commTypeMap the commodity type to commodity specification mapping.
@@ -614,6 +614,8 @@ public final class InitialPlacementUtils {
             @Nonnull final Map<Long, CommodityType> clusterCommPerSl) {
         economy.clearSellersFromMarkets();
         Set<Integer> clusterCommSpecSet = clusterCommPerSl.values().stream()
+                // only retain the cluster commodity not the storage cluster commodity
+                .filter(c -> c.getType() == CommodityDTO.CommodityType.CLUSTER_VALUE)
                 .map(c -> commTypeMap.get(c)).collect(Collectors.toSet());
         Set<Long> ineligibleSellers = new HashSet();
         economy.getTraders().stream().forEach(t -> {
