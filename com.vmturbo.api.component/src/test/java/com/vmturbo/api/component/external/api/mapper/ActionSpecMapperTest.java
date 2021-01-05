@@ -1594,6 +1594,28 @@ public class ActionSpecMapperTest {
     }
 
     @Test
+    public void testMapDeactivateContainer() throws Exception {
+        final long targetId = 1;
+        ActionEntity ae = ActionEntity.newBuilder()
+                .setId(targetId)
+                .setType(EntityType.CONTAINER_VALUE)
+                .build();
+        final ActionInfo deactivateInfo = ActionInfo.newBuilder()
+                .setDeactivate(Deactivate.newBuilder().setTarget(ae)
+                        .addTriggeringCommodities(CPU.getCommodityType())
+                        .addTriggeringCommodities(MEM.getCommodityType()))
+                .build();
+        Explanation deactivate = Explanation.newBuilder()
+                .setDeactivate(DeactivateExplanation.newBuilder().build()).build();
+        final ActionApiDTO actionApiDTO = mapper.mapActionSpecToActionApiDTO(
+                buildActionSpec(deactivateInfo, deactivate), CONTEXT_ID);
+        assertEquals(targetId, Long.parseLong(actionApiDTO.getTarget().getUuid()));
+        assertEquals(ActionType.SUSPEND, actionApiDTO.getActionType());
+        //For Container or Container Pod, we should not populate the reasonCommodities
+        assertNull(actionApiDTO.getRisk().getReasonCommodities());
+    }
+
+    @Test
     public void testMapDelete() throws Exception {
         final long targetId = 1;
         final String fileName = "foobar";
