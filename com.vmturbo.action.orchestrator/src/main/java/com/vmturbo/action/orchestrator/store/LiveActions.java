@@ -618,7 +618,7 @@ class LiveActions implements QueryableActionViews {
                 || actionState == ActionState.QUEUED) {
             try {
                 action.refreshAction(newEntitiesSnapshot);
-            } catch (UnsupportedActionException e) {
+            } catch (UnsupportedActionException | RuntimeException e) {
                 logger.error("Failed to refresh action " + action, e);
             }
         }

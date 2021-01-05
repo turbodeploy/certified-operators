@@ -391,12 +391,12 @@ public class ActionDescriptionBuilder {
         final long targetEntityId = ActionDTOUtil.getPrimaryEntity(recommendation).getId();
         Optional<ActionPartialEntity> optTargetEntity = entitiesSnapshot.getEntityFromOid(targetEntityId);
         if (!optTargetEntity.isPresent()) {
-            logger.warn(ENTITY_NOT_FOUND_WARN_MSG, "getMoveActionDescription", "targetEntityId", targetEntityId);
+            logger.error(ENTITY_NOT_FOUND_WARN_MSG, "getMoveActionDescription", "targetEntityId", targetEntityId);
             return "";
         }
         Optional<ActionPartialEntity> optDestinationEntity = entitiesSnapshot.getEntityFromOid(destinationEntityId);
         if (!optDestinationEntity.isPresent()) {
-            logger.warn(ENTITY_NOT_FOUND_WARN_MSG, "getMoveActionDescription", "destinationEntityId", destinationEntityId);
+            logger.error(ENTITY_NOT_FOUND_WARN_MSG, "getMoveActionDescription", "destinationEntityId", destinationEntityId);
             return "";
         }
         // All Move/RightSize actions should have a target entity and a destination.
@@ -410,8 +410,13 @@ public class ActionDescriptionBuilder {
                     beautifyEntityTypeAndName(newEntityDTO));
         } else {
             long sourceEntityId = primaryChange.getSource().getId();
-            ActionPartialEntity currentEntityDTO = entitiesSnapshot.getEntityFromOid(
-                sourceEntityId).get();
+            final Optional<ActionPartialEntity> optSourceEntity =
+                    entitiesSnapshot.getEntityFromOid(sourceEntityId);
+            if (!optSourceEntity.isPresent()) {
+                logger.error(ENTITY_NOT_FOUND_WARN_MSG, "getMoveActionDescription", "sourceEntityId", sourceEntityId);
+                return "";
+            }
+            final ActionPartialEntity currentEntityDTO = optSourceEntity.get();
             int sourceType = currentEntityDTO.getEntityType();
             int destinationType = newEntityDTO.getEntityType();
             String currentLocation = currentEntityDTO.getDisplayName();
@@ -435,8 +440,8 @@ public class ActionDescriptionBuilder {
                 }
             }
             String resource = "";
-            if (primaryChange.hasResource() &&
-                    targetEntityId != primaryChange.getResource().getId()) {
+            if (primaryChange.hasResource()
+                    && targetEntityId != primaryChange.getResource().getId()) {
                 Optional<ActionPartialEntity> resourceEntity = entitiesSnapshot.getEntityFromOid(
                         primaryChange.getResource().getId());
                 if (resourceEntity.isPresent()) {
