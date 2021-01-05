@@ -71,6 +71,7 @@ import com.vmturbo.topology.processor.conversions.typespecific.DatabaseTierInfoM
 import com.vmturbo.topology.processor.conversions.typespecific.DesktopPoolInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.DiskArrayInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.LogicalPoolInfoMapper;
+import com.vmturbo.topology.processor.conversions.typespecific.NamespaceInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.PhysicalMachineInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.RegionInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.StorageControllerInfoMapper;
@@ -122,6 +123,7 @@ public class SdkToTopologyEntityConverter {
                     .put(EntityType.BUSINESS_USER, new BusinessUserMapper())
                     .put(EntityType.WORKLOAD_CONTROLLER, new WorkloadControllerInfoMapper())
                     .put(EntityType.CLOUD_COMMITMENT, new CloudCommitmentInfoMapper())
+                    .put(EntityType.NAMESPACE, new NamespaceInfoMapper())
                     .build();
 
     private static final Set<CommodityDTO.CommodityType> DSPM_OR_DATASTORE =

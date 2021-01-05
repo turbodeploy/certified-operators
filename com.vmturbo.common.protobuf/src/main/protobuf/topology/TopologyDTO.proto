@@ -40,6 +40,7 @@ message TypeSpecificInfo {
         DatabaseTierInfo database_tier = 78;
         DatabaseServerTierInfo database_server_tier = 79;
         CloudCommitmentInfo cloud_commitment_data = 80;
+        NamespaceInfo namespace = 81;
     }
 
     message ApplicationInfo {
@@ -442,6 +443,15 @@ message TypeSpecificInfo {
 
     message StatefulSetInfo {
         // StatefulSet specific data goes here.
+    }
+
+    // Data specific to a Namespace entity.
+    message NamespaceInfo {
+        // The average CPU frequency of the kubernetes nodes running in the cluster that
+        // the namespace belongs to. This value can be used to convert namespace
+        // CPU commodities (ie LimitQuota and RequestQuota) from MHz to millicores.
+        // The units on this value are in MHz/core (not MHz/millicore)
+        optional double average_node_cpu_frequency = 1 [default = 1.0];
     }
 }
 
