@@ -83,15 +83,17 @@ public final class InitialPlacementUtils {
      * storage traders and existing reservation entities are kept in the cloned economy.
      *
      * @param originalEconomy the economy to be cloned
+     * @param cloneForDiags if true clone all traders since the economy is coming from diagnostics.
      * @return a copy of original economy which contains only PM and DS.
      */
-    public static Economy cloneEconomy(@Nonnull final UnmodifiableEconomy originalEconomy) {
+    public static Economy cloneEconomy(@Nonnull final UnmodifiableEconomy originalEconomy,
+                                       boolean cloneForDiags) {
         Topology t = new Topology();
         Economy cloneEconomy = t.getEconomyForTesting();
         cloneEconomy.setTopology(t);
         Map<Long, Trader> cloneTraderToOidMap = t.getModifiableTraderOids();
         originalEconomy.getTraders().stream()
-                .filter(trader -> PROVIDER_ENTITY_TYPES.contains(trader.getType()))
+                .filter(trader -> PROVIDER_ENTITY_TYPES.contains(trader.getType()) || cloneForDiags)
                 .forEach(trader -> {
                     Trader cloneTrader = cloneEconomy.addTrader(trader.getType(), trader.getState(),
                             new Basket(trader.getBasketSold()), trader.getCliques());
@@ -102,7 +104,7 @@ public final class InitialPlacementUtils {
 
                     // Copy bare minimum trader properties
                     cloneTrader.setDebugInfoNeverUseInCode(
-                            trader.getDebugInfoNeverUseInCode() + PLACEMENT_CLONE_SUFFIX);
+                            trader.getDebugInfoNeverUseInCode() + (cloneForDiags ? "" : PLACEMENT_CLONE_SUFFIX));
                     cloneTrader.getSettings().setQuoteFunction(
                             trader.getSettings().getQuoteFunction());
                     cloneTrader.getSettings().setCanAcceptNewCustomers(true);

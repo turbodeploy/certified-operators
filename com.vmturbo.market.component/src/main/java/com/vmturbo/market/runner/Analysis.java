@@ -961,7 +961,8 @@ public class Analysis {
     private void saveAnalysisDiags(final Collection<TraderTO> traderTOs,
                                    final List<CommoditySpecification> commSpecsToAdjustOverhead) {
         AnalysisDiagnosticsCollectorFactory factory = new DefaultAnalysisDiagnosticsCollectorFactory();
-        factory.newDiagsCollector(topologyInfo, AnalysisMode.M2).ifPresent(diagsCollector -> {
+        factory.newDiagsCollector(topologyInfo.getTopologyContextId()
+                + "-" + topologyInfo.getTopologyId(), AnalysisMode.M2).ifPresent(diagsCollector -> {
             diagsCollector.saveAnalysis(traderTOs, topologyInfo, config, commSpecsToAdjustOverhead);
         });
     }
@@ -1078,7 +1079,8 @@ public class Analysis {
 
     private void saveSMADiags(final SMAInput smaInput) {
         AnalysisDiagnosticsCollectorFactory factory = new DefaultAnalysisDiagnosticsCollectorFactory();
-        factory.newDiagsCollector(topologyInfo, AnalysisMode.SMA).ifPresent(diagsCollector -> {
+        factory.newDiagsCollector(topologyInfo.getTopologyContextId()
+                + "-" + topologyInfo.getTopologyId(), AnalysisMode.SMA).ifPresent(diagsCollector -> {
             diagsCollector.saveSMAInput(smaInput, topologyInfo);
         });
     }
@@ -1092,7 +1094,8 @@ public class Analysis {
                                    TopologyConverter converter, CloudCostData cloudCostData) {
 
         AnalysisDiagnosticsCollectorFactory factory = new DefaultAnalysisDiagnosticsCollectorFactory();
-        factory.newDiagsCollector(topologyInfo, AnalysisMode.ACTIONS).ifPresent(diagsCollector -> {
+        factory.newDiagsCollector(topologyInfo.getTopologyContextId()
+                + "-" + topologyInfo.getTopologyId(), AnalysisMode.ACTIONS).ifPresent(diagsCollector -> {
             // Write actions to log file in CSV format
             ActionLogger externalize = new ActionLogger();
             List<String> actionLogs = new ArrayList<>();

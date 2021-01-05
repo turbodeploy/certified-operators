@@ -1,6 +1,7 @@
 package com.vmturbo.market.reservations;
 
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -40,6 +41,9 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Unplac
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason.FailedResources;
 import com.vmturbo.components.api.RetriableOperation;
 import com.vmturbo.components.api.RetriableOperation.RetriableOperationFailedException;
+import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory;
+import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory.DefaultAnalysisDiagnosticsCollectorFactory;
+import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisMode;
 import com.vmturbo.market.reservations.EconomyCaches.EconomyCachesState;
 import com.vmturbo.market.reservations.InitialPlacementFinderResult.FailureInfo;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
@@ -75,6 +79,11 @@ public class InitialPlacementFinder {
      * prefix for initial placement log messages.
      */
     private final String logPrefix = "FindInitialPlacement: ";
+
+
+    public EconomyCaches getEconomyCaches() {
+        return economyCaches;
+    }
 
     /**
      * Find the InitialPlacementDecision corresponding to buyer.
@@ -213,6 +222,12 @@ public class InitialPlacementFinder {
         synchronized (reservationLock) {
             // Find providers for buyers via running placements in economy caches. Keep track of
             // placement results in buyerPlacements.
+            // Save the diagnostics if the debug is turned on.
+            try {
+                saveInitialPlacementDiags(buyers);
+            } catch (Exception e) {
+                logger.error("Error when attempting to save InitialPlacement diags", e);
+            }
             for (Map.Entry<Long, List<InitialPlacementBuyer>> buyersPerReservation
                     : buyersByReservationId.entrySet()) {
                 Set<Long> buyersInOneRes = buyersPerReservation.getValue().stream().map(i ->
@@ -451,5 +466,22 @@ public class InitialPlacementFinder {
         synchronized (reservationLock) {
             economyCaches.clearHistoricalCachedEconomy();
         }
+    }
+
+    /**
+     * Save the economy stats if the AnalysisDiagnosticsCollector is set to DEBUG mode.
+     * @param buyers the current set of InitialPlacementBuyers.
+     */
+    private void saveInitialPlacementDiags(List<InitialPlacementBuyer> buyers) {
+        String now = String.valueOf((new Date()).getTime());
+        AnalysisDiagnosticsCollectorFactory factory = new DefaultAnalysisDiagnosticsCollectorFactory();
+        factory.newDiagsCollector(now, AnalysisMode.INITIAL_PLACEMENT).ifPresent(diagsCollector -> {
+            diagsCollector.saveInitialPlacementDiags(now,
+                    economyCaches.getHistoricalCachedCommTypeMap(),
+                    economyCaches.getRealtimeCachedCommTypeMap(),
+                    buyers,
+                    economyCaches.getHistoricalCachedEconomy(),
+                    economyCaches.getRealtimeCachedEconomy());
+        });
     }
 }

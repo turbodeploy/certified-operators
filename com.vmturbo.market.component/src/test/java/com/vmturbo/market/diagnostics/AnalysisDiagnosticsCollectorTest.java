@@ -4,11 +4,13 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.ObjectInputStream;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -22,19 +24,30 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import com.google.common.base.Stopwatch;
+import com.google.common.collect.BiMap;
+import com.google.common.collect.HashBiMap;
+import com.google.common.collect.Table;
 import com.google.gson.Gson;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.Test;
 
+import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer;
+import com.vmturbo.common.protobuf.plan.ReservationDTOMoles.ReservationServiceMole;
+import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc;
+import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.ComponentGsonFactory;
+import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
 import com.vmturbo.market.cloudscaling.sma.analysis.StableMarriageAlgorithm;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAConfig;
@@ -47,12 +60,18 @@ import com.vmturbo.market.cloudscaling.sma.entities.SMAOutputContext;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAReservedInstance;
 import com.vmturbo.market.cloudscaling.sma.entities.SMATemplate;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAVirtualMachine;
+import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.InitialPlacementCommTypeMap;
+import com.vmturbo.market.reservations.EconomyCaches.EconomyCachesState;
+import com.vmturbo.market.reservations.InitialPlacementFinder;
+import com.vmturbo.market.reservations.InitialPlacementFinderResult;
+import com.vmturbo.market.reservations.InitialPlacementUtils;
 import com.vmturbo.market.runner.Analysis;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.topology.TopologyEntitiesHandler;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.Deactivate;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
+import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.ede.Ede;
 import com.vmturbo.platform.analysis.ede.ReplayActions;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults;
@@ -81,8 +100,92 @@ public class AnalysisDiagnosticsCollectorTest {
     private final String unzippedAnalysisDiagsLocation = "target/test-classes/analysisDiags";
 
     //Change this to the location of unzipped analysis diags.
-    private final String unzippedSMADiagsLocation = "src/test/resources/cloudvmscaling/smaDiags";
-    private final String unzippedSMADiagsLocation2 = "src/test/resources/cloudvmscaling/smaDiags2";
+    private final String unzippedSMADiagsLocation = "target/test-classes/cloudvmscaling/smaDiags";
+    private final String unzippedSMADiagsLocation2 = "target/test-classes/cloudvmscaling/smaDiags2";
+    private final String unzippedInitialPlacementDiagsLocation = "target/test-classes/initialPlacementDiags";
+
+    /**
+     * run the InitialPlacement from diags.
+     */
+    @Test
+    public void testInitialPlacementFromDiags() {
+        List<InitialPlacementCommTypeMap> historicalCachedCommType = new ArrayList<>();
+        List<InitialPlacementCommTypeMap> realtimeCachedCommType = new ArrayList<>();
+        List<InitialPlacementBuyer> newBuyers = new ArrayList<>();
+        FileInputStream fi;
+        ObjectInputStream oi;
+        Economy historicalCachedEconomy = null;
+        Economy realtimeCachedEconomy = null;
+        try {
+            Iterator<Path> paths = Files.walk(Paths.get(unzippedInitialPlacementDiagsLocation), 1)
+                    .filter(Files::isRegularFile).iterator();
+            while (paths.hasNext()) {
+                Path path = paths.next();
+                String fileName = path.getFileName().toString();
+                switch (fileName) {
+                    case AnalysisDiagnosticsCollector.HISTORICAL_CACHED_ECONOMY_NAME:
+                        fi = new FileInputStream(new File(path.toString()));
+                        oi = new ObjectInputStream(fi);
+                        // Read objects
+                        historicalCachedEconomy = (Economy)(oi.readObject());
+                        oi.close();
+                        fi.close();
+                        break;
+                    case AnalysisDiagnosticsCollector.REALTIME_CACHED_ECONOMY_NAME:
+                        fi = new FileInputStream(new File(path.toString()));
+                        oi = new ObjectInputStream(fi);
+                        // Read objects
+                        realtimeCachedEconomy = (Economy)(oi.readObject());
+                        oi.close();
+                        fi.close();
+                        break;
+                    case AnalysisDiagnosticsCollector.HISTORICAL_CACHED_COMMTYPE_NAME:
+                        historicalCachedCommType = extractMultipleInstancesOfType(path, InitialPlacementCommTypeMap.class);
+                        break;
+                    case AnalysisDiagnosticsCollector.REALTIME_CACHED_COMMTYPE_NAME:
+                        realtimeCachedCommType = extractMultipleInstancesOfType(path, InitialPlacementCommTypeMap.class);
+                        break;
+                    case AnalysisDiagnosticsCollector.NEW_BUYERS_NAME:
+                        newBuyers = extractMultipleInstancesOfType(path, InitialPlacementBuyer.class);
+                        break;
+                    default:
+                        logger.error("Unknown file {} in Analysis diags. Skipping this file.", fileName);
+                        break;
+                }
+            }
+        } catch (Exception e) {
+            logger.error("Could not extract from file {}.", unzippedAnalysisDiagsLocation, e);
+        }
+        if (realtimeCachedEconomy == null) {
+            logger.error("Could not find realtimeCachedEconomy");
+            return;
+        }
+        ExecutorService executorService = Executors.newSingleThreadExecutor();
+        final ReservationServiceMole testReservationService = spy(new ReservationServiceMole());
+        GrpcTestServer grpcServer = GrpcTestServer.newServer(testReservationService);
+        try {
+            grpcServer.start();
+        } catch (IOException e) {
+            logger.error("Could not start grpcServer due to exception {}", e);
+        }
+        ReservationServiceBlockingStub reservationServiceBlockingStub =
+                ReservationServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        InitialPlacementFinder pf = new InitialPlacementFinder(executorService,
+                reservationServiceBlockingStub,
+                true, 1);
+        BiMap<CommodityType, Integer> realtimeCachedCommTypeMap = HashBiMap.create();
+        BiMap<CommodityType, Integer> historicalCachedCommTypeMap = HashBiMap.create();
+        realtimeCachedCommType.stream().forEach(entry -> realtimeCachedCommTypeMap.put(entry.commodityType, entry.type));
+        historicalCachedCommType.stream().forEach(entry -> historicalCachedCommTypeMap.put(entry.commodityType, entry.type));
+        pf.getEconomyCaches().setState(EconomyCachesState.READY);
+        pf.getEconomyCaches().setEconomiesAndCachedCommType(historicalCachedCommTypeMap,
+                realtimeCachedCommTypeMap,
+                historicalCachedEconomy == null ? null : InitialPlacementUtils.cloneEconomy(
+                        historicalCachedEconomy, true),
+                InitialPlacementUtils.cloneEconomy(realtimeCachedEconomy, true));
+        Table<Long, Long, InitialPlacementFinderResult> result = pf.findPlacement(newBuyers);
+        assertFalse(result.isEmpty());
+    }
 
 
     /**

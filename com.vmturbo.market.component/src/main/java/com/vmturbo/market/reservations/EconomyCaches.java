@@ -129,6 +129,55 @@ public class EconomyCaches {
     private BiMap<CommodityType, Integer> historicalCachedCommTypeMap = HashBiMap.create();
 
     /**
+     * getter for realtimeCachedCommTypeMap.
+     * @return the realtimeCachedCommTypeMap
+     */
+    public BiMap<CommodityType, Integer> getRealtimeCachedCommTypeMap() {
+        return realtimeCachedCommTypeMap;
+    }
+
+    /**
+     * getter for historicalCachedCommTypeMap.
+     * @return the historicalCachedCommTypeMap
+     */
+    public BiMap<CommodityType, Integer> getHistoricalCachedCommTypeMap() {
+        return historicalCachedCommTypeMap;
+    }
+
+    /**
+     * getter for historicalCachedEconomy.
+     * @return the historicalCachedEconomy.
+     */
+    public Economy getHistoricalCachedEconomy() {
+        return historicalCachedEconomy;
+    }
+
+    /**
+     * getter for realtimeCachedEconomy.
+     * @return the realtimeCachedEconomy.
+     */
+    public Economy getRealtimeCachedEconomy() {
+        return realtimeCachedEconomy;
+    }
+
+    /**
+     * set economy caches. This is mostly for testing purposes.
+     * @param historicalCachedCommTypeMap the historicalCachedCommTypeMap.
+     * @param realtimeCachedCommTypeMap the realtimeCachedCommTypeMap.
+     * @param historicalCachedEconomy the historicalCachedEconomy.
+     * @param realtimeCachedEconomy the realtimeCachedEconomy.
+     */
+    public void setEconomiesAndCachedCommType(BiMap<CommodityType, Integer> historicalCachedCommTypeMap,
+                                              BiMap<CommodityType, Integer> realtimeCachedCommTypeMap,
+                                              Economy historicalCachedEconomy,
+                                              Economy realtimeCachedEconomy) {
+        this.historicalCachedCommTypeMap = historicalCachedCommTypeMap;
+        this.realtimeCachedCommTypeMap = realtimeCachedCommTypeMap;
+        this.historicalCachedEconomy = historicalCachedEconomy;
+        this.realtimeCachedEconomy = realtimeCachedEconomy;
+    }
+
+    /**
      * Constructor.
      */
     public EconomyCaches() {}
@@ -165,7 +214,7 @@ public class EconomyCaches {
         Economy newEconomy;
         try {
             realtimeCacheStartUpdateTime = clock.instant();
-            newEconomy = InitialPlacementUtils.cloneEconomy(originalEconomy);
+            newEconomy = InitialPlacementUtils.cloneEconomy(originalEconomy, false);
             // Add reservation entities to newEconomy which only contains PM and DS
             logger.debug(logPrefix + "Adding reservation {} with buyers {} on real time economy cache",
                     existingReservations.keySet(), buyerOidToPlacement.keySet());
@@ -213,7 +262,7 @@ public class EconomyCaches {
         try {
             historicalCacheStartUpdateTime = clock.instant();
             // Clone a new economy from cluster headroom plan with no workloads.
-            newEconomy = InitialPlacementUtils.cloneEconomy(originalEconomy);
+            newEconomy = InitialPlacementUtils.cloneEconomy(originalEconomy, false);
             // Replay all existing reservation entities to newEconomy which currently only contains PM and DS
             logger.debug(logPrefix + "Replaying reservation {} with buyers {} on historical economy cache",
                     existingReservations.keySet(), buyerOidToPlacement.keySet());
@@ -713,7 +762,7 @@ public class EconomyCaches {
      * Update the HistoricalCachedEconomy to null.
      */
     public void clearHistoricalCachedEconomy() {
-        historicalCachedEconomy = null;
+        this.historicalCachedEconomy = null;
     }
 }
 
