@@ -38,6 +38,14 @@ public class ConsulRegistrationConfig {
      */
     public static final String ENABLE_CONSUL_REGISTRATION = "enableConsulRegistration";
 
+    /**
+     * Key for environment variable to control:  if "true" this component should do migration of
+     * Consul data; if "false" then the component should **not** migrate - one scenario is that
+     * the component is a remote probe and is running in a remote cluster that is not necessarily
+     * equipped with Consul.
+     */
+    public static final String ENABLE_CONSUL_MIGRATION = "enableConsulMigration";
+
     @Autowired
     private ComponentStatusNotificationSenderConfig notificationSenderConfig;
 

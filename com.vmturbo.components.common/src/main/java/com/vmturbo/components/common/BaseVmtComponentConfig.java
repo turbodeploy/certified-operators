@@ -124,7 +124,11 @@ public class BaseVmtComponentConfig {
             .getOptionalEnvProperty(ConsulRegistrationConfig.ENABLE_CONSUL_REGISTRATION)
             .map(Boolean::parseBoolean)
             .orElse(true);
-        if (enableConsulRegistration) {
+        final Boolean enableConsulMigration = EnvironmentUtils
+                .getOptionalEnvProperty(ConsulRegistrationConfig.ENABLE_CONSUL_MIGRATION)
+                .map(Boolean::parseBoolean)
+                .orElse(false);
+        if (enableConsulRegistration || enableConsulMigration) {
             return new MigrationFramework(keyValueStore());
         }
         return null;

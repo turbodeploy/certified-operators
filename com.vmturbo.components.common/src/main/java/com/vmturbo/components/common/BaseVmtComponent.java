@@ -1,6 +1,7 @@
 package com.vmturbo.components.common;
 
 import static com.vmturbo.clustermgr.api.ClusterMgrClient.COMPONENT_VERSION_KEY;
+import static com.vmturbo.components.common.ConsulRegistrationConfig.ENABLE_CONSUL_MIGRATION;
 import static com.vmturbo.components.common.ConsulRegistrationConfig.ENABLE_CONSUL_REGISTRATION;
 
 import java.io.IOException;
@@ -205,6 +206,16 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     @Value("${" + ENABLE_CONSUL_REGISTRATION + ":true}")
     private Boolean enableConsulRegistration;
 
+    /**
+     * This property is used to disable consul migration. This is necessary for tests and
+     * for components running outside the primary Turbonomic K8s cluster.  Migration will be
+     * disabled when both this flag and the "enableConsulRegistration" flag is false.  This false
+     * default makes backward compatible with using the single "enableConsulRegistration" to
+     * control migration.
+     */
+    @Value("${" + ENABLE_CONSUL_MIGRATION + ":false}")
+    private Boolean enableConsulMigration;
+
     private static final int SCHEDULED_METRICS_DELAY_MS = 60000;
 
     @Value("${scheduledMetricsIntervalMs:60000}")
@@ -364,7 +375,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
         }
 
         setStatus(ExecutionStatus.MIGRATING);
-        if (enableConsulRegistration) {
+        if (enableConsulRegistration || enableConsulMigration) {
             baseVmtComponentConfig.migrationFramework()
                 .startMigrations(getMigrations(), forceRetryMigrations);
         }
