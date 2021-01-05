@@ -176,7 +176,7 @@
                                     <images>
                                         <image>
                                             <alias>tsdb</alias>
-                                            <name>timescale/timescaledb:latest-pg12</name>
+                                            <name>timescale/timescaledb:${timescaledb-image-tag}</name>
                                             <run>
                                                 <!--
                                                 pattern needs to start with "maven-" so jenkins builds
@@ -220,7 +220,7 @@
                                     <dockerHost>${dockerHost}</dockerHost>
                                     <images>
                                         <image>
-                                            <name>timescale/timescaledb:latest-pg12</name>
+                                            <name>timescale/timescaledb:${timescaledb-image-tag}</name>
                                         </image>
                                     </images>
                                 </configuration>
