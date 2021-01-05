@@ -267,10 +267,12 @@ public class ActionLogger {
             setProjectedReservedInstanceAttributes(ri, match);
         }
 
-        float sourceCost = sourceTemplate.getNetCost(businessAccountId, osType,
-            (sourceReservedInstanceCouponsApplied == FLOAT_UNKNOWN ? 0 : sourceReservedInstanceCouponsApplied));
-        float projectedCost = projectedTemplate.getNetCost(businessAccountId, osType,
-            (projectedReservedInstanceCouponsApplied == FLOAT_UNKNOWN ? 0 : projectedReservedInstanceCouponsApplied));
+        float sourceCost = sourceTemplate.getNetCost(vm.getCostContext(),
+            (sourceReservedInstanceCouponsApplied == FLOAT_UNKNOWN ? 0
+                : sourceReservedInstanceCouponsApplied));
+        float projectedCost = projectedTemplate.getNetCost(vm.getCostContext(),
+            (projectedReservedInstanceCouponsApplied == FLOAT_UNKNOWN ? 0
+                : projectedReservedInstanceCouponsApplied));
         savingsPerHour = SMAUtils.format4Digits(sourceCost - projectedCost);
 
         setChange();

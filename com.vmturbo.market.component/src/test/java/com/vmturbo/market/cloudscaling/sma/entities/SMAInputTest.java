@@ -13,11 +13,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -55,9 +58,11 @@ import com.vmturbo.group.api.ImmutableGroupAndMembers;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.LicenseModel;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData.VMBillingType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
+import com.vmturbo.platform.sdk.common.util.Pair;
 
 /**
  * Class to test SMAInput functionality.
@@ -75,6 +80,7 @@ public class SMAInputTest {
     private static final long riBoughtId = 10000001L;
     private static final long riSpecId1 = 10000002L;
     private static final long riSpecId2 = 10000003L;
+    private static final long windowsVmOid = 333333L;
 
     private static final String vm1Name = "VM1";
     private static final String vm2Name = "VM2";
@@ -83,7 +89,8 @@ public class SMAInputTest {
     private static final String regionName = "aws-east-1";
     private static final String zoneName = "aws-east-1a";
     private static final String accountName = "Development";
-    private static final OSType osType = OSType.LINUX;
+    private static final OSType linux = OSType.LINUX;
+    private static final OSType windows = OSType.WINDOWS;
 
     private static final int ct1Coupons = 4;
 
@@ -91,7 +98,7 @@ public class SMAInputTest {
      * Create the topology entity DTOs
      */
     // create VM that is not eligible to scale and is covered by an RI
-    TopologyEntityDTO vm1Dto = TopologyEntityDTO.newBuilder()
+    private TopologyEntityDTO vm1Dto = TopologyEntityDTO.newBuilder()
             .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
             .setEntityState(EntityState.POWERED_ON)
             .setOid(vm1Id)
@@ -103,12 +110,12 @@ public class SMAInputTest {
                             .setBillingType(VMBillingType.ONDEMAND)
                             .setTenancy(Tenancy.DEFAULT)
                             .setGuestOsInfo(OS.newBuilder()
-                                    .setGuestOsType(osType)
-                                    .setGuestOsName(osType.name()))))
+                                    .setGuestOsType(linux)
+                                    .setGuestOsName(linux.name()))))
 
             .build();
     // create VM that is eligible to scale
-    TopologyEntityDTO vm2Dto = TopologyEntityDTO.newBuilder()
+    private TopologyEntityDTO vm2Dto = TopologyEntityDTO.newBuilder()
             .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
             .setEntityState(EntityState.POWERED_ON)
             .setOid(vm2Id)
@@ -120,64 +127,53 @@ public class SMAInputTest {
                             .setBillingType(VMBillingType.ONDEMAND)
                             .setTenancy(Tenancy.DEFAULT)
                             .setGuestOsInfo(OS.newBuilder()
-                                    .setGuestOsType(osType)
-                                    .setGuestOsName(osType.name()))))
-
-            .build();
+                                    .setGuestOsType(linux)
+                                    .setGuestOsName(linux.name()))))
+        .build();
 
     // create a compute tier that is t2.micro
-    TopologyEntityDTO ct1Dto = TopologyEntityDTO.newBuilder().setEntityType(
-            EntityType.COMPUTE_TIER_VALUE).setOid(ct1Id).setDisplayName(ct1Name).setEnvironmentType(
-            EnvironmentType.CLOUD).setAnalysisSettings(
-            AnalysisSettings.newBuilder().setIsEligibleForScale(false).build()).setTypeSpecificInfo(
-            TypeSpecificInfo.newBuilder()
-                    .setComputeTier(ComputeTierInfo.newBuilder()
-                            .setFamily(ctFamily)
-                            .setNumCoupons(ct1Coupons))).addConnectedEntityList(
-            ConnectedEntity.newBuilder()
-                    .setConnectedEntityId(regionId)
-                    .setConnectedEntityType(EntityType.REGION_VALUE)
-                    .build()).addCommoditySoldList(
-            CommoditySoldDTO.newBuilder()
-                    .setCommodityType(CommodityType.newBuilder()
-                            .setKey("Linux")
-                            .setType(CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE)
-                            .build())
-                    .build()).build();
-    Optional<TopologyEntityDTO> computeTier1Optional = Optional.of(ct1Dto);
+    private TopologyEntityDTO ct1Dto = createComputeTier(ct1Id, ct1Name, ctFamily, ct1Coupons,
+        regionId);
+    private final ComputePriceBundle ct1PriceBundle = createComputePriceBundle(0.2f, 0.35f);
+
+    private final TopologyEntityDTO ct2Dto = createComputeTier(ct2Id, "ct2", "m5",
+        ct1Coupons, regionId);
+    private final ComputePriceBundle ct2PriceBundle = createComputePriceBundle(0.25f, 0.30f);
+
+    private Optional<TopologyEntityDTO> computeTier1Optional = Optional.of(ct1Dto);
 
     // create a region
-    TopologyEntityDTO regionDto = TopologyEntityDTO.newBuilder().setEntityType(
+    private TopologyEntityDTO regionDto = TopologyEntityDTO.newBuilder().setEntityType(
             EntityType.REGION_VALUE).setOid(regionId).setDisplayName(regionName).setEnvironmentType(
             EnvironmentType.CLOUD).build();
-    Optional<TopologyEntityDTO> regionalOptional = Optional.of(regionDto);
+    private Optional<TopologyEntityDTO> regionalOptional = Optional.of(regionDto);
 
     // create a zone
-    TopologyEntityDTO zoneDto = TopologyEntityDTO.newBuilder()
+    private TopologyEntityDTO zoneDto = TopologyEntityDTO.newBuilder()
             .setEntityType(EntityType.AVAILABILITY_ZONE_VALUE)
             .setOid(zoneId)
             .setDisplayName(zoneName)
             .setEnvironmentType(EnvironmentType.CLOUD)
             .build();
-    Optional<TopologyEntityDTO> zoneOptional = Optional.of(zoneDto);
+    private Optional<TopologyEntityDTO> zoneOptional = Optional.of(zoneDto);
 
     // create a business account
-    TopologyEntityDTO accountDto = TopologyEntityDTO.newBuilder()
+    private TopologyEntityDTO accountDto = TopologyEntityDTO.newBuilder()
             .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
             .setOid(accountId)
             .setDisplayName(accountName)
             .setEnvironmentType(EnvironmentType.CLOUD)
             .build();
-    Optional<TopologyEntityDTO> accountOptional = Optional.of(accountDto);
+    private Optional<TopologyEntityDTO> accountOptional = Optional.of(accountDto);
 
     // create group and members
-    GroupDTO.Grouping group = Grouping.newBuilder().setId(billingFamilyId).build();
-    ImmutableGroupAndMembers groupAndMembers = ImmutableGroupAndMembers.builder().members(
+    private GroupDTO.Grouping group = Grouping.newBuilder().setId(billingFamilyId).build();
+    private ImmutableGroupAndMembers groupAndMembers = ImmutableGroupAndMembers.builder().members(
             Arrays.asList(accountId)).group(group).entities(Collections.singleton(11111L)).build();
-    Optional<GroupAndMembers> gAndMOptional = Optional.of(groupAndMembers);
+    private Optional<GroupAndMembers> gAndMOptional = Optional.of(groupAndMembers);
 
     // Create RI data structures for XL
-    final ReservedInstanceBought riBought1 = ReservedInstanceBought.newBuilder()
+    private final ReservedInstanceBought riBought1 = ReservedInstanceBought.newBuilder()
             .setId(riBoughtId)
             .setReservedInstanceBoughtInfo(ReservedInstanceBoughtInfo.newBuilder()
                     .setAvailabilityZoneId(zoneId)
@@ -189,7 +185,7 @@ public class SMAInputTest {
                     .build())
             .build();
 
-    final ReservedInstanceBought riBought2 = ReservedInstanceBought.newBuilder()
+    private final ReservedInstanceBought riBought2 = ReservedInstanceBought.newBuilder()
             .setId(riBoughtId)
             .setReservedInstanceBoughtInfo(ReservedInstanceBoughtInfo.newBuilder()
                     .setAvailabilityZoneId(zoneId)
@@ -201,7 +197,7 @@ public class SMAInputTest {
                     .build())
             .build();
 
-    final ReservedInstanceSpec riSpec1 = ReservedInstanceSpec.newBuilder()
+    private final ReservedInstanceSpec riSpec1 = ReservedInstanceSpec.newBuilder()
             .setId(riSpecId1)
             .setReservedInstanceSpecInfo(ReservedInstanceSpecInfo.newBuilder()
                     .setOs(OSType.LINUX)
@@ -212,7 +208,7 @@ public class SMAInputTest {
                     .build())
             .build();
 
-    final ReservedInstanceSpec riSpec2 = ReservedInstanceSpec.newBuilder()
+    private final ReservedInstanceSpec riSpec2 = ReservedInstanceSpec.newBuilder()
             .setId(riSpecId2)
             .setReservedInstanceSpecInfo(ReservedInstanceSpecInfo.newBuilder()
                     .setOs(OSType.LINUX)
@@ -224,21 +220,29 @@ public class SMAInputTest {
             .build();
 
     // create cloud cost data
-    EntityReservedInstanceCoverage coverage =
+    private EntityReservedInstanceCoverage coverage =
             EntityReservedInstanceCoverage.newBuilder().setEntityId(vm1Id).putCouponsCoveredByRi(
                     riBoughtId, 4.0).build();
 
-    ConsistentScalingHelper consistentScalingHelper = new ConsistentScalingHelper(null);
+    private ConsistentScalingHelper consistentScalingHelper = new ConsistentScalingHelper(null);
+    private AccountPricingData<TopologyEntityDTO> accountPricingData;
 
-    DefaultTopologyEntityCloudTopologyFactory defaultFactory = spy(
+    private DefaultTopologyEntityCloudTopologyFactory defaultFactory = spy(
             new DefaultTopologyEntityCloudTopologyFactory(null));
+
+    /**
+     * Initialize test resources.
+     */
+    @Before
+    public void setup() {
+        accountPricingData = mock(AccountPricingData.class);
+    }
 
     /**
      * Test cloud topology to SMAInputContext conversion.
      */
     @Test
     public void testSMAInput() {
-
         // create cloudTopology
         final List<TopologyEntityDTO> dtos = Arrays.asList(vm1Dto, vm2Dto, ct1Dto, regionDto,
                 zoneDto, accountDto);
@@ -325,6 +329,155 @@ public class SMAInputTest {
         Assert.assertEquals(ct1Name, smaContext.getTemplates().iterator().next().getName());
 
         Assert.assertEquals(1, smaContext.getReservedInstances().size());
+    }
+
+    /**
+     * Test that a Windows VM with License Model "License Included" moves to the Compute Tier with
+     * cheaper Windows compute costs.
+     */
+    @Test
+    public void testUpdateNaturalTemplateWindowsVmNoAhub() {
+        // given
+        final CloudTopology<TopologyEntityDTO> cloudTopology = mockCloudTopology(
+            Stream.of(createVirtualMachine(LicenseModel.LICENSE_INCLUDED), ct1Dto, regionDto,
+                zoneDto, accountDto, ct2Dto), windowsVmOid);
+        final CloudCostData<TopologyEntityDTO> cloudCostData = mockCloudCostData();
+        final Map<Long, Set<Long>> providers = ImmutableMap.of(windowsVmOid, ImmutableSet
+            .of(ct1Id, ct2Id));
+        final CloudRateExtractor marketCloudRateExtractor = mockCloudRateExtractor();
+        // when
+        final SMAInput smaInput = new SMAInput(cloudTopology, providers, cloudCostData,
+            marketCloudRateExtractor, consistentScalingHelper, false, false);
+        final SMAVirtualMachine smaVirtualMachine = findVMByOid(
+            smaInput.getContexts().iterator().next(), windowsVmOid).orElse(null);
+        // then naturalTemplate must be ct2 as it has lower rates for Windows than ct1 (Windows
+        // rates are considered for Windows VM with LICENSE_INCLUDED OS License model)
+        Assert.assertNotNull(smaVirtualMachine);
+        Assert.assertEquals(ct2Id, smaVirtualMachine.getNaturalTemplate().getOid());
+    }
+
+    /**
+     * Test that a Windows VM with License Model "AHUB" (BYOL) moves to the Compute Tier with
+     * cheaper Linux compute costs.
+     */
+    @Test
+    public void testUpdateNaturalTemplateWindowsVmWithAhub() {
+        // given
+        final CloudTopology<TopologyEntityDTO> cloudTopology = mockCloudTopology(
+            Stream.of(createVirtualMachine(LicenseModel.AHUB), ct1Dto, regionDto, zoneDto,
+                accountDto, ct2Dto), windowsVmOid);
+        final CloudCostData<TopologyEntityDTO> cloudCostData = mockCloudCostData();
+        final Map<Long, Set<Long>> providers = ImmutableMap.of(windowsVmOid,
+            ImmutableSet.of(ct1Id, ct2Id));
+        final CloudRateExtractor marketCloudRateExtractor = mockCloudRateExtractor();
+        // when
+        final SMAInput smaInput = new SMAInput(cloudTopology, providers, cloudCostData,
+            marketCloudRateExtractor, consistentScalingHelper, false, false);
+        final SMAInputContext smaContext = smaInput.getContexts().iterator().next();
+        final SMAVirtualMachine smaVirtualMachine = findVMByOid(smaContext, windowsVmOid)
+            .orElse(null);
+        // then naturalTemplate must be ct1 as it has lower rates for Linux than ct2 (Linux rates
+        // are considered for Windows VMs with AHUB License model)
+        Assert.assertNotNull(smaVirtualMachine);
+        Assert.assertEquals(ct1Id, smaVirtualMachine.getNaturalTemplate().getOid());
+    }
+
+    private ComputePriceBundle createComputePriceBundle(final float linuxRate,
+                                                        final float windowsRate) {
+        final ComputePrice linuxPrice = ComputePrice.builder().accountId(accountId)
+            .osType(OSType.LINUX)
+            .hourlyComputeRate(linuxRate)
+            .hourlyLicenseRate(0)
+            .isBasePrice(true)
+            .build();
+        final ComputePrice windowsPrice = ComputePrice.builder().accountId(accountId)
+            .osType(OSType.WINDOWS)
+            .hourlyComputeRate(linuxRate)
+            .hourlyLicenseRate(windowsRate - linuxRate)
+            .isBasePrice(true)
+            .build();
+        final ComputePriceBundle computePriceBundle = mock(ComputePriceBundle.class);
+        when(computePriceBundle.getPrices()).thenReturn(ImmutableList.of(linuxPrice,
+            windowsPrice));
+        return computePriceBundle;
+    }
+
+    private CloudRateExtractor mockCloudRateExtractor() {
+        final CloudRateExtractor marketCloudRateExtractor = mock(CloudRateExtractor.class);
+        Stream.of(Pair.create(ct1Dto, ct1PriceBundle), Pair.create(ct2Dto,
+            ct2PriceBundle)).forEach(pair ->
+            when(marketCloudRateExtractor.getComputePriceBundle(pair.getFirst(), regionId,
+            accountPricingData)).thenReturn(pair.getSecond()));
+        return marketCloudRateExtractor;
+    }
+
+    private CloudCostData<TopologyEntityDTO> mockCloudCostData() {
+        final CloudCostData<TopologyEntityDTO> cloudCostData = mock(CloudCostData.class);
+        when(cloudCostData.getAccountPricingData(Mockito.anyLong())).thenReturn(
+            Optional.of(accountPricingData));
+        when(cloudCostData.getRiCoverageForEntity(anyLong())).thenReturn(Optional.empty());
+        return cloudCostData;
+    }
+
+    private CloudTopology<TopologyEntityDTO> mockCloudTopology(final Stream<TopologyEntityDTO> dtos,
+                                                               final long vmOid) {
+        final CloudTopology<TopologyEntityDTO> cloudTopology = spy(
+            defaultFactory.newCloudTopology(dtos));
+        when(cloudTopology.getConnectedRegion(anyLong())).thenReturn(regionalOptional);
+        when(cloudTopology.getComputeTier(vmOid)).thenReturn(computeTier1Optional);
+        when(cloudTopology.getConnectedAvailabilityZone(anyLong())).thenReturn(zoneOptional);
+        when(cloudTopology.getOwner(anyLong())).thenReturn(accountOptional);
+        doReturn(gAndMOptional).when(cloudTopology).getBillingFamilyForEntity(anyLong());
+        return cloudTopology;
+    }
+
+    private static TopologyEntityDTO createVirtualMachine(final LicenseModel licenseModel) {
+        return TopologyEntityDTO.newBuilder()
+            .setOid(windowsVmOid)
+            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .setEntityState(EntityState.POWERED_ON)
+            .setEnvironmentType(EnvironmentType.CLOUD)
+            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                .setVirtualMachine(VirtualMachineInfo.newBuilder()
+                    .setBillingType(VMBillingType.ONDEMAND)
+                    .setTenancy(Tenancy.DEFAULT)
+                    .setGuestOsInfo(OS.newBuilder()
+                        .setGuestOsType(windows)
+                        .setGuestOsName(windows.name()))
+                    .setLicenseModel(licenseModel)))
+            .build();
+    }
+
+    private static TopologyEntityDTO createComputeTier(final long oid, final String displayName,
+                                                       final String familyName, int numCoupons,
+                                                       long regionId) {
+        return TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.COMPUTE_TIER_VALUE)
+            .setOid(oid)
+            .setDisplayName(displayName)
+            .setEnvironmentType(EnvironmentType.CLOUD)
+            .setAnalysisSettings(AnalysisSettings.newBuilder().setIsEligibleForScale(false).build())
+            .setTypeSpecificInfo(
+                TypeSpecificInfo.newBuilder()
+                    .setComputeTier(ComputeTierInfo.newBuilder()
+                        .setFamily(familyName)
+                        .setNumCoupons(numCoupons))).addConnectedEntityList(
+            ConnectedEntity.newBuilder()
+                .setConnectedEntityId(regionId)
+                .setConnectedEntityType(EntityType.REGION_VALUE)
+                .build())
+            .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                .setCommodityType(CommodityType.newBuilder()
+                    .setKey("Linux")
+                    .setType(CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE))
+                .build())
+            .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                .setCommodityType(CommodityType.newBuilder()
+                    .setKey("Windows")
+                    .setType(CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE)
+                    .build())
+                .build())
+            .build();
     }
 
     private static Optional<SMAVirtualMachine> findVMByOid(SMAInputContext smaContext, long oid) {

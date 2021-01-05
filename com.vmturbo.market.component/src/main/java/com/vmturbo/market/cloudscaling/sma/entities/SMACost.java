@@ -3,15 +3,13 @@ package com.vmturbo.market.cloudscaling.sma.entities;
 /**
  * Class to represent cost, both compute and license costs.
  */
-public class    SMACost {
+public class SMACost {
     /**
      * Compute cost.
      */
     private final float compute;
     /**
      * license cost.
-     * Needed for Azure RIs which are platform agnostic and a license cost need to be added.
-     * license is zero for AWS.
      */
     private final float license;
 
@@ -45,5 +43,4 @@ public class    SMACost {
                 ", license=" + license +
                 '}';
     }
-
 }

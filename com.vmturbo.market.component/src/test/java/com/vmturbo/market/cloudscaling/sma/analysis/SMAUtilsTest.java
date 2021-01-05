@@ -25,6 +25,7 @@ import com.vmturbo.market.cloudscaling.sma.entities.SMAReservedInstance;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAStatistics.TypeOfRIs;
 import com.vmturbo.market.cloudscaling.sma.entities.SMATemplate;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAVirtualMachine;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.LicenseModel;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 
@@ -252,7 +253,8 @@ public class SMAUtilsTest {
                         outputContext.getMatches().get(i).getReservedInstance() == null ?
                                 SMAUtils.BOGUS_RI :
                                 outputContext.getMatches().get(i).getReservedInstance(),
-                        oldVM.getOsType());
+                        oldVM.getOsType(),
+                    oldVM.getOsLicenseModel());
                 newVirtualMachines.add(smaVirtualMachine);
             }
             List<SMAReservedInstance> newReservedInstances = new ArrayList<>();
@@ -279,8 +281,10 @@ public class SMAUtilsTest {
                     //      vm.toStringShallow(), currentTemplate, matchTemplate, vm.getCurrentRICoverage(), match.getDiscountedCoupons()));
                     mismatch++;
                     coupons += Math.round(vm.getCurrentRICoverage()) - match.getDiscountedCoupons();
-                    newsaving += (vm.getCurrentTemplate().getNetCost(vm.getBusinessAccountId(), vm.getOsType(), vm.getCurrentRICoverage()) -
-                            match.getTemplate().getNetCost(vm.getBusinessAccountId(), vm.getOsType(), match.getDiscountedCoupons()));
+                    newsaving += (vm.getCurrentTemplate().getNetCost(vm.getCostContext(),
+                        vm.getCurrentRICoverage())
+                        - match.getTemplate().getNetCost(vm.getCostContext(),
+                        match.getDiscountedCoupons()));
                 }
                 if (currentTemplate.getOid() != matchTemplate.getOid()) {
                     templatemismatch++;
@@ -420,7 +424,8 @@ public class SMAUtilsTest {
                     0,
                     SMATestConstants.ZONE_BASE,
                     SMAUtils.BOGUS_RI,
-                    os);
+                    os,
+                    LicenseModel.LICENSE_INCLUDED);
             virtualMachines.add(smaVirtualMachine);
         }
         List<SMAReservedInstance> reservedInstances = new ArrayList<>();
@@ -498,7 +503,8 @@ public class SMAUtilsTest {
                         outputContext.getMatches().get(i).getReservedInstance() == null ?
                                 SMAUtils.BOGUS_RI :
                                 outputContext.getMatches().get(i).getReservedInstance(),
-                        oldVM.getOsType());
+                        oldVM.getOsType(),
+                        oldVM.getOsLicenseModel());
                 newVirtualMachines.add(smaVirtualMachine);
             }
             SMAContext context = inputContext.getContext();
@@ -529,8 +535,10 @@ public class SMAUtilsTest {
                             vm.getCurrentRICoverage(), match.getDiscountedCoupons()));
                     mismatch++;
                     coupons += Math.round(vm.getCurrentRICoverage()) - match.getDiscountedCoupons();
-                    newsaving += (vm.getCurrentTemplate().getNetCost(vm.getBusinessAccountId(), os, vm.getCurrentRICoverage()) -
-                            match.getTemplate().getNetCost(vm.getBusinessAccountId(), os, match.getDiscountedCoupons()));
+                    newsaving += (vm.getCurrentTemplate().getNetCost(vm.getCostContext(),
+                        vm.getCurrentRICoverage())
+                        - match.getTemplate().getNetCost(vm.getCostContext(),
+                                match.getDiscountedCoupons()));
                 }
                 if (currentTemplate.getOid() != matchTemplate.getOid()) {
                     templatemismatch++;
@@ -630,7 +638,8 @@ public class SMAUtilsTest {
                     currentRICoverage,
                     SMATestConstants.ZONE_BASE + rand.nextInt(nzones),
                     SMAUtils.BOGUS_RI,
-                    os);
+                    os,
+                    LicenseModel.LICENSE_INCLUDED);
             smaVirtualMachines.add(smaVirtualMachine);
         }
 
@@ -770,7 +779,7 @@ public class SMAUtilsTest {
                         outputContext.getMatches().get(i).getReservedInstance() == null ?
                                 SMAUtils.BOGUS_RI :
                                 outputContext.getMatches().get(i).getReservedInstance(),
-                        os);
+                        os, LicenseModel.LICENSE_INCLUDED);
                 newVirtualMachines.add(smaVirtualMachine);
             }
             SMAContext context = inputContext.getContext();
@@ -868,7 +877,7 @@ public class SMAUtilsTest {
                         memberProviders,
                         currentRICoverage,
                         vmZone, SMAUtils.BOGUS_RI,
-                        os);
+                        os, LicenseModel.LICENSE_INCLUDED);
                 smaVirtualMachines.add(smaVirtualMachine);
             }
             for (int j = 0; j < rsize; j++) {

@@ -392,16 +392,12 @@ public class SMAInput {
             groupName,
             businessAccountId,
             null,
-            new ArrayList<SMATemplate>(),
+            new ArrayList<>(),
             SMAUtils.NO_RI_COVERAGE,
             zoneId,
             SMAUtils.BOGUS_RI,
-            osType);
-        if (vm == null) {
-            logger.error("processVM: createSMAVirtualMachine failed for VM OID={} name={}",
-                oid, name);
-            return;
-        }
+            osType,
+            vmInfo.getLicenseModel());
         logger.debug("processVM: new VM {}", vm);
 
         Set<SMAVirtualMachine> contextVMs = smaContextToVMs.getOrDefault(context, new HashSet<>());
@@ -753,22 +749,21 @@ public class SMAInput {
                     oid, name, businessAccountId, context);
                 return;
             }
-            double hourlyRate    = 0.0d;
-            for (ComputePrice price: computePrices) {
-                if (price.osType() == osType) {  // FYI, UKNOWN_OS has a price, therefore can scale to natural template.
-                    hourlyRate = price.hourlyPrice();
-                    break;
-                }
-            }
-            if (hourlyRate == 0.0d) {
+            final ComputePrice computePrice = computePrices.stream()
+                .filter(price -> price.osType() == osType)
+                .findAny().orElse(null);
+
+            if (computePrice == null) {
                 logger.error("updateTemplateRate: no on-demand hourlyRate in {} computePrices for template ID={}:name={} in accountId={} osType={} {}",
                     computePriceSize, oid, name, businessAccountId, osType.name(), context);
                 return;
             } else if (osType != OSType.UNKNOWN_OS) {
                 logger.trace("updateTemplateRate: on-demand Rate={}: template ID={}:name={} in accountId={} osType={} {}",
-                    hourlyRate, oid, name, businessAccountId, osType.name(), context);
+                    computePrice.hourlyPrice(), oid, name, businessAccountId, osType.name(),
+                    context);
             }
-            template.setOnDemandCost(businessAccountId, osType, new SMACost((float)hourlyRate, 0f));
+            template.setOnDemandCost(businessAccountId, osType, new SMACost(
+                (float)computePrice.hourlyComputeRate(), (float)computePrice.hourlyLicenseRate()));
 
             /*
              * compute discounted costs
@@ -792,7 +787,7 @@ public class SMAInput {
                     return;
                 }
 
-                hourlyRate = reservedLicensePrices.stream()
+                final double hourlyRate = reservedLicensePrices.stream()
                         .filter(CoreBasedLicensePriceBundle::hasPrice)
                         .filter(priceBundle -> priceBundle.osType() == osType)
                         .map(priceBundle -> priceBundle.price().get())

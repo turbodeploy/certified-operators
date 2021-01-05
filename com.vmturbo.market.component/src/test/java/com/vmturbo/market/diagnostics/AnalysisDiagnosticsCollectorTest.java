@@ -220,12 +220,9 @@ public class AnalysisDiagnosticsCollectorTest {
             for (SMAMatch smaMatch : outputContext.getMatches()) {
                 SMAVirtualMachine virtualMachine = smaMatch.getVirtualMachine();
                 float currentCost = virtualMachine.getCurrentTemplate().getNetCost(
-                        virtualMachine.getBusinessAccountId(),
-                        virtualMachine.getOsType(), virtualMachine.getCurrentRICoverage());
+                        virtualMachine.getCostContext(), virtualMachine.getCurrentRICoverage());
                 float projectedCost = smaMatch.getTemplate().getNetCost(
-                        virtualMachine.getBusinessAccountId(),
-                        virtualMachine.getOsType(),
-                        smaMatch.getDiscountedCoupons());
+                        virtualMachine.getCostContext(), smaMatch.getDiscountedCoupons());
                 saving += currentCost - projectedCost;
             }
         }
@@ -262,7 +259,8 @@ public class AnalysisDiagnosticsCollectorTest {
                                     outputContext.getMatches().get(i).getDiscountedCoupons(),
                                     oldVM.getZoneId(),
                                     outputContext.getMatches().get(i).getReservedInstance(),
-                                    oldVM.getOsType());
+                                    oldVM.getOsType(),
+                                    oldVM.getOsLicenseModel());
                             newVirtualMachines.add(smaVirtualMachine);
                         }
                         SMAContext context = inputContext.getContext();

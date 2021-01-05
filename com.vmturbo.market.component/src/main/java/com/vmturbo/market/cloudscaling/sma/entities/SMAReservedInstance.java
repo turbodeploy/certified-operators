@@ -452,7 +452,8 @@ public class SMAReservedInstance {
         SMATemplate riTemplate = getNormalizedTemplate();
         float netSavingvm = 0;
         for (SMAVirtualMachine member : vmList) {
-            float onDemandCostvm = member.getNaturalTemplate().getNetCost(vm.getBusinessAccountId(), vm.getOsType(), 0);
+            float onDemandCostvm = member.getNaturalTemplate()
+                .getNetCost(vm.getCostContext(), 0);
             /*  ISF : VM with t3.large and a ISF RI in t2 family. VM can move to t2.large.
              *  t2.large need 10 coupons. But we have only 6 coupons.
              *  riTemplate.getFamily() returns t2.
@@ -467,10 +468,9 @@ public class SMAReservedInstance {
              *  Note that for AWS the discountedCost will be 0; So afterMoveCost will be 0;
              */
             float afterMoveCostvm = isIsf() ? member.getMinCostProviderPerFamily(
-                    riTemplate.getFamily()).getNetCost(vm.getBusinessAccountId(),
-                            vm.getOsType(),
+                    riTemplate.getFamily()).getNetCost(vm.getCostContext(),
                             coupons / vm.getGroupSize()) : riTemplate
-                    .getNetCost(vm.getBusinessAccountId(), vm.getOsType(), coupons / vm.getGroupSize());
+                    .getNetCost(vm.getCostContext(), coupons / vm.getGroupSize());
 
             netSavingvm += (onDemandCostvm - afterMoveCostvm);
         }

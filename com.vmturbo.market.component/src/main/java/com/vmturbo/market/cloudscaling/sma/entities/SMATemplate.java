@@ -11,6 +11,8 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
+import com.vmturbo.market.cloudscaling.sma.entities.SMAVirtualMachine.CostContext;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.LicenseModel;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 
 /**
@@ -135,37 +137,44 @@ public class SMATemplate {
 
     /**
      * Lookup the on-demand total cost for the business account.
-     * @param businessAccountId the business account ID.
-     * @param osType OS.
+     * @param costContext instance containing all the parameters for cost lookup.
      * @return on-demand total cost or Float.MAX_VALUE if not found.
      */
-    public float getOnDemandTotalCost(long businessAccountId, OSType osType) {
-        Map<OSType, SMACost> costMap = onDemandCosts.get(businessAccountId);
-        SMACost cost = costMap != null ? costMap.get(osType) : null;
+    public float getOnDemandTotalCost(CostContext costContext) {
+        Map<OSType, SMACost> costMap = onDemandCosts.get(costContext.getBusinessAccount());
+        SMACost cost = costMap != null ? costMap.get(costContext.getOsType()) : null;
         if (cost == null) {
-            logger.debug("getOnDemandTotalCost: OID={} name={} has no discounted cost for businessAccountId={} and OSType={}",
-                oid, name, businessAccountId, osType.name());
+            logger.debug("getOnDemandTotalCost: OID={} name={} has no on demand cost for {}",
+                oid, name, costContext);
             return Float.MAX_VALUE;
         }
-        return SMAUtils.round(cost.getTotal());
+        return getOsLicenseModelBasedCost(cost, costContext.getOsLicenseModel());
     }
-
 
     /**
      * Lookup the discounted total cost for the business account.
-     * @param businessAccountId the business account ID.
-     * @param osType OS.
+     *
+     * @param costContext instance containing all the parameters for cost lookup.
      * @return discounted total cost or Float.MAX_VALUE if not found.
      */
-    public float getDiscountedTotalCost(long businessAccountId, OSType osType) {
-        Map<OSType, SMACost> costMap = discountedCosts.get(businessAccountId);
-        SMACost cost = costMap != null ? costMap.get(osType) : null;
+    public float getDiscountedTotalCost(CostContext costContext) {
+        Map<OSType, SMACost> costMap = discountedCosts.get(costContext.getBusinessAccount());
+        SMACost cost = costMap != null ? costMap.get(costContext.getOsType()) : null;
         if (cost == null) {
-            logger.debug("getDiscountedTotalCost: OID={} name={} has no discounted cost for businessAccountId={} and OSType={}",
-                oid, name, businessAccountId, osType.name());
+            logger.debug("getDiscountedTotalCost: OID={} name={} has no discounted cost for {}",
+                oid, name, costContext);
             return Float.MAX_VALUE;
         }
-        return SMAUtils.round(cost.getTotal());
+        return getOsLicenseModelBasedCost(cost, costContext.getOsLicenseModel());
+    }
+
+    private static float getOsLicenseModelBasedCost(final SMACost cost,
+                                                    final LicenseModel osLicenseModel) {
+        if (osLicenseModel == LicenseModel.LICENSE_INCLUDED) {
+            return SMAUtils.round(cost.getTotal());
+        } else {
+            return SMAUtils.round(cost.getCompute());
+        }
     }
 
     /**
@@ -173,23 +182,22 @@ public class SMATemplate {
      * For AWS, the cost is only non-discounted portion times the onDemand cost.
      * For Azure, their may be a non zero discounted cost, which is applied to the discounted coupons.
      *
-     * @param businessAccountId business account ID
-     * @param osType OS.
+     * @param costContext instance containing all the parameters for cost lookup.
      * @param discountedCoupons discounted coupons
      * @return cost after applying discounted coupons.
      */
-    public float getNetCost(long businessAccountId, OSType osType, float discountedCoupons) {
-        float netCost = 0f;
+    public float getNetCost(CostContext costContext, float discountedCoupons) {
+        final float netCost;
         if (coupons == 0) {
             // If a template has 0 coupons, then it can't be discounted by a RI, and the on-demand
             // cost is returned.  E.g. Standard_A2m_v2.
-            netCost = getOnDemandTotalCost(businessAccountId, osType);
+            netCost = getOnDemandTotalCost(costContext);
         } else if (discountedCoupons >= coupons) {
-            netCost = getDiscountedTotalCost(businessAccountId, osType);
+            netCost = getDiscountedTotalCost(costContext);
         } else {
             float discountPercentage = discountedCoupons / coupons;
-            netCost = (getDiscountedTotalCost(businessAccountId, osType) * discountPercentage) +
-                    (getOnDemandTotalCost(businessAccountId, osType) * (1 - discountPercentage));
+            netCost = (getDiscountedTotalCost(costContext) * discountPercentage)
+                    + (getOnDemandTotalCost(costContext) * (1 - discountPercentage));
         }
         return SMAUtils.round(netCost);
     }

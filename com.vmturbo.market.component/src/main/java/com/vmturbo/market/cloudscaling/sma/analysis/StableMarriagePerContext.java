@@ -30,8 +30,8 @@ import com.vmturbo.market.cloudscaling.sma.entities.SMAStatistics;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAStatistics.TypeOfRIs;
 import com.vmturbo.market.cloudscaling.sma.entities.SMATemplate;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAVirtualMachine;
+import com.vmturbo.market.cloudscaling.sma.entities.SMAVirtualMachine.CostContext;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAVirtualMachineGroup;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 
 /**
  * Given a context, run SMA, and update the context's matching field with the result.
@@ -659,8 +659,10 @@ public class StableMarriagePerContext {
 
             // pick the RI which has lower ondemand cost.
 
-            float newTemplateTotalCost = newTemplate.getOnDemandTotalCost(vm.getBusinessAccountId(), vm.getOsType());
-            float oldTemplateTotalCost = oldTemplate.getOnDemandTotalCost(vm.getBusinessAccountId(), vm.getOsType());
+            float newTemplateTotalCost =
+                newTemplate.getOnDemandTotalCost(vm.getCostContext());
+            float oldTemplateTotalCost =
+                oldTemplate.getOnDemandTotalCost(vm.getCostContext());
 
             if (SMAUtils.round(newTemplateTotalCost - oldTemplateTotalCost)
                     > SMAUtils.EPSILON) {
@@ -744,8 +746,7 @@ public class StableMarriagePerContext {
                                                      Map<String, SMAVirtualMachineGroup>
                                                              virtualMachineGroupMap) {
         SMAVirtualMachine virtualMachine = newEngagement.getVirtualMachine();
-        float costImprovement = costImprovement(virtualMachine.getBusinessAccountId(),
-                virtualMachine.getOsType(),
+        float costImprovement = costImprovement(virtualMachine.getCostContext(),
                 newEngagement.getDiscountedCoupons() / (float)virtualMachine.getGroupSize(),
                 newEngagement.getTemplate(),
                 (oldEngagement == null) ?
@@ -756,8 +757,7 @@ public class StableMarriagePerContext {
         if (oldEngagement == null && costImprovement <
                 (SMAUtils.BIG_EPSILON * virtualMachine.getGroupSize()
                         * virtualMachine.getNaturalTemplate()
-                        .getOnDemandTotalCost(virtualMachine.getBusinessAccountId(),
-                                virtualMachine.getOsType()))) {
+                        .getOnDemandTotalCost(virtualMachine.getCostContext()))) {
             return false;
         }
         if (costImprovement < -1.0 * SMAUtils.EPSILON) {
@@ -905,8 +905,7 @@ public class StableMarriagePerContext {
     /**
      * compare the net cost based on available coupons, the template On-demand, discounted cost.
      *
-     * @param businessAccountId  business account to get rates for.
-     * @param osType          OS
+     * @param costContext     instance containing all the parameters for cost lookup
      * @param currentCoupons  current available coupons
      * @param currentTemplate the current template
      * @param oldCoupons      old available coupons
@@ -914,11 +913,11 @@ public class StableMarriagePerContext {
      * @return the effective savings of resize from oldTemplate to currentTemplate
      */
 
-    public static float costImprovement(long businessAccountId, OSType osType,
+    public static float costImprovement(CostContext costContext,
                                         float currentCoupons, SMATemplate currentTemplate,
                                         float oldCoupons, SMATemplate oldTemplate) {
-        return (oldTemplate.getNetCost(businessAccountId, osType, oldCoupons) -
-            currentTemplate.getNetCost(businessAccountId, osType, currentCoupons));
+        return (oldTemplate.getNetCost(costContext, oldCoupons)
+            - currentTemplate.getNetCost(costContext, currentCoupons));
     }
 
 

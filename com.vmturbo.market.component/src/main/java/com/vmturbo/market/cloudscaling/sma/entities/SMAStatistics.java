@@ -2,6 +2,8 @@ package com.vmturbo.market.cloudscaling.sma.entities;
 
 import java.util.List;
 
+import com.vmturbo.market.cloudscaling.sma.entities.SMAVirtualMachine.CostContext;
+
 /**
  * This class collects statistics on Stable Marriage Algorithm (SMA).
  */
@@ -130,7 +132,7 @@ public class SMAStatistics {
     private float computeCurrentCost(List<SMAVirtualMachine> vms) {
         float savings = 0;
         for (SMAVirtualMachine vm : vms) {
-            savings += vm.getCurrentTemplate().getOnDemandTotalCost(vm.getBusinessAccountId(), vm.getOsType());
+            savings += vm.getCurrentTemplate().getOnDemandTotalCost(vm.getCostContext());
         }
         return savings;
     }
@@ -143,8 +145,8 @@ public class SMAStatistics {
         float savings = 0;
         for (SMAVirtualMachine vm : vms) {
             float currentRICoverageFraction = vm.getCurrentRICoverage() / (float)vm.getCurrentTemplate().getCoupons();
-            savings += vm.getCurrentTemplate().getOnDemandTotalCost(vm.getBusinessAccountId(), vm.getOsType()) *
-                (1.0 - currentRICoverageFraction);
+            savings += vm.getCurrentTemplate().getOnDemandTotalCost(vm.getCostContext())
+                * (1.0 - currentRICoverageFraction);
         }
         return savings;
     }
@@ -155,7 +157,7 @@ public class SMAStatistics {
     private float computeNaturalCost(List<SMAVirtualMachine> vms) {
         float savings = 0;
         for (SMAVirtualMachine vm : vms) {
-            savings += vm.getNaturalTemplate().getOnDemandTotalCost(vm.getBusinessAccountId(), vm.getOsType());
+            savings += vm.getNaturalTemplate().getOnDemandTotalCost(vm.getCostContext());
         }
         return savings;
     }
@@ -168,8 +170,9 @@ public class SMAStatistics {
         for (SMAMatch match : matches) {
             SMATemplate template = match.getTemplate();
             SMAVirtualMachine vm = match.getVirtualMachine();
-            float onDemandTotalCost = template.getOnDemandTotalCost(vm.getBusinessAccountId(), vm.getOsType());
-            float discountedTotalCost = template.getDiscountedTotalCost(vm.getBusinessAccountId(), vm.getOsType());
+            final CostContext costContext = vm.getCostContext();
+            float onDemandTotalCost = template.getOnDemandTotalCost(costContext);
+            float discountedTotalCost = template.getDiscountedTotalCost(costContext);
             float discountPercent = match.getDiscountedCoupons() / (float)template.getCoupons();
             /*
              * This computation assumes that

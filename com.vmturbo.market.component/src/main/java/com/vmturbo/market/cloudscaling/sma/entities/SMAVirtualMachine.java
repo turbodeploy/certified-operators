@@ -14,6 +14,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.LicenseModel;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 
 /**
@@ -47,6 +48,11 @@ public class SMAVirtualMachine {
      * Cloud Zone
      */
     private final long zoneId;
+
+    /**
+     * operating system license model, e.g. license included, bring your own license.
+     */
+    private final LicenseModel operatingSystemLicenseModel;
 
     /*
      * Not invariants.  After SMAReservedInstance and SMATemplates are discovered.
@@ -115,6 +121,7 @@ public class SMAVirtualMachine {
      * @param zoneId the zone ID to which the VM belongs to.
      * @param currentRI current RI covering the VM.
      * @param osType  OS.
+     * @param operatingSystemLicenseModel os license model.
      */
     public SMAVirtualMachine(final long oid,
                              @Nonnull final String name,
@@ -125,7 +132,8 @@ public class SMAVirtualMachine {
                              final float currentRICoverage,
                              final long zoneId,
                              final SMAReservedInstance currentRI,
-                             final OSType osType) {
+                             final OSType osType,
+                             @Nullable final LicenseModel operatingSystemLicenseModel) {
         this.oid = oid;
         this.name = Objects.requireNonNull(name, "name is null!");
         this.groupName = groupName;
@@ -136,8 +144,12 @@ public class SMAVirtualMachine {
         this.groupSize = 1;
         this.currentRI = currentRI;
         this.osType = osType;
+        // operatingSystemLicenseModel argument will not be null in production as the the
+        // protobuf field has a default defined. The null check below is for test inputs which
+        // may not have operatingSystemLicenseModel defined.
+        this.operatingSystemLicenseModel = operatingSystemLicenseModel == null
+            ? LicenseModel.LICENSE_INCLUDED : operatingSystemLicenseModel;
         setProviders(providers);
-
     }
 
     public boolean isEmptyProviderList() {
@@ -159,7 +171,7 @@ public class SMAVirtualMachine {
             minCostPerFamily.put(template.getFamily(), Float.MAX_VALUE);
         }
         for (SMATemplate template : groupProviders) {
-            float onDemandTotalCost = template.getOnDemandTotalCost(businessAccountId, osType);
+            float onDemandTotalCost = template.getOnDemandTotalCost(getCostContext());
             if (onDemandTotalCost - minCost < (-1.0 * SMAUtils.EPSILON)) {
                 minCost = onDemandTotalCost;
                 minCostProvider = Optional.of(template);
@@ -172,7 +184,8 @@ public class SMAVirtualMachine {
                 }
             }
             if (onDemandTotalCost - minCostPerFamily.get(template.getFamily()) < SMAUtils.EPSILON) {
-                minCostPerFamily.put(template.getFamily(), template.getOnDemandTotalCost(businessAccountId, osType));
+                minCostPerFamily.put(template.getFamily(),
+                    template.getOnDemandTotalCost(getCostContext()));
                 minCostProviderPerFamily.put(template.getFamily(), template);
             }
 
@@ -233,6 +246,11 @@ public class SMAVirtualMachine {
     @Nonnull
     public SMATemplate getCurrentTemplate() {
         return currentTemplate;
+    }
+
+    @Nonnull
+    public LicenseModel getOsLicenseModel() {
+        return operatingSystemLicenseModel;
     }
 
     public void setCurrentTemplate(SMATemplate template) {
@@ -440,6 +458,30 @@ public class SMAVirtualMachine {
         return providersOid;
     }
 
+    public CostContext getCostContext() {
+        return new CostContext();
+    }
 
+    /**
+     * Class that holds together all the parameters required for looking up costs.
+     */
+    public class CostContext {
+        long getBusinessAccount() {
+            return businessAccountId;
+        }
 
+        OSType getOsType() {
+            return osType;
+        }
+
+        LicenseModel getOsLicenseModel() {
+            return operatingSystemLicenseModel;
+        }
+
+        @Override
+        public String toString() {
+            return String.format("Business Account: %s, OS Type: %s, OS License Model: %s",
+                businessAccountId, osType, operatingSystemLicenseModel);
+        }
+    }
 }
