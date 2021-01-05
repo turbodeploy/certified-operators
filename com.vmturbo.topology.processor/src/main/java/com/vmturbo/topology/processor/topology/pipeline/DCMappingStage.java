@@ -20,7 +20,7 @@ import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.Stage;
 
 /**
- * This stage checks if there're UCS targets in entityStore, and if there're
+ * This stage checks if there're Fabric targets in entityStore, and if there're
  * then makes a linear search entityStore, gets PMs and saves info about their
  * connections to datacenters in {@link DiscoveredGroupUploader}.
  */
@@ -40,12 +40,12 @@ public class DCMappingStage extends Stage<EntityStore, EntityStore> {
     @Override
     public StageResult<EntityStore> execute(@NotNull EntityStore input)
                     throws PipelineStageException, InterruptedException {
-        if (!discoveredGroupUploader.isUCSTargetPresent())   {
+        if (!discoveredGroupUploader.isFabricTargetPresent())   {
             return StageResult.withResult(input)
-                .andStatus(Status.success("No UCS targets. Skipping DCMappingStage."));
+                .andStatus(Status.success("No Fabric targets. Skipping DCMappingStage."));
         }
 
-        StringBuilder status = new StringBuilder("UCS targets are present.");
+        StringBuilder status = new StringBuilder("Fabric targets are present.");
         // A map of SDK String IDs to XL OIDs:
         Map<String, Long> datacenterIDsToOIDs = new HashMap<>();
         List<Entity> hosts = new ArrayList<>();

@@ -46,6 +46,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
+import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.platform.sdk.common.util.SDKUtil;
 import com.vmturbo.stitching.TopologyEntity;
@@ -571,16 +572,21 @@ public class DiscoveredGroupUploader {
     }
 
     /**
-     * Checks if a UCS target is present in the current {@link TargetStore} instance.
+     * Checks if a Fabric target is present in the current {@link TargetStore} instance.
+     *
      * @return true if a UCS target is present.
      */
-    public boolean isUCSTargetPresent()  {
+    public boolean isFabricTargetPresent()  {
         for (Target target : targetStore.getAll())  {
             final ProbeInfo probeInfo = target.getProbeInfo();
+            if (probeInfo.hasProbeCategory()
+                && probeInfo.getProbeCategory().equals(ProbeCategory.FABRIC.getCategory())) {
+                return true;
+            }
+            // UCS Intersight probe has Hyperconverged category but it should be processed as fabric target.
             if (probeInfo.hasProbeType()) {
                 final String probeType = probeInfo.getProbeType();
-                return SDKProbeType.UCS.getProbeType().equals(probeType)
-                        || SDKProbeType.INTERSIGHT_UCS.getProbeType().equals(probeType);
+                return SDKProbeType.INTERSIGHT_UCS.getProbeType().equals(probeType);
             }
         }
         return false;
