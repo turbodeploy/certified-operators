@@ -100,7 +100,6 @@ public class RemoteMediationServerWithDiscoveryWorkers extends RemoteMediationSe
     @Override
     public void registerTransport(ContainerInfo containerInfo,
                     ITransport<MediationServerMessage, MediationClientMessage> serverEndpoint) {
-        super.registerTransport(containerInfo, serverEndpoint);
         containerInfo.getPersistentTargetIdMapMap()
                 .forEach((probeType, targetIdSet) -> targetIdSet.getTargetIdList()
                         .forEach(targetId -> discoveryQueue.assignTargetToTransport(
@@ -119,8 +118,20 @@ public class RemoteMediationServerWithDiscoveryWorkers extends RemoteMediationSe
                                 maxConcurrentTargetIncrementalDiscoveriesPerContainerCount,
                                 DiscoveryType.INCREMENTAL));
             }
-            transportToTransportWorker.getOrDefault(serverEndpoint, Collections.emptyMap()).values()
-                    .forEach(Thread::start);
+        }
+        // Super must be called after threads are created, since it is possible that transport
+        // closes during the processing in super, and it is important that worker threads are
+        // are created before processContainerClose is called so that they are properly cleaned up.
+        super.registerTransport(containerInfo, serverEndpoint);
+        synchronized (transportToTransportWorker) {
+            transportToTransportWorker.getOrDefault(serverEndpoint, Collections.emptyMap())
+                    .values()
+                    .forEach(workerThread -> {
+                        // Each worker must be started after transport is registered with
+                        // probeStore, since we need the transport to be registered with probeStore
+                        // before we initialize the thread.
+                        workerThread.start();
+                    });
         }
     }
 
@@ -238,6 +249,10 @@ public class RemoteMediationServerWithDiscoveryWorkers extends RemoteMediationSe
 
         private final DiscoveryType discoveryType;
 
+        private final ContainerInfo containerInfo;
+
+        private final ProbeStore probeStore;
+
         /**
          * Create a TransportDiscoveryWorker.
          *
@@ -261,10 +276,11 @@ public class RemoteMediationServerWithDiscoveryWorkers extends RemoteMediationSe
             this.maxPermits = permits;
             this.numPermits = new AtomicInteger(permits);
             this.discoveryType = discoveryType;
+            this.containerInfo = containerInfo;
+            this.probeStore = probeStore;
             logger.info("Creating transport worker for probe types {} with {} permits.",
                     containerInfo.getProbesList().stream().map(ProbeInfo::getProbeType).collect(
                             Collectors.joining(", ")), permits);
-            processContainerInfo(containerInfo, probeStore);
             setName(createThreadName(containerInfo));
         }
 
@@ -277,8 +293,7 @@ public class RemoteMediationServerWithDiscoveryWorkers extends RemoteMediationSe
                     + super.getName();
         }
 
-        private void processContainerInfo(@Nonnull ContainerInfo containerInfo,
-                @Nonnull ProbeStore probeStore) {
+        private void initialize() {
             // If this worker supports full discovery, populate the list with all probe types in
             // containerinfo. If it supports incremental, then only get the ids of probes that
             // have incremental discoveries.
@@ -316,6 +331,12 @@ public class RemoteMediationServerWithDiscoveryWorkers extends RemoteMediationSe
                     + "target {}", targetId, e);
             returnPermit(targetId);
             bundle.setException(e);
+        }
+
+        @Override
+        public synchronized void start() {
+            initialize();
+            super.start();
         }
 
         @Override

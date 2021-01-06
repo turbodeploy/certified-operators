@@ -1,8 +1,10 @@
 package com.vmturbo.topology.processor.communication;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -11,6 +13,8 @@ import static org.mockito.Mockito.when;
 
 import java.util.Collections;
 import java.util.Optional;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
@@ -24,6 +28,7 @@ import org.mockito.MockitoAnnotations;
 
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.ITransport;
+import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.sdk.common.MediationMessage.ContainerInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.DiscoveryRequest;
@@ -33,6 +38,7 @@ import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.topology.processor.communication.queues.AggregatingDiscoveryQueue;
 import com.vmturbo.topology.processor.communication.queues.AggregatingDiscoveryQueueImpl;
+import com.vmturbo.topology.processor.communication.queues.IDiscoveryQueueElement;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.discovery.DiscoveryBundle;
 import com.vmturbo.topology.processor.operation.discovery.DiscoveryMessageHandler;
@@ -64,8 +70,6 @@ public class RemoteMediationServerWithDiscoveryWorkersTest {
     private ITransport<MediationServerMessage, MediationClientMessage> transport2;
 
     private Discovery discovery1 = mock(Discovery.class);
-
-    private Discovery discovery2 = mock(Discovery.class);
 
     private DiscoveryBundle discoveryBundle1 = mock(DiscoveryBundle.class);
 
@@ -103,12 +107,6 @@ public class RemoteMediationServerWithDiscoveryWorkersTest {
     private final ProbeStore probeStore = mock(ProbeStore.class);
 
     private RemoteMediationServer remoteMediationServer;
-
-    @Mock
-    private ITransport<MediationServerMessage, MediationClientMessage> transport;
-
-    @Mock
-    private ITransport<MediationServerMessage, MediationClientMessage> transportToClose;
 
     private String target1IdFields = "target1";
 
@@ -258,5 +256,49 @@ public class RemoteMediationServerWithDiscoveryWorkersTest {
         verify(queue, times(1)).takeNextQueuedDiscovery(any(),
                 any(),
                 eq(DiscoveryType.FULL));
+    }
+
+    /**
+     * Test that if a transport is closed while registration is being processed, the related
+     * transport worker is clsoed.
+     *
+     * @throws InterruptedException when Thread.sleep is interrupted.
+     */
+    @Test
+    public void testTransportClosesBeforeRegistered() throws InterruptedException {
+        setupBundles();
+        // simulate transport already being closed by the time it is registered
+        doThrow(new IllegalStateException("transport closed"))
+                .when(transport1).addEventHandler(any());
+        remoteMediationServer.registerTransport(containerInfo, transport1);
+        // sleep to let the transport worker thread start
+        Thread.sleep(100L);
+
+        // By now, the registration of transport should have occurred, causing the processing of
+        // the closed transport and shutting down the worker thread. So if we queue a discovery,
+        // it should remain in the queue, as there is no thread active to service the queue.
+        final IDiscoveryQueueElement queuedDiscovery = queue.offerDiscovery(target1,
+                DiscoveryType.FULL, discoveryMethod1, errorHandler1, false);
+
+        // Sleep to let any workers that do exist process the queued discovery.
+        Thread.sleep(100L);
+
+        // Check that the discovery we queued is still there.
+        final SetOnce<Optional<IDiscoveryQueueElement>> takenDiscovery = new SetOnce<>();
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        // Execute queue.takeNextQueuedDiscovery() on a different thread since it may block forever.
+        executor.execute(() -> {
+            try {
+                takenDiscovery.trySetValue(queue.takeNextQueuedDiscovery(transport1, Collections.singletonList(probeIdVc), DiscoveryType.FULL));
+            } catch (InterruptedException e) {
+                takenDiscovery.trySetValue(Optional.empty());
+            }
+        });
+        // Sleep to give thread chance to take discovery
+        Thread.sleep(100L);
+        assertTrue(takenDiscovery.getValue().isPresent());
+        assertTrue(takenDiscovery.getValue().get().isPresent());
+        assertEquals(queuedDiscovery, takenDiscovery.getValue().get().get());
+        executor.shutdownNow();
     }
 }
