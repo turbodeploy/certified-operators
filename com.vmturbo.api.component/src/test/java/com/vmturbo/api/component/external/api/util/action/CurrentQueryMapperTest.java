@@ -534,7 +534,7 @@ public class CurrentQueryMapperTest {
         final ActionGroupFilter groupFilter = groupFilterExtractor.extractActionGroupFilter(
                 makeQuery(inputDTO),
                 ApiTestUtils.mockEntityId("1"));
-        assertEquals(".*\\Qtest\\E.*", groupFilter.getDescriptionQuery());
+        assertEquals("(?i)(.*\\Qtest\\E.*)", groupFilter.getDescriptionQuery());
     }
 
     /**
