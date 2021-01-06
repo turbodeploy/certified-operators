@@ -105,7 +105,7 @@ class SearchActionWriter implements IActionWriter {
     }
 
     @Override
-    public void recordAction(ActionOrchestratorAction aoAction) {
+    public void accept(ActionOrchestratorAction aoAction) {
         ActionSpec actionSpec = aoAction.getActionSpec();
         if (!SEARCH_INTERESTED_ACTION_STATES.contains(actionSpec.getActionState().getNumber())) {
             // do not care actions of these states

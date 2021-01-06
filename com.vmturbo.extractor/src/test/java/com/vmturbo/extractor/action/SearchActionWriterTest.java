@@ -145,7 +145,7 @@ public class SearchActionWriterTest {
                         .setSupportingLevel(SupportLevel.SUPPORTED)
                         .setDeprecatedImportance(0)
                         .setExplanation(Explanation.getDefaultInstance()));
-        actionWriter.recordAction(ActionOrchestratorAction.newBuilder()
+        actionWriter.accept(ActionOrchestratorAction.newBuilder()
                 .setActionId(actionSpec.getRecommendation().getId())
                 .setActionSpec(actionSpec).build());
         // mock severities
@@ -226,7 +226,7 @@ public class SearchActionWriterTest {
 
         // mock actions
         Stream.of(scaleActionSpec, buyRiActionSpec).forEach(actionSpec ->
-                actionWriter.recordAction(ActionOrchestratorAction.newBuilder()
+                actionWriter.accept(ActionOrchestratorAction.newBuilder()
                         .setActionId(actionSpec.getRecommendation().getId())
                         .setActionSpec(actionSpec).build()));
 
@@ -357,7 +357,7 @@ public class SearchActionWriterTest {
 
         // mock actions
         Stream.of(scaleActionSpec, moveActionSpec).forEach(actionSpec ->
-                actionWriter.recordAction(ActionOrchestratorAction.newBuilder()
+                actionWriter.accept(ActionOrchestratorAction.newBuilder()
                         .setActionId(actionSpec.getRecommendation().getId())
                         .setActionSpec(actionSpec).build()));
 
