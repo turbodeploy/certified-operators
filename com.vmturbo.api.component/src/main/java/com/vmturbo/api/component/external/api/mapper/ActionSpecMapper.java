@@ -1712,10 +1712,16 @@ public class ActionSpecMapper {
                         .map(UICommodityType::fromType)
                         .map(UICommodityType::apiStr)
                         .collect(Collectors.toSet());
-
-        actionApiDTO.getRisk().addAllReasonCommodities(reasonCommodityNames);
-        actionApiDTO.getRisk().setReasonCommodity(
-            reasonCommodityNames.stream().collect(Collectors.joining(",")));
+        // For Container and Pod, there're two following cases for suspend
+        // 1. We want to scale down the cluster and the pod itself is a daemon workload (agent)
+        // 2. We want to scale down the application, hence the pod
+        // In both cases, the reasonCommodities are not applicable.
+        if (targetEntity.getType() != EntityType.CONTAINER_POD_VALUE
+                && targetEntity.getType() != EntityType.CONTAINER_VALUE) {
+            actionApiDTO.getRisk().addAllReasonCommodities(reasonCommodityNames);
+            actionApiDTO.getRisk().setReasonCommodity(
+                    reasonCommodityNames.stream().collect(Collectors.joining(",")));
+        }
     }
 
     /**
