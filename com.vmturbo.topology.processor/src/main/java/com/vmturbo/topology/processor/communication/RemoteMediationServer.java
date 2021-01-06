@@ -120,12 +120,7 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
                         .stream()
                         .map(ProbeInfo::getProbeType)
                         .collect(Collectors.toList()));
-
-        containerInfo.getPersistentTargetIdMapMap()
-                .forEach((probeType, targetIdSet) -> targetIdSet.getTargetIdList()
-                        .forEach(targetId -> containerChooser.assignTargetToTransport(
-                                serverEndpoint, probeType, targetId)));
-
+        containerChooser.parseContainerInfoWithTransport(containerInfo, serverEndpoint);
         for (final ProbeInfo probeInfo : containerInfo.getProbesList()) {
             try {
                 probeStore.registerNewProbe(probeInfo, serverEndpoint);
@@ -276,8 +271,7 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
         boolean success = false;
         try {
             final ITransport<MediationServerMessage, MediationClientMessage> transport =
-                containerChooser.choose(target.getProbeId(),
-                    target.getSerializedIdentifyingFields(), message);
+                containerChooser.choose(target, message);
             // Register the handler before sending the message so there is no gap where there is
             // no registered handler for an outgoing message. Of course this means cleanup is
             // necessary!

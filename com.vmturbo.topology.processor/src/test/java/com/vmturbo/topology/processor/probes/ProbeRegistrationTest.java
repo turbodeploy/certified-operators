@@ -25,6 +25,7 @@ import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.topology.processor.actions.ActionMergeSpecsRepository;
+import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
 import com.vmturbo.topology.processor.communication.ProbeContainerChooserImpl;
 import com.vmturbo.topology.processor.communication.RemoteMediationServer;
 import com.vmturbo.topology.processor.communication.queues.AggregatingDiscoveryQueue;
@@ -167,8 +168,10 @@ public class ProbeRegistrationTest {
 
 
         final Target target = Mockito.mock(Target.class);
+        final TargetSpec spec = TargetSpec.newBuilder().setProbeId(1).build();
         when(target.getProbeId()).thenReturn(identityProvider.getProbeId(probeInfo));
         when(target.getSerializedIdentifyingFields()).thenReturn(targetIdentifyingValues);
+        when(target.getSpec()).thenReturn(spec);
 
         final DiscoveryRequest request =
             DiscoveryRequest.newBuilder()

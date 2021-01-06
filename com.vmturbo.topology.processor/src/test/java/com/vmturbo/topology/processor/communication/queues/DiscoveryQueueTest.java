@@ -52,6 +52,9 @@ public class DiscoveryQueueTest {
 
     private IDiscoveryQueue discoveryQueue = new DiscoveryQueue(probeId1, DiscoveryType.FULL);
 
+    private IDiscoveryQueue discoveryQueueWithoutProbeId = new DiscoveryQueue(DiscoveryType.FULL);
+
+
     /**
      * Expected exception rule.
      */
@@ -117,7 +120,7 @@ public class DiscoveryQueueTest {
     }
 
     /**
-     * Test that when we add an element that doesn't have the right probe ID, and exception is
+     * Test that when we add an element that doesn't have the right probe ID, an exception is
      * thrown.
      *
      * @throws DiscoveryQueueException when an incompatible element is added to the queue.
@@ -127,6 +130,32 @@ public class DiscoveryQueueTest {
         expectedException.expect(DiscoveryQueueException.class);
         expectedException.expectMessage("Expected probe ID");
         discoveryQueue.add(discoveryQueueElement3);
+    }
+
+    /**
+     * Test that when we add an element that doesn't have the right discovery type, an exception is
+     * thrown.
+     *
+     * @throws DiscoveryQueueException when an incompatible element is added to the queue.
+     */
+    @Test
+    public void testIllegalAddForDiscoveryTypeThrowsException() throws DiscoveryQueueException {
+        expectedException.expect(DiscoveryQueueException.class);
+        expectedException.expectMessage("Expected discovery type FULL");
+        when(discoveryQueueElement3.getDiscoveryType()).thenReturn(DiscoveryType.INCREMENTAL);
+        discoveryQueue.add(discoveryQueueElement3);
+    }
+
+
+    /**
+     * Test that when we add an element that doesn't have the right probe ID, there is no
+     * exception for a queue initialized without a probe id.
+     *
+     * @throws DiscoveryQueueException when an incompatible element is added to the queue.
+     */
+    @Test
+    public void testMultipleProbeIds() throws DiscoveryQueueException {
+        discoveryQueueWithoutProbeId.add(discoveryQueueElement3);
     }
 
     /**

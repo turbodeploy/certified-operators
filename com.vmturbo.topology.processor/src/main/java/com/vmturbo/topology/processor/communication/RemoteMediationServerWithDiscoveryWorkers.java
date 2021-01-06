@@ -92,19 +92,14 @@ public class RemoteMediationServerWithDiscoveryWorkers extends RemoteMediationSe
 
     private boolean supportsIncrementalDiscovery(ContainerInfo containerInfo) {
         return containerInfo.getProbesList().stream()
-                .filter(ProbeInfo::hasIncrementalRediscoveryIntervalSeconds)
-                .findAny()
-                .isPresent();
+                .anyMatch(ProbeInfo::hasIncrementalRediscoveryIntervalSeconds);
     }
 
     @Override
     public void registerTransport(ContainerInfo containerInfo,
                     ITransport<MediationServerMessage, MediationClientMessage> serverEndpoint) {
-        containerInfo.getPersistentTargetIdMapMap()
-                .forEach((probeType, targetIdSet) -> targetIdSet.getTargetIdList()
-                        .forEach(targetId -> discoveryQueue.assignTargetToTransport(
-                                serverEndpoint, probeType, targetId)));
 
+        discoveryQueue.parseContainerInfoWithTransport(containerInfo, serverEndpoint);
         synchronized (transportToTransportWorker) {
             transportToTransportWorker.computeIfAbsent(serverEndpoint, key -> Maps.newHashMap())
                     .put(DiscoveryType.FULL,
@@ -205,14 +200,10 @@ public class RemoteMediationServerWithDiscoveryWorkers extends RemoteMediationSe
                 .setMessageID(messageId)
                 .setDiscoveryRequest(discoveryRequest).build();
 
-        // if this target is related to a persistent probe register the association between the
-        // target and the transport with the discoveryQueue
+        // if this target is related to a persistent probe, or has a channel, register the
+        // association between the  target and the transport with the discoveryQueue.
         probeStore.getProbe(target.getProbeId()).ifPresent(probeInfo -> {
-                if (probeInfo.hasIncrementalRediscoveryIntervalSeconds()) {
-                    discoveryQueue.assignTargetToTransport(transport,
-                            target.getProbeInfo().getProbeType(),
-                            target.getSerializedIdentifyingFields());
-                }
+                    discoveryQueue.assignTargetToTransport(transport, target);
         });
         return sendMessageViaTransport(message, target, responseHandler, transport);
     }

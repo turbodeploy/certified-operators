@@ -25,15 +25,18 @@ import org.mockito.MockitoAnnotations;
 
 import com.vmturbo.communication.ITransport;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
+import com.vmturbo.platform.sdk.common.MediationMessage.ContainerInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.topology.processor.TestProbeStore;
+import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityProviderException;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.discovery.DiscoveryBundle;
+import com.vmturbo.topology.processor.probes.ProbeException;
 import com.vmturbo.topology.processor.targets.Target;
 
 /**
@@ -98,9 +101,11 @@ public class AggregatingDiscoveryQueueTest {
 
     /**
      * Set up Mocks.
+     *
+     * @throws ProbeException if there's an error in registering the probes
      */
     @Before
-    public void setup() {
+    public void setup() throws ProbeException {
         MockitoAnnotations.initMocks(this);
         try {
             when(identityProvider.getProbeId(probeInfo1)).thenReturn(probeId1);
@@ -120,11 +125,18 @@ public class AggregatingDiscoveryQueueTest {
         when(target1.getId()).thenReturn(targetId1);
         when(target2.getId()).thenReturn(targetId2);
         when(target3.getId()).thenReturn(targetId3);
+        TargetSpec defaultSpec = TargetSpec.getDefaultInstance();
+        when(target1.getSpec()).thenReturn(defaultSpec);
+        when(target2.getSpec()).thenReturn(defaultSpec);
+        when(target3.getSpec()).thenReturn(defaultSpec);
+        probeStore.registerNewProbe(probeInfo1, transportVc1);
+        probeStore.registerNewProbe(probeInfo2, transportVc2);
+
         queue = new AggregatingDiscoveryQueueImpl(probeStore);
     }
 
     private IDiscoveryQueueElement addToQueueAndVerify(Target target, DiscoveryType discoveryType,
-            Function<Runnable, DiscoveryBundle> discoveryMethod, boolean runImmediately) {
+            Function<Runnable, DiscoveryBundle> discoveryMethod, boolean runImmediately) throws ProbeException {
         final IDiscoveryQueueElement addedElement = queue.offerDiscovery(target, discoveryType,
                 discoveryMethod, errorHandler, runImmediately);
         assertNotNull(addedElement);
@@ -160,9 +172,10 @@ public class AggregatingDiscoveryQueueTest {
      *
      * @throws InterruptedException if Thread.sleep or Future.get throws it.
      * @throws ExecutionException if Future.get throws it.
+     * @throws ProbeException if a problem occurs with the probe
      */
     @Test
-    public void testAddTwoDifferentProbeTypes() throws InterruptedException, ExecutionException {
+    public void testAddTwoDifferentProbeTypes() throws InterruptedException, ExecutionException, ProbeException {
         // queue two VC discoveries for two different targets
         final IDiscoveryQueueElement firstAdd = addToQueueAndVerify(target1, DiscoveryType.FULL,
                 discoveryMethodMock1, false);
@@ -199,9 +212,10 @@ public class AggregatingDiscoveryQueueTest {
      *
      * @throws InterruptedException if Thread.sleep or Future.get throws it.
      * @throws ExecutionException if Future.get throws it.
+     * @throws ProbeException if a problem occurs with the probe
      */
     @Test
-    public void testIncrementalWithFull() throws InterruptedException, ExecutionException {
+    public void testIncrementalWithFull() throws InterruptedException, ExecutionException, ProbeException {
         final IDiscoveryQueueElement firstFull = addToQueueAndVerify(target1, DiscoveryType.FULL,
                 discoveryMethodMock1, false);
 
@@ -229,9 +243,10 @@ public class AggregatingDiscoveryQueueTest {
      *
      * @throws InterruptedException if Thread.sleep or Future.get throws it.
      * @throws ExecutionException if Future.get throws it.
+     * @throws ProbeException if a problem occurs with the probe
      */
     @Test
-    public void testTargetDeletion() throws InterruptedException, ExecutionException {
+    public void testTargetDeletion() throws InterruptedException, ExecutionException, ProbeException {
         // queue two VC discoveries for two different targets
         final IDiscoveryQueueElement firstAdd = addToQueueAndVerify(target1, DiscoveryType.FULL,
                 discoveryMethodMock1, false);
@@ -253,12 +268,12 @@ public class AggregatingDiscoveryQueueTest {
      *
      * @throws InterruptedException if Thread.sleep or Future.get throws it.
      * @throws ExecutionException if Future.get throws it.
+     * @throws ProbeException if a problem occurs with the probe
      */
     @Test
-    public void testDedicatedTransportForTarget() throws InterruptedException, ExecutionException {
+    public void testDedicatedTransportForTarget() throws InterruptedException, ExecutionException, ProbeException {
         // tie target1 to transportVc1
-        queue.assignTargetToTransport(transportVc1, probeInfo1.getProbeType(),
-                target1IdentifyingFields);
+        queue.assignTargetToTransport(transportVc1, target1);
 
         // this discovery should be added to a queue dedicated to transportVc1
         final IDiscoveryQueueElement firstAdd = addToQueueAndVerify(target1, DiscoveryType.FULL,
@@ -292,29 +307,225 @@ public class AggregatingDiscoveryQueueTest {
     }
 
     /**
+     * Test that we can assign targets with channels specific transports. Once one transport is
+     * removed check that the target can be discovered only by other containers with the same
+     * channel
+     *
+     * @throws InterruptedException if Thread.sleep or Future.get throws it.
+     * @throws ExecutionException if Future.get throws it.
+     * @throws ProbeException if a problem occurs with the probe
+     */
+    @Test
+    public void testDedicatedTransportForTargetWithLabel() throws InterruptedException,
+        ExecutionException, ProbeException {
+        String channel = "channel1";
+
+        queue.parseContainerInfoWithTransport(ContainerInfo.newBuilder().setCommunicationBindingChannel(channel).build(), transportVc1);
+        queue.parseContainerInfoWithTransport(ContainerInfo.newBuilder().setCommunicationBindingChannel(channel).build(), transportVc2);
+
+        TargetSpec specWithLabel =
+            TargetSpec.newBuilder().setProbeId(probeId1).setCommunicationBindingChannel(channel).build();
+        when(target1.getSpec()).thenReturn(specWithLabel);
+
+       addToQueueAndVerify(target1, DiscoveryType.FULL,
+            discoveryMethodMock1, false);
+
+        //It can be taken by transport two since they are on the same channel and the target
+        // hasn't been assigned a transport yet
+        Future<Optional<IDiscoveryQueueElement>> secondTransportGet =
+            callTakeOnThread(transportVc2, Collections.singletonList(probeId1),
+                DiscoveryType.FULL);
+        assertTrue(secondTransportGet.isDone());
+
+
+        queue.assignTargetToTransport(transportVc1, target1);
+
+        addToQueueAndVerify(target1, DiscoveryType.FULL,
+            discoveryMethodMock1, false);
+        // transportVc2 should not be able to get this discovery, since the target has an
+        // assigned transport
+        secondTransportGet =
+            callTakeOnThread(transportVc2, Collections.singletonList(probeId1),
+                DiscoveryType.FULL);
+        assertFalse(secondTransportGet.isDone());
+
+        // test that transportVc1 can get the discovery once transport 1 has been deleted
+        final Future<Optional<IDiscoveryQueueElement>> firstTransportGet =
+            callTakeOnThread(transportVc1,
+            Collections.singletonList(probeId1), DiscoveryType.FULL);
+        assertTrue(firstTransportGet.isDone());
+
+        // when transportVc1 is deleted, queued discovery should be re-assigned to probe ID queue
+        // and transportVc2 should be able to get it now
+        addToQueueAndVerify(target1, DiscoveryType.FULL,
+            discoveryMethodMock1, false);
+        queue.handleTransportRemoval(transportVc1);
+        Thread.sleep(100L);
+        assertTrue(secondTransportGet.isDone());
+    }
+
+    /**
+     * Test that if the channel of the target changes, we properly discover the target with the
+     * transports on the same channel. Even if that target had a persistent connection.
+     *
+     * @throws InterruptedException if Thread.sleep or Future.get throws it.
+     * @throws ExecutionException if Future.get throws it.
+     * @throws ProbeException if a problem occurs with the probe
+     */
+    @Test
+    public void testDiscoveryWithUpdatedChannel() throws InterruptedException,
+        ExecutionException, ProbeException {
+        String channel1 = "channel1";
+        String channel2 = "channel2";
+
+        queue.parseContainerInfoWithTransport(ContainerInfo.newBuilder().setCommunicationBindingChannel(channel1).build(), transportVc1);
+        queue.parseContainerInfoWithTransport(ContainerInfo.newBuilder().setCommunicationBindingChannel(channel2).build(), transportVc2);
+
+        queue.assignTargetToTransport(transportVc1, target1);
+
+        TargetSpec specWithLabel =
+            TargetSpec.newBuilder().setProbeId(probeId1).setCommunicationBindingChannel(channel1).build();
+        when(target1.getSpec()).thenReturn(specWithLabel);
+
+        addToQueueAndVerify(target1, DiscoveryType.FULL,
+            discoveryMethodMock1, false);
+
+        // Should not be taken by transport2, since it is on another channel
+        Future<Optional<IDiscoveryQueueElement>> secondTransportGet =
+            callTakeOnThread(transportVc2, Collections.singletonList(probeId1),
+                DiscoveryType.FULL);
+        assertFalse(secondTransportGet.isDone());
+
+
+        Future<Optional<IDiscoveryQueueElement>> firstTransportGet =
+            callTakeOnThread(transportVc1,
+                Collections.singletonList(probeId1), DiscoveryType.FULL);
+        assertTrue(firstTransportGet.isDone());
+
+        // Update the target to be on channel 2
+        TargetSpec newSpecWithLabel =
+            TargetSpec.newBuilder().setProbeId(probeId1).setCommunicationBindingChannel(channel2).build();
+        when(target1.getSpec()).thenReturn(newSpecWithLabel);
+
+        addToQueueAndVerify(target1, DiscoveryType.FULL,
+            discoveryMethodMock1, false);
+
+       firstTransportGet =
+            callTakeOnThread(transportVc1,
+                Collections.singletonList(probeId1), DiscoveryType.FULL);
+
+        assertFalse(firstTransportGet.isDone());
+        assertTrue(secondTransportGet.isDone());
+    }
+
+    /**
+     * Test that we can assign targets with channels to specific transports. Once one transport is
+     * removed the property of the channel should remain
+     *
+     * @throws InterruptedException if Thread.sleep or Future.get throws it.
+     * @throws ExecutionException if Future.get throws it.
+     * @throws ProbeException if a problem occurs with the probe
+     */
+    @Test(expected = ProbeException.class)
+    public void testNoAvailableTransportsOnChannel() throws InterruptedException,
+        ExecutionException, ProbeException {
+        String channel = "channel1";
+
+        TargetSpec specWithLabel =
+            TargetSpec.newBuilder().setProbeId(probeId1).setCommunicationBindingChannel(channel).build();
+        when(target1.getSpec()).thenReturn(specWithLabel);
+
+        addToQueueAndVerify(target1, DiscoveryType.FULL,
+            discoveryMethodMock1, false);
+    }
+
+    /**
+     * Test that we can assign targets with channels to specific transports. Once one transport is
+     * removed the property of the channel should remain
+     *
+     * @throws ProbeException if a problem occurs with the probe
+     */
+    @Test(expected = ProbeException.class)
+    public void testNoAvailableProbes() throws ProbeException {
+        final long nonRegistereedProbeId = 333L;
+
+        when(target1.getProbeId()).thenReturn(nonRegistereedProbeId);
+        addToQueueAndVerify(target1, DiscoveryType.FULL,
+            discoveryMethodMock1, false);
+    }
+
+    /**
      * Test that when you have two targets with the same identifying field from different probe
      * types, we only keep a persistent queue by transport for the probe that is persistent and that
      * targets from non persistent probe type just go to a probe type queue as usual. This is a
      * concern since the ContainerInfo object just has a set of identifying strings of targets - no
      * probe type information.
+     *
+     * @throws ProbeException if a problem occurs with the probe
      */
     @Test
-    public void testNonPersistentTargetWithSameIdAsPersistentTarget() {
+    public void testNonPersistentTargetWithSameIdAsPersistentTarget() throws ProbeException {
         // tie target1 to transportVc1
-        queue.assignTargetToTransport(transportVc1, probeInfo1.getProbeType(),
-                target1IdentifyingFields);
+        queue.assignTargetToTransport(transportVc1, target1);
 
         // make target3 have same identifying fields as target1
         when(target3.getSerializedIdentifyingFields()).thenReturn(target1IdentifyingFields);
 
         // this discovery should be added to a queue dedicated to transportVc1
         final IDiscoveryQueueElement firstAdd = addToQueueAndVerify(target1, DiscoveryType.FULL,
-                discoveryMethodMock1, false);
+            discoveryMethodMock1, false);
 
         // If we tried to add target3 discovery to the queue created for transportVc1, it would fail
         // and we'd get null back.  Make sure this doesn't happen.
         final IDiscoveryQueueElement secondAdd = addToQueueAndVerify(target3, DiscoveryType.FULL,
-                discoveryMethodMock1, false);
+            discoveryMethodMock1, false);
+    }
+
+    /**
+     * Test that we can assign channels to specific targets and that those constraint are properly
+     * respected. Discoveries on those targets  should be only done with transports with the same
+     * channel.
+     *
+     * @throws InterruptedException if Thread.sleep or Future.get throws it.
+     * @throws ExecutionException if Future.get throws it.
+     * @throws ProbeException if a problem occurs with the probe
+     */
+    @Test
+    public void testTargetWithChannel() throws InterruptedException, ExecutionException, ProbeException {
+        // tie target1 to transportVc1
+        final String channel = "channel";
+        TargetSpec specWithLabel =
+            TargetSpec.newBuilder().setProbeId(probeId1).setCommunicationBindingChannel(channel).build();
+        when(target1.getSpec()).thenReturn(specWithLabel);
+
+        queue.parseContainerInfoWithTransport(ContainerInfo.newBuilder().setCommunicationBindingChannel(channel).build(), transportVc1);
+
+        final IDiscoveryQueueElement firstAdd = addToQueueAndVerify(target1, DiscoveryType.FULL,
+            discoveryMethodMock1, false);
+
+        // transportVc2 should not be able to get this discovery
+        final Future<Optional<IDiscoveryQueueElement>> secondTransportGet =
+            callTakeOnThread(transportVc2, Collections.singletonList(probeId1),
+                DiscoveryType.FULL);
+        assertFalse(secondTransportGet.isDone());
+
+        // test that transportVc1 can get the discovery
+        final Future<Optional<IDiscoveryQueueElement>> firstTransportGet = callTakeOnThread(transportVc1,
+            Collections.singletonList(probeId1), DiscoveryType.FULL);
+        assertTrue(firstTransportGet.isDone());
+        assertEquals(firstAdd, firstTransportGet.get().get());
+
+        // add target1 again - it should still be on the queue dedicated to transportVc1
+        final IDiscoveryQueueElement reAddTarget1 = addToQueueAndVerify(target1, DiscoveryType.FULL,
+            discoveryMethodMock1, false);
+
+        // transportVc2 can still not get it
+        assertFalse(secondTransportGet.isDone());
+
+        // when transportVc1 is deleted, transportVc2 should still not get it
+        queue.handleTransportRemoval(transportVc1);
+        Thread.sleep(100L);
+        assertFalse(secondTransportGet.isDone());
     }
 
     private ProbeInfo createProbeInfo(@Nonnull String probeType,

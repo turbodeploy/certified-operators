@@ -22,6 +22,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.communication.ITransport;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
+import com.vmturbo.platform.sdk.common.MediationMessage.ContainerInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.topology.processor.communication.queues.AggregatingDiscoveryQueue;
@@ -114,9 +115,8 @@ public class TestAggregatingDiscoveryQueue implements AggregatingDiscoveryQueue 
 
     @Override
     public void assignTargetToTransport(
-            @Nonnull ITransport<MediationServerMessage, MediationClientMessage> transport,
-            @Nonnull String probeType,
-            @Nonnull String targetIdentifiers) {
+        @Nonnull ITransport<MediationServerMessage, MediationClientMessage> transport,
+        @Nonnull Target target) {
 
     }
 
@@ -181,5 +181,12 @@ public class TestAggregatingDiscoveryQueue implements AggregatingDiscoveryQueue 
                     discoveryType);
         }
         return element;
+    }
+
+    @Override
+    public void parseContainerInfoWithTransport(@Nonnull final ContainerInfo containerInfo,
+                                                final ITransport<MediationServerMessage,
+                                       MediationClientMessage> serverEndpoint) {
+
     }
 }

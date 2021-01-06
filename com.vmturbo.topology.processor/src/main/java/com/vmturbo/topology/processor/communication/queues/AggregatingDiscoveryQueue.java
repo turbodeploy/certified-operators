@@ -10,10 +10,12 @@ import javax.annotation.concurrent.ThreadSafe;
 
 import com.vmturbo.communication.ITransport;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
+import com.vmturbo.platform.sdk.common.MediationMessage.ContainerInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.discovery.DiscoveryBundle;
+import com.vmturbo.topology.processor.probes.ProbeException;
 import com.vmturbo.topology.processor.targets.Target;
 
 /**
@@ -48,13 +50,14 @@ public interface AggregatingDiscoveryQueue {
      * true.
      * @return {@link IDiscoveryQueueElement} representing the just queued discovery if it was added
      * or else the existing queued element if there was already a discovery queued for this target.
+     * @throws ProbeException if a problem occurs with the probe
      */
     IDiscoveryQueueElement offerDiscovery(
             @Nonnull Target target,
             @Nonnull DiscoveryType discoveryType,
             @Nonnull Function<Runnable, DiscoveryBundle> prepareDiscoveryInformation,
             @Nonnull BiConsumer<Discovery, Exception> errorHandler,
-            boolean runImmediately);
+            boolean runImmediately) throws ProbeException;
 
     /**
      * Get the next discovery suitable for the transport in question. If no discovery is available,
@@ -74,16 +77,24 @@ public interface AggregatingDiscoveryQueue {
             throws InterruptedException;
 
     /**
-     * Register that the given transport will handle the given target.
+     * Parse information from a {@link ContainerInfo} and the corresponding {@link ITransport}.
+     *
+     * @param containerInfo to parse
+     * @param serverEndpoint that is connected to the {@link ContainerInfo}
+     */
+    void parseContainerInfoWithTransport(
+        @Nonnull ContainerInfo containerInfo, ITransport<MediationServerMessage, MediationClientMessage> serverEndpoint);
+
+    /**
+     * Register that the given transport will handle the given target. Check if the transport has
+     * a label and/or supports incremental discoveries.
      *
      * @param transport the transport that should exclusively discover the target.
-     * @param probeType the probe type of the target.
-     * @param targetIdentifiers String made up of target identifiers that identify the target.
+     * @param target String made up of target identifiers that identify the target.
      */
     void assignTargetToTransport(
-            @Nonnull ITransport<MediationServerMessage, MediationClientMessage> transport,
-            @Nonnull String probeType,
-            @Nonnull String targetIdentifiers);
+        @Nonnull ITransport<MediationServerMessage, MediationClientMessage> transport,
+        @Nonnull Target target);
 
     /**
      * Called when a target is deleted.  Queue should remove all queued discoveries for the target.

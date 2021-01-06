@@ -18,7 +18,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 
 /**
- * Queue designed to handle single probe type and DiscoveryType. It ensures that each target only
+ * Queue designed to handle single discoveryType. It ensures that each target only
  * has one related element in the queue. This class is not thread safe.
  */
 @NotThreadSafe
@@ -26,7 +26,7 @@ public class DiscoveryQueue implements IDiscoveryQueue {
 
     private final Logger logger = LogManager.getLogger();
 
-    private final long probeId;
+    private final Optional<Long> probeId;
 
     private final DiscoveryType discoveryType;
 
@@ -41,20 +41,33 @@ public class DiscoveryQueue implements IDiscoveryQueue {
      * @param discoveryType {@link DiscoveryType} supported by this queue.
      */
     public DiscoveryQueue(long probeId, DiscoveryType discoveryType) {
-        this.probeId = probeId;
         this.discoveryType = discoveryType;
+        this.probeId = Optional.of(probeId);
+    }
+
+    /**
+     * Create a {@link DiscoveryQueue} to handle discoveries of a certain type. This queue can
+     * hold discoveries from different probe types.
+     *
+     * @param discoveryType {@link DiscoveryType} supported by this queue.
+     */
+    public DiscoveryQueue(DiscoveryType discoveryType) {
+        this.discoveryType = discoveryType;
+        this.probeId = Optional.empty();
     }
 
     @Override
     public IDiscoveryQueueElement add(@Nonnull IDiscoveryQueueElement element)
             throws DiscoveryQueueException {
-        if (element.getDiscoveryType() != discoveryType
-                || element.getTarget().getProbeId() != probeId) {
-            throw new DiscoveryQueueException("Expected probe ID " + probeId
-                    + " and discovery type " + discoveryType + ", but "
-                    + "actual probe ID was " + element.getTarget().getProbeId()
-                    + " and discovery type was " + element.getDiscoveryType());
+        if (element.getDiscoveryType() != discoveryType) {
+            throw new DiscoveryQueueException("Expected discovery type " + discoveryType + ", but "
+                    + " actual discovery type was " + element.getDiscoveryType());
         }
+        if (probeId.isPresent() && probeId.get() != element.getTarget().getProbeId()) {
+            throw new DiscoveryQueueException("Expected probe ID " + probeId.get() + ", but "
+                + "actual probe ID was " + element.getTarget().getProbeId());
+        }
+
         final long targetId = element.getTarget().getId();
         if (targetIdMap.containsKey(targetId)) {
             IDiscoveryQueueElement existingElement = targetIdMap.get(targetId);

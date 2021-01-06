@@ -33,6 +33,7 @@ import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.TargetUpdateRequest;
 import com.vmturbo.topology.processor.TestProbeStore;
+import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
 import com.vmturbo.topology.processor.communication.ExpiringMessageHandler.HandlerStatus;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityProviderImpl;
@@ -101,12 +102,13 @@ public class RemoteMediationServerTest {
         Mockito.when(mockOperationMessageHandler.expirationTime()).thenReturn(Long.MAX_VALUE);
         target1 = mock(Target.class);
         target2 = mock(Target.class);
+        final TargetSpec spec = TargetSpec.newBuilder().setProbeId(probeId).build();
         Mockito.when(target1.getProbeId()).thenReturn(probeId);
-        Mockito.when(target2.getProbeId()).thenReturn(probeId);
+        Mockito.when(target1.getSpec()).thenReturn(spec);
         Mockito.when(target1.getSerializedIdentifyingFields()).thenReturn(targetIdentifyingValues1);
+        Mockito.when(target2.getProbeId()).thenReturn(probeId);
         Mockito.when(target2.getSerializedIdentifyingFields()).thenReturn(targetIdentifyingValues2);
-
-
+        Mockito.when(target2.getSpec()).thenReturn(spec);
     }
 
     /**

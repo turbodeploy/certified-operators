@@ -36,6 +36,7 @@ import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
+import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
 import com.vmturbo.topology.processor.communication.queues.AggregatingDiscoveryQueue;
 import com.vmturbo.topology.processor.communication.queues.AggregatingDiscoveryQueueImpl;
 import com.vmturbo.topology.processor.communication.queues.IDiscoveryQueueElement;
@@ -43,6 +44,7 @@ import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.discovery.DiscoveryBundle;
 import com.vmturbo.topology.processor.operation.discovery.DiscoveryMessageHandler;
 import com.vmturbo.topology.processor.probeproperties.ProbePropertyStore;
+import com.vmturbo.topology.processor.probes.ProbeException;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.targets.Target;
 
@@ -130,10 +132,13 @@ public class RemoteMediationServerWithDiscoveryWorkersTest {
         when(discoveryMethod1.apply(any(Runnable.class))).thenReturn(discoveryBundle1);
         when(discoveryMethod2.apply(any(Runnable.class))).thenReturn(discoveryBundle2);
         when(target1.getProbeId()).thenReturn(probeIdVc);
+        TargetSpec defaultSpec = TargetSpec.getDefaultInstance();
+        when(target1.getSpec()).thenReturn(defaultSpec);
         when(target1.getId()).thenReturn(target1Id);
         when(target1.getSerializedIdentifyingFields()).thenReturn(target1IdFields);
         when(target1.getProbeInfo()).thenReturn(probeInfoVc1);
         when(target2.getProbeId()).thenReturn(probeIdVc);
+        when(target2.getSpec()).thenReturn(defaultSpec);
         when(target2.getId()).thenReturn(target2Id);
         when(target2.getSerializedIdentifyingFields()).thenReturn(target2IdFields);
         when(target2.getProbeInfo()).thenReturn(probeInfoVc1);
@@ -152,9 +157,10 @@ public class RemoteMediationServerWithDiscoveryWorkersTest {
      * has 1 permit.
      *
      * @throws InterruptedException if Thread.sleep is interrupted.
+     * @throws ProbeException if a problem occurs with the probe
      */
     @Test
-    public void testBasicFunctionality() throws InterruptedException {
+    public void testBasicFunctionality() throws InterruptedException, ProbeException {
         remoteMediationServer.registerTransport(containerInfo, transport1);
         when(discoveryBundle1.getDiscovery()).thenReturn(discovery1);
         queue.offerDiscovery(target1, DiscoveryType.FULL, discoveryMethod1, errorHandler1, false);
@@ -191,9 +197,10 @@ public class RemoteMediationServerWithDiscoveryWorkersTest {
      *
      * @throws InterruptedException if Thread.sleep is interrupted.
      * @throws CommunicationException if transport.send throws it.
+     * @throws ProbeException if a problem occurs with the probe
      */
     @Test
-    public void testMultipleWorkers() throws InterruptedException, CommunicationException {
+    public void testMultipleWorkers() throws InterruptedException, CommunicationException, ProbeException {
         setupBundles();
         queue.offerDiscovery(target1, DiscoveryType.FULL, discoveryMethod1, errorHandler1, false);
         queue.offerDiscovery(target2, DiscoveryType.FULL, discoveryMethod2, errorHandler2, false);
@@ -237,9 +244,10 @@ public class RemoteMediationServerWithDiscoveryWorkersTest {
      * it is actively polling for discoveries off the queue.
      *
      * @throws InterruptedException if Thread.sleep is interrupted.
+     * @throws ProbeException if a problem occurs with the probe
      */
     @Test
-    public void testTransportClosed() throws InterruptedException {
+    public void testTransportClosed() throws InterruptedException, ProbeException {
         setupBundles();
         remoteMediationServer.registerTransport(containerInfo, transport1);
         // sleep to let the transport worker thread start
@@ -263,9 +271,10 @@ public class RemoteMediationServerWithDiscoveryWorkersTest {
      * transport worker is clsoed.
      *
      * @throws InterruptedException when Thread.sleep is interrupted.
+     * @throws ProbeException if a problem occurs with the probe
      */
     @Test
-    public void testTransportClosesBeforeRegistered() throws InterruptedException {
+    public void testTransportClosesBeforeRegistered() throws InterruptedException, ProbeException {
         setupBundles();
         // simulate transport already being closed by the time it is registered
         doThrow(new IllegalStateException("transport closed"))
