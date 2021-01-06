@@ -135,6 +135,61 @@ public class SuspensionTest {
     }
 
     /**
+     * Test suspending a trader hosting a ResizeThroughSupplier consumer while the trader trader has an overutilized commodity.
+     */
+    @Test
+    public void suspensionDecisionsWithOverhead() {
+        Economy economy = new Economy();
+        // adding 1 suspendable trader
+        Trader seller = economy.addTrader(PM_TYPE, TraderState.ACTIVE, PM_SMALL);
+        seller.setDebugInfoNeverUseInCode("Provider");
+        seller.getSettings().setCanAcceptNewCustomers(true);
+        seller.getCommoditiesSold().stream()
+                .forEach(cs -> cs.setCapacity(CAPACITY)
+                        .getSettings().setUtilizationUpperBound(UTILIZATION_UPPER_BOUND));
+        // mem overhead on provider
+        seller.getCommoditySold(MEM).setQuantity(CAPACITY * 2);
+
+        // mock numConsumers with a non-zero number so that this commodity is considered in revenue calculation.
+        assertEquals(seller.getCommoditySold(MEM).getNumConsumers(), 0);
+        assertEquals(seller.getCommoditySold(CPU).getNumConsumers(), 0);
+        seller.getCommoditySold(MEM).setNumConsumers(1);
+
+        seller.getSettings().setSuspendable(true);
+        seller.getSettings().setMinDesiredUtil(0.6).setMaxDesiredUtil(0.7);
+
+        Trader consumer = economy.addTrader(VM_TYPE, TraderState.ACTIVE, EMPTY);
+        consumer.setDebugInfoNeverUseInCode("Consumer").getSettings().setSuspendable(false);
+        // buyer that is RTS-true can be ignored during suspension and is movable false.
+        consumer.getSettings().setResizeThroughSupplier(true).setGuaranteedBuyer(true);
+        ShoppingList consumerSl = economy.addBasketBought(consumer, new Basket(CPU)).setMovable(false);
+        for (int index = 0; index < consumerSl.getBasket().size(); index++) {
+            consumerSl.setQuantity(index, 10);
+        }
+
+        // placing the consumerSl on the host.
+        (new Move(economy, consumerSl, seller)).take();
+        // assert numConsumers changed to 1 for CPU after move
+        assertEquals(seller.getCommoditySold(CPU).getNumConsumers(), 1);
+
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
+        Ledger ledger = new Ledger(economy);
+
+        Suspension suspension = new Suspension(SuspensionsThrottlingConfig.DEFAULT);
+        suspension.suspensionDecisions(economy, ledger);
+
+        // verify that we do not generate suspension of the provider when there is an overutilized commodity.
+        assertTrue(seller.getState().isActive());
+
+        seller.getCommoditySold(MEM).setNumConsumers(0);
+
+        suspension.suspensionDecisions(economy, ledger);
+
+        // verify that we genarate suspension of the provider even though there is an overutilized commodity.
+        assertTrue(!seller.getState().isActive());
+    }
+
+    /**
      * Verify that we do not suspend the only seller.
      */
     @Test
