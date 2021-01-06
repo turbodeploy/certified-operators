@@ -67,6 +67,7 @@ import com.vmturbo.common.protobuf.topology.AnalysisDTOMoles.AnalysisServiceMole
 import com.vmturbo.common.protobuf.topology.AnalysisServiceGrpc;
 import com.vmturbo.components.api.test.GrpcRuntimeExceptionMatcher;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.repository.api.RepositoryClient;
 
 /**
  * Unit test for {@link PlanRpcService}.
@@ -136,6 +137,7 @@ public class PlanTest {
             PlanReservedInstanceServiceGrpc.newBlockingStub(grpcDependenciesServer.getChannel()),
             ReservedInstanceBoughtServiceGrpc.newBlockingStub(grpcDependenciesServer.getChannel()),
             SupplyChainServiceGrpc.newBlockingStub(grpcDependenciesServer.getChannel()),
+                mock(RepositoryClient.class),
             1, TimeUnit.MILLISECONDS, 777L);
 
         planGrpcServer = GrpcTestServer.newServer(planRpcService);

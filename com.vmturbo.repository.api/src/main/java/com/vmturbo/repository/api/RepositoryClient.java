@@ -15,8 +15,10 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 
 import io.grpc.Channel;
@@ -266,6 +268,85 @@ public class RepositoryClient {
             }
         }
         return scopeBusinessAccounts;
+    }
+
+    /**
+     * Given a business account OID, find all OIDs of related accounts.
+     * - If the given account is a master account, return the master account OID together with all
+     *   sub-accounts.
+     * - If the given account is a sub-account, return the OID of the master account and all
+     *   sub-accounts of the master account.
+     * - For Azure subscription, related accounts include all subscriptions in the same EA account.
+     * - If the account has standalone account (i.e. no master or sub-accounts), return the OID of
+     *   the given account.
+     *
+     * @param businessAccountOid OID of a business account
+     * @return a set of all related business accounts
+     */
+    public Set<Long> getAllRelatedBusinessAccountOids(final long businessAccountOid) {
+        Set<Long> relatedAccounts = new HashSet<>();
+        final List<TopologyEntityDTO> allBusinessAccounts = getAllBusinessAccounts(realtimeTopologyContextId);
+
+        // First check if the given account is a master account.
+        Set<Long> subAccounts = getSubAccounts(businessAccountOid, allBusinessAccounts);
+        if (!subAccounts.isEmpty()) {
+            relatedAccounts.addAll(subAccounts);
+        } else {
+            // Next check if the account belong to a master account.
+            Map<Long, Long> subAccountToMasterAccountMap = new HashMap<>();
+            Multimap<Long, Long> masterAccountToSubAccounts = HashMultimap.create();
+            for (TopologyEntityDTO account : allBusinessAccounts) {
+                account.getConnectedEntityListList().stream()
+                        .filter(a -> a.getConnectedEntityType() == EntityType.BUSINESS_ACCOUNT_VALUE)
+                        .forEach(a -> {
+                            subAccountToMasterAccountMap.put(a.getConnectedEntityId(), account.getOid());
+                            masterAccountToSubAccounts.put(account.getOid(), a.getConnectedEntityId());
+                        });
+            }
+
+            Long masterAccountOid = subAccountToMasterAccountMap.get(businessAccountOid);
+            if (masterAccountOid != null) {
+                relatedAccounts.addAll(masterAccountToSubAccounts.get(masterAccountOid));
+                if (!relatedAccounts.isEmpty()) {
+                    relatedAccounts.add(masterAccountOid);
+                }
+            }
+        }
+
+        if (relatedAccounts.isEmpty()) {
+            // Azure subscriptions are not structured as master accounts and sub-accounts. Related
+            // accounts are all subscriptions in the same EA account.
+            //all Business Account oid -> EA sibling oids (including key oid)
+            Map<Long, Set<Long>> accountToSiblingsMap = getBaOidToEaSiblingAccounts(allBusinessAccounts);
+            Set<Long> siblingAccounts = accountToSiblingsMap.get(businessAccountOid);
+            if (siblingAccounts != null) {
+                relatedAccounts.addAll(siblingAccounts);
+            }
+        }
+
+        // Include the given account OID.
+        relatedAccounts.add(businessAccountOid);
+
+        return relatedAccounts;
+    }
+
+    /**
+     * Return the account OIDs of sub-accounts (if any) of a given account OID.
+     *
+     * @param businessAccountOid account OID
+     * @param allBusinessAccounts List of all business accounts
+     * @return a set of account OIDs
+     */
+    private Set<Long> getSubAccounts(final long businessAccountOid,
+                                     final List<TopologyEntityDTO> allBusinessAccounts) {
+        return allBusinessAccounts.stream()
+                .filter(a -> a.getOid() == businessAccountOid)
+                .findFirst()
+                .map(a -> a.getConnectedEntityListList().stream()
+                        .filter(c -> c.getConnectedEntityType() == EntityType.BUSINESS_ACCOUNT_VALUE)
+                        .map(ConnectedEntity::getConnectedEntityId)
+                        .collect(Collectors.toSet()))
+                .orElse(Collections.emptySet());
     }
 
     /**

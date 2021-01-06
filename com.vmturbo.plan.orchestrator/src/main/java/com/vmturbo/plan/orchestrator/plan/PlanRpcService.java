@@ -63,6 +63,7 @@ import com.vmturbo.components.api.RetriableOperation;
 import com.vmturbo.components.api.RetriableOperation.RetriableOperationFailedException;
 import com.vmturbo.plan.orchestrator.api.PlanUtils;
 import com.vmturbo.plan.orchestrator.project.PlanProjectDao;
+import com.vmturbo.repository.api.RepositoryClient;
 
 /**
  * Plan gRPC service implementation.
@@ -97,6 +98,8 @@ public class PlanRpcService extends PlanServiceImplBase {
 
     private final SupplyChainServiceBlockingStub supplyChainService;
 
+    private final RepositoryClient repositoryClient;
+
     private Long realtimeTopologyContextId;
 
     private final ApplicationContext applicationContext;
@@ -113,6 +116,7 @@ public class PlanRpcService extends PlanServiceImplBase {
                           @Nonnull final PlanReservedInstanceServiceBlockingStub planRIService,
                           @Nonnull final ReservedInstanceBoughtServiceBlockingStub reservedInstanceBoughtService,
                           @Nonnull final SupplyChainServiceBlockingStub supplyChainService,
+                          @Nonnull final RepositoryClient repositoryClient,
                           final long startAnalysisRetryTimeout,
                           @Nonnull final TimeUnit startAnalysisRetryTimeUnit,
                           final Long realtimeTopologyContextId) {
@@ -130,6 +134,7 @@ public class PlanRpcService extends PlanServiceImplBase {
         this.supplyChainService = supplyChainService;
         this.startAnalysisRetryMs = startAnalysisRetryTimeUnit.toMillis(startAnalysisRetryTimeout);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
+        this.repositoryClient = repositoryClient;
     }
 
     @Override
@@ -141,7 +146,8 @@ public class PlanRpcService extends PlanServiceImplBase {
             PlanReservedInstanceClient planRIClient = new PlanReservedInstanceClient(
                          planRIService, reservedInstanceBoughtService, realtimeTopologyContextId);
             planRIClient.savePlanIncludedCoupons(plan, PlanRpcServiceUtil.getRIRequestScopeSeedIds(plan,
-                    this.groupServiceClient, this.repositoryServiceClient, this.supplyChainService));
+                    this.groupServiceClient, this.repositoryServiceClient, this.supplyChainService),
+                    repositoryClient);
             logger.info("Plan {} successfully created", plan.getPlanId());
             responseObserver.onNext(plan);
             responseObserver.onCompleted();

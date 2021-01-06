@@ -305,6 +305,11 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
                     .regionFilter(request.getRegionFilter())
                     .availabilityZoneFilter(request.getZoneFilter())
                     .accountFilter(request.getAccountFilter())
+                    .riBoughtFilter(Cost.ReservedInstanceBoughtFilter
+                            .newBuilder()
+                            .setExclusionFilter(false)
+                            .addAllRiBoughtId(request.getRiFilter().getRiIdList())
+                            .build())
                     .build();
             List<ReservedInstanceBought> reservedInstancesBought =
                            reservedInstanceBoughtStore

@@ -3,15 +3,27 @@ package com.vmturbo.plan.orchestrator.plan;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
+
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
 
+import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByFilterRequest;
 import com.vmturbo.common.protobuf.cost.CostMoles.PlanReservedInstanceServiceMole;
 import com.vmturbo.common.protobuf.cost.CostMoles.ReservedInstanceBoughtServiceMole;
 import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc;
@@ -23,9 +35,14 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.IncludedCoupons;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.RISetting;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyMigration;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyMigration.DestinationEntityType;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyMigration.MigrationReference;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.repository.api.RepositoryClient;
 
 /**
  * Test class for the PlanReservedInstanceClient.
@@ -131,5 +148,56 @@ public class PlanReservedInstanceClientTest {
        assertFalse(planReservedInstanceClient.parsePlanIncludedCoupons(
                                        planInstanceBuilder3.build(), returnedIncludedRiOids));
        assertEquals(0, returnedIncludedRiOids.size());
+    }
+
+    /**
+     * Method savePlanIncludedCoupons calls repository API getReservedInstanceBoughtByFilter to
+     * get a list of RIs. Verify account, region and RI filters are included in the request if the
+     * corresponding data is present in the plan scenario.
+     */
+    @Test
+    public void testSavePlanIncludedCoupons() {
+        Long accountOid = 1234L;
+        Set<Long> relatedAccounts = ImmutableSet.of(1234L, 1235L, 1236L);
+        Long regionOid = 2222L;
+        List<Long> riOidList = ImmutableList.of(11L, 12L, 13L);
+        PlanInstance planInstance =
+                PlanInstance.newBuilder().setPlanId(1L).setStatus(PlanStatus.QUEUED)
+                        .setScenario(Scenario.newBuilder().setScenarioInfo(ScenarioInfo.newBuilder()
+                                .setType(StringConstants.CLOUD_MIGRATION_PLAN)
+                                .addChanges(ScenarioChange.newBuilder()
+                                        .setRiSetting(RISetting.newBuilder().build()))
+                                .addChanges(ScenarioChange.newBuilder()
+                                        .setPlanChanges(PlanChanges.newBuilder()
+                                                .setIncludedCoupons(IncludedCoupons.newBuilder()
+                                                        .addAllIncludedCouponOids(riOidList).build())))
+                                .addChanges(ScenarioChange.newBuilder()
+                                        .setTopologyMigration(TopologyMigration.newBuilder()
+                                                .setDestinationEntityType(DestinationEntityType.VIRTUAL_MACHINE)
+                                                .addDestination(MigrationReference.newBuilder().setEntityType(EntityType.REGION_VALUE).setOid(regionOid).build())
+                                                .setDestinationAccount(MigrationReference.newBuilder()
+                                                        .setOid(accountOid).build()).build())).build())).build();
+
+        RepositoryClient repositoryClient = mock(RepositoryClient.class);
+        when(repositoryClient.getAllRelatedBusinessAccountOids(accountOid)).thenReturn(relatedAccounts);
+
+        planReservedInstanceClient.savePlanIncludedCoupons(planInstance, Collections.emptyList(), repositoryClient);
+
+        verify(testRiBoughtService, times(1)).getReservedInstanceBoughtByFilter(any());
+
+        ArgumentCaptor<GetReservedInstanceBoughtByFilterRequest> riBoughtByFilterRequestCaptor
+                = ArgumentCaptor.forClass(GetReservedInstanceBoughtByFilterRequest.class);
+
+        verify(testRiBoughtService).getReservedInstanceBoughtByFilter(riBoughtByFilterRequestCaptor.capture());
+
+        assertTrue(riBoughtByFilterRequestCaptor.getValue().hasAccountFilter());
+        assertEquals(3, riBoughtByFilterRequestCaptor.getValue().getAccountFilter().getAccountIdCount());
+
+        assertTrue(riBoughtByFilterRequestCaptor.getValue().hasRegionFilter());
+        assertEquals(1, riBoughtByFilterRequestCaptor.getValue().getRegionFilter().getRegionIdCount());
+        assertEquals(regionOid, new Long(riBoughtByFilterRequestCaptor.getValue().getRegionFilter().getRegionId(0)));
+
+        assertTrue(riBoughtByFilterRequestCaptor.getValue().hasRiFilter());
+        assertEquals(riOidList, riBoughtByFilterRequestCaptor.getValue().getRiFilter().getRiIdList());
     }
 }

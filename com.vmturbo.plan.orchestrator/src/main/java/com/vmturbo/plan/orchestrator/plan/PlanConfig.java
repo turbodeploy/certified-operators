@@ -152,6 +152,7 @@ public class PlanConfig {
             planReservedInstanceService(),
             boughtRIService(),
             supplyChainRpcService(),
+            repositoryClientConfig.repositoryClient(),
             startAnalysisRetryTimeoutMin,
             TimeUnit.MINUTES,
             realtimeTopologyContextId);

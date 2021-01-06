@@ -46,6 +46,7 @@ import com.vmturbo.common.protobuf.topology.AnalysisServiceGrpc;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.setting.ConfigurableActionSettings;
+import com.vmturbo.repository.api.RepositoryClient;
 
 public class PlanRpcServiceTest {
 
@@ -84,6 +85,7 @@ public class PlanRpcServiceTest {
             PlanReservedInstanceServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             ReservedInstanceBoughtServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             SupplyChainServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+            mock(RepositoryClient.class),
             1, TimeUnit.SECONDS, realtimeTopologyContextId );
     }
 

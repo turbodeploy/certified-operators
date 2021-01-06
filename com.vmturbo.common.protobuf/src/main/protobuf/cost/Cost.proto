@@ -673,8 +673,14 @@ message AccountFilter {
     optional AccountFilterType account_filter_type = 2 [default = PURCHASED_BY];
 
     enum  AccountFilterType {
+        // Filter for entities (e.g. RIs) purchased by the accounts in this filter.
         PURCHASED_BY = 0;
+
+        // Filter for RIs that covers VMs of the given account. The RIs can be purchased under
+        // accounts that are different from the account IDs in this filter.
         USED_BY = 1;
+
+        // Union of the previous two types.
         USED_AND_PURCHASED_BY = 2;
     }
 }
@@ -707,6 +713,7 @@ message GetReservedInstanceBoughtByFilterRequest {
     optional RegionFilter region_filter = 1;
     optional AvailabilityZoneFilter zone_filter = 2;
     optional AccountFilter account_filter = 3;
+    optional RiFilter ri_filter = 4;
     optional bool exclude_undiscovered_unused = 5 [default = false];
 }
 

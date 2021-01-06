@@ -1,8 +1,10 @@
 package com.vmturbo.plan.orchestrator.plan;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -12,20 +14,24 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByIdRequest;
+import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
+import com.vmturbo.common.protobuf.cost.Cost.AccountFilter.AccountFilterType;
+import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByFilterRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtForScopeRequest;
+import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.RiFilter;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest;
 import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc.PlanReservedInstanceServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.IncludedCoupons;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyMigration.MigrationReference;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
-
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.repository.api.RepositoryClient;
 
 /**
  * Sends commands to the Plan Reserved Instance Service using gRPC.
@@ -66,9 +72,11 @@ public class PlanReservedInstanceClient {
      * @param planInstance The plan instance.
      * @param seedEntities OIDs of entities that are in the scope of this plan. If a group was
      *                     chosen as scope, then we pass in the resolved group member OIDs here.
+     * @param repositoryClient repository client
      */
-     public void savePlanIncludedCoupons(@Nonnull PlanInstance planInstance,
-                                         @Nonnull final List<Long> seedEntities) {
+    public void savePlanIncludedCoupons(@Nonnull PlanInstance planInstance,
+                                        @Nonnull final List<Long> seedEntities,
+                                        @Nonnull final RepositoryClient repositoryClient) {
         List<Long> includedCouponOidList = new ArrayList<>();
         boolean includeAll = parsePlanIncludedCoupons(planInstance, includedCouponOidList);
         Long topologyContextId = planInstance.getPlanId();
@@ -85,19 +93,74 @@ public class PlanReservedInstanceClient {
                                     .addAllScopeSeedOids(seedEntities)
                                     .build()).getReservedInstanceBoughtList();
             insertPlanIncludedCoupons(allRiBought, topologyContextId);
-        } else if (!includedCouponOidList.isEmpty()) {  //include the selected RIs in scope.
+        } else {
+            final GetReservedInstanceBoughtByFilterRequest.Builder requestBuilder =
+                    GetReservedInstanceBoughtByFilterRequest.newBuilder();
+            // This set will store the destination account, if it is specified in the scenario.
+            final Set<Long> accountSet = new HashSet<>();
+            if (planInstance.hasScenario() && planInstance.getScenario().hasScenarioInfo()) {
+                planInstance.getScenario().getScenarioInfo().getChangesList().stream()
+                        .filter(ScenarioChange::hasTopologyMigration)
+                        .map(ScenarioChange::getTopologyMigration)
+                        .findFirst()
+                        .ifPresent(topologyMigration -> {
+                            if (topologyMigration.hasDestinationAccount()
+                                    && topologyMigration.getDestinationAccount().hasOid()) {
+                                final long accountOid = topologyMigration.getDestinationAccount().getOid();
+                                accountSet.add(accountOid);
+                                // Filter for RIs purchased by the accounts in the same billing family (AWS)
+                                // or in the same Azure EA account.
+                                Set<Long> relatedAccounts = repositoryClient.getAllRelatedBusinessAccountOids(accountOid);
+                                requestBuilder.setAccountFilter(AccountFilter.newBuilder()
+                                        .setAccountFilterType(AccountFilterType.PURCHASED_BY)
+                                        .addAllAccountId(relatedAccounts).build());
+                                logger.info("Plan {} will use RIs bought by the following accounts: {}",
+                                        topologyContextId, relatedAccounts);
+                            }
 
-            final GetReservedInstanceBoughtByIdRequest.Builder requestBuilder =
-                                                              GetReservedInstanceBoughtByIdRequest
-                                                                              .newBuilder();
+                            topologyMigration.getDestinationList().stream()
+                                    .filter(d -> d.getEntityType() == EntityType.REGION_VALUE)
+                                    .findFirst()
+                                    .map(MigrationReference::getOid)
+                                    .ifPresent(regionOid -> requestBuilder.setRegionFilter(
+                                            RegionFilter.newBuilder().addRegionId(regionOid).build()));
+                        });
+            }
+
+            if (!includedCouponOidList.isEmpty()) {
+                requestBuilder.setRiFilter(RiFilter.newBuilder().addAllRiId(includedCouponOidList));
+            }
             List<ReservedInstanceBought> riIncluded = riBoughtService
-                            .getReservedInstanceBoughtById(requestBuilder
-                                            .setRiFilter(RiFilter.newBuilder()
-                                                            .addAllRiId(includedCouponOidList))
-                                            .build())
-                            .getReservedInstanceBoughtList();
-            insertPlanIncludedCoupons(riIncluded, topologyContextId);
-        } // else include no RIs; hence save none.
+                    .getReservedInstanceBoughtByFilter(requestBuilder.build())
+                    .getReservedInstanceBoughtsList();
+
+            // If accounts were considered when filtering RIs, RIs bought by related accounts will
+            // be return. However, if an RI is not bought by the destination account, and it is not
+            // a "shared" RI, it need to be removed from the result.
+            if (!accountSet.isEmpty()) {
+                riIncluded = riIncluded.stream()
+                        .filter(boughtReservedInstance -> {
+                            if (!boughtReservedInstance.hasReservedInstanceBoughtInfo()) {
+                                return false;
+                            }
+                            ReservedInstanceBought.ReservedInstanceBoughtInfo reservedInstanceBoughtInfo =
+                                    boughtReservedInstance.getReservedInstanceBoughtInfo();
+                            if (!reservedInstanceBoughtInfo.hasReservedInstanceScopeInfo()) {
+                                return false;
+                            }
+                            ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceScopeInfo scopeInfo =
+                                    reservedInstanceBoughtInfo.getReservedInstanceScopeInfo();
+                            if (scopeInfo.getShared()) {
+                                return true;
+                            }
+                            return scopeInfo.getApplicableBusinessAccountIdList().containsAll(accountSet);
+                        })
+                        .collect(Collectors.toList());
+            }
+            if (!riIncluded.isEmpty()) {
+                insertPlanIncludedCoupons(riIncluded, topologyContextId);
+            }
+        }
     }
 
     /**

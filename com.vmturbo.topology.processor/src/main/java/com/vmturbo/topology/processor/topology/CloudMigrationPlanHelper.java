@@ -1,11 +1,13 @@
 package com.vmturbo.topology.processor.topology;
 
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.BUSINESS_ACCOUNT;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.BUSINESS_ACCOUNT_VALUE;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.COMPUTE_TIER;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.DATACENTER;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.DISK_ARRAY;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.LOGICAL_POOL;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.PHYSICAL_MACHINE;
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.SERVICE_PROVIDER_VALUE;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.STORAGE;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.STORAGE_TIER;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.STORAGE_TIER_VALUE;
@@ -138,6 +140,7 @@ public class CloudMigrationPlanHelper {
     );
 
     private static final String CSP_AWS_DISPLAY_NAME = "AWS";
+    private static final String CSP_AZURE_DISPLAY_NAME = "Azure";
 
     // Maximum amount of IOPS that GPS can support.
     private static final int GP2_IOPS_AMOUNT_MAX_CAPACITY = 16000;
@@ -282,12 +285,12 @@ public class CloudMigrationPlanHelper {
             @Nonnull final Set<Long> destinationEntities,
             @Nonnull final Set<Pair<Grouping, Grouping>> policyGroups,
             @Nonnull final List<SettingPolicyEditor> settingPolicyEditors)
-        throws PipelineStageException, CloudMigrationStageException {
+        throws PipelineStageException {
+        final long planOid = context.getTopologyInfo().getTopologyContextId();
         if (!isApplicable(context, planScope)) {
             return inputGraph;
         }
         if (isIntraCloudMigration(inputGraph, sourceEntities, destinationEntities)) {
-            final long planOid = context.getTopologyInfo().getTopologyContextId();
             logger.error("Illegal intra-cloud migration plan {} stopped.", planOid);
             throw CloudMigrationStageException.intraCloudMigrationException(planOid);
         }
@@ -298,8 +301,10 @@ public class CloudMigrationPlanHelper {
                 .findFirst()
                 .orElseThrow(() -> new PipelineStageException("Missing cloud migration change"));
 
-        TopologyGraph<TopologyEntity> outputGraph = removeNonMigratingWorkloads(
-            sourceEntities, inputGraph, migrationChange);
+        // Set the migration destination.
+        boolean isDestinationAws = isDestinationAws(destinationEntities, inputGraph);
+        TopologyGraph<TopologyEntity> outputGraph = removeNonMigratingEntities(
+            sourceEntities, inputGraph, migrationChange, planOid, isDestinationAws);
 
         final Map<Long, Map<Long, Double>> sourceToProducerToMaxStorageAccess =
                 getHistoricalStorageAccessPeak(
@@ -307,8 +312,6 @@ public class CloudMigrationPlanHelper {
                                 ? EntityType.VIRTUAL_MACHINE.getNumber()
                                 : EntityType.DATABASE_SERVER.getNumber(),
                         sourceEntities);
-        // Set the migration destination.
-        boolean isDestinationAws = isDestinationAws(destinationEntities, inputGraph);
         // Prepare source entities for migration.
         prepareEntities(context, outputGraph, migrationChange, sourceToProducerToMaxStorageAccess,
             sourceEntities, isDestinationAws);
@@ -588,9 +591,8 @@ public class CloudMigrationPlanHelper {
      */
     private boolean isDestinationAws(@Nonnull final Set<Long> destinationEntities,
                                      @Nonnull final TopologyGraph<TopologyEntity> inputGraph) {
-        Set<Long> destinations = destinationEntities;
-        if (!destinations.isEmpty()) {
-            Long destinationOid = destinations.iterator().next();
+        if (!destinationEntities.isEmpty()) {
+            Long destinationOid = destinationEntities.iterator().next();
             Optional<TopologyEntity> destinationOptional = inputGraph.getEntity(destinationOid);
             if (destinationOptional.isPresent()) {
                 Optional<TopologyEntity> ownerOptional = destinationOptional.get().getOwner();
@@ -894,7 +896,7 @@ public class CloudMigrationPlanHelper {
             dtoBuilder.getCommoditySoldListBuilderList().stream()
                     .filter(c -> c.getCommodityType().getType() == CommodityType.STORAGE_ACCESS_VALUE)
                     .forEach(c -> updateStorageAccessSoldCommodity(c, dtoBuilder.getOid(),
-                            providerToMaxStorageAccessMap, topologyInfo, isDestinationAws));
+                            providerToMaxStorageAccessMap));
         }
     }
 
@@ -906,14 +908,10 @@ public class CloudMigrationPlanHelper {
      * @param commSoldBuilder storage access commodity sold builder
      * @param providerOid OID of the provider for the volume shopping list
      * @param providerToMaxStorageAccessMap A map that maps provider to historical Max IOPS
-     * @param topologyInfo topology info
-     * @param isDestinationAws boolean to indicate if destination is AWS
      */
     private void updateStorageAccessSoldCommodity(final CommoditySoldDTO.Builder commSoldBuilder,
                                                   final long providerOid,
-                                                  @Nonnull final Map<Long, Double> providerToMaxStorageAccessMap,
-                                                  @Nonnull final TopologyInfo topologyInfo,
-                                                  final boolean isDestinationAws) {
+                                                  @Nonnull final Map<Long, Double> providerToMaxStorageAccessMap) {
         if (commSoldBuilder.getCommodityType().getType() != CommodityType.STORAGE_ACCESS_VALUE) {
             return;
         }
@@ -1219,20 +1217,29 @@ public class CloudMigrationPlanHelper {
 
     /**
      * Removes workloads (VM/DB/DBS) and volumes that don't apply for migration, so that we don't
-     * unnecessarily send them to market. This is the entities in the scoped target regions, as
-     * we use generic OCP scoping in earlier stages which ends up picking all entities in target
-     * region as well, so we need to filter them out here in migration stage.
+     * unnecessarily send them to market.
+     * Entities to be removed:
+     * 1. Entities in the scoped target regions: we use generic OCP scoping in earlier stages which
+     *    ends up picking all entities in target region as well, so we need to filter them out here
+     *    in migration stage.
+     * 2. Inactive entities
+     * 3. Accounts of the destination CSP except the intended destination account.
      *
      * @param sourceEntities The source entities for the plan.
      * @param graph Topology graph.
      * @param migrationChange User specified migration scenario change.
+     * @param planOid plan ID
+     * @param isDestinationAws boolean that indicates if destination is AWS
      * @return Updated topology graph with non-migrating workloads filtered out.
+     * @throws CloudMigrationStageException when destination account OID is missing
      */
     @Nonnull
-    private TopologyGraph<TopologyEntity> removeNonMigratingWorkloads(
+    private TopologyGraph<TopologyEntity> removeNonMigratingEntities(
             @Nonnull final Set<Long> sourceEntities,
             @Nonnull final TopologyGraph<TopologyEntity> graph,
-            @Nonnull final TopologyMigration migrationChange) {
+            @Nonnull final TopologyMigration migrationChange,
+            final long planOid,
+            final boolean isDestinationAws) throws CloudMigrationStageException {
         if (!migrationChange.getRemoveNonMigratingWorkloads()) {
             return graph;
         }
@@ -1258,6 +1265,10 @@ public class CloudMigrationPlanHelper {
                         .filter(e -> e.getEntityType() == VIRTUAL_VOLUME_VALUE)
                         .collect(Collectors.toSet()));
 
+        // Determine the business accounts to keep in the plan scope.
+        filteredEntityByType.put(BUSINESS_ACCOUNT, getAccountsToInclude(sourceEntities, graph,
+                migrationChange, planOid, isDestinationAws));
+
         final Set<EntityType> allEntityTypes = graph.entityTypes()
                 .stream()
                 .map(EntityType::forNumber)
@@ -1281,6 +1292,46 @@ public class CloudMigrationPlanHelper {
             }
         }
         return new TopologyGraphCreator<>(resultEntityMap).build();
+    }
+
+    /**
+     * Get the set of account entities that should be included in the plan scope.
+     * If the account belongs to the CSP of the migration destination, it is included only if it is
+     * the account chosen by the user. (i.e. the destination account)
+     * If the account belongs other CSPs (the migration source for cloud-to-cloud migrations),
+     * include it.
+     * For on-prem to cloud migrations, only destination account will be included.
+     *
+     * @param sourceEntities source entities
+     * @param graph topology graph
+     * @param migrationChange migration settings
+     * @param planOid plan ID
+     * @param isDestinationAws boolean that indicate if the destination is AWS
+     * @return set of account entities that should be included in the plan scope
+     * @throws CloudMigrationStageException when destination account OID is missing
+     */
+    private Set<TopologyEntity> getAccountsToInclude(
+            @Nonnull final Set<Long> sourceEntities,
+            @Nonnull final TopologyGraph<TopologyEntity> graph,
+            @Nonnull final TopologyMigration migrationChange,
+            final long planOid,
+            final boolean isDestinationAws) throws CloudMigrationStageException {
+        final String destinationCsp = isDestinationAws ? CSP_AWS_DISPLAY_NAME : CSP_AZURE_DISPLAY_NAME;
+        final Long destinationAccountOid = migrationChange.getDestinationAccount().hasOid()
+                ? migrationChange.getDestinationAccount().getOid() : null;
+        if (destinationAccountOid == null) {
+            throw CloudMigrationStageException.missingDestinationAccount(planOid);
+        }
+        return graph.entitiesOfType(BUSINESS_ACCOUNT).filter(account -> {
+            // The CSP provider entity is in the aggregator list of the business account topology entity.
+            TopologyEntity csp = account.getAggregators().stream()
+                    .filter(a -> a.getEntityType() == SERVICE_PROVIDER_VALUE)
+                    .findFirst()
+                    .orElse(null);
+            return (csp != null
+                    && (!csp.getDisplayName().equals(destinationCsp)
+                    || csp.getDisplayName().equals(destinationCsp) && account.getOid() == destinationAccountOid));
+        }).collect(Collectors.toSet());
     }
 
     /**
@@ -1845,6 +1896,16 @@ public class CloudMigrationPlanHelper {
         public static CloudMigrationStageException intraCloudMigrationException(final long planOid) {
             return new CloudMigrationStageException("Plan: " + planOid + " has been stopped. Intra-cloud migration plans cannot be performed. "
                     + "Ensure that no migrating entities are already hosted by the destination cloud service provider and try again.");
+        }
+
+        /**
+         * Construct a new CloudMigrationStageException.
+         *
+         * @param planOid The OID of the plan
+         * @return A new CloudMigrationStageException when destination account is missing.
+         */
+        public static CloudMigrationStageException missingDestinationAccount(final long planOid) {
+            return new CloudMigrationStageException(("Destination account is missing for plan " + planOid));
         }
     }
 }
