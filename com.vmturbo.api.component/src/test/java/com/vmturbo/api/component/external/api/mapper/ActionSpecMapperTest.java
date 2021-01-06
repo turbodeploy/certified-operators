@@ -1957,7 +1957,7 @@ public class ActionSpecMapperTest {
         inputDTO.setDescriptionQuery(descriptionQuery);
 
         final ActionQueryFilter filter = createFilter(inputDTO);
-        assertEquals(".*\\Qtest\\E.*", filter.getDescriptionQuery());
+        assertEquals("(?i)(.*\\Qtest\\E.*)", filter.getDescriptionQuery());
     }
 
     /**
