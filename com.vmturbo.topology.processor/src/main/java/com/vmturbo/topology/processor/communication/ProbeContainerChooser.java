@@ -28,10 +28,13 @@ public interface ProbeContainerChooser {
 
     /**
      * Assign the transport to a target.
+     *
      * @param  transport the transport to assign of the probe
+     * @param probeType the probeType for the target represented by targetIdentifyingValues
      * @param targetIdentifyingValues the serialized identifying field of a target
      */
      void assignTargetToTransport(@Nonnull ITransport<MediationServerMessage,
-         MediationClientMessage> transport, @Nonnull String targetIdentifyingValues);
+         MediationClientMessage> transport, @Nonnull String probeType,
+             @Nonnull String targetIdentifyingValues);
 
 }

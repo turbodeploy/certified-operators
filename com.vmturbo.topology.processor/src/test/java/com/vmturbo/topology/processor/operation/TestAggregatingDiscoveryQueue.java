@@ -115,6 +115,7 @@ public class TestAggregatingDiscoveryQueue implements AggregatingDiscoveryQueue 
     @Override
     public void assignTargetToTransport(
             @Nonnull ITransport<MediationServerMessage, MediationClientMessage> transport,
+            @Nonnull String probeType,
             @Nonnull String targetIdentifiers) {
 
     }

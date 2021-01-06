@@ -180,7 +180,8 @@ public class ProbeContainerChooserTest {
         assertEquals(chooser.choose(probeId, targetIdentifier1, discoveryRequest), transport1);
 
         // now assign transport2 to target 1 and confirm that chooser now chooses transport2
-        chooser.assignTargetToTransport(transport2, targetIdentifier1);
+        chooser.assignTargetToTransport(transport2, Probes.incrementalProbe.getProbeType(),
+                targetIdentifier1);
         assertEquals(chooser.choose(probeId, targetIdentifier1, discoveryRequest), transport2);
     }
 

@@ -101,11 +101,10 @@ public class RemoteMediationServerWithDiscoveryWorkers extends RemoteMediationSe
     public void registerTransport(ContainerInfo containerInfo,
                     ITransport<MediationServerMessage, MediationClientMessage> serverEndpoint) {
         super.registerTransport(containerInfo, serverEndpoint);
-        containerInfo.getPersistentTargetIdsList()
-                .forEach(targetId -> {
-                    logger.info("Assigning target {} to transport.", targetId);
-                    discoveryQueue.assignTargetToTransport(serverEndpoint, targetId);
-                });
+        containerInfo.getPersistentTargetIdMapMap()
+                .forEach((probeType, targetIdSet) -> targetIdSet.getTargetIdList()
+                        .forEach(targetId -> discoveryQueue.assignTargetToTransport(
+                                serverEndpoint, probeType, targetId)));
 
         synchronized (transportToTransportWorker) {
             transportToTransportWorker.computeIfAbsent(serverEndpoint, key -> Maps.newHashMap())
@@ -200,6 +199,7 @@ public class RemoteMediationServerWithDiscoveryWorkers extends RemoteMediationSe
         probeStore.getProbe(target.getProbeId()).ifPresent(probeInfo -> {
                 if (probeInfo.hasIncrementalRediscoveryIntervalSeconds()) {
                     discoveryQueue.assignTargetToTransport(transport,
+                            target.getProbeInfo().getProbeType(),
                             target.getSerializedIdentifyingFields());
                 }
         });

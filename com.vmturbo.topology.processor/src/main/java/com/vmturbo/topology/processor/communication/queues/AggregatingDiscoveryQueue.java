@@ -76,11 +76,13 @@ public interface AggregatingDiscoveryQueue {
     /**
      * Register that the given transport will handle the given target.
      *
-     *  @param transport the transport that should exclusively discovery the target.
+     * @param transport the transport that should exclusively discover the target.
+     * @param probeType the probe type of the target.
      * @param targetIdentifiers String made up of target identifiers that identify the target.
      */
     void assignTargetToTransport(
             @Nonnull ITransport<MediationServerMessage, MediationClientMessage> transport,
+            @Nonnull String probeType,
             @Nonnull String targetIdentifiers);
 
     /**

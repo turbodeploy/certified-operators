@@ -14,6 +14,7 @@ import com.vmturbo.communication.ITransport;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
+import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.topology.processor.probes.ProbeException;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 
@@ -36,7 +37,8 @@ public class ProbeContainerChooserImpl implements ProbeContainerChooser {
      */
     private int index = -1;
 
-    private final Map<String, ITransport<MediationServerMessage, MediationClientMessage>> targetIdToTransport =
+    private final Map<Pair<String, String>,
+            ITransport<MediationServerMessage, MediationClientMessage>> targetIdToTransport =
         new ConcurrentHashMap<>();
 
     /**
@@ -71,16 +73,18 @@ public class ProbeContainerChooserImpl implements ProbeContainerChooser {
             return getTransportUsingRoundRobin(transportCollection);
         }
 
+        final Pair<String, String> lookupKey = new Pair<>(probeInfo.getProbeType(),
+                targetIdentifyingValues);
         final ITransport<MediationServerMessage, MediationClientMessage> targetTransport =
-            targetIdToTransport.get(targetIdentifyingValues);
+            targetIdToTransport.get(lookupKey);
         // Check that the transport that we have cached is still among the available transports
         // of the probe
         if (targetTransport != null) {
             if (!transportCollection.contains(targetTransport)) {
-                targetIdToTransport.remove(targetIdentifyingValues);
+                targetIdToTransport.remove(lookupKey);
             }
         }
-        return targetIdToTransport.computeIfAbsent(targetIdentifyingValues,
+        return targetIdToTransport.computeIfAbsent(lookupKey,
             k -> getTransportUsingRoundRobin(transportCollection));
         }
 
@@ -90,15 +94,20 @@ public class ProbeContainerChooserImpl implements ProbeContainerChooser {
      * @param targetIdentifyingValues the serialized identifying field of a target
      */
     @Override
-    public void assignTargetToTransport(@Nonnull ITransport<MediationServerMessage,
-        MediationClientMessage> transport, @Nonnull String targetIdentifyingValues) {
-        if (targetIdToTransport.containsKey(targetIdentifyingValues) && !transport.equals(
-                targetIdToTransport.get(targetIdentifyingValues))) {
+    public void assignTargetToTransport(
+            @Nonnull ITransport<MediationServerMessage, MediationClientMessage> transport,
+            @Nonnull String probeType,
+            @Nonnull String targetIdentifyingValues) {
+        final Pair<String, String> lookupKey = new Pair<>(probeType,
+                targetIdentifyingValues);
+        if (targetIdToTransport.containsKey(lookupKey) && !transport.equals(
+                targetIdToTransport.get(lookupKey))) {
             logger.warn("Transport {} for target {} being replaced with transport {}",
-                    targetIdToTransport.get(targetIdentifyingValues), targetIdentifyingValues,
+                    targetIdToTransport.get(lookupKey), targetIdentifyingValues,
                     transport);
         }
-        targetIdToTransport.put(targetIdentifyingValues,
+        logger.debug("Assigning target {} to transport {}", lookupKey, transport);
+        targetIdToTransport.put(lookupKey,
             transport);
     }
 

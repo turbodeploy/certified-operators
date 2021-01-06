@@ -19,6 +19,7 @@ import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.kvstore.MapKeyValueStore;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.sdk.common.MediationMessage.ContainerInfo;
+import com.vmturbo.platform.sdk.common.MediationMessage.ContainerInfo.TargetIdSet;
 import com.vmturbo.platform.sdk.common.MediationMessage.DiscoveryRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
@@ -152,8 +153,12 @@ public class ProbeRegistrationTest {
         final ProbeInfo probeInfo =
             probeInfoBuilder.setIncrementalRediscoveryIntervalSeconds(30).build();
         final String targetIdentifyingValues = "target1";
-        final ContainerInfo containerInfoWithTargets = ContainerInfo.newBuilder().addProbes(probeInfo)
-            .addAllPersistentTargetIds(Collections.singletonList(targetIdentifyingValues)).build();
+        final ContainerInfo containerInfoWithTargets = ContainerInfo.newBuilder()
+                .addProbes(probeInfo)
+                .putPersistentTargetIdMap(probeInfo.getProbeType(),
+                        TargetIdSet.newBuilder().addTargetId(targetIdentifyingValues).build())
+                 .build();
+
         final ContainerInfo secondContainerInfo =
             ContainerInfo.newBuilder().addProbes(probeInfoBuilder.build()).build();
 

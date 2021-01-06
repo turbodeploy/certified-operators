@@ -2,6 +2,7 @@ package com.vmturbo.topology.processor.communication.queues;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.when;
 
@@ -110,6 +111,9 @@ public class AggregatingDiscoveryQueueTest {
         when(target1.getProbeId()).thenReturn(probeId1);
         when(target2.getProbeId()).thenReturn(probeId1);
         when(target3.getProbeId()).thenReturn(probeId2);
+        when(target1.getProbeInfo()).thenReturn(probeInfo1);
+        when(target2.getProbeInfo()).thenReturn(probeInfo1);
+        when(target3.getProbeInfo()).thenReturn(probeInfo2);
         when(target1.getSerializedIdentifyingFields()).thenReturn(target1IdentifyingFields);
         when(target2.getSerializedIdentifyingFields()).thenReturn(target2IdentifyingFields);
         when(target3.getSerializedIdentifyingFields()).thenReturn(target3IdentifyingFields);
@@ -123,6 +127,7 @@ public class AggregatingDiscoveryQueueTest {
             Function<Runnable, DiscoveryBundle> discoveryMethod, boolean runImmediately) {
         final IDiscoveryQueueElement addedElement = queue.offerDiscovery(target, discoveryType,
                 discoveryMethod, errorHandler, runImmediately);
+        assertNotNull(addedElement);
         assertEquals(target, addedElement.getTarget());
         assertEquals(discoveryType, addedElement.getDiscoveryType());
         assertEquals(runImmediately, addedElement.runImmediately());
@@ -252,7 +257,8 @@ public class AggregatingDiscoveryQueueTest {
     @Test
     public void testDedicatedTransportForTarget() throws InterruptedException, ExecutionException {
         // tie target1 to transportVc1
-        queue.assignTargetToTransport(transportVc1, target1IdentifyingFields);
+        queue.assignTargetToTransport(transportVc1, probeInfo1.getProbeType(),
+                target1IdentifyingFields);
 
         // this discovery should be added to a queue dedicated to transportVc1
         final IDiscoveryQueueElement firstAdd = addToQueueAndVerify(target1, DiscoveryType.FULL,
@@ -283,6 +289,32 @@ public class AggregatingDiscoveryQueueTest {
         Thread.sleep(100L);
         assertTrue(secondTransportGet.isDone());
         assertEquals(reAddTarget1, secondTransportGet.get().get());
+    }
+
+    /**
+     * Test that when you have two targets with the same identifying field from different probe
+     * types, we only keep a persistent queue by transport for the probe that is persistent and that
+     * targets from non persistent probe type just go to a probe type queue as usual. This is a
+     * concern since the ContainerInfo object just has a set of identifying strings of targets - no
+     * probe type information.
+     */
+    @Test
+    public void testNonPersistentTargetWithSameIdAsPersistentTarget() {
+        // tie target1 to transportVc1
+        queue.assignTargetToTransport(transportVc1, probeInfo1.getProbeType(),
+                target1IdentifyingFields);
+
+        // make target3 have same identifying fields as target1
+        when(target3.getSerializedIdentifyingFields()).thenReturn(target1IdentifyingFields);
+
+        // this discovery should be added to a queue dedicated to transportVc1
+        final IDiscoveryQueueElement firstAdd = addToQueueAndVerify(target1, DiscoveryType.FULL,
+                discoveryMethodMock1, false);
+
+        // If we tried to add target3 discovery to the queue created for transportVc1, it would fail
+        // and we'd get null back.  Make sure this doesn't happen.
+        final IDiscoveryQueueElement secondAdd = addToQueueAndVerify(target3, DiscoveryType.FULL,
+                discoveryMethodMock1, false);
     }
 
     private ProbeInfo createProbeInfo(@Nonnull String probeType,

@@ -25,6 +25,7 @@ import com.vmturbo.communication.ITransport;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
+import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.discovery.DiscoveryBundle;
 import com.vmturbo.topology.processor.probes.ProbeStore;
@@ -48,7 +49,7 @@ public class AggregatingDiscoveryQueueImpl implements AggregatingDiscoveryQueue 
     private final Map<ITransport<MediationServerMessage, MediationClientMessage>,
             Map<DiscoveryType, DiscoveryQueue>> discoveryQueueByTransport = Maps.newHashMap();
 
-    private final Map<String, ITransport<MediationServerMessage, MediationClientMessage>>
+    private final Map<Pair<String, String>, ITransport<MediationServerMessage, MediationClientMessage>>
             transportByTargetId = Maps.newHashMap();
 
     /**
@@ -68,16 +69,22 @@ public class AggregatingDiscoveryQueueImpl implements AggregatingDiscoveryQueue 
         try {
             final IDiscoveryQueueElement element = new DiscoveryQueueElement(target, discoveryType,
                     prepareDiscoveryInformation, errorHandler, runImmediately);
-            if (transportByTargetId.containsKey(target.getSerializedIdentifyingFields())) {
+
+            final Pair<String, String> lookupKey = new Pair<>(target.getProbeInfo().getProbeType(),
+                    target.getSerializedIdentifyingFields());
+            final ITransport<MediationServerMessage, MediationClientMessage> existingTransport =
+                    transportByTargetId.get(lookupKey);
+            if (existingTransport != null) {
                 final IDiscoveryQueueElement retVal = discoveryQueueByTransport
-                        .computeIfAbsent(transportByTargetId
-                                .get(target.getSerializedIdentifyingFields()),
+                        .computeIfAbsent(existingTransport,
                         key -> Maps.newHashMap()).computeIfAbsent(discoveryType,
                         key -> new DiscoveryQueue(target.getProbeId(), discoveryType)).add(element);
                 logger.debug("Added element to queue {}", retVal);
                 return retVal;
             } else {
-                final IDiscoveryQueueElement retVal = discoveryQueueByProbeId.computeIfAbsent(discoveryType, key -> Maps.newHashMap())
+                final IDiscoveryQueueElement retVal =
+                        discoveryQueueByProbeId.computeIfAbsent(discoveryType,
+                                key -> Maps.newHashMap())
                         .computeIfAbsent(target.getProbeId(),
                                 probeId -> new DiscoveryQueue(probeId, discoveryType))
                         .add(element);
@@ -135,8 +142,18 @@ public class AggregatingDiscoveryQueueImpl implements AggregatingDiscoveryQueue 
     @Override
     public synchronized void assignTargetToTransport(
             @Nonnull ITransport<MediationServerMessage, MediationClientMessage> transport,
+            @Nonnull String probeType,
             @Nonnull String targetId) {
-        transportByTargetId.put(targetId, transport);
+        final Pair<String, String> key = new Pair<>(probeType, targetId);
+        final ITransport<MediationServerMessage, MediationClientMessage> transportFromMap =
+                transportByTargetId.get(key);
+        if (transportFromMap != null && transport != transportFromMap) {
+            logger.info("Moving target {} of probe type {} from transport {} to transport {}",
+                    targetId, probeType, transportFromMap, transport);
+        }
+        logger.debug("Assigning target {} of probe type {} to transport {}",
+                targetId, probeType, transport);
+        transportByTargetId.put(key, transport);
     }
 
     @Override

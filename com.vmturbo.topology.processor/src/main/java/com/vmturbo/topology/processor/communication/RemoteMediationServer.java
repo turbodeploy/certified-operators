@@ -121,9 +121,10 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
                         .map(ProbeInfo::getProbeType)
                         .collect(Collectors.toList()));
 
-        containerInfo.getPersistentTargetIdsList()
-                .forEach(targetId -> containerChooser.assignTargetToTransport(serverEndpoint,
-                        targetId));
+        containerInfo.getPersistentTargetIdMapMap()
+                .forEach((probeType, targetIdSet) -> targetIdSet.getTargetIdList()
+                        .forEach(targetId -> containerChooser.assignTargetToTransport(
+                                serverEndpoint, probeType, targetId)));
 
         for (final ProbeInfo probeInfo : containerInfo.getProbesList()) {
             try {
