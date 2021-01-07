@@ -128,11 +128,12 @@ public class InitialPlacementFinderResult {
 
         /**
          * Returns the max available quantity from all seller, if placement failed.
+         * If negative return 0.
          *
          * @return max available quantity
          */
         public double getMaxQuantity() {
-            return maxQuantity;
+            return Math.max(maxQuantity, 0d);
         }
 
         /**

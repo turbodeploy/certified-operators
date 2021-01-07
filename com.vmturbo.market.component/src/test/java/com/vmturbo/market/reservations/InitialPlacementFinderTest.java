@@ -203,6 +203,29 @@ public class InitialPlacementFinderTest {
     }
 
     /**
+     * Test initial placement finder failed. The original economy has two hosts.
+     * PM1 mem used 110, capacity 100. PM2 mem used 120, capacity 100.
+     * Expected: reservation failed with a new reservation VM requesting 100 mem.
+     * Failure info  has maxquantity non negative
+     */
+    @Test
+    public void testInitialPlacementFinderResultWithFailureInfoOnOverFlowEconomy() {
+        InitialPlacementFinder pf = new InitialPlacementFinder(executorService,
+                reservationServiceBlockingStub, true, 0);
+        Economy originalEconomy = getOverflowEconomy();
+        pf.updateCachedEconomy(originalEconomy, commTypeToSpecMap, true);
+        pf.economyCaches.setState(EconomyCachesState.READY);
+        InitialPlacementBuyer buyer = getTradersToPlace(vmID, pmSlOid, PM_TYPE, MEM_TYPE, 100);
+        Table<Long, Long, InitialPlacementFinderResult> result = pf.findPlacement(Arrays.asList(buyer));
+        List<FailureInfo> failureInfo = result.get(vmID, pmSlOid).getFailureInfoList();
+        assertTrue(failureInfo.size() == 1);
+        assertTrue(failureInfo.get(0).getCommodityType().getType() == MEM_TYPE);
+        assertTrue(failureInfo.get(0).getRequestedAmount() == 100);
+        assertTrue(failureInfo.get(0).getClosestSellerOid() == pm1Oid);
+        assertTrue(failureInfo.get(0).getMaxQuantity() == 0);
+    }
+
+    /**
      * Create a InitialPlacementBuyer list with one object based on given parameters.
      *
      * @param buyerOid buyer oid
@@ -230,6 +253,45 @@ public class InitialPlacementFinderTest {
         return vm;
     }
 
+
+    /**
+     * Create a simple economy with 2 pm and 1 vm. Both pms have same commodity sold capacity.
+     * PM1 mem used 110, capacity 100. PM2 mem used 120, capacity 100.
+     *
+     * @return economy an economy with traders
+     */
+    private Economy getOverflowEconomy() {
+        Topology t = new Topology();
+        Economy economy = t.getEconomyForTesting();
+
+        Basket basketSoldByPM = new Basket(new CommoditySpecification(MEM_TYPE));
+        List<Long> cliques = new ArrayList<>();
+        cliques.add(455L);
+        Trader pm1 = economy.addTrader(PM_TYPE, TraderState.ACTIVE, basketSoldByPM, cliques);
+        pm1.setDebugInfoNeverUseInCode("PM1");
+        pm1.getSettings().setCanAcceptNewCustomers(true);
+        pm1.setOid(pm1Oid);
+        CommoditySold commSold = pm1.getCommoditiesSold().get(0);
+        commSold.setCapacity(100);
+        commSold.setQuantity(110);
+        commSold.setPeakQuantity(110);
+        commSold.getSettings().setPriceFunction(PriceFunction.Cache.createStandardWeightedPriceFunction(7.0));
+
+        Trader pm2 = economy.addTrader(PM_TYPE, TraderState.ACTIVE, basketSoldByPM, cliques);
+        pm2.setDebugInfoNeverUseInCode("PM2");
+        pm2.getSettings().setCanAcceptNewCustomers(true);
+        pm2.setOid(pm2Oid);
+        CommoditySold commSold2 = pm2.getCommoditiesSold().get(0);
+        commSold2.setCapacity(100);
+        commSold2.setQuantity(120);
+        commSold2.setPeakQuantity(120);
+        commSold2.getSettings().setPriceFunction(PriceFunction.Cache.createStandardWeightedPriceFunction(7.0));
+
+
+        t.getModifiableTraderOids().put(pm1Oid, pm1);
+        t.getModifiableTraderOids().put(pm2Oid, pm2);
+        return economy;
+    }
 
 
     /**
