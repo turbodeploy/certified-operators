@@ -44,6 +44,7 @@ import com.vmturbo.common.protobuf.stats.Stats.GetEntityCommoditiesCapacityValue
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityCommoditiesCapacityValuesResponse;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.Builder;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.components.api.FormattedString;
@@ -190,6 +191,8 @@ public class SetAutoSetCommodityCapacityPostStitchingOperation implements PostSt
         resultBuilder.queueUpdateEntityAlone(entity, entityToUpdate -> {
             while (commsSold.hasNext()) {
                 Builder commSold = commsSold.next();
+                // Deactivate so they will not be sent to the market
+                deactivateCommodities(entity, commSold);
                 double maxCapacity = maxCapacityCache.getMaxCapacity(entityToUpdate.getOid(), commSold.getCommodityType().getType());
                 if (maxCapacity > 0) {
                     // Value returned from the history component.
@@ -203,6 +206,26 @@ public class SetAutoSetCommodityCapacityPostStitchingOperation implements PostSt
                 }
             }
         });
+    }
+
+    /**
+     * Deactivate the sold commodity, and the corresponding bought commodities from consumers of this
+     * entity. Deactivated commodities are not sent to market for analysis.
+     *
+     * @param entity the entity that sells the commodity
+     * @param commSold the commodity to deactivate
+     */
+    private void deactivateCommodities(
+            @Nonnull final TopologyEntity entity,
+            @Nonnull final CommoditySoldDTO.Builder commSold) {
+        if (logger.isDebugEnabled()) {
+            logger.debug("Deactivate {} for {}", commSold, entity);
+        }
+        // Deactivate sold commodity
+        commSold.setActive(false);
+        // Deactivate corresponding bought commodities from consumers
+        entity.getCommoditiesBoughtBuilderByConsumers(commodityType.getNumber())
+                .forEach(commBought -> commBought.setActive(false));
     }
 
     /**

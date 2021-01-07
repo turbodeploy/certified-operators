@@ -4,7 +4,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import com.google.common.collect.Lists;
@@ -16,6 +18,10 @@ import org.junit.Test;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -32,7 +38,10 @@ import com.vmturbo.stitching.poststitching.SetAutoSetCommodityCapacityPostStitch
 public class SetTransactionsCapacityPostStitchingTest {
     private static final String SLO_SETTING = "transactionSLO";
     private static final String SLO_ENABLED_SETTING = "transactionSLOEnabled";
-
+    /**
+     * The entity type of the consumer.
+     */
+    private static final EntityType BUYER_TYPE = EntityType.SERVICE;
     private static final EntityType SELLER_TYPE = EntityType.DATABASE_SERVER;
 
     private static SetTransactionsCapacityPostStitchingOperation stitchOperation;
@@ -128,6 +137,32 @@ public class SetTransactionsCapacityPostStitchingTest {
     }
 
     /**
+     * Test the case where the SLO is not enabled, there is used value but the capacity is not set,
+     * so the capacity is automatically set as the used value, and the commodity is set to inactive.
+     */
+    @Test
+    public void testAutosetCapacityWithUsedValue() {
+        // SLO is disabled, no value from db, used value is > 0, capacity is empty
+        // Expecting the used value as capacity
+        TopologyEntity provider = sellerWithBuyer(2L, 1L, initialCapacity);
+        testSetCapacityValue(provider, false, initialCapacity, 0d);
+        List<CommoditySoldDTO> commoditySoldDTOS = provider.getTopologyEntityDtoBuilder().getCommoditySoldListList();
+        List<CommodityBoughtDTO> commodityBoughtDTOS = provider.getConsumers().stream()
+                .map(TopologyEntity::getTopologyEntityDtoBuilder)
+                .map(TopologyEntityDTO.Builder::getCommoditiesBoughtFromProvidersList)
+                .flatMap(List::stream)
+                .map(CommoditiesBoughtFromProvider::getCommodityBoughtList)
+                .flatMap(List::stream)
+                .collect(Collectors.toList());
+        // Verify sold commodities
+        Assert.assertFalse(commoditySoldDTOS.get(0).getActive());
+        Assert.assertTrue(commoditySoldDTOS.get(1).getActive());
+        // Verify bought commodities
+        Assert.assertFalse(commodityBoughtDTOS.get(0).getActive());
+        Assert.assertTrue(commodityBoughtDTOS.get(1).getActive());
+    }
+
+    /**
      * Check if poststitching operation works correctly.  Assertions should succeed if the capacity
      * is set correctly and fail if not.
      *
@@ -214,5 +249,44 @@ public class SetTransactionsCapacityPostStitchingTest {
 
         });
         return seller.build();
+    }
+
+    /**
+     * Create a seller entity with a buyer entity and trade response time and transaction
+     * commodities between the seller and the buyer.
+     *
+     * @param buyerOid the oid for the buyer
+     * @param sellerOid the oid for the seller
+     * @param usedValue the used value for the commodity
+     * @return the seller entity
+     */
+    private TopologyEntity sellerWithBuyer(long buyerOid, long sellerOid, double usedValue) {
+        final TopologyEntity.Builder buyer =  TopologyEntity.newBuilder(
+                TopologyEntityDTO.newBuilder()
+                        .setOid(buyerOid)
+                        .setEntityType(BUYER_TYPE.getNumber())
+                        .addCommoditiesBoughtFromProviders(
+                                PostStitchingTestUtilities.makeCommoditiesBoughtFromProvider(
+                                        sellerOid,
+                                        SELLER_TYPE.getNumber(),
+                                        Lists.newArrayList(
+                                                PostStitchingTestUtilities
+                                                        .makeCommodityBought(CommodityType.TRANSACTION),
+                                                PostStitchingTestUtilities
+                                                        .makeCommodityBought(CommodityType.RESPONSE_TIME))
+                                )));
+        final TopologyEntity.Builder seller =
+                PostStitchingTestUtilities.makeTopologyEntityBuilder(
+                        sellerOid,
+                        SELLER_TYPE.getNumber(),
+                        Lists.newArrayList(
+                                PostStitchingTestUtilities
+                                        .makeCommoditySold(CommodityType.TRANSACTION),
+                                PostStitchingTestUtilities
+                                        .makeCommoditySold(CommodityType.RESPONSE_TIME)),
+                        Collections.emptyList());
+        seller.getEntityBuilder().getCommoditySoldListBuilderList()
+                .forEach(builder -> builder.setUsed(usedValue));
+        return seller.addConsumer(buyer).build();
     }
 }

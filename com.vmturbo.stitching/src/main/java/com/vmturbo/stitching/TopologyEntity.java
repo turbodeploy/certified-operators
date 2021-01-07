@@ -400,6 +400,24 @@ public class TopologyEntity implements TopologyGraphSearchableEntity<TopologyEnt
                 .map(CommodityBoughtDTO::getUsed);
     }
 
+    /**
+     * Get a stream of {@link CommodityBoughtDTO.Builder} with the specific type from consumers.
+     *
+     * @param commType commodity type
+     * @return a stream of {@link CommodityBoughtDTO.Builder}
+     */
+    @Nonnull
+    public Stream<CommodityBoughtDTO.Builder> getCommoditiesBoughtBuilderByConsumers(int commType) {
+        return getConsumers().stream()
+                .map(TopologyEntity::getTopologyEntityDtoBuilder)
+                .map(TopologyEntityDTO.Builder::getCommoditiesBoughtFromProvidersBuilderList)
+                .flatMap(List::stream)
+                .filter(commBoughtFromProvider -> commBoughtFromProvider.getProviderId() == getOid())
+                .map(CommoditiesBoughtFromProvider.Builder::getCommodityBoughtBuilderList)
+                .flatMap(List::stream)
+                .filter(commBought -> commType == commBought.getCommodityType().getType());
+    }
+
     @Override
     public String toString() {
         return "(oid-" + getOid() + ", " + getJournalableEntityType() + ", " + getDisplayName() + ")";
