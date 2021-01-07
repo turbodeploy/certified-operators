@@ -127,7 +127,7 @@ public abstract class AbstractApiCallsTest {
         final List<InputField> fields = target.getMediationAccountVals(groupScopeResolver).stream()
                         .map(AbstractApiCallsTest::convertToRest).collect(Collectors.toList());
         final TargetSpec spec =
-                        new TargetSpec(target.getProbeId(), fields, Optional.empty());
+                        new TargetSpec(target.getProbeId(), fields);
         return new TargetRESTApi.TargetInfo(target.getId(), target.getDisplayName(), null, spec, true, "Validated",
                 LocalDateTime.now());
     }

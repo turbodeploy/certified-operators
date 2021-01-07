@@ -5,7 +5,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -25,6 +24,7 @@ import com.vmturbo.crosstier.common.TargetUtil;
 import com.vmturbo.platform.common.dto.Discovery;
 import com.vmturbo.platform.common.dto.Discovery.AccountValue;
 import com.vmturbo.platform.common.dto.Discovery.AccountValue.PropertyValueList;
+import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry.PrimitiveValue;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.AccountDefEntry;
@@ -46,7 +46,6 @@ import com.vmturbo.topology.processor.probes.ProbeStoreListener;
 @Immutable
 public class Target implements ProbeStoreListener {
     private static Logger logger = Logger.getLogger(Target.class);
-    private final static String EMPTY_CHANNEL = "";
     private final long id;
     private final long probeId;
 
@@ -144,9 +143,6 @@ public class Target implements ProbeStoreListener {
             .addAllDerivedTargetIds(inputSpec.getDerivedTargetIdsList());
         targetSpec.setIsHidden(inputSpec.getIsHidden());
         targetSpec.setReadOnly(inputSpec.getReadOnly());
-        if (inputSpec.hasCommunicationBindingChannel()) {
-            targetSpec.setCommunicationBindingChannel(inputSpec.getCommunicationBindingChannel());
-        }
 
         final ProbeInfo probeInfo = probeStore.getProbe(probeId).orElseThrow(() ->
             new InvalidTargetException("No probe found in store for probe ID " + probeId));
@@ -162,44 +158,19 @@ public class Target implements ProbeStoreListener {
      * @param targetInfo A {@link TargetInfo}.
      * @param values Collection of {@link AccountValue}s.
      * @param derivedTargetsIds Collection of derived target IDs.
-     * @param optionalChannel optional communication binding channel for the target
      * @return A {@link TargetSpec} builder.
      */
     private static TargetSpec.Builder createTargetSpecBuilder(
                                         @Nonnull TargetInfo targetInfo,
                                         @Nonnull Collection<TopologyProcessorDTO.AccountValue> values,
-                                        @Nonnull Collection<Long> derivedTargetsIds,
-                                        @Nonnull Optional<String> optionalChannel) {
+                                        @Nonnull Collection<Long> derivedTargetsIds) {
         final TargetSpec.Builder targetSpec = TargetSpec.newBuilder()
             .setProbeId(targetInfo.getSpec().getProbeId())
             .addAllAccountValue(values)
             .setIsHidden(targetInfo.getSpec().getIsHidden())
             .setReadOnly(targetInfo.getSpec().getReadOnly())
             .addAllDerivedTargetIds(derivedTargetsIds);
-        return updateBindingChannel(optionalChannel, targetInfo, targetSpec);
-    }
-
-    /**
-     * Update the channel of the target with the provided one. If the provided one is an empty
-     * string, unset the value. If no value is provided, use the existing value
-     *
-     * @param optionalChannel new binding channel
-     * @param existingInfo existing information for the target
-     * @param targetSpec new {@link TargetSpec} builder
-     * @return the builder for the {@link TargetSpec}
-     */
-    private static TargetSpec.Builder updateBindingChannel(@Nonnull Optional<String> optionalChannel,
-                                      @Nonnull TargetInfo existingInfo,
-                                      @Nonnull TargetSpec.Builder targetSpec) {
-        if (optionalChannel.isPresent()) {
-            String channel = optionalChannel.get();
-            if (!channel.equals(EMPTY_CHANNEL)) {
-                targetSpec.setCommunicationBindingChannel(channel);
-            }
-        } else if (existingInfo.getSpec().hasCommunicationBindingChannel()) {
-            targetSpec.setCommunicationBindingChannel(existingInfo.getSpec().getCommunicationBindingChannel());
-        }
-        return  targetSpec;
+        return targetSpec;
     }
 
     /**
@@ -230,12 +201,11 @@ public class Target implements ProbeStoreListener {
      *
      * @param updatedFields The fields on the target to update.
      * @param probeStore The store containing the collection of known probes.
-     * @param communicationBindingChannel the channel over which the target will communicate.
      * @return A new target with fields updated from the collection.
      * @throws InvalidTargetException When the updated target is invalid.
      */
     public Target withUpdatedFields(@Nonnull final Collection<TopologyProcessorDTO.AccountValue> updatedFields,
-                                    @Nonnull final ProbeStore probeStore, Optional<String> communicationBindingChannel)
+                                    @Nonnull final ProbeStore probeStore)
         throws InvalidTargetException {
         TargetInfo targetInfo = info.targetInfo;
         ProbeInfo probeInfo = probeStore.getProbe(targetInfo.getSpec().getProbeId())
@@ -260,7 +230,7 @@ public class Target implements ProbeStoreListener {
 
         final TargetSpec.Builder newSpec = createTargetSpecBuilder(targetInfo,
                 filteredMergedAccountVals,
-                targetInfo.getSpec().getDerivedTargetIdsList(), communicationBindingChannel
+                targetInfo.getSpec().getDerivedTargetIdsList()
         );
         return new Target(getId(), probeStore, newSpec.build(), true);
     }
@@ -279,8 +249,7 @@ public class Target implements ProbeStoreListener {
         TargetInfo targetInfo = info.targetInfo;
 
         final TargetSpec.Builder newSpec = createTargetSpecBuilder(targetInfo,
-                                targetInfo.getSpec().getAccountValueList(), derivedTargetsIds,
-            Optional.empty());
+                                targetInfo.getSpec().getAccountValueList(), derivedTargetsIds);
         return new Target(getId(), probeStore, newSpec.build(), true);
     }
 
@@ -331,8 +300,8 @@ public class Target implements ProbeStoreListener {
                 info, info.getSpec().getAccountValueList()
                         .stream()
                         .filter(val -> !secretVals.contains(val.getKey()))
-                        .collect(Collectors.toList()), info.getSpec().getDerivedTargetIdsList(),
-            Optional.empty());
+                        .collect(Collectors.toList()), info.getSpec().getDerivedTargetIdsList()
+                );
         TargetInfo.Builder targetInfoBuilder = TargetInfo.newBuilder().setId(info.getId())
                 .setSpec(targetSpec);
         if (info.hasDisplayName()) {
@@ -366,7 +335,7 @@ public class Target implements ProbeStoreListener {
         }
 
         final TargetSpec.Builder targetSpec =
-            createTargetSpecBuilder(info, accountValues, info.getSpec().getDerivedTargetIdsList(), Optional.empty());
+            createTargetSpecBuilder(info, accountValues, info.getSpec().getDerivedTargetIdsList());
         TargetInfo.Builder targetInfoBuilder = TargetInfo.newBuilder().setId(info.getId())
                 .setSpec(targetSpec);
         if (info.hasDisplayName()) {
@@ -569,7 +538,7 @@ public class Target implements ProbeStoreListener {
             });
             final TargetSpec.Builder targetSpec =
                     createTargetSpecBuilder(
-                            targetInfo, values, targetInfo.getSpec().getDerivedTargetIdsList(), Optional.empty());
+                            targetInfo, values, targetInfo.getSpec().getDerivedTargetIdsList());
             TargetInfo.Builder targetInfoBuilder = TargetInfo.newBuilder().setId(targetInfo.getId())
                     .setSpec(targetSpec);
             if (targetInfo.hasDisplayName()) {
@@ -598,7 +567,7 @@ public class Target implements ProbeStoreListener {
             });
             final TargetSpec.Builder targetSpec =
                     createTargetSpecBuilder(
-                            targetInfo, values, targetInfo.getSpec().getDerivedTargetIdsList(), Optional.empty());
+                            targetInfo, values, targetInfo.getSpec().getDerivedTargetIdsList());
             TargetInfo.Builder targetInfoBuilder = TargetInfo.newBuilder().setId(targetInfo.getId())
                     .setSpec(targetSpec);
             if (targetInfo.hasDisplayName()) {

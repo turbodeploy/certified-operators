@@ -30,7 +30,6 @@ import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TopologyProcessor
 import com.vmturbo.topology.processor.api.TopologyProcessorException;
 import com.vmturbo.topology.processor.api.TopologySummaryListener;
 import com.vmturbo.topology.processor.api.ValidationStatus;
-import com.vmturbo.topology.processor.api.dto.TargetInputFields;
 
 /**
  * Topology processor API client-side implementation. Obtained instance of this class should be
@@ -155,7 +154,7 @@ public class TopologyProcessorClient extends
     }
 
     @Override
-    public void modifyTarget(final long targetId, @Nonnull final TargetInputFields newData)
+    public void modifyTarget(final long targetId, @Nonnull final TargetData newData)
                     throws CommunicationException, TopologyProcessorException {
         restClient.modifyTarget(targetId, newData);
     }

@@ -690,8 +690,7 @@ public class OperationControllerTest {
     }
 
     private Target addTarget(final long probeId) throws Exception {
-        TargetSpec target = new TargetSpec(probeId, Collections.singletonList(new InputField(
-            "targetId", "123", Optional.empty())), Optional.empty());
+        TargetSpec target = new TargetSpec(probeId, Collections.singletonList(new InputField("targetId", "123", Optional.empty())));
         return targetStore.createTarget(target.toDto());
     }
 

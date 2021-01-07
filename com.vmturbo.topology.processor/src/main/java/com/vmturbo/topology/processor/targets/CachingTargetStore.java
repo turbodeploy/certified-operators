@@ -256,8 +256,7 @@ public class CachingTargetStore implements TargetStore, ProbeStoreListener {
                         // If the target already exists, update it and the existing derived targets.
                         try {
                             addDerivedTargetParent(parentTargetId, oldId, Optional.of(spec));
-                            updateTarget(oldId, spec.getAccountValueList(),
-                                Optional.ofNullable(spec.getCommunicationBindingChannel()));
+                            updateTarget(oldId, spec.getAccountValueList());
                             existingDerivedTargetIds.remove(oldId);
                         } catch (InvalidTargetException | TargetNotFoundException |
                             IdentityStoreException | IdentifierConflictException e) {
@@ -446,46 +445,11 @@ public class CachingTargetStore implements TargetStore, ProbeStoreListener {
         }
         final List<AccountValue> accountValues = spec.map(TargetSpec::getAccountValueList)
             .orElse(oldTarget.getSpec().getAccountValueList());
-        Optional<String> communicationBindingChannel;
-        if (spec.isPresent()) {
-            communicationBindingChannel = getOptionalCommunicationChannel(spec.get());
-        } else {
-            communicationBindingChannel = getOptionalCommunicationChannel(oldTarget.getSpec());
-        }
-        return updateTarget(targetId, accountValues, communicationBindingChannel);
+        return updateTarget(targetId, accountValues);
     }
 
-    /**
-     * Wrapper to handle non set values in the protobuf object {@link TargetSpec}. Returns
-     * Optional.empty is the communication channel is not set, or Optional.of
-     * (communicationChannel) if set.
-     * @param spec the target spec
-     * @return optional communication channel
-     */
-    private Optional<String> getOptionalCommunicationChannel(TargetSpec spec) {
-        Optional<String> communicationBindingChannel = Optional.empty();
-        if (spec.hasCommunicationBindingChannel()) {
-            communicationBindingChannel =
-                Optional.of(spec.getCommunicationBindingChannel());
-        }
-        return communicationBindingChannel;
-    }
-
-    /**
-     * Updates a target.
-     *
-     * @param targetId ID of target to update.
-     * @param updatedFields The new fields to give to the target.
-     * @param communicationBindingChannel the channel over which the target will communicate.
-     * @return {@link Target} updated with the new state of the target.
-     * @throws InvalidTargetException if underlying call to updateTarget throws.
-     * @throws TargetNotFoundException if no target exists with targetId.
-     * @throws IdentityStoreException if underlying call to updateTarget throws.
-     * @throws IdentifierConflictException if underlying call to updateTarget throws.
-     */
     @Override
-    public Target updateTarget(long targetId, @Nonnull Collection<AccountValue> updatedFields,
-                               Optional<String> communicationBindingChannel)
+    public Target updateTarget(long targetId, @Nonnull Collection<AccountValue> updatedFields)
         throws InvalidTargetException, TargetNotFoundException,
         IdentityStoreException, IdentifierConflictException {
         final Target retTarget;
@@ -501,18 +465,18 @@ public class CachingTargetStore implements TargetStore, ProbeStoreListener {
             Set<AccountValue> oldAccountValSet = new HashSet<>(oldTarget.getSpec().getAccountValueList());
             Set<AccountValue> newAccountValSet = new HashSet<>(updatedFields);
             Set<Long> oldDerivedTargetIds = new HashSet<>(oldTarget.getSpec().getDerivedTargetIdsList());
-
             if (oldAccountValSet.equals(newAccountValSet) &&
-                oldDerivedTargetIds.equals(getDerivedTargetIds(targetId))
-                && !shouldUpdateCommunicationChannel(communicationBindingChannel, oldTarget.getSpec())) {
+                oldDerivedTargetIds.equals(getDerivedTargetIds(targetId))) {
                 logger.debug("No change in account values or derived targets. "
                     + "Not updating target '{}' ({}).", oldTarget.getDisplayName(), targetId);
                 return oldTarget;
             }
             retTarget =
-                oldTarget.withUpdatedFields(updatedFields, probeStore, communicationBindingChannel)
+                oldTarget.withUpdatedFields(updatedFields, probeStore)
                     .withUpdatedDerivedTargetIds(
-                        new ArrayList<>(getDerivedTargetIds(targetId)),
+                        getDerivedTargetIds(targetId)
+                            .stream()
+                            .collect(Collectors.toList()),
                         probeStore);
 
             // Check if the target with the same identifier have ever existed. If we find that this
@@ -543,23 +507,6 @@ public class CachingTargetStore implements TargetStore, ProbeStoreListener {
             retTarget.getProbeId());
         listeners.forEach(listener -> listener.onTargetUpdated(retTarget));
         return retTarget;
-    }
-
-    /**
-     * Returns true if the provided channel is different than the current one.
-     * @param communicationChannel the commmunication channel
-     * @param spec the  spec of the target
-     * @return true if the provided channel is different than the current one
-     */
-    private boolean shouldUpdateCommunicationChannel(@Nonnull Optional<String> communicationChannel,
-                                                     @Nonnull TargetSpec spec) {
-        if (!communicationChannel.isPresent() && !spec.hasCommunicationBindingChannel()) {
-            return false;
-        }
-        if (communicationChannel.isPresent() && spec.hasCommunicationBindingChannel()) {
-            return !communicationChannel.get().equals(spec.getCommunicationBindingChannel());
-        }
-        return true;
     }
 
     private Predicate<IdentityMatchingAttributes> getOidMatchingPredicate(TargetSpec targetSpec) {

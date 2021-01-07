@@ -168,7 +168,7 @@ public class KvTargetDaoTest {
 
         final TargetRESTApi.TargetSpec spec = new TargetRESTApi.TargetSpec(0L, Arrays.asList(
             new InputField(SECRET_FIELD_NAME, "ThePassValue", Optional.empty()),
-            new InputField(PLAIN_FIELD_NAME, "theUserName", Optional.empty())), Optional.empty());
+            new InputField(PLAIN_FIELD_NAME, "theUserName", Optional.empty())));
         final Target target = new Target(0L, probeStore, spec.toDto(), true);
 
 
@@ -214,7 +214,7 @@ public class KvTargetDaoTest {
             Arrays.asList(new InputField("name", "value",
                 Optional.of(Collections.singletonList(Collections.singletonList("test")))),
                 new InputField("targetId", "value",
-                    Optional.of(Collections.singletonList(Collections.singletonList("test"))))), Optional.empty());
+                    Optional.of(Collections.singletonList(Collections.singletonList("test"))))));
         return new Target(0L, probeStore, spec.toDto(), true);
     }
 

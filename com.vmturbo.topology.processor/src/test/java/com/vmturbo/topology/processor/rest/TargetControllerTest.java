@@ -93,7 +93,6 @@ import com.vmturbo.topology.processor.actions.ActionMergeSpecsRepository;
 import com.vmturbo.topology.processor.api.AccountValue;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
 import com.vmturbo.topology.processor.api.dto.InputField;
-import com.vmturbo.topology.processor.api.dto.TargetInputFields;
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi.GetAllTargetsResponse;
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi.TargetInfo;
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi.TargetSpec;
@@ -127,10 +126,10 @@ import com.vmturbo.topology.processor.topology.TopologyHandler;
 public class TargetControllerTest {
 
     private static final SettingPolicyServiceMole settingPolicyServiceMole =
-        Mockito.spy(new SettingPolicyServiceMole());
+            Mockito.spy(new SettingPolicyServiceMole());
 
     private static final WorkflowServiceMole workflowServiceMole =
-        Mockito.spy(new WorkflowServiceMole());
+            Mockito.spy(new WorkflowServiceMole());
     /**
      * Nested configuration for Spring context.
      */
@@ -178,9 +177,9 @@ public class TargetControllerTest {
         public TargetStore targetStore() {
             GroupScopeResolver groupScopeResolver = mock(GroupScopeResolver.class);
             when(groupScopeResolver.processGroupScope(any(), any(), any()))
-                .then(AdditionalAnswers.returnsSecondArg());
+                    .then(AdditionalAnswers.returnsSecondArg());
             return new CachingTargetStore(targetDao(), probeStore(),
-                targetIdentityStore());
+                    targetIdentityStore());
         }
 
         @Override
@@ -194,13 +193,13 @@ public class TargetControllerTest {
         public IOperationManager operationManager() {
             final IOperationManager result = mock(IOperationManager.class);
             when(result.getLastDiscoveryForTarget(anyLong(), any(DiscoveryType.class)))
-                .thenReturn(Optional.empty());
+                    .thenReturn(Optional.empty());
             when(result.getInProgressDiscoveryForTarget(anyLong(), any(DiscoveryType.class)))
-                .thenReturn(Optional.empty());
+                    .thenReturn(Optional.empty());
             when(result.getLastValidationForTarget(anyLong()))
-                .thenReturn(Optional.empty());
+                    .thenReturn(Optional.empty());
             when(result.getInProgressValidationForTarget(anyLong()))
-                .thenReturn(Optional.empty());
+                    .thenReturn(Optional.empty());
             return result;
         }
 
@@ -213,7 +212,7 @@ public class TargetControllerTest {
         public GrpcTestServer grpcTestServer() {
             try {
                 final GrpcTestServer testServer =
-                    GrpcTestServer.newServer(settingPolicyServiceMole, workflowServiceMole);
+                        GrpcTestServer.newServer(settingPolicyServiceMole, workflowServiceMole);
                 testServer.start();
                 return testServer;
             } catch (IOException e) {
@@ -234,8 +233,8 @@ public class TargetControllerTest {
         @Bean
         public TargetController targetController() {
             return new TargetController(schedulerMock(), targetStore(), probeStore(),
-                operationManager(), topologyHandler(), settingPolicyServiceBlockingStub(),
-                workflowServiceBlockingStub());
+                    operationManager(), topologyHandler(), settingPolicyServiceBlockingStub(),
+                    workflowServiceBlockingStub());
         }
     }
 
@@ -282,28 +281,28 @@ public class TargetControllerTest {
         otherProbeInfo = createProbeInfo("test", "testCategoryOther", "mandatory",
             "mandatory", CreationMode.OTHER);
         mandatoryAccountDef = AccountDefEntry.newBuilder()
-            .setCustomDefinition(CustomAccountDefEntry.newBuilder()
-                .setName("mandatory")
-                .setDisplayName("blah")
-                .setDescription("BLAH"))
-            .setMandatory(true)
-            .build();
+                .setCustomDefinition(CustomAccountDefEntry.newBuilder()
+                        .setName("mandatory")
+                        .setDisplayName("blah")
+                        .setDescription("BLAH"))
+                .setMandatory(true)
+                .build();
         optionalAccountDef = AccountDefEntry.newBuilder()
-            .setCustomDefinition(CustomAccountDefEntry.newBuilder()
-                .setName("optional")
-                .setDisplayName("blah")
-                .setDescription("BLAH"))
-            .setMandatory(false)
-            .build();
+                .setCustomDefinition(CustomAccountDefEntry.newBuilder()
+                        .setName("optional")
+                        .setDisplayName("blah")
+                        .setDescription("BLAH"))
+                .setMandatory(false)
+                .build();
         @SuppressWarnings("unchecked")
         final ITransport<MediationServerMessage, MediationClientMessage> mock =
-            mock(ITransport.class);
+                        mock(ITransport.class);
         transport = mock;
     }
 
     private static ProbeInfo createProbeInfo(String probeType, String category,
                                              String identifierField, String accoutDef,
-                                             CreationMode creationMode) {
+                                      CreationMode creationMode) {
         return ProbeInfo.newBuilder()
             .setProbeType(probeType)
             .setProbeCategory(category)
@@ -313,7 +312,7 @@ public class TargetControllerTest {
             .addAccountDefinition(AccountDefEntry.newBuilder()
                 .setCustomDefinition(CustomAccountDefEntry.newBuilder()
                     .setName(accoutDef)
-                    .setDescription("test").setDisplayName("test"))
+                .setDescription("test").setDisplayName("test"))
                 .setMandatory(true)
                 .build())
             .build();
@@ -363,33 +362,8 @@ public class TargetControllerTest {
         Assert.assertNotNull(targetInfo.getAccountData());
         Assert.assertEquals(1, targetInfo.getAccountData().size());
         Assert.assertEquals(Collections.singleton(stringValue),
-            targetInfo.getAccountData().stream().filter(av -> mandatoryKey.equals(av.getName()))
-                .map(AccountValue::getStringValue).collect(Collectors.toSet()));
-    }
-
-    /**
-     * Tests the creation of a target with a communication channel.
-     *
-     * @throws Exception on exceptions occur
-     */
-    @Test
-    public void addTargetWithCommunicationChannel() throws Exception {
-        Gson gson = new Gson();
-        String communicationBindingChannel = "testChannel";
-        ProbeInfo oneMandatory = ProbeInfo.newBuilder(probeInfo).build();
-        String reqStr = gson.toJson(new TargetSpec(identityProvider.getProbeId(oneMandatory), Collections.singletonList(new InputField("mandatory",
-            "mandatory", Optional.empty())), Optional.of(communicationBindingChannel)));
-        probeStore.registerNewProbe(oneMandatory, transport);
-        MvcResult result = mockMvc.perform(post("/target")
-            .contentType(MediaType.APPLICATION_JSON_UTF8_VALUE).content(reqStr)
-            .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
-            .andExpect(status().is(HttpStatus.OK.value()))
-            .andExpect(content().contentType(MediaType.APPLICATION_JSON_UTF8))
-            .andReturn();
-        String resultStr = result.getResponse().getContentAsString();
-        TargetInfo info = gson.fromJson(resultStr, TargetInfo.class);
-        Assert.assertTrue(info.getCommunicationBindingChannel().isPresent());
-        Assert.assertEquals(communicationBindingChannel, info.getCommunicationBindingChannel().get());
+                targetInfo.getAccountData().stream().filter(av -> mandatoryKey.equals(av.getName()))
+                        .map(AccountValue::getStringValue).collect(Collectors.toSet()));
     }
 
     /**
@@ -400,8 +374,8 @@ public class TargetControllerTest {
     @Test
     public void testRestrictionOfAddingSeveralServiceNowTargets() throws Exception {
         final ProbeInfo serviceNowProbe = createProbeInfo(SDKProbeType.SERVICENOW.getProbeType(),
-            ProbeCategory.ORCHESTRATOR.getCategory(), "mandatory", "mandatory",
-            CreationMode.STAND_ALONE);
+                ProbeCategory.ORCHESTRATOR.getCategory(), "mandatory", "mandatory",
+                CreationMode.STAND_ALONE);
         probeStore.registerNewProbe(serviceNowProbe, transport);
         final TargetAdder adder = new TargetAdder(identityProvider.getProbeId(serviceNowProbe));
         adder.setAccountField("mandatory", "1");
@@ -412,7 +386,7 @@ public class TargetControllerTest {
         final List<String> errors = failedTargetInfo.getErrors();
         Assert.assertEquals(1, errors.size());
         Assert.assertThat(errors.get(0),
-            CoreMatchers.containsString("Cannot add more than one ServiceNow target."));
+                CoreMatchers.containsString("Cannot add more than one ServiceNow target."));
     }
 
     @Test
@@ -427,11 +401,11 @@ public class TargetControllerTest {
     @Test
     public void addTargetMissingMultipleMandatory() throws Exception {
         final AccountDefEntry.Builder accountBuilder =
-            AccountDefEntry.newBuilder(mandatoryAccountDef);
+                        AccountDefEntry.newBuilder(mandatoryAccountDef);
         accountBuilder.getCustomDefinitionBuilder().setName("2mandatory");
         final AccountDefEntry mandatory2 = accountBuilder.build();
         ProbeInfo twoMandatory = ProbeInfo.newBuilder(probeInfo)
-            .addAccountDefinition(mandatory2).build();
+                .addAccountDefinition(mandatory2).build();
         probeStore.registerNewProbe(twoMandatory, transport);
         TargetAdder adder = new TargetAdder(identityProvider.getProbeId(twoMandatory));
         TargetInfo result = adder.postAndExpect(HttpStatus.BAD_REQUEST);
@@ -441,10 +415,10 @@ public class TargetControllerTest {
     @Test
     public void addTargetMissingOptional() throws Exception {
         final AccountDefEntry.Builder accountBuilder =
-            AccountDefEntry.newBuilder(optionalAccountDef);
+                        AccountDefEntry.newBuilder(optionalAccountDef);
         accountBuilder.getCustomDefinitionBuilder().setName("1optional");
         ProbeInfo optional = ProbeInfo.newBuilder(probeInfo)
-            .addAccountDefinition(accountBuilder).build();
+                .addAccountDefinition(accountBuilder).build();
         probeStore.registerNewProbe(optional, transport);
         TargetAdder adder = new TargetAdder(identityProvider.getProbeId(optional));
         adder.setAccountField("mandatory", "abc123");
@@ -455,11 +429,11 @@ public class TargetControllerTest {
     @Test
     public void addTargetVerificationRegex() throws Exception {
         final AccountDefEntry.Builder accountBuilder =
-            AccountDefEntry.newBuilder(mandatoryAccountDef);
+                        AccountDefEntry.newBuilder(mandatoryAccountDef);
         accountBuilder.getCustomDefinitionBuilder().setName("abcPrefix")
-            .setVerificationRegex("abc.*");
+                        .setVerificationRegex("abc.*");
         ProbeInfo abcPrefix = ProbeInfo.newBuilder(probeInfo)
-            .addAccountDefinition(accountBuilder).build();
+                .addAccountDefinition(accountBuilder).build();
         probeStore.registerNewProbe(abcPrefix, transport);
         TargetAdder adder = new TargetAdder(identityProvider.getProbeId(abcPrefix));
         adder.setAccountField("abcPrefix", "abc123");
@@ -470,11 +444,11 @@ public class TargetControllerTest {
     @Test
     public void addTargetFailedVerification() throws Exception {
         final AccountDefEntry.Builder accountBuilder =
-            AccountDefEntry.newBuilder(mandatoryAccountDef);
+                        AccountDefEntry.newBuilder(mandatoryAccountDef);
         accountBuilder.getCustomDefinitionBuilder().setName("abcPrefix")
-            .setVerificationRegex("abc.*");
+                        .setVerificationRegex("abc.*");
         ProbeInfo abcPrefix = ProbeInfo.newBuilder(probeInfo)
-            .addAccountDefinition(accountBuilder).build();
+                .addAccountDefinition(accountBuilder).build();
         probeStore.registerNewProbe(abcPrefix, transport);
         TargetAdder adder = new TargetAdder(identityProvider.getProbeId(abcPrefix));
         // Invalid value, since it doesn't start with abc.
@@ -509,18 +483,18 @@ public class TargetControllerTest {
         // Make sure we get ALL the errors.
         Assert.assertEquals(2, targetInfo.getErrors().size());
         Assert.assertThat(targetInfo.getErrors(),
-            Matchers.containsInAnyOrder("Unknown field: extra",
-                "Missing mandatory field mandatory"));
+                Matchers.containsInAnyOrder("Unknown field: extra",
+                        "Missing mandatory field mandatory"));
     }
 
     @Test
     public void addTargetBadProbe() throws Exception {
         final AccountDefEntry.Builder accountBuilder =
-            AccountDefEntry.newBuilder(mandatoryAccountDef);
+                        AccountDefEntry.newBuilder(mandatoryAccountDef);
         accountBuilder.getCustomDefinitionBuilder().setName("bad")
-            .setVerificationRegex("987s6t*(&^*(&^");
+                        .setVerificationRegex("987s6t*(&^*(&^");
         ProbeInfo bad = ProbeInfo.newBuilder(probeInfo)
-            .addAccountDefinition(accountBuilder).build();
+                .addAccountDefinition(accountBuilder).build();
         probeStore.registerNewProbe(bad, transport);
         TargetAdder adder = new TargetAdder(identityProvider.getProbeId(bad));
         adder.setAccountField("bad", "123");
@@ -529,22 +503,22 @@ public class TargetControllerTest {
         expectedException.expectMessage("Unclosed group near index 14");
 
         mockMvc.perform(post("/target")
-            .contentType(MediaType.APPLICATION_JSON_UTF8_VALUE)
-            .content(new Gson().toJson(adder.buildSpec()))
-            .accept(MediaType.APPLICATION_JSON_UTF8_VALUE));
+                .contentType(MediaType.APPLICATION_JSON_UTF8_VALUE)
+                .content(new Gson().toJson(adder.buildSpec()))
+                .accept(MediaType.APPLICATION_JSON_UTF8_VALUE));
     }
 
     @Test
     public void addAndGetTarget() throws Exception {
         final AccountDefEntry.Builder accountBuilder =
-            AccountDefEntry.newBuilder(mandatoryAccountDef);
+                        AccountDefEntry.newBuilder(mandatoryAccountDef);
         accountBuilder.getCustomDefinitionBuilder().setName("mandatory");
         ProbeInfo info = ProbeInfo.newBuilder(probeInfo)
-            .addAccountDefinition(accountBuilder).build();
+                .addAccountDefinition(accountBuilder).build();
         probeStore.registerNewProbe(info, transport);
         TargetAdder adder = new TargetAdder(identityProvider.getProbeId(info));
         adder.setAccountField("mandatory", "test",
-            Collections.singletonList(Collections.singletonList("prop")));
+                        Collections.singletonList(Collections.singletonList("prop")));
         TargetInfo result = adder.postAndExpect(HttpStatus.OK);
         Assert.assertNotNull(result.getTargetId());
         TargetInfo resp = getTarget(result.getTargetId());
@@ -570,18 +544,18 @@ public class TargetControllerTest {
     @Test
     public void testGetNonNumeric() throws Exception {
         MvcResult result = mockMvc.perform(get("/target/the6")
-            .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
-            .andExpect(status().is(HttpStatus.BAD_REQUEST.value()))
-            .andReturn();
+                .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
+                .andExpect(status().is(HttpStatus.BAD_REQUEST.value()))
+                .andReturn();
     }
 
     @Test
     public void testGetTargetSecretField() throws Exception {
         final AccountDefEntry.Builder accountBuilder =
-            AccountDefEntry.newBuilder(mandatoryAccountDef);
+                        AccountDefEntry.newBuilder(mandatoryAccountDef);
         accountBuilder.getCustomDefinitionBuilder().setName("secret").setIsSecret(true);
         ProbeInfo info = ProbeInfo.newBuilder(probeInfo)
-            .addAccountDefinition(accountBuilder).build();
+                .addAccountDefinition(accountBuilder).build();
         probeStore.registerNewProbe(info, transport);
         TargetAdder adder = new TargetAdder(identityProvider.getProbeId(info));
         adder.setAccountField("secret", "nooneknows");
@@ -610,10 +584,10 @@ public class TargetControllerTest {
         probeStore.removeTransport(transport);
 
         String getResult = mockMvc.perform(get("/target/" + result.getTargetId())
-            .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
-            .andExpect(status().isOk())
-            .andReturn()
-            .getResponse().getContentAsString();
+                .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse().getContentAsString();
 
         TargetInfo resp = GSON.fromJson(getResult, TargetInfo.class);
         Assert.assertFalse(resp.getProbeConnected());
@@ -622,10 +596,10 @@ public class TargetControllerTest {
     @Test
     public void testGetAll() throws Exception {
         final AccountDefEntry.Builder accountBuilder =
-            AccountDefEntry.newBuilder(mandatoryAccountDef);
+                        AccountDefEntry.newBuilder(mandatoryAccountDef);
         accountBuilder.getCustomDefinitionBuilder().setName("mandatory");
         ProbeInfo info = ProbeInfo.newBuilder(probeInfo)
-            .addAccountDefinition(accountBuilder).build();
+                .addAccountDefinition(accountBuilder).build();
         probeStore.registerNewProbe(info, transport);
 
         Map<Long, TargetSpec> expectedSpecs = new HashMap<>();
@@ -639,12 +613,12 @@ public class TargetControllerTest {
 
         Map<Long, TargetInfo> retTargets = getAllTargets();
         expectedSpecs.entrySet().stream().forEach(
-            entry -> {
-                TargetInfo retInfo = retTargets.get(entry.getKey());
-                Assert.assertNotNull(retInfo);
-                Assert.assertNotNull(retInfo.getSpec());
-                assertEqualSpecs(entry.getValue(), retInfo.getSpec());
-            }
+                entry -> {
+                    TargetInfo retInfo = retTargets.get(entry.getKey());
+                    Assert.assertNotNull(retInfo);
+                    Assert.assertNotNull(retInfo.getSpec());
+                    assertEqualSpecs(entry.getValue(), retInfo.getSpec());
+                }
         );
     }
 
@@ -656,19 +630,19 @@ public class TargetControllerTest {
     @Test
     public void testGetAllDifferentStatuses() throws Exception {
         final AccountDefEntry.Builder accountBuilder =
-            AccountDefEntry.newBuilder(mandatoryAccountDef);
+                AccountDefEntry.newBuilder(mandatoryAccountDef);
         accountBuilder.getCustomDefinitionBuilder().setName("mandatory");
         final ProbeInfo info =
-            ProbeInfo.newBuilder(probeInfo).addAccountDefinition(accountBuilder).build();
+                ProbeInfo.newBuilder(probeInfo).addAccountDefinition(accountBuilder).build();
         probeStore.registerNewProbe(info, transport);
 
         final long probeId = identityProvider.getProbeId(info);
         final Discovery discovery = new Discovery(probeId, 0, identityProvider);
         final Validation validation = new Validation(probeId,  0, identityProvider);
         when(operationManager.getLastDiscoveryForTarget(anyLong(), any(DiscoveryType.class)))
-            .thenReturn(Optional.empty());
+                .thenReturn(Optional.empty());
         when(operationManager.getLastValidationForTarget(anyLong()))
-            .thenReturn(Optional.empty());
+                .thenReturn(Optional.empty());
 
         final TargetAdder adder = new TargetAdder(identityProvider.getProbeId(info));
         adder.setAccountField("mandatory", "prop");
@@ -678,13 +652,13 @@ public class TargetControllerTest {
         Assert.assertNull(result.getLastValidationTime());
 
         when(operationManager.getLastDiscoveryForTarget(anyLong(), any(DiscoveryType.class)))
-            .thenReturn(Optional.of(discovery));
+                .thenReturn(Optional.of(discovery));
         when(operationManager.getLastValidationForTarget(anyLong()))
-            .thenReturn(Optional.of(validation));
+                .thenReturn(Optional.of(validation));
         when(operationManager.getInProgressValidationForTarget(anyLong()))
-            .thenReturn(Optional.of(validation));
+                .thenReturn(Optional.of(validation));
         when(operationManager.getInProgressValidationForTarget(anyLong()))
-            .thenReturn(Optional.of(validation));
+                .thenReturn(Optional.of(validation));
         {
             final TargetInfo target2 = getTarget(result.getId());
             Assert.assertThat(target2.getStatus(), CoreMatchers.containsString(TargetController.VALIDATING));
@@ -697,9 +671,9 @@ public class TargetControllerTest {
         }
         {
             when(operationManager.getInProgressValidationForTarget(anyLong()))
-                .thenReturn(Optional.empty());
+                    .thenReturn(Optional.empty());
             when(operationManager.getInProgressValidationForTarget(anyLong()))
-                .thenReturn(Optional.empty());
+                    .thenReturn(Optional.empty());
             validation.success();
             final TargetInfo target3 = getTarget(result.getId());
             Assert.assertThat(target3.getStatus(), is(StringConstants.TOPOLOGY_PROCESSOR_VALIDATION_SUCCESS));
@@ -723,7 +697,7 @@ public class TargetControllerTest {
             validation.success();
             final TargetInfo target = getTarget(result.getId());
             Assert.assertThat(target.getStatus(),
-                CoreMatchers.containsString(StringConstants.TOPOLOGY_PROCESSOR_VALIDATION_SUCCESS));
+                    CoreMatchers.containsString(StringConstants.TOPOLOGY_PROCESSOR_VALIDATION_SUCCESS));
             Assert.assertEquals(validation.getCompletionTime(), target.getLastValidationTime());
         }
     }
@@ -737,10 +711,10 @@ public class TargetControllerTest {
     @Test
     public void testGetAllSecretField() throws Exception {
         final AccountDefEntry.Builder accountBuilder =
-            AccountDefEntry.newBuilder(mandatoryAccountDef);
+                        AccountDefEntry.newBuilder(mandatoryAccountDef);
         accountBuilder.getCustomDefinitionBuilder().setName("secret").setIsSecret(true);
         ProbeInfo info = ProbeInfo.newBuilder(probeInfo).addTargetIdentifierField("secret")
-            .addAccountDefinition(accountBuilder).build();
+                .addAccountDefinition(accountBuilder).build();
         probeStore.registerNewProbe(info, transport);
 
         List<Long> ids = new ArrayList<>();
@@ -758,10 +732,10 @@ public class TargetControllerTest {
 
         TargetSpec emptySpec = adder.buildSpec();
         ids.stream().forEach(
-            targetId -> {
-                Assert.assertTrue(targets.containsKey(targetId));
-                assertEqualSpecs(emptySpec, targets.get(targetId).getSpec());
-            }
+                targetId -> {
+                    Assert.assertTrue(targets.containsKey(targetId));
+                    assertEqualSpecs(emptySpec, targets.get(targetId).getSpec());
+                }
         );
     }
 
@@ -770,7 +744,7 @@ public class TargetControllerTest {
         ProbeInfo goneProbe = ProbeInfo.newBuilder(probeInfo).setProbeType("type1").build();
         @SuppressWarnings("unchecked")
         final ITransport<MediationServerMessage, MediationClientMessage> goneTransport =
-            mock(ITransport.class);
+                        mock(ITransport.class);
         probeStore.registerNewProbe(goneProbe, goneTransport);
 
         ProbeInfo registeredProbe = ProbeInfo.newBuilder(probeInfo).setProbeType("type2").build();
@@ -789,9 +763,9 @@ public class TargetControllerTest {
         probeStore.removeTransport(goneTransport);
 
         MvcResult result = mockMvc.perform(get("/target")
-            .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
-            .andExpect(status().isOk())
-            .andReturn();
+                .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
+                .andExpect(status().isOk())
+                .andReturn();
 
         String resultStr = result.getResponse().getContentAsString();
         GetAllTargetsResponse resp = GSON.fromJson(resultStr, GetAllTargetsResponse.class);
@@ -817,20 +791,10 @@ public class TargetControllerTest {
      */
     private TopologyProcessorDTO.TargetSpec createTargetSpec(long probeId, String id) {
         final TopologyProcessorDTO.AccountValue account = TopologyProcessorDTO.AccountValue.newBuilder()
-            .setKey(mandatoryAccountDef.getCustomDefinition().getName())
-            .setStringValue(id).build();
+                        .setKey(mandatoryAccountDef.getCustomDefinition().getName())
+                        .setStringValue(id).build();
         final TopologyProcessorDTO.TargetSpec spec = TopologyProcessorDTO.TargetSpec.newBuilder().setProbeId(probeId)
-            .addAccountValue(account).setIsHidden(false).setReadOnly(false).build();
-        return spec;
-    }
-
-    private TopologyProcessorDTO.TargetSpec createTargetSpec(long probeId, String id,
-                                                             String communicationChannel) {
-        final TopologyProcessorDTO.AccountValue account = TopologyProcessorDTO.AccountValue.newBuilder()
-            .setKey(mandatoryAccountDef.getCustomDefinition().getName())
-            .setStringValue(id).build();
-        final TopologyProcessorDTO.TargetSpec spec = TopologyProcessorDTO.TargetSpec.newBuilder().setProbeId(probeId)
-            .addAccountValue(account).setIsHidden(false).setReadOnly(false).setCommunicationBindingChannel(communicationChannel).build();
+                        .addAccountValue(account).setIsHidden(false).setReadOnly(false).build();
         return spec;
     }
 
@@ -876,7 +840,7 @@ public class TargetControllerTest {
 
         Assert.assertEquals(2, targetStore.getAll().size());
         final MvcResult mvcResult =
-            requestRemoveTarget(target1.getId()).andExpect(status().isOk()).andReturn();
+                        requestRemoveTarget(target1.getId()).andExpect(status().isOk()).andReturn();
         final TargetInfo targetDeleted = decodeResult(mvcResult, TargetInfo.class);
         Assert.assertEquals(Collections.singletonList(target2), targetStore.getAll());
         Assert.assertEquals(target1.getId(), targetDeleted.getId());
@@ -899,25 +863,25 @@ public class TargetControllerTest {
         final String blockedPolicyName = "Blocked Policy";
         final long blockedPolicyId = 12L;
         Mockito.when(workflowServiceMole.fetchWorkflows(
-            FetchWorkflowsRequest.newBuilder().addTargetId(target1.getId()).build()))
-            .thenReturn(FetchWorkflowsResponse.newBuilder()
-                .addWorkflows(Workflow.newBuilder().setId(workflowId).build())
-                .build());
+                FetchWorkflowsRequest.newBuilder().addTargetId(target1.getId()).build()))
+                .thenReturn(FetchWorkflowsResponse.newBuilder()
+                        .addWorkflows(Workflow.newBuilder().setId(workflowId).build())
+                        .build());
         Mockito.when(settingPolicyServiceMole.listSettingPolicies(
-            ListSettingPoliciesRequest.newBuilder().addWorkflowId(workflowId).build()))
-            .thenReturn(Collections.singletonList(SettingPolicy.newBuilder()
-                .setInfo(SettingPolicyInfo.newBuilder().setName(blockedPolicyName).build())
-                .setId(blockedPolicyId)
-                .build()));
+                ListSettingPoliciesRequest.newBuilder().addWorkflowId(workflowId).build()))
+                .thenReturn(Collections.singletonList(SettingPolicy.newBuilder()
+                        .setInfo(SettingPolicyInfo.newBuilder().setName(blockedPolicyName).build())
+                        .setId(blockedPolicyId)
+                        .build()));
 
         Assert.assertEquals(1, targetStore.getAll().size());
         final MvcResult mvcResult =
-            requestRemoveTarget(target1.getId()).andExpect(status().isForbidden()).andReturn();
+                requestRemoveTarget(target1.getId()).andExpect(status().isForbidden()).andReturn();
         final TargetInfo notDeletedTarget = decodeResult(mvcResult, TargetInfo.class);
         Assert.assertEquals(Collections.singletonList(target1), targetStore.getAll());
         Assert.assertThat(notDeletedTarget.getErrors().iterator().next(), CoreMatchers.allOf(
-            CoreMatchers.containsString("Cannot remove target " + target1.getDisplayName()),
-            CoreMatchers.containsString(blockedPolicyName)));
+                CoreMatchers.containsString("Cannot remove target " + target1.getDisplayName()),
+                CoreMatchers.containsString(blockedPolicyName)));
 
         // Clean up the workflow policies so tests following this will not have undesired results
         // due to the policies introduced here.  This is because the way we use the
@@ -926,11 +890,11 @@ public class TargetControllerTest {
         // results of those tests.
         //
         Mockito.when(settingPolicyServiceMole.listSettingPolicies(
-            ListSettingPoliciesRequest.newBuilder().addWorkflowId(workflowId).build()))
-            .thenReturn(Collections.emptyList());
+                ListSettingPoliciesRequest.newBuilder().addWorkflowId(workflowId).build()))
+                .thenReturn(Collections.emptyList());
         Mockito.when(workflowServiceMole.fetchWorkflows(
-            FetchWorkflowsRequest.newBuilder().addTargetId(target1.getId()).build()))
-            .thenReturn(FetchWorkflowsResponse.newBuilder().build());
+                FetchWorkflowsRequest.newBuilder().addTargetId(target1.getId()).build()))
+                .thenReturn(FetchWorkflowsResponse.newBuilder().build());
     }
 
     /**
@@ -942,12 +906,12 @@ public class TargetControllerTest {
     public void removeNonExistingTarget() throws Exception {
         final long targetId = 1L;
         final MvcResult mvcResult =
-            requestRemoveTarget(targetId).andExpect(status().isNotFound()).andReturn();
+                        requestRemoveTarget(targetId).andExpect(status().isNotFound()).andReturn();
         final TargetInfo result = decodeResult(mvcResult, TargetInfo.class);
         Assert.assertEquals(1, result.getErrors().size());
         Assert.assertThat(result.getErrors().iterator().next(),
-            CoreMatchers.allOf(CoreMatchers.containsString(Long.toString(targetId)),
-                CoreMatchers.containsString("does not exist")));
+                        CoreMatchers.allOf(CoreMatchers.containsString(Long.toString(targetId)),
+                                        CoreMatchers.containsString("does not exist")));
     }
 
     /**
@@ -960,7 +924,7 @@ public class TargetControllerTest {
      */
     private Matcher<? super String> createTargetMatcher(long targetId, String substring) {
         return CoreMatchers.allOf(CoreMatchers.containsString(Long.toString(targetId)),
-            CoreMatchers.containsString(substring));
+                        CoreMatchers.containsString(substring));
     }
 
     /**
@@ -977,8 +941,8 @@ public class TargetControllerTest {
 
         Assert.assertEquals(2, targetStore.getAll().size());
         final MvcResult mvcResult =
-            requestModifyTarget(target1.getId(), new TargetSpec(newTargetSpec))
-                .andExpect(status().isOk()).andReturn();
+                        requestModifyTarget(target1.getId(), new TargetSpec(newTargetSpec))
+                                        .andExpect(status().isOk()).andReturn();
         final TargetInfo resultTarget = decodeResult(mvcResult, TargetInfo.class);
 
         Assert.assertEquals(2, targetStore.getAll().size());
@@ -1027,73 +991,6 @@ public class TargetControllerTest {
     }
 
     /**
-     * Tests correct target modification with a communication channel.
-     *
-     * @throws Exception on exceptions occur
-     */
-    @Test
-    public void updateTargetCommunicationChannel() throws Exception {
-        final long probeId = createProbeWithOneField(probeInfo);
-        final String channel1 = "channel1";
-        final String channel2 = "channel2";
-        final Target target1 = targetStore.createTarget(createTargetSpec(probeId, "1", channel1));
-
-        Assert.assertEquals(channel1, target1.getSpec().getCommunicationBindingChannel());
-
-        final TopologyProcessorDTO.TargetSpec newTargetSpec = createTargetSpec(probeId, "3", channel2);
-
-        requestModifyTarget(target1.getId(), new TargetSpec(newTargetSpec))
-            .andExpect(status().isOk()).andReturn();
-        final Target newTarget = targetStore.getTarget(target1.getId()).get();
-        Assert.assertEquals(channel2, newTarget.getSpec().getCommunicationBindingChannel());
-    }
-
-
-    /**
-     * Tests correct target modification with a communication channel.
-     *
-     * @throws Exception on exceptions occur
-     */
-    @Test
-    public void updateTargetWithoutCommunicationChannel() throws Exception {
-        final long probeId = createProbeWithOneField(probeInfo);
-        final String channel1 = "channel1";
-        final Target target1 = targetStore.createTarget(createTargetSpec(probeId, "1", channel1));
-
-        Assert.assertEquals(channel1, target1.getSpec().getCommunicationBindingChannel());
-
-        requestModifyTarget(target1.getId(), new TargetSpec(createTargetSpec(probeId, "3")))
-            .andExpect(status().isOk()).andReturn();
-
-        // make sure that if we updated the target, without passing a new communication channel,
-        // the target will still have the previous one
-        final Target newTarget = targetStore.getTarget(target1.getId()).get();
-        Assert.assertEquals(channel1, newTarget.getSpec().getCommunicationBindingChannel());
-    }
-
-    /**
-     * Tests correct target communicationBindingChannel deletion.
-     *
-     * @throws Exception on exceptions occur
-     */
-    @Test
-    public void deleteCommunicationChannel() throws Exception {
-        final long probeId = createProbeWithOneField(probeInfo);
-        final String channel1 = "channel1";
-        final Target target1 = targetStore.createTarget(createTargetSpec(probeId, "1", channel1));
-
-        Assert.assertEquals(channel1, target1.getSpec().getCommunicationBindingChannel());
-
-        final TopologyProcessorDTO.TargetSpec newTargetSpec = createTargetSpec(probeId, "3", "");
-
-        requestModifyTarget(target1.getId(), new TargetSpec(newTargetSpec))
-            .andExpect(status().isOk()).andReturn();
-
-        final Target newTarget = targetStore.getTarget(target1.getId()).get();
-        Assert.assertFalse(newTarget.getSpec().hasCommunicationBindingChannel());
-    }
-
-    /**
      * Creates a probe with derived creation mode and checks that it can be removed from the
      * internal api call; it is now only blocked from the public APIs -
      * see "TargetsServiceTest.deleteReadOnlyTarget" in the api component.
@@ -1114,10 +1011,10 @@ public class TargetControllerTest {
         //
         final long workflowId = 43;
         Mockito.when(workflowServiceMole.fetchWorkflows(
-            FetchWorkflowsRequest.newBuilder().addTargetId(target.getId()).build()))
-            .thenReturn(FetchWorkflowsResponse.newBuilder()
-                .addWorkflows(Workflow.newBuilder().setId(workflowId).build())
-                .build());
+                FetchWorkflowsRequest.newBuilder().addTargetId(target.getId()).build()))
+                .thenReturn(FetchWorkflowsResponse.newBuilder()
+                        .addWorkflows(Workflow.newBuilder().setId(workflowId).build())
+                        .build());
         requestRemoveTarget(target.getId()).andExpect(status().isOk()).andReturn();
         Assert.assertEquals(0, targetStore.getAll().size());
     }
@@ -1142,9 +1039,9 @@ public class TargetControllerTest {
 
     private Map<Long, TargetInfo> getAllTargets() throws Exception {
         MvcResult result = mockMvc.perform(get("/target")
-            .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
-            .andExpect(status().isOk())
-            .andReturn();
+                .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
+                .andExpect(status().isOk())
+                .andReturn();
         String resultStr = result.getResponse().getContentAsString();
         GetAllTargetsResponse resp = GSON.fromJson(resultStr, GetAllTargetsResponse.class);
         return resp.targetsById();
@@ -1152,34 +1049,28 @@ public class TargetControllerTest {
 
     private TargetInfo getTarget(Long id) throws Exception {
         MvcResult result = mockMvc.perform(get("/target/" + id)
-            .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
-            .andExpect(status().isOk())
-            .andReturn();
+                .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
+                .andExpect(status().isOk())
+                .andReturn();
         String resultStr = result.getResponse().getContentAsString();
         return GSON.fromJson(resultStr, TargetInfo.class);
     }
 
     private ResultActions requestRemoveTarget(long targetId) throws Exception {
         return mockMvc.perform(MockMvcRequestBuilders.delete("/target/" + targetId)
-            .accept(MediaType.APPLICATION_JSON_UTF8_VALUE));
+                        .accept(MediaType.APPLICATION_JSON_UTF8_VALUE));
     }
 
     private ResultActions requestModifyTarget(long targetId, TargetSpec targetSpec)
-        throws Exception {
-        return requestModifyTarget(targetId, targetSpec.getInputFields(), targetSpec.getCommunicationBindingChannel());
-    }
-
-    private ResultActions requestModifyTarget(long targetId, List<InputField> inputFields,
-                                              final Optional<String> communicationChannel)
-        throws Exception {
-        final String reqStr = new Gson().toJson(new TargetInputFields(inputFields, communicationChannel));
+                    throws Exception {
+        final String reqStr = new Gson().toJson(targetSpec.getInputFields());
         return mockMvc.perform(MockMvcRequestBuilders.put("/target/" + targetId)
-            .contentType(MediaType.APPLICATION_JSON_UTF8_VALUE).content(reqStr)
-            .accept(MediaType.APPLICATION_JSON_UTF8_VALUE));
+                        .contentType(MediaType.APPLICATION_JSON_UTF8_VALUE).content(reqStr)
+                        .accept(MediaType.APPLICATION_JSON_UTF8_VALUE));
     }
 
     private <T> T decodeResult(final MvcResult mvcResult, Class<T> responseClass)
-        throws UnsupportedEncodingException {
+                    throws UnsupportedEncodingException {
         final String resultStr = mvcResult.getResponse().getContentAsString();
         return GSON.fromJson(resultStr, responseClass);
     }
@@ -1205,18 +1096,18 @@ public class TargetControllerTest {
         }
 
         TargetSpec buildSpec() {
-            return new TargetSpec(probeId, accountFields, Optional.empty());
+            return new TargetSpec(probeId, accountFields);
         }
 
         TargetInfo postAndExpect(HttpStatus expectStatus) throws Exception {
             Gson gson = new Gson();
             String reqStr = gson.toJson(buildSpec());
             MvcResult result = mockMvc.perform(post("/target")
-                .contentType(MediaType.APPLICATION_JSON_UTF8_VALUE).content(reqStr)
-                .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
-                .andExpect(status().is(expectStatus.value()))
-                .andExpect(content().contentType(MediaType.APPLICATION_JSON_UTF8))
-                .andReturn();
+                    .contentType(MediaType.APPLICATION_JSON_UTF8_VALUE).content(reqStr)
+                    .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
+                    .andExpect(status().is(expectStatus.value()))
+                    .andExpect(content().contentType(MediaType.APPLICATION_JSON_UTF8))
+                    .andReturn();
             String resultStr = result.getResponse().getContentAsString();
             return gson.fromJson(resultStr, TargetInfo.class);
         }

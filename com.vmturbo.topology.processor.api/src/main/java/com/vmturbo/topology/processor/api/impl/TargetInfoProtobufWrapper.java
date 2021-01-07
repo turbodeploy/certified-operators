@@ -68,12 +68,6 @@ public class TargetInfoProtobufWrapper implements TargetInfo {
     }
 
     @Override
-    public Optional<String> getCommunicationBindingChannel() {
-        return targetInfo.getSpec().hasCommunicationBindingChannel() ?
-            Optional.of(targetInfo.getSpec().getCommunicationBindingChannel()) : Optional.empty();
-    }
-
-    @Override
     public String getDisplayName() {
         if (targetInfo.hasDisplayName()) {
             return targetInfo.getDisplayName();

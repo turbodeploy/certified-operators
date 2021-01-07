@@ -131,7 +131,7 @@ public class CreateVolumePreStitchingOperationTest {
         final TargetRESTApi.TargetSpec spec = new TargetRESTApi.TargetSpec(probeId1, Arrays.asList(
             new InputField("password", "ThePassValue", Optional.empty()),
             new InputField("user", "theUserName", Optional.empty()),
-            new InputField("targetId", "targetId", Optional.empty())), Optional.empty());
+            new InputField("targetId", "targetId", Optional.empty())));
         final Target target = new Target(targetId1, probeStore, spec.toDto(), false);
         Mockito.doReturn(Optional.of(target)).when(targetStore).getTarget(targetId1);
         Mockito.when(targetStore.getAll()).thenReturn(Collections.emptyList());

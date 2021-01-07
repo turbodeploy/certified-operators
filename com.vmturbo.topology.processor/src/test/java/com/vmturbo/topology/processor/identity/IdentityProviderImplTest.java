@@ -11,7 +11,6 @@ import static org.mockito.Mockito.when;
 import java.io.Writer;
 import java.util.Collections;
 import java.util.Map;
-import java.util.Optional;
 
 import com.google.common.collect.ImmutableList;
 
@@ -102,7 +101,7 @@ public class IdentityProviderImplTest {
      */
     @Test
     public void testGetTargetId() throws Exception {
-        TargetSpec targetSpec = new TargetSpec(0L, Collections.emptyList(), Optional.empty());
+        TargetSpec targetSpec = new TargetSpec(0L, Collections.emptyList());
         assertNotEquals(identityProvider.getTargetId(targetSpec.toDto()),
                 identityProvider.getTargetId(targetSpec.toDto()));
     }

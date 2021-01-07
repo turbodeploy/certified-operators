@@ -342,11 +342,6 @@ public class IntersightTargetSyncService implements Runnable {
                 return new InputField(name, Objects.toString(strValue, ""), Optional.empty());
             }).collect(Collectors.toSet());
         }
-
-        @Override
-        public Optional<String> getCommunicationBindingChannel() {
-            return Optional.empty();
-        }
     }
 
     /**
@@ -500,11 +495,6 @@ public class IntersightTargetSyncService implements Runnable {
                         return new InputField(name, Objects.toString(value, ""), Optional.empty());
                     })
                     .collect(Collectors.toSet());
-        }
-
-        @Override
-        public Optional<String> getCommunicationBindingChannel() {
-            return Optional.empty();
         }
     }
 }

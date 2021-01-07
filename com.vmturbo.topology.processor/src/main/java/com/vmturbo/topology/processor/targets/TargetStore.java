@@ -105,14 +105,13 @@ public interface TargetStore extends RequiresDataInitialization {
      *
      * @param targetId target id to change
      * @param updatedFields new data for the target
-     * @param communicationBindingChannel the channel over which the target will communicate.
      * @return new changed target
      * @throws InvalidTargetException if target validation failed.
      * @throws TargetNotFoundException if target to be modified is absent in the store.
      * @throws IdentityStoreException if target spec update failed.
      */
     @Nonnull
-    Target updateTarget(long targetId, @Nonnull Collection<AccountValue> updatedFields, Optional<String> communicationBindingChannel)
+    Target updateTarget(long targetId, @Nonnull Collection<AccountValue> updatedFields)
                     throws InvalidTargetException, TargetNotFoundException,
                         IdentityStoreException, IdentifierConflictException;
 

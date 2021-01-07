@@ -5,7 +5,6 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.communication.CommunicationException;
-import com.vmturbo.topology.processor.api.dto.TargetInputFields;
 
 /**
  * Target controller interface is responsible for operations with targets and probes.
@@ -76,7 +75,7 @@ public interface TopologyProcessor {
      * not applicable.
      * @throws IllegalArgumentException if specified target id or target data is {@code null}
      */
-    void modifyTarget(long targetId, @Nonnull TargetInputFields newData)
+    void modifyTarget(long targetId, @Nonnull TargetData newData)
             throws CommunicationException, TopologyProcessorException;
 
     /**
