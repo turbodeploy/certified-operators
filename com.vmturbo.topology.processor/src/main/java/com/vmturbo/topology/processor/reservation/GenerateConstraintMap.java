@@ -184,7 +184,7 @@ public class GenerateConstraintMap {
                     break;
                 }
                 if (!foundCommodityKey) {
-                    logger.error(logPrefix + "Failed to find the commodity key for cluster with ID: "
+                    logger.warn(logPrefix + "Failed to find the commodity key for cluster with ID: "
                             + membersResponse.getGroupId());
                 }
             }

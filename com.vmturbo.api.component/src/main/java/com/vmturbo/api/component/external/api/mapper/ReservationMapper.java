@@ -118,7 +118,7 @@ public class ReservationMapper {
                             Pair.of(CommodityTypeUnits.STORAGE_PROVISIONED.getMixedCase(),
                                     CommodityTypeUnits.STORAGE_PROVISIONED.getUnits()))
                     .put(CommodityType.SEGMENTATION_VALUE,
-                            Pair.of(CommodityTypeUnits.SEGMENTATION.getMixedCase(),
+                            Pair.of("PlacementPolicy",
                                     CommodityTypeUnits.SEGMENTATION.getUnits()))
                     .build();
 
