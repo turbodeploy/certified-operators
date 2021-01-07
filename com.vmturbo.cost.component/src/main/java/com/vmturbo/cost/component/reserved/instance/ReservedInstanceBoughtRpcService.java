@@ -48,12 +48,15 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.cost.Pricing;
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
+import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceImplBase;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.api.SetOnce;
+import com.vmturbo.cost.component.pricing.BusinessAccountPriceTableKeyStore;
 import com.vmturbo.cost.component.pricing.PriceTableStore;
 import com.vmturbo.cost.component.reserved.instance.filter.EntityReservedInstanceMappingFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
@@ -85,6 +88,7 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
     private final BuyReservedInstanceServiceBlockingStub buyRIServiceClient;
 
     private final PlanReservedInstanceStore planReservedInstanceStore;
+    private final BusinessAccountPriceTableKeyStore businessAccountPriceTableKeyStore;
 
     public ReservedInstanceBoughtRpcService(
             @Nonnull final ReservedInstanceBoughtStore reservedInstanceBoughtStore,
@@ -95,7 +99,8 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
             @Nonnull final PriceTableStore priceTableStore,
             @Nonnull final ReservedInstanceSpecStore reservedInstanceSpecStore,
             @Nonnull final BuyReservedInstanceServiceBlockingStub buyRIServiceClient,
-            @Nonnull final PlanReservedInstanceStore planReservedInstanceStore) {
+            @Nonnull final PlanReservedInstanceStore planReservedInstanceStore,
+            @Nonnull final BusinessAccountPriceTableKeyStore businessAccountPriceTableKeyStore) {
         this.reservedInstanceBoughtStore =
                 Objects.requireNonNull(reservedInstanceBoughtStore);
         this.entityReservedInstanceMappingStore =
@@ -107,6 +112,7 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
         this.reservedInstanceSpecStore = Objects.requireNonNull(reservedInstanceSpecStore);
         this.buyRIServiceClient = Objects.requireNonNull(buyRIServiceClient);
         this.planReservedInstanceStore = Objects.requireNonNull(planReservedInstanceStore);
+        this.businessAccountPriceTableKeyStore = Objects.requireNonNull(businessAccountPriceTableKeyStore);
     }
 
 
@@ -393,11 +399,28 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
                         .collect(Collectors.toSet())).stream()
                 .collect(Collectors.toMap(ReservedInstanceSpec::getId, Function.identity()));
 
-        final Map<Long, Pricing.OnDemandPriceTable> priceTableByRegion =
-                priceTableStore.getMergedPriceTable().getOnDemandPriceByRegionIdMap();
+        final Set<Long> purchasingAccountIds = reservedInstancesBought.stream()
+                                            .map(ri -> ri.getReservedInstanceBoughtInfo().getBusinessAccountId())
+                                            .collect(Collectors.toSet());
+        final SetOnce<Map<Long, OnDemandPriceTable>> globalPriceTableByRegion =
+                new SetOnce<>();
+        final Map<Long, Long> priceTableKeyOidMap =
+                businessAccountPriceTableKeyStore.fetchPriceTableKeyOidsByBusinessAccount(purchasingAccountIds);
 
+        final Map<Long, PriceTable> priceTables = priceTableStore.getPriceTables(priceTableKeyOidMap.values());
         return reservedInstancesBought.stream().map(ReservedInstanceBought::toBuilder)
                 .peek(riBoughtBuilder -> {
+                    long purchasingAccountId = riBoughtBuilder.getReservedInstanceBoughtInfo().getBusinessAccountId();
+                    PriceTable priceTable = priceTables.get(priceTableKeyOidMap.get(purchasingAccountId));
+                    final Map<Long, OnDemandPriceTable> priceTableByRegion;
+                    if (priceTable != null) {
+                        priceTableByRegion = priceTable.getOnDemandPriceByRegionIdMap();
+                    } else {
+                        priceTableByRegion = globalPriceTableByRegion.ensureSet(() ->
+                                        priceTableStore.getMergedPriceTable().getOnDemandPriceByRegionIdMap());
+                        logger.debug("Unable to retrieve on demand price table for {}, using the global rate.",
+                                purchasingAccountId);
+                    }
                     Optional.ofNullable(riSpecIdToRiSpec.get(riBoughtBuilder
                             .getReservedInstanceBoughtInfo().getReservedInstanceSpec()))
                             .flatMap(spec -> getOnDemandCurrencyAmountForRISpec(
@@ -408,7 +431,7 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
                             .setOnDemandRatePerHour(amount));
                     logger.trace("ReservedInstanceBought after stitching currency amount: {}",
                             riBoughtBuilder);
-                }).map(ReservedInstanceBought.Builder::build).collect(Collectors.toSet());
+                }).map(Builder::build).collect(Collectors.toSet());
     }
 
     private Optional<CurrencyAmount> getOnDemandCurrencyAmountForRISpec(

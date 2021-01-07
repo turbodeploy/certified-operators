@@ -5,7 +5,9 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyCollection;
 import static org.mockito.Matchers.anyLong;
+import static org.mockito.Matchers.anySet;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -70,6 +72,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.BusinessAccountInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.cost.component.pricing.BusinessAccountPriceTableKeyStore;
 import com.vmturbo.cost.component.pricing.PriceTableStore;
 import com.vmturbo.cost.component.util.BusinessAccountHelper;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -86,6 +89,8 @@ import com.vmturbo.repository.api.RepositoryClient;
 public class ReservedInstanceBoughtRpcServiceTest {
 
 
+    private static final Long PRICE_TABLE_KEY_OID1 = 1L;
+    private static final Long PRICE_TABLE_KEY_OID2 = 2L;
     private final DSLContext dsl = Mockito.mock(DSLContext.class);
     private final IdentityProvider identityProvider = Mockito.mock(IdentityProvider.class);
     private final ReservedInstanceCostCalculator reservedInstanceCostCalculato =
@@ -137,7 +142,7 @@ public class ReservedInstanceBoughtRpcServiceTest {
     private static final Map<Long, Double> RI_ID_TO_NUMBER_OF_USED_COUPONS_2 = ImmutableMap.of(RI_BOUGHT_ID_2, 16D, RI_BOUGHT_ID_3, 17D);
 
     private static final ReservedInstanceBoughtInfo RI_INFO_1 = ReservedInstanceBoughtInfo.newBuilder()
-                    .setBusinessAccountId(123L)
+                    .setBusinessAccountId(BA1_OID)
                     .setProbeReservedInstanceId("bar")
                     .setReservedInstanceSpec(101L)
                     .setAvailabilityZoneId(100L)
@@ -149,7 +154,7 @@ public class ReservedInstanceBoughtRpcServiceTest {
                     .build();
 
     private static final ReservedInstanceBoughtInfo RI_INFO_2 = ReservedInstanceBoughtInfo.newBuilder()
-                    .setBusinessAccountId(456L)
+                    .setBusinessAccountId(BA2_OID)
                     .setProbeReservedInstanceId("foo")
                     .setReservedInstanceSpec(102L)
                     .setAvailabilityZoneId(100L)
@@ -162,7 +167,7 @@ public class ReservedInstanceBoughtRpcServiceTest {
                     .build();
 
     private static final ReservedInstanceBoughtInfo RI_INFO_3 = ReservedInstanceBoughtInfo.newBuilder()
-                    .setBusinessAccountId(456L)
+                    .setBusinessAccountId(BA2_OID)
                     .setProbeReservedInstanceId("foobar")
                     .setReservedInstanceSpec(103L)
                     .setAvailabilityZoneId(100L)
@@ -177,6 +182,7 @@ public class ReservedInstanceBoughtRpcServiceTest {
     private static final List<ReservedInstanceSpec> RESERVED_INSTANCE_SPECS =
             ImmutableList.of(createRiSpec(OSType.LINUX, RI_SPEC_ID),
                     createRiSpec(WINDOWS_OS_TYPE, RI_SPEC_WINDOWS));
+
 
     /**
      * Initialize instances for each test.
@@ -206,15 +212,18 @@ public class ReservedInstanceBoughtRpcServiceTest {
                 RESERVED_INSTANCE_SPECS);
         doReturn(Collections.singletonMap(RI_SPEC_ID, RI_BOUGHT_COUNT))
                 .when(reservedInstanceBoughtStore).getReservedInstanceCountByRISpecIdMap(any());
+        final BusinessAccountPriceTableKeyStore businessAccountPriceTableKeyStore =
+                mock(BusinessAccountPriceTableKeyStore.class);
         final PriceTableStore priceTableStore = mock(PriceTableStore.class);
-        mockPricedTableStore(priceTableStore);
+        mockPricedTableStore(priceTableStore, businessAccountPriceTableKeyStore);
 
         final ReservedInstanceBoughtRpcService service = new ReservedInstanceBoughtRpcService(
                 reservedInstanceBoughtStore, reservedInstanceMappingStore, repositoryClient,
                 supplyChainService, realtimeTopologyContextId, priceTableStore,
                 reservedInstanceSpecStore,
                 BuyReservedInstanceServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
-                Mockito.mock(PlanReservedInstanceStore.class));
+                Mockito.mock(PlanReservedInstanceStore.class),
+                businessAccountPriceTableKeyStore);
 
         final GrpcTestServer grpcServer = GrpcTestServer.newServer(service);
         grpcServer.start();
@@ -232,7 +241,8 @@ public class ReservedInstanceBoughtRpcServiceTest {
                 .getNumberOfUsedCouponsForReservedInstances(ImmutableSet.of(RI_BOUGHT_ID_1));
     }
 
-    private void mockPricedTableStore(final PriceTableStore priceTableStore) {
+    private void mockPricedTableStore(final PriceTableStore priceTableStore,
+                                      final BusinessAccountPriceTableKeyStore businessAccountPriceTableKeyStore) {
         final PriceTable priceTable = PriceTable.newBuilder()
                 .putOnDemandPriceByRegionId(REGION1_OID,
                         OnDemandPriceTable.newBuilder().putComputePricesByTierId(TIER_ID,
@@ -252,6 +262,14 @@ public class ReservedInstanceBoughtRpcServiceTest {
                                 .build())
                 .build();
         when(priceTableStore.getMergedPriceTable()).thenReturn(priceTable);
+        final Map priceTableKeyOidMap = ImmutableMap.of(BA1_OID, PRICE_TABLE_KEY_OID1,
+                BA2_OID, PRICE_TABLE_KEY_OID2);
+        when(priceTableStore.getPriceTables(anyCollection()))
+                .thenReturn(ImmutableMap.of(PRICE_TABLE_KEY_OID1, priceTable,
+                        PRICE_TABLE_KEY_OID2, priceTable));
+        when(businessAccountPriceTableKeyStore.fetchPriceTableKeyOidsByBusinessAccount(anySet()))
+                .thenReturn(priceTableKeyOidMap);
+
     }
 
     private static ReservedInstanceSpec createRiSpec(final OSType osType, final long riSpecId) {
@@ -269,7 +287,7 @@ public class ReservedInstanceBoughtRpcServiceTest {
         return ReservedInstanceBought.newBuilder()
                 .setId(RI_BOUGHT_ID_1)
                 .setReservedInstanceBoughtInfo(ReservedInstanceBoughtInfo.newBuilder()
-                        .setReservedInstanceSpec(riSpecId))
+                        .setReservedInstanceSpec(riSpecId).setBusinessAccountId(BA1_OID))
                 .build();
     }
 
@@ -467,14 +485,14 @@ public class ReservedInstanceBoughtRpcServiceTest {
                         .build();
         TopologyEntityDTO ba1 = TopologyEntityDTO.newBuilder()
                 .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
-                .setOid(1)
+                .setOid(BA1_OID)
                 .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
                         .setBusinessAccount(BusinessAccountInfo.newBuilder()
                                 .setAssociatedTargetId(1).setAccountId("1").build()).build())
                 .build();
 
         TopologyEntityDTO ba2 = TopologyEntityDTO.newBuilder()
-                .setOid(2)
+                .setOid(BA2_OID)
                 .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
                 .build();
 

@@ -193,7 +193,9 @@ public class ReservedInstanceConfig {
                 pricingConfig.priceTableStore(),
                 reservedInstanceSpecConfig.reservedInstanceSpecStore(),
                 BuyReservedInstanceServiceGrpc.newBlockingStub(costClientConfig.costChannel()),
-                planReservedInstanceStore());
+                planReservedInstanceStore(),
+                pricingConfig.businessAccountPriceTableKeyStore()
+                );
     }
 
     /**
@@ -362,4 +364,5 @@ public class ReservedInstanceConfig {
         return new ReservedInstanceCostCalculator(reservedInstanceSpecConfig
                 .reservedInstanceSpecStore());
     }
+
 }
