@@ -15,6 +15,8 @@ import net.jpountz.lz4.LZ4Factory;
 import net.jpountz.lz4.LZ4FastDecompressor;
 
 import org.apache.commons.io.IOUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.components.api.SharedByteBuffer;
 
@@ -62,8 +64,12 @@ public interface Diags {
      */
     class CompressedDiags implements Diags {
         private final String name;
-        private final byte[] compressedBytes;
+        private final byte[] bytes;
         private final int uncompressedLength;
+        // LZ4 allowed maximum input size
+        private static final int MAX_INPUT_SIZE = 0x7E000000;
+        private final boolean isCompressed;
+        private static final Logger logger = LogManager.getLogger();
 
         /**
          * Create a new instance.
@@ -72,25 +78,45 @@ public interface Diags {
          * @param content The contents of the zip entry.
          * @param sharedByteBuffer A {@link SharedByteBuffer} to use for compression.
          */
-        public CompressedDiags(@Nonnull final String name,
-                final byte[] content,
+        public CompressedDiags(@Nonnull final String name, final byte[] content,
                 @Nonnull final SharedByteBuffer sharedByteBuffer) {
             this.name = name;
-            final LZ4Compressor compressor = LZ4Factory.fastestJavaInstance().fastCompressor();
             uncompressedLength = content.length;
-            final int maxCompressedLength = compressor.maxCompressedLength(uncompressedLength);
-            final byte[] compressionBuffer = sharedByteBuffer.getBuffer(maxCompressedLength);
-            final int compressedLength = compressor.compress(content, compressionBuffer);
-            this.compressedBytes = Arrays.copyOf(compressionBuffer, compressedLength);
+            // Temporary workaround for a limitation in the compression library (LZ4-java).
+            // Because the LZ4Compressor can't compress larger objects, omitting the compression
+            // step if the size is larger than maximum input size (2.1GB).
+            if (uncompressedLength < MAX_INPUT_SIZE) {
+                final LZ4Compressor compressor = LZ4Factory.fastestJavaInstance().fastCompressor();
+                final int maxCompressedLength = compressor.maxCompressedLength(uncompressedLength);
+                final byte[] compressionBuffer = sharedByteBuffer.getBuffer(maxCompressedLength);
+                final int compressedLength = compressor.compress(content, compressionBuffer);
+                this.bytes = Arrays.copyOf(compressionBuffer, compressedLength);
+                this.isCompressed = true;
+            } else {
+                logger.warn(
+                        "{}'s size ({}) is larger than maximum allowed size ({}), will skip the compression step",
+                        name, uncompressedLength, MAX_INPUT_SIZE);
+                this.bytes = content;
+                this.isCompressed = false;
+            }
         }
 
         @Nonnull
         private UncompressedDiags getDecompressed() {
-            // Supplier doesn't return null, so this will never return null.
-            final LZ4FastDecompressor decompressor = LZ4Factory.fastestJavaInstance().fastDecompressor();
-            byte[] uncompressed = decompressor.decompress(compressedBytes, uncompressedLength);
             try {
-                return new UncompressedDiags(name, uncompressed);
+                if (isCompressed) {
+                    // Supplier doesn't return null, so this will never return null.
+                    final LZ4FastDecompressor decompressor =
+                            LZ4Factory.fastestJavaInstance().fastDecompressor();
+                    byte[] uncompressed =
+                            decompressor.decompress(bytes, uncompressedLength);
+
+                    return new UncompressedDiags(name, uncompressed);
+                } else {
+                    logger.info("Uncompressed diag ({}) with size ({}) is retrieved.", name,
+                            bytes.length);
+                    return new UncompressedDiags(name, bytes);
+                }
             } catch (IOException e) {
                 throw new IllegalStateException(e);
             }
