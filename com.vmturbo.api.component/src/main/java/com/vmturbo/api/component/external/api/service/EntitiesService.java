@@ -1102,7 +1102,7 @@ public class EntitiesService implements IEntitiesService {
                 if (cType.getType() == CommodityType.SEGMENTATION_VALUE || isCommodityTypeEligibleForMerge(cType)) {
                     Long policyId = Longs.tryParse(potentialPlacement.getCommodityType().getKey());
                     if (policyId != null && policies.containsKey(policyId)) {
-                        baseApiDTO.setDisplayName(policies.get(policyId).getPolicyInfo().getName());
+                        baseApiDTO.setDisplayName(policies.get(policyId).getPolicyInfo().getDisplayName());
                         if (!policies.get(policyId).hasTargetId()) {
                             // it is a policy created in Turbonomic, so it is a turbonomic constraint
                             isTurboConstraint = true;
