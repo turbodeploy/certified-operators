@@ -309,6 +309,16 @@ public interface ActionView {
     Set<String> getRelatedRisks();
 
     /**
+     * Combine related risks to a comma-separated risk string.
+     * This is needed in QueryFilter and QueryInfoFactory to allow positive and negative matches
+     * of provided regex pattern from UI/API.
+     * Further discussion on OM-65622
+     *
+     * @return comma-seprated string eg: 'Underutilized VMem, Underutilized VCPU, Underutilized IOPS'
+     */
+    String getCombinedRisksString();
+
+    /**
      * Return a market recommendation OID. This OID is used for distinguishing between different
      * action recommended by market. All the actions with the same recommendation OIDs are treated
      * as logically equal market recommendations.

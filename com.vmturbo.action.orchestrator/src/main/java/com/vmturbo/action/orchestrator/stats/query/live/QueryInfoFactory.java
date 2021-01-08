@@ -3,6 +3,7 @@ package com.vmturbo.action.orchestrator.stats.query.live;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.regex.Pattern;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -104,7 +105,7 @@ public class QueryInfoFactory {
         final Predicate<ActionEntity> entityPredicate = query.getQuery().hasScopeFilter() ?
             createEntityPredicate(query.getQuery().getScopeFilter(), desiredEntities) : entity -> true;
         final Predicate<SingleActionInfo> actionGroupPredicate = query.getQuery().hasActionGroupFilter() ?
-            createActionGroupPredicate(query.getQuery().getActionGroupFilter()) : entity -> true;
+                createActionGroupPredicate(query.getQuery().getActionGroupFilter()) : entity -> true;
 
         final long topologyContextId;
         if (query.getQuery().getScopeFilter().hasTopologyContextId()) {
@@ -292,19 +293,13 @@ public class QueryInfoFactory {
         }
 
         if (actionGroupFilter.hasDescriptionQuery()) {
-            actionGroupPredicate = actionGroupPredicate.and(actionInfo -> actionInfo.action().getDescription().matches(actionGroupFilter.getDescriptionQuery()));
+            Pattern descriptionQueryPattern = Pattern.compile(actionGroupFilter.getDescriptionQuery());
+            actionGroupPredicate = actionGroupPredicate.and(actionInfo -> descriptionQueryPattern.matcher(actionInfo.action().getDescription()).matches());
         }
 
         if (actionGroupFilter.hasRiskQuery()) {
-            actionGroupPredicate = actionGroupPredicate.and(actionInfo -> {
-                final Set<String> relatedRisks = actionInfo.action().getRelatedRisks();
-                for (String relatedRisk : relatedRisks) {
-                    if (relatedRisk.matches(actionGroupFilter.getRiskQuery())) {
-                        return true;
-                    }
-                }
-                return false;
-            });
+            Pattern riskQueryPattern = Pattern.compile(actionGroupFilter.getRiskQuery());
+            actionGroupPredicate = actionGroupPredicate.and(actionInfo -> riskQueryPattern.matcher(actionInfo.action().getCombinedRisksString()).find());
         }
 
         if (actionGroupFilter.hasCostType()) {

@@ -462,6 +462,28 @@ public class QueryInfoFactoryTest {
     }
 
     /**
+     * Test query filter should return true when filter riskQuery matches action related risk.
+     */
+    @Test
+    public void testRiskQueryFilter() {
+        final QueryInfo queryInfo = queryInfoFactory.extractQueryInfo(SingleQuery.newBuilder()
+                .setQuery(CurrentActionStatsQuery.newBuilder()
+                        .setActionGroupFilter(ActionGroupFilter.newBuilder()
+                                .setRiskQuery("(\\bVMem Congestion\\b|\\bIOPS Congestion\\b|\\bUnderutilized VMem\\b|\\bUnderutilized IOPS\\b)")))
+                .build());
+
+        final SingleActionInfo matching = activateActionInfo(
+                actionBuilder -> { },
+                actionView -> when(actionView.getCombinedRisksString()).thenReturn("IOPS Congestion, VMem Congestion, Underutilized VMem, Underutilized IOPS"));
+
+        final SingleActionInfo nonMatching = activateActionInfo(
+                actionBuilder -> { },
+                actionView -> when(actionView.getCombinedRisksString()).thenReturn("IOPS_Congestion, VMem_Congestion, Underutilized_VMem, Underutilized_IOPS"));
+        assertTrue(queryInfo.actionGroupPredicate().test(matching));
+        assertFalse(queryInfo.actionGroupPredicate().test(nonMatching));
+    }
+
+    /**
      * Test query filter should return true when filter disruptiveness matches action disruptivness.
      */
     @Test
