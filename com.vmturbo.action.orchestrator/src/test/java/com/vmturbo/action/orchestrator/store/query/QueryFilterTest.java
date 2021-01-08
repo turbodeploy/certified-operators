@@ -624,14 +624,9 @@ public class QueryFilterTest {
                 .setExplanation(Explanation.newBuilder().build())
                 .setInfo(ActionInfo.getDefaultInstance())
                 .build();
-        final Set<String> relatedRisks = new HashSet<>(Arrays.asList(
-                "IOPS Congestion",
-                "VMem Congestion",
-                "Underutilized VMem",
-                "Underutilized IOPS"
-        ));
+
         ActionView actionView = ActionOrchestratorTestUtils.mockActionView(action);
-        when(actionView.getRelatedRisks()).thenReturn(relatedRisks);
+        when(actionView.getCombinedRisksString()).thenReturn("IOPS Congestion, VMem Congestion, Underutilized VMem, Underutilized IOPS");
 
         // match 1
         ActionQueryFilter filter = ActionQueryFilter.newBuilder()
@@ -680,6 +675,20 @@ public class QueryFilterTest {
                 .setRiskQuery("^.*\\biops\\b.*$")
                 .build();
         assertFalse(new QueryFilter(filter, PlanActionStore.VISIBILITY_PREDICATE)
+                .test(actionView));
+
+        // match 8
+        filter = ActionQueryFilter.newBuilder()
+                .setRiskQuery("^(?!.*(\\bIOPS Congestion\\b|\\bVMem Congestion\\\\b)).*(\\bUUnderutilized VMem\\b).*$")
+                .build();
+        assertFalse(new QueryFilter(filter, PlanActionStore.VISIBILITY_PREDICATE)
+                .test(actionView));
+
+        // match 9
+        filter = ActionQueryFilter.newBuilder()
+                .setRiskQuery("(\\bIOPS Congestion\\b|\\bUnderutilized VMem\\b|\\bUnderutilized IOPS\\b)")
+                .build();
+        assertTrue(new QueryFilter(filter, PlanActionStore.VISIBILITY_PREDICATE)
                 .test(actionView));
     }
 

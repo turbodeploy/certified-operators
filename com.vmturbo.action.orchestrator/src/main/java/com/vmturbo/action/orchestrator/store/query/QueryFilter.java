@@ -8,6 +8,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.regex.Pattern;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -34,6 +35,10 @@ import com.vmturbo.common.protobuf.action.UnsupportedActionException;
  */
 public class QueryFilter {
     private final ActionQueryFilter filter;
+
+    private Pattern riskQueryPattern;
+
+    private Pattern descriptionQueryPattern;
 
     /**
      * If present, this is a set of the OIDs from the involved entities list in the
@@ -80,6 +85,8 @@ public class QueryFilter {
         this.visibilityPredicate = visibilityPredicate;
         this.entitiesRestriction = Objects.requireNonNull(entitiesRestriction);
         this.involvedEntityCalculation = Objects.requireNonNull(involvedEntityCalculation);
+        this.descriptionQueryPattern = filter.hasDescriptionQuery() ? Pattern.compile(filter.getDescriptionQuery()) : null;
+        this.riskQueryPattern = filter.hasRiskQuery() ? Pattern.compile(filter.getRiskQuery()) : null;
     }
 
     /**
@@ -205,11 +212,11 @@ public class QueryFilter {
             return false;
         }
 
-        if (filter.hasDescriptionQuery() && !testDescriptionQuery(actionView, filter.getDescriptionQuery())) {
+        if (!testDescriptionQuery(actionView)) {
             return false;
         }
 
-        if (filter.hasRiskQuery() && !testRiskQuery(actionView, filter.getRiskQuery())) {
+        if (!testRiskQuery(actionView)) {
             return false;
         }
 
@@ -236,18 +243,12 @@ public class QueryFilter {
         return collection.isEmpty() || collection.contains(element);
     }
 
-    private static boolean testDescriptionQuery(@Nonnull final ActionView actionView, @Nonnull String descriptionQuery) {
-        return actionView.getDescription().matches(descriptionQuery);
+    private boolean testDescriptionQuery(@Nonnull final ActionView actionView) {
+        return descriptionQueryPattern == null || descriptionQueryPattern.matcher(actionView.getDescription()).matches();
     }
 
-    private static boolean testRiskQuery(@Nonnull final ActionView actionView, @Nonnull String riskQuery) {
-        final Set<String> relatedRisks = actionView.getRelatedRisks();
-        for (String relatedRisk : relatedRisks) {
-           if (relatedRisk.matches(riskQuery)) {
-               return true;
-           }
-        }
-        return false;
+    private boolean testRiskQuery(@Nonnull final ActionView actionView) {
+        return riskQueryPattern == null || riskQueryPattern.matcher(actionView.getCombinedRisksString()).find();
     }
 
     private static boolean testDisruptiveness(@Nonnull final ActionView actionView, @Nonnull ActionDisruptiveness disruptiveness) {

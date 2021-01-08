@@ -1121,6 +1121,21 @@ public class Action implements ActionView {
     }
 
     /**
+     * Combine related risks to a comma-separated risk string.
+     * This is needed in QueryFilter and QueryInfoFactory to allow positive and negative matches
+     * of provided regex pattern from UI/API.
+     * Further discussion on OM-65622
+     *
+     * @return comma-separated string eg: 'Underutilized VMem, Underutilized VCPU, Underutilized IOPS'
+     */
+    public String getCombinedRisksString() {
+        if (this.relatedRisks != null && !this.relatedRisks.isEmpty()) {
+            return String.join(", ", this.getRelatedRisks());
+        }
+        return "";
+    }
+
+    /**
      * Method to update the status of an {@link ExecutionStep}.
      */
     @FunctionalInterface
