@@ -81,7 +81,6 @@ public class ServiceEntityMapper {
     private final ThinTargetCache thinTargetCache;
     private final CostServiceBlockingStub costServiceBlockingStub;
     private final SupplyChainServiceBlockingStub supplyChainBlockingStub;
-    private final ConnectedEntityMapper connectedEntityMapper;
 
     /**
      * Creates {@link ServiceEntityMapper} instance.
@@ -91,16 +90,13 @@ public class ServiceEntityMapper {
      *                 entities.
      * @param supplyChainBlockingStub service used to get the supply chain information
      *                 for one or more entities.
-     * @param connectedEntityMapper mapper used to populate connected entities for a service entity dto.
      */
     public ServiceEntityMapper(@Nonnull final ThinTargetCache thinTargetCache,
                                @Nonnull CostServiceBlockingStub costServiceBlockingStub,
-                               @Nonnull SupplyChainServiceBlockingStub supplyChainBlockingStub,
-                               @Nonnull ConnectedEntityMapper connectedEntityMapper) {
+                               @Nonnull SupplyChainServiceBlockingStub supplyChainBlockingStub) {
         this.thinTargetCache = thinTargetCache;
         this.costServiceBlockingStub = Objects.requireNonNull(costServiceBlockingStub);
         this.supplyChainBlockingStub = Objects.requireNonNull(supplyChainBlockingStub);
-        this.connectedEntityMapper = Objects.requireNonNull(connectedEntityMapper);
     }
 
     /**
@@ -189,9 +185,6 @@ public class ServiceEntityMapper {
             if (apiEntity.hasEnvironmentType()) {
                 result.setEnvironmentType(EnvironmentTypeMapper.fromXLToApi(apiEntity.getEnvironmentType()));
             }
-            // Retrieves the connected entities which are just region and account used for Cloud Commitments.
-            final Set<BaseApiDTO> connectedEntities = connectedEntityMapper.mapConnectedEntities(apiEntity);
-            result.setConnectedEntities(new ArrayList<>(connectedEntities));
 
             setDiscoveredBy(apiEntity::getDiscoveredTargetDataMap, result);
 
@@ -257,9 +250,7 @@ public class ServiceEntityMapper {
                     ImmutableSet.of(entityOid));
             Optional.ofNullable(numVmsPerEntity.get(entityOid)).ifPresent(seDTO::setNumRelatedVMs);
         }
-        // Retrieves the connected entities which are just region and account used for Cloud Commitments.
-        final Set<BaseApiDTO> connectedEntities = connectedEntityMapper.mapConnectedEntities(topologyEntityDTO);
-        seDTO.setConnectedEntities(new ArrayList<>(connectedEntities));
+
         setDiscoveredBy(() -> topologyEntityDTO.getOrigin().getDiscoveryOrigin()
                         .getDiscoveredTargetDataMap(), seDTO);
 

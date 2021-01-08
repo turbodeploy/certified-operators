@@ -45,7 +45,6 @@ import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
 import org.springframework.context.annotation.Bean;
 
-import com.vmturbo.api.component.external.api.mapper.ConnectedEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
@@ -165,8 +164,6 @@ public class StatsServiceTest {
 
     private StatsMapper statsMapper = Mockito.mock(StatsMapper.class);
 
-    private final ConnectedEntityMapper connectedEntityMapper = Mockito.mock(ConnectedEntityMapper.class);
-
     private MagicScopeGateway magicScopeGateway = mock(MagicScopeGateway.class);
 
     private UserSessionContext userSessionContext = mock(UserSessionContext.class);
@@ -208,7 +205,7 @@ public class StatsServiceTest {
     public void setUp() throws Exception {
         serviceEntityMapper = new ServiceEntityMapper(targetCache,
                         CostServiceGrpc.newBlockingStub(grpcServer.getChannel()),
-                        supplyChainRpcService(), connectedEntityMapper);
+                        supplyChainRpcService());
         final StatsHistoryServiceBlockingStub statsServiceRpc =
             StatsHistoryServiceGrpc.newBlockingStub(testServer.getChannel());
         final PlanServiceGrpc.PlanServiceBlockingStub planRpcService =

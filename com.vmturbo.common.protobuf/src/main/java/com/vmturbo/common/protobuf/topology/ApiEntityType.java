@@ -141,10 +141,7 @@ public enum  ApiEntityType {
     CONTAINER_SPEC(StringConstants.CONTAINER_SPEC, EntityType.CONTAINER_SPEC),
     /** VMSpec entity type.
      * Represents shard definition for VM instances managed by a Workload Controller. */
-    VM_SPEC(StringConstants.VM_SPEC, EntityType.VM_SPEC),
-    /** Cloud Commitment Entity Type.
-     *  Represents definition for cloud commitments.*/
-    CLOUD_COMMITMENT(StringConstants.CLOUD_COMMITMENT, EntityType.CLOUD_COMMITMENT);
+    VM_SPEC(StringConstants.VM_SPEC, EntityType.VM_SPEC);
 
     /**
      * These are the entity types that count as "Workloads" in our system.

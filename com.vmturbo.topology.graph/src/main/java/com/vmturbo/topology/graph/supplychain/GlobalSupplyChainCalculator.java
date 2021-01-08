@@ -34,8 +34,7 @@ public class GlobalSupplyChainCalculator {
         ImmutableSet.of(EntityType.COMPUTE_TIER_VALUE, EntityType.STORAGE_TIER_VALUE,
                         EntityType.DATABASE_TIER_VALUE, EntityType.DATABASE_SERVER_TIER_VALUE,
                         EntityType.CLOUD_SERVICE_VALUE, EntityType.HYPERVISOR_SERVER_VALUE,
-                        EntityType.PROCESSOR_POOL_VALUE, EntityType.SERVICE_PROVIDER_VALUE,
-                EntityType.CLOUD_COMMITMENT_VALUE);
+                        EntityType.PROCESSOR_POOL_VALUE, EntityType.SERVICE_PROVIDER_VALUE);
 
     public static final Predicate<Integer> DEFAULT_ENTITY_TYPE_FILTER = IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN::contains;
 

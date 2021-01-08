@@ -54,8 +54,7 @@ public class EntityAspectMapper {
                               @Nonnull final ComputeTierAspectMapper computeTierAspectMapper,
                               @Nonnull final DatabaseServerTierAspectMapper databaseServerTierAspectMapper,
                               @Nonnull final DatabaseTierAspectMapper databaseTierAspectMapper,
-                              @Nonnull final BusinessUserAspectMapper businessUserAspectMapper,
-                              @Nonnull final CloudCommitmentAspectMapper cloudCommitmentAspectMapper) {
+                              @Nonnull final BusinessUserAspectMapper businessUserAspectMapper) {
 
         aspectMappers = new ImmutableMap.Builder<Integer, List<IAspectMapper>>()
             .put(EntityType.DATABASE_VALUE, ImmutableList.of(
@@ -110,7 +109,6 @@ public class EntityAspectMapper {
                     databaseTierAspectMapper))
             .put(EntityType.BUSINESS_USER_VALUE, ImmutableList.of(
                     businessUserAspectMapper))
-            .put(EntityType.CLOUD_COMMITMENT_VALUE, ImmutableList.of(cloudCommitmentAspectMapper))
                 .build();
     }
 

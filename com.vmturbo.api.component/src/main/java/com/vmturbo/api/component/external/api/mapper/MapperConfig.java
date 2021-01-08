@@ -15,7 +15,6 @@ import org.springframework.context.annotation.Import;
 import com.vmturbo.api.component.communication.CommunicationConfig;
 import com.vmturbo.api.component.external.api.mapper.aspect.BusinessUserAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.CloudAspectMapper;
-import com.vmturbo.api.component.external.api.mapper.aspect.CloudCommitmentAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.ComputeTierAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.DatabaseAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.DatabaseServerTierAspectMapper;
@@ -419,11 +418,6 @@ public class MapperConfig {
         return new BusinessUserAspectMapper();
     }
 
-    @Bean
-    protected CloudCommitmentAspectMapper cloudCommitmentAspectMapper() {
-        return new CloudCommitmentAspectMapper();
-    }
-
     /**
      * Returns a common {@link EntityAspectMapper} of the combining aspect mappers of different
      * entities types.
@@ -438,8 +432,7 @@ public class MapperConfig {
                 storageAspectMapper(), diskArrayAspectMapper(), logicalPoolAspectMapper(),
                 storageControllerAspectMapper(), portsAspectMapper(), databaseAspectMapper(),
                 regionAspectMapper(), workloadControllerAspectMapper(), computeTierAspectMapper(),
-                databaseServerTierAspectMapper(), databaseTierAspectMapper(), businessUserAspectMapper(),
-                cloudCommitmentAspectMapper());
+                databaseServerTierAspectMapper(), databaseTierAspectMapper(), businessUserAspectMapper());
     }
 
     @Bean

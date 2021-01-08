@@ -18,7 +18,6 @@ import com.vmturbo.api.ReportNotificationDTO.ReportNotification;
 import com.vmturbo.api.ReportNotificationDTO.ReportStatusNotification;
 import com.vmturbo.api.ReportNotificationDTO.ReportStatusNotification.ReportStatus;
 import com.vmturbo.api.component.ApiComponentGlobalConfig;
-import com.vmturbo.api.component.external.api.mapper.ConnectedEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.MapperConfig;
 import com.vmturbo.api.component.external.api.mapper.PriceIndexPopulator;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
@@ -643,17 +642,7 @@ public class CommunicationConfig {
     public ServiceEntityMapper serviceEntityMapper() {
         // Normally this would be in MapperConfig, but RepositoryApi needs it and we don't want
         // to introduce a circular dependency.
-        return new ServiceEntityMapper(thinTargetCache(), costServiceBlockingStub(), supplyChainRpcService(), connectedEntityMapper());
-    }
-
-    /**
-     * Returns a connected entity mapper.
-     *
-     * @return The connected entity mapper.
-     */
-    @Bean
-    public ConnectedEntityMapper connectedEntityMapper() {
-        return new ConnectedEntityMapper(repositoryRpcService(), realtimeTopologyContextId, searchServiceBlockingStub());
+        return new ServiceEntityMapper(thinTargetCache(), costServiceBlockingStub(), supplyChainRpcService());
     }
 
     /**

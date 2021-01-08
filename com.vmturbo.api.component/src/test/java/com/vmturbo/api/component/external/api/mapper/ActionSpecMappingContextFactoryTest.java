@@ -274,12 +274,11 @@ public class ActionSpecMappingContextFactoryTest {
         SupplyChainServiceBlockingStub supplyChainRpc = SupplyChainServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
 
         ThinTargetCache thinTargetCache = Mockito.mock(ThinTargetCache.class);
-        ConnectedEntityMapper connectedEntityMapper = Mockito.mock(ConnectedEntityMapper.class);
         Mockito.when(thinTargetCache.getTargetInfo(Mockito.anyLong()))
             .thenAnswer(invocation -> Optional.empty());
         ServiceEntityMapper serviceEntityMapper = new ServiceEntityMapper(
                         thinTargetCache,
-                        costService, supplyChainRpc, connectedEntityMapper);
+                        costService, supplyChainRpc);
 
         final VirtualDiskApiDTO virtualDiskApiDTO = new VirtualDiskApiDTO();
         final String volumeName = "ejf-f2s-test_OsDisk_1_57c13b26afc846c2a2af75421a48294e";
