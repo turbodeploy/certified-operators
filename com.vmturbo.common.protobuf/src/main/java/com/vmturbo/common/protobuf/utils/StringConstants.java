@@ -72,6 +72,10 @@ public class StringConstants {
     public static final String TENANCY = "tenancy";
     public static final String PERCENTILE = "percentile";
     /**
+     * Cloud commitment like savings plans.
+     */
+    public static final String CLOUD_COMMITMENT = "CloudCommitment";
+    /**
      * Indicates whether the instance is optimized for Amazon EBS I/O.
      */
     public static final String EBS_OPTIMIZED = "ebsOptimized";

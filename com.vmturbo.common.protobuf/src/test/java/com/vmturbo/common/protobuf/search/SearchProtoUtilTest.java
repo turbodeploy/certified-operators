@@ -41,7 +41,7 @@ public class SearchProtoUtilTest {
                 "Service", "BusinessTransaction",
                 "ViewPod", "DesktopPool", "BusinessUser", "ServiceProvider", "HCIPhysicalMachine",
                 "Namespace", "WorkloadController", "ContainerSpec", "VMSpec",
-                "ContainerPlatformCluster");
+                "ContainerPlatformCluster", "CloudCommitment");
         assertThat(SearchProtoUtil.SEARCH_ALL_TYPES, containsInAnyOrder(expectedTypes.toArray()));
     }
 
