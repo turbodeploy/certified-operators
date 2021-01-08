@@ -17,6 +17,9 @@ import com.google.common.annotations.VisibleForTesting;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import it.unimi.dsi.fastutil.objects.Object2IntLinkedOpenHashMap;
+import it.unimi.dsi.fastutil.objects.Object2IntMap;
+
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -34,6 +37,27 @@ import com.vmturbo.topology.graph.TopologyGraph;
 public class EntityValidator {
     private static final Logger logger = LogManager.getLogger();
     private final boolean oldValuesCacheEnabled;
+    private final int MAX_LOG_MESSAGES = 10;
+    private final Object2IntLinkedOpenHashMap<String> logCounters_ =
+        new Object2IntLinkedOpenHashMap<>();
+
+    private void clearLogCounters() {
+        logCounters_.put("used", 0);
+        logCounters_.put("peak", 0);
+        logCounters_.put("capacity", 0);
+    }
+
+    private void logSuppressedMessageCounts() {
+        for (Object2IntMap.Entry<String> entry : logCounters_.object2IntEntrySet()) {
+            if (entry.getIntValue() - MAX_LOG_MESSAGES > 0) {
+                logger.warn("{} additional message(s) of the form 'Entity * with name * of type * "
+                    + "is selling * commodity * with illegal {} *' were suppressed to avoid "
+                    + "cluttering the logs.",
+                    entry.getIntValue() - MAX_LOG_MESSAGES, entry.getKey());
+            } // end if
+        } // end for
+    }
+
     /**
      * All non-access commodity capacities seen during the last live pipeline processing.
      * Whenever the sold commodity has capacity missing, the previous value may be assumed.
@@ -58,15 +82,26 @@ public class EntityValidator {
                                      @Nonnull final CommoditySoldDTO.Builder original,
                                      @Nonnull final String property,
                                      final double illegalAmount) {
-        // This has to be at warning level so that the root causes of missing capacities can be investigated.
-        logger.warn("Entity {} with name {} of type {} is selling {} commodity {} with illegal {} {}",
-                entityId,
-                entityName,
-                EntityType.forNumber(entityType),
-                original.getActive() ? "active" : "non-active",
-                CommodityType.forNumber(original.getCommodityType().getType()),
-                property,
-                illegalAmount);
+        long s1 = 0, s2 = 0, e1 = 0, e2 = 0;
+        s1 = System.nanoTime();
+        int incremented = logCounters_.getInt(property) + 1;
+        logCounters_.put(property, incremented);
+        if (incremented <= MAX_LOG_MESSAGES) {
+            s2 = System.nanoTime();
+            // This has to be at warning level so that the root causes of missing capacities can be investigated.
+            logger.warn("Entity {} with name {} of type {} is selling {} commodity {} with illegal {} {}",
+                    entityId,
+                    entityName,
+                    EntityType.forNumber(entityType),
+                    original.getActive() ? "active" : "non-active",
+                    CommodityType.forNumber(original.getCommodityType().getType()),
+                    property,
+                    illegalAmount);
+            e2 = System.nanoTime();
+        } // end if
+        e1 = System.nanoTime();
+        logger.info("All took: {}", e1-s1);
+        logger.info("Log took: {}", e2-s2);
     }
 
     private void logCommodityBoughtReplacement(final long entityId, @Nonnull final String entityName,
@@ -76,7 +111,7 @@ public class EntityValidator {
                                                final double illegalAmount, final long providerId,
                                                final int providerType) {
         // TODO changed from warn to trace to reduce logging load - does it need more visibility?
-        logger.trace("Entity {} with name {} of type {} is buying {} commodity {} with illegal " +
+        logger.warn("Entity {} with name {} of type {} is buying {} commodity {} with illegal " +
                 "{} {} from entity {} of type {}", entityId, entityName,
             EntityType.forNumber(entityType),
             original.getActive() ? "active" : "non-active",
@@ -344,6 +379,7 @@ public class EntityValidator {
      */
     public void validateTopologyEntities(@Nonnull final TopologyGraph<TopologyEntity> entityGraph, boolean isPlan)
                                                             throws EntitiesValidationException {
+        clearLogCounters();
         final List<EntityValidationFailure> validationFailures = new ArrayList<>();
         Map<SoldCommodityReference, Double> newCapacities = isPlan || !oldValuesCacheEnabled ? null : new HashMap<>();
         entityGraph.entities().forEach(entity -> {
@@ -376,6 +412,7 @@ public class EntityValidator {
                 });
             }
         });
+        logSuppressedMessageCounts();
 
         if (newCapacities != null) {
             synchronized (this) {
