@@ -2684,29 +2684,29 @@ public class ScenarioMapperTest {
                         .findFirst();
         assertTrue(subscription.isPresent());
 
+        // Test Business Account with null fields.
         MigrateObjectApiDTO dto2 = new MigrateObjectApiDTO();
         dto2.setSource(source);
         dto2.setDestination(destination);
         dto2.setDestinationEntityType(DestinationEntityType.VirtualMachine);
         dto2.setRemoveNonMigratingWorkloads(true);
         dto2.setProjectionDay(0);
-
         TopologyChangesApiDTO topoChanges2 = new TopologyChangesApiDTO();
         topoChanges.setMigrateList(Collections.singletonList(dto2));
-        ScenarioApiDTO scenarioApiDTOWithNullAccount = scenarioApiDTO(topoChanges2);
-        scenarioApiDTOWithNullAccount.setType("CloudMigration");
-        BusinessUnitApiDTO destinationAccounWithtNullFields = new BusinessUnitApiDTO();
-        destinationAccounWithtNullFields.setAccountId("abc-def-jhi");
-        destinationAccounWithtNullFields.setUuid(null);
-        destinationAccounWithtNullFields.setDisplayName(null);
-        destinationAccounWithtNullFields.setClassName(null);
-        destinationAccounWithtNullFields.setCloudType(null);
+        ScenarioApiDTO scenarioApiDTOWithNullAccountFields = scenarioApiDTO(topoChanges2);
+        scenarioApiDTOWithNullAccountFields.setType("CloudMigration");
+        BusinessUnitApiDTO destinationAccountWithtNullFields = new BusinessUnitApiDTO();
+        destinationAccountWithtNullFields.setAccountId("abc-def-jhi");
+        destinationAccountWithtNullFields.setUuid(null);
+        destinationAccountWithtNullFields.setDisplayName(null);
+        destinationAccountWithtNullFields.setClassName(null);
+        destinationAccountWithtNullFields.setCloudType(null);
         final ConfigChangesApiDTO configChangesWithNullFieldsAccount = new ConfigChangesApiDTO();
-        configChangesWithNullFieldsAccount.setSubscription(destinationAccounWithtNullFields);
-        scenarioApiDTOWithNullAccount.setConfigChanges(configChangesWithNullFieldsAccount);
+        configChangesWithNullFieldsAccount.setSubscription(destinationAccountWithtNullFields);
+        scenarioApiDTOWithNullAccountFields.setConfigChanges(configChangesWithNullFieldsAccount);
 
-        final String nameWithNullAccount = "aScenarioWithNullAccount";
-        ScenarioInfo infoWithNullFieldsAccount = getScenarioInfo(nameWithNullAccount, scenarioApiDTOWithNullAccount);
+        final String nameWithNullAccountFields = "aScenarioWithNullAccountFields";
+        ScenarioInfo infoWithNullFieldsAccount = getScenarioInfo(nameWithNullAccountFields, scenarioApiDTOWithNullAccountFields);
 
         final Optional<MigrationReference> destinationAccountWithNullFieldsFromScenario =
                                             infoWithNullFieldsAccount
@@ -2722,11 +2722,49 @@ public class ScenarioMapperTest {
         final List<PlanChanges> allPlanChangesWithNullFieldsAccount = scenarioChangesWithNullFieldsAccount.stream()
                         .filter(ScenarioChange::hasPlanChanges).map(ScenarioChange::getPlanChanges)
                         .collect(Collectors.toList());
-        Optional<BusinessAccount> subscriptionWithNullFields = allPlanChangesWithNullFieldsAccount
+        Optional<BusinessAccount> subscriptionWithNullAccountFields = allPlanChangesWithNullFieldsAccount
                         .stream().filter(PlanChanges::hasSubscription)
                         .map(PlanChanges::getSubscription)
                         .findFirst();
-        assertFalse(subscriptionWithNullFields.isPresent());
+        assertFalse(subscriptionWithNullAccountFields.isPresent());
+
+        // Test null Business Account.
+        MigrateObjectApiDTO dto3 = new MigrateObjectApiDTO();
+        dto3.setSource(source);
+        dto3.setDestination(destination);
+        dto3.setDestinationEntityType(DestinationEntityType.VirtualMachine);
+        dto3.setRemoveNonMigratingWorkloads(true);
+        dto3.setProjectionDay(0);
+        TopologyChangesApiDTO topoChanges3 = new TopologyChangesApiDTO();
+        topoChanges.setMigrateList(Collections.singletonList(dto3));
+        ScenarioApiDTO scenarioApiDTOWithNullAccount = scenarioApiDTO(topoChanges3);
+        scenarioApiDTOWithNullAccount.setType("CloudMigration");
+        BusinessUnitApiDTO nullDestinationAccount = null;
+        final ConfigChangesApiDTO configChangesWithNullAccount = new ConfigChangesApiDTO();
+        configChangesWithNullAccount.setSubscription(destinationAccountWithtNullFields);
+        scenarioApiDTOWithNullAccount.setConfigChanges(configChangesWithNullAccount);
+
+        final String nameWithNullAccount = "aScenarioWithNullAccount";
+        ScenarioInfo infoWithNullAccount = getScenarioInfo(nameWithNullAccount, scenarioApiDTOWithNullAccount);
+        final Optional<MigrationReference> nullDestinationAccountFromScenario =
+                                            infoWithNullAccount
+                                                            .getChangesList()
+                                                            .stream()
+                                                            .filter(ScenarioChange::hasTopologyMigration)
+                                                            .map(ScenarioChange::getTopologyMigration)
+                                                            .map(TopologyMigration::getDestinationAccount)
+            .findFirst();
+        assertFalse(nullDestinationAccountFromScenario.isPresent());
+
+        List<ScenarioChange> scenarioChangesWithNullAccount = infoWithNullAccount.getChangesList();
+        final List<PlanChanges> allPlanChangesWithNullAccount = scenarioChangesWithNullAccount.stream()
+                        .filter(ScenarioChange::hasPlanChanges).map(ScenarioChange::getPlanChanges)
+                        .collect(Collectors.toList());
+        Optional<BusinessAccount> nullSubscription = allPlanChangesWithNullAccount
+                        .stream().filter(PlanChanges::hasSubscription)
+                        .map(PlanChanges::getSubscription)
+                        .findFirst();
+        assertFalse(nullSubscription.isPresent());
     }
 
     /**

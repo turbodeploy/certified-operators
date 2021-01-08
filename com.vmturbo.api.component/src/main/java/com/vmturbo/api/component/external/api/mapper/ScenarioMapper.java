@@ -1024,8 +1024,8 @@ public class ScenarioMapper {
             final String displayName = businessUnitApiDTO.getDisplayName();
             final String className = businessUnitApiDTO.getClassName();
             final com.vmturbo.api.enums.CloudType cloudType = businessUnitApiDTO.getCloudType();
-            // Please see this UI improvement for Scenario Business Account Validation.
-            // https://vmturbo.atlassian.net/browse/OM-65467
+            // We need either all the fields in the BusinessAccount to be able to use it, or
+            // no Business Account.
             if (StringUtils.isNoneBlank(uuid, accountId, displayName, className)
                 && cloudType != null) {
                 subscription.setUuid(uuid);
@@ -1502,7 +1502,6 @@ public class ScenarioMapper {
             final BusinessUnitApiDTO destinationAccountDto = configChanges.getSubscription();
             if (destinationAccountDto != null
                 && !StringUtils.isBlank(destinationAccountDto.getUuid())) {
-                System.out.println("uuid in migration:" + destinationAccountDto.getUuid());
                 final MigrationReference destinationAccount = MigrationReference.newBuilder()
                                 .setOid(Long.valueOf(destinationAccountDto.getUuid()))
                                 .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
