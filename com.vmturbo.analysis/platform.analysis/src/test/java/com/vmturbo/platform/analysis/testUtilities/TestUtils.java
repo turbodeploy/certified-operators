@@ -543,9 +543,11 @@ public class TestUtils {
     public static void setupRawCommodityMap(Economy economy) {
         Map<Integer, RawMaterials> rawMap = economy.getModifiableRawCommodityMap();
 
-        rawMap.put(TestUtils.VCPU.getType(), new RawMaterials(new RawMaterialInfo(ImmutableList.of(
+        rawMap.put(TestUtils.VCPU.getType(), new RawMaterials(RawMaterialInfo.newBuilder(ImmutableList.of(
             new RawMaterial(TestUtils.CPU.getType(), false, false),
-            new RawMaterial(TestUtils.VCPU.getType(), true, false)))));
+            new RawMaterial(TestUtils.VCPU.getType(), true, false)))
+            .requiresConsistentScalingFactor(true)
+            .build()));
         rawMap.put(TestUtils.VMEM.getType(), new RawMaterials(new RawMaterialInfo(ImmutableList.of(
             new RawMaterial(TestUtils.MEM.getType(), false, false),
             new RawMaterial(TestUtils.VMEMLIMITQUOTA.getType(), true, false)))));
@@ -553,8 +555,10 @@ public class TestUtils {
             new RawMaterial(TestUtils.VMEM.getType(), false, false)))));
         rawMap.put(TestUtils.HEAP.getType(), new RawMaterials(new RawMaterialInfo(ImmutableList.of(
             new RawMaterial(TestUtils.VMEM.getType(), false, false)))));
-        rawMap.put(TestUtils.PORT_CHANEL.getType(), new RawMaterials(new RawMaterialInfo(true, ImmutableList.of(
-            new RawMaterial(TestUtils.VMEM.getType(), false, false)))));
+        rawMap.put(TestUtils.PORT_CHANEL.getType(), new RawMaterials(RawMaterialInfo.newBuilder(ImmutableList.of(
+            new RawMaterial(TestUtils.VMEM.getType(), false, false)))
+            .isFakeRawMaterial(true)
+            .build()));
     }
 
     /**

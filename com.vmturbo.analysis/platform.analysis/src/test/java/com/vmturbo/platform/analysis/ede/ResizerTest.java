@@ -1082,6 +1082,8 @@ public class ResizerTest {
                 RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER);
         Trader container2 = setupContainerAndApp(economy, 512 /*0.5GB*/, 30 /*30MB*/, 512 /*0.5GB*/, 0.65, 0.75, 2);
         container2.getSettings().setIsEligibleForResizeDown(isEligibleForResizeDown);
+        container2.getCommoditiesSold().get(0).getSettings().setCapacityIncrement(
+            cont.getCommoditiesSold().get(0).getSettings().getCapacityIncrement());
         cont.setScalingGroupId("SG1");
         container2.setScalingGroupId("SG1");
         economy.populatePeerMembersForScalingGroup(cont, "SG1");

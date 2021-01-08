@@ -73,6 +73,19 @@ public interface TraderSettings {
     float getRateOfResize();
 
     /**
+     * Get the consistent scaling factor. Used during resizing in the ConsistentResizer
+     * to scale commodity values into the units they are required to be consistent in.
+     * For example, CPU values are analyzed in normalized MHz units, but in the real
+     * world Container CPU values must actually be consistent in millicores. If we do
+     * reconcile MHz actions to be consistent in millicores, if containers are running
+     * on providers of different speeds, the actions will make no sense and cannot
+     * be executed.
+     *
+     * @return The consistent scaling factor.
+     */
+    float getConsistentScalingFactor();
+
+    /**
      * Whether the associated {@link Trader} can take resize down action.
      */
     boolean isEligibleForResizeDown();
@@ -167,6 +180,17 @@ public interface TraderSettings {
      * @return {@code this}
      */
     @NonNull TraderSettings setRateOfResize(float rateOfResize);
+
+    /**
+     * Set the consistent scaling factor. See {@link #getConsistentScalingFactor()}
+     * for more details.
+     * <p/>
+     *  Has no observable side-effects except setting the above field.
+     *
+     * @param consistentScalingFactor The consistent scaling factor.
+     * @return {@code this}
+     */
+    @NonNull TraderSettings setConsistentScalingFactor(float consistentScalingFactor);
 
     /**
      * Returns the quote factor of {@code this} trader.

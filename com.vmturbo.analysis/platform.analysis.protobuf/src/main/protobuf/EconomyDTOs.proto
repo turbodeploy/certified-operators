@@ -162,6 +162,16 @@ message TraderSettingsTO {
 
     // Whether a trader is reconfigurable or not.
     optional bool reconfigurable = 19;
+
+    // The consistent scaling factor is used in the market on entities that consistent
+    // scale. It converts values on commodities from the normalized units that the market
+    // uses for computations back into the unit that commodities need to be consistent in.
+    // For example, on containers in a scaling group that are required to have a VCPU
+    // capacity consistent in millicores, the consistent_scaling_factor can be used to
+    // convert VCPU capacities, used values, etc. from the normalized MHz values that
+    // the market uses into millicores. This is important to ensure the market generates
+    // actions that make sense in the unit the consistent scaling group must be consistent in.
+    optional float consistent_scaling_factor = 20 [default = 1.0];
 }
 
 // The different states a trader can be in. The intention is to make this a boolean once we confirm

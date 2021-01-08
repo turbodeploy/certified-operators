@@ -28,6 +28,7 @@ public class RawMaterials implements Serializable {
     private int @NonNull [] materials_;
     private boolean @NonNull [] hasCoMaterial_;
     private boolean isFakeRawMaterial;
+    private final boolean requiresConsistentScalingFactor;
 
     /**
      * Constructor for the RawMaterials.
@@ -38,6 +39,7 @@ public class RawMaterials implements Serializable {
         int size = materials.size();
         materials_ = new int[size];
         hasCoMaterial_  = new boolean[size];
+        requiresConsistentScalingFactor = false;
         int index = 0;
         for (CommunicationDTOs.EndDiscoveredTopology.RawMaterial material : materials) {
             materials_[index] = material.getCommodityType();
@@ -53,6 +55,7 @@ public class RawMaterials implements Serializable {
      */
     public RawMaterials(RawMaterialsMap.RawMaterialInfo materialInfo) {
         isFakeRawMaterial = materialInfo.isFakeRawMaterial();
+        requiresConsistentScalingFactor = materialInfo.requiresConsistentScalingFactor();
         int size = materialInfo.getRawMaterials().size();
         materials_ = new int[size];
         hasCoMaterial_  = new boolean[size];
@@ -71,6 +74,17 @@ public class RawMaterials implements Serializable {
      */
     public boolean isRawMaterialRequired() {
         return !isFakeRawMaterial;
+    }
+
+    /**
+     * Return true if the commodity associated with these raw materials requires the
+     * use of consistentScalingFactor during resize.
+     *
+     * @return true if the commodity associated with these raw materials requires the
+     * use of consistentScalingFactor during resize.
+     */
+    public boolean requiresConsistentScalingFactor() {
+        return requiresConsistentScalingFactor;
     }
 
     /**

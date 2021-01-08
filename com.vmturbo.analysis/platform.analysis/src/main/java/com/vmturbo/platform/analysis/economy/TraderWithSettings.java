@@ -48,6 +48,7 @@ public final class TraderWithSettings extends Trader implements TraderSettings {
     private double quoteFactor_ = 0.75f;
     private double moveCostFactor_ = 0.005f;
     private float rateOfResize_ = 1f;
+    private float consistentScalingFactor_ = 1f;
     @Nullable private CostFunction costFunction_ = null;
     // default quote function is sum of commodity
     private QuoteFunction quoteFunction_ = QuoteFunctionFactory.sumOfCommodityQuoteFunction();
@@ -215,6 +216,12 @@ public final class TraderWithSettings extends Trader implements TraderSettings {
     }
 
     @Override
+    @Pure
+    public float getConsistentScalingFactor(@ReadOnly TraderWithSettings this) {
+        return consistentScalingFactor_;
+    }
+
+    @Override
     @Deterministic
     public @NonNull TraderWithSettings setReconfigurable(boolean reconfigurable) {
         reconfigurable_ = reconfigurable;
@@ -246,6 +253,13 @@ public final class TraderWithSettings extends Trader implements TraderSettings {
     @Deterministic
     public @NonNull TraderWithSettings setRateOfResize(float rateOfResize) {
         rateOfResize_ = rateOfResize;
+        return this;
+    }
+
+    @Override
+    @Deterministic
+    public @NonNull TraderWithSettings setConsistentScalingFactor(float consistentScalingFactor) {
+        consistentScalingFactor_ = consistentScalingFactor;
         return this;
     }
 

@@ -126,13 +126,14 @@ public class Resizer {
                                                 RawMaterials.findSellerCommodityAndSupplier(economy, seller, soldIndex);
                                         Set<CommoditySold> rawMaterials = (rawMaterialMapping != null) ? rawMaterialMapping.keySet() : null;
 
-                                        // If raw material can't be found and raw material is required, don't resize.
+                                        // If raw rawMaterialDescriptor can't be found and raw rawMaterialDescriptor is required, don't resize.
                                         // TODO: There may be some issue with consistent scaling. For example:
-                                        // Two containers in one CSG. One has raw material and the other one doesn't.
+                                        // Two containers in one CSG. One has raw rawMaterialDescriptor and the other one doesn't.
                                         // Then we'll only generate one resize action instead of two.
+                                        final Optional<RawMaterials> rawMaterialDescriptor =
+                                            economy.getRawMaterials(resizedCommodity.getBaseType());
                                         if ((rawMaterials == null || rawMaterials.isEmpty())
-                                            && (!economy.getRawMaterials(resizedCommodity.getBaseType()).isPresent()
-                                            || economy.getRawMaterials(resizedCommodity.getBaseType()).get().isRawMaterialRequired())) {
+                                            && rawMaterialDescriptor.map(RawMaterials::isRawMaterialRequired).orElse(true)) {
                                             continue;
                                         }
                                         float rateOfResize = seller.getSettings().getRateOfResize();
@@ -153,7 +154,7 @@ public class Resizer {
                                                 // See ConsistentResizer.ResizingGroup.generateResizes for
                                                 // details.
                                                 consistentResizer.addResize(resizeAction,
-                                                        engage && capacityChange, rawMaterialMapping);
+                                                        engage && capacityChange, rawMaterialMapping, rawMaterialDescriptor);
                                             } else {
                                                 takeAndAddResizeAction(actions, resizeAction);
                                             }
