@@ -15,7 +15,6 @@
 
     <properties>
         <protobuf.version>3.11.0</protobuf.version>
-        <grpc.version>1.28.0</grpc.version>
         <swagger-annotations.version>1.5.13</swagger-annotations.version>
     </properties>
 

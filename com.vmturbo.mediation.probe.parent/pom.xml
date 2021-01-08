@@ -27,6 +27,7 @@
         <mockito.version>1.10.19</mockito.version>
         <powermock.version>1.6.6</powermock.version>
         <spotbugs.version>4.0.4</spotbugs.version>
+        <grpc.version>1.29.0</grpc.version>
     </properties>
 
     <build>
