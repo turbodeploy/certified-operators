@@ -262,12 +262,15 @@ public class GenerateConstraintMap {
                 .getPlacementPolicyIdToCommodityType(topologyGraph,
                         groupResolver);
         for (Cell<Long, Integer, TopologyDTO.CommodityType> cell : placementPolicyIdToCommodityType.cellSet()) {
-            updateConstraintMapRequest.addReservationContraintInfo(ReservationConstraintInfo
-                    .newBuilder()
-                    .setKey(cell.getValue().getKey())
-                    .setConstraintId(cell.getRowKey())
-                    .setProviderType(cell.getColumnKey())
-                    .setType(Type.POLICY).build());
+            if (cell.getColumnKey() == EntityType.PHYSICAL_MACHINE_VALUE
+                    || cell.getColumnKey() == EntityType.STORAGE_VALUE) {
+                updateConstraintMapRequest.addReservationContraintInfo(ReservationConstraintInfo
+                        .newBuilder()
+                        .setKey(cell.getValue().getKey())
+                        .setConstraintId(cell.getRowKey())
+                        .setProviderType(cell.getColumnKey())
+                        .setType(Type.POLICY).build());
+            }
         }
     }
 

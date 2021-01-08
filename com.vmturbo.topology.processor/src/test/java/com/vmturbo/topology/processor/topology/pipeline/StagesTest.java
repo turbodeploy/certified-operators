@@ -24,12 +24,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Table;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -45,9 +47,12 @@ import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceStub;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo.Type;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyResponse;
 import com.vmturbo.common.protobuf.topology.Stitching.JournalOptions;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -641,16 +646,34 @@ public class StagesTest {
                 .thenReturn(Stream.of(entity));
         when(topologyGraph.entitiesOfType(EntityType.DATACENTER))
                 .thenReturn(Stream.empty());
+        Table<Long, Integer, CommodityType> results = HashBasedTable.create();
+        results.put(123L,
+                EntityType.PHYSICAL_MACHINE_VALUE,
+                CommodityType.newBuilder().setKey("ABC").setType(1).build());
+        results.put(456L,
+                EntityType.VIRTUAL_MACHINE_VALUE,
+                CommodityType.newBuilder().setKey("ABC").setType(1).build());
         when(policyManager.getPlacementPolicyIdToCommodityType(any(), any()))
-                .thenReturn(HashBasedTable.create());
+                .thenReturn(results);
         UpdateConstraintMapRequest updateConstraintMapRequest =
                 generateConstraintMapStage.getGenerateConstraintMap()
                         .createMap(topologyGraph, groupResolver);
         testServer.close();
         reservationServer.close();
         Assert.assertEquals("Network::VM-Network",
-                updateConstraintMapRequest.getReservationContraintInfoList().get(0).getKey());
+                updateConstraintMapRequest.getReservationContraintInfoList()
+                        .stream().filter(a -> a.getType() == Type.NETWORK).findFirst()
+                        .get().getKey());
+        Assert.assertEquals(1,
+                updateConstraintMapRequest.getReservationContraintInfoList()
+                .stream().filter(a -> a.getType() == Type.POLICY)
+                        .collect(Collectors.toList()).size());
+        Assert.assertEquals(123L,
+                updateConstraintMapRequest.getReservationContraintInfoList()
+                        .stream().filter(a -> a.getType() == Type.POLICY).findFirst().get()
+                .getConstraintId());
     }
+
 
     @Test
     public void testEntityValidationStageFailure() throws Exception {
