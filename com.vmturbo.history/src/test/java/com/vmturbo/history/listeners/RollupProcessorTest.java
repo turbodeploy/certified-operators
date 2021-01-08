@@ -274,7 +274,7 @@ public class RollupProcessorTest {
 
         final Logger logger = LogManager.getLogger();
         final MultiStageTimer timer = new MultiStageTimer(logger);
-        rollupProcessor.performRetentionProcessing(timer);
+        rollupProcessor.performRetentionProcessing(timer, false);
 
         final List<Record3<Long, Long, Date>> recordsAfterPurge =
             reader.getVolumeAttachmentHistory(Collections.singletonList(VOLUME_OID));
@@ -301,7 +301,7 @@ public class RollupProcessorTest {
 
         final Logger logger = LogManager.getLogger();
         final MultiStageTimer timer = new MultiStageTimer(logger);
-        rollupProcessor.performRetentionProcessing(timer);
+        rollupProcessor.performRetentionProcessing(timer, false);
 
         final VolumeAttachmentHistoryReader reader = new VolumeAttachmentHistoryReader(historydbIO);
         final List<Record3<Long, Long, Date>> recordsAfterPurge =
@@ -336,7 +336,7 @@ public class RollupProcessorTest {
 
         final Logger logger = LogManager.getLogger();
         final MultiStageTimer timer = new MultiStageTimer(logger);
-        rollupProcessor.performRetentionProcessing(timer);
+        rollupProcessor.performRetentionProcessing(timer, false);
 
         final VolumeAttachmentHistoryReader reader = new VolumeAttachmentHistoryReader(historydbIO);
         final List<Record3<Long, Long, Date>> recordsAfterPurge =

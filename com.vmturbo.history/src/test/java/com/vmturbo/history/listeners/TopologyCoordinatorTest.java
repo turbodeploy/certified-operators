@@ -72,7 +72,7 @@ public class TopologyCoordinatorTest extends Assert {
                 mock(ProjectedPlanTopologyIngester.class),
                 mock(RollupProcessor.class),
                 processingStatus,
-                mock(Thread.class),
+                new Thread(),
                 mock(StatsAvailabilityTracker.class),
                 historydbIo,
                 config);

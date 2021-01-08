@@ -85,11 +85,11 @@ public class RollupProcessor {
     private static final String CLUSTER_STATS_ROLLUP_PROC = "cluster_stats_rollup";
     private static final String CLUSTER_TABLE_PREFIX = "cluster";
     /**
-     * If the most recent last_discovered_date column value for a Volume OID is older than
-     * (current date - VOL_ATTACHMENT_HISTORY_RETENTION_PERIOD), then all records related to this
-     * Volume OID will be deleted from the volume_attachment_history table. As this implies that
-     * the Volume has not been discovered for a period defined by
-     * VOL_ATTACHMENT_HISTORY_RETENTION_PERIOD and may have been deleted from the environment.
+     * If the most recent last_discovered_date column value for a Volume OID is older than (current
+     * date - VOL_ATTACHMENT_HISTORY_RETENTION_PERIOD), then all records related to this Volume OID
+     * will be deleted from the volume_attachment_history table. As this implies that the Volume has
+     * not been discovered for a period defined by VOL_ATTACHMENT_HISTORY_RETENTION_PERIOD and may
+     * have been deleted from the environment.
      */
     public static final int VOL_ATTACHMENT_HISTORY_RETENTION_PERIOD = 14;
 
@@ -108,8 +108,8 @@ public class RollupProcessor {
     }
 
     /**
-     * Perform hourly rollup processing for all tables that were active in ingestions that
-     * were performed for the given snapshot time.
+     * Perform hourly rollup processing for all tables that were active in ingestions that were
+     * performed for the given snapshot time.
      *
      * @param tables       tables that were populated by ingestions for the given snapshot
      * @param msecSnapshot snapshot time of contributing ingestions
@@ -204,9 +204,15 @@ public class RollupProcessor {
     }
 
     void performRetentionProcessing(MultiStageTimer timer) {
+        performRetentionProcessing(timer, true);
+    }
+
+    void performRetentionProcessing(MultiStageTimer timer, boolean doRepartitioning) {
         // retention processing for entity stats tables is done by reconfiguring their partitions so
         // that partitions containing expired records are dropped.
-        performRepartitioning(timer);
+        if (doRepartitioning) {
+            performRepartitioning(timer);
+        }
         // available_timestamps is small, so we just manually delete records that exceed expiration
         timer.start("Expire available_timestamps records");
         try (Connection conn = historydbIO.connection()) {
@@ -227,21 +233,21 @@ public class RollupProcessor {
         }
         timer.start("Purge expired volume_attachment_history records");
         try (Connection conn = historydbIO.connection()) {
-           final int deletedRowsCount =
-                historydbIO.using(conn)
-                    .delete(VOLUME_ATTACHMENT_HISTORY)
-                    .where(VOLUME_ATTACHMENT_HISTORY.VOLUME_OID
-                        .in(HistorydbIO.getJooqBuilder()
-                            .select(VOLUME_ATTACHMENT_HISTORY.VOLUME_OID)
-                            .from(VOLUME_ATTACHMENT_HISTORY)
-                            .groupBy(VOLUME_ATTACHMENT_HISTORY.VOLUME_OID)
-                            .having(dateDiff(currentDate(),
-                                max(VOLUME_ATTACHMENT_HISTORY.LAST_DISCOVERED_DATE))
-                                .gt(VOL_ATTACHMENT_HISTORY_RETENTION_PERIOD))))
-                    .execute();
+            final int deletedRowsCount =
+                    historydbIO.using(conn)
+                            .delete(VOLUME_ATTACHMENT_HISTORY)
+                            .where(VOLUME_ATTACHMENT_HISTORY.VOLUME_OID
+                                    .in(HistorydbIO.getJooqBuilder()
+                                            .select(VOLUME_ATTACHMENT_HISTORY.VOLUME_OID)
+                                            .from(VOLUME_ATTACHMENT_HISTORY)
+                                            .groupBy(VOLUME_ATTACHMENT_HISTORY.VOLUME_OID)
+                                            .having(dateDiff(currentDate(),
+                                                    max(VOLUME_ATTACHMENT_HISTORY.LAST_DISCOVERED_DATE))
+                                                    .gt(VOL_ATTACHMENT_HISTORY_RETENTION_PERIOD))))
+                            .execute();
             if (deletedRowsCount > 0) {
                 logger.info("Number of rows deleted from Volume Attachment History table: {}",
-                    deletedRowsCount);
+                        deletedRowsCount);
             }
         } catch (VmtDbException | SQLException | DataAccessException e) {
             logger.error("Failed to delete expired volume_attachment_history records", e);
@@ -286,18 +292,18 @@ public class RollupProcessor {
         tables.add(MarketStatsByDay.MARKET_STATS_BY_DAY);
         tables.add(MarketStatsByMonth.MARKET_STATS_BY_MONTH);
         EntityType.allEntityTypes().stream()
-            .filter(EntityType::rollsUp)
-            .forEach(type -> {
-                List<String> missing = new ArrayList();
-                type.getLatestTable().map(tables::add).orElseGet(() -> missing.add("Latest"));
-                type.getHourTable().map(tables::add).orElseGet(() -> missing.add("Hourly"));
-                type.getDayTable().map(tables::add).orElseGet(() -> missing.add("Daily"));
-                type.getMonthTable().map(tables::add).orElseGet(() -> missing.add("Monthly"));
-                if (!missing.isEmpty()) {
-                    logger.warn("Not rolling up entity type {}, which is missing tables {}",
-                        type.getName(), missing);
-                }
-            });
+                .filter(EntityType::rollsUp)
+                .forEach(type -> {
+                    List<String> missing = new ArrayList();
+                    type.getLatestTable().map(tables::add).orElseGet(() -> missing.add("Latest"));
+                    type.getHourTable().map(tables::add).orElseGet(() -> missing.add("Hourly"));
+                    type.getDayTable().map(tables::add).orElseGet(() -> missing.add("Daily"));
+                    type.getMonthTable().map(tables::add).orElseGet(() -> missing.add("Monthly"));
+                    if (!missing.isEmpty()) {
+                        logger.warn("Not rolling up entity type {}, which is missing tables {}",
+                                type.getName(), missing);
+                    }
+                });
         return tables;
     }
 
@@ -315,38 +321,38 @@ public class RollupProcessor {
     }
 
     private void performRollups(@Nonnull final List<Table> tables,
-                                final Timestamp snapshot,
-                                final RollupType rollupType,
-                                @Nonnull MultiStageTimer timer) {
+            final Timestamp snapshot,
+            final RollupType rollupType,
+            @Nonnull MultiStageTimer timer) {
         timer.start(rollupType.getLabel() + " Prep");
         // schedule all the task for execution in the thread pool
         final List<Pair<Table, List<Future<Void>>>> tableFutures = tables.stream()
-            .filter(t -> rollupType.canRollup(t))
-            .map(t -> Pair.of(t, scheduleRollupTasks(t, rollupType, snapshot)))
-            .collect(Collectors.toList());
+                .filter(t -> rollupType.canRollup(t))
+                .map(t -> Pair.of(t, scheduleRollupTasks(t, rollupType, snapshot)))
+                .collect(Collectors.toList());
         timer.stop();
         // now wait for each one to complete, and then we're done
         waitForRollupTasks(tableFutures, rollupType, timer);
     }
 
     private List<Future<Void>> scheduleRollupTasks(@Nonnull Table table,
-                                                   @Nonnull RollupType rollupType, @Nonnull Timestamp snapshotTime) {
+            @Nonnull RollupType rollupType, @Nonnull Timestamp snapshotTime) {
         if (EntityType.fromTable(table).isPresent()) {
             return scheduleEntityStatsRollupTasks(
-                table, rollupType, snapshotTime, TASKS_PER_ENTITY_STATS_ROLLUP);
+                    table, rollupType, snapshotTime, TASKS_PER_ENTITY_STATS_ROLLUP);
         } else if (table == MARKET_STATS_LATEST) {
             return scheduleMarketStatsRollupTask();
         } else if (table == CLUSTER_STATS_LATEST) {
             return scheduleClusterStatsRollupTasks(table, rollupType, snapshotTime);
         }
         throw new IllegalArgumentException(
-            String.format("Cannot schedule rollup tasks for table: %s", table));
+                String.format("Cannot schedule rollup tasks for table: %s", table));
     }
 
     private List<Future<Void>> scheduleEntityStatsRollupTasks(@Nonnull Table table,
-                                                              @Nonnull RollupType rollupType,
-                                                              @Nonnull Timestamp snapshotTime,
-                                                              int numTasks) {
+            @Nonnull RollupType rollupType,
+            @Nonnull Timestamp snapshotTime,
+            int numTasks) {
         List<Future<Void>> futures = new ArrayList<>();
         int lowBound = 0;
         for (Integer highBound : getBoundaries(numTasks)) {
@@ -360,13 +366,13 @@ public class RollupProcessor {
             String high = highBound < 16 ? String.format("'%x'", highBound) : null;
             Timestamp rollupTime = rollupType.getRollupTime(snapshotTime);
             String sql = String.format(
-                "CALL %s('%s', '%s', '%s', '%s', %s, %s, %d, %d, %d, %d, @count)",
-                ENTITY_ROLLUP_PROC, source.getName(), rollup.getName(), snapshotTime, rollupTime,
-                low, high,
-                rollupType.isCopyHourKey() ? 1 : 0,
-                rollupType.isCopyDayKey() ? 1 : 0,
-                rollupType.isCopyMonthKey() ? 1 : 0,
-                rollupType.sourceHasSamples() ? 1 : 0);
+                    "CALL %s('%s', '%s', '%s', '%s', %s, %s, %d, %d, %d, %d, @count)",
+                    ENTITY_ROLLUP_PROC, source.getName(), rollup.getName(), snapshotTime, rollupTime,
+                    low, high,
+                    rollupType.isCopyHourKey() ? 1 : 0,
+                    rollupType.isCopyDayKey() ? 1 : 0,
+                    rollupType.isCopyMonthKey() ? 1 : 0,
+                    rollupType.sourceHasSamples() ? 1 : 0);
             futures.add(executorService.submit(() -> {
                 try (Connection conn = historydbIO.unpooledTransConnection()) {
                     conn.setTransactionIsolation(Connection.TRANSACTION_READ_UNCOMMITTED);
@@ -394,16 +400,16 @@ public class RollupProcessor {
     }
 
     private List<Future<Void>> scheduleClusterStatsRollupTasks(@Nonnull Table table,
-                                                               @Nonnull RollupType rollupType, @Nonnull Timestamp snapshotTime) {
+            @Nonnull RollupType rollupType, @Nonnull Timestamp snapshotTime) {
 
         Table source = rollupType.getSourceTable(table);
         Table rollup = rollupType.getRollupTable(table);
         Timestamp rollupTime = rollupType.getRollupTime(snapshotTime);
         String sql = String.format(
-            "CALL %s('%s', '%s', '%s', '%s', %d, @count)",
-            CLUSTER_STATS_ROLLUP_PROC, source.getName(), rollup.getName(),
-            snapshotTime, rollupTime,
-            rollupType.sourceHasSamples() ? 1 : 0);
+                "CALL %s('%s', '%s', '%s', '%s', %d, @count)",
+                CLUSTER_STATS_ROLLUP_PROC, source.getName(), rollup.getName(),
+                snapshotTime, rollupTime,
+                rollupType.sourceHasSamples() ? 1 : 0);
         final Future<Void> future = executorService.submit(() -> {
             try (Connection conn = historydbIO.unpooledTransConnection()) {
                 conn.setTransactionIsolation(Connection.TRANSACTION_READ_UNCOMMITTED);
@@ -416,11 +422,11 @@ public class RollupProcessor {
     }
 
     private void waitForRollupTasks(final List<Pair<Table, List<Future<Void>>>> tableFutures,
-                                    RollupType rollupType,
-                                    final MultiStageTimer timer) {
+            RollupType rollupType,
+            final MultiStageTimer timer) {
         tableFutures.forEach(tf -> {
             String label = String.format(
-                "%s %s", getTablePrefix(tf.getLeft()).get(), rollupType.getLabel());
+                    "%s %s", getTablePrefix(tf.getLeft()).get(), rollupType.getLabel());
             try (AsyncTimer tableTimer = timer.async(label)) {
                 tf.getRight().forEach(f -> {
                     try {
@@ -546,8 +552,8 @@ public class RollupProcessor {
 
 
         /**
-         * Get the rollup time (i.e. the snapshot_time column value) for records in the target
-         * table for this rollup.
+         * Get the rollup time (i.e. the snapshot_time column value) for records in the target table
+         * for this rollup.
          *
          * @param snapshotTime snapshot time of records in source table
          * @return snapshot time of records in rollup table
@@ -561,10 +567,10 @@ public class RollupProcessor {
                     return Timestamp.from(t.truncatedTo((ChronoUnit.DAYS)));
                 case BY_MONTH:
                     LocalDateTime rollupTime = LocalDateTime.ofInstant(t, ZoneOffset.UTC)
-                        .truncatedTo(ChronoUnit.DAYS)
-                        .withDayOfMonth(1)
-                        .plusMonths(1)
-                        .minusDays(1);
+                            .truncatedTo(ChronoUnit.DAYS)
+                            .withDayOfMonth(1)
+                            .plusMonths(1)
+                            .minusDays(1);
                     return Timestamp.from(rollupTime.toInstant(ZoneOffset.UTC));
                 default:
                     badValue();

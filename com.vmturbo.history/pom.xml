@@ -207,6 +207,10 @@
             <version>1.4.200</version>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.testbases</artifactId>
+        </dependency>
     </dependencies>
 
 </project>

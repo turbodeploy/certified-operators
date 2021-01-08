@@ -3140,6 +3140,16 @@
                 <artifactId>javatuples</artifactId>
                 <version>1.2</version>
             </dependency>
+            <dependency>
+                <groupId>org.bitbucket.mstrobel</groupId>
+                <artifactId>procyon-compilertools</artifactId>
+                <version>0.5.36</version>
+            </dependency>
+            <dependency>
+                <groupId>org.reflections</groupId>
+                <artifactId>reflections</artifactId>
+                <version>0.9.12</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
     <repositories>

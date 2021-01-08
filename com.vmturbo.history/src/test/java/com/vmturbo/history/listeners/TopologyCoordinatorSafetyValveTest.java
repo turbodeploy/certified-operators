@@ -139,7 +139,7 @@ public class TopologyCoordinatorSafetyValveTest {
                 mock(ProjectedPlanTopologyIngester.class),
                 mock(RollupProcessor.class),
                 new ProcessingStatus(config, historydbIO), // this needs to be real
-                mock(Thread.class), // processing loop
+                new Thread(), // processing loop
                 mock(StatsAvailabilityTracker.class),
                 historydbIO,
                 config);
