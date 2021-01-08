@@ -197,6 +197,9 @@ public class PlanReservedInstanceClientTest {
         assertEquals(1, riBoughtByFilterRequestCaptor.getValue().getRegionFilter().getRegionIdCount());
         assertEquals(regionOid, new Long(riBoughtByFilterRequestCaptor.getValue().getRegionFilter().getRegionId(0)));
 
+        assertTrue(riBoughtByFilterRequestCaptor.getValue().hasExcludeUndiscoveredUnused());
+        assertEquals(true, riBoughtByFilterRequestCaptor.getValue().getExcludeUndiscoveredUnused());
+
         assertTrue(riBoughtByFilterRequestCaptor.getValue().hasRiFilter());
         assertEquals(riOidList, riBoughtByFilterRequestCaptor.getValue().getRiFilter().getRiIdList());
     }

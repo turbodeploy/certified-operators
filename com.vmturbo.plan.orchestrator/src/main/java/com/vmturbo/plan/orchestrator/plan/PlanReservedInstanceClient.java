@@ -124,6 +124,9 @@ public class PlanReservedInstanceClient {
                                     .map(MigrationReference::getOid)
                                     .ifPresent(regionOid -> requestBuilder.setRegionFilter(
                                             RegionFilter.newBuilder().addRegionId(regionOid).build()));
+
+                            // Filter out undiscovered RIs not used by discovered accounts.
+                            requestBuilder.setExcludeUndiscoveredUnused(true);
                         });
             }
 
