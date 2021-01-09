@@ -12,7 +12,7 @@
     <artifactId>xl-sdk-probe-parent</artifactId>
     <packaging>pom</packaging>
     <groupId>com.vmturbo</groupId>
-    <version>8.0.6-SNAPSHOT</version>
+    <version>8.0.7-SNAPSHOT</version>
 
     <properties>
         <swagger.component.name>GCP Conversion Mediation Component</swagger.component.name>
