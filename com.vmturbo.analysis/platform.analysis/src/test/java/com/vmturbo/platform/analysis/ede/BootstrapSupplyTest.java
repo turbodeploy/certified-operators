@@ -33,7 +33,7 @@ import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
-import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
+import com.vmturbo.platform.analysis.pricefunction.PriceFunctionFactory;
 import com.vmturbo.platform.analysis.pricefunction.QuoteFunctionFactory;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeTierCostDTO;
@@ -313,10 +313,10 @@ public class BootstrapSupplyTest {
                                         TestUtils.ST_LATENCY),
                         new double[]{500, 1000, 5000, 5000}, false, true);
         ((CommoditySoldSettings)st1.getCommoditiesSold().get(st1.getBasketSold()
-                        .indexOf(TestUtils.ST_AMT))).setPriceFunction(PriceFunction.Cache
+                        .indexOf(TestUtils.ST_AMT))).setPriceFunction(PriceFunctionFactory
                                         .createStepPriceFunction(0.9, 0.0001f, Float.POSITIVE_INFINITY));
         ((CommoditySoldSettings)st1.getCommoditiesSold().get(st1.getBasketSold()
-                        .indexOf(TestUtils.ST_PROV))).setPriceFunction(PriceFunction.Cache
+                        .indexOf(TestUtils.ST_PROV))).setPriceFunction(PriceFunctionFactory
                                         .createStepPriceFunction(0.9, 0.0001f, Float.POSITIVE_INFINITY));
         st1.getSettings().setResizeThroughSupplier(true);
         st1.setDebugInfoNeverUseInCode("DS1");
@@ -384,12 +384,12 @@ public class BootstrapSupplyTest {
                                         TestUtils.ST_LATENCY),
                         new double[]{800, 5000, 5000, 5000}, false, true);
         ((CommoditySoldSettings)st1.getCommoditiesSold().get(st1.getBasketSold()
-                        .indexOf(TestUtils.ST_AMT))).setPriceFunction(PriceFunction.Cache
+                        .indexOf(TestUtils.ST_AMT))).setPriceFunction(PriceFunctionFactory
                                         .createStepPriceFunction(0.9, 0.0001f, Float.POSITIVE_INFINITY))
                                         .setUtilizationUpperBound(0.5)
                                         .setOrigUtilizationUpperBound(0.5);
         ((CommoditySoldSettings)st1.getCommoditiesSold().get(st1.getBasketSold()
-                        .indexOf(TestUtils.ST_PROV))).setPriceFunction(PriceFunction.Cache
+                        .indexOf(TestUtils.ST_PROV))).setPriceFunction(PriceFunctionFactory
                                         .createStepPriceFunction(0.9, 0.0001f, Float.POSITIVE_INFINITY))
                                         .setUtilizationUpperBound(0.5)
                                         .setOrigUtilizationUpperBound(0.5);
@@ -456,10 +456,10 @@ public class BootstrapSupplyTest {
                                         TestUtils.ST_LATENCY),
                         new double[]{400, 5000, 5000, 5000}, false, true);
         ((CommoditySoldSettings)st1.getCommoditiesSold().get(st1.getBasketSold()
-                        .indexOf(TestUtils.ST_AMT))).setPriceFunction(PriceFunction.Cache
+                        .indexOf(TestUtils.ST_AMT))).setPriceFunction(PriceFunctionFactory
                                         .createStepPriceFunction(0.9, 0.0001f, Float.POSITIVE_INFINITY));
         ((CommoditySoldSettings)st1.getCommoditiesSold().get(st1.getBasketSold()
-                        .indexOf(TestUtils.ST_PROV))).setPriceFunction(PriceFunction.Cache
+                        .indexOf(TestUtils.ST_PROV))).setPriceFunction(PriceFunctionFactory
                                         .createStepPriceFunction(0.9, 0.0001f, Float.POSITIVE_INFINITY));
         st1.getSettings().setResizeThroughSupplier(true);
         st1.setDebugInfoNeverUseInCode("DS1");
@@ -708,10 +708,10 @@ public class BootstrapSupplyTest {
                                         TestUtils.ST_LATENCY),
                         new double[]{500, 1000, 5000, 5000}, false, true);
         ((CommoditySoldSettings)st1.getCommoditiesSold().get(st1.getBasketSold()
-                        .indexOf(TestUtils.ST_AMT))).setPriceFunction(PriceFunction.Cache
+                        .indexOf(TestUtils.ST_AMT))).setPriceFunction(PriceFunctionFactory
                                         .createStepPriceFunction(0.9, 0.0001f, Float.POSITIVE_INFINITY));
         ((CommoditySoldSettings)st1.getCommoditiesSold().get(st1.getBasketSold()
-                        .indexOf(TestUtils.ST_PROV))).setPriceFunction(PriceFunction.Cache
+                        .indexOf(TestUtils.ST_PROV))).setPriceFunction(PriceFunctionFactory
                                         .createStepPriceFunction(0.9, 0.0001f, Float.POSITIVE_INFINITY));
         st1.getSettings().setResizeThroughSupplier(true);
         st1.setDebugInfoNeverUseInCode("DS1");
@@ -779,10 +779,10 @@ public class BootstrapSupplyTest {
                                         TestUtils.ST_LATENCY),
                         new double[]{500, 5000, 5000, 5000}, false, true);
         ((CommoditySoldSettings)st1.getCommoditiesSold().get(st1.getBasketSold()
-                        .indexOf(TestUtils.ST_AMT))).setPriceFunction(PriceFunction.Cache
+                        .indexOf(TestUtils.ST_AMT))).setPriceFunction(PriceFunctionFactory
                                         .createStepPriceFunction(0.9, 0.0001f, Float.POSITIVE_INFINITY));
         ((CommoditySoldSettings)st1.getCommoditiesSold().get(st1.getBasketSold()
-                        .indexOf(TestUtils.ST_PROV))).setPriceFunction(PriceFunction.Cache
+                        .indexOf(TestUtils.ST_PROV))).setPriceFunction(PriceFunctionFactory
                                         .createStepPriceFunction(0.9, 0.0001f, Float.POSITIVE_INFINITY));
         st1.getSettings().setResizeThroughSupplier(true);
         st1.setDebugInfoNeverUseInCode("DS1");
@@ -846,10 +846,10 @@ public class BootstrapSupplyTest {
                                         TestUtils.ST_LATENCY),
                         new double[]{400, 5000, 5000, 5000}, false, true);
         ((CommoditySoldSettings)st1.getCommoditiesSold().get(st1.getBasketSold()
-                        .indexOf(TestUtils.ST_AMT))).setPriceFunction(PriceFunction.Cache
+                        .indexOf(TestUtils.ST_AMT))).setPriceFunction(PriceFunctionFactory
                                         .createStepPriceFunction(0.9, 0.0001f, Float.POSITIVE_INFINITY));
         ((CommoditySoldSettings)st1.getCommoditiesSold().get(st1.getBasketSold()
-                        .indexOf(TestUtils.ST_PROV))).setPriceFunction(PriceFunction.Cache
+                        .indexOf(TestUtils.ST_PROV))).setPriceFunction(PriceFunctionFactory
                                         .createStepPriceFunction(0.9, 0.0001f, Float.POSITIVE_INFINITY));
         st1.getSettings().setResizeThroughSupplier(true);
         st1.setDebugInfoNeverUseInCode("DS1");
@@ -1267,7 +1267,7 @@ public class BootstrapSupplyTest {
         List<Action> bootStrapActionList = shopper.apply(economy);
 
         assertFalse(bootStrapActionList.isEmpty());
-        assertEquals(ActionType.RECONFIGURE, bootStrapActionList.get(0).getType());
+        assertEquals(ActionType.RECONFIGURE_CONSUMER, bootStrapActionList.get(0).getType());
     }
 
     @Test

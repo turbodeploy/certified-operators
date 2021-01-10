@@ -82,11 +82,11 @@ public class OldSuspension {
                                 || (es != null && es.getSuspensionCandidates(market) == null)) {
                     break;
                 }
-                List<Trader> suspensionCandidates = es != null
-                                ? (@NonNull @ReadOnly List<@NonNull Trader>)es
+                Set<Trader> suspensionCandidates = es != null
+                                ? (@NonNull @ReadOnly Set<@NonNull Trader>)es
                                                 .getSuspensionCandidates(market).stream()
                                                 .filter(t -> t.getState().isActive())
-                                                .collect(Collectors.toList())
+                                                .collect(Collectors.toSet())
                                 : market.getActiveSellers();
                 Trader leastProfitableTrader = findTheBestTraderToEngage(suspensionCandidates, ledger);
                 // break if there is no seller that satisfies the engagement criteria in the market
@@ -145,10 +145,11 @@ public class OldSuspension {
      * Return the best trader to suspend after checking the engagement criteria for all
      * traders of a particular market
      *
+     * @param candidates - the candidates to engage.
      * @param ledger - the {@link Ledger} that holds the incomeStatement of the sellers considered
      * @return the best trader satisfy the engagement criteria if there is any, otherwise NULL
      */
-    public Trader findTheBestTraderToEngage(List<Trader> candidates, Ledger ledger) {
+    public Trader findTheBestTraderToEngage(Set<Trader> candidates, Ledger ledger) {
         Trader leastProfitableTrader = null;
         double roiOfLeastProfitableTrader = Double.MAX_VALUE;
         for (Trader seller : candidates) {

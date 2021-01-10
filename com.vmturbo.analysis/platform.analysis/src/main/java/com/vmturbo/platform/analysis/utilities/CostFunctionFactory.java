@@ -448,7 +448,7 @@ public class CostFunctionFactory {
             return seller;
         }
         Market market = shoppingListsInMarket.iterator().next().getValue();
-        List<Trader> sellers = market.getActiveSellers();
+        Set<Trader> sellers = market.getActiveSellers();
         List<Trader> mutableSellers = new ArrayList<Trader>();
         mutableSellers.addAll(sellers);
         mutableSellers.retainAll(economy.getMarket(buyer).getActiveSellers());

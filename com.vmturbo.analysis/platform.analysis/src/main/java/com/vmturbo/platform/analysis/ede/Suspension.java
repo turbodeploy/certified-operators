@@ -13,6 +13,7 @@ import java.util.stream.Stream;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
 
+import com.vmturbo.platform.analysis.pricefunction.PriceFunctionFactory;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -32,7 +33,6 @@ import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ledger.IncomeStatement;
 import com.vmturbo.platform.analysis.ledger.Ledger;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
-import com.vmturbo.platform.analysis.pricefunction.PriceFunction.Cache;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 
 /**
@@ -51,12 +51,23 @@ public class Suspension {
 
     private Ledger ledger_;
 
+    private Economy economy_;
+
+    // Queue ordered first based on amount of reconfigurable commodities of a trader
+    // and then the roi of the trader in order to prioritize suspensions of traders
+    // with more reconfigurable commodities and lower roi.
     private PriorityQueue<Trader> suspensionCandidateHeap_ = new PriorityQueue<>((t1, t2) -> {
-        IncomeStatement is1 = ledger_.getTraderIncomeStatements().get(t1.getEconomyIndex());
-        IncomeStatement is2 = ledger_.getTraderIncomeStatements().get(t2.getEconomyIndex());
-        double c1 = is1.getROI() / is1.getMinDesiredROI();
-        double c2 = is2.getROI() / is2.getMinDesiredROI();
-        return c1 > c2 ? 1 : c1 == c2 ? 0 : -1;
+        if (t1.getReconfigureableCount(economy_) > t2.getReconfigureableCount(economy_)) {
+            return -1;
+        } else if (t1.getReconfigureableCount(economy_) < t2.getReconfigureableCount(economy_)) {
+            return 1;
+        } else {
+            IncomeStatement is1 = ledger_.getTraderIncomeStatements().get(t1.getEconomyIndex());
+            IncomeStatement is2 = ledger_.getTraderIncomeStatements().get(t2.getEconomyIndex());
+            double c1 = is1.getROI() / is1.getMinDesiredROI();
+            double c2 = is2.getROI() / is2.getMinDesiredROI();
+            return c1 > c2 ? 1 : c1 == c2 ? 0 : -1;
+        }
     });
 
     private final @NonNull SuspensionsThrottlingConfig suspensionsThrottlingConfig;
@@ -134,6 +145,7 @@ public class Suspension {
                 // that force utilization to exceed maxDesiredUtil*utilTh
                 adjustUtilThreshold(economy, true);
                 ledger_ = ledger;
+                economy_ = economy;
 
                 for (Market market : economy.getMarkets()) {
                     try {
@@ -196,7 +208,7 @@ public class Suspension {
                         logger.error(EconomyConstants.EXCEPTION_MESSAGE,
                                 market.getActiveSellers().isEmpty() ? "market " + market.toString()
                                     : market + " " + market.toString() + " with first active seller "
-                                    + market.getActiveSellers().get(0).getDebugInfoNeverUseInCode(),
+                                    + market.getActiveSellers().iterator().next().getDebugInfoNeverUseInCode(),
                                     e.getMessage(), e);
                     }
                 }
@@ -334,12 +346,12 @@ public class Suspension {
                             sellers.stream()
                                     .collect(() -> new QuoteMinimizer(economy, sl),
                                             QuoteMinimizer::accept, QuoteMinimizer::combine);
-                    if (Double.compare(minimizer.getTotalBestQuote(), Cache.MAX_UNIT_PRICE) > 0) {
+                    if (Double.compare(minimizer.getTotalBestQuote(), PriceFunctionFactory.MAX_UNIT_PRICE) > 0) {
                         if (logger.isTraceEnabled() || isDebugTrader) {
                             logger.info("{} will not be suspended because otherwise it will cause"
                                             + " its guaranteed buyer {} to have a quote larger than {}.",
                                     traderDebugInfo, sl.getBuyer().getDebugInfoNeverUseInCode(),
-                                    Cache.MAX_UNIT_PRICE);
+                                    PriceFunctionFactory.MAX_UNIT_PRICE);
                         }
                         return rollBackSuspends(suspendActions);
                     }
@@ -444,7 +456,7 @@ public class Suspension {
      * @param update - set threshold to maxDesiredUtil*utilThreshold if true or reset to original value if false
      */
     @VisibleForTesting
-    void adjustUtilThreshold(Economy economy, boolean update) {
+    public static void adjustUtilThreshold(Economy economy, boolean update) {
         if (update) {
             for (Trader seller : economy.getTraders()) {
                 double util = seller.getSettings().getMaxDesiredUtil();

@@ -159,6 +159,9 @@ message TraderSettingsTO {
 
     // Rate of resize setting
     optional float rate_of_resize = 18;
+
+    // Whether a trader is reconfigurable or not.
+    optional bool reconfigurable = 19;
 }
 
 // The different states a trader can be in. The intention is to make this a boolean once we confirm

@@ -392,7 +392,7 @@ public class ActionCollapseTest {
         Resize resize = new Resize(economy, p2, new CommoditySpecification(0),10, 20);
         Deactivate deactivate =
             new Deactivate(economy, provisionBySupply.getProvisionedSeller(), CPU_MEM_BASKET);
-        Reconfigure reconfigure = new Reconfigure(economy, s1);
+        ReconfigureConsumer reconfigure = new ReconfigureConsumer(economy, s1);
 
         // Act : Random insertion order.
         List<Action> actionsAfterReorder = ActionCollapse.groupActionsByTypeAndReorderBeforeSending

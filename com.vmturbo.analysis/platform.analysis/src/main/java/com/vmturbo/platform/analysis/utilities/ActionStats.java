@@ -227,7 +227,9 @@ public class ActionStats {
                     break;
                 case ACTIVATE:
                 case DEACTIVATE:
-                case RECONFIGURE:
+                case RECONFIGURE_CONSUMER:
+                case RECONFIGURE_PROVIDER_ADDITION:
+                case RECONFIGURE_PROVIDER_REMOVAL:
                     String target = action.getActionTarget().getDebugInfoNeverUseInCode();
                     increaseEntityCount(actionStatsData, action.getType(), extractEntityType(target));
                     break;

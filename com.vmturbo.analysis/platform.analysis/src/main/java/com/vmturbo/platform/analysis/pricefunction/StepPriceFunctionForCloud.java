@@ -1,17 +1,22 @@
 package com.vmturbo.platform.analysis.pricefunction;
 
-import java.io.Serializable;
-
-import org.checkerframework.dataflow.qual.Pure;
-
 import com.vmturbo.platform.analysis.economy.CommoditySold;
-import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
 
-public interface PriceFunction extends Serializable {
-    // Methods
+/**
+ * StepPriceFunctionForCloud.
+ */
+public class StepPriceFunctionForCloud implements PriceFunction {
+    /*
+     * weight assigned to the priceFunction.
+     */
+    double weight_;
+
+    StepPriceFunctionForCloud(double weight) {
+        weight_ = weight;
+    }
 
     /**
      * The price of one unit of normalized utilization. When a trader wants to
@@ -21,20 +26,13 @@ public interface PriceFunction extends Serializable {
      * @param shoppingList is the consumer's shoppingList.
      * @param seller is the {@link Trader} selling the commodity
      * @param cs is the {@link CommoditySold} by the seller
-     * @param e is the {@link Economy} that the seller resides in
+     * @param e is the {@link UnmodifiableEconomy} that the seller resides in
      * @return the price that will be charged for 100% of the capacity for a particular commodity
      *          sold by a seller
      */
-    @Pure
-    double unitPrice(double normalizedUtilization, ShoppingList shoppingList, Trader seller, CommoditySold cs,
-                            UnmodifiableEconomy e);
-
-    /**
-     * The mechanism to update a {@link PriceFunction} with any new weight specified.
-     * @param weight is the weight on the new PriceFunction.
-     * @return this {@link PriceFunction}.
-     */
-    default PriceFunction updatePriceFunctionWithWeight(double weight) {
-        return this;
+    public double unitPrice(double normalizedUtilization, ShoppingList shoppingList, Trader seller, CommoditySold cs,
+                            UnmodifiableEconomy e) {
+        return normalizedUtilization == 0 ? 0 : PriceFunctionFactory.isInvalid(normalizedUtilization)
+                ? Double.POSITIVE_INFINITY : weight_;
     }
 }

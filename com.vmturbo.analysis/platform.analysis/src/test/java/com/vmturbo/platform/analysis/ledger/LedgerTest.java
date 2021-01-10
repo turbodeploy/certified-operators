@@ -28,6 +28,7 @@ import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
+import com.vmturbo.platform.analysis.pricefunction.PriceFunctionFactory;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 import com.vmturbo.platform.analysis.topology.LegacyTopology;
@@ -433,17 +434,17 @@ public class LedgerTest {
         revFromComm.clear();
         seller.getSettings().setMaxDesiredUtil(1.0);
         seller.getSettings().setMinDesiredUtil(0.0);
-        commSold0.getSettings().setPriceFunction(PriceFunction.Cache.createStepPriceFunction(0.3, 50.0, 20000.0));
+        commSold0.getSettings().setPriceFunction(PriceFunctionFactory.createStepPriceFunction(0.3, 50.0, 20000.0));
         pf0 = commSold0.getSettings().getPriceFunction();
         commSoldUtil_0 = seller.getCommoditiesSold().get(0).getQuantity()/seller.getCommoditiesSold().get(0).getEffectiveCapacity();
         revFromComm.add(pf0.unitPrice(commSoldUtil_0, null, seller, commSold0, economy) * commSoldUtil_0);
 
-        commSold1.getSettings().setPriceFunction(PriceFunction.Cache.createStepPriceFunction(3.0, 50.0, 20000.0));
+        commSold1.getSettings().setPriceFunction(PriceFunctionFactory.createStepPriceFunction(3.0, 50.0, 20000.0));
         pf1 = commSold1.getSettings().getPriceFunction();
         commSoldUtil_1 = seller.getCommoditiesSold().get(1).getQuantity()/seller.getCommoditiesSold().get(1).getEffectiveCapacity();
         revFromComm.add(pf1.unitPrice(commSoldUtil_1, null, seller, commSold1, economy) * commSoldUtil_1);
 
-        commSold2.getSettings().setPriceFunction(PriceFunction.Cache.createStepPriceFunction(2.0, 50.0, 20000.0));
+        commSold2.getSettings().setPriceFunction(PriceFunctionFactory.createStepPriceFunction(2.0, 50.0, 20000.0));
         pf2 = commSold2.getSettings().getPriceFunction();
         commSoldUtil_2 = commSold2.getQuantity()/seller.getCommoditiesSold().get(2).getEffectiveCapacity();
         revFromComm.add(pf2.unitPrice(commSoldUtil_2, null, seller, commSold2, economy) * commSoldUtil_2);
