@@ -156,8 +156,7 @@ public class AtomicActionFactoryTest {
                 .setDeprecatedImportance(0)
                 .setInfo(ActionInfo.newBuilder()
                         .setReconfigure(Reconfigure.newBuilder()
-                                .setTarget(ActionEntity.newBuilder().setId(21).setType(40))
-                                .setIsProvider(false)))
+                                .setTarget(ActionEntity.newBuilder().setId(21).setType(40))))
                 .setExplanation(Explanation.newBuilder()
                         .setReconfigure(ReconfigureExplanation.newBuilder()))
                 .build();

@@ -94,9 +94,8 @@ public class ActionInfoModelCreator implements Function<ActionInfo, ActionInfoMo
     @Nonnull
     private static ActionInfoModel getReconfigure(@Nonnull ActionInfo action) {
         final Reconfigure reconfigure = action.getReconfigure();
-        final String changesString = String.valueOf(reconfigure.getIsProvider())
-            + (reconfigure.hasSource() ? Long.toString(reconfigure.getSource().getId()) : null)
-            + (reconfigure.hasIsAddition() ? String.valueOf(reconfigure.getIsAddition()) : null);
+        final String changesString =
+                reconfigure.hasSource() ? Long.toString(reconfigure.getSource().getId()) : null;
         return new ActionInfoModel(ActionTypeCase.RECONFIGURE, reconfigure.getTarget().getId(),
                 changesString, null);
     }

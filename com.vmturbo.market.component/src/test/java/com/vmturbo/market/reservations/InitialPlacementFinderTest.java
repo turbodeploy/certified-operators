@@ -46,7 +46,7 @@ import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
-import com.vmturbo.platform.analysis.pricefunction.PriceFunctionFactory;
+import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.analysis.topology.Topology;
@@ -275,7 +275,7 @@ public class InitialPlacementFinderTest {
         commSold.setCapacity(100);
         commSold.setQuantity(110);
         commSold.setPeakQuantity(110);
-        commSold.getSettings().setPriceFunction(PriceFunctionFactory.createStandardWeightedPriceFunction(7.0));
+        commSold.getSettings().setPriceFunction(PriceFunction.Cache.createStandardWeightedPriceFunction(7.0));
 
         Trader pm2 = economy.addTrader(PM_TYPE, TraderState.ACTIVE, basketSoldByPM, cliques);
         pm2.setDebugInfoNeverUseInCode("PM2");
@@ -285,7 +285,7 @@ public class InitialPlacementFinderTest {
         commSold2.setCapacity(100);
         commSold2.setQuantity(120);
         commSold2.setPeakQuantity(120);
-        commSold2.getSettings().setPriceFunction(PriceFunctionFactory.createStandardWeightedPriceFunction(7.0));
+        commSold2.getSettings().setPriceFunction(PriceFunction.Cache.createStandardWeightedPriceFunction(7.0));
 
 
         t.getModifiableTraderOids().put(pm1Oid, pm1);
@@ -316,7 +316,7 @@ public class InitialPlacementFinderTest {
         commSold.setCapacity(100);
         commSold.setQuantity(quantity);
         commSold.setPeakQuantity(30);
-        commSold.getSettings().setPriceFunction(PriceFunctionFactory.createStandardWeightedPriceFunction(7.0));
+        commSold.getSettings().setPriceFunction(PriceFunction.Cache.createStandardWeightedPriceFunction(7.0));
 
         Trader pm2 = economy.addTrader(PM_TYPE, TraderState.ACTIVE, basketSoldByPM, cliques);
         pm2.setDebugInfoNeverUseInCode("PM2");
@@ -326,7 +326,7 @@ public class InitialPlacementFinderTest {
         commSold2.setCapacity(100);
         commSold2.setQuantity(quantity);
         commSold2.setPeakQuantity(30);
-        commSold2.getSettings().setPriceFunction(PriceFunctionFactory.createStandardWeightedPriceFunction(7.0));
+        commSold2.getSettings().setPriceFunction(PriceFunction.Cache.createStandardWeightedPriceFunction(7.0));
 
         Trader vm1 = economy.addTrader(VM_TYPE, TraderState.ACTIVE, new Basket());
         vm1.setDebugInfoNeverUseInCode("VM1");

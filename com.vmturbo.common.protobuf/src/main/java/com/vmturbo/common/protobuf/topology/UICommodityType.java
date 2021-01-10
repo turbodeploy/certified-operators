@@ -18,13 +18,13 @@ public enum UICommodityType {
     /** The commodity ACTIVE_SESSIONS. */
     ACTIVE_SESSIONS("ActiveSessions", CommodityType.ACTIVE_SESSIONS, "Active Sessions"),
     /** The commodity APPLICATION. */
-    APPLICATION("ApplicationCommodity", CommodityType.APPLICATION, "Application"),
+    APPLICATION("ApplicationCommodity", CommodityType.APPLICATION, "Application Commodity"),
     /** The commodity BALLOONING. */
     BALLOONING("Ballooning", CommodityType.BALLOONING, "Ballooning"),
     /** The commodity BUFFER_COMMODITY. */
-    BUFFER_COMMODITY("BufferCommodity", CommodityType.BUFFER_COMMODITY, "Buffer"),
+    BUFFER_COMMODITY("BufferCommodity", CommodityType.BUFFER_COMMODITY, "Buffer Commodity"),
     /** The commodity CLUSTER. */
-    CLUSTER("ClusterCommodity", CommodityType.CLUSTER, "Cluster"),
+    CLUSTER("ClusterCommodity", CommodityType.CLUSTER, "Cluster Commodity"),
     /** The commodity COLLECTION_TIME. Use {@link #REMAINING_GC_CAPACITY} instead. */
     @Deprecated
     COLLECTION_TIME("CollectionTime", CommodityType.COLLECTION_TIME, "Collection Time"),
@@ -49,7 +49,7 @@ public enum UICommodityType {
     /** The commodity CROSS_CLUSTER_MOVE_SVC. */
     CROSS_CLUSTER_MOVE_SVC("CrossClusterMoveSvc", CommodityType.CROSS_CLUSTER_MOVE_SVC, "Cross Cluster Move SVC"),
     /** The commodity DATACENTER. */
-    DATACENTER("DataCenterCommodity", CommodityType.DATACENTER, "Data Center"),
+    DATACENTER("DataCenterCommodity", CommodityType.DATACENTER, "Data Center Commodity"),
     /** The commodity DATASTORE. */
     DATASTORE("DatastoreCommodity", CommodityType.DATASTORE, "Storage Accessibility"),
     /** The commodity DB_CACHE_HIT_RATE. */
@@ -59,7 +59,7 @@ public enum UICommodityType {
     /** The commodity DISK_ARRAY_ACCESS. */
     DISK_ARRAY_ACCESS("DISK_ARRAY_ACCESS", CommodityType.DISK_ARRAY_ACCESS, "Disk Array Access"),
     /** The commodity DRS_SEGMENTATION. */
-    DRS_SEGMENTATION("DrsSegmentationCommodity", CommodityType.DRS_SEGMENTATION, "DRS Segmentation"),
+    DRS_SEGMENTATION("DrsSegmentationCommodity", CommodityType.DRS_SEGMENTATION, "DRS Segmentation Commodity"),
     /** The commodity DSPM_ACCESS. */
     DSPM_ACCESS("DSPMAccessCommodity", CommodityType.DSPM_ACCESS, "Host Accessibility"),
     /** The commodity EXTENT. */
@@ -99,7 +99,7 @@ public enum UICommodityType {
     /** The commodity NET_THROUGHPUT. */
     NET_THROUGHPUT("NetThroughput", CommodityType.NET_THROUGHPUT, "Net Throughput"),
     /** The commodity NETWORK. */
-    NETWORK("NetworkCommodity", CommodityType.NETWORK, "Network"),
+    NETWORK("NetworkCommodity", CommodityType.NETWORK, "Network Commodity"),
     /** The commodity NUM_DISK. */
     NUM_DISK("NumDisk", CommodityType.NUM_DISK, "Num Disk"),
     /** The commodity NUMBER_COMSUMERS. */
@@ -135,11 +135,11 @@ public enum UICommodityType {
     /** The commodity SAME_CLUSTER_MOVE_SVC. */
     SAME_CLUSTER_MOVE_SVC("SameClusterMoveSvc", CommodityType.SAME_CLUSTER_MOVE_SVC, "Same Cluster Move SVC"),
     /** The commodity SEGMENTATION. */
-    SEGMENTATION("SegmentationCommodity", CommodityType.SEGMENTATION, "Segmentation"),
+    SEGMENTATION("SegmentationCommodity", CommodityType.SEGMENTATION, "Segmentation Commodity"),
     /** The commodity SLA_COMMODITY. */
-    SLA_COMMODITY("SLACommodity", CommodityType.SLA_COMMODITY, "SLA"),
+    SLA_COMMODITY("SLACommodity", CommodityType.SLA_COMMODITY, "SLA Commodity"),
     /** The commodity SOFTWARE_LICENSE_COMMODITY. */
-    SOFTWARE_LICENSE_COMMODITY("SoftwareLicenseCommodity", CommodityType.SOFTWARE_LICENSE_COMMODITY, "Software License"),
+    SOFTWARE_LICENSE_COMMODITY("SoftwareLicenseCommodity", CommodityType.SOFTWARE_LICENSE_COMMODITY, "Software License Commodity"),
     /** The commodity SPACE. */
     SPACE("Space", CommodityType.SPACE, "Space"),
     /** The commodity STORAGE_ACCESS. */
@@ -149,7 +149,7 @@ public enum UICommodityType {
     /** The commodity STORAGE_AMOUNT. */
     STORAGE_AMOUNT("StorageAmount", CommodityType.STORAGE_AMOUNT, "Storage Amount"),
     /** The commodity STORAGE_CLUSTER. */
-    STORAGE_CLUSTER("StorageClusterCommodity", CommodityType.STORAGE_CLUSTER, "Storage Cluster"),
+    STORAGE_CLUSTER("StorageClusterCommodity", CommodityType.STORAGE_CLUSTER, "Storage Cluster Commodity"),
     /** The commodity STORAGE_LATENCY. */
     STORAGE_LATENCY("StorageLatency", CommodityType.STORAGE_LATENCY, "Storage Latency"),
     /** The commodity STORAGE_PROVISIONED. */
@@ -171,7 +171,7 @@ public enum UICommodityType {
     /** The commodity VCPU_REQUEST_QUOTA. */
     VCPU_REQUEST_QUOTA("VCPURequestQuota", CommodityType.VCPU_REQUEST_QUOTA, "VCPU Request Quota"),
     /** The commodity VDC. */
-    VDC("VDCCommodity", CommodityType.VDC, "VDC"),
+    VDC("VDCCommodity", CommodityType.VDC, "VDC Commodity"),
     /** The commodity VMEM. */
     VMEM("VMem", CommodityType.VMEM, "VMem"),
     /** The commodity VMEM_LIMIT_QUOTA. */
@@ -181,13 +181,13 @@ public enum UICommodityType {
     /** The commodity VMEM_REQUEST_QUOTA. */
     VMEM_REQUEST_QUOTA("VMemRequestQuota", CommodityType.VMEM_REQUEST_QUOTA, "VMem Request Quota"),
     /** The commodity VMPM_ACCESS. */
-    VMPM_ACCESS("VMPMAccessCommodity", CommodityType.VMPM_ACCESS, "VMPM Access"),
+    VMPM_ACCESS("VMPMAccessCommodity", CommodityType.VMPM_ACCESS, "VMPM Access Commodity"),
     /** The commodity VSTORAGE. */
     VSTORAGE("VStorage", CommodityType.VSTORAGE, "VStorage"),
     /** The commodity ZONE. */
     ZONE("Zone", CommodityType.ZONE, "Zone"),
     /** The commodity LICENSE_COMMODITY. */
-    LICENSE_COMMODITY("LicenseCommodity", CommodityType.LICENSE_COMMODITY, "License"),
+    LICENSE_COMMODITY("LicenseCommodity", CommodityType.LICENSE_COMMODITY, "License Commodity"),
     /** The commodity Q3_VCPU. */
     Q3_VCPU("Q3VCPU", CommodityType.Q3_VCPU, "Q3 VCPU"),
     /** The commodity NUMBER_CONSUMERS_PM. */
@@ -219,7 +219,7 @@ public enum UICommodityType {
     /** The commodity HOT_STORAGE. */
     HOT_STORAGE("HotStorage", CommodityType.HOT_STORAGE, "Hot Storage"),
     /** The commodity HA_COMMODITY. */
-    HA_COMMODITY("HACommodity", CommodityType.HA_COMMODITY, "HA"),
+    HA_COMMODITY("HACommodity", CommodityType.HA_COMMODITY, "HA Commodity"),
     /** The commodity NETWORK_POLICY. */
     NETWORK_POLICY("NetworkPolicy", CommodityType.NETWORK_POLICY, "Network Policy"),
     /** The commodity SERVICE_LEVEL_CLUSTER. */

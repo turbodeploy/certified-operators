@@ -106,24 +106,7 @@ message Explanation {
 
             // False if original supplier is in MAINTENANCE or FAILOVER state.
             optional bool is_available = 2 [default = true];
-
-            // the reason for the evacuation.
-            required EvacuationExplanation evacuation_explanation = 3;
         }
-
-        // list of explanations for evacuation.
-        message EvacuationExplanation {
-            oneof evacuation_type {
-                Suspension suspension = 1;
-                ReconfigureRemoval reconfigureRemoval = 2;
-            }
-        }
-
-        // an evacuation explanation due to Suspension.
-        message Suspension {}
-
-        // an evacuation explanation due to ReconfigureRemoval.
-        message ReconfigureRemoval {}
 
         // A move explanation suggesting initial placement of buyer.
         message InitialPlacement {}
@@ -517,12 +500,6 @@ message Reconfigure {
 
     // scaling group ID
     optional string scaling_group_id = 3;
-
-    // If it is a provider reconfigure or consumer.
-    required bool is_provider = 4 [default = false];
-
-    // If it is a reconfigure to add commodity or remove.
-    optional bool is_addition = 5;
 }
 
 // An action to provision an entity that matches another entity already existing in the system.

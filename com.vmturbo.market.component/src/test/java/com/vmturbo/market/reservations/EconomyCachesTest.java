@@ -30,7 +30,7 @@ import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
-import com.vmturbo.platform.analysis.pricefunction.PriceFunctionFactory;
+import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
 import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -768,7 +768,7 @@ public class EconomyCachesTest {
         commSold.setCapacity(pmMemCapacity);
         commSold.setQuantity(pm1MemUsed);
         commSold.setPeakQuantity(pm1MemUsed);
-        commSold.getSettings().setPriceFunction(PriceFunctionFactory.createStandardWeightedPriceFunction(7.0));
+        commSold.getSettings().setPriceFunction(PriceFunction.Cache.createStandardWeightedPriceFunction(7.0));
 
         Trader pm2 = economy.addTrader(PM_TYPE, TraderState.ACTIVE, basketSoldByPM, cliques);
         pm2.setDebugInfoNeverUseInCode("PM2");
@@ -778,7 +778,7 @@ public class EconomyCachesTest {
         commSold2.setCapacity(pmMemCapacity);
         commSold2.setQuantity(pm2MemUsed);
         commSold2.setPeakQuantity(pm2MemUsed);
-        commSold2.getSettings().setPriceFunction(PriceFunctionFactory.createStandardWeightedPriceFunction(7.0));
+        commSold2.getSettings().setPriceFunction(PriceFunction.Cache.createStandardWeightedPriceFunction(7.0));
 
         t.getModifiableTraderOids().put(pm1Oid, pm1);
         t.getModifiableTraderOids().put(pm2Oid, pm2);
@@ -809,13 +809,13 @@ public class EconomyCachesTest {
         commSold.setCapacity(pmMemCapacity);
         commSold.setQuantity(fourPMsMemUsed[0]);
         commSold.setPeakQuantity(fourPMsMemUsed[0]);
-        commSold.getSettings().setPriceFunction(PriceFunctionFactory.createStandardWeightedPriceFunction(7.0));
+        commSold.getSettings().setPriceFunction(PriceFunction.Cache.createStandardWeightedPriceFunction(7.0));
         int clusterIndex1 = pm1.getBasketSold().indexOf(CLUSTER1_COMM_SPEC_TYPE);
         CommoditySold clusterSold1 = pm1.getCommoditiesSold().get(clusterIndex1);
         clusterSold1.setCapacity(pmMemCapacity);
         clusterSold1.setQuantity(1);
         clusterSold1.setPeakQuantity(1);
-        clusterSold1.getSettings().setPriceFunction(PriceFunctionFactory.createStandardWeightedPriceFunction(7.0));
+        clusterSold1.getSettings().setPriceFunction(PriceFunction.Cache.createStandardWeightedPriceFunction(7.0));
 
         Trader pm2 = economy.addTrader(PM_TYPE, TraderState.ACTIVE, basketSoldByCluster1, cliques);
         pm2.setDebugInfoNeverUseInCode("PM2");
@@ -826,13 +826,13 @@ public class EconomyCachesTest {
         commSold2.setCapacity(pmMemCapacity);
         commSold2.setQuantity(fourPMsMemUsed[1]);
         commSold2.setPeakQuantity(fourPMsMemUsed[1]);
-        commSold2.getSettings().setPriceFunction(PriceFunctionFactory.createStandardWeightedPriceFunction(7.0));
+        commSold2.getSettings().setPriceFunction(PriceFunction.Cache.createStandardWeightedPriceFunction(7.0));
         int clusterIndex2 = pm2.getBasketSold().indexOf(CLUSTER1_COMM_SPEC_TYPE);
         CommoditySold clusterSold2 = pm2.getCommoditiesSold().get(clusterIndex2);
         clusterSold2.setCapacity(pmMemCapacity);
         clusterSold2.setQuantity(1);
         clusterSold2.setPeakQuantity(1);
-        clusterSold2.getSettings().setPriceFunction(PriceFunctionFactory.createStandardWeightedPriceFunction(7.0));
+        clusterSold2.getSettings().setPriceFunction(PriceFunction.Cache.createStandardWeightedPriceFunction(7.0));
 
         Basket basketSoldByCluster2 = new Basket(Arrays.asList(new CommoditySpecification(MEM_TYPE),
                 new CommoditySpecification(CLUSTER2_COMM_SPEC_TYPE, CommodityType.CLUSTER_VALUE)));
@@ -845,13 +845,13 @@ public class EconomyCachesTest {
         commSold3.setCapacity(pmMemCapacity);
         commSold3.setQuantity(fourPMsMemUsed[2]);
         commSold3.setPeakQuantity(fourPMsMemUsed[2]);
-        commSold3.getSettings().setPriceFunction(PriceFunctionFactory.createStandardWeightedPriceFunction(7.0));
+        commSold3.getSettings().setPriceFunction(PriceFunction.Cache.createStandardWeightedPriceFunction(7.0));
         int clusterIndex3 = pm3.getBasketSold().indexOf(CLUSTER2_COMM_SPEC_TYPE);
         CommoditySold clusterSold3 = pm3.getCommoditiesSold().get(clusterIndex3);
         clusterSold3.setCapacity(pmMemCapacity);
         clusterSold3.setQuantity(1);
         clusterSold3.setPeakQuantity(1);
-        clusterSold3.getSettings().setPriceFunction(PriceFunctionFactory.createStandardWeightedPriceFunction(7.0));
+        clusterSold3.getSettings().setPriceFunction(PriceFunction.Cache.createStandardWeightedPriceFunction(7.0));
 
         Trader pm4 = economy.addTrader(PM_TYPE, TraderState.ACTIVE, basketSoldByCluster2, cliques);
         pm4.setDebugInfoNeverUseInCode("PM4");
@@ -862,13 +862,13 @@ public class EconomyCachesTest {
         commSold4.setCapacity(pmMemCapacity);
         commSold4.setQuantity(fourPMsMemUsed[3]);
         commSold4.setPeakQuantity(fourPMsMemUsed[3]);
-        commSold4.getSettings().setPriceFunction(PriceFunctionFactory.createStandardWeightedPriceFunction(7.0));
+        commSold4.getSettings().setPriceFunction(PriceFunction.Cache.createStandardWeightedPriceFunction(7.0));
         int clusterIndex4 = pm4.getBasketSold().indexOf(CLUSTER2_COMM_SPEC_TYPE);
         CommoditySold clusterSold4 = pm4.getCommoditiesSold().get(clusterIndex4);
         clusterSold4.setCapacity(pmMemCapacity);
         clusterSold4.setQuantity(1);
         clusterSold4.setPeakQuantity(1);
-        clusterSold4.getSettings().setPriceFunction(PriceFunctionFactory.createStandardWeightedPriceFunction(7.0));
+        clusterSold4.getSettings().setPriceFunction(PriceFunction.Cache.createStandardWeightedPriceFunction(7.0));
 
         t.getModifiableTraderOids().put(pm1Oid, pm1);
         t.getModifiableTraderOids().put(pm2Oid, pm2);
@@ -901,13 +901,13 @@ public class EconomyCachesTest {
         commSold.setCapacity(stAmtCapacity);
         commSold.setQuantity(twoSTAmtUsed[0]);
         commSold.setPeakQuantity(twoSTAmtUsed[0]);
-        commSold.getSettings().setPriceFunction(PriceFunctionFactory.createStandardWeightedPriceFunction(7.0));
+        commSold.getSettings().setPriceFunction(PriceFunction.Cache.createStandardWeightedPriceFunction(7.0));
         int stClusterIndex1 = st1.getBasketSold().indexOf(ST_CLUSTER1_COMM_SPEC_TYPE);
         CommoditySold stClusterSold1 = st1.getCommoditiesSold().get(stClusterIndex1);
         stClusterSold1.setCapacity(stAmtCapacity);
         stClusterSold1.setQuantity(1);
         stClusterSold1.setPeakQuantity(1);
-        stClusterSold1.getSettings().setPriceFunction(PriceFunctionFactory.createStandardWeightedPriceFunction(7.0));
+        stClusterSold1.getSettings().setPriceFunction(PriceFunction.Cache.createStandardWeightedPriceFunction(7.0));
 
         Basket basketSoldByST2 = new Basket(Arrays.asList(new CommoditySpecification(ST_AMT_TYPE),
                 new CommoditySpecification(ST_CLUSTER2_COMM_SPEC_TYPE, CommodityType.STORAGE_CLUSTER_VALUE)));
@@ -920,13 +920,13 @@ public class EconomyCachesTest {
         commSold2.setCapacity(stAmtCapacity);
         commSold2.setQuantity(twoSTAmtUsed[1]);
         commSold2.setPeakQuantity(twoSTAmtUsed[1]);
-        commSold2.getSettings().setPriceFunction(PriceFunctionFactory.createStandardWeightedPriceFunction(7.0));
+        commSold2.getSettings().setPriceFunction(PriceFunction.Cache.createStandardWeightedPriceFunction(7.0));
         int stClusterIndex2 = st2.getBasketSold().indexOf(ST_CLUSTER2_COMM_SPEC_TYPE);
         CommoditySold stClusterSold2 = st2.getCommoditiesSold().get(stClusterIndex2);
         stClusterSold2.setCapacity(stAmtCapacity);
         stClusterSold2.setQuantity(1);
         stClusterSold2.setPeakQuantity(1);
-        stClusterSold2.getSettings().setPriceFunction(PriceFunctionFactory.createStandardWeightedPriceFunction(7.0));
+        stClusterSold2.getSettings().setPriceFunction(PriceFunction.Cache.createStandardWeightedPriceFunction(7.0));
 
         t.getModifiableTraderOids().put(st1Oid, st1);
         t.getModifiableTraderOids().put(st2Oid, st2);

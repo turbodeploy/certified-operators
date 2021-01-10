@@ -111,13 +111,7 @@ public class ActionCategoryExtractorTest {
     public void testEvacuationCategory() {
         Explanation evacuation = Explanation.newBuilder().setMove(MoveExplanation.newBuilder()
             .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
-            .setEvacuation(Evacuation.newBuilder()
-                .setSuspendedEntity(100)
-                    .setEvacuationExplanation(ChangeProviderExplanation.EvacuationExplanation
-                        .newBuilder()
-                            .setSuspension(ChangeProviderExplanation.Suspension.newBuilder().build())
-                        .build())
-                .build())
+            .setEvacuation(Evacuation.newBuilder().setSuspendedEntity(100).build())
             .build()).build()).build();
 
         assertThat(ActionCategoryExtractor.assignActionCategory(ActionDTO.Action.newBuilder()

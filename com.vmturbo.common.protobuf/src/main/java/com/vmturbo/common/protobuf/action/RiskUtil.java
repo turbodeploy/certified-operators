@@ -5,15 +5,12 @@ import static com.vmturbo.common.protobuf.action.ActionDTOUtil.TRANSLATION_PREFI
 
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-
-import com.google.common.collect.ImmutableSet;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -22,19 +19,12 @@ import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
 /**
  * Utility class for action risk.
  */
 public class RiskUtil {
     private static final Logger logger = LogManager.getLogger();
-
-    /**
-     * Commodity Types related to a policy.
-     */
-    public static final Set<Integer> POLICY_COMMODITY_TYPES = ImmutableSet.of(CommodityType.SEGMENTATION_VALUE,
-        CommodityType.SOFTWARE_LICENSE_COMMODITY_VALUE);
 
     private RiskUtil() {
     }
@@ -67,11 +57,6 @@ public class RiskUtil {
             if (actionSpec.getRecommendation().getExplanation().hasProvision()) {
                 return String.format("%s violation", policy.get().getPolicyInfo().getDisplayName());
             } else {
-                if (actionSpec.getRecommendation().getInfo().getReconfigure().getIsProvider()) {
-                    return actionSpec.getRecommendation().getInfo().getReconfigure().getIsAddition()
-                        ? String.format("Policy \"%s\" is Overutilized", policy.get().getPolicyInfo().getName())
-                        : String.format("Policy \"%s\" is Underutilized", policy.get().getPolicyInfo().getName());
-                }
                 // constructing risk with policyName for move and reconfigure
                 final Optional<String> commNames =
                     nonSegmentationCommoditiesToString(actionSpec.getRecommendation());
@@ -164,8 +149,8 @@ public class RiskUtil {
             }
             Optional<ActionDTO.Explanation.ReasonCommodity> reasonCommodity =
                 recommendation.getExplanation().getReconfigure().getReconfigureCommodityList().stream()
-                    .filter(comm -> POLICY_COMMODITY_TYPES
-                        .contains(comm.getCommodityType().getType())).findFirst();
+                    .filter(comm -> comm.getCommodityType().getType()
+                        == CommonDTO.CommodityDTO.CommodityType.SEGMENTATION_VALUE).findFirst();
             if (!reasonCommodity.isPresent()) {
                 return Optional.empty();
             }

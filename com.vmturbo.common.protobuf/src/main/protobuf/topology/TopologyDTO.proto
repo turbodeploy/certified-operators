@@ -794,9 +794,6 @@ message TopologyEntityDTO {
 
         // Rate of resize setting.
         optional float rate_of_resize = 13;
-
-        // Can we reconfigure this trader.
-        optional bool reconfigurable = 14;
     }
 
     optional Origin origin = 10;

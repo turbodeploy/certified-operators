@@ -23,7 +23,6 @@ import com.vmturbo.platform.analysis.protobuf.ActionDTOs.Compliance;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.Congestion;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveExplanation;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveTO;
-import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ReconfigureConsumerTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ReconfigureTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommodityBoughtTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.Context;
@@ -234,9 +233,8 @@ public class SMAConverter {
                     // Reconfigure action. There is no provider that can provides all the
                     // commodities the VM is shopping.
                     ReconfigureTO.Builder reconfigureTO = ReconfigureTO.newBuilder();
-                    reconfigureTO.setConsumer(ReconfigureConsumerTO.newBuilder()
-                            .setShoppingListToReconfigure(sl.getOid())
-                            .setSource(sourceOnDemandMarketTierOid))
+                    reconfigureTO.setShoppingListToReconfigure(sl.getOid())
+                            .setSource(sourceOnDemandMarketTierOid)
                             .addAllCommodityToReconfigure(missingCommodities);
                     if (!smaMatch.getVirtualMachine().getGroupName().equals(SMAUtils.NO_GROUP_ID)) {
                         reconfigureTO.setScalingGroupId(smaMatch.getVirtualMachine()

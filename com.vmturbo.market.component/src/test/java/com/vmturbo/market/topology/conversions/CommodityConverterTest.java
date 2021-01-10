@@ -415,7 +415,7 @@ public class CommodityConverterTest {
         converterToTest.setProviderUsedSubtractionMap(input);
 
         final List<CommoditySoldTO> commoditySoldTOs =
-            converterToTest.createCommonCommoditySoldTOList(pm.getCommoditySoldList(0), pm, 1);
+            converterToTest.createCommonCommoditySoldTOList(pm.getCommoditySoldList(0), pm);
 
         assertThat(commoditySoldTOs.get(0).getQuantity(), is(170f));
     }

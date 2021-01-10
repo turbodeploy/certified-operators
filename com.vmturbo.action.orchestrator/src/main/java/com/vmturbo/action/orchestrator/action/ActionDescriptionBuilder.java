@@ -101,7 +101,7 @@ public class ActionDescriptionBuilder {
         ACTION_DESCRIPTION_RESIZE_REMOVE_LIMIT("Remove {0} limit on entity {1}"),
         ACTION_DESCRIPTION_RESIZE("Resize {0} {1} for {2} from {3} to {4}"),
         ACTION_DESCRIPTION_RESIZE_RESERVATION("Resize {0} {1} reservation for {2} from {3} to {4}"),
-        ACTION_DESCRIPTION_RECONFIGURE_REASON_COMMODITIES("Reconfigure {0} to {1} {2}"),
+        ACTION_DESCRIPTION_RECONFIGURE_REASON_COMMODITIES("Reconfigure {0} to provide {1}"),
         ACTION_DESCRIPTION_RECONFIGURE_REASON_SETTINGS("Reconfigure {0}"),
         ACTION_DESCRIPTION_RECONFIGURE_WITHOUT_SOURCE("Reconfigure {0} as it is unplaced"),
         ACTION_DESCRIPTION_MOVE_WITHOUT_SOURCE("Start {0} on {1}"),
@@ -291,11 +291,11 @@ public class ActionDescriptionBuilder {
             logger.warn(ENTITY_NOT_FOUND_WARN_MSG, "getReconfigureActionDescription", "entityId", entityId);
             return "";
         }
-        if (reconfigure.hasSource() || reconfigure.getIsProvider()) {
+        if (reconfigure.hasSource()) {
             long sourceId = reconfigure.getSource().getId();
             Optional<ActionPartialEntity> currentEntityDTO = entitiesSnapshot.getEntityFromOid(
                 sourceId);
-            if (!currentEntityDTO.isPresent() && !reconfigure.getIsProvider()) {
+            if (!currentEntityDTO.isPresent()) {
                 logger.warn(ENTITY_NOT_FOUND_WARN_MSG, "getReconfigureActionDescription", "sourceId", sourceId);
                 return "";
             }
@@ -306,8 +306,6 @@ public class ActionDescriptionBuilder {
             } else {
                 return ActionMessageFormat.ACTION_DESCRIPTION_RECONFIGURE_REASON_COMMODITIES.format(
                     beautifyEntityTypeAndName(targetEntityDTO.get()),
-                    ((reconfigure.getIsProvider() && !reconfigure.getIsAddition())
-                        ? "remove" : "provide"),
                     beautifyCommodityTypes(explanation.getReconfigure()
                         .getReconfigureCommodityList().stream()
                         .map(ReasonCommodity::getCommodityType)

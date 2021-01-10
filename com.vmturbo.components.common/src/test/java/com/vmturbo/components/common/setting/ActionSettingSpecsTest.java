@@ -134,16 +134,4 @@ public class ActionSettingSpecsTest {
             Arrays.asList(ActionMode.DISABLED.name(), ActionMode.RECOMMEND.name())).build(),
             resizeEnum.getEntityEnumValuesMap().get(EntityType.SWITCH_VALUE));
     }
-
-    /**
-     * Test PM Reconfigure Default Setting.
-     */
-    @Test
-    public void testPMReconfigureDefaultSetting() {
-        final EnumSettingValueType reconfigureEnum = ActionSettingSpecs.getSettingSpec(
-            ConfigurableActionSettings.Reconfigure.getSettingName()).getEnumSettingValueType();
-        Assert.assertTrue(reconfigureEnum.getEntityDefaultsMap().containsKey(EntityType.PHYSICAL_MACHINE_VALUE));
-        Assert.assertEquals(ActionMode.DISABLED.name(),
-            reconfigureEnum.getEntityDefaultsMap().get(EntityType.PHYSICAL_MACHINE_VALUE));
-    }
 }

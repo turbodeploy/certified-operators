@@ -61,7 +61,6 @@ import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.Performance;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionByDemandTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionBySupplyTO;
-import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ReconfigureConsumerTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ReconfigureTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ResizeTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -690,8 +689,8 @@ public class TierExcluderTest {
 
     private ActionTO createReconfigureActionTO(long slToReconfigure, List<Integer> missingComms) {
         return ActionTO.newBuilder().setReconfigure(
-            ReconfigureTO.newBuilder().setConsumer(ReconfigureConsumerTO.newBuilder()
-                .setShoppingListToReconfigure(slToReconfigure).build())
+            ReconfigureTO.newBuilder()
+                .setShoppingListToReconfigure(slToReconfigure)
                 .addAllCommodityToReconfigure(missingComms))
             .setImportance(100)
             .setIsNotExecutable(false)

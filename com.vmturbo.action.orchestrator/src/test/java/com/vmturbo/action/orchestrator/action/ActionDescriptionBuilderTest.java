@@ -675,7 +675,6 @@ public class ActionDescriptionBuilderTest {
     private ActionInfo.Builder makeReconfigureInfo(long targetId) {
         return ActionInfo.newBuilder().setReconfigure(Reconfigure.newBuilder()
             .setTarget(ActionOrchestratorTestUtils.createActionEntity(targetId))
-            .setIsProvider(false)
             .build());
     }
 
@@ -683,7 +682,6 @@ public class ActionDescriptionBuilderTest {
         return ActionInfo.newBuilder().setReconfigure(Reconfigure.newBuilder()
                 .setTarget(ActionOrchestratorTestUtils.createActionEntity(targetId))
                 .setSource(ActionOrchestratorTestUtils.createActionEntity(sourceId))
-                .setIsProvider(false)
                 .build());
     }
 

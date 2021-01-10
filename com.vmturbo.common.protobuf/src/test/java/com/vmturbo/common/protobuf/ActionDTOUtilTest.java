@@ -445,8 +445,7 @@ public class ActionDTOUtilTest {
                     .addReconfigureCommodity(commodity2)))
             .setInfo(ActionInfo.newBuilder()
                 .setReconfigure(Reconfigure.newBuilder()
-                    .setTarget(createActionEntity(11))
-                    .setIsProvider(false)))
+                    .setTarget(createActionEntity(11))))
             .setDeprecatedImportance(1)
             .build();
 

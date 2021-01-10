@@ -238,7 +238,7 @@ public class BindToGroupPolicyTest {
                 policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE));
         // reservation vm will not buy the segmentation commodity
         assertThat(results.addedCommodities().get(CommodityType.SEGMENTATION), is(5));
-        assertThat(resultsForLicense.addedCommodities().get(CommodityType.SOFTWARE_LICENSE_COMMODITY), is(5));
+        assertThat(resultsForLicense.addedCommodities().get(CommodityType.SEGMENTATION), is(5));
     }
 
     /**

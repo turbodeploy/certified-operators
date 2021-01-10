@@ -276,21 +276,13 @@ public class ActionInterpreter {
                 "interpretAction of actionTO " + actionTO, e.getMessage(), e);
 
             final String message = "Related shopping list info: ";
-            final String messageReconfigureProvider = "Related provider info: ";
             // Add more info to the log
             switch (actionTO.getActionTypeCase()) {
                 case MOVE:
                     logger.error(message + shoppingListOidToInfos.get(actionTO.getMove().getShoppingListToMove()));
                     break;
                 case RECONFIGURE:
-                    if (actionTO.getReconfigure().hasConsumer()) {
-                        logger.error(message + shoppingListOidToInfos.get(actionTO.getReconfigure().getConsumer().getShoppingListToReconfigure()));
-                    } else if (actionTO.getReconfigure().hasProvider()) {
-                        long providerOid = actionTO.getReconfigure().getProvider().getTargetTrader();
-                        if (oidToProjectedTraderTOMap.containsKey(providerOid)) {
-                            logger.error(messageReconfigureProvider + oidToProjectedTraderTOMap.get(providerOid).getDebugInfoNeverUseInCode());
-                        }
-                    }
+                    logger.error(message + shoppingListOidToInfos.get(actionTO.getReconfigure().getShoppingListToReconfigure()));
                     break;
                 case COMPOUND_MOVE:
                     actionTO.getCompoundMove().getMovesList().forEach(move ->
@@ -751,40 +743,25 @@ public class ActionInterpreter {
             @Nonnull final ReconfigureTO reconfigureTO,
             @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology,
             @Nonnull final CloudTopology<TopologyEntityDTO> originalCloudTopology) {
-        if (reconfigureTO.hasConsumer()
-            && reconfigureTO.getConsumer().hasShoppingListToReconfigure()
-            && shoppingListOidToInfos.get(reconfigureTO.getConsumer().getShoppingListToReconfigure()) != null) {
-            final ShoppingListInfo shoppingListInfo =
-                    shoppingListOidToInfos.get(reconfigureTO.getConsumer().getShoppingListToReconfigure());
+        final ShoppingListInfo shoppingListInfo =
+                shoppingListOidToInfos.get(reconfigureTO.getShoppingListToReconfigure());
+        if (shoppingListInfo == null) {
+            throw new IllegalStateException(
+                    "Market returned invalid shopping list for RECONFIGURE: " + reconfigureTO);
+        } else {
             final ActionDTO.Reconfigure.Builder builder = ActionDTO.Reconfigure.newBuilder()
                     .setTarget(createActionTargetEntity(shoppingListInfo, projectedTopology));
 
-            if (reconfigureTO.getConsumer().hasSource()) {
+            if (reconfigureTO.hasSource()) {
                 Optional<Long> providerIdOptional = getOriginalProviderId(
-                    reconfigureTO.getConsumer().getSource(), shoppingListInfo.getBuyerId(), originalCloudTopology);
+                    reconfigureTO.getSource(), shoppingListInfo.getBuyerId(), originalCloudTopology);
                 providerIdOptional.ifPresent(providerId ->
                     builder.setSource(createActionEntity(providerId, projectedTopology)));
             }
             if (reconfigureTO.hasScalingGroupId()) {
                 builder.setScalingGroupId(reconfigureTO.getScalingGroupId());
             }
-            builder.setIsProvider(false);
             return builder.build();
-        } else if (reconfigureTO.hasProvider()) {
-            final ActionDTO.Reconfigure.Builder builder = ActionDTO.Reconfigure.newBuilder()
-                    .setTarget(createActionEntity(reconfigureTO.getProvider().getTargetTrader(), projectedTopology))
-                    .setIsProvider(true);
-            if (reconfigureTO.getProvider().getAddition()) {
-                // add commodity
-                builder.setIsAddition(true);
-            } else {
-                // remove commodity
-                builder.setIsAddition(false);
-            }
-            return builder.build();
-        } else {
-            throw new IllegalStateException(
-                    "Market returned invalid shopping list for RECONFIGURE: " + reconfigureTO);
         }
     }
 
@@ -1432,26 +1409,10 @@ public class ActionInterpreter {
                         : explanationFromM2;
                 break;
             case EVACUATION:
-                changeProviderExplanation = ChangeProviderExplanation.newBuilder();
-                if (moveExplanation.getEvacuation().getEvacuationExplanation().hasReconfigureRemoval()) {
-                    changeProviderExplanation.setEvacuation(ChangeProviderExplanation.Evacuation
-                        .newBuilder()
-                            .setSuspendedEntity(moveExplanation.getEvacuation().getSuspendedTrader())
-                            .setEvacuationExplanation(ChangeProviderExplanation.EvacuationExplanation
-                                .newBuilder()
-                                    .setReconfigureRemoval(ChangeProviderExplanation.ReconfigureRemoval.newBuilder().build())
-                                .build())
+                changeProviderExplanation = ChangeProviderExplanation.newBuilder()
+                    .setEvacuation(ChangeProviderExplanation.Evacuation.newBuilder()
+                        .setSuspendedEntity(moveExplanation.getEvacuation().getSuspendedTrader())
                         .build());
-                } else {
-                    changeProviderExplanation.setEvacuation(ChangeProviderExplanation.Evacuation
-                            .newBuilder()
-                                .setSuspendedEntity(moveExplanation.getEvacuation().getSuspendedTrader())
-                                .setEvacuationExplanation(ChangeProviderExplanation.EvacuationExplanation
-                                    .newBuilder()
-                                        .setSuspension(ChangeProviderExplanation.Suspension.newBuilder().build())
-                                    .build())
-                            .build());
-                }
                 break;
             case INITIALPLACEMENT:
                 final ShoppingListInfo shoppingListInfo =
@@ -1465,10 +1426,6 @@ public class ActionInterpreter {
                     changeProviderExplanation = ChangeProviderExplanation.newBuilder()
                         .setEvacuation(ChangeProviderExplanation.Evacuation.newBuilder()
                             .setSuspendedEntity(shoppingListInfo.getSellerId())
-                            .setEvacuationExplanation(ChangeProviderExplanation.EvacuationExplanation
-                                .newBuilder()
-                                   .setSuspension(ChangeProviderExplanation.Suspension.newBuilder().build())
-                               .build())
                             .setIsAvailable(false)
                             .build());
                 } else {

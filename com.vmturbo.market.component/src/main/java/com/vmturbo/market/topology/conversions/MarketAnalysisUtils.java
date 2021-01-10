@@ -52,9 +52,6 @@ public final class MarketAnalysisUtils {
     // default move cost factor used in market analysis
     public static final float LIVE_MARKET_MOVE_COST_FACTOR = 0.05f;
 
-    // value to scale the price weight by for every softwareLicenseCommodity sold by a provider.
-    public static final int PRICE_WEIGHT_SCALE = 10;
-
     private MarketAnalysisUtils() {}
 
     /**
@@ -143,12 +140,6 @@ public final class MarketAnalysisUtils {
                     ImmutableSet.of(EntityType.PHYSICAL_MACHINE_VALUE, EntityType.STORAGE_VALUE,
                                     EntityType.STORAGE_CONTROLLER_VALUE, EntityType.CHASSIS_VALUE,
                                     EntityType.DISK_ARRAY_VALUE);
-
-    /**
-     * Set of entities that are by default allowed to Reconfigure as a provider in analysis.
-     */
-    public static final Set<Integer> RECONFIGURABLE_TYPES =
-                    ImmutableSet.of(EntityType.PHYSICAL_MACHINE_VALUE);
 
     /**
      * Flow commodities set for identifying flow commodities used in NCM.
@@ -454,12 +445,11 @@ public final class MarketAnalysisUtils {
      * @param scale    float that represents how much the utilization is scaled to.
      *                 The scale has to be greater than or equal to 1.0 to be meaningful.
      * @param dto the entity whose commodity price function is being set.
-     * @param additionalSoldWeight is the additional weight assigned to the priceFunction.
      * @return a (reusable) instance of PriceFunctionTO to use in the commodity sold settings.
      */
     @Nonnull
     public static PriceFunctionTO priceFunction(CommodityType commType, float scale,
-                                                TopologyEntityDTO dto, float additionalSoldWeight) {
+                                                TopologyEntityDTO dto) {
         int commodityType = commType.getType();
         String commodityKey = commType.getKey();
         if (CONSTANT_PRICE_TYPES.contains(commodityType)) {
@@ -474,9 +464,7 @@ public final class MarketAnalysisUtils {
             }
             return STEP;
         } else if (FINITE_SWP_PRICE_TYPES.contains(commodityType)) {
-            return (additionalSoldWeight == 0) ? FSWP : PriceFunctionTO.newBuilder()
-                    .setFiniteStandardWeighted(PriceFunctionTO.FiniteStandardWeighted.newBuilder()
-                            .setWeight(1 + additionalSoldWeight).build()).build();
+            return FSWP;
         } else if (IMAGE_COMMODITY_SET.contains(commodityType)) {
             return SQRP;
         } else if (FLOW_COMMODITY_SET.contains(commodityType)) {
@@ -493,12 +481,11 @@ public final class MarketAnalysisUtils {
                     .setScaledCapacityStandardWeighted(PriceFunctionTO
                             .ScaledCapacityStandardWeighted
                             .newBuilder().setScale(scale)
-                            .setWeight(1 + additionalSoldWeight)
+                            .setWeight(1.0f)
                             .build())
                     .build();
         } else {
-            return (additionalSoldWeight == 0) ? SWP : PriceFunctionTO.newBuilder().setStandardWeighted(
-                    PriceFunctionTO.StandardWeighted.newBuilder().setWeight(1 + additionalSoldWeight).build()).build();
+            return SWP;
         }
     }
 

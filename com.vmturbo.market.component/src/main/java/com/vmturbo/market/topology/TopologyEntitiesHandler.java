@@ -41,7 +41,6 @@ import com.vmturbo.platform.analysis.actions.Deactivate;
 import com.vmturbo.platform.analysis.actions.ProvisionBase;
 import com.vmturbo.platform.analysis.actions.ProvisionByDemand;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
-import com.vmturbo.platform.analysis.actions.ReconfigureProviderAddition;
 import com.vmturbo.platform.analysis.actions.Resize;
 import com.vmturbo.platform.analysis.economy.CommodityResizeSpecification;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
@@ -64,7 +63,6 @@ import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.translators.AnalysisToProtobuf;
 import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
 import com.vmturbo.platform.analysis.utilities.DoubleTernaryOperator;
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 
@@ -317,8 +315,7 @@ public class TopologyEntitiesHandler {
                             marketId, SuspensionsThrottlingConfig.DEFAULT, Optional.of(classicTracer)).stream()
                             .filter(action -> (action instanceof ProvisionByDemand
                                 || action instanceof ProvisionBySupply
-                                || action instanceof Activate
-                                || action instanceof ReconfigureProviderAddition)
+                                || action instanceof Activate)
                                 // Extract resize actions that explicitly set extractAction
                                 // to true as part of resizeThroughSupplier
                                 // provision actions.
@@ -507,7 +504,6 @@ public class TopologyEntitiesHandler {
                                            @Nonnull final AnalysisConfig analysisConfig) {
 
         economySettings.setFullPriceForQuote(analysisConfig.isFullPriceForQuote());
-        economySettings.getReconfigureableCommodities().add(CommodityDTO.CommodityType.SOFTWARE_LICENSE_COMMODITY_VALUE);
         economySettings.setEstimatesEnabled(false);
         economySettings.setUseQuoteCacheDuringSNM(analysisConfig.getUseQuoteCacheDuringSNM());
         economySettings.setRightSizeLower(analysisConfig.getRightsizeLowerWatermark());

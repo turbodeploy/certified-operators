@@ -141,7 +141,6 @@ public class FailedCloudVMGroupProcessorTest {
                                     .setId(3)
                                     .setType(EntityType.VIRTUAL_MACHINE_VALUE)
                                     .setEnvironmentType(EnvironmentType.CLOUD))
-                            .setIsProvider(false)
                             .build()))
             .setExplanation(Explanation.getDefaultInstance())
             .build();

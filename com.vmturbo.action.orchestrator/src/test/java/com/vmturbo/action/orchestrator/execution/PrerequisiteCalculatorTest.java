@@ -347,8 +347,7 @@ public class PrerequisiteCalculatorTest {
             Action.newBuilder().setId(0).setDeprecatedImportance(0)
                 .setInfo(ActionInfo.newBuilder().setReconfigure(Reconfigure.newBuilder()
                     .setTarget(ActionEntity.newBuilder().setId(1)
-                        .setType(EntityType.VIRTUAL_MACHINE_VALUE))
-                    .setIsProvider(false)))
+                        .setType(EntityType.VIRTUAL_MACHINE_VALUE))))
                 .setExplanation(Explanation.getDefaultInstance()).build(),
             ActionPartialEntity.getDefaultInstance(),
             snapshot,

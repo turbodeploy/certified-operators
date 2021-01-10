@@ -1113,7 +1113,7 @@ public class ActionSpecMapper {
             return;
         }
         ActionDTOUtil.getReasonCommodities(action)
-            .filter(c -> RiskUtil.POLICY_COMMODITY_TYPES.contains(c.getCommodityType().getType()))
+            .filter(c -> c.getCommodityType().getType() == CommodityType.SEGMENTATION_VALUE)
             .forEach(comm -> {
                 if (comm.getCommodityType() != null && comm.getCommodityType().getKey() != null) {
                     PolicyApiDTO policy = policyApiDtoMap.get(comm.getCommodityType().getKey());
