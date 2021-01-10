@@ -787,6 +787,7 @@ public class ActionSpecMapperTest {
                             Reconfigure.newBuilder()
                             .setTarget(ApiUtilsTest.createActionEntity(3))
                             .setSource(ApiUtilsTest.createActionEntity(1))
+                            .setIsProvider(false)
                             .build())
                     .build();
         Explanation reconfigure =
@@ -817,6 +818,7 @@ public class ActionSpecMapperTest {
                             Reconfigure.newBuilder()
                             .setTarget(ApiUtilsTest.createActionEntity(3))
                             .setSource(ApiUtilsTest.createActionEntity(1))
+                            .setIsProvider(false)
                             .build())
                     .build();
         Explanation reconfigure =
@@ -866,6 +868,7 @@ public class ActionSpecMapperTest {
                     ActionInfo.newBuilder().setReconfigure(
                             Reconfigure.newBuilder()
                             .setTarget(ApiUtilsTest.createActionEntity(3))
+                            .setIsProvider(false)
                             .build())
                     .build();
         Explanation reconfigure =

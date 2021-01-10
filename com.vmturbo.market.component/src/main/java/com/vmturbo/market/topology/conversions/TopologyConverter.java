@@ -2726,10 +2726,15 @@ public class TopologyConverter {
                 // If there were stitching errors, it's risky to control this entity.
                 stitchingErrors.isNone();
 
+            final boolean reconfigurable = topologyDTO.getAnalysisSettings().hasReconfigurable()
+                ? topologyDTO.getAnalysisSettings().getReconfigurable()
+                : EntitySettings.BooleanKey.ENABLE_RECONFIGURE.value(topologyDTO);
+
             boolean isEntityFromCloud = TopologyConversionUtils.isEntityConsumingCloud(topologyDTO);
             TraderSettingsTO.Builder settingsBuilder = TopologyConversionUtils
                     .createCommonTraderSettingsTOBuilder(topologyDTO, unmodifiableEntityOidToDtoMap);
             settingsBuilder.setClonable(clonable && controllable)
+                    .setReconfigurable(reconfigurable && controllable)
                     .setControllable(controllable)
                     // cloud providers do not come here. We will hence be setting this to true just for
                     // on-prem storages

@@ -542,6 +542,7 @@ public class ActionTest {
         return ActionInfo.newBuilder().setReconfigure(Reconfigure.newBuilder()
                 .setTarget(ActionOrchestratorTestUtils.createActionEntity(targetId))
                 .setSource(ActionOrchestratorTestUtils.createActionEntity(sourceId))
+                .setIsProvider(false)
                 .build());
     }
 

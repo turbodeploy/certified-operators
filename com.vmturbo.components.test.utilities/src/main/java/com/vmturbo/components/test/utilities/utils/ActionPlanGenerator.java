@@ -450,6 +450,7 @@ public class ActionPlanGenerator {
                     .setReconfigure(ReconfigureExplanation.getDefaultInstance()),
                 ActionInfo.newBuilder()
                     .setReconfigure(Reconfigure.newBuilder()
+                        .setIsProvider(false)
                         .setSource(chooser.actionEntity())
                         .setTarget(chooser.actionEntity())),
                 chooser

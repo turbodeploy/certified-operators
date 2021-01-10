@@ -84,6 +84,7 @@ import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveTO.CommodityContext;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.Performance;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionBySupplyTO;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ReconfigureConsumerTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ReconfigureTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ResizeTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ResizeTriggerTraderTO;
@@ -606,9 +607,9 @@ public class InterpretActionTest {
             ActionTO.newBuilder()
                 .setImportance(0.)
                 .setIsNotExecutable(false)
-                .setReconfigure(ReconfigureTO.newBuilder()
+                .setReconfigure(ReconfigureTO.newBuilder().setConsumer(ReconfigureConsumerTO.newBuilder()
                     .setShoppingListToReconfigure(shoppingList.getOid())
-                    .setSource(reconfigureSourceId))
+                    .setSource(reconfigureSourceId).build()))
                 .build(), projectedTopology, null, null, null).get(0).getInfo();
 
         assertThat(actionInfo.getActionTypeCase(), is(ActionTypeCase.RECONFIGURE));
@@ -642,8 +643,8 @@ public class InterpretActionTest {
             ActionTO.newBuilder()
                 .setImportance(0.)
                 .setIsNotExecutable(false)
-                .setReconfigure(ReconfigureTO.newBuilder()
-                    .setShoppingListToReconfigure(shoppingList.getOid()))
+                .setReconfigure(ReconfigureTO.newBuilder().setConsumer(ReconfigureConsumerTO.newBuilder()
+                    .setShoppingListToReconfigure(shoppingList.getOid())).build())
                 .build(), projectedTopology, null, null, null).get(0).getInfo();
 
         assertThat(actionInfo.getActionTypeCase(), is(ActionTypeCase.RECONFIGURE));

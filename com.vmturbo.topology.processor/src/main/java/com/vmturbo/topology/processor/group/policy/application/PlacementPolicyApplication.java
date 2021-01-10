@@ -477,8 +477,16 @@ public abstract class PlacementPolicyApplication<P extends PlacementPolicy> {
      * @return A {@link CommodityType} suitable for application with this policy.
      */
     private CommodityType commodityType(final PlacementPolicy policy) {
+        int accessType;
+        switch (policy.getPolicyDefinition().getPolicyInfo().getPolicyDetailCase()) {
+            case BIND_TO_GROUP_AND_LICENSE:
+                accessType = CommodityDTO.CommodityType.SOFTWARE_LICENSE_COMMODITY.getNumber();
+                break;
+            default:
+                accessType = CommodityDTO.CommodityType.SEGMENTATION.getNumber();
+        }
         return CommodityType.newBuilder()
-            .setType(CommodityDTO.CommodityType.SEGMENTATION.getNumber())
+            .setType(accessType)
             .setKey(Long.toString(policy.getPolicyDefinition().getId()))
             .build();
     }

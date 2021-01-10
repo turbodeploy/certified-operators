@@ -23,6 +23,12 @@ public class EntitySettings {
             }
         },
         ENABLE_SUSPEND(true),
+        ENABLE_RECONFIGURE(false) {
+            @Override
+            public boolean value(TopologyEntityDTO entity) {
+                return MarketAnalysisUtils.RECONFIGURABLE_TYPES.contains(entity.getEntityType());
+            }
+        },
         PROVIDER_MUST_CLONE(false);
 
         private boolean defaultValue;
