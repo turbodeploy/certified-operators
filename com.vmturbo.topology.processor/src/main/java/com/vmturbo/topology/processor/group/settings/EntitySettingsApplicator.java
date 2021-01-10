@@ -130,6 +130,7 @@ public class EntitySettingsApplicator {
                                                             @Nonnull final GraphWithSettings graphWithSettings) {
         return ImmutableList.of(new MoveApplicator(),
                 new VMShopTogetherApplicator(topologyInfo),
+                new ReconfigureApplicator(),
                 new SuspendApplicator(),
                 new ProvisionApplicator(),
                 new ResizeApplicator(),
@@ -627,6 +628,27 @@ public class EntitySettingsApplicator {
             if (ActionMode.DISABLED == actionMode) {
                 entity.getAnalysisSettingsBuilder().setCloneable(false);
                 logger.trace("Disabled provision for {}::{}",
+                            entity::getEntityType, entity::getDisplayName);
+            }
+        }
+    }
+
+    /**
+     * Applies the "reconfigurable" setting to a {@link TopologyEntityDTO.Builder}.
+     */
+    private static class ReconfigureApplicator extends ActionModeSettingApplicator {
+
+        private ReconfigureApplicator() {
+            super(ConfigurableActionSettings.Reconfigure);
+        }
+
+        @Override
+        public void apply(@Nonnull final TopologyEntityDTO.Builder entity,
+                          @Nonnull final ActionMode actionMode) {
+            // when setting value is DISABLED, set reconfigurable to false.
+            if (ActionMode.DISABLED == actionMode) {
+                entity.getAnalysisSettingsBuilder().setReconfigurable(false);
+                logger.trace("Disabled reconfigure for {}::{}",
                             entity::getEntityType, entity::getDisplayName);
             }
         }

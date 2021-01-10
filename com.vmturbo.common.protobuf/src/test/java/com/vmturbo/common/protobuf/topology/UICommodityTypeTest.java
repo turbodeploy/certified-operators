@@ -30,7 +30,7 @@ public class UICommodityTypeTest {
                     {UICommodityType.CPU_ALLOCATION, "CPU Allocation"},
                     {UICommodityType.DISK_ARRAY_ACCESS, "Disk Array Access"},
                     {UICommodityType.VCPU, "VCPU"},
-                    {UICommodityType.VDC, "VDC Commodity"},
+                    {UICommodityType.VDC, "VDC"},
             });
         }
 

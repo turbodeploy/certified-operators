@@ -382,7 +382,8 @@ public class ActionInfoModelCreatorTest {
         return ActionInfo.newBuilder()
                 .setReconfigure(Reconfigure.newBuilder()
                         .setSource(createActionEntity(1))
-                        .setTarget(createActionEntity(2)))
+                        .setTarget(createActionEntity(2))
+                        .setIsProvider(false))
                 .build();
     }
 

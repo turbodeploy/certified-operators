@@ -19,6 +19,7 @@ import javax.annotation.Nullable;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Table;
 
+import com.vmturbo.platform.common.dto.CommonDTO;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -102,6 +103,11 @@ public class CommodityConverter {
     @Nonnull
     public Collection<CommoditySoldTO> commoditiesSoldList(
             @Nonnull final TopologyDTO.TopologyEntityDTO topologyDTO) {
+
+        final long numLicenses = (topologyDTO.getEntityType() == CommonDTO.EntityDTO.EntityType.PHYSICAL_MACHINE_VALUE)
+                ? topologyDTO.getCommoditySoldListList().stream().filter(cs -> cs.getCommodityType().getType()
+                        == CommodityDTO.CommodityType.SOFTWARE_LICENSE_COMMODITY_VALUE).count() : 0;
+
         // DSPMAccess and Datastore commodities are always dropped (shop-together or not)
         final List<CommoditySoldTO> list = topologyDTO.getCommoditySoldListList().stream()
                 .filter(commSold -> commSold.getActive())
@@ -109,7 +115,8 @@ public class CommodityConverter {
                 .filter(commSold -> includeGuaranteedBuyer
                         || !MarketAnalysisUtils.GUARANTEED_SELLER_TYPES.contains(topologyDTO.getEntityType())
                         || !MarketAnalysisUtils.VDC_COMMODITY_TYPES.contains(commSold.getCommodityType().getType()))
-                .map(commoditySoldDTO -> createCommonCommoditySoldTOList(commoditySoldDTO, topologyDTO))
+                .map(commoditySoldDTO -> createCommonCommoditySoldTOList(commoditySoldDTO, topologyDTO,
+                        MarketAnalysisUtils.PRICE_WEIGHT_SCALE * numLicenses))
                 .flatMap(List::stream)
                 .collect(Collectors.toList());
         return list;
@@ -120,12 +127,14 @@ public class CommodityConverter {
      *
      * @param topologyCommSold the source {@link CommoditySoldDTO}
      * @param dto the {@link TopologyEntityDTO} selling the commSold
+     * @additionalSoldWeight is the weight for soldCommodities.
      * @return a list of {@link CommoditySoldTO}
      */
     @Nonnull
     List<CommodityDTOs.CommoditySoldTO> createCommonCommoditySoldTOList(
         @Nonnull final CommoditySoldDTO topologyCommSold,
-        @Nonnull TopologyEntityDTO dto) {
+        @Nonnull TopologyEntityDTO dto,
+        long additionalSoldWeight) {
         final CommodityType commodityType = topologyCommSold.getCommodityType();
         float capacity = (float)topologyCommSold.getCapacity();
         if (!topologyCommSold.hasCapacity() || capacity <= 0) {
@@ -242,7 +251,7 @@ public class CommodityConverter {
                         .setCapacityIncrement((float)(topologyCommSold.getCapacityIncrement() * scalingFactor))
                         .setUtilizationUpperBound(utilizationUpperBound)
                         .setPriceFunction(priceFunction(topologyCommSold.getCommodityType(),
-                            scale, dto))
+                            scale, dto, additionalSoldWeight))
                         .setUpdateFunction(updateFunction(topologyCommSold, commodityTypeAllocator));
 
         // Set thresholds for the commodity sold (min/Max of VCPU/VMem for on-prem VMs).
@@ -404,7 +413,7 @@ public class CommodityConverter {
         final CommodityDTOs.CommoditySoldSettingsTO economyCommSoldSettings =
                 CommodityDTOs.CommoditySoldSettingsTO.newBuilder()
                         .setResizable(false)
-                        .setPriceFunction(priceFunction(commodityType, 1.0f, null))
+                        .setPriceFunction(priceFunction(commodityType, 1.0f, null, 1))
                         .setUpdateFunction(uf)
                         .build();
         final Collection<CommoditySpecificationTO> commoditySpecs =
@@ -499,14 +508,16 @@ public class CommodityConverter {
      * @param commType a commodity type for which to add a price function
      * @param scale    float that represents how much the utilization is scaled to.
      * @param dto the entity whose commodity price function is being set.
+     * @param additionalSoldWeight is the weight for soldCommodities.
      * @return a (reusable) instance of PriceFunctionTO to use in the commodity sold settings.
      */
     @Nonnull
     private static PriceFunctionDTOs.PriceFunctionTO priceFunction(CommodityType commType,
                                                                    float scale,
-                                                                   TopologyEntityDTO dto) {
+                                                                   TopologyEntityDTO dto,
+                                                                   float additionalSoldWeight) {
         // logic to choose correct price function is based on commodity type
-        return MarketAnalysisUtils.priceFunction(commType, scale, dto);
+        return MarketAnalysisUtils.priceFunction(commType, scale, dto, additionalSoldWeight);
     }
 
     /**

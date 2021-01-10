@@ -371,7 +371,8 @@ public class ActionModeCalculatorTest {
                 .setReconfigure(Reconfigure.newBuilder()
                         .setTarget(ActionEntity.newBuilder()
                                 .setId(7L)
-                                .setType(1))))
+                                .setType(1))
+                        .setIsProvider(false)))
                 .build();
         when(entitiesCache.getSettingsForEntity(7L)).thenReturn(
                 ImmutableMap.of(ConfigurableActionSettings.Reconfigure.getSettingName(),
@@ -396,7 +397,8 @@ public class ActionModeCalculatorTest {
                 .setReconfigure(Reconfigure.newBuilder()
                         .setTarget(ActionEntity.newBuilder()
                                 .setId(7L)
-                                .setType(1))))
+                                .setType(1))
+                        .setIsProvider(false)))
                 .build();
         Action aoAction = new Action(action, 1L, actionModeCalculator, 2244L);
         assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, null),

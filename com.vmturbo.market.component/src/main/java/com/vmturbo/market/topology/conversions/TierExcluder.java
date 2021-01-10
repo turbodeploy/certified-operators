@@ -444,7 +444,12 @@ public class TierExcluder {
                 targetSlOid = m2Action.getMove().getShoppingListToMove();
                 break;
             case RECONFIGURE:
-                targetSlOid = m2Action.getReconfigure().getShoppingListToReconfigure();
+                if (!m2Action.getReconfigure().hasConsumer()) {
+                    logger.error("Trying to find shoppingListInfo of tier exclusion action,"
+                        + " but action is for Reconfigure Provider and has no Consumer " + m2Action);
+                    return Optional.empty();
+                }
+                targetSlOid = m2Action.getReconfigure().getConsumer().getShoppingListToReconfigure();
                 break;
             case COMPOUND_MOVE:
                 targetSlOid = m2Action.getCompoundMove().getMovesList().get(0).getShoppingListToMove();

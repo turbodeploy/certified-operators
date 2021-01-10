@@ -177,6 +177,7 @@ public class AtomicResizeMergerTest {
                 .setInfo(ActionInfo.newBuilder()
                         .setReconfigure(Reconfigure.newBuilder()
                                 .setTarget(ActionEntity.newBuilder().setId(20).setType(40).build())
+                                .setIsProvider(false)
                                 .build()))
                 .setExplanation(Explanation.newBuilder()
                         .setReconfigure(ReconfigureExplanation.newBuilder()

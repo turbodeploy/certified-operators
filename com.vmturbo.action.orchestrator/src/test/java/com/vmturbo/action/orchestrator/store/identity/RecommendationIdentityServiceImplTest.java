@@ -95,7 +95,7 @@ public class RecommendationIdentityServiceImplTest {
                     .setOldCapacity(1.3f))
             .build();
     private final ActionInfo reconfigure = ActionInfo.newBuilder()
-            .setReconfigure(Reconfigure.newBuilder().setTarget(vm2).setSource(pm2))
+            .setReconfigure(Reconfigure.newBuilder().setTarget(vm2).setSource(pm2).setIsProvider(false))
             .build();
     private final ActionInfo provision = ActionInfo.newBuilder()
             .setProvision(Provision.newBuilder().setEntityToClone(pm1).setProvisionedSeller(1100L))

@@ -75,6 +75,8 @@ public class ExplanationComposer {
 
     private static final String MOVE_COMPLIANCE_EXPLANATION_FORMAT =
         "{0} can not satisfy the request for resource(s) ";
+    private static final String MOVE_EVACUATION_RECONFIGURE_EXPLANATION_FORMAT =
+        "{0} reconfigure consolidation to improve efficiency";
     private static final String MOVE_EVACUATION_SUSPENSION_EXPLANATION_FORMAT =
         "{0} can be suspended to improve efficiency";
     private static final String MOVE_EVACUATION_AVAILABILITY_EXPLANATION_FORMAT =
@@ -91,7 +93,7 @@ public class ExplanationComposer {
         "Add more resource to satisfy the increased demand";
     private static final String DEACTIVATE_EXPLANATION = "Improve infrastructure efficiency";
     private static final String RECONFIGURE_REASON_COMMODITY_EXPLANATION =
-        "Enable supplier to offer requested resource(s) ";
+        "Configure supplier to update resource(s) ";
     private static final String REASON_SETTINGS_EXPLANATION =
         "{0} doesn''t comply with {1}";
     private static final String ACTION_TYPE_ERROR =
@@ -521,8 +523,10 @@ public class ExplanationComposer {
             return UNDERUTILIZED_RESOURCES_CATEGORY;
         }
         return MessageFormat.format(
-            evacuation.getIsAvailable() ? MOVE_EVACUATION_SUSPENSION_EXPLANATION_FORMAT :
-                MOVE_EVACUATION_AVAILABILITY_EXPLANATION_FORMAT,
+            evacuation.getIsAvailable()
+                ? ((evacuation.hasEvacuationExplanation() && evacuation.getEvacuationExplanation().hasReconfigureRemoval())
+                    ? MOVE_EVACUATION_RECONFIGURE_EXPLANATION_FORMAT : MOVE_EVACUATION_SUSPENSION_EXPLANATION_FORMAT)
+                : MOVE_EVACUATION_AVAILABILITY_EXPLANATION_FORMAT,
             buildNameBlock(evacuation.getSuspendedEntity(), "Current supplier", topology));
     }
 

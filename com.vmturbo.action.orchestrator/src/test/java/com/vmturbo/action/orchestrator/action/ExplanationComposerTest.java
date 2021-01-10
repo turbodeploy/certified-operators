@@ -114,7 +114,7 @@ public class ExplanationComposerTest {
                 .build();
 
         assertEquals("(^_^)~{entity:1:displayName:Physical Machine} can not satisfy the " +
-                "request for resource(s) Mem, CPU, Segmentation Commodity",
+                "request for resource(s) Mem, CPU, Segmentation",
             ExplanationComposer.composeExplanation(action));
         assertEquals(ImmutableSet.of("Mem compliance", "CPU compliance", "Placement policy compliance"),
             ExplanationComposer.composeRelatedRisks(action));
@@ -145,7 +145,7 @@ public class ExplanationComposerTest {
         setupTopologyGraph(host(1, "Alice"));
 
         assertEquals("(^_^)~Alice can not satisfy the "
-                + "request for resource(s) Mem, CPU, Segmentation Commodity",
+                + "request for resource(s) Mem, CPU, Segmentation",
             ExplanationComposer.composeExplanation(action, Collections.emptyMap(),
                 Optional.of(graphCreator.build()), null));
     }
@@ -282,6 +282,10 @@ public class ExplanationComposerTest {
                 .setMove(MoveExplanation.newBuilder()
                     .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
                         .setEvacuation(Evacuation.newBuilder()
+                            .setEvacuationExplanation(ChangeProviderExplanation.EvacuationExplanation
+                                    .newBuilder()
+                                       .setSuspension(ChangeProviderExplanation.Suspension.newBuilder().build())
+                                   .build())
                             .setSuspendedEntity(2)))))
             .build();
         setupTopologyGraph(entity(2, "Fred", EntityType.PHYSICAL_MACHINE_VALUE));
@@ -307,6 +311,10 @@ public class ExplanationComposerTest {
                     .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
                         .setEvacuation(Evacuation.newBuilder()
                             .setSuspendedEntity(2)
+                            .setEvacuationExplanation(ChangeProviderExplanation.EvacuationExplanation
+                                 .newBuilder()
+                                    .setSuspension(ChangeProviderExplanation.Suspension.newBuilder().build())
+                                .build())
                             .setIsAvailable(false)))))
             .build();
         setupTopologyGraph(host(2, "Gwen"));
@@ -430,13 +438,13 @@ public class ExplanationComposerTest {
 
         ActionDTO.Action reconfigureWithPrefix = builder.build();
 
-        assertEquals("Enable supplier to offer requested resource(s) Segmentation Commodity, Network Commodity " +
+        assertEquals("Configure supplier to update resource(s) Segmentation, Network " +
                         "testNetwork1",
             ExplanationComposer.composeExplanation(reconfigure));
         assertEquals(Collections.singleton("Misconfiguration"),
             ExplanationComposer.composeRelatedRisks(reconfigure));
 
-        assertEquals("Enable supplier to offer requested resource(s) Segmentation Commodity, Network Commodity " +
+        assertEquals("Configure supplier to update resource(s) Segmentation, Network " +
                         "testNetwork2",
                 ExplanationComposer.composeExplanation(reconfigureWithPrefix));
         assertEquals(Collections.singleton("Misconfiguration"),
@@ -445,8 +453,8 @@ public class ExplanationComposerTest {
         // Make the reconfigure with prefix  for a member of a scaling group
         builder.getExplanationBuilder().getReconfigureBuilder().setScalingGroupId("example group");
         ActionDTO.Action reconfigureWithPrefixCSG = builder.build();
-        assertEquals("Enable supplier to offer requested resource(s) Segmentation Commodity, " +
-                    "Network Commodity testNetwork2 (Auto Scaling Groups: example group)",
+        assertEquals("Configure supplier to update resource(s) Segmentation, " +
+                    "Network testNetwork2 (Auto Scaling Groups: example group)",
             ExplanationComposer.composeExplanation(reconfigureWithPrefixCSG));
         assertEquals(Collections.singleton("Misconfiguration"),
             ExplanationComposer.composeRelatedRisks(reconfigureWithPrefixCSG));
@@ -463,7 +471,8 @@ public class ExplanationComposerTest {
         ActionDTO.Action reconfigureAction = ActionDTO.Action.newBuilder()
             .setId(0).setInfo(ActionInfo.newBuilder().setReconfigure(
                 Reconfigure.newBuilder().setTarget(ActionEntity.newBuilder()
-                    .setId(1).setType(EntityType.VIRTUAL_MACHINE_VALUE))))
+                    .setId(1).setType(EntityType.VIRTUAL_MACHINE_VALUE))
+                .setIsProvider(false)))
             .setDeprecatedImportance(0)
             .setExplanation(Explanation.newBuilder()
                 .setReconfigure(ReconfigureExplanation.newBuilder()
@@ -490,7 +499,8 @@ public class ExplanationComposerTest {
         ActionDTO.Action reconfigureAction = ActionDTO.Action.newBuilder()
             .setId(0).setInfo(ActionInfo.newBuilder().setReconfigure(
                 Reconfigure.newBuilder().setTarget(ActionEntity.newBuilder()
-                    .setId(1).setType(EntityType.VIRTUAL_MACHINE_VALUE))))
+                    .setId(1).setType(EntityType.VIRTUAL_MACHINE_VALUE))
+                .setIsProvider(false)))
             .setDeprecatedImportance(0)
             .setExplanation(Explanation.newBuilder()
                 .setReconfigure(ReconfigureExplanation.newBuilder()
