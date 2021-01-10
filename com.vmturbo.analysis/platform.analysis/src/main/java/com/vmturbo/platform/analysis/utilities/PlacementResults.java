@@ -17,7 +17,7 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.platform.analysis.actions.Action;
-import com.vmturbo.platform.analysis.actions.ReconfigureConsumer;
+import com.vmturbo.platform.analysis.actions.Reconfigure;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.utilities.Quote.CommodityQuote;
@@ -183,13 +183,13 @@ public class PlacementResults {
 
     public void createQuoteTrackerForReconfigures(@Nonnull final List<Action> actions) {
         Map<Trader, List<QuoteTracker>> quoteTrackersByTrader = new HashMap<>();
-        Map<Trader, List<ReconfigureConsumer>> reconfiguresByTrader = actions.stream()
-                .filter(a -> a instanceof ReconfigureConsumer)
-                .map(a -> (ReconfigureConsumer)a)
+        Map<Trader, List<Reconfigure>> reconfiguresByTrader = actions.stream()
+                .filter(a -> a instanceof Reconfigure)
+                .map(a -> (Reconfigure)a)
                 .collect(Collectors.groupingBy(Action::getActionTarget));
-        for (Map.Entry<Trader, List<ReconfigureConsumer>> entry : reconfiguresByTrader.entrySet()) {
+        for (Map.Entry<Trader, List<Reconfigure>> entry : reconfiguresByTrader.entrySet()) {
             List<QuoteTracker> quoteTrackers = new ArrayList<>();
-            for (ReconfigureConsumer reconf : entry.getValue()) {
+            for (Reconfigure reconf : entry.getValue()) {
                 final QuoteTracker quoteTracker = new QuoteTracker(reconf.getTarget());
                 final CommodityQuote quote = new CommodityQuote(null);
                 // UnavailableCommodities contains a set of commodities that satisfied by any seller.

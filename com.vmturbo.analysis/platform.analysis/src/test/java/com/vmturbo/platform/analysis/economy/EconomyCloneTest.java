@@ -2,12 +2,11 @@ package com.vmturbo.platform.analysis.economy;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-
 import org.junit.Before;
 import org.junit.Test;
 
 import com.vmturbo.platform.analysis.ede.EdeCommon;
-import com.vmturbo.platform.analysis.pricefunction.PriceFunctionFactory;
+import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 
 public class EconomyCloneTest {
@@ -31,7 +30,7 @@ public class EconomyCloneTest {
         commSold.setCapacity(100);
         commSold.setQuantity(20);
         commSold.setPeakQuantity(30);
-        commSold.getSettings().setPriceFunction(PriceFunctionFactory.createStandardWeightedPriceFunction(7.0));
+        commSold.getSettings().setPriceFunction(PriceFunction.Cache.createStandardWeightedPriceFunction(7.0));
 
         Trader buyer = economy.addTrader(2, TraderState.ACTIVE, empty);
         buyer.setDebugInfoNeverUseInCode(String.valueOf(sellerNumber++));

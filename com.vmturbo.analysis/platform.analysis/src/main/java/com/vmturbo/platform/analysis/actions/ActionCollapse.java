@@ -36,13 +36,11 @@ public class ActionCollapse {
                         ActionType.PROVISION_BY_SUPPLY,
                         ActionType.PROVISION_BY_DEMAND,
                         ActionType.ACTIVATE,
-                        ActionType.RECONFIGURE_PROVIDER_ADDITION,
                         ActionType.MOVE,
                         ActionType.COMPOUND_MOVE,
                         ActionType.RESIZE,
                         ActionType.DEACTIVATE,
-                        ActionType.RECONFIGURE_PROVIDER_REMOVAL,
-                        ActionType.RECONFIGURE_CONSUMER,
+                        ActionType.RECONFIGURE,
                     };
 
     /**
@@ -156,31 +154,6 @@ public class ActionCollapse {
                                                         list.subList(0, list.size() - 1));
                 result.removeAll(remove);
                 list.removeAll(remove);
-            }
-
-            // Attempt to collapse opposite ReconfigureProvider actions with the same commodity
-            // being added and removed from the trader.
-            List<ReconfigureProviderAddition> additions = Lists.newArrayList();
-            List<ReconfigureProviderRemoval> removals = Lists.newArrayList();
-            for (Action a : list) {
-                if (a instanceof ReconfigureProviderAddition) {
-                    additions.add((ReconfigureProviderAddition)a);
-                } else if (a instanceof ReconfigureProviderRemoval) {
-                    removals.add((ReconfigureProviderRemoval)a);
-                }
-            }
-            if (!additions.isEmpty() && !removals.isEmpty()) {
-                for (ReconfigureProviderAddition addition : additions) {
-                    for (ReconfigureProviderRemoval removal : removals) {
-                        if (addition.getReconfiguredCommodities().keySet()
-                            .equals(removal.getReconfiguredCommodities().keySet())) {
-                            result.remove(addition);
-                            result.remove(removal);
-                            list.remove(addition);
-                            list.remove(removal);
-                        }
-                    }
-                }
             }
         }
         return result;

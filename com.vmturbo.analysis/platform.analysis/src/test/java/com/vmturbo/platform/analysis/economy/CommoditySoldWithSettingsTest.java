@@ -1,14 +1,12 @@
 package com.vmturbo.platform.analysis.economy;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertSame;
+import static org.junit.Assert.*;
 
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
-import com.vmturbo.platform.analysis.pricefunction.PriceFunctionFactory;
 
 import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
@@ -273,9 +271,9 @@ public final class CommoditySoldWithSettingsTest {
     @SuppressWarnings("unused") // it is used reflectively
     private static Object[] parametersForTestGetSetPriceFunction() {
         return new Object[]{
-            PriceFunctionFactory.createPriceFunction((x, sl, seller, commSold, economy) -> x * x),
-            PriceFunctionFactory.createPriceFunction((x, sl, seller, commSold, economy) -> 1 / ((1 - x) * (1 - x))),
-            PriceFunctionFactory.createPriceFunction((x, sl, seller, commSold, economy) -> 1 / x)
+            PriceFunction.Cache.createPriceFunction((x, sl, seller, commSold, economy) -> x*x),
+            PriceFunction.Cache.createPriceFunction((x, sl, seller, commSold, economy) -> 1 / ((1-x)*(1-x))),
+            PriceFunction.Cache.createPriceFunction((x, sl, seller, commSold, economy) -> 1/x)
         };
     }
 
@@ -283,7 +281,7 @@ public final class CommoditySoldWithSettingsTest {
     @Parameters({"0,1","0.1,1.234567","0.5,4","0.9,100"})
     @TestCaseName("Test #{index}: getPriceFunction.apply({0}) == {1}")
     public final void testDefaultPriceFunction(double input, double output) {
-        assertEquals(output, fixture_.getPriceFunction().unitPrice(input / 1.0, null, null, null, null)
+        assertEquals(output, fixture_.getPriceFunction().unitPrice(input/1.0, null, null, null, null)
                      , 0.000001f); // TODO: improve delta
     }
 

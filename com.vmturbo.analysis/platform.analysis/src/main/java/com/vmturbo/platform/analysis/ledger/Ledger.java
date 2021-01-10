@@ -174,7 +174,7 @@ public class Ledger {
      * @return The Ledger containing the updated list of traderIncomeStatements
      */
     public Ledger calculateExpAndRevForSellersInMarket(Economy economy, Market market) {
-        Set<Trader> sellers = market.getActiveSellers();
+        List<Trader> sellers = market.getActiveSellers();
         (sellers.size() < economy.getSettings().getMinSellersForParallelism()
             ? sellers.stream() : sellers.parallelStream())
             .forEach(seller -> calculateExpRevForTraderAndGetTopRevenue(economy, seller));

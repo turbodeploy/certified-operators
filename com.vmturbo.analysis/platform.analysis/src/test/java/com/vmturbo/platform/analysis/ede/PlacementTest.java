@@ -29,7 +29,7 @@ import org.junit.runners.Parameterized.Parameters;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.CompoundMove;
 import com.vmturbo.platform.analysis.actions.Move;
-import com.vmturbo.platform.analysis.actions.ReconfigureConsumer;
+import com.vmturbo.platform.analysis.actions.Reconfigure;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
@@ -123,7 +123,7 @@ public class PlacementTest {
                 // list matches
                 boolean lastIsReconfigure = (actuals.length > 0) &&
                         (Arrays.copyOfRange(actuals, actuals.length - 1, actuals.length)[0]
-                                instanceof ReconfigureConsumer);
+                                instanceof Reconfigure);
                 assertTrue("Reconfigure expected", lastIsReconfigure);
                 assertArrayEquals(actions,
                         Arrays.copyOfRange(actuals, 0, actuals.length-1));
@@ -802,7 +802,7 @@ public class PlacementTest {
             if (e.getTraders().size() <= 1) {
                 if (shoppingList.isMovable()) {
                     results = new Action[1];
-                    results[0] = new ReconfigureConsumer(e, shoppingList);
+                    results[0] = new Reconfigure(e, shoppingList);
                 }
                 else {
                     results = new Action[0];
@@ -898,9 +898,9 @@ public class PlacementTest {
 
             final ShoppingList sl1 = getSl(e, traders[0]);
             Action[] expectedActions = {
-                new ReconfigureConsumer(e, sl1).setImportance(Double.POSITIVE_INFINITY),
-                new ReconfigureConsumer(e, getSl(e, traders[1])).setImportance(Double.POSITIVE_INFINITY),
-                new ReconfigureConsumer(e, getSl(e, traders[2])).setImportance(Double.POSITIVE_INFINITY)
+                new Reconfigure(e, sl1).setImportance(Double.POSITIVE_INFINITY),
+                new Reconfigure(e, getSl(e, traders[1])).setImportance(Double.POSITIVE_INFINITY),
+                new Reconfigure(e, getSl(e, traders[2])).setImportance(Double.POSITIVE_INFINITY)
             };
 
             PlacementResults results = Placement.generateShopAlonePlacementDecisions(e, sl1);

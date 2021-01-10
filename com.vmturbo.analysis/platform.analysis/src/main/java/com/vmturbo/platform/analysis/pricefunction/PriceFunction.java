@@ -10,6 +10,7 @@ import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
 
+@FunctionalInterface
 public interface PriceFunction extends Serializable {
     // Methods
 
@@ -18,7 +19,6 @@ public interface PriceFunction extends Serializable {
      * buy say 30% utilization, it will be charged 0.3 of the unit price.
      * @param normalizedUtilization the utilization as a percentage of the utilization
      * admissible for the {@link CommoditySold}
-     * @param shoppingList is the consumer's shoppingList.
      * @param seller is the {@link Trader} selling the commodity
      * @param cs is the {@link CommoditySold} by the seller
      * @param e is the {@link Economy} that the seller resides in
@@ -26,15 +26,9 @@ public interface PriceFunction extends Serializable {
      *          sold by a seller
      */
     @Pure
-    double unitPrice(double normalizedUtilization, ShoppingList shoppingList, Trader seller, CommoditySold cs,
-                            UnmodifiableEconomy e);
+    public double unitPrice(double normalizedUtilization, ShoppingList shoppingList, Trader seller, CommoditySold cs
+                            , UnmodifiableEconomy e);
 
-    /**
-     * The mechanism to update a {@link PriceFunction} with any new weight specified.
-     * @param weight is the weight on the new PriceFunction.
-     * @return this {@link PriceFunction}.
-     */
-    default PriceFunction updatePriceFunctionWithWeight(double weight) {
-        return this;
-    }
+    // Inner classes
+    public static class Cache extends com.vmturbo.platform.analysis.pricefunction.Cache {/* workaround */};
 }

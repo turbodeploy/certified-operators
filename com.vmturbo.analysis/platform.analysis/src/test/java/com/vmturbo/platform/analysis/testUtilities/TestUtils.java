@@ -30,7 +30,8 @@ import com.vmturbo.platform.analysis.economy.RawMaterials;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
-import com.vmturbo.platform.analysis.pricefunction.PriceFunctionFactory;
+import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
+import com.vmturbo.platform.analysis.pricefunction.PriceFunction.Cache;
 import com.vmturbo.platform.analysis.pricefunction.QuoteFunctionFactory;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO;
@@ -153,10 +154,6 @@ public class TestUtils {
      * Construct the commodity specification for Q16_VCPU commodity.
      */
     public static final CommoditySpecification Q16_VCPU = createNewCommSpec();
-    /**
-     * Construct software license comm spec.
-     */
-    public static final CommoditySpecification SOFTWARE_LICENSE_COMMODITY = createNewCommSpec();
 
     public static final CommoditySpecificationTO iopsTO =
                     CommoditySpecificationTO.newBuilder().setBaseType(TestUtils.IOPS.getBaseType())
@@ -207,12 +204,12 @@ public class TestUtils {
             if (commSpec.equals(TRANSACTION)) {
                 commSold.getSettings()
                         .setUpdatingFunction(UpdatingFunctionFactory.STANDARD_DISTRIBUTION)
-                        .setPriceFunction(PriceFunctionFactory.createFiniteStandardWeightedPriceFunction(1.0));
+                        .setPriceFunction(Cache.createFiniteStandardWeightedPriceFunction(1.0));
                 return;
             }
             if (commSpec.equals(VCPU_REQUEST)) {
                 commSold.getSettings()
-                        .setPriceFunction(PriceFunctionFactory.createStepPriceFunction(
+                        .setPriceFunction(Cache.createStepPriceFunction(
                                 1, 0.0001f, Float.POSITIVE_INFINITY));
             }
             if (commSpec.equals(RESPONSE_TIME)) {
@@ -224,7 +221,7 @@ public class TestUtils {
                                                 .setCommodityType(VMEM.getType())
                                                 .setElasticity(0.0F))
                                         .build()))
-                        .setPriceFunction(PriceFunctionFactory.createFiniteStandardWeightedPriceFunction(1.0));
+                        .setPriceFunction(Cache.createFiniteStandardWeightedPriceFunction(1.0));
             }
             if (commSpec.equals(Q16_VCPU)) {
                 commSold.getSettings().setUpdatingFunction(UpdatingFunctionFactory
@@ -306,7 +303,7 @@ public class TestUtils {
      */
     public static Trader createStorage(Economy economy, List<Long> cliques, double storageCapacity, boolean isCloneable) {
         Trader st = createTrader(economy, ST_TYPE, cliques, Arrays.asList(ST_AMT), new double[]{storageCapacity}, isCloneable, false);
-        ((CommoditySoldSettings)st.getCommoditiesSold().get(st.getBasketSold().indexOf(ST_AMT))).setPriceFunction(PriceFunctionFactory.createStepPriceFunction(0.8, 1.0, 10000.0));
+        ((CommoditySoldSettings) st.getCommoditiesSold().get(st.getBasketSold().indexOf(ST_AMT))).setPriceFunction(PriceFunction.Cache.createStepPriceFunction(0.8, 1.0, 10000.0));
         return st;
     }
 

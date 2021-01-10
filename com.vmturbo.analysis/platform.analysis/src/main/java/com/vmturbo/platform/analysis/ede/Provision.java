@@ -49,7 +49,7 @@ public class Provision {
      * The bundle contains information about the mostProfitableTrader, most profitable commodity and
      * the revenue of this commodity.
      */
-    public static class MostProfitableBundle {
+    private static class MostProfitableBundle {
 
         Trader mostProfitableTrader_;
         MostExpensiveCommodityDetails mostExpensiveCommodityDetails_;
@@ -123,15 +123,12 @@ public class Provision {
             }
         } catch (Exception e) {
             logger.error(EconomyConstants.EXCEPTION_MESSAGE,
-                "Provision - Estimate Supply and Placement ", e.getMessage(), e);
+                "Proivion - Estimate Supply and Placement ", e.getMessage(), e);
         }
         // copy the markets from economy and use the copy to iterate, because in
         // the provision logic, we may add new basket which result in new market
-        ArrayList<Market> orignalMkts = new ArrayList<>();
+        List<Market> orignalMkts = new ArrayList<>();
         orignalMkts.addAll(economy.getMarkets());
-        orignalMkts.sort((m1, m2) -> {
-            return Integer.compare(m1.getSellerCount(), m2.getSellerCount()) * -1;
-        });
         for (Market market : orignalMkts) {
             try {
                 // if the traders in the market are not eligible for provision, skip this market
@@ -142,21 +139,17 @@ public class Provision {
                     if (economy.getForceStop()) {
                         return allActions;
                     }
-
                     List<@NonNull Action> actions = new ArrayList<>();
 
                     ledger.calculateExpAndRevForSellersInMarket(economy, market);
                     // break if there is no seller that is eligible for cloning in the market
-
-                    MostProfitableBundle pb = findBestTraderToEngage(market, ledger, economy,
-                        market.getActiveSellersAvailableForPlacement(), false);
+                    MostProfitableBundle pb = findBestTraderToEngage(market, ledger, economy);
                     Trader mostProfitableTrader = pb.getMostProfitableTrader();
                     MostExpensiveCommodityDetails mostExpensiveCommodityDetails =
                             pb.getMostExpensiveCommodityDetails();
                     if (mostProfitableTrader == null || mostExpensiveCommodityDetails == null) {
                         break;
                     }
-
                     boolean isDebugMostProfitableTrader = mostProfitableTrader.isDebugEnabled();
                     String mostProfitableTraderDebugInfo =
                             mostProfitableTrader.getDebugInfoNeverUseInCode();
@@ -219,7 +212,6 @@ public class Provision {
                             }
                         }
                     }
-
                     if (!successfulEvaluation) {
                         // provision a new trader
                         provisionAction = new ProvisionBySupply(economy,
@@ -294,7 +286,7 @@ public class Provision {
                 logger.error(EconomyConstants.EXCEPTION_MESSAGE,
                     market.getActiveSellers().isEmpty() ? "market " + market.toString()
                         : market + " " + market.toString() + " with first active seller "
-                        + market.getActiveSellers().iterator().next().getDebugInfoNeverUseInCode(),
+                        + market.getActiveSellers().get(0).getDebugInfoNeverUseInCode(),
                         e.getMessage(), e);
             }
         }
@@ -311,11 +303,12 @@ public class Provision {
      *
      * @return list of move actions
      */
-    public static @NonNull List<@NonNull Action> placementAfterProvisionAction(@NonNull Economy economy,
-            @NonNull Market market, @NonNull Trader mostProfitableTrader) {
+    public static @NonNull List<@NonNull Action> placementAfterProvisionAction(@NonNull Economy economy
+            , @NonNull Market market
+            , @NonNull Trader mostProfitableTrader) {
         List<@NonNull Action> actions = new ArrayList<>();
         actions.addAll(Placement.prefPlacementDecisions(economy,
-            new ArrayList<>(mostProfitableTrader.getCustomers())).getActions());
+                new ArrayList<>(mostProfitableTrader.getCustomers())).getActions());
         // Allow all buyers in markets where mostProfitableTrader is a seller place again so they
         // can re-balance with the added resources in case these buyers are not part of the
         // current market.
@@ -367,25 +360,21 @@ public class Provision {
      * implies eligibility to clone
      * @param ledger - the ledger that holds the incomeStatement of the trader whose ROI is checked
      * @param economy - that the market is a part of
-     * @param bucket - the list of Traders to consider for this market.
-     * @param forReconfigure - If we are finding a trader for reconfigure or for provisioning.
      * @return the {@link MostProfitableBundle} containing the mostProfitableTrader if there is one that
      * can clone and NULL otherwise
      */
-    public static MostProfitableBundle findBestTraderToEngage(Market market, Ledger ledger, Economy economy,
-            List<Trader> bucket, boolean forReconfigure) {
+    private static MostProfitableBundle findBestTraderToEngage(Market market, Ledger ledger, Economy economy) {
 
         Trader mostProfitableTrader = null;
         double roiOfRichestTrader = 0;
         MostExpensiveCommodityDetails mostProfitableCommodity = null;
         // consider only sellers available for placements. Considering a seller with cloneable false
         // is going to fail acceptanceCriteria since none its customers will move
-        for (Trader seller : bucket) {
+        for (Trader seller : market.getActiveSellersAvailableForPlacement()) {
             boolean isDebugTrader = seller.isDebugEnabled();
             String traderDebugInfo = seller.getDebugInfoNeverUseInCode();
             MostExpensiveCommodityDetails mostExpensiveCommodity = ledger.calculateExpRevForTraderAndGetTopRevenue(economy, seller);
-            if ((seller.getSettings().isCloneable() && !forReconfigure)
-                || forReconfigure) {
+            if (seller.getSettings().isCloneable()) {
                 IncomeStatement traderIS = ledger.getTraderIncomeStatements().get(seller
                         .getEconomyIndex());
                 // return the most profitable trader
@@ -400,8 +389,8 @@ public class Provision {
                 // TODO: evaluate if checking for movable customers earlier is beneficial
                 // clone candidate should either have at least one customer is movable or
                 // all customers that are from guaranteed buyer
-                if ((sellerCustomersInCurrentMarket.size() > 0 || forReconfigure)
-                    && (roiOfTrader > traderIS.getMaxDesiredROI())
+                if (sellerCustomersInCurrentMarket.size() > 0
+                        && (roiOfTrader > traderIS.getMaxDesiredROI())
                         && (roiOfTrader > roiOfRichestTrader)
                         && (seller.getCustomers().stream().anyMatch(ShoppingList::isMovable)
                         || (seller.getCustomers().stream().allMatch(sl ->
@@ -459,7 +448,7 @@ public class Provision {
      * of the most expensive commodity after provision is still the same, and the quantity has
      * dropped by at least minDecreasePct.
      */
-    public static boolean evaluateAcceptanceCriteria(Economy economy,
+    private static boolean evaluateAcceptanceCriteria(Economy economy,
                                                       Ledger ledger,
                                                       double origRoI,
                                                       MostProfitableBundle mostProfitableBundle,

@@ -21,7 +21,6 @@ import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
-import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ede.BootstrapSupply;
@@ -459,18 +458,5 @@ public final class Utility {
                 }
             }
         }
-    }
-
-    /**
-     * Check if the Market contains a seller that has reconfigurable commodities.
-     *
-     * @param m The Market.
-     * @param e The Economy.
-     *
-     * @return If the market contains reconfigurable seller or not.
-     */
-    public static boolean marketContainsReconfigurableSeller(Market m, Economy e) {
-        return m.getActiveSellers().stream().anyMatch(trader -> trader.getReconfigureableCount(e) > 0)
-            || m.getInactiveSellers().stream().anyMatch(trader -> trader.getReconfigureableCount(e) > 0);
     }
 } // end Utility class

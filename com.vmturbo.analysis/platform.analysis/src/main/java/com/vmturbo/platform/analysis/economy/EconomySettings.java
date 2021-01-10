@@ -3,8 +3,6 @@ package com.vmturbo.platform.analysis.economy;
 import static com.google.common.base.Preconditions.checkArgument;
 
 import java.io.Serializable;
-import java.util.HashSet;
-import java.util.Set;
 
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.dataflow.qual.Deterministic;
@@ -60,7 +58,6 @@ public final class EconomySettings implements Serializable {
     private boolean sortShoppingLists_ = false;
     private float discountedComputeCostFactor = -1f;
     private boolean fullPriceForQuote_ = false;
-    private Set<Integer> reconfigureableCommodities_ = new HashSet<>();
 
     // Constructors
     /**
@@ -312,9 +309,5 @@ public final class EconomySettings implements Serializable {
         quoteFactor_ = DEFAULT_QUOTE_FACTOR;
         maxPlacementIterations_ = DEFAULT_MAX_PLACEMENT_ITERATIONS;
         useQuoteCacheDuringSNM_ = DEFAULT_USE_QUOTE_CACHE_DURING_SNM;
-    }
-
-    public Set<Integer> getReconfigureableCommodities() {
-        return reconfigureableCommodities_;
     }
 } // end EconomySettings class

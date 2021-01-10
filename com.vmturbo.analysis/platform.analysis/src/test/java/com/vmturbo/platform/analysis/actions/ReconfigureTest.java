@@ -3,7 +3,6 @@ package com.vmturbo.platform.analysis.actions;
 import static org.junit.Assert.*;
 
 import java.lang.reflect.Field;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
@@ -14,21 +13,18 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import com.vmturbo.platform.analysis.economy.Basket;
-import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
-import com.vmturbo.platform.analysis.economy.TraderWithSettings;
-import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 
 import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
 import junitparams.naming.TestCaseName;
 
 /**
- * A test case for the {@link ReconfigureConsumer} class.
+ * A test case for the {@link Reconfigure} class.
  */
 @RunWith(JUnitParamsRunner.class)
 public class ReconfigureTest {
@@ -40,7 +36,7 @@ public class ReconfigureTest {
     @Parameters
     @TestCaseName("Test #{index}: new Reconfigure({0},{1})")
     public final void testReconfigure(@NonNull Economy economy, @NonNull ShoppingList target) {
-        ReconfigureConsumer reconfiguration = new ReconfigureConsumer(economy, target);
+        Reconfigure reconfiguration = new Reconfigure(economy,target);
 
         assertSame(economy, reconfiguration.getEconomy());
         assertSame(target, reconfiguration.getTarget());
@@ -62,7 +58,7 @@ public class ReconfigureTest {
     @Test
     @Parameters
     @TestCaseName("Test #{index}: {0}.serialize({1}) == {2}")
-    public final void testSerialize(@NonNull ReconfigureConsumer reconfiguration, @NonNull Function<@NonNull Trader, @NonNull String> oid,
+    public final void testSerialize(@NonNull Reconfigure reconfiguration, @NonNull Function<@NonNull Trader, @NonNull String> oid,
                                     @NonNull String serialized) {
         assertEquals(reconfiguration.serialize(oid), serialized);
     }
@@ -81,7 +77,7 @@ public class ReconfigureTest {
         oids.put(t1, "id1");
         oids.put(s1, "id2");
 
-        return new Object[][]{{new ReconfigureConsumer(e1, p1), oid, "<action type=\"reconfigure\" target=\"id1\" source=\"id2\" />"}};
+        return new Object[][]{{new Reconfigure(e1, p1),oid,"<action type=\"reconfigure\" target=\"id1\" source=\"id2\" />"}};
     }
 
     @Test
@@ -89,12 +85,11 @@ public class ReconfigureTest {
     @TestCaseName("Test #{index}: new Reconfigure({0},{1}).take()")
     public final void testTake(@NonNull Economy economy, @NonNull ShoppingList target) {
         Trader oldSupplier = target.getSupplier();
-        @NonNull ReconfigureConsumer reconfiguration = new ReconfigureConsumer(economy, target);
+        @NonNull Reconfigure reconfiguration = new Reconfigure(economy, target);
         // TODO: take a copy of the economy and assert it remained unchanged when copying gets
         // implemented
         assertSame(reconfiguration, reconfiguration.take());
         assertSame(oldSupplier, target.getSupplier());
-        assertFalse(target.isMovable());
     }
 
     @Test
@@ -102,7 +97,7 @@ public class ReconfigureTest {
     @TestCaseName("Test #{index}: new Reconfigure({0},{1}).rollback()")
     public final void testRollback(@NonNull Economy economy, @NonNull ShoppingList target) {
         Trader oldSupplier = target.getSupplier();
-        @NonNull ReconfigureConsumer reconfiguration = new ReconfigureConsumer(economy, target);
+        @NonNull Reconfigure reconfiguration = new Reconfigure(economy, target);
         // mock the actionTaken flag as if it is being taken
         try {
             Field actionTakenField = ActionImpl.class.getDeclaredField("actionTaken");
@@ -115,7 +110,6 @@ public class ReconfigureTest {
         // implemented
         assertSame(reconfiguration, reconfiguration.rollback());
         assertSame(oldSupplier, target.getSupplier());
-        assertTrue(target.isMovable());
     }
 
     @Test
@@ -131,7 +125,7 @@ public class ReconfigureTest {
     }
 
     @SuppressWarnings("unused")
-    private static Object[] parametersForTestEqualsAndHashCode() {
+    private static Object[] parametersForTestEquals_and_HashCode() {
         Economy e = new Economy();
         Basket b1 = new Basket(new CommoditySpecification(100));
         Basket b2 = new Basket(new CommoditySpecification(200));
@@ -146,9 +140,9 @@ public class ReconfigureTest {
         ShoppingList shop2 = e.addBasketBought(t2, b2);
         shop2.move(t3);
 
-        ReconfigureConsumer reconfigure1 = new ReconfigureConsumer(e, shop1);
-        ReconfigureConsumer reconfigure2 = new ReconfigureConsumer(e, shop2);
-        ReconfigureConsumer reconfigure3 = new ReconfigureConsumer(e, shop1);
+        Reconfigure reconfigure1 = new Reconfigure(e, shop1);
+        Reconfigure reconfigure2 = new Reconfigure(e, shop2);
+        Reconfigure reconfigure3 = new Reconfigure(e, shop1);
         return new Object[][] {{reconfigure1, reconfigure2, false},
                         {reconfigure1, reconfigure3, true}};
     }
@@ -156,74 +150,9 @@ public class ReconfigureTest {
     @Test
     @Parameters
     @TestCaseName("Test #{index}: equals and hashCode for {0}, {1} == {2}")
-    public final void testEqualsAndHashCode(@NonNull ReconfigureConsumer reconfigure1,
-                    @NonNull ReconfigureConsumer reconfigure2, boolean expect) {
+    public final void testEquals_and_HashCode(@NonNull Reconfigure reconfigure1,
+                    @NonNull Reconfigure reconfigure2, boolean expect) {
         assertEquals(expect, reconfigure1.equals(reconfigure2));
         assertEquals(expect, reconfigure1.hashCode() == reconfigure2.hashCode());
-    }
-
-    /**
-     * Test that we are removing software license commodity successfully from a trader.
-     */
-    @Test
-    public final void testReconfigureProviderRemoval() {
-        Economy e = new Economy();
-        Basket basket1 = new Basket(TestUtils.VMEM);
-        Trader vm = e.addTrader(0, TraderState.ACTIVE, basket1);
-        CommoditySpecification removalComm = TestUtils.SOFTWARE_LICENSE_COMMODITY;
-        CommoditySpecification regularComm = TestUtils.MEM;
-        Basket basket2 = new Basket(removalComm, regularComm);
-        Trader pm = e.addTrader(1, TraderState.ACTIVE, basket2);
-        TestUtils.createAndPlaceShoppingList(e, Arrays.asList(TestUtils.MEM), vm,
-            new double[] {100}, pm);
-        Map<CommoditySpecification, CommoditySold> comm = new HashMap<CommoditySpecification, CommoditySold>() {{
-            put(removalComm, pm.getCommoditySold(removalComm));
-        }};
-        ReconfigureProviderRemoval removalAction = new ReconfigureProviderRemoval(e,
-            (TraderWithSettings)pm, comm);
-        removalAction.take();
-        assertTrue(pm.getCommoditiesSold().size() == 1);
-        assertTrue(pm.getBasketSold().size() == 1);
-        assertTrue(pm.getCommoditySold(removalComm) == null);
-        assertTrue(pm.getCommoditySold(regularComm) != null);
-        removalAction.rollback();
-        assertTrue(pm.getCommoditiesSold().size() == 2);
-        assertTrue(pm.getBasketSold().size() == 2);
-        assertTrue(pm.getCommoditySold(removalComm) != null);
-        assertTrue(pm.getCommoditySold(regularComm) != null);
-    }
-
-    /**
-     * Test that we are adding software license commodity successfully to a trader.
-     */
-    @Test
-    public final void testReconfigureProviderAddition() {
-        Economy e = new Economy();
-        Basket basket1 = new Basket(TestUtils.VMEM);
-        Trader vm = e.addTrader(0, TraderState.ACTIVE, basket1);
-        CommoditySpecification additionComm = TestUtils.SOFTWARE_LICENSE_COMMODITY;
-        CommoditySpecification regularComm1 = TestUtils.MEM;
-        CommoditySpecification regularComm2 = TestUtils.MEM;
-        Basket basket2 = new Basket(additionComm, regularComm1);
-        Basket basket3 = new Basket(regularComm2);
-        Trader pm = e.addTrader(1, TraderState.ACTIVE, basket2);
-        TestUtils.createAndPlaceShoppingList(e, Arrays.asList(TestUtils.MEM), vm,
-            new double[] {100}, pm);
-        Map<CommoditySpecification, CommoditySold> comm = new HashMap<CommoditySpecification, CommoditySold>() {{
-            put(additionComm, pm.getCommoditySold(additionComm));
-        }};
-        Trader pm2 = e.addTrader(2, TraderState.ACTIVE, basket3);
-        ReconfigureProviderAddition additionAction = new ReconfigureProviderAddition(e,
-                (TraderWithSettings)pm2, comm);
-        additionAction.take();
-        assertTrue(pm2.getCommoditiesSold().size() == 2);
-        assertTrue(pm2.getBasketSold().size() == 2);
-        assertTrue(pm2.getCommoditySold(regularComm2) != null);
-        assertTrue(pm2.getCommoditySold(additionComm) != null);
-        additionAction.rollback();
-        assertTrue(pm2.getCommoditiesSold().size() == 1);
-        assertTrue(pm2.getBasketSold().size() == 1);
-        assertTrue(pm2.getCommoditySold(regularComm2) != null);
-        assertTrue(pm2.getCommoditySold(additionComm) == null);
     }
 } // end ReconfigureTest class

@@ -13,6 +13,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.function.BinaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -29,7 +30,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.CompoundMove;
 import com.vmturbo.platform.analysis.actions.Move;
-import com.vmturbo.platform.analysis.actions.ReconfigureConsumer;
+import com.vmturbo.platform.analysis.actions.Reconfigure;
 import com.vmturbo.platform.analysis.economy.Context;
 import com.vmturbo.platform.analysis.economy.Context.BalanceAccount;
 import com.vmturbo.platform.analysis.economy.Economy;
@@ -555,8 +556,11 @@ public class Placement {
     public static void createReconfigureForEmptySeller(@NonNull Economy economy,
                                                        @NonNull ShoppingList sl,
                                                        @NonNull PlacementResults results) {
-        ReconfigureConsumer reconfigure = new ReconfigureConsumer(economy, sl).take();
+        Reconfigure reconfigure = new Reconfigure(economy, sl).take();
         results.addAction(reconfigure.setImportance(Double.POSITIVE_INFINITY));
+        // Set movable to false to prevent generating further reconfigures
+        // for this shopping list
+        sl.setMovable(false);
     }
 
     /**
@@ -834,7 +838,7 @@ public class Placement {
         // check if the trader buys in market that all sellers have a cost function
         boolean shopByBugdet = movableSlByMarket.stream().map(Entry::getValue)
                 .map(Market::getActiveSellers)
-                .flatMap(Set::stream)
+                .flatMap(List::stream)
                 .allMatch(t -> t.getSettings().getCostFunction() != null);
         boolean performOptimization = movableSlByMarket.stream().map(sl -> sl.getKey().getSupplier())
                 .filter(Objects::nonNull)
@@ -1062,7 +1066,7 @@ public class Placement {
             counter++;
             globalCounter++;
             keepRunning = !(intermediateResults.getActions().isEmpty()
-                            || intermediateResults.getActions().stream().allMatch(a -> a instanceof ReconfigureConsumer)
+                            || intermediateResults.getActions().stream().allMatch(a -> a instanceof Reconfigure)
                             || (useExpenseMetric && areSavingsLessThanThreshold(economy)));
             placementResults.combine(intermediateResults);
             if (useExpenseMetric) {

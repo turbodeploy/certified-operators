@@ -468,17 +468,6 @@ public abstract class Trader implements Serializable {
     }
 
     /**
-     * Returns the number of reconfigureable commodities on this trader.
-     * @param e The economy.
-     *
-     * @return count of reconfigureable commodities.
-     */
-    public int getReconfigureableCount(Economy e) {
-        return (int)basketSold_.stream().filter(commSpec -> e.getSettings()
-            .getReconfigureableCommodities().contains(commSpec.getBaseType())).count();
-    }
-
-    /**
      * Sets the cloneOf field. It contains economyIndex of the modelSeller
      * @param modelSeller the {@link Trader} that we clone
      */

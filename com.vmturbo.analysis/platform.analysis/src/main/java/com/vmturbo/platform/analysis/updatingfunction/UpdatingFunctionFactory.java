@@ -49,7 +49,7 @@ public final class UpdatingFunctionFactory {
     }
 
     /**
-     * Cached instances of {@link UpdatingFunction} that should be cleared from the cache
+     * Cache instances of {@link UpdatingFunction} that should be cleared from the cache
      * between analysis cycles.
      */
     private static final ConcurrentMap<@NonNull String, @NonNull UpdatingFunction> mm1Cache =
@@ -108,7 +108,7 @@ public final class UpdatingFunctionFactory {
             final Set<Entry<ShoppingList, Market>>
                     shoppingListsInMarket = economy.getMarketsAsBuyer(seller).entrySet();
             Market market = shoppingListsInMarket.iterator().next().getValue();
-            Set<Trader> sellers = market.getActiveSellers();
+            List<Trader> sellers = market.getActiveSellers();
             List<Trader> mutableSellers = new ArrayList<Trader>();
             mutableSellers.addAll(sellers);
             mutableSellers.retainAll(economy.getMarket(buyer).getActiveSellers());

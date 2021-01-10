@@ -15,7 +15,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
-import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.qual.Pure;
 
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
@@ -27,50 +26,27 @@ import com.vmturbo.platform.analysis.ede.Placement;
 /**
  * An action to reconfigure a {@link ShoppingList}.
  */
-public class ReconfigureConsumer extends ReconfigureBase implements Action { // inheritance for code reuse
+public class Reconfigure extends MoveBase implements Action { // inheritance for code reuse
     // Fields
     static final Logger logger = LogManager.getLogger(Placement.class);
-    private final @NonNull ShoppingList target_;
-    private final @Nullable Trader source_;
+
     // A set of commodities from shopping list which can not be satisfied by any seller.
     private Set<CommoditySpecification> unavailableCommodities = new HashSet<>();
-
     // Constructors
 
     /**
      * Constructs a new reconfigure action with the specified target and economy.
      *
      * @param economy The economy containing target.
-     * @param targetSL The shopping list of the trader that needs reconfiguration.
+     * @param target The shopping list of the trader that needs reconfiguration.
      */
-    public ReconfigureConsumer(@NonNull Economy economy, @NonNull ShoppingList targetSL) {
-        super(economy);
-        target_ = targetSL;
-        source_ = targetSL.getSupplier();
+    public Reconfigure(@NonNull Economy economy, @NonNull ShoppingList target) {
+        super(economy, target, target.getSupplier());
         findUnavailableCommodities();
     }
 
+
     // Methods
-
-    /**
-     * Returns the target shopping list.
-     *
-     * @return Returns the target shopping list.
-     */
-    @Pure
-    public @NonNull ShoppingList getTarget(@ReadOnly ReconfigureConsumer this) {
-        return target_;
-    }
-
-    /**
-     * Returns the source Trader.
-     *
-     * @return Returns the source Trader.
-     */
-    @Pure
-    public @Nullable Trader getSource(@ReadOnly ReconfigureConsumer this) {
-        return source_;
-    }
 
     @Override
     public @NonNull String serialize(@NonNull Function<@NonNull Trader, @NonNull String> oid) {
@@ -90,33 +66,30 @@ public class ReconfigureConsumer extends ReconfigureBase implements Action { // 
      * subsequentActions_.
      */
     @Override
-    public @NonNull ReconfigureConsumer take() {
+    public @NonNull Reconfigure take() {
         internalTake();
         Economy economy = getEconomy();
         List<ShoppingList> peers = economy.getPeerShoppingLists(getTarget());
         for (ShoppingList shoppingList : peers) {
             logger.info("Synthesizing Reconfigure for {} in scaling group {}",
                 shoppingList.getBuyer(), shoppingList.getBuyer().getScalingGroupId());
-            ReconfigureConsumer reconfigure = new ReconfigureConsumer(economy, shoppingList);
+            Reconfigure reconfigure = new Reconfigure(economy, shoppingList);
             getSubsequentActions().add(reconfigure.internalTake()
                 .setImportance(Double.POSITIVE_INFINITY));
         }
         return this;
     }
 
-    private @NonNull ReconfigureConsumer internalTake() {
+    private @NonNull Reconfigure internalTake() {
         super.take();
-        // Set movable to false to prevent generating further reconfigures
-        // for this shopping list
-        target_.setMovable(false);
         // Nothing can be done automatically
         return this;
     }
 
     @Override
-    public @NonNull ReconfigureConsumer rollback() {
+    public @NonNull Reconfigure rollback() {
         getSubsequentActions()
-            .forEach(reconfigure -> ((ReconfigureConsumer)reconfigure).internalRollback());
+            .forEach(reconfigure -> ((Reconfigure)reconfigure).internalRollback());
         internalRollback();
         getSubsequentActions().clear();
         return this;
@@ -128,7 +101,7 @@ public class ReconfigureConsumer extends ReconfigureBase implements Action { // 
             @NonNull final Function<@NonNull Trader, @NonNull Trader> destinationTrader,
             @NonNull final Function<@NonNull ShoppingList, @NonNull ShoppingList>
                                                                         destinationShoppingList) {
-        return new ReconfigureConsumer(destinationEconomy, destinationShoppingList.apply(getTarget()));
+        return new Reconfigure(destinationEconomy, destinationShoppingList.apply(getTarget()));
     }
 
     /**
@@ -142,9 +115,8 @@ public class ReconfigureConsumer extends ReconfigureBase implements Action { // 
         return true;
     }
 
-    private @NonNull ReconfigureConsumer internalRollback() {
+    private @NonNull Reconfigure internalRollback() {
         super.rollback();
-        target_.setMovable(true);
         // Nothing to roll back!
         return this;
     }
@@ -208,11 +180,11 @@ public class ReconfigureConsumer extends ReconfigureBase implements Action { // 
      */
     @Override
     @Pure
-    public boolean equals(@ReadOnly Object other) {
-        if (!(other instanceof ReconfigureConsumer)) {
+    public boolean equals(@ReadOnly Reconfigure this, @ReadOnly Object other) {
+        if (!(other instanceof Reconfigure)) {
             return false;
         }
-        ReconfigureConsumer otherReconfigure = (ReconfigureConsumer)other;
+        Reconfigure otherReconfigure = (Reconfigure)other;
         return otherReconfigure.getEconomy() == getEconomy()
                         && otherReconfigure.getTarget() == getTarget();
     }
@@ -230,7 +202,7 @@ public class ReconfigureConsumer extends ReconfigureBase implements Action { // 
 
     @Override
     public ActionType getType() {
-        return ActionType.RECONFIGURE_CONSUMER;
+        return ActionType.RECONFIGURE;
     }
 
     /**

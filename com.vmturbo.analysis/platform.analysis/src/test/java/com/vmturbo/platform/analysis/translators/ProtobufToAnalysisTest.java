@@ -10,6 +10,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -20,6 +21,8 @@ import junitparams.Parameters;
 import junitparams.naming.TestCaseName;
 
 import com.vmturbo.platform.analysis.economy.Basket;
+import com.vmturbo.platform.analysis.economy.CommoditySold;
+import com.vmturbo.platform.analysis.economy.CommoditySoldSettings;
 import com.vmturbo.platform.analysis.economy.CommoditySoldWithSettings;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Context;
@@ -29,7 +32,6 @@ import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
-import com.vmturbo.platform.analysis.pricefunction.PriceFunctionFactory;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommodityBoughtTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
@@ -67,9 +69,9 @@ public class ProtobufToAnalysisTest {
                         .build();
         PriceFunctionTO funcTO3 = PriceFunctionTO.newBuilder()
                         .setStep(Step.newBuilder().setStepAt(0.5f).setPriceAbove(100).setPriceBelow(10).build()).build();
-        PriceFunction func1 = PriceFunctionFactory.createConstantPriceFunction(100f);
-        PriceFunction func2 = PriceFunctionFactory.createStandardWeightedPriceFunction(2.0f);
-        PriceFunction func3 = PriceFunctionFactory.createStepPriceFunction(0.5f, 10, 100);
+        PriceFunction func1 = PriceFunction.Cache.createConstantPriceFunction(100f);
+        PriceFunction func2 = PriceFunction.Cache.createStandardWeightedPriceFunction(2.0f);
+        PriceFunction func3 = PriceFunction.Cache.createStepPriceFunction(0.5f, 10, 100);
 
         return new Object[][] {{funcTO1, func1}, {funcTO2, func2}, {funcTO3, func3}};
     }

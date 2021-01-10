@@ -26,7 +26,6 @@ import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.ledger.Ledger;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
-import com.vmturbo.platform.analysis.pricefunction.PriceFunctionFactory;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 
@@ -236,7 +235,7 @@ public class SuspensionTest {
         assertTrue(commSoldSett.getUtilizationUpperBound() == commSoldSett.getOrigUtilizationUpperBound());
 
         // verify that UtilizationUpperBound does not change for commodity using constantPriceFunction
-        PriceFunction pfunc = PriceFunctionFactory.createConstantPriceFunction(1.0);
+        PriceFunction pfunc = PriceFunction.Cache.createConstantPriceFunction(1.0);
         commSoldSett.setPriceFunction(pfunc);
         suspension.adjustUtilThreshold(economy, true);
         assertTrue(commSoldSett.getUtilizationUpperBound() == commSoldSett.getOrigUtilizationUpperBound());

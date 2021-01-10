@@ -69,7 +69,7 @@ public abstract class ProvisionBase extends ActionImpl {
      * @param provCommSold provisioned commodity sold.
      * @param modelCommSold mode seller commodity sold.
      */
-    public static void copyCommoditySoldSettingsForClone(CommoditySold provCommSold, CommoditySold modelCommSold) {
+    protected void copyCommoditySoldSettingsForClone(CommoditySold provCommSold, CommoditySold modelCommSold) {
         provCommSold.setThin(modelCommSold.isThin());
 
         // Copy commodity sold settings

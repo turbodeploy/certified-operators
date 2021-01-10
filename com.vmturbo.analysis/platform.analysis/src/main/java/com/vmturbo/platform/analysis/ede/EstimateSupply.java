@@ -230,7 +230,7 @@ public class EstimateSupply {
     private void logValues(Market market, double curROI, double maxDesiredROI, double minDesiredROI) {
         logger.debug("Market with {} active sellers such as {}",
             () -> market.getActiveSellers().size(),
-            () -> market.getActiveSellers().iterator().next());
+            () -> market.getActiveSellers().get(0));
         logger.debug("    current/min/max ROI : {} / {} / {}",
             curROI, minDesiredROI, maxDesiredROI);
     }
@@ -448,7 +448,7 @@ public class EstimateSupply {
             double desiredUtil;
             double desiredRevenue = 0d;
             // Get desired Utilization based on any seller in the market
-            Trader modelSeller = market_.getActiveSellers().iterator().next();
+            Trader modelSeller = market_.getActiveSellers().get(0);
             desiredUtil = maxDesired
                     ? modelSeller.getSettings().getMaxDesiredUtil()
                     : modelSeller.getSettings().getMinDesiredUtil();

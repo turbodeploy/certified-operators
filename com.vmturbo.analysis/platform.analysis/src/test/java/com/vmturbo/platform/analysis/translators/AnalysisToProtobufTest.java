@@ -36,7 +36,7 @@ import com.vmturbo.platform.analysis.actions.Deactivate;
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.actions.ProvisionByDemand;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
-import com.vmturbo.platform.analysis.actions.ReconfigureConsumer;
+import com.vmturbo.platform.analysis.actions.Reconfigure;
 import com.vmturbo.platform.analysis.actions.Resize;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
@@ -57,7 +57,6 @@ import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionByDemandTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionByDemandTO.CommodityMaxAmountAvailableEntry;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionByDemandTO.CommodityNewCapacityEntry;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionBySupplyTO;
-import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ReconfigureConsumerTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ReconfigureTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ResizeTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
@@ -311,11 +310,10 @@ public class AnalysisToProtobufTest {
                         .setIsNotExecutable(false)
                         .build();
 
-        Action reconfigure = new ReconfigureConsumer(e, shop1);
+        Action reconfigure = new Reconfigure(e, shop1);
         ActionTO reconfigureTO = ActionTO
-                        .newBuilder().setReconfigure(ReconfigureTO.newBuilder().setConsumer(
-                            ReconfigureConsumerTO.newBuilder().setShoppingListToReconfigure(10L)
-                                .setSource(2L).build()).build())
+                        .newBuilder().setReconfigure(ReconfigureTO.newBuilder()
+                                        .setShoppingListToReconfigure(10l).setSource(2l).build())
                         .setImportance((float)((ActionImpl)reconfigure).getImportance())
                         .setIsNotExecutable(false)
                         .build();

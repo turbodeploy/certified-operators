@@ -13,7 +13,7 @@ import org.junit.Test;
 
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.Move;
-import com.vmturbo.platform.analysis.actions.ReconfigureConsumer;
+import com.vmturbo.platform.analysis.actions.Reconfigure;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
@@ -201,9 +201,9 @@ public class ConsistentPlacementTest {
 
         final ShoppingList sl1 = getSl(e, traders[0]);
         Action[] expectedActions = {
-            new ReconfigureConsumer(e, sl1).setImportance(Double.POSITIVE_INFINITY),
-            new ReconfigureConsumer(e, getSl(e, traders[1])).setImportance(Double.POSITIVE_INFINITY),
-            new ReconfigureConsumer(e, getSl(e, traders[2])).setImportance(Double.POSITIVE_INFINITY)
+            new Reconfigure(e, sl1).setImportance(Double.POSITIVE_INFINITY),
+            new Reconfigure(e, getSl(e, traders[1])).setImportance(Double.POSITIVE_INFINITY),
+            new Reconfigure(e, getSl(e, traders[2])).setImportance(Double.POSITIVE_INFINITY)
         };
 
         PlacementResults results = Placement.generateShopAlonePlacementDecisions(e, sl1);

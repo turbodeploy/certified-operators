@@ -1,97 +1,71 @@
 package com.vmturbo.platform.analysis.pricefunction;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertNotSame;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 import java.lang.ref.WeakReference;
+import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
 import junitparams.naming.TestCaseName;
-
-import org.junit.Test;
-import org.junit.runner.RunWith;
-
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 
 /**
- * A test case for the {@link PriceFunctionFactory} class.
+ * A test case for the {@link Cache} class.
  */
 @RunWith(JUnitParamsRunner.class)
-public class PriceFunctionFactoryTest {
+public class CacheTest {
 
-    /**
-     * Test that the factory reuses instances of PriceFunction.
-     */
     @Test
+    /**
+     * Test that the factory reuses instances of PriceFunction
+     */
     public void testMap() {
-        final double const2 = 400;
+        final double CONST2 = 400;
         // Test that price functions are reused
 
-        PriceFunction pf1a = PriceFunctionFactory.createConstantPriceFunction(const2);
-        PriceFunction pf1b = PriceFunctionFactory.createConstantPriceFunction(const2);
+        PriceFunction pf1a = Cache.createConstantPriceFunction(CONST2);
+        PriceFunction pf1b = Cache.createConstantPriceFunction(CONST2);
         assertSame(pf1a, pf1b);
 
-        // Now the price function has only weak references (weakPf1 and a link from the map),
-        // so in the next GC it is supposed to be removed from the map.
         WeakReference<PriceFunction> weakPf1a = new WeakReference<>(pf1a);
-        weakPf1a.get();
         pf1a = null;
         pf1b = null;
+        // Now the price function has only weak references (weakPf1 and a link from the map),
+        // so in the next GC it is supposed to be removed from the map.
         System.gc();
         assertNull(weakPf1a.get());
 
         // Different arguments give different price functions
-        PriceFunction pf3a = PriceFunctionFactory.createStandardWeightedPriceFunction(const2 + 1);
-        PriceFunction pf3b = PriceFunctionFactory.createStandardWeightedPriceFunction(const2);
+        PriceFunction pf3a = Cache.createStandardWeightedPriceFunction(CONST2 + 1);
+        PriceFunction pf3b = Cache.createStandardWeightedPriceFunction(CONST2);
         assertNotSame(pf3b, pf3a);
 
         PriceFunction uod = (u, sl, seller, commSold, economy) -> u * u;
-        PriceFunction pf4a = PriceFunctionFactory.createPriceFunction(uod);
-        PriceFunction pf4b = PriceFunctionFactory.createPriceFunction(uod);
+        PriceFunction pf4a = Cache.createPriceFunction(uod);
+        PriceFunction pf4b = Cache.createPriceFunction(uod);
         assertSame(pf4a, pf4b);
 
-        PriceFunction pf4c = PriceFunctionFactory.createPriceFunction((u, sl, seller, commSold, economy) -> u * u);
+        PriceFunction pf4c = Cache.createPriceFunction((u, sl, seller, commSold, economy) -> u * u);
         // although the function is the same, these are two distinct instances
         assertNotSame(pf4b, pf4c);
-    }
-
-    /**
-     * Test that the factory reuses instances of PriceFunction during weight updation.
-     */
-    @Test
-    public void testUpdatePriceFunctionWithWeight() {
-        final double const3 = 400;
-
-        PriceFunction swpf = PriceFunctionFactory.createStandardWeightedPriceFunction(const3);
-        assertNotEquals(swpf.updatePriceFunctionWithWeight(const3 + 1), swpf);
-
-        PriceFunction cpf = PriceFunctionFactory.createConstantPriceFunction(const3);
-        assertEquals(cpf.updatePriceFunctionWithWeight(const3 + 1), cpf);
     }
 
     private static final double ONE = 1.0;
     private static final double delta = 1e-10;
 
     private static final double CONST = 40;
-    private static final PriceFunction pfConst = PriceFunctionFactory.createConstantPriceFunction(CONST);
+    private static final PriceFunction pfConst = Cache.createConstantPriceFunction(CONST);
 
-    /**
-     * Test that the values returned by the constant price function are as expected.
-     *
-     * @param u - u
-     * @param ut - ut
-     * @param p - p
-     */
     @Test
     @Parameters
     @TestCaseName("Test #{index}: constant price function with u={0} and ut={1}")
+    /**
+     * Test that the values returned by the constant price function are as expected
+     */
     public void testValuesConst(double u, double ut, double p) {
-        assertEquals(CONST, pfConst.unitPrice(u / ut, null, null, null, null), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(CONST, pfConst.unitPrice(u/ut, null, null, null, null), TestUtils.FLOATING_POINT_DELTA);
     }
 
     @SuppressWarnings("unused")
@@ -106,20 +80,16 @@ public class PriceFunctionFactoryTest {
     private static final double BELOW = 5;
     private static final double ABOVE = 100;
     private static final double STEP_AT = 0.7;
-    private static final PriceFunction pfStep = PriceFunctionFactory.createStepPriceFunction(STEP_AT, BELOW, ABOVE);
+    private static final PriceFunction pfStep = Cache.createStepPriceFunction(STEP_AT, BELOW, ABOVE);
 
-    /**
-     * Test that the values returned by the step price function are as expected.
-     *
-     * @param u - u
-     * @param ut - ut
-     * @param p - p
-     */
     @Test
     @Parameters
     @TestCaseName("Test #{index}: step price function with u={0} and ut={1}")
+    /**
+     * Test that the values returned by the step price function are as expected
+     */
     public void testValuesStep(double u, double ut, double p) {
-        assertEquals(p, pfStep.unitPrice(u / ut, null, null, null, null), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(p, pfStep.unitPrice(u/ut, null, null, null, null), TestUtils.FLOATING_POINT_DELTA);
     }
 
     @SuppressWarnings("unused")
@@ -133,17 +103,14 @@ public class PriceFunctionFactoryTest {
     }
 
     private static final double WEIGHT = 27.0;
-    private static final PriceFunction pfStd = PriceFunctionFactory.createStandardWeightedPriceFunction(WEIGHT);
+    private static final PriceFunction pfStd = Cache.createStandardWeightedPriceFunction(WEIGHT);
 
-    /**
-     * Test that the values returned by the standard weighted price function are as expected.
-     *
-     * @param u - u
-     * @param factor - factor
-     */
     @Test
     @Parameters
     @TestCaseName("Test #{index}: standard weighted price function with u={0}")
+    /**
+     * Test that the values returned by the standard weighted price function are as expected
+     */
     public void testValuesStandardWeighted(double u, double factor) {
         assertEquals(factor * WEIGHT, pfStd.unitPrice(u, null, null, null, null), TestUtils.FLOATING_POINT_DELTA);
     }
@@ -158,12 +125,10 @@ public class PriceFunctionFactoryTest {
     }
 
     private static final PriceFunction uod = (u, sl, seller, commSold, economy) -> 0.7 + u + u * u;
-    private static final PriceFunction pfCustom = PriceFunctionFactory.createPriceFunction(uod);
+    private static final PriceFunction pfCustom = Cache.createPriceFunction(uod);
 
     /**
-     * Test that a custom price function returns the expected values.
-     *
-     * @param d - d
+     * Test that a custom price function returns the expected values
      */
     @Test
     @Parameters
@@ -177,18 +142,11 @@ public class PriceFunctionFactoryTest {
         return new Double[]{0.0, 0.3, 0.7, ONE - delta};
     }
 
-    /**
-     * Test max price.
-     *
-     * @param pf - pf
-     * @param name - name
-     */
     @Test
     @Parameters
     @TestCaseName("Test #{index}: {1} function")
     public void testMaxPrice(PriceFunction pf, String name) {
-        assertTrue(pf.unitPrice(ONE, null, null, null, null)
-                <= PriceFunctionFactory.MAX_UNIT_PRICE);
+        assertTrue(pf.unitPrice(ONE, null, null, null, null) <= Cache.MAX_UNIT_PRICE);
     }
 
     @SuppressWarnings("unused")

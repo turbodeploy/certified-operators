@@ -30,7 +30,7 @@ import com.vmturbo.platform.analysis.actions.Activate;
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.actions.ProvisionByDemand;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
-import com.vmturbo.platform.analysis.actions.ReconfigureConsumer;
+import com.vmturbo.platform.analysis.actions.Reconfigure;
 import com.vmturbo.platform.analysis.actions.Utility;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
@@ -728,11 +728,6 @@ public class BootstrapSupply {
         // the provision logic, we may add new basket which result in new market
         List<Market> orignalMkts = new ArrayList<>();
         orignalMkts.addAll(economy.getMarkets());
-        // Attempt to process markets with the most sellers first in order to be able to
-        // provision non reconfigurable providers over reconfigurable providers first.
-        orignalMkts.sort((m1, m2) -> {
-            return Integer.compare(m1.getSellerCount(), m2.getSellerCount()) * -1;
-        });
         for (Market market : orignalMkts) {
             if (economy.getForceStop()) {
                 return allActions;
@@ -1128,7 +1123,7 @@ public class BootstrapSupply {
                 // best seller, if none exists, we create one
                 economy.getMarketsAsBuyer(provisionedSeller).entrySet().forEach(entry -> {
                     ShoppingList sl = entry.getKey();
-                    Set<Trader> sellers = entry.getValue().getActiveSellers();
+                    List<Trader> sellers = entry.getValue().getActiveSellers();
                     QuoteMinimizer minimizer =
                         (sellers.size() < economy.getSettings().getMinSellersForParallelism()
                             ? sellers.stream() : sellers.parallelStream())
@@ -1155,7 +1150,7 @@ public class BootstrapSupply {
             // 1) TODO: provisionAction = new ProvisionByDemand(economy, shoppingList); OR
             // 2) consider using templates
             // 3) generating reconfigure action for now
-            actions.add(new ReconfigureConsumer(economy, shoppingList).take().setImportance(Double.POSITIVE_INFINITY));
+            actions.add(new Reconfigure(economy, shoppingList).take().setImportance(Double.POSITIVE_INFINITY));
             if (logger.isTraceEnabled() || isDebugBuyer) {
                 logger.info("Generating a reconfigure action for " + buyerDebugInfo + ".");
             }
@@ -1191,20 +1186,14 @@ public class BootstrapSupply {
     private static Trader findTraderThatFitsBuyer(ShoppingList buyerShoppingList, List<Trader>
                                                   candidateSellers, Market market, Economy economy,
                                                   Optional<Long> clique) {
-        // Attempt to Activate traders with the least amount of reconfigurable commodities first.
-        for (Trader seller : market.getInactiveSellers().stream().sorted((t1, t2) -> {
-                return Integer.compare(t1.getReconfigureableCount(economy), t2.getReconfigureableCount(economy));
-            }).collect(Collectors.toList())) {
+        for (Trader seller : market.getInactiveSellers()) {
             // the seller clique list must contains input cliqueId.
             if ((!clique.isPresent() || seller.getCliques().contains(clique.get())) &&
                     ProvisionUtils.canBuyerFitInSeller(buyerShoppingList, seller, economy)) {
                 return seller;
             }
         }
-        // Attempt to Provision traders with the least amount of reconfigurable commodities first.
-        for (Trader seller : candidateSellers.stream().sorted((t1, t2) -> {
-                return Integer.compare(t1.getReconfigureableCount(economy), t2.getReconfigureableCount(economy));
-            }).collect(Collectors.toList())) {
+        for (Trader seller : candidateSellers) {
             // pick the first candidate seller that can fit the demand through either cloning
             // or resizing through provisioning its own supplier.
             if ((seller.getSettings().isCloneable()

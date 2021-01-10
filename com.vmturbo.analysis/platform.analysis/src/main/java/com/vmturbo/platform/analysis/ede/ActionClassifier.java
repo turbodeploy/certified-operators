@@ -22,7 +22,6 @@ import com.vmturbo.platform.analysis.actions.Deactivate;
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.actions.ProvisionBase;
 import com.vmturbo.platform.analysis.actions.Resize;
-import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Context;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
@@ -437,13 +436,6 @@ public class ActionClassifier {
             if (context.isPresent()) {
                 targetCopy.getBuyer().getSettings().setContext(context.get());
             }
-
-            // Check if it is a move to a reconfigured addition trader.
-            if (isMoveToReconfiguredAdditionTrader(newSupplierCopy, targetCopy)) {
-                move.setExecutable(false);
-                return;
-            }
-
             for (Integer baseType : move.getTarget().getModifiableUnquotedCommoditiesBaseTypeList()) {
                 targetCopy.addModifiableUnquotedCommodityBaseType(baseType);
             }
@@ -501,32 +493,5 @@ public class ActionClassifier {
             }
         }
         return null;
-    }
-
-    /**
-     * Check if it is a move to a reconfigured addition trader. We don't want to get the quote
-     * because the consumer is buying a commodity that the provider in the simulation economy
-     * doesn't have and will hit an Exception.
-     *
-     * @param newSupplierCopy The new supplier copy trader.
-     * @param targetCopy  The target shopping list.
-     * @return if it is a move to a reconfigured addition trader.
-     */
-    private boolean isMoveToReconfiguredAdditionTrader(Trader newSupplierCopy, ShoppingList targetCopy) {
-        if (!newSupplierCopy.getBasketSold().stream()
-                .filter(commSpec -> economy_.getSettings()
-                    .getReconfigureableCommodities()
-                    .contains(commSpec.getBaseType()))
-                .map(CommoditySpecification::getType)
-                .collect(Collectors.toList())
-            .containsAll(
-                targetCopy.getBasket().stream()
-                .filter(commSpec -> economy_.getSettings()
-                    .getReconfigureableCommodities()
-                    .contains(commSpec.getBaseType()))
-                .map(CommoditySpecification::getType).collect(Collectors.toList()))) {
-            return true;
-        }
-        return false;
     }
 }

@@ -20,7 +20,7 @@ import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
 import junitparams.naming.TestCaseName;
 
-import com.vmturbo.platform.analysis.pricefunction.PriceFunctionFactory;
+import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
 
 /**
  * A test suite for the {@link Bisection} class.
@@ -247,7 +247,7 @@ public class BisectionTest {
             {(DoubleUnaryOperator)x -> 1/x - 1, 0.0, Double.POSITIVE_INFINITY, 1},
             {(DoubleUnaryOperator)x -> 1/x + 1, Double.NEGATIVE_INFINITY, -0.0, -1},
             // price function
-            {(DoubleUnaryOperator)u -> u * PriceFunctionFactory.createStandardWeightedPriceFunction(1.0)
+            {(DoubleUnaryOperator)u -> u * PriceFunction.Cache.createStandardWeightedPriceFunction(1.0)
                 .unitPrice(u, null, null, null, null) - 7.777777777, 0.01, 0.99, 0.7},
         };
     }

@@ -10,7 +10,7 @@ import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 
 /**
- * A number of factored-out getters and fields needed by both {@link Move}.
+ * A number of factored-out getters and fields needed by both {@link Move} and {@link Reconfigure}.
  */
 abstract class MoveBase extends ActionImpl {
     // Fields
@@ -21,7 +21,7 @@ abstract class MoveBase extends ActionImpl {
 
     /**
      * Constructs a new MoveBase object. It's not intended to be used independently, but rather as
-     * the base object of {@link Move}.
+     * the base object of {@link Move} and {@link Reconfigure}.
      *
      * @param economy The economy of {@code this} move or reconfiguration
      * @param target The target of {@code this} move or reconfiguration.

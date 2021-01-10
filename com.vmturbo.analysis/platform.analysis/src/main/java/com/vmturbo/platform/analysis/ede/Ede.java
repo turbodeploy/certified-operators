@@ -361,18 +361,6 @@ public final class Ede {
                 logger.error(EconomyConstants.EXCEPTION_MESSAGE, EconomyConstants.PLACEMENT_PHASE, e.getMessage(), e);
             }
 
-            try (ITracerScope tracerScope = tracer.trace(EconomyConstants.RECONFIGURE_ADDITION_PHASE)) {
-                statsUtils.before();
-                if (isProvision) {
-                    actions.addAll(Reconfigure.reconfigureAdditionDecisions(economy, ledger));
-                    logPhaseAndClearPlacementStats(actionStats, economy.getPlacementStats(), "reconfiguring addition");
-                }
-                // reconfigure addition time
-                statsUtils.after();
-            } catch (Exception e) {
-                logger.error(EconomyConstants.EXCEPTION_MESSAGE, EconomyConstants.RECONFIGURE_ADDITION_PHASE, e.getMessage(), e);
-            }
-
             try (ITracerScope tracerScope = tracer.trace(EconomyConstants.PROVISION_PHASE)) {
                 statsUtils.before();
                 // trigger provision, suspension and resize algorithm only when needed
@@ -394,16 +382,6 @@ public final class Ede {
                 statsUtils.after();
             } catch (Exception e) {
                 logger.error(EconomyConstants.EXCEPTION_MESSAGE, EconomyConstants.PROVISION_PHASE, e.getMessage(), e);
-            }
-
-            try (ITracerScope tracerScope = tracer.trace(EconomyConstants.RECONFIGURE_REMOVAL_PHASE)) {
-                statsUtils.before();
-                actions.addAll(Reconfigure.reconfigureRemovalDecisions(economy, ledger));
-                logPhaseAndClearPlacementStats(actionStats, economy.getPlacementStats(), "reconfiguring removal");
-                // reconfigure removal time
-                statsUtils.after();
-            } catch (Exception e) {
-                logger.error(EconomyConstants.EXCEPTION_MESSAGE, EconomyConstants.RECONFIGURE_REMOVAL_PHASE, e.getMessage(), e);
             }
 
             try (ITracerScope tracerScope = tracer.trace(EconomyConstants.SUSPENSION_PHASE)) {
