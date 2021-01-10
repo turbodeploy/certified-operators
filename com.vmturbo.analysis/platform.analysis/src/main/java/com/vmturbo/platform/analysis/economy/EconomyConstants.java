@@ -11,6 +11,8 @@ public class EconomyConstants {
     public static final String PLACEMENT_PHASE = "Placement Phase";
     public static final String SUSPENSION_PHASE = "Suspension Phase";
     public static final String PROVISION_PHASE = "Provision Phase";
+    public static final String RECONFIGURE_ADDITION_PHASE = "Reconfigure Addition Phase";
+    public static final String RECONFIGURE_REMOVAL_PHASE = "Reconfigure Removal Phase";
     public static final String SUPPLY_PHASE = "Supply Phase";
     public static final String RESIZE_PHASE = "Resize Phase";
     public static final String REPLAY_PHASE = "Replay Phase";

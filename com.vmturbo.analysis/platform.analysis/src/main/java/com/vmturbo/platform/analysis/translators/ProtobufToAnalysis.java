@@ -13,6 +13,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.vmturbo.platform.analysis.pricefunction.PriceFunctionFactory;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -23,7 +24,7 @@ import com.vmturbo.platform.analysis.actions.Deactivate;
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.actions.ProvisionByDemand;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
-import com.vmturbo.platform.analysis.actions.Reconfigure;
+import com.vmturbo.platform.analysis.actions.ReconfigureConsumer;
 import com.vmturbo.platform.analysis.actions.Resize;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommodityResizeSpecification;
@@ -89,27 +90,27 @@ public final class ProtobufToAnalysis {
     public static PriceFunction priceFunction(@NonNull PriceFunctionTO input) {
         switch (input.getPriceFunctionTypeCase()) {
             case STANDARD_WEIGHTED:
-                return PriceFunction.Cache.createStandardWeightedPriceFunction(input.getStandardWeighted().getWeight());
+                return PriceFunctionFactory.createStandardWeightedPriceFunction(input.getStandardWeighted().getWeight());
             case CONSTANT:
-                return PriceFunction.Cache.createConstantPriceFunction(input.getConstant().getValue());
+                return PriceFunctionFactory.createConstantPriceFunction(input.getConstant().getValue());
             case STEP:
-                return PriceFunction.Cache.createStepPriceFunction(input.getStep().getStepAt(),
+                return PriceFunctionFactory.createStepPriceFunction(input.getStep().getStepAt(),
                     input.getStep().getPriceBelow(), input.getStep().getPriceAbove());
             case STEP_FOR_CLOUD:
-                return PriceFunction.Cache.createStepPriceFunctionForCloud();
+                return PriceFunctionFactory.createStepPriceFunctionForCloud();
             case FINITE_STANDARD_WEIGHTED:
-                return PriceFunction.Cache.createFiniteStandardWeightedPriceFunction(
+                return PriceFunctionFactory.createFiniteStandardWeightedPriceFunction(
                                 input.getStandardWeighted().getWeight());
             case EXTERNAL_PRICE_FUNCTION:
-                return PriceFunction.Cache.createExternalPriceFunction();
+                return PriceFunctionFactory.createExternalPriceFunction();
             case SQUARED_RECIPROCAL_BOUGHT:
-                return PriceFunction.Cache
+                return PriceFunctionFactory
                                 .createSquaredReciprocalBoughtUtilizationPriceFunction(input
                                                 .getSquaredReciprocalBought().getWeight());
             case IGNORE_UTILIZATION:
-                return PriceFunction.Cache.createIgnoreUtilizationPriceFunction();
+                return PriceFunctionFactory.createIgnoreUtilizationPriceFunction();
             case SCALED_CAPACITY_STANDARD_WEIGHTED:
-                return PriceFunction.Cache.createScaledCapacityStandardWeightedPriceFunction(
+                return PriceFunctionFactory.createScaledCapacityStandardWeightedPriceFunction(
                         input.getScaledCapacityStandardWeighted().getWeight(),
                                 input.getScaledCapacityStandardWeighted().getScale());
             case PRICEFUNCTIONTYPE_NOT_SET:
@@ -322,6 +323,7 @@ public final class ProtobufToAnalysis {
                                               @NonNull Trader output) {
         TraderSettings destination = output.getSettings();
         @NonNull TraderSettingsTO source = input.getSettings();
+        destination.setReconfigurable(source.getReconfigurable());
         destination.setControllable(source.getControllable());
         destination.setCloneable(source.getClonable());
         destination.setSuspendable(source.getSuspendable());
@@ -584,7 +586,8 @@ public final class ProtobufToAnalysis {
                     input.getMove().hasSource() ? trader.apply(input.getMove().getSource()) : null,
                     input.getMove().hasDestination() ? trader.apply(input.getMove().getDestination()) : null);
             case RECONFIGURE:
-                return new Reconfigure(economy, shoppingList.apply(input.getReconfigure().getShoppingListToReconfigure()));
+                return new ReconfigureConsumer(economy, shoppingList.apply(input.getReconfigure()
+                    .getConsumer().getShoppingListToReconfigure()));
             case ACTIVATE:
                 Trader traderToActivate = trader.apply(input.getActivate().getTraderToActivate());
                 return new Activate(economy, traderToActivate,

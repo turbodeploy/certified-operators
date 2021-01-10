@@ -42,6 +42,8 @@ import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
 import com.vmturbo.platform.analysis.utilities.CostFunction;
 import com.vmturbo.platform.analysis.utility.MapTests;
+import com.vmturbo.platform.analysis.utility.SetTests;
+
 import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
 import junitparams.naming.TestCaseName;
@@ -110,12 +112,12 @@ public class MarketTest {
 
     @Test
     public final void testGetActiveSellers_ValidOperations() {
-        verifyUnmodifiableValidOperations(fixture_.getActiveSellers(),T0);
+        SetTests.verifyUnmodifiableValidOperations(fixture_.getActiveSellers(),T0);
     }
 
     @Test
     public final void testGetActiveSellers_InvalidOperations() {
-        verifyUnmodifiableInvalidOperations(fixture_.getActiveSellers(),T0);
+        SetTests.verifyUnmodifiableInvalidOperations(fixture_.getActiveSellers(),T0);
     }
 
     @Test
@@ -130,12 +132,12 @@ public class MarketTest {
 
     @Test
     public final void testGetInactiveSellers_ValidOperations() {
-        verifyUnmodifiableValidOperations(fixture_.getInactiveSellers(),T0);
+        SetTests.verifyUnmodifiableValidOperations(fixture_.getInactiveSellers(),T0);
     }
 
     @Test
     public final void testGetInactiveSellers_InvalidOperations() {
-        verifyUnmodifiableInvalidOperations(fixture_.getInactiveSellers(),T0);
+        SetTests.verifyUnmodifiableInvalidOperations(fixture_.getInactiveSellers(),T0);
     }
 
     @Test

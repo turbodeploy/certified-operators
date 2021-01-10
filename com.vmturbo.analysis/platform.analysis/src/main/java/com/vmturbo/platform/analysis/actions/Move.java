@@ -31,7 +31,6 @@ import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ScalingGroupPeerInfo;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
-import com.vmturbo.platform.analysis.economy.TraderSettings;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
 import com.vmturbo.platform.analysis.ede.Placement;
 import com.vmturbo.platform.analysis.ede.QuoteMinimizer;
@@ -625,7 +624,7 @@ public class Move extends MoveBase implements Action { // inheritance for code r
             shoppingListsInMarket = economy.getMarketsAsBuyer(seller).entrySet();
         if (!shoppingListsInMarket.isEmpty()) {
             Market market = shoppingListsInMarket.iterator().next().getValue();
-            List<Trader> sellers = market.getActiveSellers();
+            Set<Trader> sellers = market.getActiveSellers();
             mutableSellers.addAll(sellers);
             mutableSellers.retainAll(economy.getMarket(buyer).getActiveSellers());
         }

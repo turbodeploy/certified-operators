@@ -143,6 +143,7 @@ public class ProvisionByDemand extends ProvisionBase implements Action {
         copySettings.setMaxDesiredUtil(getModelSeller().getSettings().getMaxDesiredUtil());
         copySettings.setGuaranteedBuyer(getModelSeller().getSettings().isGuaranteedBuyer());
         copySettings.setProviderMustClone(getModelSeller().getSettings().isProviderMustClone());
+        copySettings.setReconfigurable(getModelSeller().getSettings().isReconfigurable());
 
         // adding commodities to be bought by the provisionedSeller and resizing them
         // TODO: we don't have a case for provisionByDemand a trader with mandatory seller as supplier

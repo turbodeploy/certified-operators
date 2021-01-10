@@ -29,7 +29,10 @@ import com.vmturbo.platform.analysis.actions.Deactivate;
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.actions.ProvisionByDemand;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
-import com.vmturbo.platform.analysis.actions.Reconfigure;
+import com.vmturbo.platform.analysis.actions.ReconfigureBase;
+import com.vmturbo.platform.analysis.actions.ReconfigureConsumer;
+import com.vmturbo.platform.analysis.actions.ReconfigureProvider;
+import com.vmturbo.platform.analysis.actions.ReconfigureProviderAddition;
 import com.vmturbo.platform.analysis.actions.Resize;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
@@ -47,6 +50,7 @@ import com.vmturbo.platform.analysis.ede.QuoteMinimizer;
 import com.vmturbo.platform.analysis.ledger.PriceStatement;
 import com.vmturbo.platform.analysis.ledger.PriceStatement.TraderPriceStatement;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
+import com.vmturbo.platform.analysis.pricefunction.PriceFunctionFactory;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActivateTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.Compliance;
@@ -54,6 +58,7 @@ import com.vmturbo.platform.analysis.protobuf.ActionDTOs.CompoundMoveTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.Congestion;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.DeactivateTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.Evacuation;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.EvacuationExplanation;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.InitialPlacement;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveExplanation;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveTO;
@@ -63,9 +68,13 @@ import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionByDemandTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionByDemandTO.CommodityMaxAmountAvailableEntry;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionByDemandTO.CommodityNewCapacityEntry;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionBySupplyTO;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ReconfigureConsumerTO;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ReconfigureProviderTO;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ReconfigureRemoval;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ReconfigureTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ResizeTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ResizeTriggerTraderTO;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.Suspension;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommodityBoughtTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
@@ -113,13 +122,13 @@ public final class AnalysisToProtobuf {
         // Warning: converting price functions to TOs is not properly supported!
         PriceFunctionTO.Builder builder = PriceFunctionTO.newBuilder();
 
-        if (input == PriceFunction.Cache.createStandardWeightedPriceFunction(1.0)) {
+        if (input == PriceFunctionFactory.createStandardWeightedPriceFunction(1.0)) {
             builder.setStandardWeighted(StandardWeighted.newBuilder().setWeight(1.0f));
-        } else if (input == PriceFunction.Cache.createConstantPriceFunction(0.0)){
+        } else if (input == PriceFunctionFactory.createConstantPriceFunction(0.0)) {
             builder.setConstant(Constant.newBuilder().setValue(0.0f));
-        } else if (input == PriceFunction.Cache.createConstantPriceFunction(27.0f)) {
+        } else if (input == PriceFunctionFactory.createConstantPriceFunction(27.0f)) {
             builder.setConstant(Constant.newBuilder().setValue(27.0f));
-        } else if (input == PriceFunction.Cache.createStepPriceFunction(1.0, 0.0, 20000.0)) {
+        } else if (input == PriceFunctionFactory.createStepPriceFunction(1.0, 0.0, 20000.0)) {
             builder.setStep(Step.newBuilder().setStepAt(1.0f).setPriceBelow(0.0f).setPriceAbove(20000.0f));
         }
 
@@ -250,6 +259,7 @@ public final class AnalysisToProtobuf {
      */
     public static @NonNull TraderSettingsTO traderSettingsTO(@NonNull TraderSettings input) {
         return TraderSettingsTO.newBuilder().setClonable(input.isCloneable())
+                .setReconfigurable(input.isReconfigurable())
                 .setSuspendable(input.isSuspendable()).setControllable(input.isControllable())
                 .setMinDesiredUtilization((float)input.getMinDesiredUtil())
                 .setMaxDesiredUtilization((float)input.getMaxDesiredUtil())
@@ -411,24 +421,39 @@ public final class AnalysisToProtobuf {
                                        topology.getEconomy());
             builder.setMove(moveTO);
 
-        } else if (input instanceof Reconfigure) {
-            Reconfigure reconfigure = (Reconfigure)input;
-            ReconfigureTO.Builder reconfigureTO = ReconfigureTO.newBuilder();
+        } else if (input instanceof ReconfigureBase) {
+            if (input instanceof ReconfigureProvider) {
+                ReconfigureProvider reconfigureProvider = (ReconfigureProvider)input;
+                ReconfigureTO.Builder reconfigureTO = ReconfigureTO.newBuilder();
+                ReconfigureProviderTO.Builder reconfigureProviderTO = ReconfigureProviderTO.newBuilder();
+                reconfigureProviderTO.setTargetTrader(reconfigureProvider.getActionTarget().getOid());
+                reconfigureProviderTO.setAddition(reconfigureProvider instanceof ReconfigureProviderAddition
+                    ? true : false);
+                reconfigureTO.setProvider(reconfigureProviderTO.build());
+                reconfigureProvider.getReconfiguredCommodities().keySet().forEach(c -> reconfigureTO
+                        .addCommodityToReconfigure(c.getType()));
+                builder.setReconfigure(reconfigureTO);
+            } else {
+                ReconfigureConsumer reconfigure = (ReconfigureConsumer)input;
+                ReconfigureTO.Builder reconfigureTO = ReconfigureTO.newBuilder();
+                ReconfigureConsumerTO.Builder reconfigureConsumerTO = ReconfigureConsumerTO.newBuilder();
 
-            reconfigureTO.setShoppingListToReconfigure(
-                            shoppingListOid.get(reconfigure.getTarget()));
-            if (reconfigure.getSource() != null) {
-                reconfigureTO.setSource(reconfigure.getSource().getOid());
-            }
-            reconfigure.getUnavailableCommodities().forEach(c -> reconfigureTO
-                    .addCommodityToReconfigure(c.getType()));
-            if (reconfigure.getActionTarget() != null) {
-                String scalingGroupId = reconfigure.getActionTarget().getScalingGroupId();
-                if (!scalingGroupId.isEmpty()) {
-                    reconfigureTO.setScalingGroupId(scalingGroupId);
+                reconfigureConsumerTO.setShoppingListToReconfigure(
+                                shoppingListOid.get(reconfigure.getTarget()));
+                if (reconfigure.getSource() != null) {
+                    reconfigureConsumerTO.setSource(reconfigure.getSource().getOid());
                 }
+                reconfigureTO.setConsumer(reconfigureConsumerTO.build());
+                reconfigure.getUnavailableCommodities().forEach(c -> reconfigureTO
+                        .addCommodityToReconfigure(c.getType()));
+                if (reconfigure.getActionTarget() != null) {
+                    String scalingGroupId = reconfigure.getActionTarget().getScalingGroupId();
+                    if (!scalingGroupId.isEmpty()) {
+                        reconfigureTO.setScalingGroupId(scalingGroupId);
+                    }
+                }
+                builder.setReconfigure(reconfigureTO);
             }
-            builder.setReconfigure(reconfigureTO);
         } else if (input instanceof Activate) {
             Activate activate = (Activate)input;
             ActivateTO.Builder activateBuilder = ActivateTO.newBuilder()
@@ -600,7 +625,7 @@ public final class AnalysisToProtobuf {
         if (market == null) {
             return null;
         }
-        List<Trader> sellers = market.getActiveSellers();
+        Set<Trader> sellers = market.getActiveSellers();
         List<Trader> mutableSellers = new ArrayList<>();
         mutableSellers.addAll(sellers);
         mutableSellers.retainAll(economy.getMarket(buyer).getActiveSellers());
@@ -807,9 +832,25 @@ public final class AnalysisToProtobuf {
             // TODO: we need to understand if old host is in failover state, could it still has
             // some consumers? If so, is it valid to consider move as a result of suspension?
             if (oldSupplier.getState() == TraderState.INACTIVE) {
-                moveTO.setMoveExplanation(MoveExplanation.newBuilder().setEvacuation(Evacuation
-                                .newBuilder().setSuspendedTrader(oldSupplier.getOid()).build())
-                                .build());
+                moveTO.setMoveExplanation(MoveExplanation
+                    .newBuilder().setEvacuation(Evacuation
+                        .newBuilder().setSuspendedTrader(oldSupplier.getOid())
+                            .setEvacuationExplanation(EvacuationExplanation
+                            .newBuilder()
+                                .setSuspension(Suspension.newBuilder().build())
+                            .build())
+                        .build())
+                    .build());
+            } else if (checkMoveDueToReconfigureRemoval((Economy)economy, oldSupplier, move)) {
+                moveTO.setMoveExplanation(MoveExplanation
+                    .newBuilder().setEvacuation(Evacuation
+                        .newBuilder().setSuspendedTrader(oldSupplier.getOid())
+                            .setEvacuationExplanation(EvacuationExplanation
+                            .newBuilder()
+                                .setReconfigureRemoval(ReconfigureRemoval.newBuilder().build())
+                            .build())
+                        .build())
+                    .build());
             } else {
                 // old supplier exists and its state is Active
                 Map<Double, List<Integer>> quoteDiffPerComm = new TreeMap<>();
@@ -938,5 +979,56 @@ public final class AnalysisToProtobuf {
         double quoteUsed = quantityBought != 0 ? (quantityBought / effectiveStartCapacity) * usedPrice : 0;
         double quotePeak = excessQuantity > 0 ? (excessQuantity / effectiveStartCapacity) * peakPrice : 0;
         return quoteUsed + quotePeak;
+    }
+
+    /**
+     * Check if an entity is moving out of provider due to the provider having a reconfigure removal
+     * action leading to the consumer to no longer being satisfied by the provider.
+     *
+     * @param e - the economy.
+     * @param oldSupplier - the old supplier.
+     * @param move - the move action.
+     * @return if the move is due to reconfigure removal on the provider.
+     */
+    private static boolean checkMoveDueToReconfigureRemoval(Economy e, Trader oldSupplier, Move move) {
+        try {
+            if (oldSupplier.getSettings().isReconfigurable()) {
+                Economy simulationEconomy = e.getSimulationCloneEconomy();
+                if (simulationEconomy == null) {
+                    return false;
+                }
+                Trader simulationTrader = simulationEconomy.getTraders().get(oldSupplier.getEconomyIndex());
+                List<Integer> simulationTraderTypes = simulationTrader.getBasketSold().stream()
+                    .filter(commSpec -> e.getSettings()
+                        .getReconfigureableCommodities()
+                    .contains(commSpec.getBaseType()))
+                    .map(CommoditySpecification::getType)
+                    .collect(Collectors.toList());
+                List<Integer> currentTraderTypes = oldSupplier.getBasketSold().stream()
+                    .filter(commSpec -> e.getSettings()
+                        .getReconfigureableCommodities()
+                    .contains(commSpec.getBaseType()))
+                    .map(CommoditySpecification::getType)
+                    .collect(Collectors.toList());
+                if (!simulationTraderTypes.isEmpty() && !simulationTraderTypes.equals(currentTraderTypes)) {
+                    List<Integer> slTypes = move.getTarget().getBasket().stream()
+                            .filter(commSpec -> e.getSettings()
+                                .getReconfigureableCommodities()
+                            .contains(commSpec.getBaseType()))
+                            .map(CommoditySpecification::getType)
+                            .collect(Collectors.toList());
+                    if (simulationTraderTypes.containsAll(slTypes) && !currentTraderTypes.containsAll(slTypes)) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        } catch (Exception ex) {
+            logger.error(EconomyConstants.EXCEPTION_MESSAGE, "checkMoveDueToReconfigureRemoval "
+                + "move of " + move.getTarget().getDebugInfoNeverUseInCode() + " from "
+                + oldSupplier.getDebugInfoNeverUseInCode(),
+                ex.getMessage(), ex);
+            return false;
+        }
     }
 } // end AnalysisToProtobuf class

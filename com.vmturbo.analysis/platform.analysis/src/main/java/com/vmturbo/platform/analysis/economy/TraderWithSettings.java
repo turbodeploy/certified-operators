@@ -34,6 +34,7 @@ public final class TraderWithSettings extends Trader implements TraderSettings {
 
     // Fields for TraderSettings
     private boolean canSimulate_ = true;
+    private boolean reconfigurable_ = false;
     private boolean controllable_ = true;
     private boolean suspendable_ = false;
     private boolean cloneable_ = false;
@@ -95,7 +96,7 @@ public final class TraderWithSettings extends Trader implements TraderSettings {
      * </p>
      */
     @Pure
-    @NonNull @PolyRead List<@NonNull @PolyRead Market> getMarketsAsSeller(@PolyRead TraderWithSettings this) {
+    public @NonNull @PolyRead List<@NonNull @PolyRead Market> getMarketsAsSeller(@PolyRead TraderWithSettings this) {
         return marketsAsSeller_;
     }
 
@@ -114,6 +115,12 @@ public final class TraderWithSettings extends Trader implements TraderSettings {
     }
 
     // Methods for TraderSettings
+
+    @Override
+    @Pure
+    public boolean isReconfigurable(@ReadOnly TraderWithSettings this) {
+        return reconfigurable_;
+    }
 
     @Override
     @Pure
@@ -205,6 +212,13 @@ public final class TraderWithSettings extends Trader implements TraderSettings {
     @Pure
     public float getRateOfResize(@ReadOnly TraderWithSettings this) {
         return rateOfResize_;
+    }
+
+    @Override
+    @Deterministic
+    public @NonNull TraderWithSettings setReconfigurable(boolean reconfigurable) {
+        reconfigurable_ = reconfigurable;
+        return this;
     }
 
     @Override

@@ -11,6 +11,13 @@ import com.vmturbo.platform.analysis.utilities.CostFunction;
  */
 public interface TraderSettings {
     /**
+     * Whether the associated {@link Trader} is reconfigurable.
+     *
+     * @return if it is reconfigurable.
+     */
+    boolean isReconfigurable();
+
+    /**
      * Whether the associated {@link Trader} is controllable.
      */
     boolean isControllable();
@@ -115,6 +122,15 @@ public interface TraderSettings {
     // TODO: Have this method return a Context class which is generic for both on prem and cloud.
     @NonNull
     Optional<Context> getContext();
+
+    /**
+     * Sets the value of the <b>reconfigurable</b> field.
+     * Has no observable side-effects except setting the above field.
+     *
+     * @param reconfigurable the new value for the field.
+     * @return {@code this}
+     */
+    @NonNull TraderSettings setReconfigurable(boolean reconfigurable);
 
     /**
      * Sets the value of the <b>controllable</b> field.

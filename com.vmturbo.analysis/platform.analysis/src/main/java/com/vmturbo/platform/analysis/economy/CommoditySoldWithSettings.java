@@ -9,6 +9,7 @@ import org.checkerframework.dataflow.qual.Deterministic;
 import org.checkerframework.dataflow.qual.Pure;
 
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
+import com.vmturbo.platform.analysis.pricefunction.PriceFunctionFactory;
 import com.vmturbo.platform.analysis.updatingfunction.UpdatingFunction;
 
 public final class CommoditySoldWithSettings extends CommoditySold implements CommoditySoldSettings {
@@ -21,7 +22,7 @@ public final class CommoditySoldWithSettings extends CommoditySold implements Co
     private double capacityIncrement_ = 1;
     private double utilizationUpperBound_ = 1.0;
     private double origUtilizationUpperBound_ = 1.0;
-    private @NonNull PriceFunction priceFunction_ = PriceFunction.Cache.createStandardWeightedPriceFunction(1.0);
+    private @NonNull PriceFunction priceFunction_ = PriceFunctionFactory.createStandardWeightedPriceFunction(1.0);
     private UpdatingFunction updatingFunction_;
     private boolean utilizationCheckForCongestion_ = true;
     // Constructors

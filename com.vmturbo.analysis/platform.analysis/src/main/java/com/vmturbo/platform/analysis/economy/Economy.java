@@ -98,6 +98,8 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     // Map of trader to its context list
     private Map<Trader, List<Context>> traderWithContext = new HashMap<>();
     private Set<Long> exceptionTraders = new HashSet<>();
+    // The latest simulation economy.
+    private @Nullable Economy simulationEconomy = null;
 
     // Cached data
 
@@ -917,7 +919,17 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
         getTraders().stream()
             .forEach(clone::simulationCloneTrader);
         clone.populateMarketsWithSellersAndMergeConsumerCoverage();
+        simulationEconomy = clone;
         return clone;
+    }
+
+    /**
+     * Gets the latest simulation economy.
+     *
+     * @return the simulation economy.
+     */
+    public @Nullable Economy getSimulationCloneEconomy() {
+        return simulationEconomy;
     }
 
     protected static final String SIM_CLONE_SUFFIX = " SIMCLONE";

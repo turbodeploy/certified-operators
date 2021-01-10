@@ -5,10 +5,13 @@ import static com.google.common.base.Preconditions.checkArgument;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.TreeMap;
+import java.util.stream.Stream;
 
 import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.javari.qual.ReadOnly;
@@ -39,9 +42,9 @@ public final class Market implements Serializable {
     // active sellers, inactive sellers and each of the lists in cliques may be lists, but are
     // utilized as sets in the sense that they are not supposed to contain duplicate elements. Lists
     // were selected for fast iteration.
-    private final @NonNull List<@NonNull Trader> activeSellers_ = new ArrayList<>(); // see #getActiveSellers()
+    private final @NonNull Set<@NonNull Trader> activeSellers_ = new HashSet<>(); // see #getActiveSellers()
     private final @NonNull Map<@NonNull Long, @NonNull List<@NonNull Trader>> cliques_ = new TreeMap<>(); // see #getCliques
-    private final @NonNull List<@NonNull Trader> inactiveSellers_ = new ArrayList<>(); // see #getInactiveSellers()
+    private final @NonNull Set<@NonNull Trader> inactiveSellers_ = new HashSet<>(); // see #getInactiveSellers()
     // active sellers that can accept new customers. see #getActiveSellersAvailableForPlacement()
     private final @NonNull List<@NonNull Trader> activeSellersAvailableForPlacement_ = new ArrayList<>();
 
@@ -53,7 +56,7 @@ public final class Market implements Serializable {
     // Cached unmodifiable view of the buyers_ list.
     private final @NonNull List<@NonNull ShoppingList> unmodifiableBuyers_ = Collections.unmodifiableList(buyers_);
     // Cached unmodifiable view of the activeSellers_ list.
-    private final @NonNull List<@NonNull Trader> unmodifiableActiveSellers_ = Collections.unmodifiableList(activeSellers_);
+    private final @NonNull Set<@NonNull Trader> unmodifiableActiveSellers_ = Collections.unmodifiableSet(activeSellers_);
     // Cached unmodifiable view of the activeSellersAvailableForPlacement_ list.
     private final @NonNull List<@NonNull Trader> unmodifiableActiveSellersAvailableForPlacement_ =
                     Collections.unmodifiableList(activeSellersAvailableForPlacement_);
@@ -61,7 +64,7 @@ public final class Market implements Serializable {
     // TODO: find a way to make the contained lists unmodifiable as well.
     private final @NonNull Map<@NonNull Long, @NonNull List<@NonNull Trader>> unmodifiableCliques_ = Collections.unmodifiableMap(cliques_);
     // Cached unmodifiable view of the inactiveSellers_ list.
-    private final @NonNull List<@NonNull Trader> unmodifiableInactiveSellers_ = Collections.unmodifiableList(inactiveSellers_);
+    private final @NonNull Set<@NonNull Trader> unmodifiableInactiveSellers_ = Collections.unmodifiableSet(inactiveSellers_);
 
     // Constructors
 
@@ -100,7 +103,7 @@ public final class Market implements Serializable {
      * @see #getInactiveSellers()
      */
     @Pure
-    public @NonNull @ReadOnly List<@NonNull Trader> getActiveSellers(@ReadOnly Market this) {
+    public @NonNull @ReadOnly Set<@NonNull Trader> getActiveSellers(@ReadOnly Market this) {
         return unmodifiableActiveSellers_;
     }
 
@@ -145,8 +148,18 @@ public final class Market implements Serializable {
      * @see #getActiveSellers()
      */
     @Pure
-    public @NonNull @ReadOnly List<@NonNull Trader> getInactiveSellers(@ReadOnly Market this) {
+    public @NonNull @ReadOnly Set<@NonNull Trader> getInactiveSellers(@ReadOnly Market this) {
         return unmodifiableInactiveSellers_;
+    }
+
+    /**
+     * Returns steam of all the sellers in the Market active and inactive.
+     *
+     * @return Returns stream of all the sellers in the Market active and inactive.
+     */
+    public @NonNull @ReadOnly Stream<@NonNull Trader> getSellers(@ReadOnly Market this) {
+        return Stream.concat(activeSellers_.stream(),
+            inactiveSellers_.stream());
     }
 
     @Pure
@@ -187,7 +200,7 @@ public final class Market implements Serializable {
      * @return {@code this}
      */
     @Deterministic
-    @NonNull Market addSeller(@NonNull TraderWithSettings newSeller) {
+    public @NonNull Market addSeller(@NonNull TraderWithSettings newSeller) {
         checkArgument(getBasket().isSatisfiedBy(newSeller.getBasketSold()),
                 "basket = %s, sellerBasket = %s, newSeller = %s",
                 getBasket(), newSeller.getBasketSold(), newSeller);
@@ -250,7 +263,7 @@ public final class Market implements Serializable {
      * @return {@code this}
      */
     @Deterministic
-    @NonNull Market removeSeller(@NonNull TraderWithSettings sellerToRemove) {
+    public @NonNull Market removeSeller(@NonNull TraderWithSettings sellerToRemove) {
         if (sellerToRemove.getState().isActive()) {
             checkArgument(activeSellers_.remove(sellerToRemove),
                     "sellerToRemove = %s", sellerToRemove);
@@ -348,6 +361,25 @@ public final class Market implements Serializable {
                 shoppingListToRemove, this);
 
         return this;
+    }
+
+    /**
+     * Total sellers in market.
+     *
+     * @return count of sellers in market.
+     */
+    public int getSellerCount() {
+        return activeSellers_.size() + inactiveSellers_.size();
+    }
+
+    /**
+     * Checks if a trader is present in the market as a seller active or inactive.
+     *
+     * @param seller the trader to check.
+     * @return Checks if a trader is present in the market as a seller active or inactive.
+     */
+    public boolean isSellerPresent(Trader seller) {
+        return activeSellers_.contains(seller) || inactiveSellers_.contains(seller);
     }
 
     /**
