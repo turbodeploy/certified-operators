@@ -10,6 +10,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -33,14 +34,18 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
+import com.vmturbo.topology.processor.historical.HistoricalCommodityInfo;
+import com.vmturbo.topology.processor.historical.HistoricalServiceEntityInfo;
 import com.vmturbo.topology.processor.historical.HistoricalUtilizationDatabase;
 
 /**
@@ -168,6 +173,112 @@ public class HistoricalEditorTest {
         testApplyCommodityEditsWith0InitialValues(TopologyInfo.newBuilder()
             .setTopologyType(TopologyType.PLAN)
             .build());
+    }
+
+    /**
+     * Test when commodity bought and commodity sold has used and peak set versus unset.
+     */
+    @Test
+    public void testCommoditySoldAndBoughtWithUsedUnset() {
+        HistoricalCommodityInfo commSold1 = new HistoricalCommodityInfo();
+        commSold1.setCommodityTypeAndKey(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.CPU_PROVISIONED_VALUE).build());
+        commSold1.setHistoricalUsed(-1.0f);
+        commSold1.setHistoricalPeak(-1.0f);
+        commSold1.setSourceId(-1);
+        commSold1.setMatched(false);
+        commSold1.setUpdated(false);
+        HistoricalCommodityInfo commSold2 = new HistoricalCommodityInfo();
+        commSold2.setCommodityTypeAndKey(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.CPU_VALUE).build());
+        commSold2.setHistoricalUsed(-1.0f);
+        commSold2.setHistoricalPeak(-1.0f);
+        commSold2.setSourceId(-1);
+        commSold2.setMatched(false);
+        commSold2.setUpdated(false);
+        HistoricalServiceEntityInfo hisSE = new HistoricalServiceEntityInfo();
+        hisSE.addHistoricalCommoditySold(commSold2);
+        HistoricalCommodityInfo commBought1 = new HistoricalCommodityInfo();
+        commBought1.setCommodityTypeAndKey(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.POWER_VALUE).build());
+        commBought1.setHistoricalUsed(-1.0f);
+        commBought1.setHistoricalPeak(-1.0f);
+        commBought1.setSourceId(-1);
+        commSold1.setMatched(false);
+        commSold1.setUpdated(false);
+        hisSE.addHistoricalCommodityBought(commBought1);
+        HistoricalCommodityInfo commBought2 = new HistoricalCommodityInfo();
+        commBought2.setCommodityTypeAndKey(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.SPACE_VALUE).build());
+        commBought2.setHistoricalUsed(-1.0f);
+        commBought2.setHistoricalPeak(-1.0f);
+        commBought2.setSourceId(-1);
+        commSold2.setMatched(false);
+        commSold2.setUpdated(false);
+        hisSE.addHistoricalCommodityBought(commBought2);
+
+        long entityOid = 1000L;
+        historicalEditor.historicalInfo.put(entityOid, hisSE);
+
+        final Map<Long, TopologyEntity.Builder> topology = new HashMap<>();
+        // Two commodities sold are created. The cpu provisioned comm has no used and peak value,
+        // while the cpu has used and peak value set.
+        final ImmutableList.Builder<CommoditySoldDTO> commSoldList = ImmutableList.builder();
+        CommoditySoldDTO.Builder commoditySoldBuilder1 = CommoditySoldDTO.newBuilder().setCommodityType(
+                TopologyDTO.CommodityType.newBuilder().setType(CommodityType.CPU_PROVISIONED_VALUE).build())
+                .setActive(true);
+        CommoditySoldDTO.Builder commoditySoldBuilder2 = CommoditySoldDTO.newBuilder().setCommodityType(
+                TopologyDTO.CommodityType.newBuilder().setType(CommodityType.CPU_VALUE).build())
+                .setActive(true)
+                .setUsed(10)
+                .setPeak(10);
+        commSoldList.add(commoditySoldBuilder1.build());
+        commSoldList.add(commoditySoldBuilder2.build());
+        // Two commodities bought are created. The space comm has no used and peak value,
+        // while the power has used and peak value set.
+        CommoditiesBoughtFromProvider.Builder commBoughtPrd = CommoditiesBoughtFromProvider.newBuilder()
+                .addCommodityBought(CommodityBoughtDTO.newBuilder().setUsed(20).setPeak(20).setActive(true)
+                        .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.POWER_VALUE)).build())
+                .addCommodityBought(CommodityBoughtDTO.newBuilder().setActive(true)
+                        .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.SPACE_VALUE)).build());
+        TopologyEntity.Builder entity = TopologyEntityUtils.topologyEntityBuilder(TopologyEntityDTO.newBuilder()
+                .setOid(entityOid)
+                .addCommoditiesBoughtFromProviders(commBoughtPrd)
+                .addAllCommoditySoldList(commSoldList.build())
+                .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE));
+
+        topology.put(entityOid, entity);
+
+        TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topology);
+
+        // Run historical editor smoothing logic, the cpu and power are expected to have historical
+        // utilization values while the cpu provisioned and space are expected to have no historical
+        // utilization.
+        historicalEditor.applyCommodityEdits(graph, new ArrayList<>(), TopologyInfo.newBuilder()
+                .setTopologyType(TopologyType.REALTIME)
+                .build());
+        Optional<CommoditySoldDTO> commSoldOpt1 = entity.getEntityBuilder().getCommoditySoldListList().stream()
+                .filter(c -> c.getCommodityType().getType() == CommodityType.CPU_PROVISIONED_VALUE).findFirst();
+        Assert.assertTrue(commSoldOpt1.isPresent() && !commSoldOpt1.get().hasHistoricalUsed()
+                && !commSoldOpt1.get().hasHistoricalPeak());
+        Optional<CommoditySoldDTO> commSoldOpt2 = entity.getEntityBuilder().getCommoditySoldListList().stream()
+                .filter(c -> c.getCommodityType().getType() == CommodityType.CPU_VALUE).findFirst();
+        Assert.assertTrue(commSoldOpt2.isPresent() && commSoldOpt2.get().hasHistoricalUsed()
+                && commSoldOpt2.get().hasHistoricalPeak());
+        Assert.assertEquals(10, commSoldOpt2.get().getHistoricalUsed().getHistUtilization(), 0);
+        Assert.assertEquals(10, commSoldOpt2.get().getHistoricalPeak().getHistUtilization(), 0);
+        Optional<CommodityBoughtDTO> commBoughtOpt1 = entity.getEntityBuilder()
+                .getCommoditiesBoughtFromProvidersList().stream()
+                .map(c -> c.getCommodityBoughtList()).flatMap(List::stream)
+                .filter(c -> c.getCommodityType().getType() == CommodityType.POWER_VALUE)
+                .findFirst();
+        Assert.assertTrue(commBoughtOpt1.isPresent() && commBoughtOpt1.get().hasHistoricalUsed()
+                && commBoughtOpt1.get().hasHistoricalPeak());
+        Assert.assertEquals(20, commBoughtOpt1.get().getHistoricalUsed().getHistUtilization(), 0);
+        Assert.assertEquals(20, commBoughtOpt1.get().getHistoricalPeak().getHistUtilization(), 0);
+        Optional<CommodityBoughtDTO> commBoughtOpt2 = entity.getEntityBuilder()
+                .getCommoditiesBoughtFromProvidersList().stream()
+                .map(c -> c.getCommodityBoughtList()).flatMap(List::stream)
+                .filter(c -> c.getCommodityType().getType() == CommodityType.SPACE_VALUE)
+                .findFirst();
+        Assert.assertTrue(commBoughtOpt2.isPresent() && !commBoughtOpt2.get().hasHistoricalUsed()
+                && !commBoughtOpt2.get().hasHistoricalPeak());
     }
 
     /**

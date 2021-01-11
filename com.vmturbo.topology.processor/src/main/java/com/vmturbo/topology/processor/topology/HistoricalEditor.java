@@ -26,8 +26,6 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import jdk.nashorn.internal.ir.annotations.Immutable;
-
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.topology.HistoricalInfo.HistoricalInfoDTO;
@@ -499,6 +497,9 @@ public class HistoricalEditor {
             logger.error("The topoCommSold is null for the entity {}", topoEntity.getOid());
             return;
         }
+        if (!topoCommSold.hasUsed() || !topoCommSold.hasPeak()) {
+            return;
+        }
         final CommodityType commodityType = topoCommSold.getCommodityType();
         // Using historical values in calculation of used and peak
         if (!useHistoricalValues(commodityType.getType())) {
@@ -768,6 +769,9 @@ public class HistoricalEditor {
      * @param sourceId the provider or volume id of the commodity bought
      */
     private void calculateSmoothedValuesForCommodityBought(TopologyEntityDTO.Builder topoEntity, CommodityBoughtDTO.Builder topoCommBought, long sourceId) {
+        if (!topoCommBought.hasUsed() || !topoCommBought.hasPeak()) {
+            return;
+        }
         float usedQuantity = (float) topoCommBought.getUsed();
         float peakQuantity = (float) topoCommBought.getPeak();
         CommodityType commType = topoCommBought.getCommodityType();
