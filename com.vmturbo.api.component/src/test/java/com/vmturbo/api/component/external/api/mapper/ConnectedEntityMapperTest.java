@@ -78,7 +78,7 @@ public class ConnectedEntityMapperTest {
             .addConnectedEntityList(0, connectedEntity)
             .build();
 
-    private final MinimalEntity region = MinimalEntity.newBuilder().setOid(regionOid)
+    private final TopologyEntityDTO region = TopologyEntityDTO.newBuilder().setOid(regionOid)
             .setEntityType(ApiEntityType.REGION.typeNumber())
             .setDisplayName(regionDisplayName)
             .build();
@@ -106,9 +106,10 @@ public class ConnectedEntityMapperTest {
         when(repositoryService.retrieveTopologyEntities(RetrieveTopologyEntitiesRequest.newBuilder()
                 .addEntityOids(regionOid)
                 .setTopologyContextId(realTimeTopologyContextId)
+                .addEntityType(EntityType.REGION.getValue())
                 .setTopologyType(TopologyType.SOURCE)
                 .build()
-        )).thenReturn(Arrays.asList(PartialEntityBatch.newBuilder().addEntities(PartialEntity.newBuilder().setMinimal(region).build()).build()));
+        )).thenReturn(Arrays.asList(PartialEntityBatch.newBuilder().addEntities(PartialEntity.newBuilder().setFullEntity(region).build()).build()));
 
         when(searchService.graphSearch(GraphRequest.newBuilder().addOids(cloudCommitmentOid).putNodes("BusinessAccount",
                 SearchProtoUtil.node(Type.MINIMAL, TraversalDirection.OWNED_BY, EntityDTO.EntityType.BUSINESS_ACCOUNT).build()).build()))
