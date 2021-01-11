@@ -100,7 +100,7 @@ public class MarketRunnerConfig {
     @Value("${standardQuoteFactor:0.68}")
     private float standardQuoteFactor;
 
-    @Value("${marketMode:M2Only}")
+    @Value("${marketMode:SMALite}")
     private String marketMode;
 
     @Value("${suspensionThrottlingPerCluster:true}")
