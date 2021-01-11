@@ -232,7 +232,6 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-      SUPPORT_ENTITY_DETAILS: "${SUPPORT_ENTITY_DETAILS}"
     volumes:
       - api:/home/turbonomic/data
       - /tmp/certs:/tmp/certs
@@ -338,7 +337,6 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-      SUPPORT_ENTITY_DETAILS: "${SUPPORT_ENTITY_DETAILS}"
     volumes:
       - topology-processor:/home/turbonomic/data
     mem_limit: ${TOPOLOGY_PROCESSOR_MEM_LIMIT_MB}M
@@ -731,7 +729,6 @@ services:
       JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
-      SUPPORT_ENTITY_DETAILS: "${SUPPORT_ENTITY_DETAILS}"
     mem_limit: ${MEDIATION_VCENTER_MEM_LIMIT_MB}M
 
   mediation-udt:

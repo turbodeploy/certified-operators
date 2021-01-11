@@ -26,8 +26,6 @@ env:
     value: "8080"
   - name: kafkaServers
     value: kafka:9092
-  - name: SUPPORT_ENTITY_DETAILS
-    value: "false"
 
 resources:
   limits:
