@@ -114,8 +114,8 @@ public class ConnectedEntityMapper {
                                 "Connected entity {} not found in connected entities list of the cloud commitment {}",
                                 connectedEntityProperty.entityType(), entity.getOid());
                     } else {
-                        Optional<MinimalEntity> regionEntity = getEntity(
-                                repositoryRetrievedEntity.get().getOid());
+                        Optional<TopologyEntityDTO> regionEntity = getEntity(
+                                repositoryRetrievedEntity.get().getOid(), connectedEntityProperty.entityType().getNumber());
                         if (!regionEntity.isPresent()) {
                             if (connectedEntityProperty.required()) {
                                 logger.error(
@@ -171,8 +171,8 @@ public class ConnectedEntityMapper {
                                 "Connected entity {} not found in connected entities list of the cloud commitment {}",
                                 connectedEntityProperty.entityType(), entity.getOid());
                     } else {
-                        Optional<MinimalEntity> regionEntity = getEntity(
-                                repositoryRetrievedEntity.get().getConnectedEntityId());
+                        Optional<TopologyEntityDTO> regionEntity = getEntity(
+                                repositoryRetrievedEntity.get().getConnectedEntityId(), connectedEntityProperty.entityType().getNumber());
                         if (!regionEntity.isPresent()) {
                             if (connectedEntityProperty.required()) {
                                 logger.error(
@@ -196,14 +196,14 @@ public class ConnectedEntityMapper {
      * Create base {@link ServiceEntityApiDTO} with uuid, display name, class name fields from
      * {@link RelatedEntity}.
      *
-     * @param relatedEntity the {@link RelatedEntity}
+     * @param topologyEntityDTO the {@link RelatedEntity}
      * @return the {@link ServiceEntityApiDTO}
      */
-    private static BaseApiDTO toBaseApiDTO(@Nonnull final RelatedEntity relatedEntity) {
+    private static BaseApiDTO toBaseApiDTO(@Nonnull final TopologyEntityDTO topologyEntityDTO) {
         final BaseApiDTO baseApiDTO = new BaseApiDTO();
-        baseApiDTO.setUuid(String.valueOf(relatedEntity.getOid()));
-        baseApiDTO.setDisplayName(relatedEntity.getDisplayName());
-        baseApiDTO.setClassName(ApiEntityType.fromType(relatedEntity.getEntityType()).apiStr());
+        baseApiDTO.setUuid(String.valueOf(topologyEntityDTO.getOid()));
+        baseApiDTO.setDisplayName(topologyEntityDTO.getDisplayName());
+        baseApiDTO.setClassName(ApiEntityType.fromType(topologyEntityDTO.getEntityType()).apiStr());
         return baseApiDTO;
     }
 
@@ -245,10 +245,11 @@ public class ConnectedEntityMapper {
         return baseApiDTOList;
     }
 
-    private Optional<MinimalEntity> getEntity(Long entityOid) {
+    private Optional<TopologyEntityDTO> getEntity(Long entityOid, int entityType) {
         RetrieveTopologyEntitiesRequest request = RetrieveTopologyEntitiesRequest.newBuilder()
                 .addEntityOids(entityOid)
                 .setTopologyContextId(realtimeTopologyContextId)
+                .addEntityType(entityType)
                 .setTopologyType(TopologyType.SOURCE)
                 .build();
         final Iterator<PartialEntityBatch> iterator = repositoryService.retrieveTopologyEntities(
@@ -256,7 +257,7 @@ public class ConnectedEntityMapper {
         while (iterator.hasNext()) {
             final PartialEntityBatch batch = iterator.next();
             for (PartialEntity partialEntity : batch.getEntitiesList()) {
-                final MinimalEntity entity = partialEntity.getMinimal();
+                final TopologyEntityDTO entity = partialEntity.getFullEntity();
                 return Optional.ofNullable(entity);
             }
         }
