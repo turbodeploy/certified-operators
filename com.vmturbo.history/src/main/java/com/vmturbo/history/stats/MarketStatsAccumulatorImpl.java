@@ -389,9 +389,14 @@ public class MarketStatsAccumulatorImpl implements MarketStatsAccumulator {
                     entityId, RelationType.COMMODITIES, /*providerId*/null, capacity,
                     effectiveCapacity, key, record,
                     dbTable, longCommodityKeys);
+
+            // set the values specific to each row and persist each
+            Double used = commoditySoldDTO.hasUsed() ? commoditySoldDTO.getUsed() : null;
+            // get the peak to save it as max of used subtype
+            Double peak = commoditySoldDTO.hasPeak() ? commoditySoldDTO.getPeak() : null;
+
             // set the values specific to used component of commodity and write
-            historydbIO.setCommodityValues(PROPERTY_SUBTYPE_USED, commoditySoldDTO.getUsed(),
-                    commoditySoldDTO.getPeak(), record, dbTable);
+            historydbIO.setCommodityValues(PROPERTY_SUBTYPE_USED, used, peak, record, dbTable);
             // mark the end of this row of values
             loader.insert(record);
 
@@ -637,7 +642,7 @@ public class MarketStatsAccumulatorImpl implements MarketStatsAccumulator {
                 entityId, RelationType.METRICS, null, null, null, null, record, dbTable, longCommodityKeys);
         // set the values specific to used component of commodity and write
         // since there is no peak value, that parameter is sent as 0
-        historydbIO.setCommodityValues(mixedCaseCommodityName, valueToPersist, 0,
+        historydbIO.setCommodityValues(mixedCaseCommodityName, valueToPersist, 0.0D,
                 record, dbTable);
         writer.insert(record);
     }
@@ -700,9 +705,9 @@ public class MarketStatsAccumulatorImpl implements MarketStatsAccumulator {
             }
 
             // set the values specific to each row and persist each
-            double used = commodityBoughtDTO.getUsed();
+            Double used = commodityBoughtDTO.hasUsed() ? commodityBoughtDTO.getUsed() : null;
             // get the peak to save it as max of used subtype
-            double peak = commodityBoughtDTO.getPeak();
+            Double peak = commodityBoughtDTO.hasPeak() ? commodityBoughtDTO.getPeak() : null;
 
             final String key = commodityBoughtDTO.getCommodityType().getKey();
 

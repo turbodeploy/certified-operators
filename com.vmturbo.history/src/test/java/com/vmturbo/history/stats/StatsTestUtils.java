@@ -52,10 +52,11 @@ public class StatsTestUtils {
     public static final Table<?> PM_LATEST_TABLE = PHYSICAL_MACHINE_ENTITY_TYPE.getLatestTable().get();
     private static final Gson GSON = ComponentGsonFactory.createGsonNoPrettyPrint();
     public static final String TEST_VM_PATH = "topology/tak_test1_vm_dto.json";
+    public static final String TEST_APP_NOUSED_PATH = "topology/app_no_bought_used.json";
     public static final String TEST_APP_PATH = "topology/guestload_tak_test1_app_dto.json";
     public static final String TEST_APP_WITHOUT_PROVIDER_PATH = "topology/test2_app_without_provider_dto.json";
     public static final String TEST_PM_PATH = "topology/hp-esx_pm_dto.json";
-    private static final CommodityType CPU_COMMODITY_TYPE = CommodityType.newBuilder()
+    public static final CommodityType CPU_COMMODITY_TYPE = CommodityType.newBuilder()
             .setType(CommonDTO.CommodityDTO.CommodityType.CPU_VALUE).build();
     private static final CommodityType DSPMA_COMMODITY_TYPE = CommodityType.newBuilder()
             .setType(CommonDTO.CommodityDTO.CommodityType.DSPM_ACCESS_VALUE).build();
@@ -63,6 +64,7 @@ public class StatsTestUtils {
             .setType(CommonDTO.CommodityDTO.CommodityType.Q1_VCPU_VALUE).build();
     private static TopologyDTO.CommodityBoughtDTO cpuBought = TopologyDTO.CommodityBoughtDTO.newBuilder()
             .setCommodityType(CPU_COMMODITY_TYPE)
+            .setUsed(0)
             .build();
     private static final CommodityType FLOW_0_COMMODITY_TYPE = CommodityType.newBuilder()
             .setType(CommonDTO.CommodityDTO.CommodityType.FLOW_VALUE)

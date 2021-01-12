@@ -4,7 +4,11 @@ import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_HOSTS;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyDouble;
+import static org.mockito.Matchers.anyLong;
+import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -47,6 +51,7 @@ import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -64,8 +69,10 @@ import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.db.bulk.BulkLoader;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
+import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.schema.abstraction.tables.AppStatsLatest;
 import com.vmturbo.history.schema.abstraction.tables.HistUtilization;
+import com.vmturbo.history.schema.abstraction.tables.records.AppStatsLatestRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.HistUtilizationRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.VmStatsLatestRecord;
 import com.vmturbo.history.stats.MarketStatsAccumulatorImpl.DelayedCommodityBoughtWriter;
@@ -88,6 +95,7 @@ public class MarketStatsAccumulatorTest {
     private static final String APP_ENTITY_TYPE = "Application";
     private static final String VM_ENTITY_TYPE = "VirtualMachine";
     private static final long ENTITY_ID = 999L;
+    private static final double EPSILON = 0.0001;
 
     private static final TopologyInfo TOPOLOGY_INFO = TopologyInfo.newBuilder()
             .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
@@ -113,6 +121,7 @@ public class MarketStatsAccumulatorTest {
     private TopologyEntityDTO testPm;
     private TopologyEntityDTO testVm;
     private TopologyEntityDTO testApp;
+    private TopologyEntityDTO testAppNoUsed;
     private TopologyEntityDTO testAppWithoutProvider;
 
     @Mock
@@ -125,6 +134,7 @@ public class MarketStatsAccumulatorTest {
     @Captor
     private ArgumentCaptor<List<Query>> queryListCaptor;
     private BulkLoader<HistUtilizationRecord> mockBulkLoader;
+    private BulkLoader<AppStatsLatestRecord> loaderLatestTable;
     private MarketStatsAccumulatorImpl marketStatsAccumulator;
 
     /**
@@ -132,10 +142,18 @@ public class MarketStatsAccumulatorTest {
      */
     @Before
     public void setup() {
+        doCallRealMethod().when(historydbIO).setCommodityValues(anyString(), anyDouble(),
+                anyDouble(), any(Record.class), any(Table.class));
+        doCallRealMethod().when(historydbIO).clipValue(anyDouble());
+        doCallRealMethod().when(historydbIO).initializeCommodityRecord(anyString(), anyLong(),
+                anyLong(), any(RelationType.class), anyLong(), anyDouble(), anyDouble(),
+                anyString(), any(Record.class), any(Table.class), any());
+
         BasedbIO.setSharedInstance(historydbIO);
 
         try {
             testVm = StatsTestUtils.generateEntityDTO(StatsTestUtils.TEST_VM_PATH);
+            testAppNoUsed = StatsTestUtils.generateEntityDTO(StatsTestUtils.TEST_APP_NOUSED_PATH);
             testApp = StatsTestUtils.generateEntityDTO(StatsTestUtils.TEST_APP_PATH);
             testAppWithoutProvider =
                 StatsTestUtils.generateEntityDTO(StatsTestUtils.TEST_APP_WITHOUT_PROVIDER_PATH);
@@ -144,9 +162,9 @@ public class MarketStatsAccumulatorTest {
             throw new RuntimeException("Cannot load DTO's", e);
         }
         mockBulkLoader = Mockito.mock(BulkLoader.class);
-        final BulkLoader<Record> loaderLatestTable = Mockito.mock(BulkLoader.class);
+        loaderLatestTable = Mockito.mock(BulkLoader.class);
         final SimpleBulkLoaderFactory loaderFactory = mock(SimpleBulkLoaderFactory.class);
-        when(loaderFactory.getLoader(any())).thenReturn(loaderLatestTable);
+        when(loaderFactory.getLoader(AppStatsLatest.APP_STATS_LATEST)).thenReturn(loaderLatestTable);
         when(loaderFactory.getLoader(HistUtilization.HIST_UTILIZATION)).thenReturn(mockBulkLoader);
         this.marketStatsAccumulator =
                 new MarketStatsAccumulatorImpl(TOPOLOGY_INFO, APP_ENTITY_TYPE, EnvironmentType.ON_PREM,
@@ -265,6 +283,91 @@ public class MarketStatsAccumulatorTest {
                 commoditySoldDTO.getCommodityType(), commoditySoldDTO.getCapacity(),
                 commoditySoldDTO.getHistoricalUsed());
         }
+    }
+
+    /**
+     * Tests persisting sold commodities with set used value.
+     *
+     * @throws InterruptedException if interrupted.
+     */
+    @Test
+    public void testPersistCommoditiesSoldUsedSet() throws InterruptedException {
+        final double used = 10.0;
+        final double peak = 20.0;
+        final double capacity = 100.0;
+
+        CommoditySoldDTO sold = TopologyDTO.CommoditySoldDTO.newBuilder().setCommodityType(
+                StatsTestUtils.CPU_COMMODITY_TYPE).setUsed(used).setPeak(peak).setCapacity(capacity).build();
+        final List<CommoditySoldDTO> commoditiesSold = new ArrayList<>();
+        commoditiesSold.add(sold);
+        marketStatsAccumulator.persistCommoditiesSold(ENTITY_ID, commoditiesSold);
+
+        final ArgumentCaptor<AppStatsLatestRecord> recordArgumentCaptor = ArgumentCaptor.forClass(
+                AppStatsLatestRecord.class);
+        Mockito.verify(loaderLatestTable, Mockito.times(1)).insert(recordArgumentCaptor.capture());
+        final List<AppStatsLatestRecord> allValues = recordArgumentCaptor.getAllValues();
+        Assert.assertEquals(1, allValues.size());
+        AppStatsLatestRecord record = allValues.get(0);
+        Assert.assertEquals(peak, record.getMaxValue(), EPSILON);
+        Assert.assertEquals(used, record.getMinValue(), EPSILON);
+        Assert.assertEquals(used, record.getAvgValue(), EPSILON);
+        Assert.assertEquals(capacity, record.getCapacity(), EPSILON);
+    }
+
+    /**
+     * Tests persisting sold commodities with unset used value.
+     *
+     * @throws InterruptedException if interrupted.
+     */
+    @Test
+    public void testPersistCommoditiesSoldUsedUnset() throws InterruptedException {
+
+        CommoditySoldDTO sold = TopologyDTO.CommoditySoldDTO.newBuilder().setCommodityType(
+                StatsTestUtils.CPU_COMMODITY_TYPE).setCapacity(100).build();
+        final List<CommoditySoldDTO> commoditiesSold = new ArrayList<>();
+        commoditiesSold.add(sold);
+        marketStatsAccumulator.persistCommoditiesSold(ENTITY_ID, commoditiesSold);
+
+        final ArgumentCaptor<AppStatsLatestRecord> recordArgumentCaptor = ArgumentCaptor.forClass(
+                AppStatsLatestRecord.class);
+        Mockito.verify(loaderLatestTable, Mockito.times(1)).insert(recordArgumentCaptor.capture());
+        final List<AppStatsLatestRecord> allValues = recordArgumentCaptor.getAllValues();
+        Assert.assertEquals(1, allValues.size());
+        AppStatsLatestRecord record = allValues.get(0);
+        Assert.assertNull(record.getAvgValue());
+        Assert.assertNull(record.getMaxValue());
+        Assert.assertNull(record.getMinValue());
+        Assert.assertEquals(100, record.getCapacity(), EPSILON);
+    }
+
+    /**
+     * Tests persisting bought commodities with unset used value.
+     *
+     * @throws InterruptedException if interrupted.
+     */
+    @Test
+    public void testPersistCommoditiesBoughtUsedSet() throws InterruptedException {
+        final CapacityCache capacityCache = new CapacityCache(excludedCommodityTypes, new LongDataPack());
+        capacityCache.cacheCapacities(testVm);
+        final Multimap<Long, DelayedCommodityBoughtWriter> delayedCommoditiesBought =
+                HashMultimap.create();
+        final Map<Long, TopologyEntityDTO> entityByOid = ImmutableMap.of(testVm.getOid(), testVm);
+        marketStatsAccumulator.persistCommoditiesBought(testAppNoUsed, capacityCache,
+                delayedCommoditiesBought, entityByOid);
+
+        final ArgumentCaptor<AppStatsLatestRecord> recordArgumentCaptor = ArgumentCaptor.forClass(
+                AppStatsLatestRecord.class);
+        Mockito.verify(loaderLatestTable, Mockito.atLeastOnce()).insert(
+                recordArgumentCaptor.capture());
+
+        final List<AppStatsLatestRecord> allValues = recordArgumentCaptor.getAllValues();
+
+        Assert.assertEquals(1, allValues.size());
+        AppStatsLatestRecord record = allValues.get(0);
+        Assert.assertNull(record.getAvgValue());
+        Assert.assertNull(record.getMaxValue());
+        Assert.assertNull(record.getMinValue());
+        Assert.assertEquals(2600, record.getCapacity(), EPSILON);
     }
 
     /**

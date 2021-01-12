@@ -568,6 +568,108 @@ public class HistorydbIOTest {
     }
 
     /**
+     * Tests that in a table that has only entities with the orderBy commodity,
+     * when some records has NULL commodity used value
+     * the cursors returned by subsequent calls to getNextPage are correct.
+     *
+     * @throws VmtDbException  on db error
+     */
+    @Test
+    public void testGetNextPageWithOnlyEntitiesThatHaveTheOrderByCommodityWithNull()
+            throws VmtDbException {
+        // setup
+        final String entityUuid1 = "1";
+        final String entityUuid2 = "2";
+        final String entityUuid3 = "3";
+        final String entityUuid4 = "4";
+        final double entityValue1 = 16.0;
+        final double entityValue2 = 5.0;
+        final double capacity = 1.0;
+        final int paginationLimit = 1;
+        final Stats.EntityStatsScope entityStatsScope = Stats.EntityStatsScope.newBuilder()
+                .setEntityList(Stats.EntityStatsScope.EntityList.newBuilder()
+                        .addEntities(Long.parseLong(entityUuid1))
+                        .addEntities(Long.parseLong(entityUuid2))
+                        .addEntities(Long.parseLong(entityUuid3))
+                        .addEntities(Long.parseLong(entityUuid4)))
+                .build();
+        EntityStatsPaginationParams paginationParams = new EntityStatsPaginationParams(
+                paginationLimit,
+                paginationLimit,
+                VCPU,
+                PaginationParameters.newBuilder().setAscending(true).build());
+        final Table<?> table =
+                VIRTUAL_MACHINE_ENTITY_TYPE.getTimeFrameTable(TimeFrame.LATEST).get();
+
+        Connection conn = historydbIO.connection();
+        Timestamp timestamp = new Timestamp(10000L);
+        historydbIO.using(conn).insertInto(table,
+                getTimestampField(table, SNAPSHOT_TIME),
+                getStringField(table, UUID),
+                getStringField(table, PROPERTY_TYPE),
+                getStringField(table, PROPERTY_SUBTYPE),
+                getDoubleField(table, AVG_VALUE),
+                getDoubleField(table, CAPACITY),
+                getRelationTypeField(table, RELATION))
+                .values(timestamp, entityUuid1, VCPU, USED, entityValue1, capacity,
+                        RelationType.COMMODITIES)
+                .values(timestamp, entityUuid2, VCPU, USED, entityValue2, capacity,
+                        RelationType.COMMODITIES)
+                .values(timestamp, entityUuid3, VCPU, USED, null, capacity,
+                        RelationType.COMMODITIES)
+                .values(timestamp, entityUuid4, VCPU, USED, null, capacity,
+                        RelationType.COMMODITIES)
+                .execute();
+
+        TimeRange timeRange = Mockito.mock(TimeRange.class);
+        when(timeRange.getMostRecentSnapshotTime()).thenReturn(timestamp);
+        when(timeRange.getTimeFrame()).thenReturn(TimeFrame.LATEST);
+        when(timeRange.getLatestPriceIndexTimeStamp()).thenReturn(Optional.empty());
+        // initial call: no cursor provided, cursor to next records returned
+        NextPageInfo nextPageInfo = historydbIO.getNextPage(entityStatsScope,
+                timeRange, paginationParams, VIRTUAL_MACHINE_ENTITY_TYPE,
+                StatsFilter.newBuilder().build());
+        // ascending order, 2 is expected to be returned first
+        validateNextPageValues(nextPageInfo, entityUuid2, true, entityValue2, 4);
+
+        timeRange = Mockito.mock(TimeRange.class);
+        when(timeRange.getMostRecentSnapshotTime()).thenReturn(timestamp);
+        when(timeRange.getTimeFrame()).thenReturn(TimeFrame.LATEST);
+        when(timeRange.getLatestPriceIndexTimeStamp()).thenReturn(Optional.empty());
+        nextPageInfo = historydbIO.getNextPage(entityStatsScope, timeRange,
+                createPaginationParams(nextPageInfo, 1), VIRTUAL_MACHINE_ENTITY_TYPE,
+                StatsFilter.newBuilder().build());
+        validateNextPageValues(nextPageInfo, entityUuid1, true, entityValue1, 4);
+
+        //entity with null commodity
+        nextPageInfo = historydbIO.getNextPage(entityStatsScope, timeRange,
+                createPaginationParams(nextPageInfo, 1), VIRTUAL_MACHINE_ENTITY_TYPE,
+                StatsFilter.newBuilder().build());
+        validateNextPageValues(nextPageInfo, entityUuid3, false, 0, 4);
+
+        //entity with null commodity, the last one
+        nextPageInfo = historydbIO.getNextPage(entityStatsScope, timeRange,
+                createPaginationParams(nextPageInfo, 1), VIRTUAL_MACHINE_ENTITY_TYPE,
+                StatsFilter.newBuilder().build());
+        assertEquals(1, nextPageInfo.getEntityOids().size());
+        assertEquals(entityUuid4, nextPageInfo.getEntityOids().get(0));
+        // we don't have any more results, so the next cursor should now be empty
+        assertFalse(nextPageInfo.getNextCursor().isPresent());
+        assertEquals(4, nextPageInfo.getTotalRecordCount().get().longValue());
+    }
+
+    private EntityStatsPaginationParams createPaginationParams(NextPageInfo nextPageInfo,
+            int paginationLimit) {
+        final SeekPaginationCursor cursor = SeekPaginationCursor.parseCursor(
+                nextPageInfo.getNextCursor().get());
+        return new EntityStatsPaginationParams(paginationLimit, paginationLimit, VCPU,
+                PaginationParameters.newBuilder()
+                        .setCursor(cursor.toCursorString().get())
+                        .setAscending(true)
+                        .build());
+    }
+
+    /**
      * Tests that in a table that has both entities with and without the orderBy commodity,
      * the cursors returned by subsequent calls to getNextPage are correct.
      * Expected return order:

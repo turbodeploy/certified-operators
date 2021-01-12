@@ -581,17 +581,19 @@ public class HistorydbIO extends BasedbIO {
      */
     public void setCommodityValues(
         @Nonnull String propertySubtype,
-        final double used,
-        final double peak,
+        final Double used,
+        final Double peak,
         @Nonnull Record record,
         @Nonnull Table<?> table) {
 
-        double clipped = clipValue(used);
-        double clippedPeak = clipValue(peak);
+        final Double clipped = clipValue(used);
         record.set(getStringField(table, PROPERTY_SUBTYPE), propertySubtype);
         record.set(getDoubleField(table, AVG_VALUE), clipped);
         record.set(getDoubleField(table, MIN_VALUE), clipped);
-        record.set(getDoubleField(table, MAX_VALUE), Math.max(clipped, clippedPeak));
+        final Double clippedPeak = clipValue(peak);
+        if  (clipped != null && clippedPeak != null) {
+            record.set(getDoubleField(table, MAX_VALUE), Math.max(clipped, clippedPeak));
+        }
     }
 
     /**
@@ -946,6 +948,8 @@ public class HistorydbIO extends BasedbIO {
                 avg(getDoubleField(table, CAPACITY)).as(CAPACITY);
         final Field<String> uuid =
                 getStringField(table, UUID);
+
+        conditions.add(getDoubleField(table, AVG_VALUE).isNotNull());
 
         if (!requestedIdSet.isEmpty()) {
             conditions.add(uuid.in(requestedIdSet));

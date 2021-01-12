@@ -963,6 +963,36 @@ public class StatsMapperTest {
     }
 
     /**
+     * Tests that when converting from {@link StatRecord} to {@link StatApiDTO}
+     * when {@link StatRecord} doesn't have used set will result in {@link StatApiDTO} with
+     * no value (not zeros).
+     */
+    @Test
+    public void testToStatApiDtoNoUsed() {
+
+        final float totalMax = 123.0f;
+        final float totalMin = 9.0f;
+
+        StatRecord record = StatRecord.newBuilder()
+                .setName(StringConstants.STORAGE_AMOUNT)
+                .setUnits("Mb")
+                .setCapacity(
+                        buildStatValueWithCustomValues(totalMax, totalMin, 100.0f, 110.0f, totalMax,
+                                totalMin))
+                .setValues(
+                        buildStatValueWithCustomValues(totalMax, totalMin, 100.0f, 110.0f, totalMax,
+                                totalMin))
+                .build();
+
+        StatApiDTO dto = this.statsMapper.toStatApiDto(record);
+
+        assertEquals(totalMax, dto.getCapacity().getTotalMax().doubleValue(), 0.001);
+        assertEquals(totalMin, dto.getCapacity().getTotalMin().doubleValue(), 0.001);
+        // no values , because there is no used
+        assertNull(dto.getValues());
+    }
+
+    /**
      * Tests {@link StatRecord} name matched to UICommodityType.
      *
      * <p>Name has STAT_PREFIX_CURRENT in the front, these are plan_source aggregated stats</p>
