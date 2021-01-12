@@ -1,0 +1,130 @@
+package com.vmturbo.extractor.export;
+
+import java.io.IOException;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
+
+import javax.annotation.Nonnull;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.components.api.server.IMessageSender;
+import com.vmturbo.components.common.utils.MultiStageTimer;
+import com.vmturbo.extractor.export.schema.Entity;
+import com.vmturbo.extractor.export.schema.ExportedObject;
+import com.vmturbo.extractor.search.EnumUtils.EntityStateUtils;
+import com.vmturbo.extractor.search.EnumUtils.EntityTypeUtils;
+import com.vmturbo.extractor.search.EnumUtils.EnvironmentTypeUtils;
+import com.vmturbo.extractor.topology.DataProvider;
+import com.vmturbo.extractor.topology.TopologyWriterBase;
+import com.vmturbo.extractor.topology.WriterConfig;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
+
+/**
+ * Writer that extracts entities data from a topology and publishes to a kafka topic.
+ */
+public class DataExtractionWriter extends TopologyWriterBase {
+
+    private static final Logger logger = LogManager.getLogger();
+
+    private final List<Entity> entities = new ArrayList<>();
+    private final IMessageSender<byte[]> kafkaMessageSender;
+    private final DataExtractionFactory dataExtractionFactory;
+    private final MetricsExtractor metricsExtractor;
+    private final AttrsExtractor attrsExtractor;
+    private String formattedTopologyCreationTime;
+
+    /**
+     * Create a new writer instance.
+     *
+     * @param kafkaMessageSender used to send entities to a kafka topic
+     * @param dataExtractionFactory factory for providing instances of different extractors
+     */
+    public DataExtractionWriter(@Nonnull IMessageSender<byte[]> kafkaMessageSender,
+            @Nonnull DataExtractionFactory dataExtractionFactory) {
+        super(null, null);
+        this.kafkaMessageSender = kafkaMessageSender;
+        this.dataExtractionFactory = dataExtractionFactory;
+        this.metricsExtractor = dataExtractionFactory.newMetricsExtractor();
+        this.attrsExtractor = dataExtractionFactory.newAttrsExtractor();
+    }
+
+    @Override
+    public Consumer<TopologyEntityDTO> startTopology(final TopologyInfo topologyInfo,
+            final WriterConfig config, final MultiStageTimer timer)
+            throws IOException, UnsupportedDialectException, SQLException, InterruptedException {
+        super.startTopology(topologyInfo, config, timer);
+        this.formattedTopologyCreationTime = ExportUtils.getFormattedDate(topologyInfo.getCreationTime());
+        return this::writeEntity;
+    }
+
+    @Override
+    public boolean requireFullSupplyChain() {
+        return true;
+    }
+
+    @Override
+    protected void writeEntity(final TopologyEntityDTO e) {
+        // to be consistent with reporting
+        if (EntityTypeUtils.protoIntToDb(e.getEntityType(), null) == null) {
+            logger.error("Cannot map entity type {} for entity oid {}; skipping",
+                    e.getEntityType(), e.getOid());
+            return;
+        }
+
+        final Entity entity = new Entity();
+        entity.setTimestamp(formattedTopologyCreationTime);
+        entity.setId(e.getOid());
+        entity.setName(e.getDisplayName());
+        // use proto db str (rather than api str) to keep consistent with reporting
+        entity.setType(ExportUtils.getEntityTypeJsonKey(e.getEntityType()));
+        entity.setEnvironment(EnvironmentTypeUtils.protoToDb(e.getEnvironmentType()).getLiteral());
+        entity.setState(EntityStateUtils.protoToDb(e.getEntityState()).getLiteral());
+        // metrics
+        entity.setMetric(metricsExtractor.extractMetrics(e, config.reportingCommodityWhitelist()));
+        // attrs
+        entity.setAttrs(attrsExtractor.extractAttrs(e));
+        // cache entities to be sent to kafka later
+        entities.add(entity);
+    }
+
+    @Override
+    public int finish(final DataProvider dataProvider) {
+        final RelatedEntitiesExtractor relatedEntitiesExtractor =
+                dataExtractionFactory.newRelatedEntitiesExtractor(dataProvider.getTopologyGraph(),
+                        dataProvider.getSupplyChain(), dataProvider.getGroupData());
+
+        // set related entities and related groups
+        timer.start("Populate related entities and groups");
+        final List<ExportedObject> exportedObjects = entities.parallelStream().map(entity -> {
+            entity.setRelated(relatedEntitiesExtractor.extractRelatedEntities(entity.getId()));
+            ExportedObject exportedObject = new ExportedObject();
+            exportedObject.setEntity(entity);
+            return exportedObject;
+        }).collect(Collectors.toList());
+        timer.stop();
+
+        try {
+            // serialize the entities as byte array (json)
+            final byte[] bytes = ExportUtils.toBytes(exportedObjects);
+            // todo: send to kafka in chunks
+            kafkaMessageSender.sendMessage(bytes);
+            return entities.size();
+        } catch (JsonProcessingException e) {
+            logger.error("Error converting entities in {} to json", topologyLabel, e);
+            return 0;
+        } catch (CommunicationException | InterruptedException e) {
+            logger.error("Failed to send entities in {} to Kafka", topologyLabel, e);
+            return 0;
+        }
+    }
+}

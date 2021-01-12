@@ -156,14 +156,10 @@ public class TopologyEntitiesListener implements EntitiesListener {
         }
 
         private long writeTopology() throws IOException, UnsupportedDialectException, SQLException, InterruptedException {
-            // fetch cluster membership
             List<ITopologyWriter> writers = new ArrayList<>();
             writerFactories.stream()
                     .map(Supplier::get)
                     .forEach(writers::add);
-
-            final long topologyId = topologyInfo.getTopologyId();
-            final long topologyContextId = topologyInfo.getTopologyContextId();
 
             final List<Pair<Consumer<TopologyEntityDTO>, ITopologyWriter>> entityConsumers = new ArrayList<>();
             for (ITopologyWriter writer : writers) {
@@ -215,6 +211,9 @@ public class TopologyEntitiesListener implements EntitiesListener {
                     writer.finish(dataProvider);
                     asyncTimer.close();
                 }
+
+                // clean unneeded data while keeping useful data for actions ingestion
+                dataProvider.clean();
             } catch (RuntimeException e) {
                 logger.error("Unexpected error during finish processing for topology {}", topologyLabel, e);
             }

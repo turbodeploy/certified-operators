@@ -100,6 +100,12 @@ public class TopologyListenerConfig {
     private boolean enableReporting;
 
     /**
+     * Configuration used to enable/disable data extraction. Disabled by default.
+     */
+    @Value("${enableDataExtraction:false}")
+    private boolean enableDataExtraction;
+
+    /**
      * Whether the scope table should be populated.
      *
      * <p>This is a feature flag that should be removed when we are ready to turn enable this
@@ -206,6 +212,10 @@ public class TopologyListenerConfig {
         if (enableReporting) {
             builder.add(() -> new EntityMetricWriter(dbEndpoint, entityHashManager(),
                     scopeManager(), entityIdManager(), pool()));
+        }
+        if (enableDataExtraction) {
+            // todo: OM-60377
+            // builder.add(() -> new DataExtractionWriter(extractorMessageSender()));
         }
         return builder.build();
     }

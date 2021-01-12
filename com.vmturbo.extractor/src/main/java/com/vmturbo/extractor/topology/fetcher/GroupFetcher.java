@@ -162,9 +162,9 @@ public class GroupFetcher extends DataFetcher<GroupData> {
         final Long2ObjectMap<List<Long>> groupToLeafEntityIds;
         final Long2ObjectMap<List<Long>> groupToDirectMemberIds;
 
-        GroupData(Long2ObjectMap<List<Grouping>> leafEntityToGroups,
-                Long2ObjectMap<List<Long>> groupToLeafEntityIds,
-                Long2ObjectMap<List<Long>> groupToDirectMemberIds) {
+        GroupData(@Nonnull Long2ObjectMap<List<Grouping>> leafEntityToGroups,
+                  @Nonnull Long2ObjectMap<List<Long>> groupToLeafEntityIds,
+                  @Nonnull Long2ObjectMap<List<Long>> groupToDirectMemberIds) {
             this.leafEntityToGroups = leafEntityToGroups;
             this.groupToLeafEntityIds = groupToLeafEntityIds;
             this.groupToDirectMemberIds = groupToDirectMemberIds;
@@ -180,6 +180,19 @@ public class GroupFetcher extends DataFetcher<GroupData> {
 
         public Long2ObjectMap<List<Long>> getGroupToDirectMemberIds() {
             return groupToDirectMemberIds;
+        }
+
+        /**
+         * Get all the groups which contains the given entity.
+         *
+         * @param entityOid oid of entity
+         * @return list of groups
+         */
+        public List<Grouping> getGroupsForEntity(long entityOid) {
+            // do not use getOrDefault since Long2ObjectMap may call both 'get' and 'containsKey'
+            // which is expensive for large topology
+            List<Grouping> groupings = leafEntityToGroups.get(entityOid);
+            return groupings != null ? groupings : Collections.emptyList();
         }
     }
 }

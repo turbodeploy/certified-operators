@@ -173,6 +173,15 @@ public class DataProvider {
     }
 
     /**
+     * Get the latest group data.
+     *
+     * @return {@link GroupData} containing data for all groups
+     */
+    public GroupData getGroupData() {
+        return groupData;
+    }
+
+    /**
      * Get the latest group to leaf entities map.
      *
      * @return map from group id to its leaf entities
@@ -190,10 +199,7 @@ public class DataProvider {
      * @return list of groups
      */
     public List<Grouping> getGroupsForEntity(long entityOid) {
-        // do not use getOrDefault since Long2ObjectMap may call both 'get' and 'containsKey'
-        // which is expensive for large topology
-        List<Grouping> groupings = groupData.getLeafEntityToGroups().get(entityOid);
-        return groupings != null ? groupings : Collections.emptyList();
+        return groupData == null ? Collections.emptyList() : groupData.getGroupsForEntity(entityOid);
     }
 
     /**

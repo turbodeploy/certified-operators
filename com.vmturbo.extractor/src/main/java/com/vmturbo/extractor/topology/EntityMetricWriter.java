@@ -90,7 +90,7 @@ public class EntityMetricWriter extends TopologyWriterBase {
     /**
      * Matches ready queue commodity like: Q16_VCPU, QN_VCPU.
      */
-    private static final Pattern QX_VCPU_PATTERN = Pattern.compile("Q.*_VCPU");
+    public static final Pattern QX_VCPU_PATTERN = Pattern.compile("Q.*_VCPU");
 
     // configurations for upsert and update operations for entity table
     private static final ImmutableList<Column<?>> upsertConflicts = ImmutableList.of(
