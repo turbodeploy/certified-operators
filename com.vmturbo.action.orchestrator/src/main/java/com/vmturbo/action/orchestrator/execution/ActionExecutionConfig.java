@@ -14,12 +14,9 @@ import com.vmturbo.action.orchestrator.action.constraint.ActionConstraintStoreFa
 import com.vmturbo.action.orchestrator.topology.TopologyProcessorConfig;
 import com.vmturbo.auth.api.licensing.LicenseCheckClientConfig;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
-import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
-import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.topology.ProbeActionCapabilitiesServiceGrpc;
 import com.vmturbo.common.protobuf.topology.ProbeActionCapabilitiesServiceGrpc.ProbeActionCapabilitiesServiceBlockingStub;
 import com.vmturbo.group.api.GroupClientConfig;
-import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 
 /**
@@ -30,8 +27,7 @@ import com.vmturbo.topology.processor.api.TopologyProcessor;
 @Import({ActionOrchestratorGlobalConfig.class,
         TopologyProcessorConfig.class,
         GroupClientConfig.class,
-        LicenseCheckClientConfig.class,
-        RepositoryClientConfig.class})
+        LicenseCheckClientConfig.class})
 public class ActionExecutionConfig {
 
     @Autowired
@@ -39,9 +35,6 @@ public class ActionExecutionConfig {
 
     @Autowired
     private GroupClientConfig groupClientConfig;
-
-    @Autowired
-    private RepositoryClientConfig repositoryClientConfig;
 
     @Autowired
     private TopologyProcessorConfig tpConfig;
@@ -55,9 +48,6 @@ public class ActionExecutionConfig {
     @Value("${actionExecution.timeoutMins:360}")
     private int actionExecutionTimeoutMins;
 
-    @Value("${failedActionPatterns:The cluster where the VM/Availability Set is allocated is currently out of capacity\ncom\\.microsoft\\.azure\\.CloudException: failed with provisioning state: Failed: Allocation failed}")
-    private String failedActionPatterns;
-
     @Bean
     public ProbeCapabilityCache targetCapabilityCache() {
         return new ProbeCapabilityCache(tpConfig.topologyProcessor(), actionCapabilitiesService());
@@ -66,10 +56,8 @@ public class ActionExecutionConfig {
     @Bean
     public FailedCloudVMGroupProcessor failedCloudVMGroupProcessor() {
         return new FailedCloudVMGroupProcessor(GroupServiceGrpc.newBlockingStub(groupClientConfig.groupChannel()),
-                RepositoryServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel()),
-                SettingPolicyServiceGrpc.newBlockingStub(groupClientConfig.groupChannel()),
                 Executors.newSingleThreadScheduledExecutor(),
-                groupUpdateDelaySeconds, failedActionPatterns);
+                groupUpdateDelaySeconds);
     }
 
     /**
