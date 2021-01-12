@@ -365,7 +365,7 @@ public class BulkInserter<InT extends Record, OutT extends Record> implements Bu
         synchronized (this) {
             if (!closed.getAndSet(true)) {
                 flush(true);
-                if (!(pendingExecutions.get() > 0)) {
+                if (pendingExecutions.get() > 0) {
                     logger.warn("Some batch executions still pending at close for out table {}",
                             outTable.getName());
                 }
