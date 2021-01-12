@@ -25,7 +25,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
-import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionFailure;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupRequest;
@@ -39,11 +38,9 @@ import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
-import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
-import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
@@ -62,22 +59,15 @@ public class FailedCloudVMGroupProcessor {
     private final static String FAILED_GROUP_CLOUD_VMS = "Cloud VMs with Failed Sizing";
     private final GroupServiceBlockingStub groupServiceClient;
     private final Object lock = new Object();
-    private final FailedCloudResizeTierExcluder failedCloudResizeTierExcluder;
 
     @GuardedBy("lock")
     private Set<Long> successOidsSet = new HashSet<>();
     @GuardedBy("lock")
     private Set<Long> failedOidsSet = new HashSet<>();
 
-    public FailedCloudVMGroupProcessor(final GroupServiceBlockingStub groupServiceClient,
-            final RepositoryServiceBlockingStub repositoryService,
-            final SettingPolicyServiceBlockingStub settingPolicyService,
-            final ScheduledExecutorService scheduledExecutorService,
-            final int groupUpdateDelaySeconds,
-            final @Nonnull String failedActionPatterns) {
+    public FailedCloudVMGroupProcessor(final GroupServiceBlockingStub groupServiceClient, final ScheduledExecutorService scheduledExecutorService,
+                                       final int groupUpdateDelaySeconds) {
         this.groupServiceClient = groupServiceClient;
-        this.failedCloudResizeTierExcluder = new FailedCloudResizeTierExcluder(
-                groupServiceClient, settingPolicyService, repositoryService, failedActionPatterns);
         scheduledExecutorService.scheduleWithFixedDelay(this::processAndUpdateFailedGroup,
                 0,
                 groupUpdateDelaySeconds,
@@ -98,7 +88,7 @@ public class FailedCloudVMGroupProcessor {
                 return;
             }
 
-            group = getFailedGroup().orElseGet(this::createFailedActionGroup);
+            group = getFailedGroup().orElseGet(() -> createFailedActionGroup());
             Preconditions.checkArgument(group != null && group.hasDefinition(), "Failed group not found or was not created");
         } catch (StatusRuntimeException e) {
             logger.error("Error while fetching/creating failed group using group service. There are {} items still to be processed", (successOidsSet.size() + failedOidsSet.size()), e);
@@ -201,13 +191,11 @@ public class FailedCloudVMGroupProcessor {
     }
 
     /**
-     * Handle failed actions.
+     * Handle failed actions
      *
-     * @param actionView the action details.
-     * @param actionFailure The progress notification for an action.
+     * @param actionView
      */
-    public void handleActionFailure(@Nonnull ActionView actionView, ActionFailure actionFailure) {
-        failedCloudResizeTierExcluder.updateTierExclusionPolicy(actionView, actionFailure);
+    public void handleActionFailure(@Nonnull ActionView actionView) {
         handleActionUpdate(actionView, true);
     }
 
@@ -323,10 +311,5 @@ public class FailedCloudVMGroupProcessor {
     @VisibleForTesting
     public Set<Long> getFailedOidsSet() {
         return failedOidsSet;
-    }
-
-    @VisibleForTesting
-    public FailedCloudResizeTierExcluder getFailedCloudResizeTierExcluder() {
-        return failedCloudResizeTierExcluder;
     }
 }
