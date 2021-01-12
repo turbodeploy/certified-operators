@@ -17,6 +17,7 @@ import com.vmturbo.common.protobuf.VirtualMachineProtoUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Architecture;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo.ScalingPenalty;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo.SupportedCustomerInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualizationType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ComputeTierData;
@@ -42,6 +43,7 @@ public class ComputeTierInfoMapper extends TypeSpecificInfoMapper {
             ImmutableMap.of(VirtualMachineProtoUtil.PVM_AND_HVM,
                     ImmutableSet.of(VirtualizationType.HVM, VirtualizationType.PVM),
                     VirtualMachineProtoUtil.HVM_ONLY, ImmutableSet.of(VirtualizationType.HVM));
+
 
     @Override
     public TypeSpecificInfo mapEntityDtoToTypeSpecificInfo(
@@ -80,6 +82,12 @@ public class ComputeTierInfoMapper extends TypeSpecificInfoMapper {
         }
         if (ctData.hasNumInstanceDisks()) {
             computeTierInfoBuilder.setNumInstanceDisks(ctData.getNumInstanceDisks());
+        }
+        if (ctData.hasScalePenalty()) {
+                computeTierInfoBuilder.setScalePenalty(ScalingPenalty.newBuilder()
+                        .setReason(ctData.getScalePenalty().getReason())
+                        .setPenalty(ctData.getScalePenalty().getPenalty())
+                        .build());
         }
         return TypeSpecificInfo.newBuilder()
                 .setComputeTier(computeTierInfoBuilder.build())

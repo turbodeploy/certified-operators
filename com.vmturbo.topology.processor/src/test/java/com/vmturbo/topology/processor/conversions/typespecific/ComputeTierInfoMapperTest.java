@@ -15,9 +15,11 @@ import org.junit.Test;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Architecture;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo.ScalingPenalty;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo.SupportedCustomerInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualizationType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ScalingPenaltyReason;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ComputeTierData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ComputeTierData.DedicatedStorageNetworkState;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.InstanceDiskType;
@@ -50,6 +52,9 @@ public class ComputeTierInfoMapperTest {
                         .setInstanceDiskType(INSTANCE_DISK_TYPE)
                         .setInstanceDiskSizeGb(INSTANCE_DISK_SIZE)
                         .setBurstableCPU(false)
+                        .setScalePenalty(ScalingPenalty.newBuilder()
+                                .setPenalty(0)
+                                .setReason(ScalingPenaltyReason.CORE_CONSTRAINED_TIER).build())
                         .build())
                 .build();
         final ComputeTierInfoMapper testBuilder = new ComputeTierInfoMapper();
@@ -95,6 +100,8 @@ public class ComputeTierInfoMapperTest {
                 .setNumInstanceDisks(NUM_INSTANCE_DISKS)
                 .setInstanceDiskType(INSTANCE_DISK_TYPE)
                 .setInstanceDiskSizeGb(INSTANCE_DISK_SIZE)
+                .setScalePenalty(ComputeTierData.ScalingPenalty.newBuilder()
+                        .setReason(EntityDTO.ScalingPenaltyReason.CORE_CONSTRAINED_TIER).build())
                 .build());
     }
 }

@@ -205,7 +205,15 @@ message TypeSpecificInfo {
 
         //property to determine if this computeTier supports burstable CPUs.
         optional bool burstableCPU = 9;
-    }
+
+        optional ScalingPenalty scale_penalty = 10;
+        message ScalingPenalty {
+           optional float penalty = 1;
+           optional common_dto.EntityDTO.ScalingPenaltyReason reason = 2;
+           }
+     }
+
+
 
     message DatabaseTierInfo {
         // Edition type of the specified database engine
