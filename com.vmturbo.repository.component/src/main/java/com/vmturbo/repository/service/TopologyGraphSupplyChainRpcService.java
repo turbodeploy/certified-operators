@@ -2,6 +2,7 @@ package com.vmturbo.repository.service;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -461,7 +462,12 @@ public class TopologyGraphSupplyChainRpcService extends SupplyChainServiceImplBa
             }
             // the default filter set excludes entity types not intended for display in the UI
             // supply chain.
-            return GlobalSupplyChainCalculator.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN;
+            if (request.hasScope()) {
+                return Sets.difference(GlobalSupplyChainCalculator.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN,
+                    new HashSet<>(request.getScope().getEntityTypesToIncludeList()));
+            } else {
+                return GlobalSupplyChainCalculator.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN;
+            }
         }
 
         /**
