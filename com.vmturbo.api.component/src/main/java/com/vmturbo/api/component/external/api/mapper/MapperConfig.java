@@ -74,6 +74,12 @@ public class MapperConfig {
     @Value("${useStableActionIdAsUuid:false}")
     private boolean useStableActionIdAsUuid;
 
+    /**
+     * Enable entity details support.
+     */
+    @Value("${entityDetailsEnabled:false}")
+    private boolean entityDetailsEnabled;
+
     @Autowired
     private CommunicationConfig communicationConfig;
 
@@ -152,7 +158,7 @@ public class MapperConfig {
      */
     @Bean
     public EntityDetailsMapper entityDetailsMapper() {
-        return new EntityDetailsMapper(communicationConfig.thinTargetCache());
+        return new EntityDetailsMapper(communicationConfig.thinTargetCache(), entityDetailsEnabled);
     }
 
     /**
