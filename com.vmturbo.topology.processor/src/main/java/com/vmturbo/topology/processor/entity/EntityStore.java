@@ -119,6 +119,11 @@ public class EntityStore {
     private final TopologyProcessorNotificationSender sender;
 
     /**
+     * Enable entity details support.
+     */
+    private boolean entityDetailsEnabled = false;
+
+    /**
      * All the probe types which support converting layered over and consists of to connected to relationship.
      */
     private static final Set<SDKProbeType> SUPPORTED_CONNECTED_TO_PROBE_TYPES = ImmutableSet.of(
@@ -369,7 +374,14 @@ public class EntityStore {
                 }
             });
 
+        // pass whether entity details are supported to the stitching context.
+        builder.setEntityDetailsEnabled(entityDetailsEnabled);
+
         return builder.build();
+    }
+
+    public void setEntityDetailsEnabled(boolean entityDetailsEnabled) {
+        this.entityDetailsEnabled = entityDetailsEnabled;
     }
 
     /**

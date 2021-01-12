@@ -83,6 +83,8 @@ public class StitchingContext {
      */
     private final ResoldCommodityCache resoldCommodityCache;
 
+    private boolean entityDetailsEnabled;
+
     private static final Logger logger = LogManager.getLogger();
 
     /**
@@ -95,17 +97,20 @@ public class StitchingContext {
      * @param identityProvider Identity provider to use to assign identities for entities created during stitching.
      * @param resoldCommodityCache A cache for looking up which commodities are resold based on probe
      *                             supply chains.
+     * @param entityDetailsEnabled whether entity details are supported.
      */
     private StitchingContext(@Nonnull final TopologyStitchingGraph stitchingGraph,
                              @Nonnull final Map<EntityType, Map<Long, List<TopologyStitchingEntity>>> entitiesByEntityTypeAndTarget,
                              @Nonnull final TargetStore targetStore,
                              @Nonnull final IdentityProvider identityProvider,
-                             @Nonnull final ResoldCommodityCache resoldCommodityCache) {
+                             @Nonnull final ResoldCommodityCache resoldCommodityCache,
+                             final boolean entityDetailsEnabled) {
         this.stitchingGraph = Objects.requireNonNull(stitchingGraph);
         this.entitiesByEntityTypeAndTarget = Objects.requireNonNull(entitiesByEntityTypeAndTarget);
         this.targetStore = Objects.requireNonNull(targetStore);
         this.identityProvider = Objects.requireNonNull(identityProvider);
         this.resoldCommodityCache = Objects.requireNonNull(resoldCommodityCache);
+        this.entityDetailsEnabled = entityDetailsEnabled;
     }
 
     /**
@@ -423,6 +428,10 @@ public class StitchingContext {
         return stitchingGraph.entityCount();
     }
 
+    public boolean getEntityDetailsEnabled() {
+        return this.entityDetailsEnabled;
+    }
+
     /**
      * A builder for constructing a stitching graph.
      *
@@ -440,6 +449,8 @@ public class StitchingContext {
 
         private ResoldCommodityCache resoldCommodityCache;
 
+        private boolean entityDetailsEnabled = false;
+
         private Builder(final int entityCount, @Nonnull final TargetStore targetStore) {
             this.stitchingGraph = new TopologyStitchingGraph(entityCount);
             this.targetStore = Objects.requireNonNull(targetStore);
@@ -452,9 +463,14 @@ public class StitchingContext {
             return this;
         }
 
+        public Builder setEntityDetailsEnabled(final boolean entityDetailsEnabled) {
+            this.entityDetailsEnabled = entityDetailsEnabled;
+            return this;
+        }
+
         public StitchingContext build() {
             return new StitchingContext(stitchingGraph, entitiesByEntityTypeAndTarget, targetStore,
-                identityProvider, resoldCommodityCache);
+                identityProvider, resoldCommodityCache, entityDetailsEnabled);
         }
 
         /**

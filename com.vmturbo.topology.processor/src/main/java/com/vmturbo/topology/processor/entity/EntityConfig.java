@@ -34,12 +34,20 @@ public class EntityConfig {
     @Value("${validationOldValuesCacheEnabled:true}")
     private boolean oldValuesCacheEnabled;
 
+    /**
+     * Enable entity details support.
+     */
+    @Value("${entityDetailsEnabled:false}")
+    private boolean entityDetailsEnabled;
+
     @Bean
     public EntityStore entityStore() {
-        return new EntityStore(targetConfig.targetStore(),
+        EntityStore store = new EntityStore(targetConfig.targetStore(),
             identityProviderConfig.identityProvider(),
             sender,
             clockConfig.clock());
+        store.setEntityDetailsEnabled(entityDetailsEnabled);
+        return store;
     }
 
     @Bean
