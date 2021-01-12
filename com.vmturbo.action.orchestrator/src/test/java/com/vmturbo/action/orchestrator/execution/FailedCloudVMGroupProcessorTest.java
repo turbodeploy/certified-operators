@@ -53,8 +53,12 @@ import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -163,7 +167,13 @@ public class FailedCloudVMGroupProcessorTest {
     @Before
     public void setup() {
         GroupServiceBlockingStub groupServiceRpc = GroupServiceGrpc.newBlockingStub(testServer.getChannel());
-        failedCloudVMGroupProcessor = new FailedCloudVMGroupProcessor(groupServiceRpc, scheduledExecutorService, 10);
+        RepositoryServiceBlockingStub repositoryServiceBlockingStub =
+                RepositoryServiceGrpc.newBlockingStub(testServer.getChannel());
+        SettingPolicyServiceBlockingStub settingPolicyService = SettingPolicyServiceGrpc.newBlockingStub(
+                testServer.getChannel());
+        failedCloudVMGroupProcessor = new FailedCloudVMGroupProcessor(groupServiceRpc,
+                repositoryServiceBlockingStub, settingPolicyService,
+                scheduledExecutorService, 10, "");
     }
 
 
@@ -174,7 +184,6 @@ public class FailedCloudVMGroupProcessorTest {
     public void onPremTypeAction() {
         when(testGroupService.getGroups(eq(GET_GROUP_REQUEST))).thenReturn(Collections.emptyList());
         Action testAction = makeAction(recommendationOnPrem);
-        failedCloudVMGroupProcessor.handleActionFailure(testAction);
         verify(testGroupService, never()).getGroups(any());
     }
 
@@ -185,7 +194,7 @@ public class FailedCloudVMGroupProcessorTest {
     public void notAMoveOrResizeAction() {
         when(testGroupService.getGroups(eq(GET_GROUP_REQUEST))).thenReturn(Collections.emptyList());
         Action testAction = makeAction(recommendation_reconfigure);
-        failedCloudVMGroupProcessor.handleActionFailure(testAction);
+        failedCloudVMGroupProcessor.handleActionFailure(testAction, null);
         verify(testGroupService, never()).getGroups(any());
     }
 
@@ -193,7 +202,7 @@ public class FailedCloudVMGroupProcessorTest {
     public void isValidActionTest() {
         when(testGroupService.getGroups(eq(GET_GROUP_REQUEST))).thenReturn(Collections.emptyList());
         Action testAction = makeAction(recommendationOnCloud);
-        failedCloudVMGroupProcessor.handleActionFailure(testAction);
+        failedCloudVMGroupProcessor.handleActionFailure(testAction, null);
         assertThat("Incorrect set size ", failedCloudVMGroupProcessor.getFailedOidsSet(), containsInAnyOrder(1L));
     }
 
@@ -204,7 +213,7 @@ public class FailedCloudVMGroupProcessorTest {
     public void isValidScaleActionTest() {
         when(testGroupService.getGroups(eq(GET_GROUP_REQUEST))).thenReturn(Collections.emptyList());
         Action testAction = makeAction(scaleOnCloud);
-        failedCloudVMGroupProcessor.handleActionFailure(testAction);
+        failedCloudVMGroupProcessor.handleActionFailure(testAction, null);
         assertThat("Incorrect set size ", failedCloudVMGroupProcessor.getFailedOidsSet(),
             containsInAnyOrder(5L));
     }
@@ -217,9 +226,9 @@ public class FailedCloudVMGroupProcessorTest {
         when(testGroupService.getGroups(eq(GET_GROUP_REQUEST))).thenReturn(Collections.emptyList());
         Action testAction = makeAction(recommendationOnCloud);
         Action testAction_2 = makeAction(recommendationOnCloud_2);
-        failedCloudVMGroupProcessor.handleActionFailure(testAction);
+        failedCloudVMGroupProcessor.handleActionFailure(testAction, null);
         assertThat("Set size incorrect after adding 1 action ", failedCloudVMGroupProcessor.getFailedOidsSet(), containsInAnyOrder(1L));
-        failedCloudVMGroupProcessor.handleActionFailure(testAction_2);
+        failedCloudVMGroupProcessor.handleActionFailure(testAction_2, null);
         assertThat("Set size incorrect after adding 2 action ", failedCloudVMGroupProcessor.getFailedOidsSet(), containsInAnyOrder(1L, 2L));
     }
 
@@ -231,7 +240,7 @@ public class FailedCloudVMGroupProcessorTest {
     public void addDuplicateVMsInSetTest() {
         when(testGroupService.getGroups(eq(GET_GROUP_REQUEST))).thenReturn(Collections.emptyList());
         Action testAction = makeAction(recommendationOnCloud);
-        failedCloudVMGroupProcessor.handleActionFailure(testAction);
+        failedCloudVMGroupProcessor.handleActionFailure(testAction, null);
         assertThat("Failed Set size incorrect after adding 1 action ", failedCloudVMGroupProcessor.getFailedOidsSet(), containsInAnyOrder(1L));
         assertTrue("Success set size incorrect after adding 1 action ", failedCloudVMGroupProcessor.getSuccessOidsSet().isEmpty());
         failedCloudVMGroupProcessor.handleActionSuccess(testAction);

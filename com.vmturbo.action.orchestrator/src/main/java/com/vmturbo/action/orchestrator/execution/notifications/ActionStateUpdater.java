@@ -305,7 +305,7 @@ public class ActionStateUpdater implements ActionExecutionListener {
             removeAcceptanceForExternalAcceptedAction(action);
         }
 
-        failedCloudVMGroupProcessor.handleActionFailure(action);
+        failedCloudVMGroupProcessor.handleActionFailure(action, actionFailure);
         writeFailActionToAudit(action, actionFailure);
         processActionState(action, transitionResult, false);
 
