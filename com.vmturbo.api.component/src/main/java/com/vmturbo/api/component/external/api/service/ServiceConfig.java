@@ -441,7 +441,7 @@ public class ServiceConfig {
 
     @Bean
     public IProbesService probeService() {
-        return new ProbesService(communicationConfig.probeRpcService(), communicationConfig.topologyProcessor());
+        return new ProbesService(communicationConfig.probeRpcService());
     }
 
     @Bean

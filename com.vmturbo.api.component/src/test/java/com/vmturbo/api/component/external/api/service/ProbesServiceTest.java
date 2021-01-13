@@ -7,12 +7,6 @@ import static org.mockito.AdditionalAnswers.delegatesTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
 
 import io.grpc.inprocess.InProcessChannelBuilder;
 import io.grpc.inprocess.InProcessServerBuilder;
@@ -21,14 +15,11 @@ import io.grpc.stub.StreamObserver;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
-import org.mockito.Mockito;
 import org.mockito.Spy;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.api.dto.probe.ProbePropertyNameValuePairApiDTO;
-import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.common.protobuf.probe.ProbeDTO.DeleteProbePropertyRequest;
 import com.vmturbo.common.protobuf.probe.ProbeDTO.DeleteProbePropertyResponse;
@@ -47,10 +38,6 @@ import com.vmturbo.common.protobuf.probe.ProbeDTO.UpdateProbePropertyTableReques
 import com.vmturbo.common.protobuf.probe.ProbeDTO.UpdateProbePropertyTableResponse;
 import com.vmturbo.common.protobuf.probe.ProbeRpcServiceGrpc;
 import com.vmturbo.common.protobuf.probe.ProbeRpcServiceGrpc.ProbeRpcServiceImplBase;
-import com.vmturbo.platform.sdk.common.MediationMessage;
-import com.vmturbo.topology.processor.api.AccountDefEntry;
-import com.vmturbo.topology.processor.api.ProbeInfo;
-import com.vmturbo.topology.processor.api.TopologyProcessor;
 
 /**
  * Unit tests for the {@link ProbesService} class.
@@ -60,8 +47,6 @@ public class ProbesServiceTest {
 
     @Spy
     private ProbeRpcServiceImplBase mockServer;
-
-    private TopologyProcessor topologyProcessor = mock(TopologyProcessor.class);
 
     /**
      * Set up a mock topology processor server and a {@link ProbesService} client and connects them.
@@ -87,7 +72,7 @@ public class ProbesServiceTest {
                     InProcessChannelBuilder
                         .forName(serverName)
                         .directExecutor()
-                        .build()), topologyProcessor);
+                        .build()));
     }
 
     /**
@@ -105,48 +90,6 @@ public class ProbesServiceTest {
 
         verify(mockServer).getProbeInfo(captureRequest.capture(), any());
         assertEquals(20L, captureRequest.getValue().getOid());
-    }
-
-    /**
-     * Calling {@link ProbesService#getProbes()} will send a correct {@link GetProbeInfoRequest} to the topology processor.
-     *
-     * @throws Exception should not happen.
-     */
-    @Test
-    public void testGetProbes() throws Exception {
-        // Create our return values
-        Set<ProbeInfo> probeInfoSet = ImmutableSet.of(
-                createMockProbeInfo(1, "type", "category", "uiCategory", MediationMessage.ProbeInfo.CreationMode.DERIVED)
-        );
-
-        // Configure the mock TopologyProcessor
-        when(topologyProcessor.getAllProbes()).thenReturn(probeInfoSet);
-
-        // Execute the getProbes() method
-        List<TargetApiDTO> targets = probesService.getProbes();
-        assertEquals("Expected 1 target", 1, targets.size());
-        TargetApiDTO target = targets.get(0);
-        assertEquals("UUID is not correct", "1", target.getUuid());
-        assertEquals("Type is not correct", "type", target.getType());
-        assertEquals("Category is not correct", "uiCategory", target.getCategory());
-    }
-
-    private ProbeInfo createMockProbeInfo(long probeId, String type, String category, String uiCategory,
-                                          MediationMessage.ProbeInfo.CreationMode creationMode, AccountDefEntry... entries) throws Exception {
-        final ProbeInfo newProbeInfo = Mockito.mock(ProbeInfo.class);
-        when(newProbeInfo.getId()).thenReturn(probeId);
-        when(newProbeInfo.getType()).thenReturn(type);
-        when(newProbeInfo.getCategory()).thenReturn(category);
-        when(newProbeInfo.getUICategory()).thenReturn(uiCategory);
-        when(newProbeInfo.getAccountDefinitions()).thenReturn(Arrays.asList(entries));
-        when(newProbeInfo.getCreationMode()).thenReturn(creationMode);
-        if (entries.length > 0) {
-            when(newProbeInfo.getIdentifyingFields())
-                    .thenReturn(Collections.singletonList(entries[0].getName()));
-        } else {
-            when(newProbeInfo.getIdentifyingFields()).thenReturn(Collections.emptyList());
-        }
-        return newProbeInfo;
     }
 
     /**

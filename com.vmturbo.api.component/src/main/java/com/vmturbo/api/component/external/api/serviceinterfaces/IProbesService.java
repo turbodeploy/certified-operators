@@ -9,7 +9,6 @@ import javax.annotation.Nonnull;
 import com.vmturbo.api.dto.probe.ProbePropertyNameValuePairApiDTO;
 import com.vmturbo.api.dto.probe.ProbeApiDTO;
 import com.vmturbo.api.dto.probe.ProbePropertyApiDTO;
-import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
@@ -24,15 +23,6 @@ public interface IProbesService {
      */
     @Nonnull
     ProbeApiDTO getProbe(@Nonnull String probeId) throws Exception;
-
-    /**
-     * Get a list of all probes.
-     *
-     * @return a list of information about each probe.
-     * @throws Exception operation failed.
-     */
-    @Nonnull
-    List<TargetApiDTO> getProbes() throws Exception;
 
     /**
      * Get a list of all probe properties.

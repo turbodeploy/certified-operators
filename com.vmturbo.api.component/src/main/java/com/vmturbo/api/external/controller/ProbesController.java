@@ -26,7 +26,6 @@ import com.vmturbo.api.component.external.api.serviceinterfaces.IProbesService;
 import com.vmturbo.api.dto.probe.ProbeApiDTO;
 import com.vmturbo.api.dto.probe.ProbePropertyApiDTO;
 import com.vmturbo.api.dto.probe.ProbePropertyNameValuePairApiDTO;
-import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
@@ -83,31 +82,6 @@ public class ProbesController {
             @PathVariable("probeId")
             String probeId) throws Exception {
         return probesService.getProbe(Objects.requireNonNull(probeId));
-    }
-
-    /**
-     * Get all probes.
-     * GET /probes
-     *
-     * @return List of probe information.
-     * @throws UnknownObjectException probe not found by the specified Uuid.
-     * @throws OperationFailedException if user input is wrong.
-     * @throws AccessDeniedException if user does not have proper access privileges.
-     * @throws UnauthorizedObjectException if user is properly authenticated.
-     * @throws InterruptedException if thread is interrupted during processing.
-     * @throws Exception consistent with the other API calls, this is the base class for the other exceptions
-     */
-    @ApiOperation(
-            value = "Get a list of all probes.",
-            response = TargetApiDTO.class,
-            responseContainer = "List")
-    @RequestMapping(
-            method = RequestMethod.GET,
-            produces = { MediaType.APPLICATION_JSON_VALUE })
-    @ResponseBody
-    @PreAuthorize("hasAnyRole('ADMINISTRATOR', 'DEPLOYER', 'AUTOMATOR', 'ADVISOR')")
-    public List<TargetApiDTO> getProbes() throws Exception {
-        return probesService.getProbes();
     }
 
     /**

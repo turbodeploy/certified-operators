@@ -11,17 +11,12 @@ import javax.annotation.Nonnull;
 
 import io.grpc.StatusRuntimeException;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.vmturbo.api.component.external.api.mapper.ExceptionMapper;
 import com.vmturbo.api.component.external.api.mapper.ProbeMapper;
 import com.vmturbo.api.component.external.api.serviceinterfaces.IProbesService;
-import com.vmturbo.api.component.external.api.util.target.TargetMapper;
 import com.vmturbo.api.dto.probe.ProbeApiDTO;
 import com.vmturbo.api.dto.probe.ProbePropertyApiDTO;
 import com.vmturbo.api.dto.probe.ProbePropertyNameValuePairApiDTO;
-import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.common.protobuf.probe.ProbeDTO.DeleteProbePropertyRequest;
 import com.vmturbo.common.protobuf.probe.ProbeDTO.GetAllProbePropertiesRequest;
@@ -36,35 +31,21 @@ import com.vmturbo.common.protobuf.probe.ProbeDTO.ProbePropertyNameValuePair;
 import com.vmturbo.common.protobuf.probe.ProbeDTO.UpdateOneProbePropertyRequest;
 import com.vmturbo.common.protobuf.probe.ProbeDTO.UpdateProbePropertyTableRequest;
 import com.vmturbo.common.protobuf.probe.ProbeRpcServiceGrpc.ProbeRpcServiceBlockingStub;
-import com.vmturbo.communication.CommunicationException;
-import com.vmturbo.topology.processor.api.ProbeInfo;
-import com.vmturbo.topology.processor.api.TopologyProcessor;
 
 /**
  * Implementation of the probe service.
  */
 public class ProbesService implements IProbesService {
 
-    private static final Logger logger = LogManager.getLogger(ProbesService.class);
-
     private final ProbeRpcServiceBlockingStub probeRpcService;
-
-    private final TopologyProcessor topologyProcessor;
-
-    /**
-     * Used to map a ProbeInfo to a TargetApiDTO.
-     */
-    private final TargetMapper targetMapper = new TargetMapper();
 
     /**
      * Probe service constructor.
      *
      * @param probeRpcService RPC connection to Topology Processor.
-     * @param topologyProcessor used by the getProbes() method to retrieve a list of probes.
      */
-    public ProbesService(@Nonnull ProbeRpcServiceBlockingStub probeRpcService, @Nonnull final TopologyProcessor topologyProcessor) {
+    public ProbesService(@Nonnull ProbeRpcServiceBlockingStub probeRpcService) {
         this.probeRpcService = Objects.requireNonNull(probeRpcService);
-        this.topologyProcessor = topologyProcessor;
     }
 
     @Override
@@ -79,32 +60,6 @@ public class ProbesService implements IProbesService {
         final GetProbeInfoResponse response;
         response = probeRpcService.getProbeInfo(GetProbeInfoRequest.newBuilder().setOid(oid).build());
         return ProbeMapper.getProbeApiDTO(response);
-    }
-
-    @Nonnull
-    @Override
-    public List<TargetApiDTO> getProbes() throws Exception {
-        logger.debug("Get all probes");
-        final Set<ProbeInfo> probes;
-        try {
-            // Retrieve the list of all probes from the topology processor
-            probes = topologyProcessor.getAllProbes();
-        } catch (CommunicationException e) {
-            throw new TargetsService.CommunicationError(e);
-        }
-
-        // Convert the ProbeInfo instances to TargetApiDTOs
-        final List<TargetApiDTO> answer = new ArrayList<>();
-        for (ProbeInfo probeInfo: probes) {
-            try {
-                answer.add(targetMapper.mapProbeInfoToDTO(probeInfo));
-            } catch (TargetsService.FieldVerificationException e) {
-                throw new RuntimeException(
-                        "Fields of target " + probeInfo.getType() + " failed validation", e);
-            }
-        }
-
-        return answer;
     }
 
     @Override

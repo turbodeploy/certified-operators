@@ -82,7 +82,6 @@ import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.ServiceProviderExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
-import com.vmturbo.api.component.external.api.util.target.TargetMapper;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketHandler;
 import com.vmturbo.api.controller.TargetsController;
 import com.vmturbo.api.dto.ErrorApiDTO;
@@ -1325,8 +1324,8 @@ public class TargetsServiceTest {
             .thenReturn(StringConstants.TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS);
         when(targetInfo.getLastValidationTime()).thenReturn(null);
 
-        org.junit.Assert.assertEquals(TargetMapper.UI_VALIDATING_STATUS,
-            TargetMapper.mapStatusToApiDTO(targetInfo));
+        org.junit.Assert.assertEquals(TargetsService.UI_VALIDATING_STATUS,
+            TargetsService.mapStatusToApiDTO(targetInfo));
     }
 
     // Discovery in progress should be displayed as "Validating"
@@ -1337,8 +1336,8 @@ public class TargetsServiceTest {
             .thenReturn(StringConstants.TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS);
         when(targetInfo.getLastValidationTime()).thenReturn(LocalDateTime.now());
 
-        org.junit.Assert.assertEquals(TargetMapper.UI_VALIDATING_STATUS,
-            TargetMapper.mapStatusToApiDTO(targetInfo));
+        org.junit.Assert.assertEquals(TargetsService.UI_VALIDATING_STATUS,
+            TargetsService.mapStatusToApiDTO(targetInfo));
     }
 
     // verify adding VC target without setting "isStorageBrowsingEnabled" filed,
@@ -1519,7 +1518,7 @@ public class TargetsServiceTest {
     }
 
     private void assertEquals(TargetInfo target, TargetApiDTO dto) {
-        Assert.assertEquals(TargetMapper.mapStatusToApiDTO(target), dto.getStatus());
+        Assert.assertEquals(TargetsService.mapStatusToApiDTO(target), dto.getStatus());
         // Input fields that have no value set in the TargetInfo
         // still show up in the TargetApiDTO.
         final List<InputFieldApiDTO> filledInputFields = dto.getInputFields().stream()
