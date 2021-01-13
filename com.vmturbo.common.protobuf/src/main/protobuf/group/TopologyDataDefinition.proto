@@ -40,6 +40,9 @@ message TopologyDataDefinition {
         // List of criteria for defining entities to associate with the created entity
         repeated AssociatedEntitySelectionCriteria associated_entities = 3;
 
+        // The flag defines if this Definition is Context-Based.
+        optional bool context_based = 4 [default = false];
+
         // The information that is used for selecting entities to associate with the created entity.
         // There are three possibilities: specify a static list of entities by OID, give the ID of
         // an existing group that contains the entities to associate, or specify a list of filters
