@@ -41,26 +41,26 @@
                                 <artifactItem>
                                     <groupId>com.vmturbo</groupId>
                                     <artifactId>com.vmturbo.mediation.apm.snmp</artifactId>
-                                    <version>${vmturbo.mt.branch.version}</version>
+                                    <version>${apm.probes.branch.version}</version>
                                     <type>zip</type>
                                     <overWrite>false</overWrite>
-                                    <outputDirectory>${project.build.directory}/probe-jars/com.vmturbo.mediation.apm.snmp-${vmturbo.mt.branch.version}</outputDirectory>
+                                    <outputDirectory>${project.build.directory}/probe-jars/com.vmturbo.mediation.apm.snmp-${apm.probes.branch.version}</outputDirectory>
                                 </artifactItem>
                                 <artifactItem>
                                     <groupId>com.vmturbo</groupId>
                                     <artifactId>com.vmturbo.mediation.apm.wmi</artifactId>
-                                    <version>${vmturbo.mt.branch.version}</version>
+                                    <version>${apm.probes.branch.version}</version>
                                     <type>zip</type>
                                     <overWrite>false</overWrite>
-                                    <outputDirectory>${project.build.directory}/probe-jars/com.vmturbo.mediation.apm.wmi-${vmturbo.mt.branch.version}</outputDirectory>
+                                    <outputDirectory>${project.build.directory}/probe-jars/com.vmturbo.mediation.apm.wmi-${apm.probes.branch.version}</outputDirectory>
                                 </artifactItem>
                                 <artifactItem>
                                     <groupId>com.vmturbo</groupId>
                                     <artifactId>com.vmturbo.mediation.appdynamics</artifactId>
-                                    <version>${vmturbo.mt.branch.version}</version>
+                                    <version>${apm.probes.branch.version}</version>
                                     <type>zip</type>
                                     <overWrite>false</overWrite>
-                                    <outputDirectory>${project.build.directory}/probe-jars/com.vmturbo.mediation.appdynamics-${vmturbo.mt.branch.version}</outputDirectory>
+                                    <outputDirectory>${project.build.directory}/probe-jars/com.vmturbo.mediation.appdynamics-${apm.probes.branch.version}</outputDirectory>
                                 </artifactItem>
                                 <artifactItem>
                                     <groupId>com.vmturbo</groupId>
@@ -81,18 +81,26 @@
                                 <artifactItem>
                                     <groupId>com.vmturbo</groupId>
                                     <artifactId>com.vmturbo.mediation.database.mssql.sdk</artifactId>
-                                    <version>${vmturbo.mt.branch.version}</version>
+                                    <version>${apm.probes.branch.version}</version>
                                     <type>zip</type>
                                     <overWrite>false</overWrite>
-                                    <outputDirectory>${project.build.directory}/probe-jars/com.vmturbo.mediation.database.mssql.sdk-${vmturbo.mt.branch.version}</outputDirectory>
+                                    <outputDirectory>${project.build.directory}/probe-jars/com.vmturbo.mediation.database.mssql.sdk-${apm.probes.branch.version}</outputDirectory>
                                 </artifactItem>
                                 <artifactItem>
                                     <groupId>com.vmturbo</groupId>
                                     <artifactId>com.vmturbo.mediation.dynatrace</artifactId>
-                                    <version>${vmturbo.mt.branch.version}</version>
+                                    <version>${apm.probes.branch.version}</version>
                                     <type>zip</type>
                                     <overWrite>false</overWrite>
-                                    <outputDirectory>${project.build.directory}/probe-jars/com.vmturbo.mediation.dynatrace-${vmturbo.mt.branch.version}</outputDirectory>
+                                    <outputDirectory>${project.build.directory}/probe-jars/com.vmturbo.mediation.dynatrace-${apm.probes.branch.version}</outputDirectory>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>com.vmturbo</groupId>
+                                    <artifactId>com.vmturbo.mediation.instana</artifactId>
+                                    <version>${apm.probes.branch.version}</version>
+                                    <type>zip</type>
+                                    <overWrite>false</overWrite>
+                                    <outputDirectory>${project.build.directory}/probe-jars/com.vmturbo.mediation.instana-${apm.probes.branch.version}</outputDirectory>
                                 </artifactItem>
                                 <artifactItem>
                                     <groupId>com.vmturbo</groupId>
