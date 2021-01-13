@@ -149,10 +149,18 @@ public class MarketCloudCostDataProvider implements CloudCostDataProvider {
                     GetEntityReservedInstanceCoverageRequest.getDefaultInstance());
 
             Map<Long, EntityReservedInstanceCoverage> coverageListMap = coverageResponse.getCoverageByEntityIdMap();
-            final Map<Long, EntityReservedInstanceCoverage> filteredCoverageMap =
-                filterCouponsCoveredByRi(coverageListMap, riBoughtById.keySet());
 
-            return new CloudCostData<>(coverageListMap,
+            Map<Long, EntityReservedInstanceCoverage> scopedCoverageListMap = new HashMap<>();
+            for (long entityOid : coverageListMap.keySet()) {
+                cloudTopo.getEntity(entityOid).ifPresent(a -> {
+                    scopedCoverageListMap.put(a.getOid(), coverageListMap.get(a.getOid()));
+                });
+            }
+
+            final Map<Long, EntityReservedInstanceCoverage> filteredCoverageMap =
+                filterCouponsCoveredByRi(scopedCoverageListMap, riBoughtById.keySet());
+
+            return new CloudCostData<>(scopedCoverageListMap,
                     filteredCoverageMap,
                     riBoughtById,
                     riSpecsById,
