@@ -11,9 +11,12 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -38,7 +41,9 @@ import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredPolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.BindToGroupPolicy;
+import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
+import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.group.common.DuplicateNameException;
 import com.vmturbo.group.common.ImmutableUpdateException.ImmutablePolicyUpdateException;
 import com.vmturbo.group.common.ItemNotFoundException.PolicyNotFoundException;
@@ -309,6 +314,45 @@ public class PolicyStoreTest {
         final Map<Long, Set<Long>> policyToGroup = getPolicyToGroupMapping();
         assertThat(policyToGroup.keySet(), contains(POLICY_ID));
         assertThat(policyToGroup.get(POLICY_ID), contains(CONSUMER_GROUP_ID, PRODUCER_GROUP_ID));
+    }
+
+    /**
+     * Test the case that one of the setting policies fails to be restored but it is ignored.
+     *
+     * @throws DiagnosticsException if something goes wrong.
+     */
+    @Test
+    public void testRestoreFailureIgnore() throws DiagnosticsException {
+        // ARRANGE
+        Policy policyWithGroupPresent = Policy.newBuilder()
+            .setId(101L)
+            .setPolicyInfo(POLICY_INFO)
+            .build();
+
+        Policy policyWithGroupMissing = Policy.newBuilder()
+            .setId(102L)
+            .setPolicyInfo(POLICY_INFO
+                .toBuilder()
+                .setName("policy with missing group")
+                .setDisplayName("policy with missing display name")
+                .setBindToGroup(POLICY_INFO.getBindToGroup()
+                    .toBuilder()
+                    .setConsumerGroupId(44L))).build();
+
+        List<String> serialized = new ArrayList<>();
+        serialized.add(ComponentGsonFactory.createGsonNoPrettyPrint()
+            .toJson(Arrays.asList(policyWithGroupPresent, policyWithGroupMissing)));
+
+        // ACT
+        policyStore.restoreDiags(serialized, dbConfig.getDslContext());
+
+        // ASSERT
+        Collection<Policy> policies = policyStore.getAll();
+        // both of them inserted but one has missing scope
+        Assert.assertThat(policies.size(), is(2));
+        Policy retrievedPolicyPresentGroup = policies
+            .stream().filter(s -> s.getId() == 101L).findAny().get();
+        Assert.assertThat(retrievedPolicyPresentGroup, is(policyWithGroupPresent));
     }
 
     private void injectGroup(final long id) {

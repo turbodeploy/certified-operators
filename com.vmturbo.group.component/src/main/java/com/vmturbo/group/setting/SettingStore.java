@@ -47,6 +47,9 @@ import org.apache.logging.log4j.Logger;
 import org.jooq.BatchBindStep;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
+import org.jooq.Insert;
+import org.jooq.InsertOnDuplicateStep;
+import org.jooq.Param;
 import org.jooq.Query;
 import org.jooq.Record;
 import org.jooq.Record1;
@@ -928,6 +931,7 @@ public class SettingStore implements DiagsRestorable<DSLContext> {
      *
      * @param settings List of settings to be inserted into the database
      * @param context the context for DB access.
+     * @param ignoreFailures if the insert failures should be ignored or not.
      * @throws DataAccessException
      * @throws InvalidProtocolBufferException
      * @throws SQLTransientException
@@ -936,7 +940,7 @@ public class SettingStore implements DiagsRestorable<DSLContext> {
     @Retryable(value = {SQLTransientException.class},
         maxAttempts = 3, backoff = @Backoff(delay = 2000))
     private void insertGlobalSettingsInternal(@Nonnull final List<Setting> settings,
-                                              @Nonnull DSLContext context)
+                  @Nonnull DSLContext context, boolean ignoreFailures)
             throws SQLTransientException, DataAccessException, InvalidProtocolBufferException {
 
         if (settings.isEmpty()) {
@@ -965,14 +969,25 @@ public class SettingStore implements DiagsRestorable<DSLContext> {
                 logger.info("No new global settings to add to the database");
                 return;
             }
-            BatchBindStep batch = context.batch(
+            BatchBindStep batch = context.batch(addIgnoreIfNeeded(
                 //have to provide dummy values for jooq
                 context.insertInto(GLOBAL_SETTINGS, GLOBAL_SETTINGS.NAME, GLOBAL_SETTINGS.SETTING_DATA)
-                                .values(newSettings.get(0).getSettingSpecName(), newSettings.get(0).toByteArray()));
+                .values(newSettings.get(0).getSettingSpecName(), newSettings.get(0).toByteArray()),
+              ignoreFailures));
             for (Setting setting : newSettings) {
                 batch.bind(setting.getSettingSpecName(), setting.toByteArray());
             }
-            batch.execute();
+
+            // log errors if there are failures
+            int[] rowsAffected = batch.execute();
+            for (int idx = 0; idx < rowsAffected.length; idx++) {
+                // all the queries are insert so if no row was changes there is something wrong.
+                if (rowsAffected[idx] == 0) {
+                    logger.warn("There was an error occurred while inserting global settings. "
+                            + "The setting that failed to insert is \"{}\".",
+                        newSettings.get(idx));
+                }
+            }
         } catch (DataAccessException e) {
             if ((e.getCause() instanceof SQLException) &&
                     (((SQLException)e.getCause()).getCause() instanceof  SQLTransientException)) {
@@ -988,7 +1003,7 @@ public class SettingStore implements DiagsRestorable<DSLContext> {
         throws DataAccessException, InvalidProtocolBufferException {
 
         try {
-            insertGlobalSettingsInternal(settings, dslContext);
+            insertGlobalSettingsInternal(settings, dslContext, false);
         } catch (SQLTransientException e) {
             throw new DataAccessException("Failed to insert settings into DB", e.getCause());
         }
@@ -999,14 +1014,16 @@ public class SettingStore implements DiagsRestorable<DSLContext> {
      *
      * @param settings the settings that is being inserted
      * @param context the context for db access.
+     * @param ignoreFailures if insertion failure should be ignored.
      * @throws DataAccessException when something goes wrong with DB interaction.
      * @throws InvalidProtocolBufferException when we cannot parse protobuf objects.
      */
-    public void insertGlobalSettings(@Nonnull final List<Setting> settings, DSLContext context)
+    public void insertGlobalSettings(@Nonnull final List<Setting> settings,
+                 @Nonnull DSLContext context, boolean ignoreFailures)
         throws DataAccessException, InvalidProtocolBufferException {
 
         try {
-            insertGlobalSettingsInternal(settings, context);
+            insertGlobalSettingsInternal(settings, context, ignoreFailures);
         } catch (SQLTransientException e) {
             throw new DataAccessException("Failed to insert settings into DB", e.getCause());
         }
@@ -1156,7 +1173,7 @@ public class SettingStore implements DiagsRestorable<DSLContext> {
 
             // Attempt to restore global settings.
             deleteAllGlobalSettings(context);
-            insertGlobalSettings(globalSettingsToRestore, context);
+            insertGlobalSettings(globalSettingsToRestore, context, true);
 
 
         } catch (DataAccessException | InvalidProtocolBufferException e) {
@@ -1173,7 +1190,7 @@ public class SettingStore implements DiagsRestorable<DSLContext> {
 
             // Attempt to restore setting policies.
             deleteAllSettingPolicies(context);
-            insertAllSettingPolicies(settingPoliciesToRestore, context);
+            insertAllSettingPolicies(settingPoliciesToRestore, context, true);
 
         } catch (DataAccessException | StoreOperationException e) {
             errors.add("Failed to restore setting policies: " + e.getMessage() + ": " +
@@ -1249,16 +1266,70 @@ public class SettingStore implements DiagsRestorable<DSLContext> {
      *
      * @param settingPolicies The setting policies to insert.
      * @param context The dsl context for accessing db.
+     * @param ignoreFailures if the insert failures should be ignored or not.
      * @throws StoreOperationException if failed to insert operation failed.
      */
     private void insertAllSettingPolicies(
-            @Nonnull final List<SettingProto.SettingPolicy> settingPolicies, @Nonnull DSLContext context)
+            @Nonnull final List<SettingProto.SettingPolicy> settingPolicies,
+            @Nonnull DSLContext context,
+            boolean ignoreFailures)
             throws StoreOperationException {
-        final Collection<TableRecord<?>> inserts = new ArrayList<>();
+        final Collection<TableRecord<?>> records = new ArrayList<>();
         for (SettingProto.SettingPolicy settingPolicy : settingPolicies) {
-            inserts.addAll(createSettingPolicy(settingPolicy));
+            records.addAll(createSettingPolicy(settingPolicy));
         }
-        context.batchInsert(inserts).execute();
+
+        // execute inserts
+        List<Insert<?>> inserts = records.stream()
+            .map(r -> recordToBatchQuery(context, r, ignoreFailures))
+            .collect(Collectors.toList());
+        int[] rowsAffected = context.batch(inserts).execute();
+        for (int idx = 0; idx < rowsAffected.length; idx++) {
+            // all the queries are insert so if no row was changes there is something wrong.
+            if (rowsAffected[idx] == 0) {
+                logger.info("There was an error occurred while inserting setting policies. "
+                        + "The insert with statement \"{}\" and params \"{}\" did not execute "
+                        + "successfully",
+                    inserts.get(idx).getSQL(),
+                    inserts.get(idx).getParams().values().stream().map(Param::toString)
+                        .collect(Collectors.joining(",")),
+                    rowsAffected[idx]);
+            }
+        }
+    }
+
+    /**
+     * Converts the table record to an insert statement including the ignore if indicated by input.
+     *
+     * @param context the transaction context.
+     * @param record the record being inserted.
+     * @param ignoreFailure if the insert should include ignore.
+     * @param <R> the type of record.
+     * @return the insert statement.
+     */
+    private static <R extends TableRecord<R>> Insert<R> recordToBatchQuery(DSLContext context,
+                                                   TableRecord<R> record, boolean ignoreFailure) {
+        InsertOnDuplicateStep<R> ret = context.insertInto(record.getTable()).set(record);
+        return addIgnoreIfNeeded(ret, ignoreFailure);
+    }
+
+    /**
+     * Add ignore to insert statement if indicated by input.
+     *
+     * @param insert the insert statement.
+     * @param ignoreFailure if we should add ignore to statement.
+     * @param <R> the type of record for insert statement.
+     * @return the result insert.
+     */
+    private static <R extends TableRecord<R>> Insert<R> addIgnoreIfNeeded(
+            InsertOnDuplicateStep<R> insert, boolean ignoreFailure) {
+        if (ignoreFailure) {
+            // onDuplicateKeyIgnore is translated to INSERT IGNORE in MySql. INSERT IGNORE will
+            // ignore the foreign key constraint.  Other DBMSes might not behave like this.
+            return insert.onDuplicateKeyIgnore();
+        } else {
+            return insert;
+        }
     }
 
     /**

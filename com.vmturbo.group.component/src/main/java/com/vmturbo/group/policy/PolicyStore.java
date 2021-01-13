@@ -20,7 +20,12 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
+import org.jooq.Insert;
+import org.jooq.InsertOnDuplicateStep;
+import org.jooq.Param;
+import org.jooq.Record;
 import org.jooq.Record4;
+import org.jooq.TableRecord;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 
@@ -181,7 +186,7 @@ public class PolicyStore implements DiagsRestorable<DSLContext>, IPlacementPolic
                         .setPolicyInfo(policyInfo)
                         .build();
                 policyValidator.validatePolicy(context, policyProto);
-                return internalCreate(context, policyProto);
+                return internalCreate(context, policyProto, false);
             });
         } catch (DataAccessException e) {
             POLICY_STORE_ERROR_COUNT.labels(CREATE_LABEL).increment();
@@ -330,7 +335,7 @@ public class PolicyStore implements DiagsRestorable<DSLContext>, IPlacementPolic
         logger.info("Deleted {} existing policies.", rowsAffected);
         for (final PolicyDTO.Policy policy : policies) {
             try {
-                internalCreate(context, policy);
+                internalCreate(context, policy, true);
             } catch (DuplicateNameException | RuntimeException e) {
                 // Log the exception, but continue attempting to restore other policies.
                 logger.error("Failed to restore policy " + policy.getPolicyInfo().getName()
@@ -375,16 +380,18 @@ public class PolicyStore implements DiagsRestorable<DSLContext>, IPlacementPolic
      *
      * @param context The transaction context. This should NOT be the root DSLContext.
      * @param policyProto The protobuf representation of the policy.
+     * @param ignoreFailures ignore the insert failures.
      * @return The protobuf representation of the policy.
      * @throws DataAccessException If there is an issue connecting to the database.
      * @throws DuplicateNameException If a policy with the same name already exists in the database.
      */
     @Nonnull
     private PolicyDTO.Policy internalCreate(@Nonnull final DSLContext context,
-                                            @Nonnull final PolicyDTO.Policy policyProto)
+                                            @Nonnull final PolicyDTO.Policy policyProto,
+                                            boolean ignoreFailures)
             throws DataAccessException, DuplicateNameException {
         checkForDuplicates(context, policyProto.getId(), policyProto.getPolicyInfo().getName());
-        createNewPolicies(context, Collections.singleton(policyProto));
+        createNewPolicies(context, Collections.singleton(policyProto), ignoreFailures);
         return policyProto;
     }
 
@@ -447,9 +454,9 @@ public class PolicyStore implements DiagsRestorable<DSLContext>, IPlacementPolic
         return toPolicyProto(existingRecord.into(Policy.class));
     }
 
-    private Collection<PolicyGroupRecord> createReferencedGroups(
+    private List<PolicyGroupRecord> createReferencedGroups(
             @Nonnull Collection<PolicyDTO.Policy> policies) {
-        final Collection<PolicyGroupRecord> result = new ArrayList<>();
+        final List<PolicyGroupRecord> result = new ArrayList<>();
         for (PolicyDTO.Policy policy: policies) {
             final long policyId = policy.getId();
             final Set<Long> groupIds = GroupProtoUtil.getPolicyGroupIds(policy);
@@ -571,7 +578,7 @@ public class PolicyStore implements DiagsRestorable<DSLContext>, IPlacementPolic
 
     @Override
     public int createPolicies(@Nonnull Collection<PolicyDTO.Policy> policies) {
-        return createNewPolicies(dslContext, policies);
+        return createNewPolicies(dslContext, policies, false);
     }
 
     /**
@@ -579,11 +586,13 @@ public class PolicyStore implements DiagsRestorable<DSLContext>, IPlacementPolic
      *
      * @param context transactional DB context
      * @param policies policies to create
+     * @param ignoreFailures if the insert failures should be ignored.
      * @return number of policies created
      */
     private int createNewPolicies(@Nonnull DSLContext context,
-            @Nonnull Collection<PolicyDTO.Policy> policies) {
-        final Collection<PolicyRecord> policyRecords = new ArrayList<>(policies.size());
+            @Nonnull Collection<PolicyDTO.Policy> policies,
+            boolean ignoreFailures) {
+        final List<PolicyRecord> policyRecords = new ArrayList<>(policies.size());
         for (PolicyDTO.Policy policyProto : policies) {
             final byte[] hash = PlacementPolicyHash.hash(policyProto);
             final PolicyRecord policy = new PolicyRecord(policyProto.getId(),
@@ -592,9 +601,77 @@ public class PolicyStore implements DiagsRestorable<DSLContext>, IPlacementPolic
                     policyProto.getPolicyInfo(), hash, policyProto.getPolicyInfo().getDisplayName());
             policyRecords.add(policy);
         }
-        final int policyCount = context.batchInsert(policyRecords).execute().length;
-        Collection<PolicyGroupRecord> referenceRecords = createReferencedGroups(policies);
-        context.batchInsert(referenceRecords).execute();
+
+        // if we are ignoring failure add the ignore to inserts
+        List<Insert<PolicyRecord>> policyInserts = policyRecords.stream().map(
+            r -> recordToBatchQuery(context, r, ignoreFailures)).collect(Collectors.toList());
+
+        final int[] rowsAffected = context.batch(policyInserts).execute();
+        int policyCount = logFailures(policyInserts, rowsAffected);
+
+        List<PolicyGroupRecord> referenceRecords = createReferencedGroups(policies);
+        // if we are ignoring failure add the ignore to inserts
+        List<Insert<PolicyGroupRecord>> referenceInsert = referenceRecords.stream().map(
+            r -> recordToBatchQuery(context, r, ignoreFailures)).collect(Collectors.toList());
+
+        final int[] rowsAffectedGroupInserts = context.batch(referenceInsert).execute();
+        logFailures(referenceInsert, rowsAffectedGroupInserts);
         return policyCount;
+    }
+
+
+
+    /**
+     * Converts the table record to an insert statement including the ignore if indicated by input.
+     *
+     * @param context the transaction context.
+     * @param record the record being inserted.
+     * @param ignoreFailure if the insert should include ignore.
+     * @param <R> the type of record.
+     * @return the insert statement.
+     */
+    private static <R extends TableRecord<R>> Insert<R> recordToBatchQuery(DSLContext context,
+                                               TableRecord<R> record, boolean ignoreFailure) {
+        InsertOnDuplicateStep<R> ret = context.insertInto(record.getTable()).set(record);
+        return addIgnoreIfNeeded(ret, ignoreFailure);
+    }
+
+    /**
+     * Add ignore to insert statement if indicated by input.
+     *
+     * @param insert the insert statement.
+     * @param ignoreFailure if we should add ignore to statement.
+     * @param <R> the type of record for insert statement.
+     * @return the result insert.
+     */
+    private static <R extends TableRecord<R>> Insert<R> addIgnoreIfNeeded(
+            InsertOnDuplicateStep<R> insert, boolean ignoreFailure) {
+        if (ignoreFailure) {
+            // onDuplicateKeyIgnore is translated to INSERT IGNORE in MySql. INSERT IGNORE will
+            // ignore the foreign key constraint.  Other DBMSes might not behave like this.
+            return insert.onDuplicateKeyIgnore();
+        } else {
+            return insert;
+        }
+    }
+
+    private <T extends Record> int logFailures(List<Insert<T>> inserts,
+                                               int[] rowsAffected) {
+        int successfulInserts = 0;
+        for (int idx = 0; idx < rowsAffected.length; idx++) {
+            // all the queries are insert so if no row was changes there is something wrong.
+            if (rowsAffected[idx] == 0) {
+                logger.info("There was an error occurred while inserting policies. "
+                        + "The insert with statement \"{}\" and params \"{}\" did not execute "
+                        + "successfully",
+                    inserts.get(idx).getSQL(),
+                    inserts.get(idx).getParams().values().stream().map(Param::toString)
+                        .collect(Collectors.joining(",")),
+                    rowsAffected[idx]);
+            } else {
+                successfulInserts++;
+            }
+        }
+        return successfulInserts;
     }
 }

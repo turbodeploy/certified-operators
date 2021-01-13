@@ -33,6 +33,8 @@ import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
+import com.google.gson.Gson;
+import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.ProtocolStringList;
 
 import io.grpc.Status;
@@ -78,6 +80,8 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec.SettingValue
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingTiebreaker;
 import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
+import com.vmturbo.components.api.ComponentGsonFactory;
+import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.ActionSettingType;
 import com.vmturbo.components.common.setting.ConfigurableActionSettings;
@@ -1517,6 +1521,64 @@ public class SettingStoreTest {
         Assert.assertTrue(updateSettingPolicyResults.getSecond());
     }
 
+    /**
+     * Test the case that one of the setting policies fails to be restored but it is ignored.
+     *
+     * @throws StoreOperationException if something goes wrong.
+     * @throws DiagnosticsException if something goes wrong.
+     * @throws InvalidProtocolBufferException if something goes wrong.
+     */
+    @Test
+    public void testRestoreFailureIgnore() throws StoreOperationException, DiagnosticsException,
+        InvalidProtocolBufferException {
+        // ARRANGE
+        Setting setting = Setting.newBuilder()
+            .setSettingSpecName("Test Setting")
+            .setStringSettingValue(StringSettingValue.newBuilder().setValue("Test Value").build())
+            .build();
+
+
+        final long groupId = 23L;
+        createGroup(groupId);
+        SettingPolicy policyWithPresentGroup =
+            SettingPolicy.newBuilder()
+                .setId(101L)
+                .setInfo(createSettingPolicyInfo(groupId, "good policy"))
+                .setSettingPolicyType(Type.USER)
+                .build();
+
+        SettingPolicy policyWithMissingGroup = SettingPolicy.newBuilder()
+            .setId(102L)
+            .setInfo(createSettingPolicyInfo(11L, "bad policy"))
+            .setSettingPolicyType(Type.USER)
+            .build();
+
+        List<String> serialized = serializeSettingPolicy(Collections.singletonList(setting),
+            Arrays.asList(policyWithPresentGroup, policyWithMissingGroup));
+
+        // ACT
+        settingStore.restoreDiags(serialized, dbConfig.getDslContext());
+
+        // ASSERT
+        assertThat(settingStore.getAllGlobalSettings().size(), is(1));
+        Collection<SettingPolicy> settings =
+            settingStore.getSettingPolicies(SettingPolicyFilter.newBuilder().build());
+        // both of them inserted but one has missing scope
+        assertThat(settings.size(), is(2));
+        SettingPolicy retrievedPolicyPresentGroup = settings
+            .stream().filter(s -> s.getId() == 101L).findAny().get();
+        assertThat(retrievedPolicyPresentGroup, is(policyWithPresentGroup));
+    }
+
+    private List<String> serializeSettingPolicy(List<Setting> globalSettings,
+                                         List<SettingPolicy> settingPolicyInfos) {
+        final Gson gson = ComponentGsonFactory.createGsonNoPrettyPrint();
+        List<String> result = new ArrayList<>();
+        result.add(gson.toJson(globalSettings));
+        result.add(gson.toJson(settingPolicyInfos));
+        return result;
+    }
+
 
     @Nonnull
     private Schedule createSchedule(@Nonnull final String scheduleName) {
@@ -1548,11 +1610,29 @@ public class SettingStoreTest {
                 .build();
     }
 
+    private  SettingPolicyInfo createSettingPolicyInfo(long groupId, String name) {
+        final Setting actionModeSetting =
+            createActionModeSetting(ConfigurableActionSettings.ResizeVmemUpInBetweenThresholds.name(),
+                ActionMode.MANUAL);
+
+        final SettingPolicyInfo settingPolicyInfo =
+            createSettingPolicyInfo(Collections.singleton(actionModeSetting), name, name, groupId);
+
+        return settingPolicyInfo;
+    }
+
     private SettingPolicyInfo createSettingPolicyInfo(@Nonnull final Collection<Setting> settings,
+                                                      long groupId) {
+        return createSettingPolicyInfo(settings, "Test", "Test Policy", groupId);
+    }
+
+    private SettingPolicyInfo createSettingPolicyInfo(@Nonnull final Collection<Setting> settings,
+            String name,
+            String displayName,
             long groupId) {
         return SettingPolicyInfo.newBuilder()
-                .setName("Test")
-                .setDisplayName("Test Policy")
+                .setName(name)
+                .setDisplayName(displayName)
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                 .setEnabled(true)
                 .setScope(Scope.newBuilder().addGroups(groupId).build())
