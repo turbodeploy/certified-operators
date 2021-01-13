@@ -3,9 +3,7 @@ package com.vmturbo.api.component.external.api.service;
 import java.time.Clock;
 import java.time.Duration;
 
-import javax.servlet.Servlet;
 import javax.servlet.ServletContext;
-import javax.servlet.ServletRegistration;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -91,12 +89,6 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
         SearchDBConfig.class})
 @PropertySource("classpath:api-component.properties")
 public class ServiceConfig {
-
-    /**
-     * A path prefix to access reports data (implemented in Legacy as CGI-script) using
-     * {@link ReportCgiServlet}.
-     */
-    public static final String REPORT_CGI_PATH = "/cgi-bin/vmtreport.cgi";
 
     @Value("${targetValidationTimeoutSeconds:120}")
     private Long targetValidationTimeoutSeconds;
@@ -460,17 +452,7 @@ public class ServiceConfig {
 
     @Bean
     public ReportsService reportsService() {
-        return new ReportsService(communicationConfig.reportingRpcService(), groupsService());
-    }
-
-    @Bean
-    public Servlet reportServlet() {
-        final Servlet servlet = new ReportCgiServlet(communicationConfig.reportingRpcService());
-        final ServletRegistration.Dynamic registration =
-                servletContext.addServlet("reports-cgi-servlet", servlet);
-        registration.setLoadOnStartup(1);
-        registration.addMapping(REPORT_CGI_PATH);
-        return servlet;
+        return new ReportsService();
     }
 
     @Bean

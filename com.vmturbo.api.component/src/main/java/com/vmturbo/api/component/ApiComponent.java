@@ -115,12 +115,10 @@ public class ApiComponent extends BaseVmtComponent {
                 multipartConfigMaxRequestSizeKb,
                 multipartConfigMaxRequestSizeKb));
 
-        // Explicitly add Spring security to the following servlets: report, REST API, WebSocket messages
+        // Explicitly add Spring security to the following servlets: REST API, WebSocket messages
         final FilterHolder filterHolder = new FilterHolder();
         filterHolder.setFilter(new DelegatingFilterProxy());
         filterHolder.setName("springSecurityFilterChain");
-        contextServer.addFilter(filterHolder, ServiceConfig.REPORT_CGI_PATH,
-            EnumSet.of(DispatcherType.REQUEST));
         contextServer.addFilter(filterHolder, ApiWebsocketConfig.WEBSOCKET_URL,
             EnumSet.of(DispatcherType.REQUEST));
         for (String pathSpec : ExternalApiConfig.BASE_URL_MAPPINGS) {
