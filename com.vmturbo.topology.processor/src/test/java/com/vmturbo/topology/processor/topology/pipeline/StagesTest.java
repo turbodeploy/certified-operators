@@ -68,6 +68,7 @@ import com.vmturbo.components.common.pipeline.PipelineContext;
 import com.vmturbo.components.common.pipeline.PipelineContext.PipelineContextMemberDefinition;
 import com.vmturbo.components.common.pipeline.Stage;
 import com.vmturbo.matrix.component.TheMatrix;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.repository.api.RepositoryClient;
@@ -649,10 +650,13 @@ public class StagesTest {
         Table<Long, Integer, CommodityType> results = HashBasedTable.create();
         results.put(123L,
                 EntityType.PHYSICAL_MACHINE_VALUE,
-                CommodityType.newBuilder().setKey("ABC").setType(1).build());
+                CommodityType.newBuilder().setKey("ABC").setType(CommodityDTO.CommodityType.SEGMENTATION_VALUE).build());
+        results.put(789L,
+                EntityType.PHYSICAL_MACHINE_VALUE,
+                CommodityType.newBuilder().setKey("ABC").setType(CommodityDTO.CommodityType.SOFTWARE_LICENSE_COMMODITY_VALUE).build());
         results.put(456L,
                 EntityType.VIRTUAL_MACHINE_VALUE,
-                CommodityType.newBuilder().setKey("ABC").setType(1).build());
+                CommodityType.newBuilder().setKey("ABC").setType(CommodityDTO.CommodityType.SEGMENTATION_VALUE).build());
         when(policyManager.getPlacementPolicyIdToCommodityType(any(), any()))
                 .thenReturn(results);
         UpdateConstraintMapRequest updateConstraintMapRequest =

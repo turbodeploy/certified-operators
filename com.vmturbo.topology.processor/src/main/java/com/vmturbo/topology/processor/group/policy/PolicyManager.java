@@ -246,10 +246,13 @@ public class PolicyManager {
                 .forEach(policiesToApply::add);
 
         Table<Long, Integer, TopologyDTO.CommodityType> results = HashBasedTable.create();
-        policiesToApply.stream().filter(policy -> policy instanceof BindToGroupPolicy
-                || policy instanceof BindToComplementaryGroupPolicy
-                || policy instanceof AtMostNBoundPolicy
-                || policy instanceof AtMostNPolicy).forEach(policy ->
+        policiesToApply.stream().filter(policy ->
+                // only update PO if the policy is enabled.
+                policy.isEnabled()
+                        && (policy instanceof BindToGroupPolicy
+                        || policy instanceof BindToComplementaryGroupPolicy
+                        || policy instanceof AtMostNBoundPolicy
+                        || policy instanceof AtMostNPolicy)).forEach(policy ->
                         results.put(policy
                             .getPolicyDefinition().getId(),
                                 getProviderType(policy),

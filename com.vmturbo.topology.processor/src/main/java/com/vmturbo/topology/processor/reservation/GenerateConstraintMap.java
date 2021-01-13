@@ -262,8 +262,9 @@ public class GenerateConstraintMap {
                 .getPlacementPolicyIdToCommodityType(topologyGraph,
                         groupResolver);
         for (Cell<Long, Integer, TopologyDTO.CommodityType> cell : placementPolicyIdToCommodityType.cellSet()) {
-            if (cell.getColumnKey() == EntityType.PHYSICAL_MACHINE_VALUE
-                    || cell.getColumnKey() == EntityType.STORAGE_VALUE) {
+            if ((cell.getColumnKey() == EntityType.PHYSICAL_MACHINE_VALUE
+                    || cell.getColumnKey() == EntityType.STORAGE_VALUE)
+                    && (cell.getValue().getType() == CommodityType.SEGMENTATION_VALUE)) {
                 updateConstraintMapRequest.addReservationContraintInfo(ReservationConstraintInfo
                         .newBuilder()
                         .setKey(cell.getValue().getKey())

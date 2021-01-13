@@ -158,7 +158,15 @@ public class ReservationManager implements ReservationDeletedListener {
 
 
         Set<Long> addedConstraints = reservationConstraintInfoMap.keySet().stream().filter(
-                id -> !this.constraintIDToCommodityTypeMap.containsKey(id))
+                id -> {
+                    ReservationConstraintInfo reservationConstraintInfo =
+                            this.constraintIDToCommodityTypeMap.get(id);
+                    return reservationConstraintInfo == null
+                        // if both the maps have the constraintID but the commodity key associated
+                        // with is different.
+                        || !reservationConstraintInfoMap.get(id).getKey()
+                        .equals(reservationConstraintInfo.getKey());
+                })
                 .collect(Collectors.toSet());
         Set<Long> deletedConstraints = this.constraintIDToCommodityTypeMap.keySet().stream().filter(
                 id -> !reservationConstraintInfoMap.containsKey(id))
