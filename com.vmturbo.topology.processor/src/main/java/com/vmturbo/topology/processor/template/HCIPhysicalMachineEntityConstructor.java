@@ -78,36 +78,31 @@ public class HCIPhysicalMachineEntityConstructor {
         List<TopologyEntityDTO.Builder> result = new ArrayList<>();
 
         if (hostsToReplace.isEmpty()) {
-            throw new TopologyEntityConstructorException("HCI template has no hosts to replace");
+            throw new TopologyEntityConstructorException(
+                    "There are no hosts to replace with the HCI template "
+                            + template.getTemplateInfo().getName());
         }
 
-        // All the hosts should belong to the same vSAN cluster. Get the first
-        // one.
-        TopologyEntity.Builder anyHost = hostsToReplace.iterator().next();
-        TopologyEntityDTO.Builder oldStorage = getHCIStorage(anyHost);
+        // Get plan ID from any plan entity
+        TopologyEntityDTO.Builder anyPlanEntity = hostsToReplace.iterator().next()
+                .getEntityBuilder();
+        long planId = anyPlanEntity.getEdit().getReplaced().getPlanId();
 
         // Create new storage
         TopologyEntityDTO.Builder newStorage = new StorageEntityConstructor()
-                .createTopologyEntityFromTemplate(template, topology, oldStorage,
+                .createTopologyEntityFromTemplate(template, topology, null,
                         TemplateActionType.REPLACE, identityProvider, null);
 
-        if (oldStorage == null) {
-            logger.info("Creating HCI storage '{}'", newStorage.getDisplayName());
+        logger.info("Creating HCI storage '{}'", newStorage.getDisplayName());
 
-            // Create fake Storage cluster commodity
-            CommoditySoldDTO.Builder comm = TopologyEntityConstructor.createAccessCommodity(
-                    CommodityDTO.CommodityType.STORAGE_CLUSTER, newStorage.getOid(), null);
-            newStorage.addCommoditySoldList(comm);
-        } else {
-            logger.info("Replacing HCI storage '{}' with '{}'", oldStorage.getDisplayName(),
-                    newStorage.getDisplayName());
-        }
+        // Create Storage Cluster commodity for the new storage
+        CommoditySoldDTO.Builder comm = TopologyEntityConstructor.createAccessCommodity(
+                CommodityDTO.CommodityType.STORAGE_CLUSTER, newStorage.getOid(), null);
+        newStorage.addCommoditySoldList(comm);
 
-        setClusterCommodities(hostsToReplace, newStorage);
+        setHciClusterCommodities(hostsToReplace, newStorage);
         setResizable(newStorage, CommodityType.STORAGE_AMOUNT);
         setResizable(newStorage, CommodityType.STORAGE_PROVISIONED);
-        long planId = anyHost.getEntityBuilder().getEdit().getReplaced().getPlanId();
-        setReplacementId(oldStorage, newStorage.getOid(), planId);
         setStoragePolicy(newStorage);
         result.add(newStorage);
 
@@ -119,23 +114,26 @@ public class HCIPhysicalMachineEntityConstructor {
 
             // Create new host
             TopologyEntityDTO.Builder newHost = new PhysicalMachineEntityConstructor()
-                    .createTopologyEntityFromTemplate(template, topology,
-                            anyHost.getEntityBuilder(), TemplateActionType.REPLACE,
-                            identityProvider, nameSuffix);
+                    .createTopologyEntityFromTemplate(template, topology, null,
+                            TemplateActionType.REPLACE, identityProvider, nameSuffix);
             result.add(newHost);
-            logger.info("Replacing HCI host '{}' with '{}'", anyHost.getDisplayName(),
-                    newHost.getDisplayName());
 
             // Process all the hosts
             for (TopologyEntity.Builder hostToReplace : hostsToReplace) {
+                logger.info("Replacing host '{}' with '{}'", hostToReplace.getDisplayName(),
+                        newHost.getDisplayName());
+
                 TopologyEntityDTO.Builder oldHost = hostToReplace.getEntityBuilder();
                 setConstraints(oldHost, newHost);
-                TopologyEntityConstructor.addAccess(oldHost, newHost,
-                        newStorage);
+                TopologyEntityConstructor.addAccess(oldHost, newHost, newStorage);
                 setReplacementId(oldHost, newHost.getOid(), planId);
 
-                for (TopologyEntity.Builder provider : getProvidingStorages(hostToReplace)) {
-                    setReplacementId(provider.getEntityBuilder(), newStorage.getOid(), planId);
+                List<TopologyEntityDTO.Builder> replaceStorages = getProvidingStorages(
+                        hostToReplace);
+                TopologyEntityDTO.Builder hciStorage = getHCIStorage(hostToReplace);
+                replaceStorages.add(hciStorage);
+                for (TopologyEntityDTO.Builder storage : replaceStorages) {
+                    setReplacementId(storage, newStorage.getOid(), planId);
                 }
             }
 
@@ -232,11 +230,11 @@ public class HCIPhysicalMachineEntityConstructor {
      * @return storages providers for the host
      */
     @Nonnull
-    private List<TopologyEntity.Builder> getProvidingStorages(
+    private List<TopologyEntityDTO.Builder> getProvidingStorages(
             @Nonnull TopologyEntity.Builder host) {
         return host.getProviderIds().stream().map(topology::get)
                 .filter(p -> p.getEntityType() == EntityType.STORAGE_VALUE)
-                .collect(Collectors.toList());
+                .map(TopologyEntity.Builder::getEntityBuilder).collect(Collectors.toList());
     }
 
     /**
@@ -246,7 +244,8 @@ public class HCIPhysicalMachineEntityConstructor {
      * @param newStorage new vSAN storage
      * @throws TopologyEntityConstructorException error setting the commodities
      */
-    private void setClusterCommodities(@Nonnull Collection<TopologyEntity.Builder> hostsToReplace,
+    private void setHciClusterCommodities(
+            @Nonnull Collection<TopologyEntity.Builder> hostsToReplace,
             @Nonnull TopologyEntityDTO.Builder newStorage)
             throws TopologyEntityConstructorException {
         List<CommoditySoldDTO.Builder> clusterSoldComms = getSoldCommodities(newStorage,
@@ -259,53 +258,52 @@ public class HCIPhysicalMachineEntityConstructor {
 
             for (TopologyEntity.Builder host : hostsToReplace) {
                 for (TopologyEntity consumer : host.getConsumers()) {
-                    setClusterKeyForVm(consumer.getTopologyEntityDtoBuilder(), clusterTypeWithKey);
+                    setStorageClusterKeyForVm(consumer.getTopologyEntityDtoBuilder(),
+                            clusterTypeWithKey);
                 }
 
                 for (Long providerId : host.getProviderIds()) {
-                    setClusterKeyForProvider(clusterSoldComm, host, providerId);
+                    addClusterCommodityToHciStorage(clusterSoldComm, providerId);
                 }
             }
         }
     }
 
-    private void setClusterKeyForProvider(CommoditySoldDTO.Builder clusterSoldComm,
-            TopologyEntity.Builder host, Long providerId)
+    private void addClusterCommodityToHciStorage(CommoditySoldDTO.Builder clusterSoldComm,
+            Long storageId)
             throws TopologyEntityConstructorException {
-        TopologyEntity.Builder provider = topology.get(providerId);
+        TopologyEntity.Builder storage = topology.get(storageId);
 
-        if (provider == null) {
-            throw new TopologyEntityConstructorException("Cannot find  provider "
-                    + providerId + " for host " + host.getDisplayName());
+        if (storage == null) {
+            throw new TopologyEntityConstructorException("Cannot find  provider " + storageId);
         }
 
-        if (provider.getEntityType() != EntityType.STORAGE_VALUE
-                || TopologyEntityConstructor.hasCommodity(provider.getEntityBuilder(),
+        if (storage.getEntityType() != EntityType.STORAGE_VALUE
+                || TopologyEntityConstructor.hasCommodity(storage.getEntityBuilder(),
                         clusterSoldComm.build())) {
             return;
         }
 
-        provider.getEntityBuilder().addCommoditySoldList(clusterSoldComm);
+        storage.getEntityBuilder().addCommoditySoldList(clusterSoldComm);
     }
 
-    private void setClusterKeyForVm(@Nonnull TopologyEntityDTO.Builder vm,
-            @Nonnull TopologyDTO.CommodityType clusterTypeWithKey)
-            throws TopologyEntityConstructorException {
+    private void setStorageClusterKeyForVm(@Nonnull TopologyEntityDTO.Builder vm,
+            @Nonnull TopologyDTO.CommodityType clusterTypeWithKey) {
         if (vm.getEntityType() != EntityType.VIRTUAL_MACHINE_VALUE) {
             return;
         }
 
-        List<CommoditiesBoughtFromProvider.Builder> boughtComms = vm
+        List<CommoditiesBoughtFromProvider.Builder> storageBoughtComms = vm
                 .getCommoditiesBoughtFromProvidersBuilderList().stream()
                 .filter(comm -> comm.getProviderEntityType() == EntityType.STORAGE_VALUE)
                 .collect(Collectors.toList());
 
-        if (boughtComms.isEmpty()) {
-            throw new TopologyEntityConstructorException(
-                    "The VM '" + vm.getDisplayName() + "' does not buy from any storages");
+        if (storageBoughtComms.isEmpty()) {
+            logger.warn("VM '{}' does not have any storage providers", vm.getDisplayName());
+            return;
         }
 
-        for (CommoditiesBoughtFromProvider.Builder boughtComm : boughtComms) {
+        for (CommoditiesBoughtFromProvider.Builder boughtComm : storageBoughtComms) {
             for (CommodityBoughtDTO.Builder comm : boughtComm.getCommodityBoughtBuilderList()) {
                 if (comm.getCommodityType().getType() == CommodityType.STORAGE_CLUSTER_VALUE) {
                     comm.setCommodityType(clusterTypeWithKey);
