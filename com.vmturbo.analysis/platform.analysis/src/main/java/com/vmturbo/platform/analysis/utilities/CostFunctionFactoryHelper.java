@@ -686,7 +686,7 @@ public class CostFunctionFactoryHelper {
         Long chosenAccountId = costAccountPair.second;
         // If no pricing was found for commodities in basket, then return infinite quote for seller.
         if (cost == Double.MAX_VALUE) {
-            logger.warn("No (cheapest) cost found for storage {} in region {}, account {}.",
+            logger.debug("No (cheapest) cost found for storage {} in region {}, account {}.",
                     seller.getDebugInfoNeverUseInCode(), regionId, balanceAccount);
             return new CostUnavailableQuote(seller, regionId, balanceAccountId, priceId);
         }
