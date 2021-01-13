@@ -53,6 +53,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep.Status;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
@@ -87,19 +88,19 @@ public class ActionStateUpdaterTest {
     private final long realtimeTopologyContextId = 0;
     private ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
     private final AcceptedActionsDAO acceptedActionsStore = Mockito.mock(AcceptedActionsDAO.class);
-    private final long actionId1 = 123456;
-    private final long actionId2 = 12345667;
-    private final long actionId3 = 18234566;
+    private final long externalApprovalId = 123456;
+    private final long manualId = 12345667;
+    private final long manualWithWorkflowsId = 18234566;
     private final long notFoundId = 99999;
     private final long actionTargetId1 = 11;
     private final long actionTargetId2 = 22;
     private final long actionTargetId3 = 33;
-    private final ActionDTO.Action recommendation1 =
-            createActionRecommendation(actionId1, actionTargetId1);
-    private final ActionDTO.Action recommendation2 =
-            createActionRecommendation(actionId2, actionTargetId2);
-    private final ActionDTO.Action recommendation3 =
-            createActionRecommendation(actionId3, actionTargetId3);
+    private final ActionDTO.ActionSpec externalApprovalSpec =
+            createActionSpec(externalApprovalId, actionTargetId1);
+    private final ActionDTO.ActionSpec manualSpec =
+            createActionSpec(manualId, actionTargetId2);
+    private final ActionDTO.ActionSpec manualWithWorkflowsSpec =
+            createActionSpec(manualWithWorkflowsId, actionTargetId3);
 
     private final EntitiesAndSettingsSnapshot entitySettingsCache = mock(EntitiesAndSettingsSnapshot.class);
     private ActionAuditSender actionAuditSender;
@@ -137,15 +138,15 @@ public class ActionStateUpdaterTest {
         when(entitySettingsCache.getResourceGroupForEntity(anyLong())).thenReturn(Optional.empty());
         when(actionStorehouse.getStore(eq(realtimeTopologyContextId))).thenReturn(Optional.of(actionStore));
         when(actionStore.getAction(eq(notFoundId))).thenReturn(Optional.empty());
-        externalApprovalAction = makeTestAction(actionId1, recommendation1);
-        manualAction = makeTestAction(actionId2, recommendation2);
-        manualWithWorkflowsAction = makeTestAction(actionId3, recommendation3);
+        externalApprovalAction = makeTestAction(externalApprovalId, externalApprovalSpec);
+        manualAction = makeTestAction(manualId, manualSpec);
+        manualWithWorkflowsAction = makeTestAction(manualWithWorkflowsId, manualWithWorkflowsSpec);
     }
 
-    private Action makeTestAction(final long actionId, ActionDTO.Action actionRecommendation,
+    private Action makeTestAction(final long actionId, ActionDTO.ActionSpec actionSpec,
             final long recommendationId) throws UnsupportedActionException {
         final Action testAction =
-                new Action(actionRecommendation.toBuilder().setId(actionId).build(), 4,
+                new Action(actionSpec.getRecommendation().toBuilder().setId(actionId).build(), 4,
                         actionModeCalculator, recommendationId);
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(entitySettingsCache, testAction);
         testAction.getActionTranslation().setPassthroughTranslationSuccess();
@@ -154,18 +155,19 @@ public class ActionStateUpdaterTest {
         testAction.receive(new ManualAcceptanceEvent("99", 102));
         testAction.receive(new QueuedEvent());
         testAction.receive(new BeginExecutionEvent());
+        when(actionTranslator.translateToSpec(testAction)).thenReturn(actionSpec);
         return testAction;
     }
 
-    private Action makeTestAction(final long actionId, ActionDTO.Action actionRecommendation)
+    private Action makeTestAction(final long actionId, ActionDTO.ActionSpec actionSpec)
             throws UnsupportedActionException {
-        return makeTestAction(actionId, actionRecommendation, 2244L);
+        return makeTestAction(actionId, actionSpec, 2244L);
     }
 
     @Test
     public void testOnActionProgress() throws Exception {
         ActionProgress progress = ActionProgress.newBuilder()
-            .setActionId(actionId1)
+            .setActionId(externalApprovalId)
             .setProgressPercentage(33)
             .setDescription("Moving vm from foo to bar")
             .build();
@@ -227,8 +229,9 @@ public class ActionStateUpdaterTest {
     @Test
     public void testOnActionSuccess() throws Exception {
         ActionSuccess success = ActionSuccess.newBuilder()
-            .setActionId(actionId1)
+            .setActionId(externalApprovalId)
             .setSuccessDescription("Success!")
+            .setActionSpec(externalApprovalSpec)
             .build();
 
         actionStateUpdater.onActionSuccess(success);
@@ -237,7 +240,8 @@ public class ActionStateUpdaterTest {
         verify(notificationSender).notifyActionSuccess(success);
         SerializationState serializedAction = new SerializationState(externalApprovalAction);
 
-        verify(actionHistoryDao).persistActionHistory(recommendation1.getId(), recommendation1,
+        verify(actionHistoryDao).persistActionHistory(externalApprovalSpec.getRecommendation().getId(),
+                externalApprovalSpec.getRecommendation(),
                 realtimeTopologyContextId,
                 serializedAction.getRecommendationTime(),
                 serializedAction.getActionDecision(),
@@ -269,8 +273,9 @@ public class ActionStateUpdaterTest {
     @Test
     public void testActionWithMultipleExecutionSteps() throws Exception {
         final ActionSuccess success = ActionSuccess.newBuilder()
-                .setActionId(actionId3)
+                .setActionId(manualWithWorkflowsId)
                 .setSuccessDescription("Success!")
+                .setActionSpec(manualWithWorkflowsSpec)
                 .build();
 
         Assert.assertEquals(ActionState.IN_PROGRESS, manualWithWorkflowsAction.getState());
@@ -290,7 +295,8 @@ public class ActionStateUpdaterTest {
         SerializationState serializedAction = new SerializationState(manualWithWorkflowsAction);
 
         Mockito.verify(actionHistoryDao, times(1))
-                .persistActionHistory(recommendation3.getId(), recommendation3,
+                .persistActionHistory(manualWithWorkflowsSpec.getRecommendation().getId(),
+                        manualWithWorkflowsSpec.getRecommendation(),
                         realtimeTopologyContextId, serializedAction.getRecommendationTime(),
                         serializedAction.getActionDecision(), serializedAction.getExecutionStep(),
                         serializedAction.getCurrentState().getNumber(),
@@ -309,12 +315,14 @@ public class ActionStateUpdaterTest {
     public void testSendingSystemNotificationWhenActionExecutionHasMultipleSteps()
             throws Exception {
         final ActionSuccess success = ActionSuccess.newBuilder()
-                .setActionId(actionId3)
+                .setActionId(manualWithWorkflowsId)
+                .setActionSpec(manualWithWorkflowsSpec)
                 .setSuccessDescription("Success!")
                 .build();
 
         final ActionFailure failure = ActionFailure.newBuilder()
-                .setActionId(actionId3)
+                .setActionId(manualWithWorkflowsId)
+                .setActionSpec(manualWithWorkflowsSpec)
                 .setErrorDescription("Failure!")
                 .build();
 
@@ -349,7 +357,7 @@ public class ActionStateUpdaterTest {
     @Test
     public void testOnActionSuccessWithoutSendingStateUpdates() throws Exception {
         final ActionSuccess success = ActionSuccess.newBuilder()
-                .setActionId(actionId2)
+                .setActionId(manualId)
                 .setSuccessDescription("Success!")
                 .build();
 
@@ -377,8 +385,8 @@ public class ActionStateUpdaterTest {
         final long recommendationId = 224L;
         final long actionTargetId = 4L;
         final long executionScheduleId = 111L;
-        final ActionDTO.Action actionRecommendation =
-                createActionRecommendation(actionWithScheduleId, actionTargetId);
+        final ActionDTO.ActionSpec actionSpec =
+                createActionSpec(actionWithScheduleId, actionTargetId);
         final ScheduleProto.Schedule executionSchedule =
                 ActionOrchestratorTestUtils.createActiveSchedule(executionScheduleId);
         final Map<Long, Schedule> scheduleMap =
@@ -392,11 +400,12 @@ public class ActionStateUpdaterTest {
         when(entitySettingsCache.getScheduleMap()).thenReturn(scheduleMap);
 
         final Action actionWithExecutionSchedule =
-                makeTestAction(actionWithScheduleId, actionRecommendation, recommendationId);
+                makeTestAction(actionWithScheduleId, actionSpec, recommendationId);
 
         final ActionSuccess success = ActionSuccess.newBuilder()
                 .setActionId(actionWithScheduleId)
                 .setSuccessDescription("Success!")
+                .setActionSpec(actionSpec)
                 .build();
 
         actionStateUpdater.onActionSuccess(success);
@@ -426,8 +435,9 @@ public class ActionStateUpdaterTest {
     @Test
     public void testOnActionFailed() throws Exception {
         ActionFailure failure = ActionFailure.newBuilder()
-            .setActionId(actionId1)
+            .setActionId(externalApprovalId)
             .setErrorDescription("Failure!")
+            .setActionSpec(externalApprovalSpec)
             .build();
 
         actionStateUpdater.onActionFailure(failure);
@@ -435,7 +445,8 @@ public class ActionStateUpdaterTest {
         assertEquals(Status.FAILED, externalApprovalAction.getCurrentExecutableStep().get().getStatus());
         verify(notificationSender).notifyActionFailure(failure);
         SerializationState serializedAction = new SerializationState(externalApprovalAction);
-        verify(actionHistoryDao).persistActionHistory(recommendation1.getId(), recommendation1,
+        verify(actionHistoryDao).persistActionHistory(externalApprovalSpec.getRecommendation().getId(),
+                externalApprovalSpec.getRecommendation(),
             realtimeTopologyContextId,
             serializedAction.getRecommendationTime(),
             serializedAction.getActionDecision(),
@@ -464,24 +475,26 @@ public class ActionStateUpdaterTest {
     public void testSomeActionsLost() throws Exception {
         ActionsLost actionsLost = ActionsLost.newBuilder()
             .setLostActionId(ActionIds.newBuilder()
-                .addActionIds(actionId1))
+                .addActionIds(externalApprovalId))
             .build();
         final QueryableActionViews views = mock(QueryableActionViews.class);
-        when(views.get(Collections.singletonList(actionId1))).thenReturn(Stream.of(
+        when(views.get(Collections.singletonList(externalApprovalId))).thenReturn(Stream.of(
                 externalApprovalAction));
         when(actionStore.getActionViews()).thenReturn(views);
 
         actionStateUpdater.onActionsLost(actionsLost);
 
-        verify(views).get(Collections.singletonList(actionId1));
+        verify(views).get(Collections.singletonList(externalApprovalId));
         assertEquals(ActionState.FAILED, externalApprovalAction.getState());
         assertEquals(Status.FAILED, externalApprovalAction.getCurrentExecutableStep().get().getStatus());
         verify(notificationSender).notifyActionFailure(ActionFailure.newBuilder()
-            .setActionId(actionId1)
+            .setActionId(externalApprovalId)
+            .setActionSpec(externalApprovalSpec)
             .setErrorDescription("Topology Processor lost action state.")
             .build());
         SerializationState serializedAction = new SerializationState(externalApprovalAction);
-        verify(actionHistoryDao).persistActionHistory(recommendation1.getId(), recommendation1,
+        verify(actionHistoryDao).persistActionHistory(externalApprovalSpec.getRecommendation().getId(),
+                externalApprovalSpec.getRecommendation(),
             realtimeTopologyContextId,
             serializedAction.getRecommendationTime(),
             serializedAction.getActionDecision(),
@@ -521,15 +534,18 @@ public class ActionStateUpdaterTest {
         assertEquals(Status.FAILED, externalApprovalAction.getCurrentExecutableStep().get().getStatus());
         assertEquals(Status.FAILED, manualAction.getCurrentExecutableStep().get().getStatus());
         verify(notificationSender).notifyActionFailure(ActionFailure.newBuilder()
-            .setActionId(actionId1)
+            .setActionId(externalApprovalId)
+            .setActionSpec(externalApprovalSpec)
             .setErrorDescription("Topology Processor lost action state.")
             .build());
         verify(notificationSender).notifyActionFailure(ActionFailure.newBuilder()
-            .setActionId(actionId2)
+            .setActionId(manualId)
+            .setActionSpec(manualSpec)
             .setErrorDescription("Topology Processor lost action state.")
             .build());
         SerializationState serializedAction = new SerializationState(externalApprovalAction);
-        verify(actionHistoryDao).persistActionHistory(recommendation1.getId(), recommendation1,
+        verify(actionHistoryDao).persistActionHistory(externalApprovalSpec.getRecommendation().getId(),
+                externalApprovalSpec.getRecommendation(),
             realtimeTopologyContextId,
             serializedAction.getRecommendationTime(),
             serializedAction.getActionDecision(),
@@ -538,7 +554,8 @@ public class ActionStateUpdaterTest {
                 serializedAction.getActionDetailData(), null, null,
                 serializedAction.getRecommendationOid());
         SerializationState serializedAction2 = new SerializationState(externalApprovalAction);
-        verify(actionHistoryDao).persistActionHistory(recommendation1.getId(), recommendation1,
+        verify(actionHistoryDao).persistActionHistory(externalApprovalSpec.getRecommendation().getId(),
+                externalApprovalSpec.getRecommendation(),
             realtimeTopologyContextId,
             serializedAction2.getRecommendationTime(),
             serializedAction2.getActionDecision(),
@@ -597,13 +614,14 @@ public class ActionStateUpdaterTest {
     }
 
     @Nonnull
-    private ActionDTO.Action createActionRecommendation(long actionId1, long actionTargetId) {
-        return ActionDTO.Action.newBuilder()
+    private ActionDTO.ActionSpec createActionSpec(long actionId1, long actionTargetId) {
+        return ActionSpec.newBuilder()
+            .setRecommendation(ActionDTO.Action.newBuilder()
                 .setId(actionId1)
                 .setDeprecatedImportance(0)
                 .setSupportingLevel(SupportLevel.SUPPORTED)
                 .setInfo(TestActionBuilder.makeMoveInfo(actionTargetId, 2, 1, 1, 1))
-                .setExplanation(Explanation.newBuilder().build())
-                .build();
+                .setExplanation(Explanation.newBuilder().build()))
+            .build();
     }
 }

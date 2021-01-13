@@ -76,11 +76,11 @@ import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.topology.graph.TopologyGraphCreator;
 
 /**
- * Unit tests for the {@link SearchActionWriter}.
+ * Unit tests for the {@link SearchPendingActionWriter}.
  */
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(classes = {ExtractorDbConfig.class, ExtractorDbBaseConfig.class})
-public class SearchActionWriterTest {
+public class SearchPendingActionWriterTest {
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -98,7 +98,7 @@ public class SearchActionWriterTest {
 
     private ExecutorService pool = mock(ExecutorService.class);
 
-    private SearchActionWriter actionWriter;
+    private SearchPendingActionWriter actionWriter;
 
     private List<Record> searchActionReplacerCapture;
 
@@ -116,7 +116,7 @@ public class SearchActionWriterTest {
         DslRecordSink searchActionReplacerSink = mock(DslReplaceRecordSink.class);
         this.searchActionReplacerCapture = captureSink(searchActionReplacerSink, false);
 
-        actionWriter = spy(new SearchActionWriter(dataProvider, endpoint, writerConfig, pool));
+        actionWriter = spy(new SearchPendingActionWriter(dataProvider, endpoint, writerConfig, pool));
 
         doReturn(searchActionReplacerSink).when(actionWriter).getSearchActionReplacerSink(any(DSLContext.class));
         doAnswer(inv -> null).when(dataProvider).getTopologyGraph();
@@ -145,7 +145,7 @@ public class SearchActionWriterTest {
                         .setSupportingLevel(SupportLevel.SUPPORTED)
                         .setDeprecatedImportance(0)
                         .setExplanation(Explanation.getDefaultInstance()));
-        actionWriter.accept(ActionOrchestratorAction.newBuilder()
+        actionWriter.recordAction(ActionOrchestratorAction.newBuilder()
                 .setActionId(actionSpec.getRecommendation().getId())
                 .setActionSpec(actionSpec).build());
         // mock severities
@@ -226,7 +226,7 @@ public class SearchActionWriterTest {
 
         // mock actions
         Stream.of(scaleActionSpec, buyRiActionSpec).forEach(actionSpec ->
-                actionWriter.accept(ActionOrchestratorAction.newBuilder()
+                actionWriter.recordAction(ActionOrchestratorAction.newBuilder()
                         .setActionId(actionSpec.getRecommendation().getId())
                         .setActionSpec(actionSpec).build()));
 
@@ -357,7 +357,7 @@ public class SearchActionWriterTest {
 
         // mock actions
         Stream.of(scaleActionSpec, moveActionSpec).forEach(actionSpec ->
-                actionWriter.accept(ActionOrchestratorAction.newBuilder()
+                actionWriter.recordAction(ActionOrchestratorAction.newBuilder()
                         .setActionId(actionSpec.getRecommendation().getId())
                         .setActionSpec(actionSpec).build()));
 

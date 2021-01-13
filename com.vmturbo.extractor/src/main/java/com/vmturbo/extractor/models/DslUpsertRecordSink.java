@@ -55,15 +55,17 @@ public class DslUpsertRecordSink extends DslRecordSink {
 
     @Override
     protected List<String> getPostCopyHookSql(final Connection transConn) throws SQLException {
-        final String sets = updateColumns.stream()
+        // If there are no columns to update, use the special "DO NOTHING" action.
+        final String conflictAction = updateColumns.isEmpty() ? "DO NOTHING"
+            : String.format("DO UPDATE SET %s", updateColumns.stream()
                 .map(Column::getName)
                 .map(c -> String.format("%s = EXCLUDED.%s", c, c))
-                .collect(Collectors.joining(", "));
+                .collect(Collectors.joining(", ")));
         final String upsertSql = String.format(
-                "INSERT INTO %s SELECT * FROM %s ON CONFLICT (%s) DO UPDATE SET %s",
+                "INSERT INTO %s SELECT * FROM %s ON CONFLICT (%s) %s",
                 table.getName(), getWriteTableName(),
                 conflictColumns.stream().map(Column::getName).collect(Collectors.joining(", ")),
-                sets);
+                conflictAction);
         return Collections.singletonList(upsertSql);
     }
 }

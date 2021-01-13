@@ -101,13 +101,8 @@ panels:
                  target_entity_id
                 ,savings
                 ,description
-           FROM action_spec, action
-          WHERE spec_oid = action_spec_oid
-            AND hash = action_spec_hash
-            AND type = 'RESIZE'
-            AND state = 'READY'
-            AND time between now() - interval '70 minute' and now()
-            AND (now() - interval '70 minute', now()) OVERLAPS (first_seen, last_seen)
+           FROM pending_action
+          WHERE type = 'RESIZE'
       ),
 
       vms_by_cluster as (

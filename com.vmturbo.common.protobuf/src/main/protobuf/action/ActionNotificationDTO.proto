@@ -24,6 +24,9 @@ message ActionSuccess {
 
     // A description of what was successfully completed.
     optional string successDescription = 2;
+
+    // The action spec for the action.
+    optional ActionSpec action_spec = 3;
 }
 
 // Sent as an update when an action completes and fails.
@@ -33,6 +36,9 @@ message ActionFailure {
 
     // A description of the error that caused the failure.
     optional string errorDescription = 2;
+
+    // The action spec for the action.
+    optional ActionSpec action_spec = 3;
 }
 
 // Sent when the set of actions have been updated in the action orchestrator

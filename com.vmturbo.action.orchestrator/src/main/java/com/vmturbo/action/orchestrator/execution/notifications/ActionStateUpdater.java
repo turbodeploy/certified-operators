@@ -95,8 +95,7 @@ public class ActionStateUpdater implements ActionExecutionListener {
 
     /**
      * Create a new {@link ActionStateUpdater}.
-     *
-     * @param actionStorehouse The storehouse in which to look up actions as notifications are
+     *  @param actionStorehouse The storehouse in which to look up actions as notifications are
      * received.
      * @param notificationSender The API backend to send notifications to.
      * @param actionHistoryDao dao layer persists information about executed actions
@@ -202,7 +201,9 @@ public class ActionStateUpdater implements ActionExecutionListener {
             @Nonnull Action action) {
         try {
             auditSender.sendActionEvents(Collections.singleton(action));
-            notificationSender.notifyActionSuccess(actionSuccess);
+            notificationSender.notifyActionSuccess(actionSuccess.toBuilder()
+                .setActionSpec(actionTranslator.translateToSpec(action))
+                .build());
             sendStateUpdateIfNeeded(action,
                     getActionStateUpdateDescription(actionSuccess.getSuccessDescription(),
                             "executed successfully", action.getRecommendationOid()), 100);
@@ -321,7 +322,9 @@ public class ActionStateUpdater implements ActionExecutionListener {
             @Nonnull ActionFailure actionFailure, @Nonnull String errorDescription) {
         try {
             auditSender.sendActionEvents(Collections.singleton(action));
-            notificationSender.notifyActionFailure(actionFailure);
+            notificationSender.notifyActionFailure(actionFailure.toBuilder()
+                .setActionSpec(actionTranslator.translateToSpec(action))
+                .build());
             sendStateUpdateIfNeeded(action, errorDescription, 100);
         } catch (CommunicationException | InterruptedException e) {
             logger.error("Unable to send notification for failure of " + actionFailure, e);

@@ -21,13 +21,13 @@ import org.jooq.EnumType;
 
 import com.vmturbo.extractor.models.Column.JsonString;
 import com.vmturbo.extractor.schema.enums.ActionCategory;
-import com.vmturbo.extractor.schema.enums.ActionState;
 import com.vmturbo.extractor.schema.enums.ActionType;
 import com.vmturbo.extractor.schema.enums.EntityState;
 import com.vmturbo.extractor.schema.enums.EntityType;
 import com.vmturbo.extractor.schema.enums.EnvironmentType;
 import com.vmturbo.extractor.schema.enums.MetricType;
 import com.vmturbo.extractor.schema.enums.Severity;
+import com.vmturbo.extractor.schema.enums.TerminalState;
 
 /**
  * Column types that we support in our model definitions.
@@ -92,9 +92,9 @@ public enum ColType {
      */
     ACTION_TYPE(ActionType.values()[0].getName()),
     /**
-     * Action state column.
+     * Action final state column.
      */
-    ACTION_STATE(ActionState.values()[0].getName()),
+    FINAL_STATE(TerminalState.values()[0].getName()),
     /**
      * Action category column.
      */
@@ -223,7 +223,7 @@ public enum ColType {
             case SEVERITY:
             case ENTITY_STATE:
             case ACTION_TYPE:
-            case ACTION_STATE:
+            case FINAL_STATE:
             case ACTION_CATEGORY:
                 return ((EnumType)value).getLiteral().getBytes(UTF_8);
             default:
@@ -349,8 +349,8 @@ public enum ColType {
                 return EntityState.valueOf(new String(bytes, UTF_8));
             case ACTION_TYPE:
                 return ActionType.valueOf(new String(bytes, UTF_8));
-            case ACTION_STATE:
-                return ActionState.valueOf(new String(bytes, UTF_8));
+            case FINAL_STATE:
+                return TerminalState.valueOf(new String(bytes, UTF_8));
             case ACTION_CATEGORY:
                 return ActionCategory.valueOf(new String(bytes, UTF_8));
             default:
@@ -444,7 +444,7 @@ public enum ColType {
             case SEVERITY:
             case ENTITY_STATE:
             case ACTION_TYPE:
-            case ACTION_STATE:
+            case FINAL_STATE:
             case ACTION_CATEGORY:
             case METRIC_TYPE:
                 return ((EnumType)value).getLiteral();

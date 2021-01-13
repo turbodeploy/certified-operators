@@ -7,7 +7,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -46,11 +45,11 @@ import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.topology.graph.TopologyGraph;
 
 /**
- * The {@link ActionWriter} is responsible for listening for action updates from the action
+ * The {@link PendingActionWriter} is responsible for listening for action updates from the action
  * orchestrator, and writing action-related data to the extractor's database at regular
  * configurable intervals.
  */
-public class ActionWriter implements ActionsListener {
+public class PendingActionWriter implements ActionsListener {
     private static final Logger logger = LogManager.getLogger();
 
     /**
@@ -77,9 +76,9 @@ public class ActionWriter implements ActionsListener {
 
     private final boolean enableSearchActionIngestion;
 
-    private final Supplier<ReportingActionWriter> reportingActionWriterSupplier;
+    private final Supplier<ReportPendingActionWriter> reportingActionWriterSupplier;
 
-    private final Supplier<SearchActionWriter> searchActionWriterSupplier;
+    private final Supplier<SearchPendingActionWriter> searchActionWriterSupplier;
 
     /**
      * The last time we wrote actions for each action plan type. It's necessary to split up by
@@ -88,7 +87,7 @@ public class ActionWriter implements ActionsListener {
      */
     private final Map<ActionPlanInfo.TypeInfoCase, Long> lastActionWrite = new EnumMap<>(TypeInfoCase.class);
 
-    ActionWriter(@Nonnull final Clock clock,
+    PendingActionWriter(@Nonnull final Clock clock,
             @Nonnull final ActionsServiceBlockingStub actionService,
             @Nonnull final EntitySeverityServiceStub severityService,
             @Nonnull final DataProvider dataProvider,
@@ -96,8 +95,8 @@ public class ActionWriter implements ActionsListener {
             final boolean enableReportingActionIngestion,
             final boolean enableSearchActionIngestion,
             final long realtimeContextId,
-            final Supplier<ReportingActionWriter> reportingActionWriterSupplier,
-            final Supplier<SearchActionWriter> searchActionWriterSupplier) {
+            final Supplier<ReportPendingActionWriter> reportingActionWriterSupplier,
+            final Supplier<SearchPendingActionWriter> searchActionWriterSupplier) {
         this.clock = clock;
         this.actionService = actionService;
         this.severityService = severityService;
@@ -226,7 +225,7 @@ public class ActionWriter implements ActionsListener {
                         response.getActionChunk().getActionsList();
                 actionsList.forEach(aoAction -> {
                     if (aoAction.hasActionSpec()) {
-                        actionConsumers.forEach(actionConsumer -> actionConsumer.accept(aoAction));
+                        actionConsumers.forEach(actionConsumer -> actionConsumer.recordAction(aoAction));
                     }
                 });
                 totalActionsCount.add(actionsList.size());
@@ -267,8 +266,10 @@ public class ActionWriter implements ActionsListener {
     /**
      * Interface for writing actions and severities.
      */
-    interface IActionWriter extends Consumer<ActionOrchestratorAction> {
+    interface IActionWriter {
         default void acceptSeverity(SeverityMap severityMap) {}
+
+        void recordAction(ActionOrchestratorAction action);
 
         void write(Map<ActionPlanInfo.TypeInfoCase, Long> lastActionWrite,
                 TypeInfoCase actionPlanType, MultiStageTimer timer)

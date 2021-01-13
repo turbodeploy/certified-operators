@@ -46,7 +46,7 @@ import com.vmturbo.common.protobuf.severity.SeverityMap;
 import com.vmturbo.common.protobuf.severity.SeverityMapper;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.common.utils.MultiStageTimer;
-import com.vmturbo.extractor.action.ActionWriter.IActionWriter;
+import com.vmturbo.extractor.action.PendingActionWriter.IActionWriter;
 import com.vmturbo.extractor.models.DslReplaceRecordSink;
 import com.vmturbo.extractor.models.Table.Record;
 import com.vmturbo.extractor.models.Table.TableWriter;
@@ -67,7 +67,7 @@ import com.vmturbo.topology.graph.TopologyGraph;
 /**
  * Write action data related to search.
  */
-class SearchActionWriter implements IActionWriter {
+class SearchPendingActionWriter implements IActionWriter {
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -96,7 +96,7 @@ class SearchActionWriter implements IActionWriter {
     private final Long2ObjectMap<EnumMap<InvolvedEntityCalculation, LongSet>>
             actionsByEntityIdAndCalcType = new Long2ObjectArrayMap<>();
 
-    SearchActionWriter(DataProvider dataProvider,
+    SearchPendingActionWriter(DataProvider dataProvider,
             DbEndpoint dbEndpoint, WriterConfig writerConfig, ExecutorService pool) {
         this.dataProvider = dataProvider;
         this.dbEndpoint = dbEndpoint;
@@ -105,7 +105,7 @@ class SearchActionWriter implements IActionWriter {
     }
 
     @Override
-    public void accept(ActionOrchestratorAction aoAction) {
+    public void recordAction(ActionOrchestratorAction aoAction) {
         ActionSpec actionSpec = aoAction.getActionSpec();
         if (!SEARCH_INTERESTED_ACTION_STATES.contains(actionSpec.getActionState().getNumber())) {
             // do not care actions of these states

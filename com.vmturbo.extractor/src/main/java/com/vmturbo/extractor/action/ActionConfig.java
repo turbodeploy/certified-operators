@@ -1,8 +1,13 @@
 package com.vmturbo.extractor.action;
 
 import java.time.Clock;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
+
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -83,16 +88,6 @@ public class ActionConfig {
     }
 
     /**
-     * See {@link ActionHashManager}.
-     *
-     * @return The {@link ActionHashManager}.
-     */
-    @Bean
-    public ActionHashManager actionHashManager() {
-        return new ActionHashManager(topologyListenerConfig.writerConfig());
-    }
-
-    /**
      * Service for fetching actions.
      *
      * @return {@link ActionsServiceBlockingStub}
@@ -113,13 +108,13 @@ public class ActionConfig {
     }
 
     /**
-     * The {@link ActionWriter}.
+     * The {@link PendingActionWriter}.
      *
-     * @return The {@link ActionWriter}.
+     * @return The {@link PendingActionWriter}.
      */
     @Bean
-    public ActionWriter actionWriter() {
-        final ActionWriter actionWriter = new ActionWriter(Clock.systemUTC(),
+    public PendingActionWriter pendingActionWriter() {
+        final PendingActionWriter pendingActionWriter = new PendingActionWriter(Clock.systemUTC(),
             actionServiceBlockingStub(),
             entitySeverityServiceStub(),
             topologyListenerConfig.dataProvider(),
@@ -130,8 +125,8 @@ public class ActionConfig {
             reportingActionWriterSupplier(),
             searchActionWriterSupplier());
 
-        actionClientConfig.actionOrchestratorClient().addListener(actionWriter);
-        return actionWriter;
+        actionClientConfig.actionOrchestratorClient().addListener(pendingActionWriter);
+        return pendingActionWriter;
     }
 
     /**
@@ -139,14 +134,13 @@ public class ActionConfig {
      * @return supplier of ReportingActionWriter
      */
     @Bean
-    public Supplier<ReportingActionWriter> reportingActionWriterSupplier() {
-        return () -> new ReportingActionWriter(
+    public Supplier<ReportPendingActionWriter> reportingActionWriterSupplier() {
+        return () -> new ReportPendingActionWriter(
                 Clock.systemUTC(),
                 topologyListenerConfig.pool(),
                 extractorDbConfig.ingesterEndpoint(),
                 topologyListenerConfig.writerConfig(),
                 actionConverter(),
-                actionHashManager(),
                 TimeUnit.MINUTES.toMillis(actionMetricsWritingIntervalMins));
     }
 
@@ -155,10 +149,38 @@ public class ActionConfig {
      * @return supplier of SearchActionWriter
      */
     @Bean
-    public Supplier<SearchActionWriter> searchActionWriterSupplier() {
-        return () -> new SearchActionWriter(topologyListenerConfig.dataProvider(),
+    public Supplier<SearchPendingActionWriter> searchActionWriterSupplier() {
+        return () -> new SearchPendingActionWriter(topologyListenerConfig.dataProvider(),
                 extractorDbConfig.ingesterEndpoint(),
                 topologyListenerConfig.writerConfig(),
                 topologyListenerConfig.pool());
+    }
+
+    /**
+     * Responsible for writing completed actions to the database.
+     *
+     * @return The {@link CompletedActionWriter}.
+     */
+    @Bean
+    public CompletedActionWriter completedActionWriter() {
+        final CompletedActionWriter completedActionWriter = new CompletedActionWriter(
+                extractorDbConfig.ingesterEndpoint(), completedActionExecutor(),
+                topologyListenerConfig.writerConfig(), topologyListenerConfig.pool(),
+                actionConverter());
+        actionClientConfig.actionOrchestratorClient().addListener(completedActionWriter);
+        return completedActionWriter;
+    }
+
+    /**
+     * This threadpool gets used by the {@link CompletedActionWriter} to asynchronously trigger
+     * inserts of batches of queued actions.
+     *
+     * @return The {@link ExecutorService}.
+     */
+    @Bean
+    public ExecutorService completedActionExecutor() {
+        final ThreadFactory
+                threadFactory = new ThreadFactoryBuilder().setNameFormat("completed-action-recorder-%d").build();
+        return Executors.newSingleThreadExecutor(threadFactory);
     }
 }
