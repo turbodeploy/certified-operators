@@ -20,6 +20,9 @@ import javax.annotation.Nullable;
 import com.google.common.collect.LinkedListMultimap;
 import com.google.common.collect.ListMultimap;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.common.protobuf.TemplateProtoUtil;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory.ResourcesCategoryName;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
@@ -50,6 +53,8 @@ public class TopologyEntityConstructor {
     protected static final String COMMODITY_KEY_PREFIX = "AddFromTemplate::";
     private static final double COMMODITY_ACCESS_CAPACITY = 1.0E9;
     private static final double COMMODITY_ACCESS_USED = 1.0;
+
+    private static final Logger logger = LogManager.getLogger();
 
     /**
      * Action type for creating entities from templates.
@@ -477,7 +482,7 @@ public class TopologyEntityConstructor {
                 replacementEntity, relatedEntity);
 
         // Do not add the same commodity more then once
-        if (hasCommodity(relatedEntity, commodityAccessing)) {
+        if (commodityAccessing == null || hasCommodity(relatedEntity, commodityAccessing)) {
             return;
         }
 
@@ -517,8 +522,8 @@ public class TopologyEntityConstructor {
      * @return access commodity
      * @throws TopologyEntityConstructorException error processing access commodity
      */
-    @Nonnull
-    public static CommoditySoldDTO createRelatedEntityAccesses(
+    @Nullable
+    private static CommoditySoldDTO createRelatedEntityAccesses(
             @Nonnull TopologyEntityDTO.Builder originalEntity,
             @Nonnull TopologyEntityDTO.Builder replacementEntity,
             @Nonnull TopologyEntityDTO.Builder relatedEntity)
@@ -531,10 +536,9 @@ public class TopologyEntityConstructor {
                 .collect(Collectors.toList());
 
         if (commoditiesAccessingOriginals.isEmpty()) {
-            throw new TopologyEntityConstructorException(
-                    "Entity '" + originalEntity.getDisplayName()
-                            + "' does not have access commodities related to "
-                            + relatedEntity.getDisplayName());
+            logger.warn("Entity '{}' does not have access commodities related to '{}'",
+                        originalEntity.getDisplayName(), relatedEntity.getDisplayName());
+            return null;
         }
 
         if (commoditiesAccessingOriginals.size() > 1) {
