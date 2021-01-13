@@ -186,7 +186,7 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
             .forEach(scheduleSetting -> {
                 final SortedSetOfOidSettingValue executionScheduleSettingValue =
                         scheduleSetting.getSortedSetOfOidSettingValue();
-                if (executionScheduleSettingValue.getOidsCount() == 1) {
+                if (executionScheduleSettingValue.getOidsCount() <= 1) {
                     schedulesUsed.addAll(executionScheduleSettingValue.getOidsList());
                 } else {
                     errors.add("Execution schedule setting `" + scheduleSetting.getSettingSpecName()
