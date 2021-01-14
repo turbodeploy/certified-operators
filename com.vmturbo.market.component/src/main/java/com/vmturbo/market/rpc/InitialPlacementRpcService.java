@@ -86,8 +86,7 @@ public class InitialPlacementRpcService extends InitialPlacementServiceImplBase 
             InitialPlacementFinderResult reservationResult = triplet.getValue();
             if (reservationResult.getProviderOid().isPresent()) {
                 InitialPlacementSuccess.Builder successBuilder = InitialPlacementSuccess.newBuilder()
-                        .setProviderOid(reservationResult.getProviderOid().get())
-                        .addAllCommodityStats(reservationResult.getClusterStats());
+                        .setProviderOid(reservationResult.getProviderOid().get());
                 if (reservationResult.getClusterComm().isPresent()) {
                     successBuilder.setCluster(reservationResult.getClusterComm().get());
                 }

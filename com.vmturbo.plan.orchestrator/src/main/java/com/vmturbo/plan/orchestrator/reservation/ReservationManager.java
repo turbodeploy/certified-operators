@@ -365,8 +365,6 @@ public class ReservationManager implements ReservationDeletedListener {
                             .setClusterId(clusterCommodityKeyToClusterID
                                     .get(initialPlacementBuyerPlacementInfo
                                             .getInitialPlacementSuccess().getCluster().getKey()));
-                    placementInfo.addAllCommodityStats(initialPlacementBuyerPlacementInfo
-                            .getInitialPlacementSuccess().getCommodityStatsList());
                 }
                 logger.info(logPrefix + "provider: " + initialPlacementBuyerPlacementInfo
                         .getInitialPlacementSuccess().getProviderOid()

@@ -69,7 +69,6 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc.TemplateServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityStats;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason.FailedResources;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
@@ -279,8 +278,7 @@ public class ReservationMapper {
                                                 ? Optional.of(a.getProviderId()) : Optional.empty(),
                                         a.getCommodityBoughtList(),
                                         a.hasClusterId()
-                                                ? Optional.of(a.getClusterId()) : Optional.empty(),
-                                        a.getCommodityStatsList()))
+                                                ? Optional.of(a.getClusterId()) : Optional.empty()))
                                 .collect(Collectors.toList());
                         return new PlacementInfo(reservationInstance.getEntityId(),
                                 ImmutableList.copyOf(providerInfos), reservationInstance.getUnplacedReasonList());
@@ -584,12 +582,6 @@ public class ReservationMapper {
         final int entityType = ApiEntityType.fromString(serviceEntityApiDTO.get().getClassName()).typeNumber();
         Optional<String> clusterId = providerInfo.getClusterId().isPresent()
                 ? Optional.of(String.valueOf(providerInfo.getClusterId().get())) : Optional.empty();
-        if (clusterId.isPresent() && !placementInfoApiDTO.getRelatedResources().stream()
-                .anyMatch(a -> a.getResourceId().equals(clusterId.get()))) {
-            placementInfoApiDTO.getRelatedResources()
-                    .add(generateClusterResourcesApiDTO(clusterId.get(),
-                            providerInfo.getCommodityStats()));
-        }
         switch (entityType) {
             case EntityType.PHYSICAL_MACHINE_VALUE:
                 final List<ResourceApiDTO> computeResources =
@@ -618,38 +610,6 @@ public class ReservationMapper {
             default:
                 throw new UnknownObjectException("Unknown entity type: " + entityType);
         }
-    }
-
-    /**
-     * Populate cluster stats in the api response of reservation.
-     *
-     * @param clusterId the cluster id where the reservation is placed.
-     * @param commodityStats the stats of the cluster.
-     * @return cluster stats wrapped as ResourceApiDTO.
-     */
-    private ResourceApiDTO generateClusterResourcesApiDTO(@Nonnull final String clusterId,
-                                                   List<CommodityStats> commodityStats) {
-        final ResourceApiDTO resourceApiDTO = new ResourceApiDTO();
-        resourceApiDTO.setResourceId(clusterId);
-        List<StatApiDTO> statApiDTOS = new ArrayList<>();
-        for (CommodityStats commodityStat : commodityStats) {
-            Pair<String, String> commodityNameUnit = COMMODITY_TYPE_NAME_UNIT_MAP
-                    .get(commodityStat.getCommodityType().getType());
-            if (commodityNameUnit != null) {
-                final StatApiDTO statApiDTO = new StatApiDTO();
-                statApiDTO.setName(commodityNameUnit.getLeft());
-                statApiDTO.setUnits(commodityNameUnit.getRight());
-                final StatValueApiDTO statValueUsedApiDTO = new StatValueApiDTO();
-                statValueUsedApiDTO.setAvg((float)commodityStat.getTotalUsed());
-                statApiDTO.setValues(statValueUsedApiDTO);
-                final StatValueApiDTO statValueCapacityApiDTO = new StatValueApiDTO();
-                statValueCapacityApiDTO.setAvg((float)commodityStat.getTotalCapacity());
-                statApiDTO.setCapacity(statValueCapacityApiDTO);
-                statApiDTOS.add(statApiDTO);
-            }
-        }
-        resourceApiDTO.setStats(statApiDTOS);
-        return resourceApiDTO;
     }
 
     /**
@@ -748,8 +708,6 @@ public class ReservationMapper {
         private final List<CommodityBoughtDTO> commoditiesBought;
         // the id of the cluster where the entity is placed on.
         private final Optional<Long> clusterId;
-        // the stats of the cluster.
-        private final List<CommodityStats> commodityStats;
 
         /**
          * Constructor.
@@ -761,12 +719,10 @@ public class ReservationMapper {
          */
         public ProviderInfo(final Optional<Long> providerId,
                             @Nonnull final List<CommodityBoughtDTO> commoditiesBought,
-                            Optional<Long> clusterId,
-                            List<CommodityStats> commodityStats) {
+                            Optional<Long> clusterId) {
             this.providerId = providerId;
             this.commoditiesBought = Collections.unmodifiableList(commoditiesBought);
             this.clusterId = clusterId;
-            this.commodityStats = commodityStats;
         }
 
         public Optional<Long> getProviderId() {
@@ -775,14 +731,6 @@ public class ReservationMapper {
 
         public List<CommodityBoughtDTO> getCommoditiesBought() {
             return commoditiesBought;
-        }
-
-        /**
-         * getter for commodityStats.
-         * @return the commodityStats.
-         */
-        public List<CommodityStats> getCommodityStats() {
-            return commodityStats;
         }
 
         /**
