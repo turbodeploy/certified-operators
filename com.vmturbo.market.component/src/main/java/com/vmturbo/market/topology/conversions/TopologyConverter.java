@@ -2105,7 +2105,21 @@ public class TopologyConverter {
                 commBought.getCommodityType().getType())) {
             final MarketTier marketTier = cloudTc.getMarketTier(providerOid);
             if (marketTier != null) {
-                final TopologyEntityDTO tier = marketTier.getTier();
+                TopologyEntityDTO tier = null;
+                if (marketTier.hasRIDiscount()) {
+                    // If the VM is on an RI, then we cannot just do MarketTier.getTier() as that
+                    // will represent the biggest tier in that family for ISF RIs. Instead get the
+                    // actual compute tier provider.
+                    Optional<TopologyEntityDTO> computeTier = cloudTopology.getComputeTier(topologyDTO.getOid());
+                    if (computeTier.isPresent()) {
+                        tier = computeTier.get();
+                    } else {
+                        logger.error("Cannot find compute tier for {}", topologyDTO.getOid());
+                        return new float[][]{histUsed, histPeak};
+                    }
+                } else {
+                    tier = marketTier.getTier();
+                }
                 final Optional<CommoditySoldDTO> commoditySoldDTO = tier
                         .getCommoditySoldListList()
                         .stream()
