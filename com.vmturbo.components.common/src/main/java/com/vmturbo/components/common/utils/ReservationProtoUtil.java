@@ -45,8 +45,7 @@ public class ReservationProtoUtil {
                         updatedReservationInstance.addPlacementInfo(placementInfo
                                 .toBuilder()
                                 .clearProviderId()
-                                .clearClusterId()
-                                .clearCommodityStats());
+                                .clearClusterId());
                     }
                 }
                 if (clearFailureInfo) {

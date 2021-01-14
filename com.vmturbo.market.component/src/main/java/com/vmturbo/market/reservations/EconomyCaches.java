@@ -708,57 +708,6 @@ public class EconomyCaches {
     }
 
     /**
-     * Calculate the real time cluster statistics after {@link InitialPlacementBuyer}s are placed.
-     *
-     * @param initialPlacements a map of buyer oid to its placement decisions.
-     * @param buyers a list od {@link InitialPlacementBuyer}s.
-     * @param slToClusterMap a map of reservation buyer's shopping list oid to its cluster mapping.
-     * @return a map of shopping list oid -> commodity type -> {total use, total capacity} of a cluster.
-     */
-    public Map<Long, Map<CommodityType, Pair<Double, Double>>> calculateClusterStats(
-            @Nonnull final Map<Long, List<InitialPlacementDecision>> initialPlacements,
-            @Nonnull final List<InitialPlacementBuyer> buyers,
-            @Nonnull final Map<Long, CommodityType> slToClusterMap) {
-        // Group buyers by reservation id.
-        Map<Long, List<InitialPlacementBuyer>> buyersByReservationId = buyers.stream().collect(
-                Collectors.groupingBy(InitialPlacementBuyer::getReservationId));
-        // Find buyers that are in a reservation that all buyers within are placed on suppliers.
-        // We assume partial successful reservations do not need to construct cluster stats.
-        Set<Long> fullySuccessfulReservationIds = buyersByReservationId.keySet().stream().collect(
-                Collectors.toSet());
-        buyersByReservationId.entrySet().forEach(e -> {
-            e.getValue().stream().forEach(i -> {
-                if (initialPlacements.getOrDefault(i.getBuyerId(),
-                        new ArrayList<InitialPlacementDecision>()).stream()
-                        .anyMatch(d -> !d.supplier.isPresent())) {
-                    fullySuccessfulReservationIds.remove(e.getKey());
-                }
-            });
-        });
-        Set<InitialPlacementBuyer> successfulBuyers = fullySuccessfulReservationIds.stream()
-                .map(reservationId -> buyersByReservationId.get(reservationId))
-                .flatMap(List::stream).collect(Collectors.toSet());
-        Set<Long> successfulBuyerOids = successfulBuyers.stream().map(b -> b.getBuyerId()).collect(
-                Collectors.toSet());
-        Map<Long, List<InitialPlacementDecision>> successfulPlacements = new HashMap();
-        initialPlacements.entrySet().forEach(e -> {
-            if (successfulBuyerOids.contains(e.getKey())) {
-                successfulPlacements.put(e.getKey(), e.getValue());
-            }
-        });
-        Map<Long, CommodityType> successfulSlToClusterMap = new HashMap();
-        successfulPlacements.values().stream().flatMap(List::stream).forEach(pl -> {
-            CommodityType cluster = slToClusterMap.get(pl.slOid);
-            if (cluster != null) {
-                successfulSlToClusterMap.put(pl.slOid, cluster);
-            }
-        });
-        // Populate the stats for the reservation buyers.
-        return InitialPlacementUtils.calculateClusterStatistics(realtimeCachedEconomy,
-                realtimeCachedCommTypeMap, successfulSlToClusterMap, successfulBuyers);
-    }
-
-    /**
      * Update the HistoricalCachedEconomy to null.
      */
     public void clearHistoricalCachedEconomy() {

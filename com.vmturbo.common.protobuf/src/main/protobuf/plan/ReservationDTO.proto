@@ -122,7 +122,8 @@ message ReservationTemplateCollection {
 
                 optional int64 cluster_id = 5;
 
-                repeated .topology.CommodityStats commodityStats = 6;
+                // Used for storing cluster stats.
+                reserved 6;
             }
         }
     }

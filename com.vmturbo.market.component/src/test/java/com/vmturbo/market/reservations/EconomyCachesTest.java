@@ -632,63 +632,6 @@ public class EconomyCachesTest {
 
     }
 
-    /**
-     * Test calculateClusterStatistics. Assuming the reservation only contains 1 buyer, which is
-     * VM1. Assuming VM1 already finds its placement on PM1 in economy.
-     * Expected: Cluster 1 has pm1 and pm2, so the cluster stats should be
-     * MEM total used 20 + 30 + 10 = 60, MEM total capacity 100 + 100 = 200.
-     */
-    @Test
-    public void testCalculateClusterStatistics() {
-        long buyerOid = 1234L;
-        long buyerSlOid = 1000L;
-        double buyerMemUsed = 10;
-        long resID = 1L;
-        // Create an InitialPlacementBuyer representing VM1
-        List<InitialPlacementBuyer> buyers = new ArrayList();
-        InitialPlacementCommoditiesBoughtFromProvider sl1 =
-                InitialPlacementCommoditiesBoughtFromProvider.newBuilder()
-                        .setCommoditiesBoughtFromProviderId(buyerSlOid)
-                        .setCommoditiesBoughtFromProvider(CommoditiesBoughtFromProvider.newBuilder()
-                                .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(
-                                        TopologyDTO.CommodityType.newBuilder().setType(MEM_TYPE))
-                                        .setActive(true).setUsed(buyerMemUsed)
-                                        .setPeak(buyerMemUsed))).build();
-        buyers.add(InitialPlacementBuyer.newBuilder().setBuyerId(buyerOid).setReservationId(resID)
-                .addAllInitialPlacementCommoditiesBoughtFromProvider(Arrays.asList(sl1)).build());
-        Economy economy = economyWithCluster(new double[]{pm1MemUsed, pm2MemUsed, pm3MemUsed,
-                pm4MemUsed});
-        Map<Long, List<InitialPlacementDecision>> buyerOidToPlacement = new HashMap() {{
-            put(buyerOid, new ArrayList(Arrays.asList(new InitialPlacementDecision(buyerSlOid,
-                    Optional.of(pm1Oid), new ArrayList()))));
-        }};
-        Map<Long, List<InitialPlacementBuyer>> existingRes = new HashMap() {{
-            put(resID, buyers);
-        }};
-        economyCaches.updateRealtimeCachedEconomy(economy, commTypeToSpecMap, buyerOidToPlacement,
-                existingRes);
-
-        // Create the InitialPlacementDecision for vm1 that is placed on PM1
-        Map<Long, List<InitialPlacementDecision>> placements = new HashMap<>();
-        Map<Long, TopologyDTO.CommodityType> slToClusterMap = new HashMap() {{
-            put(buyerSlOid, TopologyDTO.CommodityType.newBuilder()
-                    .setType(CommodityType.CLUSTER_VALUE).setKey(cluster1Key).build());
-        }};
-        placements.put(buyerOid, new ArrayList(Arrays.asList(new InitialPlacementDecision(buyerSlOid,
-                Optional.of(pm1Oid), new ArrayList()))));
-        Map<Long, Map<TopologyDTO.CommodityType, Pair<Double, Double>>> result =
-                economyCaches.calculateClusterStats(placements, buyers, slToClusterMap);
-
-        Map<TopologyDTO.CommodityType, Pair<Double, Double>> clusterStats = result.get(buyerSlOid);
-        Assert.assertTrue(clusterStats != null && !clusterStats.isEmpty());
-        clusterStats.entrySet().forEach(e -> {
-            if (e.getKey().getType() == MEM_TYPE) {
-                Assert.assertTrue(e.getValue().getKey() == 60);
-                Assert.assertTrue(e.getValue().getValue() == 200);
-            }
-        });
-
-    }
 
     /**
      * Create an economy with 2 storages. St1 is in st cluster 1 and st cluster 2. St2 is
