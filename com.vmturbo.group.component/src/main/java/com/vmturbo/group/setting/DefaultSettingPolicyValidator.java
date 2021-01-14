@@ -186,6 +186,9 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
             .forEach(scheduleSetting -> {
                 final SortedSetOfOidSettingValue executionScheduleSettingValue =
                         scheduleSetting.getSortedSetOfOidSettingValue();
+                // In OM-65713 we observed that 7.22.5 has execution schedule setting where the
+                // value is empty. An execution schedule setting with an empty list will be
+                // interpreted as a policy with no execution schedule.
                 if (executionScheduleSettingValue.getOidsCount() <= 1) {
                     schedulesUsed.addAll(executionScheduleSettingValue.getOidsList());
                 } else {
