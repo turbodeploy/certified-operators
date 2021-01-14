@@ -157,59 +157,10 @@ public class KafkaMessageProducer implements AutoCloseable, IMessageSenderFactor
      * for this producer. Other message key generators might select a key based on properties of
      * the message, or generated as a random value, etc.
      *
-     * @param message The {@link AbstractMessage} to generate a message key for
      * @return a string message key to use for the message
      */
-    protected String defaultMessageKeyGenerator(@Nonnull final AbstractMessage message) {
+    protected String defaultMessageKeyGenerator() {
         return Long.toString(msgCounter.incrementAndGet());
-    }
-
-    /**
-     * Send a kafka message without a specific key. A key wll be automatically generated using the
-     * default key generator.
-     *
-     * @param serverMsg the {@link AbstractMessage} message to send.
-     * @param topic the topic to send it to
-     * @return a Future expecting RecordMetadata confirming the send from the broker.
-     */
-    private Future<RecordMetadata> sendKafkaMessage(@Nonnull final AbstractMessage serverMsg,
-                                                    @Nonnull final String topic) {
-        return sendKafkaMessage(serverMsg, topic, defaultMessageKeyGenerator(serverMsg));
-    }
-
-    private Future<RecordMetadata> sendKafkaMessage(@Nonnull final AbstractMessage serverMsg,
-            @Nonnull final String topic, @Nonnull final String key) {
-        Objects.requireNonNull(serverMsg);
-        Instant startTime = Instant.now();
-        byte[] payload = serverMsg.toByteArray();
-        logger.debug("Sending message {}[{} bytes] to topic {} with key {}",
-                serverMsg.getClass().getSimpleName(), payload.length, topic, key);
-        MESSAGES_SENT_COUNT.labels(topic).inc();
-        MESSAGES_SENT_BYTES.labels(topic).inc((double) payload.length);
-        if (payload.length > LARGEST_MESSAGE_SENT.labels(topic).get()) {
-            LARGEST_MESSAGE_SENT.labels(topic).set(payload.length);
-        }
-        return producer.send(
-                new ProducerRecord<>(topic, key, payload),
-                (metadata, exception) -> {
-                    // update sent time
-                    double sentTimeMs = Duration.between(startTime, Instant.now()).toMillis();
-                    logger.debug("Message send of {} bytes took {} ms", payload.length, sentTimeMs);
-                    if (sentTimeMs < 0) {
-                        // safeguard against negative durations, which will generate an exception.
-                        logger.warn("Nonsensical message send time of {} ms was observed.", sentTimeMs);
-                    } else {
-                        MESSAGES_SENT_MS.labels(topic).inc(sentTimeMs);
-                    }
-                    // update failure count if there was an exception
-                    if (exception != null) {
-                        logger.warn("Error while sending kafka message", exception);
-                        lastSendAttemptFailed.set(true);
-                        MESSAGE_SEND_ERRORS_COUNT.labels(topic).inc();
-                    } else {
-                        lastSendAttemptFailed.set(false);
-                    }
-                });
     }
 
     @Override
@@ -220,20 +171,64 @@ public class KafkaMessageProducer implements AutoCloseable, IMessageSenderFactor
     @Override
     public <S extends AbstractMessage> IMessageSender<S> messageSender(@Nonnull String topic) {
         final String namespacedTopic = namespacePrefix + topic;
-        return new BusMessageSender<>(namespacedTopic);
+        return new ProtobufMessageSender<>(namespacedTopic);
     }
 
     @Override
     public <S extends AbstractMessage> IMessageSender<S> messageSender(@Nonnull String topic,
                                            @Nonnull Function<S, String> keyGenerator) {
         final String namespacedTopic = namespacePrefix + topic;
-        return new BusMessageSender<>(namespacedTopic, keyGenerator);
+        return new ProtobufMessageSender<>(namespacedTopic, keyGenerator);
+    }
+
+    @Override
+    public IMessageSender<byte[]> bytesSender(@Nonnull String topic) {
+        final String namespacedTopic = namespacePrefix + topic;
+        return new BytesSender(namespacedTopic);
     }
 
     /**
-     * Real implementation of the sender.
+     * Used to send protobuf messages to Kafka.
+     *
+     * @param <S> type of the protobuf message
      */
-    private class BusMessageSender<S extends AbstractMessage> implements IMessageSender<S> {
+    private class ProtobufMessageSender<S extends AbstractMessage> extends BusMessageSender<S> {
+
+        private ProtobufMessageSender(@Nonnull String topic) {
+            super(topic);
+        }
+
+        private ProtobufMessageSender(@Nonnull String topic, @Nonnull Function<S, String> keyGenerator) {
+            super(topic, keyGenerator);
+        }
+
+        @Override
+        byte[] toBytes(@Nonnull final AbstractMessage serverMsg) {
+            return serverMsg.toByteArray();
+        }
+    }
+
+    /**
+     * Used to send byte array to Kafka.
+     */
+    private class BytesSender extends BusMessageSender<byte[]> {
+
+        private BytesSender(@Nonnull String topic) {
+            super(topic);
+        }
+
+        @Override
+        byte[] toBytes(@Nonnull final byte[] serverMsg) {
+            return serverMsg;
+        }
+    }
+
+    /**
+     * Abstract implementation of the sender.
+     *
+     * @param <S> type of the message to be sent
+     */
+    private abstract class BusMessageSender<S> implements IMessageSender<S> {
         private final String topic;
         private final Function<S, String> keyGenerator;
 
@@ -257,7 +252,7 @@ public class KafkaMessageProducer implements AutoCloseable, IMessageSenderFactor
         public void sendMessage(@Nonnull S serverMsg)
                 throws CommunicationException {
             String messageKey = keyGenerator != null ? keyGenerator.apply(serverMsg)
-                    : defaultMessageKeyGenerator(serverMsg);
+                    : defaultMessageKeyGenerator();
             try {
                 RetriableOperation.newOperation(() -> {
                     try {
@@ -280,7 +275,7 @@ public class KafkaMessageProducer implements AutoCloseable, IMessageSenderFactor
                 throw new CommunicationException("Unexpected exception sending message " +
                         serverMsg.getClass().getSimpleName(), e);
             } catch (TimeoutException te) {
-                logger.error("BusMessageSender timed out while sending message {}.");
+                logger.error("BusMessageSender timed out while sending message {}.", serverMsg);
             } catch (InterruptedException ie) {
                 logger.warn("BusMessageSender.sendMessage() thread interrupted before it could complete.");
                 Thread.currentThread().interrupt();
@@ -296,5 +291,61 @@ public class KafkaMessageProducer implements AutoCloseable, IMessageSenderFactor
         public int getRecommendedRequestSizeBytes() {
             return recommendedRequestSizeBytes;
         }
+
+        private Future<RecordMetadata> sendKafkaMessage(@Nonnull final S serverMsg,
+                @Nonnull final String topic, @Nonnull final String key) {
+            Objects.requireNonNull(serverMsg);
+            final Instant startTime = Instant.now();
+            byte[] payload = toBytes(serverMsg);
+            logger.debug("Sending message {}[{} bytes] to topic {} with key {}",
+                    serverMsg.getClass().getSimpleName(), payload.length, topic, key);
+            MESSAGES_SENT_COUNT.labels(topic).inc();
+            MESSAGES_SENT_BYTES.labels(topic).inc((double)payload.length);
+            if (payload.length > LARGEST_MESSAGE_SENT.labels(topic).get()) {
+                LARGEST_MESSAGE_SENT.labels(topic).set(payload.length);
+            }
+            return producer.send(
+                    new ProducerRecord<>(topic, key, payload),
+                    (metadata, exception) -> {
+                        // update sent time
+                        double sentTimeMs = Duration.between(startTime, Instant.now()).toMillis();
+                        logger.debug("Message send of {} bytes took {} ms", payload.length, sentTimeMs);
+                        if (sentTimeMs < 0) {
+                            // safeguard against negative durations, which will generate an exception.
+                            logger.warn("Nonsensical message send time of {} ms was observed.", sentTimeMs);
+                        } else {
+                            MESSAGES_SENT_MS.labels(topic).inc(sentTimeMs);
+                        }
+                        // update failure count if there was an exception
+                        if (exception != null) {
+                            logger.warn("Error while sending kafka message", exception);
+                            lastSendAttemptFailed.set(true);
+                            MESSAGE_SEND_ERRORS_COUNT.labels(topic).inc();
+                        } else {
+                            lastSendAttemptFailed.set(false);
+                        }
+                    });
+        }
+
+        /**
+         * Send a kafka message without a specific key. A key wll be automatically generated using the
+         * default key generator.
+         *
+         * @param serverMsg the message to send.
+         * @param topic the topic to send it to
+         * @return a Future expecting RecordMetadata confirming the send from the broker.
+         */
+        private Future<RecordMetadata> sendKafkaMessage(@Nonnull final S serverMsg,
+                @Nonnull final String topic) {
+            return sendKafkaMessage(serverMsg, topic, defaultMessageKeyGenerator());
+        }
+
+        /**
+         * Convert the given message to byte array before sending to kafka.
+         *
+         * @param serverMsg the message to send
+         * @return byte array of the given message
+         */
+        abstract byte[] toBytes(@Nonnull S serverMsg);
     }
 }

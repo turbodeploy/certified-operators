@@ -42,6 +42,7 @@ import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.ITransport;
 import com.vmturbo.communication.LoggingUncaughtExceptionHandler;
 import com.vmturbo.communication.chunking.RemoteIterator;
+import com.vmturbo.components.api.chunking.GetSerializedSizeException;
 import com.vmturbo.components.api.chunking.OversizedElementException;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionResponseState;
@@ -540,7 +541,8 @@ public class NotificationsApiTest extends AbstractApiCallsTest {
 
     private void sendEntities(final long topologyContextId, final long topologyId,
             @Nonnull final Collection<TopologyEntityDTO> entities)
-        throws CommunicationException, InterruptedException, OversizedElementException {
+            throws CommunicationException, InterruptedException, OversizedElementException,
+            GetSerializedSizeException {
         final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
                 .setTopologyType(TopologyType.PLAN)
                 .setTopologyId(topologyId)

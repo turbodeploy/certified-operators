@@ -22,7 +22,12 @@ import org.springframework.context.annotation.Import;
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
 import com.vmturbo.extractor.ExtractorDbConfig;
+import com.vmturbo.extractor.export.DataExtractionFactory;
+import com.vmturbo.extractor.export.DataExtractionWriter;
+import com.vmturbo.extractor.export.ExportUtils;
+import com.vmturbo.extractor.export.ExtractorKafkaSender;
 import com.vmturbo.extractor.models.Constants;
 import com.vmturbo.extractor.search.SearchEntityWriter;
 import com.vmturbo.group.api.GroupClientConfig;
@@ -55,6 +60,9 @@ public class TopologyListenerConfig {
 
     @Autowired
     private ActionOrchestratorClientConfig actionClientConfig;
+
+    @Autowired
+    private BaseKafkaProducerConfig kafkaProducerConfig;
 
     /**
      * How often we update last-seen timestamps for entities whose hash values have not changed.
@@ -214,8 +222,7 @@ public class TopologyListenerConfig {
                     scopeManager(), entityIdManager(), pool()));
         }
         if (enableDataExtraction) {
-            // todo: OM-60377
-            // builder.add(() -> new DataExtractionWriter(extractorMessageSender()));
+            builder.add(() -> new DataExtractionWriter(extractorKafkaSender(), dataExtractionFactory()));
         }
         return builder.build();
     }
@@ -270,6 +277,27 @@ public class TopologyListenerConfig {
     @Bean
     public DataProvider dataProvider() {
         return new DataProvider(groupServiceBlockingStub());
+    }
+
+    /**
+     * The sender used to send objects to Kafka.
+     *
+     * @return {@link ExtractorKafkaSender}
+     */
+    @Bean
+    public ExtractorKafkaSender extractorKafkaSender() {
+        return new ExtractorKafkaSender(kafkaProducerConfig.kafkaMessageSender()
+                .bytesSender(ExportUtils.DATA_EXTRACTION_KAFKA_TOPIC));
+    }
+
+    /**
+     * The factory for creating different extractors used in data extraction.
+     *
+     * @return {@link DataExtractionFactory}
+     */
+    @Bean
+    public DataExtractionFactory dataExtractionFactory() {
+        return new DataExtractionFactory();
     }
 }
 

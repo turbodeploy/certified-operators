@@ -103,6 +103,13 @@ public class LocalBus implements IMessageSenderFactory, IMessageReceiverFactory 
     }
 
     @Override
+    public IMessageSender<byte[]> bytesSender(@Nonnull String topic) {
+        LocalBusTopic<byte[]> theTopic = (LocalBusTopic<byte[]>)topicsMap.computeIfAbsent(topic,
+                k -> new LocalBusTopic<>(executorService, topic));
+        return new LocalBusSender<>(theTopic);
+    }
+
+    @Override
     public boolean lastSendAttemptFailed() {
         // Errors? Impossible!
         return false;

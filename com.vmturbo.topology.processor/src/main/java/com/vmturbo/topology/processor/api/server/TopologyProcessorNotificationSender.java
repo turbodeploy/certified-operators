@@ -35,6 +35,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.MessageChunker;
+import com.vmturbo.components.api.chunking.GetSerializedSizeException;
 import com.vmturbo.components.api.chunking.OversizedElementException;
 import com.vmturbo.components.api.chunking.ProtobufChunkCollector;
 import com.vmturbo.components.api.server.ComponentNotificationSender;
@@ -476,7 +477,8 @@ public class TopologyProcessorNotificationSender
 
         @Override
         public void append(@Nonnull TopologyEntityDTO entity)
-            throws CommunicationException, InterruptedException, OversizedElementException {
+                throws CommunicationException, InterruptedException, OversizedElementException,
+                GetSerializedSizeException {
             awaitInitialMessage();
             synchronized (lock) {
                 if (finished) {
@@ -503,7 +505,8 @@ public class TopologyProcessorNotificationSender
          */
         @Override
         public void appendExtension(@Nonnull TopologyDTO.TopologyExtension extension)
-            throws CommunicationException, InterruptedException, OversizedElementException {
+                throws CommunicationException, InterruptedException, OversizedElementException,
+                GetSerializedSizeException {
             awaitInitialMessage();
             synchronized (lock) {
                 if (finished) {

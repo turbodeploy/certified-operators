@@ -34,9 +34,10 @@ public class ProtobufChunkCollectorTest {
      * Test that the memory size limit is enforced.
      *
      * @throws OversizedElementException To satisfy compiler.
+     * @throws GetSerializedSizeException If the serialized size of the action can not be determined
      */
     @Test
-    public void testTryAddSizeLimit() throws OversizedElementException {
+    public void testTryAddSizeLimit() throws OversizedElementException, GetSerializedSizeException {
         ProtobufChunkCollector<NegotiationRequest> chunk = new ProtobufChunkCollector<>(SIZE * 100, SIZE * 2);
         assertNull(chunk.addToCurrentChunk(PROTO));
         assertNull(chunk.addToCurrentChunk(PROTO));
@@ -52,9 +53,10 @@ public class ProtobufChunkCollectorTest {
      * Test that the item count limit is enforced.
      *
      * @throws OversizedElementException To satisfy compiler.
+     * @throws GetSerializedSizeException If the serialized size of the action can not be determined
      */
     @Test
-    public void testTryAddDesiredSize() throws OversizedElementException {
+    public void testTryAddDesiredSize() throws OversizedElementException, GetSerializedSizeException {
         // Plenty of memory room
         final int maxCount = 10;
         ProtobufChunkCollector<NegotiationRequest> chunk = new ProtobufChunkCollector<>(SIZE * maxCount, SIZE * maxCount * 2);
@@ -76,9 +78,10 @@ public class ProtobufChunkCollectorTest {
      * Test that adding an overly large element to an empty chunk throws the expected exception.
      *
      * @throws OversizedElementException To satisfy compiler.
+     * @throws GetSerializedSizeException If the serialized size of the action can not be determined
      */
     @Test
-    public void testTryAddTooLarge() throws OversizedElementException {
+    public void testTryAddTooLarge() throws OversizedElementException, GetSerializedSizeException {
         ProtobufChunkCollector<NegotiationRequest> chunk = new ProtobufChunkCollector<>(SIZE * 1000, SIZE - 1);
         expectedException.expect(OversizedElementException.class);
         chunk.addToCurrentChunk(PROTO);
@@ -88,9 +91,10 @@ public class ProtobufChunkCollectorTest {
      * Test that the count method returns the accurate count.
      *
      * @throws OversizedElementException To satisfy compiler.
+     * @throws GetSerializedSizeException If the serialized size of the action can not be determined
      */
     @Test
-    public void testCount() throws OversizedElementException {
+    public void testCount() throws OversizedElementException, GetSerializedSizeException {
         ProtobufChunkCollector<NegotiationRequest> chunk = new ProtobufChunkCollector<>(SIZE * 100, SIZE * 100);
         assertNull(chunk.addToCurrentChunk(PROTO));
         assertNull(chunk.addToCurrentChunk(PROTO));
@@ -101,9 +105,10 @@ public class ProtobufChunkCollectorTest {
      * Test that the stream returns the stream of expected elements.
      *
      * @throws OversizedElementException To satisfy compiler.
+     * @throws GetSerializedSizeException If the serialized size of the action can not be determined
      */
     @Test
-    public void testTake() throws OversizedElementException {
+    public void testTake() throws OversizedElementException, GetSerializedSizeException {
         ProtobufChunkCollector<NegotiationRequest> chunk = new ProtobufChunkCollector<>(SIZE * 100, SIZE * 100);
         assertNull(chunk.addToCurrentChunk(PROTO));
         assertNull(chunk.addToCurrentChunk(PROTO));

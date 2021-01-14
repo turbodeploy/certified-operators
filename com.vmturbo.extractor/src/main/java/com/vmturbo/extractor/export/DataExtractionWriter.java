@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -16,8 +17,6 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.communication.CommunicationException;
-import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.components.common.utils.MultiStageTimer;
 import com.vmturbo.extractor.export.schema.Entity;
 import com.vmturbo.extractor.export.schema.ExportedObject;
@@ -37,7 +36,7 @@ public class DataExtractionWriter extends TopologyWriterBase {
     private static final Logger logger = LogManager.getLogger();
 
     private final List<Entity> entities = new ArrayList<>();
-    private final IMessageSender<byte[]> kafkaMessageSender;
+    private final ExtractorKafkaSender extractorKafkaSender;
     private final DataExtractionFactory dataExtractionFactory;
     private final MetricsExtractor metricsExtractor;
     private final AttrsExtractor attrsExtractor;
@@ -46,13 +45,13 @@ public class DataExtractionWriter extends TopologyWriterBase {
     /**
      * Create a new writer instance.
      *
-     * @param kafkaMessageSender used to send entities to a kafka topic
+     * @param extractorKafkaSender used to send entities to a kafka topic
      * @param dataExtractionFactory factory for providing instances of different extractors
      */
-    public DataExtractionWriter(@Nonnull IMessageSender<byte[]> kafkaMessageSender,
+    public DataExtractionWriter(@Nonnull ExtractorKafkaSender extractorKafkaSender,
             @Nonnull DataExtractionFactory dataExtractionFactory) {
         super(null, null);
-        this.kafkaMessageSender = kafkaMessageSender;
+        this.extractorKafkaSender = extractorKafkaSender;
         this.dataExtractionFactory = dataExtractionFactory;
         this.metricsExtractor = dataExtractionFactory.newMetricsExtractor();
         this.attrsExtractor = dataExtractionFactory.newAttrsExtractor();
@@ -104,27 +103,40 @@ public class DataExtractionWriter extends TopologyWriterBase {
                         dataProvider.getSupplyChain(), dataProvider.getGroupData());
 
         // set related entities and related groups
-        timer.start("Populate related entities and groups");
-        final List<ExportedObject> exportedObjects = entities.parallelStream().map(entity -> {
-            entity.setRelated(relatedEntitiesExtractor.extractRelatedEntities(entity.getId()));
-            ExportedObject exportedObject = new ExportedObject();
-            exportedObject.setEntity(entity);
-            return exportedObject;
-        }).collect(Collectors.toList());
+        final String relatedStageLabel = "Populate related entities and groups";
+        logger.info("Starting stage: {}", relatedStageLabel);
+        timer.start(relatedStageLabel);
+
+        final List<Long> entitiesWithSerializedErrors = new ArrayList<>();
+        final List<ExportedObject> exportedObjects = entities.parallelStream()
+                .map(entity -> {
+                    entity.setRelated(relatedEntitiesExtractor.extractRelatedEntities(entity.getId()));
+                    final ExportedObject exportedObject = new ExportedObject();
+                    exportedObject.setEntity(entity);
+                    try {
+                        exportedObject.setSerializedSize(ExportUtils.toBytes(exportedObject).length);
+                    } catch (JsonProcessingException e) {
+                        // track entities which can not be serialized
+                        entitiesWithSerializedErrors.add(entity.getId());
+                        // do not send them to Kafka
+                        return null;
+                    }
+                    return exportedObject;
+                }).filter(Objects::nonNull)
+                .collect(Collectors.toList());
         timer.stop();
 
-        try {
-            // serialize the entities as byte array (json)
-            final byte[] bytes = ExportUtils.toBytes(exportedObjects);
-            // todo: send to kafka in chunks
-            kafkaMessageSender.sendMessage(bytes);
-            return entities.size();
-        } catch (JsonProcessingException e) {
-            logger.error("Error converting entities in {} to json", topologyLabel, e);
-            return 0;
-        } catch (CommunicationException | InterruptedException e) {
-            logger.error("Failed to send entities in {} to Kafka", topologyLabel, e);
-            return 0;
+        if (!entitiesWithSerializedErrors.isEmpty()) {
+            logger.error("{} of {} entities can not be serialized: {}",
+                    entitiesWithSerializedErrors.size(), entities.size(), entitiesWithSerializedErrors);
         }
+
+        // send entities to kafka in chunks
+        final String kafkaStageLabel = "Send entities to Kafka";
+        logger.info("Starting stage: {}", kafkaStageLabel);
+        timer.start(kafkaStageLabel);
+        final int successCount = extractorKafkaSender.send(exportedObjects);
+        timer.stop();
+        return successCount;
     }
 }

@@ -30,9 +30,10 @@ public class ProtobufChunkIteratorTest {
      * provided limit.
      *
      * @throws OversizedElementException To satisfy compiler.
+     * @throws GetSerializedSizeException If the serialized size of the action can not be determined
      */
     @Test
-    public void testChunkIterable() throws OversizedElementException {
+    public void testChunkIterable() throws OversizedElementException, GetSerializedSizeException {
         final int limit = 100;
         List<NegotiationRequest> list = IntStream.range(0, limit * 2)
             .mapToObj(i -> PROTO)
@@ -53,9 +54,10 @@ public class ProtobufChunkIteratorTest {
      * provided limit.
      *
      * @throws OversizedElementException To satisfy compiler.
+     * @throws GetSerializedSizeException If the serialized size of the action can not be determined
      */
     @Test
-    public void testChunkIterableSmallChunk() throws OversizedElementException {
+    public void testChunkIterableSmallChunk() throws OversizedElementException, GetSerializedSizeException {
         // Use memory limits, because then we can get away with less entries in the test list :)
         List<NegotiationRequest> list = Collections.singletonList(PROTO);
         List<Collection<NegotiationRequest>> chunks = new ArrayList<>();

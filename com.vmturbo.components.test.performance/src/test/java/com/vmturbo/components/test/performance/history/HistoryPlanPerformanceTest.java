@@ -20,6 +20,7 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.components.api.chunking.GetSerializedSizeException;
 import com.vmturbo.components.api.chunking.OversizedElementException;
 import com.vmturbo.components.api.client.KafkaMessageConsumer;
 import com.vmturbo.components.api.server.KafkaMessageProducer;
@@ -117,7 +118,7 @@ public class HistoryPlanPerformanceTest extends HistoryPerformanceTest {
     @Nonnull
     @Override
     protected void broadcastSourceTopology(TopologyInfo topologyInfo, Collection<TopologyEntityDTO> topoDTOs)
-        throws CommunicationException, InterruptedException, OversizedElementException {
+        throws CommunicationException, InterruptedException, OversizedElementException, GetSerializedSizeException {
 
         TopologyBroadcast broadcast = tpSender.broadcastUserPlanTopology(topologyInfo);
         for (TopologyEntityDTO e : topoDTOs) {

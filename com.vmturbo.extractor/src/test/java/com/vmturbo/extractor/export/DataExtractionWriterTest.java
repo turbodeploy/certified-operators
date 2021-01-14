@@ -26,6 +26,7 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -45,7 +46,6 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.components.common.utils.MultiStageTimer;
 import com.vmturbo.extractor.export.schema.Entity;
 import com.vmturbo.extractor.export.schema.ExportedObject;
@@ -61,6 +61,7 @@ import com.vmturbo.extractor.topology.fetcher.SupplyChainFetcher.SupplyChain;
 import com.vmturbo.extractor.util.ExtractorTestUtil;
 import com.vmturbo.extractor.util.TopologyTestUtil;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.topology.graph.TopologyGraph;
 
 /**
@@ -87,6 +88,7 @@ public class DataExtractionWriterTest {
     private final SupplyChain supplyChain = mock(SupplyChain.class);
     private final GroupData groupData = mock(GroupData.class);
     private final TopologyGraph<SupplyChainEntity> topologyGraph = mock(TopologyGraph.class);
+    private final ExtractorKafkaSender extractorKafkaSender = mock(ExtractorKafkaSender.class);
     private final DataExtractionFactory dataExtractionFactory = new DataExtractionFactory();
     private DataExtractionWriter writer;
     private List<Entity> entitiesCapture;
@@ -103,18 +105,17 @@ public class DataExtractionWriterTest {
         when(dataProvider.getGroupData()).thenReturn(groupData);
         when(dataProvider.getTopologyGraph()).thenReturn(topologyGraph);
         // capture entities sent to kafka
-        IMessageSender<byte[]> kafkaMessageSender = mock(IMessageSender.class);
         this.entitiesCapture = new ArrayList<>();
         doAnswer(inv -> {
-            byte[] bytes = inv.getArgumentAt(0, byte[].class);
-            if (bytes != null) {
-                entitiesCapture.addAll(ExportUtils.fromBytes(bytes).stream()
+            Collection<ExportedObject> exportedObjects = inv.getArgumentAt(0, Collection.class);
+            if (exportedObjects != null) {
+                entitiesCapture.addAll(exportedObjects.stream()
                         .map(ExportedObject::getEntity)
                         .collect(Collectors.toList()));
             }
             return null;
-        }).when(kafkaMessageSender).sendMessage(any());
-        this.writer = spy(new DataExtractionWriter(kafkaMessageSender, dataExtractionFactory));
+        }).when(extractorKafkaSender).send(any());
+        this.writer = spy(new DataExtractionWriter(extractorKafkaSender, dataExtractionFactory));
         writer.startTopology(info, ExtractorTestUtil.config, timer);
     }
 
@@ -226,7 +227,7 @@ public class DataExtractionWriterTest {
         Map<String, Object> vmAttrs = vmEntity.getAttrs();
         assertThat(vmAttrs.size(), is(3));
         assertThat(vmAttrs.get("num_cpus"), is(12));
-        assertThat(vmAttrs.get("guest_os_type"), is("LINUX"));
+        assertThat(vmAttrs.get("guest_os_type"), is(OSType.LINUX));
         assertThat(vmAttrs.get("connected_networks"), is(Lists.newArrayList("net1")));
 
         Map<String, Object> pmAttrs = pmEntity.getAttrs();

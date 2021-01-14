@@ -104,3 +104,6 @@ topics:
   - topic: tp-external-action-approval-responses
     properties:
       retention.ms: 86400000 # 86400k ms = 24 hr
+  - topic: exporter
+    properties:
+      retention.ms: 7200000 # 2 hrs

@@ -34,6 +34,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.components.api.chunking.GetSerializedSizeException;
 import com.vmturbo.components.api.chunking.OversizedElementException;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.client.KafkaMessageConsumer;
@@ -139,9 +140,11 @@ public class RepositoryPerformanceTest {
      * @throws TimeoutException If communication error occurred
      * @throws CommunicationException If communication error occurred.
      * @throws OversizedElementException If an element in the topology is too large.
+     * @throws GetSerializedSizeException If the serialized size of the element can not be determined
      */
     private void testStoreTopologyAndGetSupplyChain(final int topologySize)
-        throws CommunicationException, InterruptedException, ExecutionException, TimeoutException, OversizedElementException {
+            throws CommunicationException, InterruptedException, ExecutionException,
+            TimeoutException, OversizedElementException, GetSerializedSizeException {
 
         // Register for when the repository finishes storing the topology.
         final CompletableFuture<TopologyAndContext> topologyStoredFuture = new CompletableFuture<>();
@@ -185,9 +188,10 @@ public class RepositoryPerformanceTest {
      * @throws InterruptedException If the operation is interrupted.
      * @throws CommunicationException if sending operation failed
      * @throws OversizedElementException If element in topology is too large.
+     * @throws GetSerializedSizeException If the serialized size of the element can not be determined
      */
-    private long sendTopology(final int topologySize)
-        throws CommunicationException, InterruptedException, OversizedElementException {
+    private long sendTopology(final int topologySize) throws CommunicationException,
+            InterruptedException, OversizedElementException, GetSerializedSizeException {
         final List<TopologyEntityDTO> topoDTOs = TopologyUtils.generateTopology(topologySize);
 
         final TopologyProcessorNotificationSender topologySender = TopologyProcessorKafkaSender

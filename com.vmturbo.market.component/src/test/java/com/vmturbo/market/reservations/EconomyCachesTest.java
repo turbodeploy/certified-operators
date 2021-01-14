@@ -12,7 +12,6 @@ import java.util.stream.Collectors;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 
-import org.apache.commons.lang3.tuple.Pair;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;

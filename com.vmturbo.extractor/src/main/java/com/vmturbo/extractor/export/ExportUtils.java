@@ -2,7 +2,7 @@ package com.vmturbo.extractor.export;
 
 import java.io.IOException;
 import java.text.SimpleDateFormat;
-import java.util.List;
+import java.util.Collection;
 
 import javax.annotation.Nullable;
 
@@ -23,6 +23,11 @@ import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
  * Utils for data extraction.
  */
 public class ExportUtils {
+
+    /**
+     * The final topic with namespace will be turbonomic.exporter.
+     */
+    public static final String DATA_EXTRACTION_KAFKA_TOPIC = "exporter";
 
     /**
      * The date format for time field in the exported object.
@@ -91,24 +96,35 @@ public class ExportUtils {
     }
 
     /**
-     * Serialize the given entity as a byte array.
+     * Serialize the given object as a byte array.
      *
-     * @param objects list of objects to serialize
+     * @param exportedObject the object to serialize
      * @return array of bytes
      * @throws JsonProcessingException error in serialization
      */
-    public static byte[] toBytes(List<ExportedObject> objects) throws JsonProcessingException {
+    public static byte[] toBytes(ExportedObject exportedObject) throws JsonProcessingException {
+        return objectMapper.writeValueAsBytes(exportedObject);
+    }
+
+    /**
+     * Serialize the given {@link ExportedObject} collection as a byte array.
+     *
+     * @param objects collection of objects to serialize
+     * @return array of bytes
+     * @throws JsonProcessingException error in serialization
+     */
+    public static byte[] toBytes(Collection<ExportedObject> objects) throws JsonProcessingException {
         return objectMapper.writeValueAsBytes(objects);
     }
 
     /**
-     * Convert the given byte array to a list of {@link ExportedObject}s.
+     * Convert the given byte array to a collection of {@link ExportedObject}s.
      *
-     * @param bytes byte array of a list of entities
-     * @return list of entities
+     * @param bytes byte array of a collection of entities
+     * @return collection of entities
      * @throws IOException error in json bytes deserialization
      */
-    public static List<ExportedObject> fromBytes(byte[] bytes) throws IOException {
-        return objectMapper.readValue(bytes, new TypeReference<List<ExportedObject>>() {});
+    public static Collection<ExportedObject> fromBytes(byte[] bytes) throws IOException {
+        return objectMapper.readValue(bytes, new TypeReference<Collection<ExportedObject>>() {});
     }
 }

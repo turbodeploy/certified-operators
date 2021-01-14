@@ -6,6 +6,7 @@ import java.util.Map;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
+import com.google.common.base.MoreObjects;
 
 /**
  * Class containing all the fields of an entity that need to be exported.
@@ -100,6 +101,16 @@ public class Entity {
 
     public void setRelated(Map<String, List<RelatedEntity>> related) {
         this.related = related;
+    }
+
+    @Override
+    public String toString() {
+        return MoreObjects.toStringHelper("Entity")
+                .omitNullValues()
+                .add("type", type)
+                .add("id", id)
+                .add("name", name)
+                .toString();
     }
 }
 

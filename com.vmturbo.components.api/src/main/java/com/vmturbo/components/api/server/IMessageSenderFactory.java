@@ -36,6 +36,14 @@ public interface IMessageSenderFactory {
     <S extends AbstractMessage> IMessageSender<S> messageSender(@Nonnull String topic);
 
     /**
+     * Create byte array sender for the given topic.
+     *
+     * @param topic topic to send byte array to
+     * @return byte array sender
+     */
+    IMessageSender<byte[]> bytesSender(@Nonnull String topic);
+
+    /**
      * True if the last send attempt failed. Used for health monitoring.
      *
      * @return True if the last send attempt failed, false otherwise.

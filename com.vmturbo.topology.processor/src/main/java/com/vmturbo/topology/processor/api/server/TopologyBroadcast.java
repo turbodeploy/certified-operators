@@ -6,6 +6,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.components.api.chunking.GetSerializedSizeException;
 import com.vmturbo.components.api.chunking.OversizedElementException;
 
 /**
@@ -26,9 +27,11 @@ public interface TopologyBroadcast {
      * @throws IllegalStateException if {@link #finish()} has been already called
      * @throws CommunicationException persistent communication exception
      * @throws OversizedElementException If the entity is too large to be sent.
+     * @throws GetSerializedSizeException if the serialized size of entity can not be determined
      */
     void append(@Nonnull TopologyEntityDTO entity)
-        throws CommunicationException, InterruptedException, OversizedElementException;
+            throws CommunicationException, InterruptedException, OversizedElementException,
+            GetSerializedSizeException;
 
     /**
      * Appends the next topology extension entity to the notification.
@@ -40,9 +43,11 @@ public interface TopologyBroadcast {
      * @throws IllegalStateException  if {@link #finish()} has been already called
      * @throws CommunicationException persistent communication exception
      * @throws OversizedElementException If the extension is too large to be sent.
+     * @throws GetSerializedSizeException if the serialized size of entity can not be determined
      */
     void appendExtension(@Nonnull TopologyDTO.TopologyExtension extension)
-        throws CommunicationException, InterruptedException, OversizedElementException;
+            throws CommunicationException, InterruptedException, OversizedElementException,
+            GetSerializedSizeException;
 
     /**
      * Marks the topology broadcast as complete and sends the last data (if required). This call

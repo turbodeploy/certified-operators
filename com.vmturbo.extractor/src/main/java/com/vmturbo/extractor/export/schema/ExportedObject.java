@@ -1,5 +1,6 @@
 package com.vmturbo.extractor.export.schema;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
@@ -15,11 +16,30 @@ public class ExportedObject {
     private Entity entity;
     // todo: add action
 
+    @JsonIgnore
+    private int serializedSize;
+
     public Entity getEntity() {
         return entity;
     }
 
     public void setEntity(Entity entity) {
         this.entity = entity;
+    }
+
+    public int getSerializedSize() {
+        return serializedSize;
+    }
+
+    public void setSerializedSize(int serializedSize) {
+        this.serializedSize = serializedSize;
+    }
+
+    @Override
+    public String toString() {
+        if (entity != null) {
+            return entity.toString();
+        }
+        return "";
     }
 }

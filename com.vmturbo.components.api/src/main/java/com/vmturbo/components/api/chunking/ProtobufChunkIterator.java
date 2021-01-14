@@ -69,9 +69,11 @@ public class ProtobufChunkIterator<T extends AbstractMessage> {
      * @return The next collection of elements.
      * @throws NoSuchElementException If there are no more elements.
      * @throws OversizedElementException If one of the elements exceeds size limits.
+     * @throws GetSerializedSizeException If the serialized size of the element can not be determined
      */
     @Nonnull
-    public Collection<T> next() throws NoSuchElementException, OversizedElementException {
+    public Collection<T> next() throws NoSuchElementException, OversizedElementException,
+            GetSerializedSizeException {
         Collection<T> result = null;
         // If the iterator is not yet drained, continue adding to the current in-progress
         // chunk. The current in-progress chunk may have an element left over from the
@@ -116,9 +118,10 @@ public class ProtobufChunkIterator<T extends AbstractMessage> {
      *
      * @param action The action to apply to each chunk.
      * @throws OversizedElementException See {@link ProtobufChunkIterator#next()}.
+     * @throws GetSerializedSizeException If the serialized size of the element can not be determined
      */
     public void forEachRemaining(@Nonnull final Consumer<Collection<T>> action)
-            throws OversizedElementException {
+            throws OversizedElementException, GetSerializedSizeException {
         while (hasNext()) {
             action.accept(next());
         }

@@ -1,15 +1,13 @@
-package com.vmturbo.components.api.chunking;
+package com.vmturbo.extractor.export;
 
-import com.google.protobuf.AbstractMessage;
+import com.vmturbo.components.api.chunking.ChunkCollector;
+import com.vmturbo.extractor.export.schema.ExportedObject;
 
 /**
- * Utility to collect protobuf messages into chunks, respecting size (in bytes) and count limits.
- * In practice, we send these chunks to Kafka.
- * In the future we may also send these chunks to other brokers.
- *
- * @param <T> The protobuf messages in the chunk.
+ * Utility to collect list of exported objects into chunks, respecting size (in bytes) limits.
  */
-public class ProtobufChunkCollector<T extends AbstractMessage> extends ChunkCollector<T> {
+public class ExportedObjectChunkCollector extends ChunkCollector<ExportedObject> {
+
     /**
      * Create a new instance of the chunk collector.
      *
@@ -20,14 +18,12 @@ public class ProtobufChunkCollector<T extends AbstractMessage> extends ChunkColl
      *                         next into another chunk.
      * @param maxSizeBytes The maximum size of a chunk.
      */
-    public ProtobufChunkCollector(final int desiredSizeBytes,
-                                  final int maxSizeBytes) {
+    public ExportedObjectChunkCollector(final int desiredSizeBytes, final int maxSizeBytes) {
         super(desiredSizeBytes, maxSizeBytes);
     }
 
     @Override
-    public int getSerializedSize(T element) {
+    public int getSerializedSize(ExportedObject element) {
         return element.getSerializedSize();
     }
 }
-

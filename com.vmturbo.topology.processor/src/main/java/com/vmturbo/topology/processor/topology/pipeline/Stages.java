@@ -49,6 +49,7 @@ import com.vmturbo.commons.analysis.InvertedIndex;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.MessageChunker;
 import com.vmturbo.components.api.FormattedString;
+import com.vmturbo.components.api.chunking.GetSerializedSizeException;
 import com.vmturbo.components.api.chunking.OversizedElementException;
 import com.vmturbo.components.common.pipeline.Pipeline.PipelineStageException;
 import com.vmturbo.components.common.pipeline.Pipeline.StageResult;
@@ -1572,6 +1573,10 @@ public class Stages {
                         logger.error("Entity {} (name: {}, type: {}) failed to be" +
                             " broadcast because it's too large: {}", entity.getOid(),
                             entity.getDisplayName(), entity.getEntityType(), e.getMessage());
+                    } catch (GetSerializedSizeException e) {
+                        logger.error("Entity {} (name: {}, type: {}) failed to be" +
+                            " broadcast because its serialized size can not be determined: {}",
+                            entity.getOid(), entity.getDisplayName(), entity.getEntityType(), e.getMessage());
                     }
                 }
                 counts.computeIfAbsent(ApiEntityType.fromType(entity.getEntityType()),

@@ -19,11 +19,9 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology.End;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology.Start;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology.DataSegment;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.components.api.chunking.GetSerializedSizeException;
 import com.vmturbo.components.api.chunking.OversizedElementException;
 import com.vmturbo.components.api.chunking.ProtobufChunkIterator;
 import com.vmturbo.components.api.server.ComponentNotificationSender;
@@ -78,6 +76,14 @@ public class MarketNotificationSender extends ComponentNotificationSender<Action
             topologyInfo.getTopologyId(), topologyInfo.getTopologyContextId(), e.getMessage());
     }
 
+    private void logUndeterminedSerializedSizeElement(@Nonnull final String elementType,
+            @Nonnull final GetSerializedSizeException e,
+            @Nonnull final TopologyInfo topologyInfo) {
+        getLogger().error("A chunk of the {} failed to be sent because serialized size of an "
+                        + "element cannot be determined (topology {}, context {}). Message: {}",
+                elementType, topologyInfo.getTopologyId(), topologyInfo.getTopologyContextId(), e.getMessage());
+    }
+
     /**
      * Send projected topology notification synchronously.
      *
@@ -116,6 +122,10 @@ public class MarketNotificationSender extends ComponentNotificationSender<Action
                     // to be larger than the 64MB limit, which is highly unlikely. We keep sending what
                     // we can.
                     logOversizedElement("projected topology", e, originalTopologyInfo);
+                    continue;
+                } catch (GetSerializedSizeException e) {
+                    // this should not happen since serialized size of protobuf object can be determined
+                    logUndeterminedSerializedSizeElement("projected topology", e, originalTopologyInfo);
                     continue;
                 }
                 totalCount += chunk.size();
@@ -168,6 +178,10 @@ public class MarketNotificationSender extends ComponentNotificationSender<Action
                 } catch (OversizedElementException e) {
                     // This should never happen because costs are tiny (compared to the max request size)!
                     logOversizedElement("projected entity costs", e, originalTopologyInfo);
+                    continue;
+                } catch (GetSerializedSizeException e) {
+                    // this should not happen since serialized size of protobuf object can be determined
+                    logUndeterminedSerializedSizeElement("projected entity costs", e, originalTopologyInfo);
                     continue;
                 }
                 totalCount += costChunk.size();
@@ -227,6 +241,10 @@ public class MarketNotificationSender extends ComponentNotificationSender<Action
                     // This should never happen because RI coverage messages are tiny
                     // (compared to the max request size)!
                     logOversizedElement("projected entity RI", e, originalTopologyInfo);
+                    continue;
+                } catch (GetSerializedSizeException e) {
+                    // this should not happen since serialized size of protobuf object can be determined
+                    logUndeterminedSerializedSizeElement("projected entity RI", e, originalTopologyInfo);
                     continue;
                 }
                 totalCount += coverageChunk.size();
