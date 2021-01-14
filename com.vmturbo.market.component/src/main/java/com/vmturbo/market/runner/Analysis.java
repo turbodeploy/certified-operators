@@ -570,7 +570,7 @@ public class Analysis {
                             }
                             boolean isOptimizeCloudPlan = (topologyInfo.hasPlanInfo() && topologyInfo.getPlanInfo().getPlanType()
                                     .equals(StringConstants.OPTIMIZE_CLOUD_PLAN));
-                            boolean reduceDependency = !isOptimizeCloudPlan && config.isSMALite();
+                            boolean reduceDependency = config.isSMALite();
                             SMAInput smaInput = new SMAInput(originalCloudTopology,
                                     cloudVmOidToProvidersOIDsMap,
                                     topologyCostCalculator.getCloudCostData(), marketCloudRateExtractor, converter.getConsistentScalingHelper(), isOptimizeCloudPlan, reduceDependency);
