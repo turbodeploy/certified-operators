@@ -312,7 +312,7 @@ public class ActionStateUpdaterTest {
      * @throws Exception if something goes wrong
      */
     @Test
-    public void testSendingSystemNotificationWhenActionExecutionHasMultipleSteps()
+    public void testActionFailedPostScriptSucceeded()
             throws Exception {
         final ActionSuccess success = ActionSuccess.newBuilder()
                 .setActionId(manualWithWorkflowsId)
@@ -335,6 +335,9 @@ public class ActionStateUpdaterTest {
         Assert.assertEquals(ActionState.FAILING, manualWithWorkflowsAction.getState());
         Mockito.verifyZeroInteractions(actionHistoryDao);
 
+        // Not yet! The notification should be sent when the POST step finishes.
+        Mockito.verify(notificationSender, never()).notifyActionFailure(failure);
+
         // successfully finished POST execution step for action
         actionStateUpdater.onActionSuccess(success);
 
@@ -345,7 +348,46 @@ public class ActionStateUpdaterTest {
         // checked that to the system was sent failure notification regardless of successful
         // execution of POST step
         Mockito.verify(notificationSender, Mockito.times(1)).notifyActionFailure(failure);
-        Mockito.verify(notificationSender, Mockito.never()).notifyActionSuccess(success);
+        Mockito.verify(notificationSender, Mockito.never()).notifyActionSuccess(any());
+    }
+
+    /**
+     * Test that a failed action execution followed by a failed POST execution step sends
+     * exactly one action failure notification.
+     *
+     * @throws Exception if something goes wrong
+     */
+    @Test
+    public void testActionFailedPostScriptFailed()
+            throws Exception {
+        final ActionFailure failure = ActionFailure.newBuilder()
+                .setActionId(manualWithWorkflowsId)
+                .setActionSpec(manualWithWorkflowsSpec)
+                .setErrorDescription("Failure!")
+                .build();
+
+        Assert.assertEquals(ActionState.IN_PROGRESS, manualWithWorkflowsAction.getState());
+        // failed IN_PROGRESS execution step
+        actionStateUpdater.onActionFailure(failure);
+
+        // When REPLACE/Native fails and there's a post workflow we go to the FAILING state.
+        // As a result do not update the database yet. We still need to run the POST workflow.
+        Assert.assertEquals(ActionState.FAILING, manualWithWorkflowsAction.getState());
+        Mockito.verifyZeroInteractions(actionHistoryDao);
+
+        // Not yet! The notification should be sent when the POST step finishes.
+        Mockito.verify(notificationSender, never()).notifyActionFailure(failure);
+
+        // Failed POST execution step for action
+        actionStateUpdater.onActionFailure(failure);
+
+        Assert.assertEquals(Status.FAILED,
+                manualWithWorkflowsAction.getCurrentExecutableStep().get().getStatus());
+        Assert.assertEquals(ActionState.FAILED, manualWithWorkflowsAction.getState());
+
+        // checked that to the system was sent failure notification exactly once.
+        Mockito.verify(notificationSender, Mockito.times(1)).notifyActionFailure(failure);
+        Mockito.verify(notificationSender, Mockito.never()).notifyActionSuccess(any());
     }
 
     /**
