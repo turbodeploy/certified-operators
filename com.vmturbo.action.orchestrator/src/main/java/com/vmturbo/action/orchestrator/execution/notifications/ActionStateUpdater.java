@@ -20,7 +20,6 @@ import com.vmturbo.action.orchestrator.action.ActionEvent.SuccessEvent;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionSchedule;
 import com.vmturbo.action.orchestrator.action.ActionView;
-import com.vmturbo.action.orchestrator.action.ExecutableStep;
 import com.vmturbo.action.orchestrator.api.ActionOrchestratorNotificationSender;
 import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
@@ -192,28 +191,6 @@ public class ActionStateUpdater implements ActionExecutionListener {
                 logger.info("Action executed successfully: {}", action);
                 removeAcceptanceForSuccessfullyExecutedAction(action);
                 notifySystemAboutSuccessfulActionExecution(actionSuccess, action);
-            } else if (actionStateAfterTransition == ActionState.FAILED) {
-                // This can happen if a POST-script for a failed action succeeds. We want to send
-                // a failure notification about the action, not a success notification about the
-                // POST-script.
-                logger.info("Action execution failed: {}", action);
-                // Look up the executable step pertaining to the main action.
-                final ExecutableStep mainStep = action.getExecutableSteps().get(ActionState.IN_PROGRESS);
-                final String errorDescription;
-                if (mainStep == null) {
-                    // This is a fallback. We should always have an executable step for the
-                    // IN_PROGRESS state.
-                    logger.error("Main step of action {} (id: {}) is unexpectedly null.",
-                            action.getDescription(), action.getRecommendationOid());
-                    errorDescription = "Action execution is FAILED due to failed main execution step";
-                } else {
-                    errorDescription = String.join(",", mainStep.getErrors());
-                }
-                final ActionFailure actionFailure = ActionFailure.newBuilder()
-                        .setActionId(action.getId())
-                        .setErrorDescription(errorDescription)
-                        .build();
-                notifySystemAboutFailedActionExecution(action, actionFailure, errorDescription);
             }
         } else {
             logger.error("Unable to mark success for " + actionSuccess);
@@ -334,12 +311,9 @@ public class ActionStateUpdater implements ActionExecutionListener {
         processActionState(action, transitionResult, false);
 
         final ActionState actionStateAfterTransition = transitionResult.getAfterState();
-        // This either means that an action without a post-script failed, or that the post-script
-        // for an action failed.
-        //
-        // If an action with a post-script fails, we run the post-script, and send the failure
-        // notification when the post-script succeeds.
-        if (actionStateAfterTransition == ActionState.FAILED) {
+        // if IN_PROGRESS execution was failed for action then general execution result will
+        // be FAILED for action regardless of results of POST execution
+        if (actionStateAfterTransition == ActionState.FAILED || actionStateAfterTransition == ActionState.FAILING) {
             notifySystemAboutFailedActionExecution(action, actionFailure, errorDescription);
         }
     }

@@ -34,6 +34,7 @@ import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementFailu
 import com.vmturbo.common.protobuf.plan.ReservationDTO.GetBuyersOfExistingReservationsRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.GetBuyersOfExistingReservationsResponse;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityStats;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason.FailedResources;
@@ -265,7 +266,8 @@ public class InitialPlacementFinder {
                 }
             }
             // process reservation result from sl to provider mapping
-            return buildReservationResponse(initialPlacements, slToClusterMap);
+            return buildReservationResponse(initialPlacements, slToClusterMap,
+                    economyCaches.calculateClusterStats(initialPlacements, buyers, slToClusterMap));
         }
     }
 
@@ -274,12 +276,15 @@ public class InitialPlacementFinder {
      *
      * @param reservationPlacements a map of reservation buyer oid to its placement decisions.
      * @param slToClusterMap a map of shopping list oid to cluster commodity type.
+     * @param clusterUsedAndCapacity a map of shopping list oid -> commodity type -> {total use,
+     * total capacity} of a cluster.
      * @return a table whose row is reservation entity oid, column is shopping list oid and value
      * is the {@link InitialPlacementFinderResult}
      */
     private Table<Long, Long, InitialPlacementFinderResult> buildReservationResponse(
             @Nonnull final Map<Long, List<InitialPlacementDecision>> reservationPlacements,
-            @Nonnull final Map<Long, CommodityType> slToClusterMap) {
+            @Nonnull final Map<Long, CommodityType> slToClusterMap,
+            @Nonnull final Map<Long, Map<CommodityType, Pair<Double, Double>>> clusterUsedAndCapacity) {
         Table<Long, Long, InitialPlacementFinderResult> placementResult = HashBasedTable.create();
         for (Map.Entry<Long, List<InitialPlacementDecision>> buyerPlacement
                 : reservationPlacements.entrySet()) {
@@ -287,14 +292,20 @@ public class InitialPlacementFinder {
             List<InitialPlacementDecision> placements = buyerPlacement.getValue();
             for (InitialPlacementDecision placement : placements) {
                 if (placement.supplier.isPresent()) { // the sl is successfully placed
+                    List<CommodityStats> clusterStats = new ArrayList();
+                    clusterUsedAndCapacity.get(placement.slOid).entrySet().forEach(e -> {
+                        clusterStats.add(CommodityStats.newBuilder().setCommodityType(e.getKey())
+                                .setTotalUsed(e.getValue().getKey())
+                                .setTotalCapacity(e.getValue().getValue()).build());
+                    });
                     placementResult.put(buyerOid, placement.slOid, new InitialPlacementFinderResult(
                             Optional.of(placement.supplier.get()),
                             Optional.ofNullable(slToClusterMap.get(placement.slOid)),
-                            new ArrayList()));
+                            clusterStats, new ArrayList()));
                 } else if (!placement.failureInfos.isEmpty()) { // the sl is unplaced, populate reason
                     placementResult.put(buyerOid, placement.slOid,
                             new InitialPlacementFinderResult(Optional.empty(), Optional.empty(),
-                                    placement.failureInfos));
+                                    new ArrayList<>(), placement.failureInfos));
                     if (!placement.failureInfos.isEmpty()) {
                         logger.debug(logPrefix + "Unplaced reservation entity id {}, sl id {} has the following"
                                 + " commodities", buyerPlacement.getKey(), placement.slOid);
@@ -309,7 +320,7 @@ public class InitialPlacementFinder {
                     // success reservation.
                     placementResult.put(buyerOid, placement.slOid,
                             new InitialPlacementFinderResult(Optional.empty(), Optional.empty(),
-                                    new ArrayList()));
+                                    new ArrayList<>(), new ArrayList()));
                 }
             }
         }

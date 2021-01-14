@@ -44,6 +44,7 @@ message InitialPlacementBuyerPlacementInfo {
 message InitialPlacementSuccess {
     required int64 provider_oid = 1;
     optional .topology.CommodityType cluster = 2;
+    repeated .topology.CommodityStats commodityStats = 3;
 }
 
 message InitialPlacementFailure {
