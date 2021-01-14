@@ -245,9 +245,27 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
         // Percentile should not be set for entity with controllable false
         Assert.assertFalse(percentileEditor.isEntityApplicable(TopologyEntity.newBuilder(
                 TopologyEntityDTO.newBuilder()
-                        .setAnalysisSettings(
-                                AnalysisSettings.newBuilder().setControllable(false).build()))
+                    .setOrigin(Origin.newBuilder()
+                        .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                            .putDiscoveredTargetData(1L,
+                                PerTargetEntityInformation.newBuilder()
+                                    .setOrigin(EntityOrigin.DISCOVERED)
+                                    .build())))
+                    .setAnalysisSettings(AnalysisSettings.newBuilder().setControllable(false).build()))
                 .build()));
+
+        // Percentile should still be set for controllable false entity if it is ContainerSpec
+        Assert.assertTrue(percentileEditor.isEntityApplicable(TopologyEntity.newBuilder(
+            TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.CONTAINER_SPEC_VALUE)
+                .setOrigin(Origin.newBuilder()
+                    .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                        .putDiscoveredTargetData(1L,
+                            PerTargetEntityInformation.newBuilder()
+                                .setOrigin(EntityOrigin.DISCOVERED)
+                                .build())))
+                .setAnalysisSettings(AnalysisSettings.newBuilder().setControllable(false).build()))
+            .build()));
 
         // Percentile should be be set for database server entities.
         Assert.assertTrue(percentileEditor.isEntityApplicable(TopologyEntity.newBuilder(

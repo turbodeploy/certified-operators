@@ -27,6 +27,7 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 
 import io.grpc.stub.AbstractStub;
@@ -39,6 +40,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Analys
 import com.vmturbo.components.common.diagnostics.BinaryDiagsRestorable;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.stitching.EntityCommodityReference;
 import com.vmturbo.stitching.TopologyEntity;
@@ -64,6 +66,12 @@ public abstract class AbstractCachingHistoricalEditor<HistoryData extends IHisto
     private static final Logger logger = LogManager.getLogger();
     private static final String EXPORTING_FILE_NAME_SUFFIX = "state";
     private static final Pattern CAMEL_CASE_WORDS_SPLITTER = Pattern.compile("(?=\\p{Lu})");
+
+    /**
+     * Entity types with controllable as false but applicable for HistoricalEditor.
+     */
+    private static final Set<Integer> NON_CONTROLLABLE_APPLICABLE_ENTITY_TYPES =
+        ImmutableSet.of(EntityType.CONTAINER_SPEC_VALUE);
 
     /**
      * Per-commodity field cached historical data.
@@ -285,7 +293,8 @@ public abstract class AbstractCachingHistoricalEditor<HistoryData extends IHisto
             return false;
         }
         final AnalysisSettings analysisSettings = builder.getAnalysisSettings();
-        return !analysisSettings.hasControllable() || analysisSettings.getControllable();
+        return NON_CONTROLLABLE_APPLICABLE_ENTITY_TYPES.contains(entity.getEntityType())
+            || !analysisSettings.hasControllable() || analysisSettings.getControllable();
     }
 
     protected Map<EntityCommodityFieldReference, HistoryData> getCache() {
