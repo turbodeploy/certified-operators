@@ -4,10 +4,12 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.NoSuchElementException;
 import java.util.Queue;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -15,6 +17,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 
 import org.apache.logging.log4j.LogManager;
@@ -48,23 +51,15 @@ public class SupplyChainCalculator {
     public <E extends TopologyGraphEntity<E>> Map<Integer, SupplyChainNode> getSupplyChainNodes(
             @Nonnull TopologyGraph<E> topology, @Nonnull Collection<Long> seed,
             @Nonnull Predicate<E> entityFilter, @Nonnull TraversalRulesLibrary<E> traversalRulesLibrary) {
-        final Queue<TraversalState> frontier =
-                new LinkedList<>(seed.stream()
-                        .map(id -> new TraversalState(id, TraversalMode.START, 1))
-                        .collect(Collectors.toList()));
+        final Queue<TraversalState> frontier = new Frontier<>(seed.stream()
+                        .map(id -> new TraversalState(id, id, TraversalMode.START, 1))
+                        .collect(Collectors.toList()), topology);
         final Map<Integer, SupplyChainNodeBuilder<E>> resultBuilder = new HashMap<>();
-        final Set<Long> visitedEntities = new HashSet<>();
-
         while (!frontier.isEmpty()) {
             // remove traversal state from frontier
             final TraversalState traversalState = frontier.remove();
             long entityId = traversalState.getEntityId();
             final TraversalMode traversalMode = traversalState.getTraversalMode();
-
-            // skip already traversed entities
-            if (visitedEntities.contains(entityId)) {
-                continue;
-            }
 
             // get entity
             final E entity = topology.getEntity(entityId).orElse(null);
@@ -73,9 +68,6 @@ public class SupplyChainCalculator {
                         "Error while constructing supply chain: missing entity with id {}", entityId);
                 continue;
             }
-
-            // record the entity
-            visitedEntities.add(entityId);
 
             // only keep entities that satisfy the entity filter
             if (!entityFilter.test(entity)) {
@@ -173,6 +165,7 @@ public class SupplyChainCalculator {
      */
     @Immutable
     public static class TraversalState {
+        private long whoAdded;
         private long entityId;
         private TraversalMode traversalMode;
         private int depth;
@@ -180,14 +173,20 @@ public class SupplyChainCalculator {
         /**
          * Pair an entity and a traversal mode to create a new {@link TraversalState}.
          *
+         * @param whoAdded id of the entity which added entityId which processing caused creation of a new {@link TraversalState}.
          * @param entityId id of the entity related to the traversal state
          * @param traversalMode traversal mode related to the traversal state
          * @param depth depth of traversal
          */
-        public TraversalState(long entityId, @Nonnull TraversalMode traversalMode, int depth) {
+        public TraversalState(long whoAdded, long entityId, @Nonnull TraversalMode traversalMode, int depth) {
+            this.whoAdded = whoAdded;
             this.entityId = entityId;
             this.traversalMode = traversalMode;
             this.depth = depth;
+        }
+
+        public long getWhoAdded() {
+            return whoAdded;
         }
 
         public long getEntityId() {
@@ -216,11 +215,12 @@ public class SupplyChainCalculator {
              * Pair an entity and a traversal mode to create a new
              * mutable {@link TraversalState}.
              *
+             * @param whoAdded id of the entity which added entityId which processing caused creation of a new {@link TraversalState}.
              * @param entityId id of the entity related to the traversal state
              * @param traversalMode traversal mode related to the traversal state
              */
-            public Builder(long entityId, @Nonnull TraversalMode traversalMode) {
-                traversalState = new TraversalState(entityId, traversalMode, 0);
+            public Builder(long whoAdded, long entityId, @Nonnull TraversalMode traversalMode) {
+                traversalState = new TraversalState(whoAdded, entityId, traversalMode, 0);
             }
 
             /**
@@ -264,6 +264,97 @@ public class SupplyChainCalculator {
          * Traversal must stop here.
          */
         STOP
+    }
+
+    /**
+     * Class that represents Supply chain frontier. Skip entities that have been already visited
+     * during calculation process, i.e. {@link TraversalState} instance which points to the same
+     * entity will not be added to a frontier, this will lead to memory optimization.
+     *
+     * @param <E> type of the entity provided by {@link TopologyGraph}.
+     */
+    protected static class Frontier<E extends TopologyGraphEntity<E>>
+                    extends LinkedList<TraversalState> {
+        private static final Logger LOGGER = LogManager.getLogger(Frontier.class);
+        private final Collection<Long> visitedEntities = new HashSet<>();
+        private final TopologyGraph<E> topology;
+
+        /**
+         * Creating new {@link Frontier} instance.
+         *
+         * @param c collection of initial {@link TraversalState}s.
+         * @param topology graph that could be used to get comprehensive entity
+         *                 information.
+         */
+        protected Frontier(Collection<? extends TraversalState> c, TopologyGraph<E> topology) {
+            super();
+            this.topology = topology;
+            addAll(c);
+        }
+
+        @Override
+        public boolean offer(TraversalState e) {
+            return add(e);
+        }
+
+        @Override
+        public boolean add(TraversalState traversalState) {
+            // skip already processed entities
+            final boolean result = visitedEntities.add(traversalState.getEntityId());
+            if (result) {
+                super.add(traversalState);
+                if (LOGGER.isTraceEnabled()) {
+                    LOGGER.trace("'{}' processing caused addition of '{}' into frontier",
+                                    topology.getEntity(traversalState.getWhoAdded()).orElse(null),
+                                    topology.getEntity(traversalState.getEntityId()).orElse(null));
+                }
+            }
+            return result;
+        }
+
+        @Override
+        public TraversalState remove() {
+            if (isEmpty()) {
+                throw new NoSuchElementException();
+            }
+            final TraversalState result = first(true);
+            if (LOGGER.isTraceEnabled()) {
+                LOGGER.trace("'{}' taken for processing",
+                                topology.getEntity(result.getEntityId()).orElse(null));
+            }
+            return result;
+        }
+
+        @Nullable
+        private TraversalState first(boolean remove) {
+            final Iterator<TraversalState> it = iterator();
+            if (!it.hasNext()) {
+                return null;
+            }
+            final TraversalState result = it.next();
+            if (remove) {
+                it.remove();
+            }
+            return result;
+        }
+
+        @Override
+        public TraversalState poll() {
+            return first(true);
+        }
+
+        @Override
+        public TraversalState element() {
+            if (isEmpty()) {
+                throw new NoSuchElementException();
+            }
+            return first(false);
+        }
+
+        @Override
+        public TraversalState peek() {
+            return first(false);
+        }
     }
 
     /**

@@ -18,6 +18,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableSet;
 
+import org.hamcrest.CoreMatchers;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -27,6 +28,9 @@ import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.topology.graph.TestGraphEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
+import com.vmturbo.topology.graph.supplychain.SupplyChainCalculator.Frontier;
+import com.vmturbo.topology.graph.supplychain.SupplyChainCalculator.TraversalMode;
+import com.vmturbo.topology.graph.supplychain.SupplyChainCalculator.TraversalState;
 
 /**
  * Tests the functionality of the generation of scoped supply chains.
@@ -2126,6 +2130,40 @@ public class SupplyChainCalculatorTest {
 
         assertEquals(Collections.singleton(dp1Id),
                      getAllNodeIds(supplyChain.get(ApiEntityType.DESKTOP_POOL.typeNumber())));
+    }
+
+    /**
+     * Checks that {@link com.vmturbo.topology.graph.supplychain.SupplyChainCalculator.Frontier}
+     * will skip addition of entity in case entity has been already scheduled for visiting/visited.
+     */
+    @Test
+    public void testDuplicatedOidsInFrontier() {
+        final long vm1Id = 1;
+        final long vm2Id = 2;
+        final long pmId = 11;
+        final long st1Id = 21;
+        final long st2Id = 22;
+        final TopologyGraph<TestGraphEntity> graph =
+                        TestGraphEntity.newGraph(
+                                        TestGraphEntity.newBuilder(vm1Id, ApiEntityType.VIRTUAL_MACHINE)
+                                                        .addProviderId(pmId)
+                                                        .addProviderId(st1Id),
+                                        TestGraphEntity.newBuilder(vm2Id, ApiEntityType.VIRTUAL_MACHINE)
+                                                        .addProviderId(pmId)
+                                                        .addProviderId(st2Id),
+                                        TestGraphEntity.newBuilder(pmId, ApiEntityType.PHYSICAL_MACHINE)
+                                                        .addProviderId(st1Id)
+                                                        .addProviderId(st2Id),
+                                        TestGraphEntity.newBuilder(st1Id, ApiEntityType.STORAGE),
+                                        TestGraphEntity.newBuilder(st2Id, ApiEntityType.STORAGE));
+        final Collection<TraversalState> frontier = new Frontier<>(Collections
+                        .singleton(new TraversalState(VM_ID, VM_ID, TraversalMode.START, 1)),
+                        graph);
+        Assert.assertThat(frontier.size(), CoreMatchers.is(1));
+        frontier.add(new TraversalState(pmId, st1Id, TraversalMode.CONSUMES, 1));
+        Assert.assertThat(frontier.size(), CoreMatchers.is(2));
+        frontier.add(new TraversalState(VM_ID, st1Id, TraversalMode.CONSUMES, 1));
+        Assert.assertThat(frontier.size(), CoreMatchers.is(2));
     }
 
     private Map<Integer, SupplyChainNode> getSupplyChain(

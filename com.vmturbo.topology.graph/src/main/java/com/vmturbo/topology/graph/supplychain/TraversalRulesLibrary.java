@@ -128,7 +128,7 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
             final Stream<TraversalState.Builder> dcAsAggregator =
                     entity.getProviders().stream()
                         .filter(e -> e.getEntityType() == EntityType.DATACENTER_VALUE)
-                        .map(e -> new TraversalState.Builder(e.getOid(), TraversalMode.AGGREGATED_BY));
+                        .map(e -> new TraversalState.Builder(entity.getOid(), e.getOid(), TraversalMode.AGGREGATED_BY));
 
             // if going "up", we should include VDCs in the traversal,
             // but we should not continue traversing from them
@@ -141,7 +141,7 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
                         entity.getConsumers().stream()
                             .filter(e -> e.getEntityType() == EntityType.VIRTUAL_DATACENTER_VALUE
                                             || e.getEntityType() == EntityType.STORAGE_VALUE)
-                            .map(e -> new TraversalState.Builder(e.getOid(), TraversalMode.STOP)));
+                            .map(e -> new TraversalState.Builder(entity.getOid(), e.getOid(), TraversalMode.STOP)));
             } else {
                 return dcAsAggregator;
             }
@@ -224,13 +224,13 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
                 // if going down, traverse only producing VDCs, but stop immediately
                 return entity.getProviders().stream()
                         .filter(e -> e.getEntityType() == EntityType.VIRTUAL_DATACENTER_VALUE)
-                        .map(e -> new TraversalState.Builder(e.getOid(), TraversalMode.STOP));
+                        .map(e -> new TraversalState.Builder(entity.getOid(), e.getOid(), TraversalMode.STOP));
             } else {
                 // if at the seed or going up, traverse all VDCs, but stop immediately
                 final Stream<TraversalState.Builder> includedEntities = Stream.concat(entity
                         .getProviders().stream(), entity.getConsumers().stream())
                         .filter(e -> e.getEntityType() == EntityType.VIRTUAL_DATACENTER_VALUE)
-                        .map(e -> new TraversalState.Builder(e.getOid(), TraversalMode.STOP));
+                        .map(e -> new TraversalState.Builder(entity.getOid(), e.getOid(), TraversalMode.STOP));
 
                 // additionally include volume providers of pods if the traversal is from VM
                 // as seed, and the VM itself does not have any volume providers (for example
@@ -244,7 +244,7 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
                             .filter(e -> e.getEntityType() == EntityType.CONTAINER_POD_VALUE)
                             .flatMap(e -> e.getProviders().stream()
                                     .filter(provider -> provider.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE))
-                            .map(e -> new TraversalState.Builder(e.getOid(), TraversalMode.STOP)));
+                            .map(e -> new TraversalState.Builder(entity.getOid(), e.getOid(), TraversalMode.STOP)));
 
                 }
                 return includedEntities;
@@ -276,7 +276,7 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
                             .filter(e -> e.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE)
                             .flatMap(e -> e.getProviders().stream()
                                     .filter(e1 -> e1.getEntityType() == EntityType.DATACENTER_VALUE))
-                            .map(e -> new TraversalState.Builder(e.getOid(), TraversalMode.AGGREGATED_BY));
+                            .map(e -> new TraversalState.Builder(entity.getOid(), e.getOid(), TraversalMode.AGGREGATED_BY));
             } else {
                 dcs = Stream.empty();
             }
@@ -287,7 +287,7 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
             if (traversalMode == TraversalMode.START || traversalMode == TraversalMode.PRODUCES) {
                 pms = entity.getConsumers().stream()
                             .filter(e -> e.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE)
-                            .map(e -> new TraversalState.Builder(e.getOid(), TraversalMode.STOP));
+                            .map(e -> new TraversalState.Builder(entity.getOid(), e.getOid(), TraversalMode.STOP));
             } else {
                 pms = Stream.empty();
             }
@@ -326,7 +326,8 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
                           @Nonnull Queue<TraversalState> frontier) {
             final int newDepth = depth + 1;
             for (E e : entity.getConsumers()) {
-                frontier.add(new TraversalState(e.getOid(), TraversalMode.START, newDepth));
+                frontier.add(new TraversalState(entity.getOid(), e.getOid(), TraversalMode.START,
+                                newDepth));
             }
         }
     }
@@ -413,7 +414,7 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
                     .anyMatch(e -> e.getEntityType() == EntityType.CONTAINER_POD_VALUE)) {
                 return entity.getConsumers().stream()
                                 .filter(e -> e.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
-                                .map(e -> new TraversalState.Builder(e.getOid(), TraversalMode.STOP));
+                                .map(e -> new TraversalState.Builder(entity.getOid(), e.getOid(), TraversalMode.STOP));
             } else {
                 return Stream.empty();
             }
@@ -452,7 +453,7 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
         public void apply(@Nonnull E entity, @Nonnull TraversalMode traversalMode, int depth,
                 @Nonnull Queue<TraversalState> frontier) {
             entity.getAggregatedAndOwnedEntities().stream().filter(e -> e.getEntityType() == EntityType.CLOUD_COMMITMENT_VALUE)
-                    .forEach(s -> frontier.add(new TraversalState(s.getOid(), TraversalMode.STOP, depth + 1)));
+                    .forEach(s -> frontier.add(new TraversalState(entity.getOid(), s.getOid(), TraversalMode.STOP, depth + 1)));
         }
 
         @Override
