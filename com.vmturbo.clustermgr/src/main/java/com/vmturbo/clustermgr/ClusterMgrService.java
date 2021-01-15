@@ -142,41 +142,6 @@ public class ClusterMgrService {
     private static final String AT = "@";
     private static final String COLON = ":";
 
-    /**
-     * The socket timeout in milliseconds, which is the timeout for
-     * waiting for data  or, put differently, a maximum period inactivity
-     * between two consecutive data packets).
-     *
-     * <p>A timeout value of zero is interpreted as an infinite timeout.
-     * A negative value is interpreted as undefined (system default).
-     *
-     * <p>Default: {@code -1}
-     */
-    private static final int SOCKET_TIMEOUT = 10 * 60 * 1000;
-
-    /**
-     * Timeout in milliseconds until a connection is established.
-     * A timeout value of zero is interpreted as an infinite timeout.
-     *
-     * <p>A timeout value of zero is interpreted as an infinite timeout.
-     * A negative value is interpreted as undefined (system default).
-     *
-     * <p>Default: {@code -1}
-     */
-    private static final int CONNECT_TIMEOUT = 10 * 1000;
-
-    /**
-     * Timeout in milliseconds used when requesting a connection
-     * from the connection manager. A timeout value of zero is interpreted
-     * as an infinite timeout.
-     *
-     * <p>A timeout value of zero is interpreted as an infinite timeout.
-     * A negative value is interpreted as undefined (system default).
-     *
-     * <p>Default: {@code -1}
-     */
-    private static final int CONNECTION_REQUEST_TIMEOUT = 10 * 1000;
-
     private static final String NEXT_LINE = "\n";
 
     @VisibleForTesting
@@ -190,10 +155,7 @@ public class ClusterMgrService {
         "There is currently a diagnostic operation running.";
 
     // Custom diags collecting request configuration
-    private final RequestConfig requestConfig = RequestConfig.custom()
-        .setConnectTimeout(CONNECT_TIMEOUT)
-        .setConnectionRequestTimeout(CONNECTION_REQUEST_TIMEOUT)
-        .setSocketTimeout(SOCKET_TIMEOUT).build();
+    private final RequestConfig requestConfig;
 
     // Default configuration properties global to all component types
     private final ComponentProperties globalDefaultProperties = new ComponentProperties();
@@ -238,15 +200,18 @@ public class ClusterMgrService {
      * @param osCommandProcessRunner a utility object for running operating system commands
      * @param diagEnvironmentSummary Utility to get summary information for diag collection.
      * @param componentRegistry Component registry to get information about registered components.
+     * @param requestConfig Custom diags collecting request configuration.
      */
     public ClusterMgrService(@Nonnull final ConsulService consulService,
                              @Nonnull final OsCommandProcessRunner osCommandProcessRunner,
                              @Nonnull final DiagEnvironmentSummary diagEnvironmentSummary,
-                             @Nonnull final ComponentRegistry componentRegistry) {
+                             @Nonnull final ComponentRegistry componentRegistry,
+                             @Nonnull final RequestConfig requestConfig) {
         this.consulService = Objects.requireNonNull(consulService);
         this.osCommandProcessRunner = osCommandProcessRunner;
         this.diagEnvironmentSummary = Objects.requireNonNull(diagEnvironmentSummary);
         this.componentRegistry = componentRegistry;
+        this.requestConfig = Objects.requireNonNull(requestConfig);
     }
 
     public boolean isClusterKvStoreInitialized() {

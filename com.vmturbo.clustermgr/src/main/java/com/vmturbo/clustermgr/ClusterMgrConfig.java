@@ -16,6 +16,7 @@ import javax.annotation.Nonnull;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
 
+import org.apache.http.client.config.RequestConfig;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -123,6 +124,44 @@ public class ClusterMgrConfig extends WebMvcConfigurerAdapter {
     @Value("${enableConsulNamespace:false}")
     private boolean enableConsulNamespace;
 
+   /**
+     * Diags connect timeout in milliseconds until a connection is established.
+     * A timeout value of zero is interpreted as an infinite timeout.
+     *
+     * <p>A timeout value of zero is interpreted as an infinite timeout.
+     * A negative value is interpreted as undefined (system default).
+     *
+     * <p>Default: 10 seconds (10*1000)
+     */
+    @Value("${diagConnectTimeout:10000}")
+    private int diagConnectTimeout;
+
+    /**
+     * Diags connect request timeout in milliseconds used when requesting a connection
+     * from the connection manager. A timeout value of zero is interpreted
+     * as an infinite timeout.
+     *
+     * <p>A timeout value of zero is interpreted as an infinite timeout.
+     * A negative value is interpreted as undefined (system default).
+     *
+     * <p>Default: 10 seconds (10*1000)
+     */
+    @Value("${diagConnectionRequestTimeout:10000}")
+    private int diagConnectionRequestTimeout;
+
+    /**
+     * Diags socket timeout in milliseconds, which is the timeout for
+     * waiting for data  or, put differently, a maximum period inactivity
+     * between two consecutive data packets).
+     *
+     * <p>A timeout value of zero is interpreted as an infinite timeout.
+     * A negative value is interpreted as undefined (system default).
+     *
+     * <p>Default: 20 minutes {@code 20*60*1000}
+     */
+    @Value("${diagSocketTimeout:1200000}")
+    private int diagSocketTimeout;
+
     /**
      * The hardLock key.
      */
@@ -205,8 +244,12 @@ public class ClusterMgrConfig extends WebMvcConfigurerAdapter {
      */
     @Bean
     public ClusterMgrService clusterMgrService() {
+        final RequestConfig requestConfig = RequestConfig.custom()
+                .setConnectTimeout(diagConnectTimeout)
+                .setConnectionRequestTimeout(diagConnectionRequestTimeout)
+                .setSocketTimeout(diagSocketTimeout).build();
         return new ClusterMgrService(consulService(), osCommandProcessRunner(),
-            diagFileNameFormatter(), componentRegistrationConfig.componentRegistry());
+            diagFileNameFormatter(), componentRegistrationConfig.componentRegistry(), requestConfig);
     }
 
     /**

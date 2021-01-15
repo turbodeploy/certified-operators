@@ -8,6 +8,7 @@ import java.util.Map;
 import com.google.common.collect.Sets;
 import com.pszymczyk.consul.junit.ConsulResource;
 
+import org.apache.http.client.config.RequestConfig;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -39,7 +40,8 @@ public class ClusterMgrServiceIT {
     public void startup() {
         final ConsulService consulService = new ConsulService("localhost", consul.getHttpPort(), "");
         final OsCommandProcessRunner runner = new OsCommandProcessRunner();
-        svc = new ClusterMgrService(consulService, runner, mock(DiagEnvironmentSummary.class), mock(ComponentRegistry.class));
+        svc = new ClusterMgrService(consulService, runner, mock(DiagEnvironmentSummary.class),
+                mock(ComponentRegistry.class), mock(RequestConfig.class));
         final ComponentProperties defaultProperties = new ComponentProperties();
         defaultProperties.put(PROP_1, PROP_1_DEF_VAL);
         defaultProperties.put(PROP_2, PROP_2_DEF_VAL);

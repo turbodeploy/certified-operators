@@ -2,6 +2,7 @@ package com.vmturbo.clustermgr;
 
 import static org.mockito.Mockito.mock;
 
+import org.apache.http.client.config.RequestConfig;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -18,7 +19,7 @@ public class ClusterMgrServiceTestConfiguration {
     @Bean
     public ClusterMgrService clusterMgrService() {
         return new ClusterMgrService(consulService(), osCommandProcessRunner(),
-                mock(DiagEnvironmentSummary.class), serviceRegistry());
+                mock(DiagEnvironmentSummary.class), serviceRegistry(), mock(RequestConfig.class));
     }
 
     /**
