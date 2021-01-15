@@ -9,7 +9,6 @@ import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Currency;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -23,6 +22,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -83,8 +83,10 @@ import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.Pair;
 import com.vmturbo.auth.api.auditing.AuditLogUtils;
 import com.vmturbo.common.api.mappers.EnvironmentTypeMapper;
+import com.vmturbo.common.protobuf.CostProtoUtil;
 import com.vmturbo.common.protobuf.StringUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
@@ -94,17 +96,13 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter.InvolvedEntities;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSavingsAmountRangeFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
-import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
 import com.vmturbo.common.protobuf.action.ActionDTO.AtomicResize;
 import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
-import com.vmturbo.common.protobuf.action.ActionDTO.Deactivate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeleteExplanation;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation.CommodityNewCapacityEntry;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
@@ -142,10 +140,9 @@ import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.common.protobuf.utils.HCIUtils;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.Units;
-import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
+import com.vmturbo.components.common.ClassicEnumMapper;
 import com.vmturbo.components.common.setting.OsMigrationSettingsEnum.OperatingSystem;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
@@ -163,18 +160,6 @@ public class ActionSpecMapper {
      */
     private static final String FORMAT_FOR_ACTION_VALUES = "%.1f";
 
-    // Currencies by numeric code map will is a map of numeric code to the Currency.
-    // TODO: But the numeric code is not unique. As of writing this, there are a few currencies
-    // which share numeric code. They are:
-    // Currency code = 946 -> Romanian Leu (RON), Romanian Leu (1952-2006) (ROL)
-    // Currency code = 891 -> Serbian Dinar (2002-2006) (CSD), Yugoslavian New Dinar (1994-2002) (YUM)
-    // Currency code = 0   -> French UIC-Franc (XFU), French Gold Franc (XFO)
-    private static final Map<Integer, Currency> CURRENCIES_BY_NUMERIC_CODE =
-            Collections.unmodifiableMap(
-                    Currency.getAvailableCurrencies().stream()
-                        .collect(Collectors.toMap(Currency::getNumericCode, Function.identity(),
-                                (c1, c2) -> c1)));
-
     // START - Strings representing action categories in the API.
     // These should be synchronized with the strings in stringUtils.js
     private static final String API_CATEGORY_PERFORMANCE_ASSURANCE = "Performance Assurance";
@@ -183,9 +168,6 @@ public class ActionSpecMapper {
     private static final String API_CATEGORY_COMPLIANCE = "Compliance";
     private static final String API_CATEGORY_UNKNOWN = "Unknown";
     // END - Strings representing action categories in the API.
-
-    // Millicore unit for container CPU commodity types.
-    private static final String MILLICORE_UNIT = "millicore";
 
     private static final Set<String> SCALE_TIER_VALUES = ImmutableSet.of(
             ApiEntityType.COMPUTE_TIER.apiStr(), ApiEntityType.DATABASE_SERVER_TIER.apiStr(),
@@ -202,12 +184,6 @@ public class ActionSpecMapper {
     private static final Map<String, String> SHORTENED_ENTITY_TYPES = ImmutableMap.of(
         ApiEntityType.VIRTUAL_VOLUME.apiStr(), "Volume"
     );
-
-    /**
-     * Set of CPU commodity types to use "millicore" as unit.
-     */
-    private static final Set<Integer> CPU_COMMODITY_TYPES = ImmutableSet.of(CommodityType.VCPU_VALUE,
-        CommodityType.VCPU_REQUEST_VALUE);
 
     private final ActionSpecMappingContextFactory actionSpecMappingContextFactory;
 
@@ -614,7 +590,7 @@ public class ActionSpecMapper {
                 if (info.hasAtomicResize()) {
                     addAtomicResizeInfo(actionApiDTO, info.getAtomicResize(), context);
                 } else {
-                    addResizeInfo(actionApiDTO, info.getResize(), context);
+                    addResizeInfo(actionApiDTO, recommendation, info.getResize(), context);
                 }
                 break;
             case ACTIVATE:
@@ -623,11 +599,11 @@ public class ActionSpecMapper {
                 if (info.getActionTypeCase() == ActionTypeCase.MOVE) {
                     addMoveInfo(actionApiDTO, recommendation, context, ActionType.START);
                 } else {
-                    addActivateInfo(actionApiDTO, info.getActivate(), context);
+                    addActivateInfo(actionApiDTO, recommendation, context);
                 }
                 break;
             case DEACTIVATE:
-                addDeactivateInfo(actionApiDTO, info.getDeactivate(), context);
+                addDeactivateInfo(actionApiDTO, recommendation, context);
                 break;
             case DELETE:
                 addDeleteInfo(actionApiDTO, info.getDelete(),
@@ -921,12 +897,7 @@ public class ActionSpecMapper {
     private Optional<StatApiDTO> createSavingsStat(CurrencyAmount savingsPerHour) {
         if (savingsPerHour.getAmount() != 0) {
             // Get the currency
-            Currency currency = CURRENCIES_BY_NUMERIC_CODE.get(savingsPerHour.getCurrency());
-            if (currency == null) {
-                currency = Currency.getInstance("USD");
-                logger.warn("Cannot find currency code {}. Defaulting to {}.",
-                        savingsPerHour.getCurrency(), currency.getDisplayName());
-            }
+            final String currencyUnit = CostProtoUtil.getCurrencyUnit(savingsPerHour);
             // Get the amount rounded to 7 decimal places. We round to 7 decimal places because we
             // convert this to a monthly savings number, and if we round to less than 7 decimal
             // places, then we might lose a few tens of dollars in savings
@@ -936,7 +907,7 @@ public class ActionSpecMapper {
                 dto.setName(StringConstants.COST_PRICE);
                 dto.setValue(savingsAmount.get());
                 // The savings
-                dto.setUnits(currency.getSymbol() + "/h");
+                dto.setUnits(currencyUnit);
                 // Classic has 2 types of savings - savings and super savings. XL currently just has
                 // one type of savings - savings
                 dto.addFilter(StringConstants.SAVINGS_TYPE, StringConstants.SAVINGS);
@@ -1085,8 +1056,7 @@ public class ActionSpecMapper {
         }
         wrapperDto.addCompoundActions(actions);
 
-        wrapperDto.getRisk().addAllReasonCommodities(getReasonCommodities(changeProviderExplanationList));
-        wrapperDto.getRisk().setReasonCommodity(String.join(",", wrapperDto.getRisk().getReasonCommodities()));
+        setReasonCommodities(wrapperDto.getRisk(), ActionDTOUtil.getReasonCommodities(action));
 
         // set current location, new location and cloud aspects for cloud resize actions
         if (target.getEnvironmentType() == EnvironmentTypeEnum.EnvironmentType.CLOUD) {
@@ -1139,26 +1109,6 @@ public class ActionSpecMapper {
                     }
                 }
             });
-    }
-
-    private Set<String> getReasonCommodities(List<ChangeProviderExplanation> changeProviderExplanations) {
-        // Using set to avoid duplicates
-        Set<ReasonCommodity> reasonCommodities = new HashSet<>();
-        for (ChangeProviderExplanation changeProviderExplanation : changeProviderExplanations) {
-            switch (changeProviderExplanation.getChangeProviderExplanationTypeCase()) {
-                case COMPLIANCE:
-                    reasonCommodities.addAll(changeProviderExplanation.getCompliance().getMissingCommoditiesList());
-                    break;
-                case CONGESTION:
-                    reasonCommodities.addAll(changeProviderExplanation.getCongestion().getCongestedCommoditiesList());
-                    break;
-                case EFFICIENCY:
-                    reasonCommodities.addAll(changeProviderExplanation.getEfficiency().getUnderUtilizedCommoditiesList());
-                    break;
-            }
-        }
-
-        return reasonCommoditiesToString(reasonCommodities);
     }
 
     private ActionApiDTO singleMove(ActionType actionType, ActionApiDTO compoundDto,
@@ -1302,26 +1252,8 @@ public class ActionSpecMapper {
             actionApiDTO.setCurrentEntity(new ServiceEntityApiDTO());
         }
 
-        actionApiDTO.getRisk().addAllReasonCommodities(
-            reasonCommoditiesToString(action.getExplanation().getReconfigure().getReconfigureCommodityList()));
-        actionApiDTO.getRisk().setReasonCommodity(
-            String.join(",", actionApiDTO.getRisk().getReasonCommodities()));
-
+        setReasonCommodities(actionApiDTO.getRisk(), ActionDTOUtil.getReasonCommodities(action));
         actionApiDTO.setCurrentValue(Long.toString(reconfigure.getSource().getId()));
-    }
-
-    /**
-     * Convert a collection of reason commodities to a set of string.
-     *
-     * @param reasonCommodities a collection of reason commodities
-     * @return a set of string
-     */
-    private Set<String> reasonCommoditiesToString(final Collection<ReasonCommodity> reasonCommodities) {
-        return reasonCommodities.stream()
-            .map(ReasonCommodity::getCommodityType)
-            .map(UICommodityType::fromType)
-            .map(UICommodityType::apiStr)
-            .collect(Collectors.toSet());
     }
 
     private void addProvisionInfo(@Nonnull final ActionApiDTO actionApiDTO,
@@ -1342,24 +1274,7 @@ public class ActionSpecMapper {
         actionApiDTO.setTarget(getServiceEntityDTO(context, currentEntity));
 
         // Set reason commodities
-        final ProvisionExplanation provisionExplanation = action.getExplanation().getProvision();
-        if (provisionExplanation.hasProvisionBySupplyExplanation()) {
-            final String reasonCommodity = UICommodityType.fromType(
-                provisionExplanation.getProvisionBySupplyExplanation()
-                    .getMostExpensiveCommodityInfo().getCommodityType()).apiStr();
-            actionApiDTO.getRisk().addReasonCommodity(reasonCommodity);
-            actionApiDTO.getRisk().setReasonCommodity(reasonCommodity);
-        } else if (provisionExplanation.hasProvisionByDemandExplanation()) {
-            actionApiDTO.getRisk().addAllReasonCommodities(
-                provisionExplanation.getProvisionByDemandExplanation()
-                    .getCommodityNewCapacityEntryList().stream()
-                    .map(CommodityNewCapacityEntry::getCommodityBaseType)
-                    .map(UICommodityType::fromType)
-                    .map(UICommodityType::apiStr)
-                    .collect(Collectors.toSet()));
-            actionApiDTO.getRisk().setReasonCommodity(
-                String.join(",", actionApiDTO.getRisk().getReasonCommodities()));
-        }
+        setReasonCommodities(actionApiDTO.getRisk(), ActionDTOUtil.getReasonCommodities(action));
 
         if (context.isPlan()) {
             // In plan actions we want to provide a reference to the provisioned entities, because
@@ -1497,21 +1412,9 @@ public class ActionSpecMapper {
         actionApiDTO.setCurrentValue(String.format(FORMAT_FOR_ACTION_VALUES, resizeInfo.getOldCapacity()));
         actionApiDTO.setNewValue(String.format(FORMAT_FOR_ACTION_VALUES, resizeInfo.getNewCapacity()));
         actionApiDTO.setResizeToValue(String.format(FORMAT_FOR_ACTION_VALUES, resizeInfo.getNewCapacity()));
-        try {
-            String units = CommodityTypeUnits.valueOf(commodityType.name()).getUnits();
-            // If resize info is container CPU commodity, set unit as "millicore".
-            if (resizeInfo.getTarget().getType() == EntityType.CONTAINER_SPEC_VALUE
-                && CPU_COMMODITY_TYPES.contains(commodityType.getNumber())) {
-                units = MILLICORE_UNIT;
-            }
-            if (!StringUtils.isEmpty(units)) {
-                actionApiDTO.setValueUnits(units);
-            }
-        } catch (IllegalArgumentException e) {
-            // the Enum is missing, it may be expected if there is no units associated with the
-            // commodity, or unexpected if someone forgot to define units for the commodity
-            logger.warn("No units for commodity {}", commodityType);
-        }
+        // set units if available
+        ClassicEnumMapper.getCommodityUnits(resizeInfo.getCommodityType().getType(), resizeInfo.getTarget().getType())
+                .ifPresent(actionApiDTO::setValueUnits);
 
         // set current location, new location and cloud aspects for cloud resize actions
         if (resizeInfo.getTarget().getEnvironmentType() == EnvironmentTypeEnum.EnvironmentType.CLOUD) {
@@ -1558,8 +1461,8 @@ public class ActionSpecMapper {
     }
 
     private void addResizeInfo(@Nonnull final ActionApiDTO actionApiDTO,
-                               @Nonnull final Resize resize,
-                               @Nonnull final ActionSpecMappingContext context) {
+            @Nonnull final Action action, @Nonnull final Resize resize,
+            @Nonnull final ActionSpecMappingContext context) {
         actionApiDTO.setActionType(ActionType.RESIZE);
 
         final ActionEntity originalEntity = resize.getTarget();
@@ -1567,29 +1470,17 @@ public class ActionSpecMapper {
         setRelatedDatacenter(originalEntity.getId(), actionApiDTO, context, false);
         setRelatedDatacenter(originalEntity.getId(), actionApiDTO, context, true);
 
-        final CommodityDTO.CommodityType commodityType = CommodityDTO.CommodityType.forNumber(
-                resize.getCommodityType().getType());
+        setReasonCommodities(actionApiDTO.getRisk(), ActionDTOUtil.getReasonCommodities(action));
 
-        Objects.requireNonNull(commodityType, "Commodity for number "
-                + resize.getCommodityType().getType());
-        actionApiDTO.getRisk().addReasonCommodity(UICommodityType.fromType(resize.getCommodityType()).apiStr());
-        actionApiDTO.getRisk().setReasonCommodity(UICommodityType.fromType(resize.getCommodityType()).apiStr());
         if (resize.hasCommodityAttribute()) {
             actionApiDTO.setResizeAttribute(resize.getCommodityAttribute().name());
         }
         actionApiDTO.setCurrentValue(String.format(FORMAT_FOR_ACTION_VALUES, resize.getOldCapacity()));
         actionApiDTO.setNewValue(String.format(FORMAT_FOR_ACTION_VALUES, resize.getNewCapacity()));
         actionApiDTO.setResizeToValue(String.format(FORMAT_FOR_ACTION_VALUES, resize.getNewCapacity()));
-        try {
-            String units = CommodityTypeUnits.valueOf(commodityType.name()).getUnits();
-            if (!StringUtils.isEmpty(units)) {
-                actionApiDTO.setValueUnits(units);
-            }
-        } catch (IllegalArgumentException e) {
-            // the Enum is missing, it may be expected if there is no units associated with the
-            // commodity, or unexpected if someone forgot to define units for the commodity
-            logger.warn("No units for commodity {}", commodityType);
-        }
+        // set units if available
+        ClassicEnumMapper.getCommodityUnits(resize.getCommodityType().getType(), null)
+                .ifPresent(actionApiDTO::setValueUnits);
 
         // set current location, new location and cloud aspects for cloud resize actions
         if (resize.getTarget().getEnvironmentType() == EnvironmentTypeEnum.EnvironmentType.CLOUD) {
@@ -1696,49 +1587,41 @@ public class ActionSpecMapper {
     }
 
     private void addActivateInfo(@Nonnull final ActionApiDTO actionApiDTO,
-                                 @Nonnull final Activate activate,
+                                 @Nonnull final ActionDTO.Action action,
                                  @Nonnull final ActionSpecMappingContext context) {
         actionApiDTO.setActionType(ActionType.START);
-        final ActionEntity targetEntity = activate.getTarget();
+        final ActionEntity targetEntity = action.getInfo().getActivate().getTarget();
         actionApiDTO.setTarget(getServiceEntityDTO(context, targetEntity));
         actionApiDTO.setCurrentEntity(getServiceEntityDTO(context, targetEntity));
         setRelatedDatacenter(targetEntity.getId(), actionApiDTO, context, false);
 
-        final Set<String> reasonCommodityNames =
-            activate.getTriggeringCommoditiesList().stream()
+        setReasonCommodities(actionApiDTO.getRisk(), ActionDTOUtil.getReasonCommodities(action));
+    }
+
+    private void setReasonCommodities(LogEntryApiDTO risk, Stream<ReasonCommodity> reasonCommodities) {
+        // Convert a collection of reason commodities to a set of string.
+        final Set<String> reasonCommodityNames = reasonCommodities
+                .map(ReasonCommodity::getCommodityType)
                 .map(UICommodityType::fromType)
                 .map(UICommodityType::apiStr)
                 .collect(Collectors.toSet());
-
-        actionApiDTO.getRisk().addAllReasonCommodities(reasonCommodityNames);
-        actionApiDTO.getRisk().setReasonCommodity(reasonCommodityNames.stream().collect(Collectors.joining(",")));
+        if (!reasonCommodityNames.isEmpty()) {
+            risk.addAllReasonCommodities(reasonCommodityNames);
+            risk.setReasonCommodity(String.join(",", reasonCommodityNames));
+        }
     }
 
     private void addDeactivateInfo(@Nonnull final ActionApiDTO actionApiDTO,
-                                   @Nonnull final Deactivate deactivate,
+                                   @Nonnull final ActionDTO.Action action,
                                    @Nonnull final ActionSpecMappingContext context) {
-        final ActionEntity targetEntity = deactivate.getTarget();
+        final ActionEntity targetEntity = action.getInfo().getDeactivate().getTarget();
         actionApiDTO.setTarget(getServiceEntityDTO(context, targetEntity));
         actionApiDTO.setCurrentEntity(getServiceEntityDTO(context, targetEntity));
         setRelatedDatacenter(targetEntity.getId(), actionApiDTO, context, false);
 
         actionApiDTO.setActionType(ActionType.SUSPEND);
 
-        final Set<String> reasonCommodityNames =
-                deactivate.getTriggeringCommoditiesList().stream()
-                        .map(UICommodityType::fromType)
-                        .map(UICommodityType::apiStr)
-                        .collect(Collectors.toSet());
-        // For Container and Pod, there're two following cases for suspend
-        // 1. We want to scale down the cluster and the pod itself is a daemon workload (agent)
-        // 2. We want to scale down the application, hence the pod
-        // In both cases, the reasonCommodities are not applicable.
-        if (targetEntity.getType() != EntityType.CONTAINER_POD_VALUE
-                && targetEntity.getType() != EntityType.CONTAINER_VALUE) {
-            actionApiDTO.getRisk().addAllReasonCommodities(reasonCommodityNames);
-            actionApiDTO.getRisk().setReasonCommodity(
-                    reasonCommodityNames.stream().collect(Collectors.joining(",")));
-        }
+        setReasonCommodities(actionApiDTO.getRisk(), ActionDTOUtil.getReasonCommodities(action));
     }
 
     /**

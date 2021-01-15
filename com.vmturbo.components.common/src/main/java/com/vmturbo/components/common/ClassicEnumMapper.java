@@ -1,17 +1,22 @@
 package com.vmturbo.components.common;
 
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 
+import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.PowerState;
 
 /**
@@ -346,4 +351,38 @@ public class ClassicEnumMapper {
         }
     }
 
+    /**
+     * Set of CPU commodity types to use "millicore" as unit.
+     */
+    private static final Set<Integer> CPU_COMMODITY_TYPES = ImmutableSet.of(CommodityType.VCPU_VALUE,
+            CommodityType.VCPU_REQUEST_VALUE);
+    // Millicore unit for container CPU commodity types.
+    private static final String MILLICORE_UNIT = "millicore";
+
+    /**
+     * Get units for the given commodity type.
+     *
+     * @param commodityTypeInt proto integer type of commodity
+     * @param atomicResizeTargetEntityTypeInt type of the target entity in atomic resize action
+     * @return optional of units, or empty if no units
+     */
+    public static Optional<String> getCommodityUnits(int commodityTypeInt,
+                @Nullable Integer atomicResizeTargetEntityTypeInt) {
+        final CommodityType commodityType = CommodityType.forNumber(commodityTypeInt);
+        try {
+            String units = CommodityTypeUnits.valueOf(commodityType.name()).getUnits();
+            // If resize info is container CPU commodity, set unit as "millicore".
+            if (atomicResizeTargetEntityTypeInt != null
+                    && atomicResizeTargetEntityTypeInt == EntityType.CONTAINER_SPEC_VALUE
+                    && CPU_COMMODITY_TYPES.contains(commodityTypeInt)) {
+                units = MILLICORE_UNIT;
+            }
+            return StringUtils.isEmpty(units) ? Optional.empty() : Optional.of(units);
+        } catch (IllegalArgumentException e) {
+            // the Enum is missing, it may be expected if there is no units associated with the
+            // commodity, or unexpected if someone forgot to define units for the commodity
+            logger.warn("No units for commodity {}", commodityType);
+            return Optional.empty();
+        }
+    }
 }

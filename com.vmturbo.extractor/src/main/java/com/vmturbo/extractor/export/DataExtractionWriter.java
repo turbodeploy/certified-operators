@@ -4,13 +4,10 @@ import java.io.IOException;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
-
-import com.fasterxml.jackson.core.JsonProcessingException;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -106,30 +103,14 @@ public class DataExtractionWriter extends TopologyWriterBase {
         final String relatedStageLabel = "Populate related entities and groups";
         logger.info("Starting stage: {}", relatedStageLabel);
         timer.start(relatedStageLabel);
-
-        final List<Long> entitiesWithSerializedErrors = new ArrayList<>();
         final List<ExportedObject> exportedObjects = entities.parallelStream()
                 .map(entity -> {
                     entity.setRelated(relatedEntitiesExtractor.extractRelatedEntities(entity.getId()));
                     final ExportedObject exportedObject = new ExportedObject();
                     exportedObject.setEntity(entity);
-                    try {
-                        exportedObject.setSerializedSize(ExportUtils.toBytes(exportedObject).length);
-                    } catch (JsonProcessingException e) {
-                        // track entities which can not be serialized
-                        entitiesWithSerializedErrors.add(entity.getId());
-                        // do not send them to Kafka
-                        return null;
-                    }
                     return exportedObject;
-                }).filter(Objects::nonNull)
-                .collect(Collectors.toList());
+                }).collect(Collectors.toList());
         timer.stop();
-
-        if (!entitiesWithSerializedErrors.isEmpty()) {
-            logger.error("{} of {} entities can not be serialized: {}",
-                    entitiesWithSerializedErrors.size(), entities.size(), entitiesWithSerializedErrors);
-        }
 
         // send entities to kafka in chunks
         final String kafkaStageLabel = "Send entities to Kafka";

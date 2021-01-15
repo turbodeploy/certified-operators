@@ -8,13 +8,12 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.sql.SQLException;
-import java.time.temporal.ChronoUnit;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -24,6 +23,7 @@ import java.util.function.Supplier;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
+import org.apache.commons.lang3.mutable.MutableLong;
 import org.jooq.DSLContext;
 import org.junit.Before;
 import org.junit.Rule;
@@ -35,8 +35,8 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.BuyRIActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.MarketActionPlanInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.TypeInfoCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse.ActionChunk;
@@ -50,10 +50,14 @@ import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeverity;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceImplBase;
+import com.vmturbo.common.protobuf.group.PolicyDTOMoles.PolicyServiceMole;
+import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.extractor.ExtractorDbConfig;
+import com.vmturbo.extractor.export.DataExtractionFactory;
+import com.vmturbo.extractor.export.ExtractorKafkaSender;
 import com.vmturbo.extractor.schema.ExtractorDbBaseConfig;
 import com.vmturbo.extractor.topology.DataProvider;
 import com.vmturbo.extractor.topology.ImmutableWriterConfig;
@@ -94,6 +98,8 @@ public class PendingActionWriterTest {
 
     private EntitySeverityService severityService = new EntitySeverityService();
 
+    private PolicyServiceMole policyBackend = spy(PolicyServiceMole.class);
+
     private ActionConverter actionConverter = mock(ActionConverter.class);
 
     private DataProvider dataProvider = mock(DataProvider.class);
@@ -102,14 +108,15 @@ public class PendingActionWriterTest {
      * Test GRPC server.
      */
     @Rule
-    public GrpcTestServer grpcServer = GrpcTestServer.newServer(actionsBackend, severityService);
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(actionsBackend, severityService, policyBackend);
 
-    private ReportPendingActionWriter reportPendingActionWriter = mock(ReportPendingActionWriter.class);
-    private SearchPendingActionWriter searchPendingActionWriter = mock(SearchPendingActionWriter.class);
-    private Supplier<ReportPendingActionWriter> reportingActionWriterSupplier = mock(Supplier.class);
-    private Supplier<SearchPendingActionWriter> searchActionWriterSupplier = mock(Supplier.class);
+    private ReportPendingActionWriter reportingActionWriter = mock(ReportPendingActionWriter.class);
+    private ActionWriterFactory actionWriterFactory = mock(ActionWriterFactory.class);
+    private ExtractorKafkaSender extractorKafkaSender = mock(ExtractorKafkaSender.class);
+    private DataExtractionFactory dataExtractionFactory = mock(DataExtractionFactory.class);
+    private MutableLong lastWrite = new MutableLong(0);
 
-    private PendingActionWriter pendingActionWriter;
+    private PendingActionWriter actionWriter;
 
     /**
      * Common setup code before each test.
@@ -120,29 +127,32 @@ public class PendingActionWriterTest {
     public void setup() throws Exception {
         final DbEndpoint endpoint = spy(dbConfig.ingesterEndpoint());
         doReturn(mock(DSLContext.class)).when(endpoint).dslContext();
-        doReturn(new ReportPendingActionWriter(clock, pool, endpoint, writerConfig, actionConverter,
-                ACTION_WRITING_INTERVAL_MS)).when(reportingActionWriterSupplier).get();
-        doReturn(new SearchPendingActionWriter(dataProvider, endpoint, writerConfig, pool))
-                .when(searchActionWriterSupplier).get();
+        doReturn(Optional.of(new ReportPendingActionWriter(clock, pool, endpoint, writerConfig,
+                actionConverter, ACTION_WRITING_INTERVAL_MS, TypeInfoCase.MARKET, new HashMap<>())))
+                .when(actionWriterFactory).getReportPendingActionWriter(any());
+        doReturn(Optional.of(new DataExtractionPendingActionWriter(extractorKafkaSender,
+                dataExtractionFactory, dataProvider, clock, lastWrite)))
+                .when(actionWriterFactory).getDataExtractionActionWriter();
 
-        pendingActionWriter = spy(new PendingActionWriter(clock,
+        actionWriter = spy(new PendingActionWriter(
                 ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 EntitySeverityServiceGrpc.newStub(grpcServer.getChannel()),
+                PolicyServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 dataProvider,
-                ACTION_WRITING_INTERVAL_MS,
                 true,
                 false,
+                false,
                 REALTIME_CONTEXT,
-                reportingActionWriterSupplier,
-                searchActionWriterSupplier));
+                actionWriterFactory));
 
         when(actionsBackend.getAllActions(any())).thenReturn(Collections.singletonList(
-            FilteredActionResponse.newBuilder()
-                .setActionChunk(ActionChunk.newBuilder()
-                    .addActions(ActionOrchestratorAction.newBuilder()
-                        .setActionSpec(ACTION)))
-                .build()));
+                FilteredActionResponse.newBuilder()
+                        .setActionChunk(ActionChunk.newBuilder()
+                                .addActions(ActionOrchestratorAction.newBuilder()
+                                        .setActionSpec(ACTION)))
+                        .build()));
         severityService.setSeveritySupplier(Collections::emptyList);
+        doReturn(Collections.emptyList()).when(policyBackend).getPolicies(any());
         doAnswer(inv -> null).when(dataProvider).getTopologyGraph();
     }
 
@@ -153,49 +163,10 @@ public class PendingActionWriterTest {
      */
     @Test
     public void testIgnorePlanContext() throws Exception {
-        pendingActionWriter.onActionsUpdated(actionsUpdated(REALTIME_CONTEXT + 100));
+        actionWriter.onActionsUpdated(actionsUpdated(REALTIME_CONTEXT + 100));
 
-        verify(pendingActionWriter, never()).fetchActions(any());
-        verify(pendingActionWriter, never()).fetchSeverities(anyLong(), any());
-    }
-
-    /**
-     * Test that the action writing interval is respected per context.
-     *
-     * @throws Exception To satisfy compiler.
-     */
-    @Test
-    public void testSkipUpdateForReporting() throws Exception {
-        doAnswer(invocation -> {
-            return null;
-        }).when(pendingActionWriter).fetchActions(any());
-
-        pendingActionWriter.onActionsUpdated(actionsUpdated(REALTIME_CONTEXT));
-        verify(pendingActionWriter, times(1)).fetchActions(any());
-
-        pendingActionWriter.onActionsUpdated(actionsUpdated(REALTIME_CONTEXT));
-        // Still written just once.
-        verify(pendingActionWriter, times(1)).fetchActions(any());
-
-        // A buy RI plan should still get processed.
-        pendingActionWriter.onActionsUpdated(ActionsUpdated.newBuilder()
-                .setActionPlanInfo(ActionPlanInfo.newBuilder()
-                        .setBuyRi(BuyRIActionPlanInfo.newBuilder()
-                                .setTopologyContextId(REALTIME_CONTEXT)))
-                .build());
-        verify(pendingActionWriter, times(2)).fetchActions(any());
-
-        clock.addTime(ACTION_WRITING_INTERVAL_MS - 1, ChronoUnit.MILLIS);
-
-        pendingActionWriter.onActionsUpdated(actionsUpdated(REALTIME_CONTEXT));
-
-        verify(pendingActionWriter, times(2)).fetchActions(any());
-
-        clock.addTime(1, ChronoUnit.MILLIS);
-
-        pendingActionWriter.onActionsUpdated(actionsUpdated(REALTIME_CONTEXT));
-
-        verify(pendingActionWriter, times(3)).fetchActions(any());
+        verify(actionWriter, never()).fetchActions(any());
+        verify(actionWriter, never()).fetchSeverities(anyLong(), any());
     }
 
     /**
@@ -204,7 +175,7 @@ public class PendingActionWriterTest {
     @Test
     public void testAOException() {
         when(actionsBackend.getAllActionsError(any())).thenReturn(Optional.of(Status.INTERNAL.asException()));
-        pendingActionWriter.onActionsUpdated(actionsUpdated(REALTIME_CONTEXT));
+        actionWriter.onActionsUpdated(actionsUpdated(REALTIME_CONTEXT));
     }
 
     /**
@@ -214,8 +185,8 @@ public class PendingActionWriterTest {
      */
     @Test
     public void testUnsupportedDialectException() throws Exception {
-        doThrow(new UnsupportedDialectException("bad!")).when(reportPendingActionWriter).write(any(), any(), any());
-        pendingActionWriter.onActionsUpdated(actionsUpdated(REALTIME_CONTEXT));
+        doThrow(new UnsupportedDialectException("bad!")).when(reportingActionWriter).write(any());
+        actionWriter.onActionsUpdated(actionsUpdated(REALTIME_CONTEXT));
     }
 
     /**
@@ -225,8 +196,8 @@ public class PendingActionWriterTest {
      */
     @Test
     public void testSQLException() throws Exception {
-        doThrow(new SQLException("bad!", "SQL:FOO", 123)).when(reportPendingActionWriter).write(any(), any(), any());
-        pendingActionWriter.onActionsUpdated(actionsUpdated(REALTIME_CONTEXT));
+        doThrow(new SQLException("bad!", "SQL:FOO", 123)).when(reportingActionWriter).write(any());
+        actionWriter.onActionsUpdated(actionsUpdated(REALTIME_CONTEXT));
     }
 
     /**
@@ -236,30 +207,54 @@ public class PendingActionWriterTest {
      */
     @Test
     public void testDisableIngestion() throws Exception {
-        PendingActionWriter pendingActionWriter = spy(new PendingActionWriter(clock,
+        PendingActionWriter actionWriter = spy(new PendingActionWriter(
                 ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 EntitySeverityServiceGrpc.newStub(grpcServer.getChannel()),
+                PolicyServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 dataProvider,
-                ACTION_WRITING_INTERVAL_MS,
+                false,
                 false,
                 false,
                 REALTIME_CONTEXT,
-                reportingActionWriterSupplier,
-                searchActionWriterSupplier));
-        pendingActionWriter.onActionsUpdated(actionsUpdated(REALTIME_CONTEXT));
+                actionWriterFactory));
+        actionWriter.onActionsUpdated(actionsUpdated(REALTIME_CONTEXT));
 
-        verify(pendingActionWriter, never()).fetchActions(any());
-        verify(pendingActionWriter, never()).fetchSeverities(anyLong(), any());
+        verify(actionWriter, never()).fetchPolicies(any());
+        verify(actionWriter, never()).fetchActions(any());
+        verify(actionWriter, never()).fetchSeverities(anyLong(), any());
+    }
+
+    /**
+     * Test that policies are fetched when data extraction is enabled.
+     */
+    @Test
+    public void testFetchPolicies() {
+        PendingActionWriter actionWriter = spy(new PendingActionWriter(
+                ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                EntitySeverityServiceGrpc.newStub(grpcServer.getChannel()),
+                PolicyServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                dataProvider,
+                false,
+                false,
+                true,
+                REALTIME_CONTEXT,
+                actionWriterFactory));
+        when(actionsBackend.getAllActions(any())).thenReturn(Collections.emptyList());
+        actionWriter.onActionsUpdated(actionsUpdated(REALTIME_CONTEXT));
+
+        verify(actionWriter).fetchPolicies(any());
+        verify(actionWriter).fetchActions(any());
+        verify(actionWriter, never()).fetchSeverities(anyLong(), any());
     }
 
     private ActionsUpdated actionsUpdated(final long context) {
         return ActionsUpdated.newBuilder()
-            .setActionPlanInfo(ActionPlanInfo.newBuilder()
-                .setMarket(MarketActionPlanInfo.newBuilder()
-                    .setSourceTopologyInfo(TopologyInfo.newBuilder()
-                        .setTopologyId(1)
-                        .setTopologyContextId(context))))
-            .build();
+                .setActionPlanInfo(ActionPlanInfo.newBuilder()
+                        .setMarket(MarketActionPlanInfo.newBuilder()
+                                .setSourceTopologyInfo(TopologyInfo.newBuilder()
+                                        .setTopologyId(1)
+                                        .setTopologyContextId(context))))
+                .build();
     }
 
     /**

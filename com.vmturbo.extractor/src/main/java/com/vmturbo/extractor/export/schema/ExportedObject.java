@@ -14,7 +14,7 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 public class ExportedObject {
 
     private Entity entity;
-    // todo: add action
+    private Action action;
 
     @JsonIgnore
     private int serializedSize;
@@ -39,7 +39,17 @@ public class ExportedObject {
     public String toString() {
         if (entity != null) {
             return entity.toString();
+        } else if (action != null) {
+            return action.toString();
         }
         return "";
+    }
+
+    public Action getAction() {
+        return action;
+    }
+
+    public void setAction(Action action) {
+        this.action = action;
     }
 }

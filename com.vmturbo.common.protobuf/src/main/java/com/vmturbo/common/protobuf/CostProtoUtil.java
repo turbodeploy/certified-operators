@@ -1,9 +1,12 @@
 package com.vmturbo.common.protobuf;
 
 import java.util.Collections;
+import java.util.Currency;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -152,5 +155,43 @@ public class CostProtoUtil {
             default:
                 throw new IllegalArgumentException("Unhandled unit: " + unit);
         }
+    }
+
+    // Currencies by numeric code map will is a map of numeric code to the Currency.
+    // TODO: But the numeric code is not unique. As of writing this, there are a few currencies
+    // which share numeric code. They are:
+    // Currency code = 946 -> Romanian Leu (RON), Romanian Leu (1952-2006) (ROL)
+    // Currency code = 891 -> Serbian Dinar (2002-2006) (CSD), Yugoslavian New Dinar (1994-2002) (YUM)
+    // Currency code = 0   -> French UIC-Franc (XFU), French Gold Franc (XFO)
+    private static final Map<Integer, Currency> CURRENCIES_BY_NUMERIC_CODE =
+            Collections.unmodifiableMap(
+                    Currency.getAvailableCurrencies().stream()
+                            .collect(Collectors.toMap(Currency::getNumericCode, Function.identity(),
+                                    (c1, c2) -> c1)));
+    private static final Currency DEFAULT_CURRENCY = Currency.getInstance("USD");
+
+    /**
+     * Get the string unit for the given currency, like "$/h".
+     *
+     * @param currencyAmount the currency amount which contains currency and amount
+     * @return unit string
+     */
+    public static String getCurrencyUnit(@Nonnull CurrencyAmount currencyAmount) {
+        final Currency currency;
+        if (currencyAmount.hasCurrency()) {
+            Currency cur = CURRENCIES_BY_NUMERIC_CODE.get(currencyAmount.getCurrency());
+            if (cur != null) {
+                currency = cur;
+            } else {
+                logger.warn("Cannot find currency code {}. Defaulting to {}.",
+                        currencyAmount.getCurrency(), DEFAULT_CURRENCY.getDisplayName());
+                currency = DEFAULT_CURRENCY;
+            }
+        } else {
+            logger.warn("Currency code not defined {}. Defaulting to {}.", currencyAmount,
+                    DEFAULT_CURRENCY.getDisplayName());
+            currency = DEFAULT_CURRENCY;
+        }
+        return currency.getSymbol() + "/h";
     }
 }

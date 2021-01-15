@@ -17,7 +17,6 @@ import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.TypeInfoCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
@@ -72,18 +71,26 @@ class ReportPendingActionWriter implements IActionWriter {
      */
     private final long actionWritingIntervalMillis;
 
+    private final TypeInfoCase actionPlanType;
+
+    private final Map<TypeInfoCase, Long> lastActionWrite;
+
     ReportPendingActionWriter(@Nonnull final Clock clock,
             @Nonnull final ExecutorService pool,
             @Nonnull final DbEndpoint dbEndpoint,
             @Nonnull final WriterConfig writerConfig,
             @Nonnull final ActionConverter actionConverter,
-            final long actionWritingIntervalMillis) {
+            final long actionWritingIntervalMillis,
+            @Nonnull final TypeInfoCase actionPlanType,
+            @Nonnull final Map<TypeInfoCase, Long> lastActionWrite) {
         this.clock = clock;
         this.pool = pool;
         this.dbEndpoint = dbEndpoint;
         this.writerConfig = writerConfig;
         this.actionConverter = actionConverter;
         this.actionWritingIntervalMillis = actionWritingIntervalMillis;
+        this.actionPlanType = actionPlanType;
+        this.lastActionWrite = lastActionWrite;
     }
 
     @Override
@@ -99,8 +106,7 @@ class ReportPendingActionWriter implements IActionWriter {
     }
 
     @Override
-    public void write(Map<ActionPlanInfo.TypeInfoCase, Long> lastActionWrite,
-            TypeInfoCase actionPlanType, MultiStageTimer timer)
+    public void write(MultiStageTimer timer)
             throws UnsupportedDialectException, InterruptedException, SQLException {
         logger.debug("Retrieved and mapped {} action records", pendingActionRecords.size());
         // Done fetching, time to start retching.

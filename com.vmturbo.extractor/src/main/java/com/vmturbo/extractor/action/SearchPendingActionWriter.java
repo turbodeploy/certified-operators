@@ -35,7 +35,6 @@ import org.jooq.DSLContext;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.TypeInfoCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
@@ -87,7 +86,9 @@ class SearchPendingActionWriter implements IActionWriter {
             InvolvedEntityCalculation.INCLUDE_SOURCE_PROVIDERS_WITH_RISKS
     );
 
-    private final DataProvider dataProvider;
+    private final TopologyGraph<SupplyChainEntity> topologyGraph;
+    private final SupplyChain supplyChain;
+    private final Long2ObjectMap<List<Long>> groupToLeafEntityIds;
     private final DbEndpoint dbEndpoint;
     private final WriterConfig writerConfig;
     private final ExecutorService pool;
@@ -98,7 +99,9 @@ class SearchPendingActionWriter implements IActionWriter {
 
     SearchPendingActionWriter(DataProvider dataProvider,
             DbEndpoint dbEndpoint, WriterConfig writerConfig, ExecutorService pool) {
-        this.dataProvider = dataProvider;
+        this.topologyGraph = dataProvider.getTopologyGraph();
+        this.supplyChain = dataProvider.getSupplyChain();
+        this.groupToLeafEntityIds = dataProvider.getGroupToLeafEntities();
         this.dbEndpoint = dbEndpoint;
         this.writerConfig = writerConfig;
         this.pool = pool;
@@ -127,21 +130,19 @@ class SearchPendingActionWriter implements IActionWriter {
     }
 
     @Override
+    public boolean requireSeverity() {
+        return true;
+    }
+
+    @Override
     public void acceptSeverity(SeverityMap severityMap) {
         this.severityMap = severityMap;
     }
 
     @Override
-    public void write(Map<TypeInfoCase, Long> lastActionWrite, TypeInfoCase actionPlanType,
-            MultiStageTimer timer) throws UnsupportedDialectException, InterruptedException, SQLException {
-        // get latest topology and supply chain
-        final TopologyGraph<SupplyChainEntity> topology = dataProvider.getTopologyGraph();
-        if (topology == null) {
-            logger.error("Topology graph is not ready, skipping writing search actions for this cycle");
-            return;
-        }
-        final Long2ObjectMap<List<Long>> groupToLeafEntityIds = dataProvider.getGroupToLeafEntities();
-        final SupplyChain supplyChain = calculateRelatedEntities(topology, timer);
+    public void write(MultiStageTimer timer)
+            throws UnsupportedDialectException, InterruptedException, SQLException {
+        final SupplyChain supplyChain = calculateRelatedEntities(timer);
 
         // process and write to db
         try (DSLContext dsl = dbEndpoint.dslContext();
@@ -149,7 +150,7 @@ class SearchPendingActionWriter implements IActionWriter {
                      getSearchActionReplacerSink(dsl), "Action Replacer", logger)) {
             // write action data for entities (only write those with actions)
             timer.start("Write action data for search entities");
-            topology.entities()
+            topologyGraph.entities()
                     .filter(e -> SearchMetadataUtils.hasMetadata(e.getEntityType()))
                     .parallel().forEach(entity -> {
                 final long entityId = entity.getOid();
@@ -168,7 +169,7 @@ class SearchPendingActionWriter implements IActionWriter {
             if (groupToLeafEntityIds != null) {
                 groupToLeafEntityIds.long2ObjectEntrySet().parallelStream()
                         .forEach(entry -> {
-                            final int count = getActionCountForGroup(entry.getValue(), topology, supplyChain);
+                            final int count = getActionCountForGroup(entry.getValue(), topologyGraph, supplyChain);
                             if (count > 0) {
                                 final Record record = newActionRecord(entry.getLongKey(), count,
                                         severityMap.calculateSeverity(entry.getValue()));
@@ -184,16 +185,13 @@ class SearchPendingActionWriter implements IActionWriter {
      * Get the related entities required for ARM entities and some aggregated entities, whose
      * action count should be retrieved from related entities.
      *
-     * @param topology topology graph
      * @param timer timer
      * @return partial calculated supply chain
      */
-    private SupplyChain calculateRelatedEntities(TopologyGraph<SupplyChainEntity> topology,
-                                       MultiStageTimer timer) {
-        final SupplyChain cachedSupplyChain = dataProvider.getSupplyChain();
-        if (cachedSupplyChain != null && cachedSupplyChain.isFull()) {
+    private SupplyChain calculateRelatedEntities(MultiStageTimer timer) {
+        if (supplyChain != null && supplyChain.isFull()) {
             // use the cached supply chain if it's full
-            return cachedSupplyChain;
+            return supplyChain;
         }
         // calculate supply chain on demand if it's not ready or partially calculated
         final Map<Long, Map<Integer, Set<Long>>> entityToRelated = new Long2ObjectOpenHashMap<>();
@@ -203,8 +201,8 @@ class SearchPendingActionWriter implements IActionWriter {
         // TODO (OM-63758): maybe only calculate the supply chains from the top ARM entities
         timer.start("Calculate related entities for ARM entities");
         InvolvedEntityExpansionUtil.EXPANSION_REQUIRED_ENTITY_TYPES.forEach(type -> {
-            topology.entitiesOfType(type).parallel().forEach(entity ->
-                    SupplyChainFetcher.calculateFullSupplyChain(entity, topology, syncEntityToRelated));
+            topologyGraph.entitiesOfType(type).parallel().forEach(entity ->
+                    SupplyChainFetcher.calculateFullSupplyChain(entity, topologyGraph, syncEntityToRelated));
         });
         timer.stop();
 
@@ -215,14 +213,14 @@ class SearchPendingActionWriter implements IActionWriter {
             // if we have search filters defined for all related types, then use it.
             // these are for entity types (like DataCenter) with very few expanded types
             if (searchFilterSpecs.keySet().containsAll(relatedTypes)) {
-                topology.entitiesOfType(type).parallel().forEach(entity ->
+                topologyGraph.entitiesOfType(type).parallel().forEach(entity ->
                         SupplyChainFetcher.calculatePartialSupplyChain(
-                                entity, topology, searchFilterSpecs, syncEntityToRelated));
+                                entity, topologyGraph, searchFilterSpecs, syncEntityToRelated));
             } else {
                 // otherwise use SupplyChainCalculator, these are usually for cloud entities
                 // it's fine since there should not be many regions, zones, etc.
-                topology.entitiesOfType(type).parallel().forEach(entity ->
-                        SupplyChainFetcher.calculateFullSupplyChain(entity, topology, syncEntityToRelated));
+                topologyGraph.entitiesOfType(type).parallel().forEach(entity ->
+                        SupplyChainFetcher.calculateFullSupplyChain(entity, topologyGraph, syncEntityToRelated));
             }
         });
         timer.stop();

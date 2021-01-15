@@ -64,7 +64,7 @@ public class RelatedEntitiesExtractor {
      * @param groupData containing all groups related data
      */
     public RelatedEntitiesExtractor(@Nonnull final TopologyGraph<SupplyChainEntity> graph,
-            @Nonnull final SupplyChain supplyChain, @Nonnull final GroupData groupData) {
+            @Nonnull final SupplyChain supplyChain, @Nullable final GroupData groupData) {
         this.graph = graph;
         this.supplyChain = supplyChain;
         this.groupData = groupData;
@@ -104,23 +104,25 @@ public class RelatedEntitiesExtractor {
         });
 
         // related group
-        GROUP_TYPE_TO_MEMBER_TYPE_AND_JSON_KEY.cellSet().forEach(cell -> {
-            Set<Long> relatedEntitiesInGroup = relatedEntitiesByType.get(cell.getColumnKey());
-            // also include the entity itself, since the group may contain the entity
-            // directly rather than through a related entity
-            List<RelatedEntity> relatedGroups = Stream.concat(Stream.of(entityOid),
-                    CollectionUtils.emptyIfNull(relatedEntitiesInGroup).stream())
-                    .map(groupData::getGroupsForEntity)
-                    .flatMap(List::stream)
-                    .filter(g -> g.getDefinition().getType() == cell.getRowKey())
-                    .distinct()
-                    .map(group -> getOrCreateRelatedEntity(group.getId(),
-                            group.getDefinition().getDisplayName()))
-                    .collect(Collectors.toList());
-            if (!relatedGroups.isEmpty()) {
-                relatedEntities.put(cell.getValue(), relatedGroups);
-            }
-        });
+        if (groupData != null) {
+            GROUP_TYPE_TO_MEMBER_TYPE_AND_JSON_KEY.cellSet().forEach(cell -> {
+                Set<Long> relatedEntitiesInGroup = relatedEntitiesByType.get(cell.getColumnKey());
+                // also include the entity itself, since the group may contain the entity
+                // directly rather than through a related entity
+                List<RelatedEntity> relatedGroups = Stream.concat(Stream.of(entityOid),
+                        CollectionUtils.emptyIfNull(relatedEntitiesInGroup).stream())
+                        .map(groupData::getGroupsForEntity)
+                        .flatMap(List::stream)
+                        .filter(g -> g.getDefinition().getType() == cell.getRowKey())
+                        .distinct()
+                        .map(group -> getOrCreateRelatedEntity(group.getId(),
+                                group.getDefinition().getDisplayName()))
+                        .collect(Collectors.toList());
+                if (!relatedGroups.isEmpty()) {
+                    relatedEntities.put(cell.getValue(), relatedGroups);
+                }
+            });
+        }
 
         return relatedEntities.isEmpty() ? null : relatedEntities;
     }

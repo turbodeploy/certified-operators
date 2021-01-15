@@ -7,7 +7,6 @@ import static com.vmturbo.extractor.util.RecordTestUtil.captureSink;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -44,7 +43,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.TypeInfoCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
@@ -104,6 +102,10 @@ public class SearchPendingActionWriterTest {
 
     private MultiStageTimer timer = new MultiStageTimer(logger);
 
+    private DslRecordSink searchActionReplacerSink = mock(DslReplaceRecordSink.class);
+
+    private DbEndpoint endpoint;
+
     /**
      * Common setup code before each test.
      *
@@ -111,15 +113,9 @@ public class SearchPendingActionWriterTest {
      */
     @Before
     public void setup() throws Exception {
-        final DbEndpoint endpoint = spy(dbConfig.ingesterEndpoint());
+        endpoint = spy(dbConfig.ingesterEndpoint());
         doReturn(mock(DSLContext.class)).when(endpoint).dslContext();
-        DslRecordSink searchActionReplacerSink = mock(DslReplaceRecordSink.class);
         this.searchActionReplacerCapture = captureSink(searchActionReplacerSink, false);
-
-        actionWriter = spy(new SearchPendingActionWriter(dataProvider, endpoint, writerConfig, pool));
-
-        doReturn(searchActionReplacerSink).when(actionWriter).getSearchActionReplacerSink(any(DSLContext.class));
-        doAnswer(inv -> null).when(dataProvider).getTopologyGraph();
     }
 
     /**
@@ -132,6 +128,16 @@ public class SearchPendingActionWriterTest {
     @Test
     public void testWriteActionsForSearch() throws UnsupportedDialectException, InterruptedException, SQLException {
         final long vmId = 11L;
+        // mock entities
+        TopologyEntityDTO entityDTO = TopologyEntityDTO.newBuilder()
+                .setOid(vmId)
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .build();
+        doReturn(new TopologyGraphCreator<Builder, SupplyChainEntity>()
+                .addEntity(SupplyChainEntity.newBuilder(entityDTO))
+                .build()).when(dataProvider).getTopologyGraph();
+        actionWriter = spy(new SearchPendingActionWriter(dataProvider, endpoint, writerConfig, pool));
+        doReturn(searchActionReplacerSink).when(actionWriter).getSearchActionReplacerSink(any(DSLContext.class));
         // mock actions
         ActionSpec.Builder actionSpec = ActionSpec.newBuilder()
                 .setRecommendation(Action.newBuilder()
@@ -151,16 +157,8 @@ public class SearchPendingActionWriterTest {
         // mock severities
         actionWriter.acceptSeverity(new SeverityMapper(ImmutableMap.of(vmId,
                 EntitySeverity.newBuilder().setEntityId(vmId).setSeverity(ActionDTO.Severity.MAJOR).build())));
-        // mock entities
-        TopologyEntityDTO entityDTO = TopologyEntityDTO.newBuilder()
-                .setOid(vmId)
-                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                .build();
-        doReturn(new TopologyGraphCreator<Builder, SupplyChainEntity>()
-                .addEntity(SupplyChainEntity.newBuilder(entityDTO))
-                .build()).when(dataProvider).getTopologyGraph();
         // write
-        actionWriter.write(new HashMap<>(), TypeInfoCase.MARKET, timer);
+        actionWriter.write(timer);
         // verify search actions records
         assertThat(searchActionReplacerCapture.size(), is(1));
         assertThat(searchActionReplacerCapture.get(0).get(ENTITY_OID_AS_OID), is(vmId));
@@ -192,7 +190,7 @@ public class SearchPendingActionWriterTest {
         final long billingFamily1 = 61L;
 
         // mock actions
-        ActionSpec.Builder scaleActionSpec = ActionSpec.newBuilder()
+        final ActionSpec.Builder scaleActionSpec = ActionSpec.newBuilder()
                 .setRecommendation(Action.newBuilder()
                         .setId(action1)
                         .setInfo(ActionInfo.newBuilder()
@@ -204,7 +202,7 @@ public class SearchPendingActionWriterTest {
                         .setSupportingLevel(SupportLevel.SUPPORTED)
                         .setDeprecatedImportance(0)
                         .setExplanation(Explanation.getDefaultInstance()));
-        ActionSpec.Builder buyRiActionSpec = ActionSpec.newBuilder()
+        final ActionSpec.Builder buyRiActionSpec = ActionSpec.newBuilder()
                 .setRecommendation(Action.newBuilder()
                         .setId(action2)
                         .setInfo(ActionInfo.newBuilder()
@@ -223,12 +221,6 @@ public class SearchPendingActionWriterTest {
                         .setSupportingLevel(SupportLevel.SUPPORTED)
                         .setDeprecatedImportance(0)
                         .setExplanation(Explanation.getDefaultInstance()));
-
-        // mock actions
-        Stream.of(scaleActionSpec, buyRiActionSpec).forEach(actionSpec ->
-                actionWriter.recordAction(ActionOrchestratorAction.newBuilder()
-                        .setActionId(actionSpec.getRecommendation().getId())
-                        .setActionSpec(actionSpec).build()));
 
         // mock entities
         TopologyEntityDTO vmDTO = TopologyEntityDTO.newBuilder()
@@ -273,14 +265,27 @@ public class SearchPendingActionWriterTest {
                 account1, ImmutableMap.of(EntityType.VIRTUAL_MACHINE_VALUE, Sets.newHashSet(vm1))
         );
         doReturn(new SupplyChain(entityToRelated, true)).when(dataProvider).getSupplyChain();
+        actionWriter = spy(new SearchPendingActionWriter(dataProvider, endpoint, writerConfig, pool));
+        doReturn(searchActionReplacerSink).when(actionWriter).getSearchActionReplacerSink(any(DSLContext.class));
+        Stream.of(scaleActionSpec, buyRiActionSpec).forEach(actionSpec ->
+                actionWriter.recordAction(ActionOrchestratorAction.newBuilder()
+                        .setActionId(actionSpec.getRecommendation().getId())
+                        .setActionSpec(actionSpec).build()));
+
         // write with full supply chain and verify
-        actionWriter.write(new HashMap<>(), TypeInfoCase.MARKET, timer);
+        actionWriter.write(timer);
         verifyActionCount(expectedActionCount);
 
         // write with partial supply chain and verify
         doReturn(new SupplyChain(entityToRelated, false)).when(dataProvider).getSupplyChain();
+        actionWriter = spy(new SearchPendingActionWriter(dataProvider, endpoint, writerConfig, pool));
+        doReturn(searchActionReplacerSink).when(actionWriter).getSearchActionReplacerSink(any(DSLContext.class));
+        Stream.of(scaleActionSpec, buyRiActionSpec).forEach(actionSpec ->
+                actionWriter.recordAction(ActionOrchestratorAction.newBuilder()
+                        .setActionId(actionSpec.getRecommendation().getId())
+                        .setActionSpec(actionSpec).build()));
         searchActionReplacerCapture.clear();
-        actionWriter.write(new HashMap<>(), TypeInfoCase.MARKET, timer);
+        actionWriter.write(timer);
         verifyActionCount(expectedActionCount);
     }
 
@@ -322,7 +327,7 @@ public class SearchPendingActionWriterTest {
 
         // mock actions
         // scale vm1
-        ActionSpec.Builder scaleActionSpec = ActionSpec.newBuilder()
+        final ActionSpec.Builder scaleActionSpec = ActionSpec.newBuilder()
                 .setRecommendation(Action.newBuilder()
                         .setId(action1)
                         .setInfo(ActionInfo.newBuilder()
@@ -335,7 +340,7 @@ public class SearchPendingActionWriterTest {
                         .setDeprecatedImportance(0)
                         .setExplanation(Explanation.getDefaultInstance()));
         // move vm2 from host2 to host1
-        ActionSpec.Builder moveActionSpec = ActionSpec.newBuilder()
+        final ActionSpec.Builder moveActionSpec = ActionSpec.newBuilder()
                 .setRecommendation(Action.newBuilder()
                         .setId(action2)
                         .setInfo(ActionInfo.newBuilder()
@@ -354,12 +359,6 @@ public class SearchPendingActionWriterTest {
                         .setSupportingLevel(SupportLevel.SUPPORTED)
                         .setDeprecatedImportance(0)
                         .setExplanation(Explanation.getDefaultInstance()));
-
-        // mock actions
-        Stream.of(scaleActionSpec, moveActionSpec).forEach(actionSpec ->
-                actionWriter.recordAction(ActionOrchestratorAction.newBuilder()
-                        .setActionId(actionSpec.getRecommendation().getId())
-                        .setActionSpec(actionSpec).build()));
 
         // mock entities
         TopologyEntityDTO baDTO1 = entity(businessApp1, EntityType.BUSINESS_APPLICATION, businessTransaction1);
@@ -404,15 +403,28 @@ public class SearchPendingActionWriterTest {
                     .build());
         });
         doReturn(new SupplyChain(entityToRelated, true)).when(dataProvider).getSupplyChain();
+        actionWriter = spy(new SearchPendingActionWriter(dataProvider, endpoint, writerConfig, pool));
+        doReturn(searchActionReplacerSink).when(actionWriter).getSearchActionReplacerSink(any(DSLContext.class));
+        Stream.of(scaleActionSpec, moveActionSpec).forEach(actionSpec ->
+                actionWriter.recordAction(ActionOrchestratorAction.newBuilder()
+                        .setActionId(actionSpec.getRecommendation().getId())
+                        .setActionSpec(actionSpec).build()));
 
         // write with full supply chain and verify
-        actionWriter.write(new HashMap<>(), TypeInfoCase.MARKET, timer);
+        actionWriter.write(timer);
         verifyActionCount(expectedActionCount);
 
         // write with partial supply chain and verify
         searchActionReplacerCapture.clear();
         doReturn(new SupplyChain(entityToRelated, false)).when(dataProvider).getSupplyChain();
-        actionWriter.write(new HashMap<>(), TypeInfoCase.MARKET, timer);
+        actionWriter = spy(new SearchPendingActionWriter(dataProvider, endpoint, writerConfig, pool));
+        doReturn(searchActionReplacerSink).when(actionWriter).getSearchActionReplacerSink(any(DSLContext.class));
+        Stream.of(scaleActionSpec, moveActionSpec).forEach(actionSpec ->
+                actionWriter.recordAction(ActionOrchestratorAction.newBuilder()
+                        .setActionId(actionSpec.getRecommendation().getId())
+                        .setActionSpec(actionSpec).build()));
+
+        actionWriter.write(timer);
         verifyActionCount(expectedActionCount);
     }
 

@@ -1,13 +1,11 @@
 package com.vmturbo.extractor.action;
 
 import java.sql.SQLException;
-import java.time.Clock;
-import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -23,7 +21,6 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.action.orchestrator.api.ActionsListener;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.TypeInfoCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
@@ -31,6 +28,8 @@ import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionsUpdated;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceStub;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
+import com.vmturbo.common.protobuf.group.PolicyDTO;
+import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.severity.SeverityMap;
 import com.vmturbo.common.protobuf.severity.SeverityUtil;
 import com.vmturbo.components.api.FormattedString;
@@ -52,65 +51,47 @@ import com.vmturbo.topology.graph.TopologyGraph;
 public class PendingActionWriter implements ActionsListener {
     private static final Logger logger = LogManager.getLogger();
 
-    /**
-     * System clock.
-     */
-    private final Clock clock;
-
     private final ActionsServiceBlockingStub actionService;
 
     private final EntitySeverityServiceStub severityService;
+
+    private final PolicyServiceBlockingStub policyService;
 
     private final DataProvider dataProvider;
 
     private final long realtimeContextId;
 
-    /**
-     * The minimum interval for writing action information to the database. We don't write actions
-     * every broadcast, because for reporting purposes we don't need action information at 10-minute
-     * intervals - especially because actions don't change as frequently as commodities.
-     */
-    private final long actionWritingIntervalMillis;
-
     private final boolean enableReportingActionIngestion;
 
     private final boolean enableSearchActionIngestion;
 
-    private final Supplier<ReportPendingActionWriter> reportingActionWriterSupplier;
+    private final boolean enableDataExtraction;
 
-    private final Supplier<SearchPendingActionWriter> searchActionWriterSupplier;
+    private final ActionWriterFactory actionWriterFactory;
 
-    /**
-     * The last time we wrote actions for each action plan type. It's necessary to split up by
-     * type, because otherwise a BuyRI action plan will prevent a follow-up Market action plan
-     * from being processed.
-     */
-    private final Map<ActionPlanInfo.TypeInfoCase, Long> lastActionWrite = new EnumMap<>(TypeInfoCase.class);
-
-    PendingActionWriter(@Nonnull final Clock clock,
-            @Nonnull final ActionsServiceBlockingStub actionService,
-            @Nonnull final EntitySeverityServiceStub severityService,
-            @Nonnull final DataProvider dataProvider,
-            final long actionWritingIntervalMillis,
-            final boolean enableReportingActionIngestion,
-            final boolean enableSearchActionIngestion,
-            final long realtimeContextId,
-            final Supplier<ReportPendingActionWriter> reportingActionWriterSupplier,
-            final Supplier<SearchPendingActionWriter> searchActionWriterSupplier) {
-        this.clock = clock;
+    PendingActionWriter(@Nonnull final ActionsServiceBlockingStub actionService,
+                        @Nonnull final EntitySeverityServiceStub severityService,
+                        @Nonnull final PolicyServiceBlockingStub policyService,
+                        @Nonnull final DataProvider dataProvider,
+                        final boolean enableReportingActionIngestion,
+                        final boolean enableSearchActionIngestion,
+                        final boolean enableDataExtraction,
+                        final long realtimeContextId,
+                        @Nonnull final ActionWriterFactory actionWriterFactory) {
         this.actionService = actionService;
         this.severityService = severityService;
-        this.actionWritingIntervalMillis = actionWritingIntervalMillis;
+        this.policyService = policyService;
         this.realtimeContextId = realtimeContextId;
         this.enableReportingActionIngestion = enableReportingActionIngestion;
         this.enableSearchActionIngestion = enableSearchActionIngestion;
+        this.enableDataExtraction = enableDataExtraction;
         this.dataProvider = dataProvider;
-        this.searchActionWriterSupplier = searchActionWriterSupplier;
-        this.reportingActionWriterSupplier = reportingActionWriterSupplier;
+        this.actionWriterFactory = actionWriterFactory;
         logger.info("Initialized action writer. Reporting action ingestion {}, "
-                        + "search action ingestion {}",
+                        + "search action ingestion {}, data extraction ingestion {}",
                 enableReportingActionIngestion ? "enabled" : "disabled",
-                enableSearchActionIngestion ? "enabled" : "disabled");
+                enableSearchActionIngestion ? "enabled" : "disabled",
+                enableDataExtraction ? "enabled" : "disabled");
     }
 
     @Override
@@ -132,15 +113,36 @@ public class PendingActionWriter implements ActionsListener {
             return;
         }
 
+        // fetch policies before actions, since they may be used in action writers
+        // currently it's only fetched when data extraction is enabled
+        final List<IActionWriter> writersRequiringPolicy = writers.stream()
+                .filter(IActionWriter::requirePolicy)
+                .collect(Collectors.toList());
+        if (!writersRequiringPolicy.isEmpty()) {
+            timer.start("Retrieve policies");
+            fetchPolicies(writersRequiringPolicy);
+            timer.stop();
+        }
+
+        // actions
         timer.start("Retrieve actions");
         final int totalActionsCount = fetchActions(writers);
         timer.stop();
-        timer.start("Retrieve severities");
-        fetchSeverities(contextId, writers);
-        timer.stop();
+
+        // severities
+        final List<IActionWriter> writersRequiringSeverity = writers.stream()
+                .filter(IActionWriter::requireSeverity)
+                .collect(Collectors.toList());
+        if (!writersRequiringSeverity.isEmpty()) {
+            timer.start("Retrieve severities");
+            fetchSeverities(contextId, writersRequiringSeverity);
+            timer.stop();
+        }
+
+        // write
         for (IActionWriter writer : writers) {
             try {
-                writer.write(lastActionWrite, actionPlanType, timer);
+                writer.write(timer);
             } catch (UnsupportedDialectException e) {
                 Metrics.PROCESSING_ERRORS_CNT.labels("dialect").increment();
                 // This shouldn't happen.
@@ -181,21 +183,16 @@ public class PendingActionWriter implements ActionsListener {
             // twice in short time, currently we only fetch when it's MARKET type. maybe we need a
             // minimal fetching interval like 10 minutes for search, no matter which type.
             if (actionPlanType == TypeInfoCase.MARKET) {
-                builder.add(searchActionWriterSupplier.get());
+                actionWriterFactory.getSearchPendingActionWriter().ifPresent(builder::add);
             }
         }
 
         if (isEnableReportingActionIngestion()) {
-            // check if we need to ingest actions for reporting this time
-            long lastWriteForType = lastActionWrite.computeIfAbsent(actionPlanType, k -> 0L);
-            final long now = clock.millis();
-            final long nextUpdateTime = lastWriteForType + actionWritingIntervalMillis;
-            if (nextUpdateTime <= now) {
-                builder.add(reportingActionWriterSupplier.get());
-            } else {
-                logger.info("Not writing reporting action metrics for another {} minutes.",
-                        TimeUnit.MILLISECONDS.toMinutes(nextUpdateTime - now));
-            }
+            actionWriterFactory.getReportPendingActionWriter(actionPlanType).ifPresent(builder::add);
+        }
+
+        if (isEnableActionExtraction()) {
+            actionWriterFactory.getDataExtractionActionWriter().ifPresent(builder::add);
         }
         return builder.build();
     }
@@ -208,6 +205,11 @@ public class PendingActionWriter implements ActionsListener {
     @VisibleForTesting
     public boolean isEnableSearchActionIngestion() {
         return enableSearchActionIngestion;
+    }
+
+    @VisibleForTesting
+    public boolean isEnableActionExtraction() {
+        return enableDataExtraction;
     }
 
     @VisibleForTesting
@@ -264,16 +266,41 @@ public class PendingActionWriter implements ActionsListener {
     }
 
     /**
+     * Fetch all policies in the system.
+     *
+     * @param policyConsumers consumers of the policies
+     */
+    void fetchPolicies(List<IActionWriter> policyConsumers) {
+        try {
+            final Map<Long, PolicyDTO.Policy> policyById = new HashMap<>();
+            policyService.getPolicies(PolicyDTO.PolicyRequest.newBuilder().build()).forEachRemaining(
+                    response -> policyById.put(response.getPolicy().getId(), response.getPolicy()));
+            logger.info("Retrieved {} policies from group component", policyById.size());
+            policyConsumers.forEach(consumer -> consumer.acceptPolicy(policyById));
+        } catch (StatusRuntimeException e) {
+            logger.error("Failed to fetch policies", e);
+        }
+    }
+
+    /**
      * Interface for writing actions and severities.
      */
     interface IActionWriter {
+        default boolean requireSeverity() {
+            return false;
+        }
+
         default void acceptSeverity(SeverityMap severityMap) {}
+
+        default boolean requirePolicy() {
+            return false;
+        }
+
+        default void acceptPolicy(Map<Long, PolicyDTO.Policy> policyById) {}
 
         void recordAction(ActionOrchestratorAction action);
 
-        void write(Map<ActionPlanInfo.TypeInfoCase, Long> lastActionWrite,
-                TypeInfoCase actionPlanType, MultiStageTimer timer)
-                throws UnsupportedDialectException, InterruptedException, SQLException;
+        void write(MultiStageTimer timer) throws UnsupportedDialectException, InterruptedException, SQLException;
     }
 
     /**

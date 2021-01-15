@@ -5,7 +5,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
@@ -20,8 +19,11 @@ import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceStub;
+import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
+import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
 import com.vmturbo.extractor.ExtractorDbConfig;
 import com.vmturbo.extractor.topology.TopologyListenerConfig;
+import com.vmturbo.group.api.GroupClientConfig;
 
 /**
  * Configuration for action ingestion for reporting.
@@ -29,6 +31,7 @@ import com.vmturbo.extractor.topology.TopologyListenerConfig;
 @Configuration
 @Import({
         ActionOrchestratorClientConfig.class,
+        GroupClientConfig.class,
         ExtractorDbConfig.class,
         TopologyListenerConfig.class
 })
@@ -39,6 +42,9 @@ public class ActionConfig {
 
     @Autowired
     private ActionOrchestratorClientConfig actionClientConfig;
+
+    @Autowired
+    private GroupClientConfig groupClientConfig;
 
     @Autowired
     private TopologyListenerConfig topologyListenerConfig;
@@ -78,6 +84,18 @@ public class ActionConfig {
     private boolean enableSearchApi;
 
     /**
+     * Configuration used to enable/disable data extraction. Disabled by default.
+     */
+    @Value("${enableDataExtraction:false}")
+    private boolean enableDataExtraction;
+
+    /**
+     * The interval for extracting action information and sending to Kafka. Default to 6 hours.
+     */
+    @Value("${actionExtractionIntervalMins:360}")
+    private long actionExtractionIntervalMins;
+
+    /**
      * See {@link ActionConverter}.
      *
      * @return The {@link ActionConverter}.
@@ -108,52 +126,35 @@ public class ActionConfig {
     }
 
     /**
+     * Service for fetching policies.
+     *
+     * @return {@link PolicyServiceBlockingStub}
+     */
+    @Bean
+    public PolicyServiceBlockingStub policyService() {
+        return PolicyServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
+    }
+
+    /**
      * The {@link PendingActionWriter}.
      *
      * @return The {@link PendingActionWriter}.
      */
     @Bean
     public PendingActionWriter pendingActionWriter() {
-        final PendingActionWriter pendingActionWriter = new PendingActionWriter(Clock.systemUTC(),
+        final PendingActionWriter pendingActionWriter = new PendingActionWriter(
             actionServiceBlockingStub(),
             entitySeverityServiceStub(),
+            policyService(),
             topologyListenerConfig.dataProvider(),
-            TimeUnit.MINUTES.toMillis(actionMetricsWritingIntervalMins),
             enableReporting && enableActionIngestion,
             enableSearchApi,
+            enableDataExtraction,
             realtimeTopologyContextId,
-            reportingActionWriterSupplier(),
-            searchActionWriterSupplier());
+            actionWriterFactory());
 
         actionClientConfig.actionOrchestratorClient().addListener(pendingActionWriter);
         return pendingActionWriter;
-    }
-
-    /**
-     * Supplies a ReportingActionWriter. This is the one that actually writes data!
-     * @return supplier of ReportingActionWriter
-     */
-    @Bean
-    public Supplier<ReportPendingActionWriter> reportingActionWriterSupplier() {
-        return () -> new ReportPendingActionWriter(
-                Clock.systemUTC(),
-                topologyListenerConfig.pool(),
-                extractorDbConfig.ingesterEndpoint(),
-                topologyListenerConfig.writerConfig(),
-                actionConverter(),
-                TimeUnit.MINUTES.toMillis(actionMetricsWritingIntervalMins));
-    }
-
-    /**
-     * Supplies a SearchActionWriter.
-     * @return supplier of SearchActionWriter
-     */
-    @Bean
-    public Supplier<SearchPendingActionWriter> searchActionWriterSupplier() {
-        return () -> new SearchPendingActionWriter(topologyListenerConfig.dataProvider(),
-                extractorDbConfig.ingesterEndpoint(),
-                topologyListenerConfig.writerConfig(),
-                topologyListenerConfig.pool());
     }
 
     /**
@@ -182,5 +183,26 @@ public class ActionConfig {
         final ThreadFactory
                 threadFactory = new ThreadFactoryBuilder().setNameFormat("completed-action-recorder-%d").build();
         return Executors.newSingleThreadExecutor(threadFactory);
+    }
+
+    /**
+     * Bean for {@link ActionWriterFactory}.
+     *
+     * @return {@link ActionWriterFactory}
+     */
+    @Bean
+    public ActionWriterFactory actionWriterFactory() {
+        return new ActionWriterFactory(
+                Clock.systemUTC(),
+                actionConverter(),
+                extractorDbConfig.ingesterEndpoint(),
+                TimeUnit.MINUTES.toMillis(actionMetricsWritingIntervalMins),
+                topologyListenerConfig.writerConfig(),
+                topologyListenerConfig.pool(),
+                topologyListenerConfig.dataProvider(),
+                topologyListenerConfig.extractorKafkaSender(),
+                topologyListenerConfig.dataExtractionFactory(),
+                TimeUnit.MINUTES.toMillis(actionExtractionIntervalMins)
+        );
     }
 }

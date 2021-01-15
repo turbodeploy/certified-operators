@@ -43,7 +43,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderEx
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.ChangeProviderExplanationTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation.CommodityMaxAmountAvailableEntry;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation.CommodityNewCapacityEntry;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
@@ -833,6 +833,8 @@ public class ActionDTOUtil {
                 || PRIMARY_TIER_VALUES.contains(entityType);
     }
 
+
+
     /**
      * Get the reason commodities for a particular {@link ActionDTO.Action}. These are the
      * commodities which, in some way, caused the action to happen. e.g. if a VM needs to
@@ -848,29 +850,31 @@ public class ActionDTOUtil {
         switch (actionInfo.getActionTypeCase()) {
             case MOVE:
             case SCALE:
-                final ChangeProviderExplanation changeExp = getPrimaryChangeProviderExplanation(
-                        action);
-                switch (changeExp.getChangeProviderExplanationTypeCase()) {
-                    case COMPLIANCE:
-                        return changeExp.getCompliance().getMissingCommoditiesList().stream();
-                    case CONGESTION:
-                        return changeExp.getCongestion().getCongestedCommoditiesList().stream();
-                    case EFFICIENCY:
-                        return changeExp.getEfficiency().getUnderUtilizedCommoditiesList().stream();
-                    case EVACUATION:
-                    case INITIALPLACEMENT:
-                    case PERFORMANCE:
-                    default:
-                        return Stream.empty();
-                }
+                final List<ChangeProviderExplanation> changeProviderExplanationList =
+                        getChangeProviderExplanationList(action.getExplanation());
+                return changeProviderExplanationList.stream().flatMap(changeExp -> {
+                    switch (changeExp.getChangeProviderExplanationTypeCase()) {
+                        case COMPLIANCE:
+                            return changeExp.getCompliance().getMissingCommoditiesList().stream();
+                        case CONGESTION:
+                            return changeExp.getCongestion().getCongestedCommoditiesList().stream();
+                        case EFFICIENCY:
+                            return changeExp.getEfficiency().getUnderUtilizedCommoditiesList().stream();
+                        case EVACUATION:
+                        case INITIALPLACEMENT:
+                        case PERFORMANCE:
+                        default:
+                            return Stream.empty();
+                    }
+                });
             case RECONFIGURE:
                 return action.getExplanation().getReconfigure().getReconfigureCommodityList().stream();
             case PROVISION:
                 final ProvisionExplanation provisionExplanation = action.getExplanation().getProvision();
                 if (provisionExplanation.hasProvisionByDemandExplanation()) {
                     return provisionExplanation.getProvisionByDemandExplanation()
-                        .getCommodityMaxAmountAvailableList().stream()
-                        .map(CommodityMaxAmountAvailableEntry::getCommodityBaseType)
+                        .getCommodityNewCapacityEntryList().stream()
+                        .map(CommodityNewCapacityEntry::getCommodityBaseType)
                         .map(ActionDTOUtil::createReasonCommodityFromBaseType);
                 } else if (provisionExplanation.hasProvisionBySupplyExplanation()) {
                     return Stream.of(provisionExplanation.getProvisionBySupplyExplanation()
@@ -885,8 +889,18 @@ public class ActionDTOUtil {
                 return actionInfo.getActivate().getTriggeringCommoditiesList()
                     .stream().map(ActionDTOUtil::createReasonCommodityFromCommodityType);
             case DEACTIVATE:
-                return actionInfo.getDeactivate().getTriggeringCommoditiesList()
-                    .stream().map(ActionDTOUtil::createReasonCommodityFromCommodityType);
+                final ActionEntity targetEntity = actionInfo.getDeactivate().getTarget();
+                // For Container and Pod, there're two following cases for suspend
+                // 1. We want to scale down the cluster and the pod itself is a daemon workload (agent)
+                // 2. We want to scale down the application, hence the pod
+                // In both cases, the reasonCommodities are not applicable.
+                if (targetEntity.getType() != EntityType.CONTAINER_POD_VALUE
+                        && targetEntity.getType() != EntityType.CONTAINER_VALUE) {
+                    return actionInfo.getDeactivate().getTriggeringCommoditiesList()
+                            .stream().map(ActionDTOUtil::createReasonCommodityFromCommodityType);
+                } else {
+                    return Stream.empty();
+                }
             // No reason commodities present for BUY RI.
             case BUYRI:
             default:

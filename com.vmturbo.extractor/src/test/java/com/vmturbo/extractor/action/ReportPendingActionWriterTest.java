@@ -92,7 +92,9 @@ public class ReportPendingActionWriterTest {
                 endpoint,
                 writerConfig,
                 actionConverter,
-                ACTION_WRITING_INTERVAL_MS));
+                ACTION_WRITING_INTERVAL_MS,
+                TypeInfoCase.MARKET,
+                new HashMap<>()));
         doReturn(entitiesReplacerSink).when(actionWriter).getPendingActionReplacerSink(
                 any(DSLContext.class));
         doAnswer(inv -> null).when(dataProvider).getTopologyGraph();
@@ -116,7 +118,7 @@ public class ReportPendingActionWriterTest {
 
         // accept action and write
         actionWriter.recordAction(ACTION);
-        actionWriter.write(new HashMap<>(), TypeInfoCase.MARKET, timer);
+        actionWriter.write(timer);
 
         assertThat(pendingActionReplaceCapture.get(0).asMap(), is(pendingActionRecord.asMap()));
     }

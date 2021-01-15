@@ -46,7 +46,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeleteExplanatio
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation.CommodityMaxAmountAvailableEntry;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation.CommodityNewCapacityEntry;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionBySupplyExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExplanation;
@@ -466,14 +466,14 @@ public class ActionDTOUtilTest {
                 .setProvision(ProvisionExplanation.newBuilder()
                     .setProvisionByDemandExplanation(ProvisionByDemandExplanation.newBuilder()
                         .setBuyerId(11111)
-                        .addCommodityMaxAmountAvailable(CommodityMaxAmountAvailableEntry.newBuilder()
-                            .setMaxAmountAvailable(2)
-                            .setRequestedAmount(3)
-                            .setCommodityBaseType(1))
-                        .addCommodityMaxAmountAvailable(CommodityMaxAmountAvailableEntry.newBuilder()
-                            .setMaxAmountAvailable(2)
-                            .setRequestedAmount(3)
-                            .setCommodityBaseType(2)))))
+                        .addCommodityNewCapacityEntry(
+                                CommodityNewCapacityEntry.newBuilder()
+                                        .setNewCapacity(2)
+                                        .setCommodityBaseType(1))
+                        .addCommodityNewCapacityEntry(
+                                CommodityNewCapacityEntry.newBuilder()
+                                        .setNewCapacity(2)
+                                        .setCommodityBaseType(2)))))
             .setInfo(ActionInfo.newBuilder()
                 .setProvision(Provision.newBuilder()
                     .setEntityToClone(createActionEntity(11))))
