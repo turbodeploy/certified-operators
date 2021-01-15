@@ -45,13 +45,14 @@ public abstract class OperationMessageHandler<O extends Operation, R> extends
         this.callback = Objects.requireNonNull(callback);
     }
 
-
     @Nonnull
     protected HandlerStatus onMessage(@Nonnull final MediationClientMessage receivedMessage) {
         switch (receivedMessage.getMediationClientMessageCase()) {
             case KEEPALIVE:
+                logger.debug("Received keep alive message from Mediation client; Message ID = " + receivedMessage.getMessageID());
                 return HandlerStatus.IN_PROGRESS;
             case TARGETOPERATIONERROR:
+                logger.debug("Received target operation error message from Mediation client; Message ID = " + receivedMessage.getMessageID());
                 notifyOperationError(receivedMessage.getTargetOperationError());
                 return HandlerStatus.COMPLETE;
             default:

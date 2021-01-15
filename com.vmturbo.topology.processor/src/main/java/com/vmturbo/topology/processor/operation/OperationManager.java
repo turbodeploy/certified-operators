@@ -1298,7 +1298,11 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         try {
             final Optional<ActionState> actionState = getActionState(action.getStatus());
             if (actionState.isPresent()) {
-                entityActionDao.updateActionState(action.getActionId(), actionState.get());
+                long actionId = action.getActionId();
+                ActionState state = actionState.get();
+
+                entityActionDao.updateActionState(actionId, state);
+                logger.trace("Sucessfully set the state of action with {} ID to {}", actionId, state);
             }
         } catch (DataAccessException e) {
             logger.error("Failed to update controllable table for action {}: {}",

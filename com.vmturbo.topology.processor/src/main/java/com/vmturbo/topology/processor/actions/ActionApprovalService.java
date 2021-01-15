@@ -10,9 +10,12 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.concurrent.GuardedBy;
 
 import io.opentracing.SpanContext;
 
@@ -51,14 +54,20 @@ public class ActionApprovalService extends AbstractActionApprovalService {
     private final IOperationManager operationManager;
     private final ActionExecutionContextFactory contextFactory;
 
+    private final ReadWriteLock lock = new ReentrantReadWriteLock();
+
     /**
      * Set of actions that we requested approval for. This set is a volatile unmodifiable set.
      * In this regard, it becomes thread-safe.
      */
     private volatile Set<Long> approvalsToCreate = Collections.emptySet();
     private volatile Set<Long> trackedApprovals = new HashSet<>();
-    private volatile GetActionState getActionStateOperation = null;
-    private volatile ActionApproval actionApprovalOperation = null;
+
+    @GuardedBy("lock")
+    private GetActionState actionStateOperation = null;
+
+    @GuardedBy("lock")
+    private ActionApproval actionApprovalOperation = null;
 
     /**
      * Constructs action approval service.
@@ -124,7 +133,7 @@ public class ActionApprovalService extends AbstractActionApprovalService {
         }
         trackedApprovals.retainAll(approvalsToCreate);
         try {
-            if (actionApprovalOperation == null) {
+            if (getActionApprovalOperation() == null) {
                 final List<ActionExecutionDTO> actionExecutionList = new ArrayList<>(
                         requests.getActionsCount());
                 for (ExecuteActionRequest actionRequest: requests.getActionsList()) {
@@ -137,9 +146,17 @@ public class ActionApprovalService extends AbstractActionApprovalService {
                         getLogger().warn("Failed to create SDK action from " + actionRequest, e);
                     }
                 }
-                // This is the only thread able to set the actionApprovalOperation variable
-                actionApprovalOperation = operationManager.approveActions(targetId.get(),
-                        actionExecutionList, new ApproveActionsCallback(targetId.get()));
+
+                lock.writeLock().lock();
+                try {
+                    this.actionApprovalOperation = operationManager.approveActions(targetId.get(),
+                            actionExecutionList, new ApproveActionsCallback(targetId.get()));
+                } finally {
+                    lock.writeLock().unlock();
+                }
+
+                getLogger().debug("Actions {} were successfully sent for approval; action approval operation = {}",
+                        getActionOidsString(requests), actionApprovalOperation);
             } else {
                 getLogger().warn(
                         "Another approval operation is running, skipping the new request for actions [{}]: {}",
@@ -152,6 +169,24 @@ public class ActionApprovalService extends AbstractActionApprovalService {
             // It is safe to omit some approval messages. On the next market cycle a new
             // complete version of the message will be generated.
             commitCommand.run();
+        }
+    }
+
+    private ActionApproval getActionApprovalOperation() {
+        lock.readLock().lock();
+        try {
+            return actionApprovalOperation;
+        } finally {
+            lock.readLock().unlock();
+        }
+    }
+
+    private void updateActionApprovalOperation(ActionApproval actionApproval) {
+        lock.writeLock().lock();
+        try {
+            this.actionApprovalOperation = actionApproval;
+        } finally {
+            lock.writeLock().unlock();
         }
     }
 
@@ -171,23 +206,46 @@ public class ActionApprovalService extends AbstractActionApprovalService {
             }
             getLogger().debug("Requesting action states for the following actions from target {}: {}",
                 targetId::get, trackedApprovals::toString);
-            if (getActionStateOperation == null) {
+            if (getActionStateOperation() == null) {
+                lock.writeLock().lock();
                 try {
-                    // There is only one thread able to set this variable
-                    getActionStateOperation = operationManager.getExternalActionState(targetId.get(),
+                    this.actionStateOperation = operationManager.getExternalActionState(targetId.get(),
                             trackedApprovals, new GetActionStatesCallback(targetId.get()));
+
+                    getLogger().debug("The Get Action States operation invoked for {} actions; action state operation = {}",
+                            trackedApprovals, actionStateOperation);
                 } catch (InterruptedException | TargetNotFoundException | ProbeException | CommunicationException e) {
                     getLogger().warn("Error getting external action state", e);
+                } finally {
+                    lock.writeLock().unlock();
                 }
             } else {
                 getLogger().info("Previous getActionState operation is still processing: {}",
-                    getActionStateOperation);
+                    actionStateOperation);
             }
         } catch (Exception e) {
             // Do not rethrow the exception. This prevents rescheduling of all future
             // ScheduledExecutorService.scheduleWithFixedDelay(this::requestExternalStateUpdates...
             // As a result, without this catch, this method would never run again.
             getLogger().error("Unable to requestExternalStateUpdates due to exception", e);
+        }
+    }
+
+    private GetActionState getActionStateOperation() {
+        lock.readLock().lock();
+        try {
+            return this.actionStateOperation;
+        } finally {
+            lock.readLock().unlock();
+        }
+    }
+
+    private void updateActionStateOperation(GetActionState actionState) {
+        lock.writeLock().lock();
+        try {
+            this.actionStateOperation = actionState;
+        } finally {
+            lock.writeLock().unlock();
         }
     }
 
@@ -204,7 +262,8 @@ public class ActionApprovalService extends AbstractActionApprovalService {
 
         @Override
         public void onSuccess(@Nonnull ActionApprovalResponse response) {
-            actionApprovalOperation = null;
+            updateActionApprovalOperation(null);
+            getLogger().info("The Action Approval operation has been reset");
             if (getLogger().isDebugEnabled()) {
                 for (ActionErrorDTO actionError : response.getErrorsList()) {
                     getLogger().debug("Error reported approving action {} at target {}: {}",
@@ -230,7 +289,7 @@ public class ActionApprovalService extends AbstractActionApprovalService {
         @Override
         public void onFailure(@Nonnull String error) {
             getLogger().warn("Error approving actions at target {}: {}", targetId, error);
-            actionApprovalOperation = null;
+            updateActionApprovalOperation(null);
         }
     }
 
@@ -246,7 +305,8 @@ public class ActionApprovalService extends AbstractActionApprovalService {
 
         @Override
         public void onSuccess(@Nonnull GetActionStateResponse response) {
-            getActionStateOperation = null;
+            updateActionStateOperation(null);
+            getLogger().info("The Action State operation has been reset");
             if (getLogger().isDebugEnabled()) {
                 for (ActionErrorDTO actionError : response.getErrorsList()) {
                     getLogger().warn("Error reported updating action {} state at target {}: {}",
@@ -279,7 +339,7 @@ public class ActionApprovalService extends AbstractActionApprovalService {
         @Override
         public void onFailure(@Nonnull String error) {
             getLogger().warn("Error updating action states at target {}: {}", targetId, error);
-            getActionStateOperation = null;
+            updateActionStateOperation(null);
         }
     }
 }
