@@ -197,7 +197,7 @@ public class AnalysisCoverageTopologyTest {
     public void testGetCoverageCapacityForEntity() {
 
         // setup the compute tier family resolver
-        when(computeTierFamilyResolver.getNumCoupons(anyLong())).thenReturn(Optional.of(4L));
+        when(computeTierFamilyResolver.getNumCoupons(anyLong())).thenReturn(Optional.of(4D));
 
         // construct analysis topology
         final AnalysisCoverageTopology analysisTopology = topologyFactory.newTopology(

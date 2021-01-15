@@ -25,7 +25,7 @@ public class ComputeTierInfoRepoDTO implements TypeSpecificInfoRepoDTO {
 
     private String family;
 
-    private int numCoupons;
+    private double numCoupons;
 
     private int numCores;
 
@@ -103,7 +103,7 @@ public class ComputeTierInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         return family;
     }
 
-    public int getNumCoupons() {
+    public double getNumCoupons() {
         return numCoupons;
     }
 
@@ -119,7 +119,7 @@ public class ComputeTierInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         this.family = family;
     }
 
-    public void setNumCoupons(final int numCoupons) {
+    public void setNumCoupons(final double numCoupons) {
         this.numCoupons = numCoupons;
     }
 

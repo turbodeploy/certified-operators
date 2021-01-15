@@ -426,13 +426,13 @@ public class ProjectedRICoverageAndUtilStoreTest {
                 Arrays.asList(ENTITY_RI_COVERAGE, SECOND_RI_COVERAGE, BIDDING_RI_COVERAGE));
 
         Map<Long, EntityReservedInstanceCoverage> map = store.getAllProjectedEntitiesRICoverages();
-        int totalCapacity = map.values().stream()
-                .mapToInt(EntityReservedInstanceCoverage::getEntityCouponCapacity)
+        double totalCapacity = map.values().stream()
+                .mapToDouble(EntityReservedInstanceCoverage::getEntityCouponCapacity)
                 .sum();
 
         // Assertions: only VM_1 and VM_2 coupons are counted
         assertThat(map.size(), equalTo(2));
-        assertThat(totalCapacity, equalTo(300));
+        Assert.assertEquals(300D, totalCapacity, 0.000001);
     }
 
     @Test

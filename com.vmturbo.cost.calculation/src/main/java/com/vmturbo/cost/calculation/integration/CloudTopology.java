@@ -216,7 +216,7 @@ public interface CloudTopology<ENTITY_CLASS> {
      * @param entityId The OID of the target entity
      * @return The RI coverage capacity of the target entity
      */
-    long getRICoverageCapacityForEntity(long entityId);
+    double getRICoverageCapacityForEntity(long entityId);
 
     /**
      * Returns the billing family group of the entity with the provided id.

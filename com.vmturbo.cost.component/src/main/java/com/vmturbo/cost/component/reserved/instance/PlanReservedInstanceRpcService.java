@@ -365,12 +365,12 @@ public class PlanReservedInstanceRpcService extends PlanReservedInstanceServiceI
                 continue;
             }
             final EntityReservedInstanceCoverage riCoverage = coverageMap.get(entityId);
-            int totalCoupons = riCoverage.getEntityCouponCapacity();
+            double totalCoupons = riCoverage.getEntityCouponCapacity();
             double usedCoupons = planProjectedRICoverageAndUtilStore.getAggregatedEntityRICoverage(
                     Collections.singletonList(riCoverage)).values().iterator().next();
-            if (totalCoupons == 0 && usedCoupons > 0d) {
+            if (totalCoupons <= 0 && usedCoupons > 0d) {
                 // In case totalCoupons is 0, but we have a valid usedCoupon count, set total.
-                totalCoupons = (int)usedCoupons;
+                totalCoupons = usedCoupons;
             }
             usedCouponsToUpdate.put(entityId, usedCoupons);
             final EntityCost.Builder newCostBuilder = EntityCost.newBuilder(entityCost);
@@ -396,9 +396,9 @@ public class PlanReservedInstanceRpcService extends PlanReservedInstanceServiceI
      * @param costBuilder Cost builder to update.
      * @param onDemandRate Compute or license rate on which discount needs to be applied.
      */
-    private void updateRiDiscountedCost(CostCategory costCategory, int totalCoupons,
+    private void updateRiDiscountedCost(CostCategory costCategory, double totalCoupons,
             double usedCoupons, @Nonnull final EntityCost.Builder costBuilder, double onDemandRate) {
-        double riDiscount = totalCoupons == 0 ? 0d
+        double riDiscount = totalCoupons <= 0 ? 0d
                 : -1 * onDemandRate * (usedCoupons / totalCoupons);
         costBuilder.addComponentCost(ComponentCost.newBuilder()
                 .setAmount(CurrencyAmount.newBuilder()

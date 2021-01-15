@@ -891,7 +891,7 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
         private double onDemandBasePrice;
         private double onDemandLicencePrice;
         private double reservedInstanceLicensePrice;
-        private int numberOfCoupons;
+        private double numberOfCoupons;
         private double upFrontPrice;
         private double recurringPrice;
         private double usagePrice;
@@ -944,11 +944,11 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
             this.reservedInstanceLicensePrice = reservedInstanceLicensePrice;
         }
 
-        public int getNumberOfCoupons() {
+        public double getNumberOfCoupons() {
             return numberOfCoupons;
         }
 
-        public void setNumberOfCoupons(int numberOfCoupons) {
+        public void setNumberOfCoupons(double numberOfCoupons) {
             this.numberOfCoupons = numberOfCoupons;
         }
 

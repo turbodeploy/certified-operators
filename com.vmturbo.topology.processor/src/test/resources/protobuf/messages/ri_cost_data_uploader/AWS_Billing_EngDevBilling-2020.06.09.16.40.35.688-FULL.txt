@@ -4158,6 +4158,7 @@ nonMarketEntityDTO {
           offeringClass: STANDARD
           offeringType: ALL_UPFRONT
           platform: LINUX
+          __deprecated__number_of_coupons: 0
           numberOfCoupons: -1
           numberOfCouponsUsed: -1.0
           fixedCost: -1.0
@@ -4179,6 +4180,7 @@ nonMarketEntityDTO {
           offeringClass: STANDARD
           offeringType: ALL_UPFRONT
           platform: LINUX
+          __deprecated__number_of_coupons: 0
           numberOfCoupons: -1
           numberOfCouponsUsed: -1.0
           fixedCost: -1.0
@@ -4200,6 +4202,7 @@ nonMarketEntityDTO {
           offeringClass: STANDARD
           offeringType: ALL_UPFRONT
           platform: LINUX
+          __deprecated__number_of_coupons: 0
           numberOfCoupons: -1
           numberOfCouponsUsed: -1.0
           fixedCost: -1.0
@@ -4221,6 +4224,7 @@ nonMarketEntityDTO {
           offeringClass: STANDARD
           offeringType: ALL_UPFRONT
           platform: LINUX
+          __deprecated__number_of_coupons: 0
           numberOfCoupons: -1
           numberOfCouponsUsed: -1.0
           fixedCost: -1.0
@@ -4242,6 +4246,7 @@ nonMarketEntityDTO {
           offeringClass: STANDARD
           offeringType: ALL_UPFRONT
           platform: LINUX
+          __deprecated__number_of_coupons: 0
           numberOfCoupons: -1
           numberOfCouponsUsed: -1.0
           fixedCost: -1.0

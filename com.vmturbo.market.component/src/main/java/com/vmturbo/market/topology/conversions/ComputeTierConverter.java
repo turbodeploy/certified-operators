@@ -126,7 +126,7 @@ public class ComputeTierConverter implements TierConverter {
 
             // sell CouponComm
             // Every computeTier's size in terms of number of coupons is specified through the couponComm capacity
-            float capacity = computeTier.getTypeSpecificInfo().getComputeTier().getNumCoupons();
+            float capacity = (float)computeTier.getTypeSpecificInfo().getComputeTier().getNumCoupons();
             float used = 0;
             CommodityType commType =
                     CommodityType.newBuilder()

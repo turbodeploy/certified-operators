@@ -566,11 +566,11 @@ public class ActionLogger {
         if (isSource) {
             sourceTemplateName = templateEntity.getDisplayName();
             sourceFamilyName = computeTierInfo.getFamily();
-            sourceTemplateCoupons = computeTierInfo.getNumCoupons();
+            sourceTemplateCoupons = (float)computeTierInfo.getNumCoupons();
         } else {
             projectedTemplateName = templateEntity.getDisplayName();
             projectedFamilyName = computeTierInfo.getFamily();
-            projectedTemplateCoupons = computeTierInfo.getNumCoupons();
+            projectedTemplateCoupons = (float)computeTierInfo.getNumCoupons();
         }
     }
 
@@ -596,12 +596,12 @@ public class ActionLogger {
         savingsPerHour = FLOAT_UNKNOWN;
         sourceTemplateName = STRING_UNKNOWN;
         sourceFamilyName = STRING_UNKNOWN;
-        sourceTemplateCoupons = INT_UNKNOWN;
+        sourceTemplateCoupons = FLOAT_UNKNOWN;
         naturalTemplateName = STRING_UNKNOWN;
-        naturalTemplateCoupons = INT_UNKNOWN;
+        naturalTemplateCoupons = FLOAT_UNKNOWN;
         projectedTemplateName = STRING_UNKNOWN;
         projectedFamilyName = STRING_UNKNOWN;
-        projectedTemplateCoupons = INT_UNKNOWN;
+        projectedTemplateCoupons = FLOAT_UNKNOWN;
         sourceReservedInstanceName = STRING_UNKNOWN;
         sourceReservedInstanceKey = LONG_UNKNOWN;
         sourceReservedInstanceTemplateName = STRING_UNKNOWN;

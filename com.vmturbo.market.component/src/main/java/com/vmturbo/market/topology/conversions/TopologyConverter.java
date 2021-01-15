@@ -2838,13 +2838,13 @@ public class TopologyConverter {
         return Optional.of(result);
     }
 
-    private float getTotalNumberOfCouponsRequested(TopologyEntityDTO entity) {
+    private double getTotalNumberOfCouponsRequested(TopologyEntityDTO entity) {
         return entity.getCommoditiesBoughtFromProvidersList().stream().filter(CommoditiesBoughtFromProvider::hasProviderId)
                 .filter(entry -> entry.getProviderEntityType() == EntityType.COMPUTE_TIER_VALUE)
                 .map(entry -> entityOidToDto.get(entry.getProviderId()))
                 .map(TopologyEntityDTO::getTypeSpecificInfo)
                 .map(TopologyDTO.TypeSpecificInfo::getComputeTier)
-                .mapToLong(TopologyDTO.TypeSpecificInfo.ComputeTierInfo::getNumCoupons)
+                .mapToDouble(TopologyDTO.TypeSpecificInfo.ComputeTierInfo::getNumCoupons)
                 .sum();
     }
 
@@ -3415,9 +3415,12 @@ public class TopologyConverter {
                             .build());
             couponCommBought = CommodityBoughtTO.newBuilder()
                     .setSpecification(commoditySpecs)
-                    .setPeakQuantity(entityOidToDto.get(marketTier.getTier().getOid()).getTypeSpecificInfo()
-                            .getComputeTier().getNumCoupons())
-                    .setQuantity(couponQuantity).build();
+                    .setPeakQuantity((float)entityOidToDto.get(marketTier.getTier().getOid())
+                            .getTypeSpecificInfo()
+                            .getComputeTier()
+                            .getNumCoupons())
+                    .setQuantity(couponQuantity)
+                    .build();
         }
         return Optional.ofNullable(couponCommBought);
     }

@@ -159,7 +159,6 @@ public class ReservedInstanceUtilizationStore implements MultiStoreDiagnosable {
             logger.warn("Used coupons exceeds total coupons while creating Reserved Instance"
                     + " utilization record for RI {}. Used coupons {} will be set to total coupons {}.",
                     riId, usedCoupons, riTotalCoupons);
-            usedCoupons = riTotalCoupons;
         }
         return context.newRecord(Tables.RESERVED_INSTANCE_UTILIZATION_LATEST,
                 new ReservedInstanceUtilizationLatestRecord(curTime, riId, riSpecIdToRegionMap.get(riSpecId),

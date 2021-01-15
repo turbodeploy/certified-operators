@@ -518,8 +518,8 @@ public class SMAReservedInstance {
             couponsVm1 = Math.min(coupons, vm1.getMinCostProviderPerFamily(riFamily).getCoupons() * vm1.getGroupSize());
             couponsVm2 = Math.min(coupons, vm2.getMinCostProviderPerFamily(riFamily).getCoupons() * vm2.getGroupSize());
         } else {
-            couponsVm1 = (float)getNormalizedTemplate().getCoupons() * vm1.getGroupSize();
-            couponsVm2 = (float)getNormalizedTemplate().getCoupons() * vm2.getGroupSize();
+            couponsVm1 = getNormalizedTemplate().getCoupons() * vm1.getGroupSize();
+            couponsVm2 = getNormalizedTemplate().getCoupons() * vm2.getGroupSize();
         }
 
         float netSavingVm1PerCoupon = netSavingVm1 / couponsVm1;

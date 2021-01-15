@@ -258,7 +258,7 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
          * The number of coupons sold by this compute tier.
          * See: {@link ComputeTierInfo#getNumCoupons()}
          */
-        private final int numCoupons;
+        private final double numCoupons;
 
         /**
          * The number of cores of this compute tier.
@@ -272,13 +272,13 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
          */
         private final boolean burstableCPU;
 
-        public ComputeTierConfig(final int numCoupons, final int numCores, final boolean burstableCPU) {
+        public ComputeTierConfig(final double numCoupons, final int numCores, final boolean burstableCPU) {
             this.numCoupons = numCoupons;
             this.numCores = numCores;
             this.burstableCPU = burstableCPU;
         }
 
-        public int getNumCoupons() {
+        public double getNumCoupons() {
             return numCoupons;
         }
 

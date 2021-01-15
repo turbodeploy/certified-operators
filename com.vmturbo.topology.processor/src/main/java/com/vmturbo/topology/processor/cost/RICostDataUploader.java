@@ -385,8 +385,10 @@ public class RICostDataUploader {
             // counting algorithm will still be running. If/when the probe sends "used" directly,
             // we should remove our counting algorithm, or activate it only as a fallback for cases
             // where used is not available.
-            int numberOfCoupons = riData.getNumberOfCoupons();
-            if (numberOfCoupons == 0) {
+            final double numberOfCoupons;
+            if (riData.hasNumberOfCoupons()) {
+                numberOfCoupons = riData.getNumberOfCoupons();
+            } else {
                 numberOfCoupons = getNumberOfCouponsFromInstanceFamily(riData.getRelatedProfileId(),
                         stitchingContext);
                 logger.info("Number of coupons not set for RI {},"
@@ -482,14 +484,14 @@ public class RICostDataUploader {
         riCostComponentData.riBoughtByLocalId = riBoughtByLocalId;
     }
 
-    private int getNumberOfCouponsFromInstanceFamily(final String instanceType,
+    private double getNumberOfCouponsFromInstanceFamily(final String instanceType,
                                                      final StitchingContext stitchingContext) {
         return stitchingContext.getEntitiesOfType(EntityType.COMPUTE_TIER)
                 .filter(tier -> tier.getEntityBuilder().getId().equals(instanceType))
                 .filter(tier -> tier.getEntityBuilder().hasComputeTierData())
                 .findFirst()
                 .map(tier -> tier.getEntityBuilder().getComputeTierData().getNumCoupons())
-                .orElse(0);
+                .orElse(0D);
     }
 
     /**

@@ -256,7 +256,7 @@ public class TopologyEntityInfoExtractorTest {
     public void testGetComputeTierConfig() {
         final Optional<ComputeTierConfig> computeTierConfig = entityInfoExtractor.getComputeTierConfig(COMPUTE_TIER);
         assertTrue(computeTierConfig.isPresent());
-        assertEquals(COMPUTE_NUM_OF_COUPONS, computeTierConfig.get().getNumCoupons());
+        assertEquals(COMPUTE_NUM_OF_COUPONS, computeTierConfig.get().getNumCoupons(), DELTA);
     }
 
     @Test

@@ -149,7 +149,7 @@ public class LocalCommitmentRecommendationStore implements CloudCommitmentRecomm
         }
 
         final ReservedInstanceDerivedCost riDerivedCost = riDerivedCostBuilder.build();
-        final long recommendationCouponCapacity =
+        final double recommendationCouponCapacity =
                 riSpecData.couponsPerInstance() * savingsRecommendation.recommendationQuantity();
         final ReservedInstanceBoughtCoupons riBoughtCoupons = ReservedInstanceBoughtCoupons.newBuilder()
                 .setNumberOfCoupons(recommendationCouponCapacity)

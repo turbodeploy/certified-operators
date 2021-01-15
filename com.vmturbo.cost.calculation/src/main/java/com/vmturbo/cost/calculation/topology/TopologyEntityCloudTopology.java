@@ -449,7 +449,7 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
      * {@inheritDoc}
      */
     @Override
-    public long getRICoverageCapacityForEntity(final long entityId) {
+    public double getRICoverageCapacityForEntity(final long entityId) {
         return getEntity(entityId)
                 .map(entity -> {
                     switch (entity.getEntityType()) {
@@ -462,14 +462,14 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
                             final EntityState entityState = entity.getEntityState();
                             return (entityState == EntityState.POWERED_ON && billingType != VMBillingType.BIDDING) ?
                                     getComputeTier(entity.getOid())
-                                            .map(computeTier -> (long)computeTier.getTypeSpecificInfo()
+                                            .map(computeTier -> computeTier.getTypeSpecificInfo()
                                                     .getComputeTier().getNumCoupons())
-                                            .orElse(0L) : 0L;
+                                            .orElse(0D) : 0D;
                         default:
                             // if unsupported type, capacity is assumed to be 0
-                            return 0L;
+                            return 0D;
                     }
-                }).orElse(0L);
+                }).orElse(0D);
     }
 
     /**

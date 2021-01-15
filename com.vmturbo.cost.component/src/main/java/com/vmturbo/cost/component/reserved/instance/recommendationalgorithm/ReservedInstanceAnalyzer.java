@@ -480,7 +480,7 @@ public class ReservedInstanceAnalyzer {
              */
             final TopologyEntityDTO computerTier = entry.getKey();
             final float onDemandPrice = rateProvider.lookupOnDemandRate(primaryAccountOid, regionalContext, computerTier);
-            final int numberOfCoupons = computerTier.getTypeSpecificInfo().getComputeTier().getNumCoupons();
+            final double numberOfCoupons = computerTier.getTypeSpecificInfo().getComputeTier().getNumCoupons();
             float weeklyWorkloadDemand = 0f;
             // The demand is in terms of zonal coupons. So inorder to get actual workload demand we
             // divide each demand by the corresponding zonal coupons.

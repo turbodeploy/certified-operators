@@ -361,11 +361,11 @@ public class TopologyEntityCloudTopologyTest {
 
     @Test
     public void testGetRICoverageCapacityForEntity() {
-        long result = CLOUD_TOPOLOGY.getRICoverageCapacityForEntity(VM_ID);
-        assertEquals(5, result);
+        double result = CLOUD_TOPOLOGY.getRICoverageCapacityForEntity(VM_ID);
+        assertEquals(5, result, 0.000001);
         // VM with billing type as BIDDING.
         result = CLOUD_TOPOLOGY.getRICoverageCapacityForEntity(EMPTY_VM_ID);
-        assertEquals(0, result);
+        assertEquals(0, result, 0.000001);
     }
 
     /**

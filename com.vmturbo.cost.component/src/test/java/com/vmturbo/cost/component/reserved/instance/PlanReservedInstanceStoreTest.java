@@ -19,7 +19,6 @@ import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 
-import com.vmturbo.cloud.common.identity.IdentityProvider;
 import com.vmturbo.cloud.common.identity.IdentityProvider.DefaultIdentityProvider;
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;

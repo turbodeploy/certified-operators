@@ -10,6 +10,7 @@ import java.util.Optional;
 import java.util.stream.Stream;
 
 import org.hamcrest.collection.IsIterableContainingInOrder;
+import org.junit.Assert;
 import org.junit.Test;
 
 import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver.ComputeTierFamilyResolverFactory;
@@ -205,7 +206,8 @@ public class ComputeTierFamilyResolverTest {
         final ComputeTierFamilyResolver computeTierFamilyResolver =
                 computeTierFamilyResolverFactory.createResolver(cloudTopology);
 
-        assertThat(computeTierFamilyResolver.getNumCoupons(computeTierLargeFamilyA.getOid()),
-                equalTo(Optional.of(10L)));
+        final Optional<Double> numCoupons = computeTierFamilyResolver.getNumCoupons(
+                computeTierLargeFamilyA.getOid());
+        Assert.assertEquals(10, numCoupons.get(), 0.000001D);
     }
 }

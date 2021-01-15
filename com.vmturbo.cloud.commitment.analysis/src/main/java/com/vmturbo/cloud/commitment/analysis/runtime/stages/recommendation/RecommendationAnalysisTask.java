@@ -235,11 +235,11 @@ public class RecommendationAnalysisTask implements Callable<CloudCommitmentRecom
     private double calculateDemandNormalizationFactor(@Nonnull ScopedCloudTierInfo cloudTierInfo) {
 
         // Right now, assume compute tier/RI normalization
-        final long demandCoupons = computeTierFamilyResolver
+        final double demandCoupons = computeTierFamilyResolver
                 .getNumCoupons(cloudTierInfo.cloudTierDemand().cloudTierOid())
-                .orElse(1L);
+                .orElse(1D);
 
-        return (double)demandCoupons;
+        return demandCoupons;
     }
 
     private double calculateDemandCommitmentRatio(@Nonnull ScopedCloudTierInfo cloudTierInfo) {
@@ -248,9 +248,9 @@ public class RecommendationAnalysisTask implements Callable<CloudCommitmentRecom
         // for all cloud tiers.
         final long recommendationTier = ((ReservedInstanceSpecData)commitmentContext.cloudCommitmentSpecData())
                 .tierOid();
-        final long recommendationCoupons = computeTierFamilyResolver
+        final double recommendationCoupons = computeTierFamilyResolver
                 .getNumCoupons(recommendationTier)
-                .orElse(1L);
+                .orElse(1D);
 
         return recommendationCoupons;
     }

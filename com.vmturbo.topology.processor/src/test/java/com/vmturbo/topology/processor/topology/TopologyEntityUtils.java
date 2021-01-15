@@ -34,6 +34,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.DiscoveryOriginBuilder;
@@ -592,6 +593,7 @@ public class TopologyEntityUtils {
         CommonDTO.EntityDTO.Builder builder = CommonDTO.EntityDTO.newBuilder();
         try {
             JsonFormat.parser().merge(getInputReader(fileBasename), builder);
+            JsonFormat.printer().appendTo(EntityDTO.newBuilder(), new StringBuilder());
         } catch (IOException ioe) {
             throw new IllegalArgumentException("Bad input JSON file " + fileBasename, ioe);
         }

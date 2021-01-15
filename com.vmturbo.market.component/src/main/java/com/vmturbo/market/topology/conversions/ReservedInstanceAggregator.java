@@ -86,7 +86,7 @@ class ReservedInstanceAggregator {
                 .collect(Collectors.groupingBy(dto -> dto.getTypeSpecificInfo()
                         .getComputeTier().getFamily(), Collectors.toList()));
         familyToComputeTiers.values()
-                .forEach(tiers -> tiers.sort(Comparator.comparingInt(
+                .forEach(tiers -> tiers.sort(Comparator.comparingDouble(
                         (TopologyEntityDTO t) -> t.getTypeSpecificInfo()
                                 .getComputeTier()
                                 .getNumCoupons()).reversed()));

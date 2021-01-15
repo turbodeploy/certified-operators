@@ -246,7 +246,7 @@ public class ReservedInstanceSpecMatcher {
          * @return THe coupon capacity of the compute tier.
          */
         @Value.Auxiliary
-        int couponsPerInstance();
+        double couponsPerInstance();
 
         /**
          * The RI spec ID, which is the sole identifier used in equality and hashing checks.

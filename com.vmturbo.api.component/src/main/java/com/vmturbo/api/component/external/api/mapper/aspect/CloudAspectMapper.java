@@ -302,20 +302,20 @@ public class CloudAspectMapper extends AbstractAspectMapper {
     private void setRiCoverage(Long oid, EntityReservedInstanceCoverage entityRiCoverage, CloudAspectApiDTO aspect) {
         logger.trace("Setting RI Coverage info for  with VM oid: {}, entityRiCoverage: {}",
                 () -> oid, () -> entityRiCoverage);
-        final int couponCapacity = entityRiCoverage.getEntityCouponCapacity();
+        final double couponCapacity = entityRiCoverage.getEntityCouponCapacity();
         final double couponsUsed = entityRiCoverage.getCouponsCoveredByRiMap().values()
                 .stream()
                 .reduce(Double::sum)
                 .orElse(0D);
 
-        float percentageCovered;
+        final double percentageCovered;
         if (couponsUsed == 0) {
-            percentageCovered = 0f;
+            percentageCovered = 0;
         } else {
-            percentageCovered = (float)couponsUsed * 100 / couponCapacity;
+            percentageCovered = couponsUsed * 100 / couponCapacity;
         }
 
-        aspect.setRiCoveragePercentage(percentageCovered);
+        aspect.setRiCoveragePercentage((float)percentageCovered);
         final StatApiDTO riCoverageStatsDto = createRiCoverageStatsDto((float)couponsUsed,
                 (float)couponCapacity);
         aspect.setRiCoverage(riCoverageStatsDto);

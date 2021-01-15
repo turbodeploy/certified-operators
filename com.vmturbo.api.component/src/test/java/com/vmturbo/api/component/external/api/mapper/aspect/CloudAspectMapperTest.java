@@ -78,7 +78,7 @@ public class CloudAspectMapperTest {
     private static final String ARCHITECTURE = "64-bit";
     private static final String VIRTUALIZATION_TYPE = "HVM";
     private static final String NVME = "Installed";
-    private static final int VM_COUPON_CAPACITY = 10;
+    private static final double VM_COUPON_CAPACITY = 28.8;
     private static final double DELTA = 0.001;
     private static final long RESOURCE_GROUP_ID = 1L;
     private static final long VIRTUAL_MACHINE_NO_RG_OID = 2L;
@@ -249,7 +249,7 @@ public class CloudAspectMapperTest {
     @Test
     public void testRiCoverageInfoPartiallyReserved() {
         // given
-        final float couponsCovered = 3;
+        final double couponsCovered = 8.64D;
         stubRiCoverage(couponsCovered);
 
         // when
@@ -258,8 +258,7 @@ public class CloudAspectMapperTest {
 
         // then
         Assert.assertNotNull(aspect);
-        Assert.assertEquals(couponsCovered * 100 / VM_COUPON_CAPACITY,
-                aspect.getRiCoveragePercentage(), DELTA);
+        Assert.assertEquals(30F, aspect.getRiCoveragePercentage(), DELTA);
         Assert.assertEquals(couponsCovered, aspect.getRiCoverage().getValue(), DELTA);
         Assert.assertEquals(VMBillingType.HYBRID.name(), aspect.getBillingType());
     }
@@ -270,7 +269,7 @@ public class CloudAspectMapperTest {
     @Test
     public void testRiCoverageInfoFullyReserved() {
         // given
-        final float couponsCovered = 9.999f;
+        final double couponsCovered = 28.771200000000004D;
         stubRiCoverage(couponsCovered);
 
         // when
@@ -279,8 +278,7 @@ public class CloudAspectMapperTest {
 
         // then
         Assert.assertNotNull(aspect);
-        Assert.assertEquals(couponsCovered * 100 / VM_COUPON_CAPACITY,
-                aspect.getRiCoveragePercentage(), DELTA);
+        Assert.assertEquals(99.9F, aspect.getRiCoveragePercentage(), DELTA);
         Assert.assertEquals(couponsCovered, aspect.getRiCoverage().getValue(), DELTA);
         Assert.assertEquals(VMBillingType.RESERVED.name(), aspect.getBillingType());
     }
@@ -291,7 +289,7 @@ public class CloudAspectMapperTest {
     @Test
     public void testRiCoverageInfoOnDemand() {
         // given
-        final float couponsCovered = 0;
+        final double couponsCovered = 0;
         stubRiCoverage(couponsCovered);
 
         // when
@@ -318,7 +316,7 @@ public class CloudAspectMapperTest {
         Assert.assertEquals(VMBillingType.BIDDING.name(), aspect.getBillingType());
     }
 
-    private void stubRiCoverage(float couponsCovered) {
+    private void stubRiCoverage(double couponsCovered) {
         when(riCoverageServiceMole.getEntityReservedInstanceCoverage(any())).thenReturn(
                 GetEntityReservedInstanceCoverageResponse.newBuilder()
                         .putCoverageByEntityId(VIRTUAL_MACHINE_OID,

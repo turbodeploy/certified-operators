@@ -124,11 +124,11 @@ public class AnalysisCoverageTopology implements CoverageTopology {
             final AggregateCloudTierDemand aggregateDemand = aggregatedDemandById.get(aggregateId);
 
             // This will need to be abstracted when multiple commitment types are supported
-            final Optional<Long> normalizationFactor = computeTierFamilyResolver.getNumCoupons(
+            final Optional<Double> normalizationFactor = computeTierFamilyResolver.getNumCoupons(
                     aggregateDemand.cloudTierInfo().cloudTierDemand().cloudTierOid());
 
             // TODO(ejf) log error
-            final double aggregateAmount = coverageAmount / normalizationFactor.orElse(1L);
+            final double aggregateAmount = coverageAmount / normalizationFactor.orElse(1D);
             return ImmutableTriple.of(aggregateId, commitmentId, aggregateAmount);
         } else {
             // TODO(ejf) log error
@@ -221,11 +221,11 @@ public class AnalysisCoverageTopology implements CoverageTopology {
             final AggregateCloudTierDemand aggregateDemand = aggregatedDemandById.get(entityOid);
 
             // This will need to be abstracted when multiple commitment types are supported
-            final Optional<Long> normalizationFactor = computeTierFamilyResolver.getNumCoupons(
+            final Optional<Double> normalizationFactor = computeTierFamilyResolver.getNumCoupons(
                     aggregateDemand.cloudTierInfo().cloudTierDemand().cloudTierOid());
 
             // TODO(ejf) log error
-            return aggregateDemand.demandAmount() * normalizationFactor.orElse(1L);
+            return aggregateDemand.demandAmount() * normalizationFactor.orElse(1D);
         } else {
             return 0.0;
         }

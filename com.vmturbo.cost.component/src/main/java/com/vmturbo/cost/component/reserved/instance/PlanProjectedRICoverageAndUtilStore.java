@@ -276,8 +276,9 @@ public class PlanProjectedRICoverageAndUtilStore implements MultiStoreDiagnosabl
             }
 
             // find compute tier consumed by entity
-            final Optional<Integer> optionalCouponCapacity = entityRICoverage.stream().filter(s -> s.getEntityId() == entityId)
-                    .map(EntityReservedInstanceCoverage::getEntityCouponCapacity).findFirst();
+            final Optional<Double> optionalCouponCapacity = entityRICoverage.stream().filter(
+                    s -> s.getEntityId() == entityId).map(
+                    EntityReservedInstanceCoverage::getEntityCouponCapacity).findFirst();
             // The aggregated RI coverage of the entity
             optionalCouponCapacity.ifPresent(totalCoupons -> {
                 if (usedCoupons - totalCoupons > PERMISSIBLE_EXCESS_OF_COUPON_USED_OVER_CAPACITY) {

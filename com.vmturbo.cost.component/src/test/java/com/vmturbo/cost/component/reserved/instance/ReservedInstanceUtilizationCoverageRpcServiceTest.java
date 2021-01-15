@@ -211,7 +211,7 @@ public class ReservedInstanceUtilizationCoverageRpcServiceTest {
                 GetEntityReservedInstanceCoverageRequest.getDefaultInstance());
 
         assertEquals(1, response.getCoverageByEntityIdMap().size());
-        assertEquals(4, response.getCoverageByEntityIdMap().get(1L).getEntityCouponCapacity());
+        assertEquals(4, response.getCoverageByEntityIdMap().get(1L).getEntityCouponCapacity(), 0.000001);
         assertEquals(2, response.getCoverageByEntityIdMap().get(1L).getCouponsCoveredByRiMap().size());
     }
 

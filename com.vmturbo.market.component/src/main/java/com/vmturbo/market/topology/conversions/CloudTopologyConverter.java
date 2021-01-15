@@ -597,7 +597,7 @@ public class CloudTopologyConverter {
      * {@code traderState}. If the trader is not connected to a compute tier, returns {@link Optional#empty()}.
      */
     @Nonnull
-    public Optional<Integer> getReservedInstanceCoverageCapacity(@Nonnull TraderTO trader,
+    public Optional<Double> getReservedInstanceCoverageCapacity(@Nonnull TraderTO trader,
                                                                  @Nonnull TraderStateTO traderState) {
         return getComputeTier(trader)
                 .map(MarketTier::getTier)

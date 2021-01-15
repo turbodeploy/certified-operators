@@ -70,7 +70,7 @@ public interface RIBuyDemandCluster {
      */
     @Value.Auxiliary
     @Value.Derived
-    default int computeTierCoupons() {
+    default double computeTierCoupons() {
         return computeTier().getTypeSpecificInfo().getComputeTier().getNumCoupons();
     }
 }

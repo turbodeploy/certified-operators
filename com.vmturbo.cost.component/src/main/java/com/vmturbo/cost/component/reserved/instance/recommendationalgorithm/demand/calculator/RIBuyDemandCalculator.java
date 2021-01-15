@@ -289,7 +289,7 @@ public class RIBuyDemandCalculator {
             final RIBuyDemandCluster demandCluster = entry.getKey();
             final float[] demandInCoupons = multiplyByCoupons(
                     entry.getValue(),
-                    demandCluster.computeTierCoupons());
+                    (float)demandCluster.computeTierCoupons());
 
             if (demandInCoupons != null) {
                 demands.put(demandCluster, demandInCoupons);
@@ -299,7 +299,7 @@ public class RIBuyDemandCalculator {
     }
 
     @Nonnull
-    private float[] multiplyByCoupons(float[] demand, int coupons) {
+    private float[] multiplyByCoupons(float[] demand, float coupons) {
         final float[] couponDemand = new float[demand.length];
         for (int i = 0; i < demand.length; i++) {
             if (demand[i] > 0) {
@@ -341,7 +341,8 @@ public class RIBuyDemandCalculator {
         float[] combinedResult = new float[length];
         Arrays.fill(combinedResult, -1f);  // initialize to unpopulated.
 
-        final int couponsPerRecommendedInstance = regionalContext.couponsPerRecommendedInstance();
+        final float couponsPerRecommendedInstance =
+                (float)regionalContext.couponsPerRecommendedInstance();
         for (float[] demandHistory : demandByCluster.values()) {
             for (int i = 0; i < demandHistory.length; i++) {
                 // Only write non negative values to result.

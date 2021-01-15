@@ -52,7 +52,7 @@ public class ComputeTierFamilyResolver {
                         (computeTier) -> {
                             final ComputeTierInfo tierInfo = computeTier.getTypeSpecificInfo().getComputeTier();
                             final String family = tierInfo.getFamily();
-                            final int numCoupons = tierInfo.getNumCoupons();
+                            final double numCoupons = tierInfo.getNumCoupons();
 
                             return ImmutableComputeTierData.of(computeTier.getOid(), family, numCoupons);
                         }));
@@ -149,7 +149,7 @@ public class ComputeTierFamilyResolver {
      * @return The number of coupons, if the tier is found in the underlying cloud topology for this
      * resolver.
      */
-    public Optional<Long> getNumCoupons(long tierOid) {
+    public Optional<Double> getNumCoupons(long tierOid) {
         return computeTierDataByOid.containsKey(tierOid)
                 ? Optional.of(computeTierDataByOid.get(tierOid).numCoupons())
                 : Optional.empty();
@@ -167,7 +167,7 @@ public class ComputeTierFamilyResolver {
         @Nullable
         public abstract String family();
 
-        public abstract long numCoupons();
+        public abstract double numCoupons();
 
         @Nullable
         @Value.Derived

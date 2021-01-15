@@ -100,7 +100,7 @@ public class ProjectedRICoverageCalculator {
         final long entityId = projectedTraderTO.getOid();
         boolean isValidProjectedTrader = isValidProjectedTraderForCoverageCalculation(projectedTraderTO);
         if (isValidProjectedTrader) {
-            final Optional<Integer> projectedCoverageCapacity =
+            final Optional<Double> projectedCoverageCapacity =
                 cloudTc.getReservedInstanceCoverageCapacity(projectedTraderTO, originalTraderTO.getState());
             if (projectedCoverageCapacity.map(c -> c > 0).orElse(false)) {
                 final EntityReservedInstanceCoverage.Builder riCoverageBuilder =

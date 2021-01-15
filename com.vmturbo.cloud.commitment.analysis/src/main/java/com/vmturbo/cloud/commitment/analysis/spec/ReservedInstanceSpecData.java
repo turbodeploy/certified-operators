@@ -32,7 +32,7 @@ public interface ReservedInstanceSpecData extends CloudCommitmentSpecData<Reserv
      */
     @Value.Derived
     @Value.Auxiliary
-    default int couponsPerInstance() {
+    default double couponsPerInstance() {
         return cloudTier().getTypeSpecificInfo()
                 .getComputeTier()
                 .getNumCoupons();

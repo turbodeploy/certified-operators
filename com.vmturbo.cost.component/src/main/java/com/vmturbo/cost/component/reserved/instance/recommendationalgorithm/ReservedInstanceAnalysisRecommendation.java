@@ -372,7 +372,7 @@ public class ReservedInstanceAnalysisRecommendation {
                                 .build())
                 .build();
 
-        final int numOfCoupons = regionalContext.couponsPerRecommendedInstance();
+        final double numOfCoupons = regionalContext.couponsPerRecommendedInstance();
 
         ReservedInstanceBoughtCoupons.Builder riBoughtCoupons = ReservedInstanceBoughtCoupons.newBuilder()
             .setNumberOfCoupons(riNormalizedCoupons * numOfCoupons);
@@ -413,9 +413,9 @@ public class ReservedInstanceAnalysisRecommendation {
                     .build())
             .build();
 
-        final int instanceTypeCoupons = regionalContext.couponsPerRecommendedInstance();
-        final float totalAverageDemand = averageCouponDemand * instanceTypeCoupons;
-        float coveredAverageDemand = getRiUtilization() * count * instanceTypeCoupons;
+        final double instanceTypeCoupons = regionalContext.couponsPerRecommendedInstance();
+        final double totalAverageDemand = averageCouponDemand * instanceTypeCoupons;
+        double coveredAverageDemand = getRiUtilization() * count * instanceTypeCoupons;
         float estimatedOnDemandCost = getEstimatedOnDemandCost();
 
         Explanation explanation = Explanation.newBuilder()

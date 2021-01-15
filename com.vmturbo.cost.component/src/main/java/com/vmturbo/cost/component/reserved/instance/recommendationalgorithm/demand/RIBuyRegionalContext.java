@@ -103,7 +103,7 @@ public interface RIBuyRegionalContext {
      * @return The coupons per RI spec instance.
      */
     @Value.Derived
-    default int couponsPerRecommendedInstance() {
+    default double couponsPerRecommendedInstance() {
         return computeTier().getTypeSpecificInfo()
                 .getComputeTier()
                 .getNumCoupons();
