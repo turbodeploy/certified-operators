@@ -42,6 +42,8 @@ import com.google.gson.stream.JsonReader;
 import com.google.protobuf.AbstractMessage;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
+import com.vmturbo.platform.analysis.economy.Trader;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -669,6 +671,32 @@ public class TopologyEntitiesHandlerTest {
             throws FileNotFoundException, InvalidProtocolBufferException, NoSuchFieldException,
             IllegalAccessException {
         testMoveToCheaperComputeTier(false);
+    }
+
+    /**
+     * Test if the NewShoppingListToBuyerEntry gets populated for real-time analysis.
+     */
+    @Test
+    public void testNewShoppingListToBuyerEntryPopulation() {
+        final AnalysisConfig analysisConfig = AnalysisConfig
+                .newBuilder(MarketAnalysisUtils.QUOTE_FACTOR,
+                        MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+                        SuspensionsThrottlingConfig.DEFAULT, Collections.emptyMap(), false)
+                .build();
+        final Topology topology = TopologyEntitiesHandler.createTopology(Collections.EMPTY_LIST, REALTIME_TOPOLOGY_INFO,
+                Collections.emptyList());
+
+        Ede ede = new Ede();
+        ShoppingList sl = mock(ShoppingList.class);
+        Trader trader = mock(Trader.class);
+        when(sl.getBuyer()).thenReturn(trader);
+        when(trader.getOid()).thenReturn(111L);
+        topology.addProvisionedShoppingList(sl);
+        Analysis analysis = mock(Analysis.class);
+        AnalysisResults results = TopologyEntitiesHandler.performAnalysis(
+                REALTIME_TOPOLOGY_INFO, analysisConfig, analysis, topology, ede);
+
+        assertEquals(1, results.getNewShoppingListToBuyerEntryCount());
     }
 
     public void testMoveToCheaperComputeTier(boolean isVMShopTogether)

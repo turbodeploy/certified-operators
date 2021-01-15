@@ -354,7 +354,9 @@ public class TopologyEntitiesHandler {
                             }
                         }
                     }
-
+                    // repopulate the NewShoppingListToBuyerEntry mapping.
+                    builder.clearNewShoppingListToBuyerEntry();
+                    builder.addAllNewShoppingListToBuyerEntry(AnalysisToProtobuf.createNewShoppingListToBuyerMap(topology));
                     // Before building the results, generate traderTOs for provisioned traders from second round
                     // If Action DTO is added, check if we need to add provisioned traderTO as well
                     addProvisionedTraderToBuilder(builder, provisionedTraders, economy, topology);
