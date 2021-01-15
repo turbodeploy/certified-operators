@@ -751,7 +751,7 @@ public class TopologyProcessorDiagnosticsHandlerTest {
                 scheduleMap.put(DiscoveryType.INCREMENTAL, incrementalSchedule);
             }
             when(scheduler.getDiscoverySchedule(targetId)).thenReturn(scheduleMap);
-            discoveredGroupMap.put(targetId, TargetDiscoveredData.empty());
+            discoveredGroupMap.put(targetId, new TargetDiscoveredData());
             return this;
         }
 

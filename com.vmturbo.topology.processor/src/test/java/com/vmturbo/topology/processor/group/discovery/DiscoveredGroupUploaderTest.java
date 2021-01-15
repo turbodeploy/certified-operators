@@ -13,6 +13,7 @@ import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupCons
 import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.TARGET_ID;
 import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.TOPOLOGY;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
@@ -93,6 +94,9 @@ public class DiscoveredGroupUploaderTest {
             mock(DiscoveredClusterConstraintCache.class);
 
     private InterpretedGroup interpretedGroup = mock(InterpretedGroup.class);
+
+    private DiscoveredSettingPolicyInfo discoveredSettingPolicyInfo =
+        DiscoveredSettingPolicyInfo.newBuilder().setName("test").build();
 
     private GroupServiceMole groupServiceMole = spy(new GroupServiceMole());
 
@@ -438,6 +442,29 @@ public class DiscoveredGroupUploaderTest {
             .collect(Collectors.toSet());
         Assert.assertThat(policyNames, containsInAnyOrder(VM_ASG_POLICY_NAME,
             CONTAINER_ASG_POLICY_NAME, VM_TEMPLATE_EXCLUSION_POLICY_NAME));
+    }
+
+    /**
+     * Tests the case that discovery finishes after we set the scanned policy.
+     */
+    @Test
+    public void testDiscoveryAfterSettingScannedSettingPolicy() {
+        // ACT
+        // the scanned setting policy is set
+        recorderSpy.setScannedGroupsAndPolicies(TARGET_ID,
+            Collections.singletonList(interpretedGroup),
+            Collections.singletonList(discoveredSettingPolicyInfo));
+
+        // the discovered setting policy is set
+        recorderSpy.setTargetDiscoveredGroups(TARGET_ID, Collections.emptyList());
+
+        // ASSERT
+        assertThat(recorderSpy.getDataByTarget().get(TARGET_ID)
+            .getGroups().collect(Collectors.toList()),
+            is(Collections.singletonList(interpretedGroup)));
+        assertThat(recorderSpy.getDataByTarget().get(TARGET_ID)
+                .getSettingPolicies().collect(Collectors.toList()),
+            is(Collections.singletonList(discoveredSettingPolicyInfo)));
     }
 
     /**

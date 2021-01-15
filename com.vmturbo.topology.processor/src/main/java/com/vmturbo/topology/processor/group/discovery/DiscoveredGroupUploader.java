@@ -173,11 +173,10 @@ public class DiscoveredGroupUploader {
         discoveredSettingPolicyInfos
                     .addAll(convertConsistentScalingGroupsToPolicies(targetId, groups));
 
-        final TargetDiscoveredData discoveredData = new TargetDiscoveredData(interpretedDtos,
-            discoveredPolicyInfos, discoveredSettingPolicyInfos);
-
         synchronized (dataByTarget) {
-            dataByTarget.put(targetId, discoveredData);
+            dataByTarget.computeIfAbsent(targetId, k -> new TargetDiscoveredData())
+              .updateDiscoveredData(interpretedDtos, discoveredPolicyInfos,
+                  discoveredSettingPolicyInfos);
             discoveredClusterConstraintCache.storeDiscoveredClusterConstraint(targetId, groups);
         }
     }
@@ -295,8 +294,8 @@ public class DiscoveredGroupUploader {
                                             @Nonnull final Collection<DiscoveredSettingPolicyInfo> settingPolicies) {
         synchronized (dataByTarget) {
             final TargetDiscoveredData curDiscoveredData =
-                dataByTarget.computeIfAbsent(targetId, k -> TargetDiscoveredData.empty());
-            curDiscoveredData.setScannedData(interpretedGroups, settingPolicies);
+                dataByTarget.computeIfAbsent(targetId, k -> new TargetDiscoveredData());
+            curDiscoveredData.updateScannedData(interpretedGroups, settingPolicies);
         }
     }
 
@@ -324,15 +323,14 @@ public class DiscoveredGroupUploader {
      *                   the current discovered setting policies for this target.
      */
     public void restoreDiscoveredSettingPolicies(final long targetId,
-                                                 @Nonnull final List<DiscoveredSettingPolicyInfo> discovered) {
+                         @Nonnull final List<DiscoveredSettingPolicyInfo> discovered) {
         synchronized (dataByTarget) {
-            TargetDiscoveredData oldData = dataByTarget.computeIfAbsent(targetId,
-                k -> TargetDiscoveredData.empty());
-            final TargetDiscoveredData newData = new TargetDiscoveredData(
-                oldData.getDiscoveredGroups().collect(Collectors.toList()),
-                oldData.getPolicies().collect(Collectors.toList()),
+            TargetDiscoveredData data = dataByTarget.computeIfAbsent(targetId,
+                k -> new TargetDiscoveredData());
+           data.updateDiscoveredData(
+                data.getDiscoveredGroups().collect(Collectors.toList()),
+                data.getPolicies().collect(Collectors.toList()),
                 discovered);
-            dataByTarget.put(targetId, newData);
         }
     }
 
@@ -614,35 +612,25 @@ public class DiscoveredGroupUploader {
      */
     public static class TargetDiscoveredData {
 
-        private final List<InterpretedGroup> discoveredGroups;
-        private final List<DiscoveredPolicyInfo> discoveredPolicies;
-        private final List<DiscoveredSettingPolicyInfo> discoveredSettingPolicies;
+        private List<InterpretedGroup> discoveredGroups = Collections.emptyList();
+        private List<DiscoveredPolicyInfo> discoveredPolicies = Collections.emptyList();
+        private List<DiscoveredSettingPolicyInfo> discoveredSettingPolicies = Collections.emptyList();
 
         private List<InterpretedGroup> scannedGroups = Collections.emptyList();
         private List<DiscoveredSettingPolicyInfo> scannedSettingPolicies = Collections.emptyList();
 
-        private TargetDiscoveredData(@Nonnull final List<InterpretedGroup> discoveredGroups,
-                                     @Nonnull final List<DiscoveredPolicyInfo> discoveredPolicies,
-                                     @Nonnull final List<DiscoveredSettingPolicyInfo> discoveredSettingPolicies) {
+        private void updateDiscoveredData(@Nonnull final List<InterpretedGroup> discoveredGroups,
+                                          @Nonnull final List<DiscoveredPolicyInfo> discoveredPolicies,
+                                          @Nonnull final List<DiscoveredSettingPolicyInfo> discoveredSettingPolicies) {
             this.discoveredGroups = discoveredGroups;
             this.discoveredPolicies = discoveredPolicies;
             this.discoveredSettingPolicies = discoveredSettingPolicies;
         }
 
-        private void setScannedData(@Nonnull final Collection<InterpretedGroup> scannedGroups,
-                                    @Nonnull final Collection<DiscoveredSettingPolicyInfo> scannedSettingPolicies) {
+        private void updateScannedData(@Nonnull final Collection<InterpretedGroup> scannedGroups,
+                                       @Nonnull final Collection<DiscoveredSettingPolicyInfo> scannedSettingPolicies) {
             this.scannedGroups = new ArrayList<>(scannedGroups);
             this.scannedSettingPolicies = new ArrayList<>(scannedSettingPolicies);
-        }
-
-        /**
-         * Utility factory method to create an empty instance of {@link TargetDiscoveredData}.
-         *
-         * @return The {@link TargetDiscoveredData}.
-         */
-        public static TargetDiscoveredData empty() {
-            return new TargetDiscoveredData(Collections.emptyList(),
-                Collections.emptyList(), Collections.emptyList());
         }
 
         /**
