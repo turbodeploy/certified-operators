@@ -95,6 +95,7 @@ import com.vmturbo.common.protobuf.PaginationProtoUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import com.vmturbo.common.protobuf.action.RiskUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsForEntitiesRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsForEntitiesResponse;
@@ -1071,7 +1072,7 @@ public class EntitiesService implements IEntitiesService {
                 new ArrayList<>(entityConstraint.getPotentialPlacementsCount());
             List<Long> policyIdsToFetch = entityConstraint.getPotentialPlacementsList().stream()
                 .map(PotentialPlacements::getCommodityType)
-                .filter(c -> c.getType() == CommodityType.SEGMENTATION_VALUE
+                .filter(c -> RiskUtil.POLICY_COMMODITY_TYPES.contains(c.getType())
                     || isCommodityTypeEligibleForMerge(c))
                 .filter(c -> c.hasKey())
                 .map(c -> Longs.tryParse(c.getKey()))
@@ -1099,7 +1100,8 @@ public class EntitiesService implements IEntitiesService {
                 baseApiDTO.setDisplayName(initializeScopeDisplayName(potentialPlacement));
                 TopologyDTO.CommodityType cType = potentialPlacement.getCommodityType();
                 boolean isTurboConstraint = false;
-                if (cType.getType() == CommodityType.SEGMENTATION_VALUE || isCommodityTypeEligibleForMerge(cType)) {
+                if (RiskUtil.POLICY_COMMODITY_TYPES.contains(cType.getType())
+                    || isCommodityTypeEligibleForMerge(cType)) {
                     Long policyId = Longs.tryParse(potentialPlacement.getCommodityType().getKey());
                     if (policyId != null && policies.containsKey(policyId)) {
                         baseApiDTO.setDisplayName(policies.get(policyId).getPolicyInfo().getDisplayName());
