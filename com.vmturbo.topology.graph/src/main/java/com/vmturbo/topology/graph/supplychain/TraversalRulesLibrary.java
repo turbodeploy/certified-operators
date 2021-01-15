@@ -64,6 +64,9 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
                     // also consuming the volume.
                 new VolumeToPodRule<>(),
 
+                // traverse the regions, cloud services and Cloud commitments to get the Cloud Commitments
+                new CloudCommitmentAggregatorRule<>(),
+
                 // use default traversal rule in all other cases
                 new DefaultTraversalRule<>());
 
@@ -83,7 +86,9 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
         for (TraversalRule<E> rule : ruleChain) {
             if (rule.isApplicable(entity, traversalMode)) {
                 rule.apply(entity, traversalMode, depth, frontier);
-                return;
+                if (rule.isTerminal()) {
+                    return;
+                }
             }
         }
 
@@ -425,6 +430,34 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
             } else {
                 return e -> true;
             }
+        }
+    }
+
+    /**
+     * The Cloud Commitment Aggregator rule: If a particular Cloud Commitment is present in a scope,
+     * include any Cloud Commitment present in a larger scope as well.
+     *
+     * @param <E> The type of {@link TopologyGraphEntity} in the graph.
+     */
+    private static class CloudCommitmentAggregatorRule<E extends TopologyGraphEntity<E>> implements TraversalRule<E> {
+
+        private static final ImmutableList<Integer> ENTITY_TYPES = ImmutableList.of(EntityType.REGION_VALUE, EntityType.CLOUD_SERVICE_VALUE, EntityType.SERVICE_PROVIDER_VALUE);
+
+        @Override
+        public boolean isApplicable(@Nonnull E entity, @Nonnull TraversalMode traversalMode) {
+            return ENTITY_TYPES.contains(entity.getEntityType()) && traversalMode == TraversalMode.AGGREGATED_BY;
+        }
+
+        @Override
+        public void apply(@Nonnull E entity, @Nonnull TraversalMode traversalMode, int depth,
+                @Nonnull Queue<TraversalState> frontier) {
+            entity.getAggregatedAndOwnedEntities().stream().filter(e -> e.getEntityType() == EntityType.CLOUD_COMMITMENT_VALUE)
+                    .forEach(s -> frontier.add(new TraversalState(s.getOid(), TraversalMode.STOP, depth + 1)));
+        }
+
+        @Override
+        public boolean isTerminal() {
+            return false;
         }
     }
 }

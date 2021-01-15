@@ -42,6 +42,15 @@ public interface TraversalRule<E extends TopologyGraphEntity<E>> {
                @Nonnull Queue<TraversalState> frontier);
 
     /**
+     * Boolean to denote if the current rule is the terminal rule.
+     *
+     * @return true if the current rule is the terminal rule
+     */
+    default boolean isTerminal() {
+        return true;
+    }
+
+    /**
      * This is the default traversal rule, to be used in almost all cases
      * of scoped supply chain generation. Other rules will bypass the default
      * rule to implement special cases.
