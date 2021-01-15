@@ -10,8 +10,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import javax.annotation.Nonnull;
-
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -207,55 +205,11 @@ public class CommoditiesEditorTest {
 
     @Test
     public void testEditCommoditiesForMultipleProviders() throws IOException {
-        // Set virtual machine with commodities bought from both storages.
-        TopologyEntity.Builder vmBuilder = TopologyEntityUtils.topologyEntityBuilder(
-                        TopologyEntityDTO.newBuilder().setOid(3).addCommoditiesBoughtFromProviders(
-                        CommoditiesBoughtFromProvider.newBuilder().addCommodityBought(
-                                        CommodityBoughtDTO.newBuilder().setCommodityType(
-                                            CommodityType.newBuilder().setType(CommodityDTO.CommodityType.STORAGE_AMOUNT.getNumber()).setKey("").build())
-                                        .setActive(true)
-                                        .setUsed(10)
-                                        .setPeak(20))
-                                    .setProviderId(1L))
-        .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder().addCommodityBought(
-                                        CommodityBoughtDTO.newBuilder().setCommodityType(
-                                            CommodityType.newBuilder().setType(CommodityDTO.CommodityType.STORAGE_AMOUNT.getNumber()).setKey("").build())
-                                        .setActive(true)
-                                        .setUsed(10)
-                                        .setPeak(20))
-                                    .setProviderId(2L))
-        .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE));
-        final Map<Long, TopologyEntity.Builder> topology = new HashMap<>();
-
-        // Set two storages with commodities sold.
-        topology.put(1L, buildTopologyEntityWithCommSold(1L, CommodityDTO.CommodityType.STORAGE_AMOUNT.getNumber(),
-                        EntityType.STORAGE_VALUE, 70, 80));
-        topology.put(2L, buildTopologyEntityWithCommSold(2L, CommodityDTO.CommodityType.STORAGE_AMOUNT.getNumber(),
-                        EntityType.STORAGE_VALUE, 70, 80));
-        topology.put(3L, vmBuilder);
-
-        final TopologyGraph<TopologyEntity> g = TopologyEntityTopologyGraphCreator.newGraph(topology);
+        final TopologyGraph<TopologyEntity> g = createOneVMThreeSTsGraph();
 
         TopologyEntity st1 = g.getEntity(1L).get();
         TopologyEntity st2 = g.getEntity(2L).get();
         TopologyEntity vm = g.getEntity(3L).get();
-
-        // Check values before calling CommoditiesEditor.
-        // Compare used
-        Assert.assertEquals(70, st1.getTopologyEntityDtoBuilder().getCommoditySoldListList()
-                        .get(0).getUsed(), DELTA);
-        Assert.assertEquals(70, st2.getTopologyEntityDtoBuilder().getCommoditySoldListList()
-                        .get(0).getUsed(), DELTA);
-        Assert.assertEquals(10, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
-                        .get(0).getCommodityBoughtList().get(0).getUsed(), DELTA);
-
-        // Compare peak
-        Assert.assertEquals(80, st1.getTopologyEntityDtoBuilder().getCommoditySoldListList()
-                        .get(0).getPeak(), DELTA);
-        Assert.assertEquals(80, st2.getTopologyEntityDtoBuilder().getCommoditySoldListList()
-                        .get(0).getPeak(), DELTA);
-        Assert.assertEquals(20, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
-                        .get(0).getCommodityBoughtList().get(0).getPeak(), DELTA);
 
         // Get scenario change
         Long baselineDate = 123456789L;
@@ -303,6 +257,79 @@ public class CommoditiesEditorTest {
                         .get(0).getCommodityBoughtList().get(0).getPeak(), DELTA);
         Assert.assertEquals(40, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
                         .get(1).getCommodityBoughtList().get(0).getPeak(), DELTA);
+    }
+
+    // Create a topology graph with one VM and three storages.
+    // Sets value for VM(from ST1 : Used : 10 , Peak : 20) (from ST2 : Used : 10 , Peak : 20)
+    //                  (from ST3 : Used : 100 , Peak : 200)
+    // Sets value for ST1(Used : 70, Peak : 80)
+    // Sets value for ST2(Used : 70, Peak : 80)
+    // Sets value for ST3(Used : 700, Peak : 800)
+    // Also check values.
+    private TopologyGraph<TopologyEntity> createOneVMThreeSTsGraph() {
+        // Set virtual machine with commodities bought from both storages.
+        TopologyEntity.Builder vmBuilder = TopologyEntityUtils.topologyEntityBuilder(
+            TopologyEntityDTO.newBuilder().setOid(3).addCommoditiesBoughtFromProviders(
+                    createStorageAmountCommoditiesBoughtFromProvider(1L, 10, 20))
+                .addCommoditiesBoughtFromProviders(
+                    createStorageAmountCommoditiesBoughtFromProvider(2L, 10, 20))
+                .addCommoditiesBoughtFromProviders(
+                    createStorageAmountCommoditiesBoughtFromProvider(4L, 100, 200))
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE));
+        final Map<Long, TopologyEntity.Builder> topology = new HashMap<>();
+
+        // Set two storages with commodities sold.
+        topology.put(1L, buildTopologyEntityWithCommSold(1L, CommodityDTO.CommodityType.STORAGE_AMOUNT.getNumber(),
+            EntityType.STORAGE_VALUE, 70, 80));
+        topology.put(2L, buildTopologyEntityWithCommSold(2L, CommodityDTO.CommodityType.STORAGE_AMOUNT.getNumber(),
+            EntityType.STORAGE_VALUE, 70, 80));
+        topology.put(4L, buildTopologyEntityWithCommSold(4L, CommodityDTO.CommodityType.STORAGE_AMOUNT.getNumber(),
+            EntityType.STORAGE_VALUE, 700, 800));
+        topology.put(3L, vmBuilder);
+
+        final TopologyGraph<TopologyEntity> g = TopologyEntityTopologyGraphCreator.newGraph(topology);
+
+        TopologyEntity st1 = g.getEntity(1L).get();
+        TopologyEntity st2 = g.getEntity(2L).get();
+        TopologyEntity vm = g.getEntity(3L).get();
+
+        // Check values before calling CommoditiesEditor.
+        // Compare used
+        Assert.assertEquals(70, st1.getTopologyEntityDtoBuilder().getCommoditySoldListList()
+            .get(0).getUsed(), DELTA);
+        Assert.assertEquals(70, st2.getTopologyEntityDtoBuilder().getCommoditySoldListList()
+            .get(0).getUsed(), DELTA);
+        Assert.assertEquals(10, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
+            .get(0).getCommodityBoughtList().get(0).getUsed(), DELTA);
+
+        // Compare peak
+        Assert.assertEquals(80, st1.getTopologyEntityDtoBuilder().getCommoditySoldListList()
+            .get(0).getPeak(), DELTA);
+        Assert.assertEquals(80, st2.getTopologyEntityDtoBuilder().getCommoditySoldListList()
+            .get(0).getPeak(), DELTA);
+        Assert.assertEquals(20, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
+            .get(0).getCommodityBoughtList().get(0).getPeak(), DELTA);
+
+        return g;
+    }
+
+    /**
+     * Create STORAGE_AMOUNT CommoditiesBoughtFromProvider.
+     *
+     * @param providerOid provider oid
+     * @param used used value
+     * @param peak peak value
+     * @return CommoditiesBoughtFromProvider
+     */
+    private CommoditiesBoughtFromProvider createStorageAmountCommoditiesBoughtFromProvider(
+            long providerOid, double used, double peak) {
+        return CommoditiesBoughtFromProvider.newBuilder().addCommodityBought(
+            CommodityBoughtDTO.newBuilder().setCommodityType(
+                CommodityType.newBuilder().setType(CommodityDTO.CommodityType.STORAGE_AMOUNT.getNumber()).setKey("").build())
+                .setActive(true)
+                .setUsed(used)
+                .setPeak(peak))
+            .setProviderId(providerOid).build();
     }
 
     @Test
@@ -422,37 +449,38 @@ public class CommoditiesEditorTest {
                         .get(0).getCommodityBoughtList().get(0).getPeak(), DELTA);
     }
 
+    /**
+     * Test {@link CommoditiesEditor#editCommoditiesForClusterHeadroom(TopologyGraph, PlanScope, TopologyInfo)}
+     * A VM is placed on three storages st1, st2 and st3.
+     * There are historical system load records for two storages st1, st2 and st4 (VM was placed on it).
+     * Make sure that VM bought and storage sold usage are correctly updated.
+     */
     @Test
     public void testEditCommoditiesForClusterHeadroom() {
-        // Get graph
-        // Sets value for VM(Used :10 , Peak : 20)
-        // Sets value for PM(Used : 70, Peak : 80)
-        TopologyGraph<TopologyEntity> g = createGraph(CommodityDTO.CommodityType.MEM, 70, 80, 10, 20);
+        // Sets value for VM(from ST1 : Used : 10 , Peak : 20) (from ST2 : Used : 10 , Peak : 20)
+        //                  (from ST3 : Used : 100 , Peak : 200)
+        // Sets value for ST1(Used : 70, Peak : 80)
+        // Sets value for ST2(Used : 70, Peak : 80)
+        // Sets value for ST3(Used : 700, Peak : 800)
+        final TopologyGraph<TopologyEntity> g = createOneVMThreeSTsGraph();
 
-        TopologyEntity pm = g.getEntity(1L).get();
-        TopologyEntity vm = g.getEntity(2L).get();
+        TopologyEntity st1 = g.getEntity(1L).get();
+        TopologyEntity st2 = g.getEntity(2L).get();
+        TopologyEntity st3 = g.getEntity(4L).get();
+        TopologyEntity vm = g.getEntity(3L).get();
 
-        // Check values before calling CommoditiesEditor.
-        // Compare used
-        Assert.assertEquals(70, pm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
-                        .get(0).getUsed(), DELTA);
-        Assert.assertEquals(10, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
-                        .get(0).getCommodityBoughtList().get(0).getUsed(), DELTA);
-
-        // Compare peak
-        Assert.assertEquals(80, pm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
-                        .get(0).getPeak(), DELTA);
-        Assert.assertEquals(20, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
-                        .get(0).getCommodityBoughtList().get(0).getPeak(), DELTA);
-
+        // Create system load records.
         List<SystemLoadInfoResponse> response = Collections.singletonList(
             SystemLoadInfoResponse.newBuilder()
                 .addRecord(SystemLoadRecord.newBuilder()
-                    .setPropertyType(CommodityDTO.CommodityType.MEM.name())
-                    .setAvgValue(50)
-                    .setMaxValue(100)
-                    .setUuid(2L) // uuid of VM
-                    .build())
+                    .setPropertyType(CommodityDTO.CommodityType.STORAGE_AMOUNT.name())
+                    .setAvgValue(10).setMaxValue(20).setUuid(vm.getOid()).setProducerUuid(99L)) // storage that doesn't exist
+                .addRecord(SystemLoadRecord.newBuilder()
+                    .setPropertyType(CommodityDTO.CommodityType.STORAGE_AMOUNT.name())
+                    .setAvgValue(30).setMaxValue(40).setUuid(vm.getOid()).setProducerUuid(st2.getOid())) // uuid of ST2
+                .addRecord(SystemLoadRecord.newBuilder()
+                    .setPropertyType(CommodityDTO.CommodityType.STORAGE_AMOUNT.name())
+                    .setAvgValue(50).setMaxValue(60).setUuid(vm.getOid()).setProducerUuid(st1.getOid())) // uuid of ST1
                 .build());
 
         Mockito.when(statsHistoryService.getSystemLoadInfo(Mockito.any())).thenReturn(response);
@@ -469,24 +497,44 @@ public class CommoditiesEditorTest {
             .build();
 
         CommoditiesEditor commEditor = new CommoditiesEditor(historyClient);
-        commEditor.applyCommodityEdits(g, new ArrayList<ScenarioChange>(), topologyInfo, scope);
+        commEditor.applyCommodityEdits(g, Collections.emptyList(), topologyInfo, scope);
 
         // Check values after calling CommoditiesEditor.
         // Compare used
-        // Expected value used for PM : used - currUsedForVM + usedFromSystemLoad : 70 - 10 + 50
-        // Expected value used for VM : as fetched from SystemLoad : 50
-        Assert.assertEquals(70 - 10 + 50, pm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
-                        .get(0).getUsed(), DELTA);
+        // Expected value used for ST1 : used - currUsedForVM + usedFromSystemLoad : 70 - 10 + 50
+        // Expected value used for ST2 : used - currUsedForVM + usedFromSystemLoad : 70 - 10 + 30
+        // Expected value used for ST2 : used - currUsedForVM + usedFromSystemLoad : 700
+        // Expected value used for VM : from ST1 : 50, from ST2 : 30, from ST2 : 100
+        Assert.assertEquals(70 - 10 + 50, st1.getTopologyEntityDtoBuilder().getCommoditySoldListList()
+            .get(0).getUsed(), DELTA);
+        Assert.assertEquals(70 - 10 + 30, st2.getTopologyEntityDtoBuilder().getCommoditySoldListList()
+            .get(0).getUsed(), DELTA);
+        Assert.assertEquals(700, st3.getTopologyEntityDtoBuilder().getCommoditySoldListList()
+            .get(0).getUsed(), DELTA);
         Assert.assertEquals(50, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
-                        .get(0).getCommodityBoughtList().get(0).getUsed(), DELTA);
+            .get(0).getCommodityBoughtList().get(0).getUsed(), DELTA);
+        Assert.assertEquals(30, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
+            .get(1).getCommodityBoughtList().get(0).getUsed(), DELTA);
+        Assert.assertEquals(100, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
+            .get(2).getCommodityBoughtList().get(0).getUsed(), DELTA);
 
         // Compare peak
-        // Expected value peak for PM : peak - currPeakForVM + peakFromSystemLoad : 80 - 20 + 100
-        // Expected value peak for VM : as fetched from SystemLoad : 100
-        Assert.assertEquals(80 - 20 + 100, pm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
-                        .get(0).getPeak(), DELTA);
-        Assert.assertEquals(100, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
-                        .get(0).getCommodityBoughtList().get(0).getPeak(), DELTA);
+        // Expected value used for ST1 : used - currUsedForVM + usedFromSystemLoad : 80 - 20 + 60
+        // Expected value used for ST2 : used - currUsedForVM + usedFromSystemLoad : 80 - 20 + 40
+        // Expected value used for ST2 : used - currUsedForVM + usedFromSystemLoad : 800
+        // Expected value used for VM : from ST1 : 60, from ST2 : 40, from ST2 : 200
+        Assert.assertEquals(80 - 20 + 60, st1.getTopologyEntityDtoBuilder().getCommoditySoldListList()
+            .get(0).getPeak(), DELTA);
+        Assert.assertEquals(80 - 20 + 40, st2.getTopologyEntityDtoBuilder().getCommoditySoldListList()
+            .get(0).getPeak(), DELTA);
+        Assert.assertEquals(800, st3.getTopologyEntityDtoBuilder().getCommoditySoldListList()
+            .get(0).getPeak(), DELTA);
+        Assert.assertEquals(60, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
+            .get(0).getCommodityBoughtList().get(0).getPeak(), DELTA);
+        Assert.assertEquals(40, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
+            .get(1).getCommodityBoughtList().get(0).getPeak(), DELTA);
+        Assert.assertEquals(200, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
+            .get(2).getCommodityBoughtList().get(0).getPeak(), DELTA);
     }
 
     @Test
@@ -505,31 +553,20 @@ public class CommoditiesEditorTest {
         Assert.assertEquals(80, vm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
                         .get(0).getPeak(), DELTA);
 
-        List<SystemLoadInfoResponse> response = Collections.singletonList(
-            SystemLoadInfoResponse.newBuilder()
-                .addRecord(SystemLoadRecord.newBuilder()
-                    .setPropertyType(CommodityDTO.CommodityType.VMEM.name())
-                    .setAvgValue(50)
-                    .setMaxValue(100)
-                    .setUuid(1L) // uuid of VM
-                    .build())
-                .build());
-
-        Mockito.when(statsHistoryService.getSystemLoadInfo(Mockito.any())).thenReturn(response);
-
-        PlanScope scope = PlanScope.newBuilder()
-            .addScopeEntries(PlanScopeEntry.newBuilder()
-                .setScopeObjectOid(10L)
-                .build())
+        GetEntityStatsResponse response = GetEntityStatsResponse.newBuilder()
+            .addEntityStats(getEntityStats(1, "2", 100f, 50f, "VMem"))
             .build();
+        Mockito.when(statsHistoryService.getEntityStats(Mockito.any())).thenReturn(response);
 
-        TopologyInfo topologyInfo = TopologyInfo.newBuilder().setPlanInfo(PlanTopologyInfo.newBuilder()
-                .setPlanProjectType(com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType.CLUSTER_HEADROOM)
-                .build())
-            .build();
+        // Get scenario change
+        Long baselineDate = 123456789L;
+        List<ScenarioChange> changes = getScenarioChangeWithBaselineDate(baselineDate);
+        // Get TopologyInfo : Scope to PMs OID
+        List<Long> scopeOids = Lists.newArrayList(1L);
+        TopologyDTO.TopologyInfo topologyInfo = getTopologyInfoWithGivenScope(scopeOids);
 
         CommoditiesEditor commEditor = new CommoditiesEditor(historyClient);
-        commEditor.applyCommodityEdits(g, new ArrayList<ScenarioChange>(), topologyInfo, scope);
+        commEditor.applyCommodityEdits(g, changes, topologyInfo, PlanScope.getDefaultInstance());
 
         // Check values after calling CommoditiesEditor.
         // Compare used and peak

@@ -227,47 +227,73 @@ public class CommoditiesEditor {
             long providerOid = providers.remove();
             providers.add(providerOid);
 
-            graph.getEntity(providerOid).ifPresent(provider -> {
-             // Find commodity bought relevant to current provider.
-                Optional<CommodityBoughtDTO.Builder> commBought = vm.getTopologyEntityDtoBuilder()
-                                .getCommoditiesBoughtFromProvidersBuilderList().stream()
-                                .filter(commsFromProvider -> commsFromProvider.getProviderId() == providerOid)
-                                .flatMap(c -> c.getCommodityBoughtBuilderList().stream())
-                                .filter(g -> g.getCommodityType().getType() == commType.getNumber())
-                                .findFirst();
-
-                 commBought.ifPresent(commodityBought -> {
-                    // Set values of provider
-                    Optional<CommoditySoldDTO.Builder> commSoldByProvider =
-                                    provider.getTopologyEntityDtoBuilder()
-                                    .getCommoditySoldListBuilderList()
-                                    .stream()
-                                    .filter(c -> c.getCommodityType().getType() == commType.getNumber() )
-                                    .findFirst();
-
-                    if (commSoldByProvider.isPresent()) {
-                        CommoditySoldDTO.Builder commSold = commSoldByProvider.get();
-                        // Subtract current value and add fetched value from database.
-                        float newPeak = (float) (Math.max(commSold.getPeak() - commodityBought.getPeak(), 0) + peak);
-                        if (newPeak < 0) {
-                            logger.error("Peak quantity = {} for commodity type {} of topology entity {}"
-                                    , newPeak, commSold.getCommodityType(), provider.getDisplayName());
-                        }
-                        double newUsed = Math.max(commSold.getUsed() - commodityBought.getUsed(), 0) + used;
-                        commSold.setUsed(newUsed);
-                        commSold.setPeak(newPeak);
-                    }
-
-                    // Set value for consumer.
-                    // Note : If we have multiple providers on baseline date and one provider currently
-                    // we will set value for commodity bought from last record. It is not a problem because
-                    // price in market is calculated by providers based on commodity sold. Mismatch in commodity
-                    // bought and sold values will be reflected as overhead.
-                    commodityBought.setUsed(used);
-                    commodityBought.setPeak(peak);
-                });
-            });
+            updateCommodityValuesForVmAndProvider(vm, commType, graph, providerOid, peak, used);
         }
+    }
+
+    /**
+     * Update current used/peak commodity values for VMs and its provider.
+     * Example : Expected value used for provider : used/peak - currValueForVM + valueFromStatRecord.
+     * Example : Expected value used for VM : as fetched from database (i.e StatRecord values).
+     *
+     * @param vm and its providers for which commodity values are updated.
+     * @param commType commodity type to be updated.
+     * @param graph which entities belong to.
+     * @param providerOid oid of provider of vm.
+     * @param peak value as fetched from database for this VM's commodity.
+     * @param used value as fetched from database for this VM's commodity.
+     */
+    private void updateCommodityValuesForVmAndProvider(TopologyEntity vm, CommodityType commType,
+                                                       final TopologyGraph<TopologyEntity> graph,
+                                                       final long providerOid,
+                                                       final double peak,
+                                                       final double used) {
+        // We skip access commodities
+        if (commType == null || ACCESS_COMMODITIES.contains(commType)) {
+            return;
+        }
+
+        graph.getEntity(providerOid).ifPresent(provider -> {
+            // Find commodity bought relevant to current provider.
+            Optional<CommodityBoughtDTO.Builder> commBought = vm.getTopologyEntityDtoBuilder()
+                .getCommoditiesBoughtFromProvidersBuilderList().stream()
+                .filter(commsFromProvider -> commsFromProvider.getProviderId() == providerOid)
+                .flatMap(c -> c.getCommodityBoughtBuilderList().stream())
+                .filter(g -> g.getCommodityType().getType() == commType.getNumber())
+                .findFirst();
+
+            commBought.ifPresent(commodityBought -> {
+                // Set values of provider
+                Optional<CommoditySoldDTO.Builder> commSoldByProvider =
+                    provider.getTopologyEntityDtoBuilder()
+                        .getCommoditySoldListBuilderList()
+                        .stream()
+                        .filter(c -> c.getCommodityType().getType() == commType.getNumber() )
+                        .findFirst();
+
+                commSoldByProvider.ifPresent(commSold -> {
+                    // Subtract current value and add fetched value from database.
+                    float newPeak = (float) (Math.max(commSold.getPeak() - commodityBought.getPeak(), 0) + peak);
+                    if (newPeak < 0) {
+                        logger.error("Peak quantity = {} for commodity type {} of topology entity {}"
+                            , newPeak, commSold.getCommodityType(), provider.getDisplayName());
+                    }
+                    // Note: It's possible that newUsed is greater than capacity.
+                    // e.g., when storage is resized down and historical system load bought value is large.
+                    double newUsed = Math.max(commSold.getUsed() - commodityBought.getUsed(), 0) + used;
+                    commSold.setUsed(newUsed);
+                    commSold.setPeak(newPeak);
+                });
+
+                // Set value for consumer.
+                // Note : If we have multiple providers on baseline date and one provider currently
+                // we will set value for commodity bought from last record. It is not a problem because
+                // price in market is calculated by providers based on commodity sold. Mismatch in commodity
+                // bought and sold values will be reflected as overhead.
+                commodityBought.setUsed(used);
+                commodityBought.setPeak(peak);
+            });
+        });
     }
 
     @Nonnull
@@ -368,17 +394,16 @@ public class CommoditiesEditor {
 
                 oidToSystemLoadInfo.keySet().forEach(oid -> {
                     graph.getEntity(oid).ifPresent(vm -> {
-                        // Create map for this VM and its providers.
-                        Map<Integer, Queue<Long>> providerIdsByCommodityType =
-                            getProviderIdsByCommodityType(vm);
-                        oidToSystemLoadInfo.get(oid).forEach(record -> {
-                            double peak = record.getMaxValue();
-                            double used = record.getAvgValue();
-                            // Update commodity value for this entity
-                            CommodityType commType = CommodityType.valueOf(record.getPropertyType());
-                            updateCommodityValuesForVmAndProvider(vm, commType, graph,
-                                providerIdsByCommodityType, peak, used);
-                        });
+                        oidToSystemLoadInfo.get(oid).stream()
+                            .filter(SystemLoadRecord::hasProducerUuid)
+                            .forEach(record -> {
+                                double peak = record.getMaxValue();
+                                double used = record.getAvgValue();
+                                // Update commodity value for this entity
+                                CommodityType commType = CommodityType.valueOf(record.getPropertyType());
+                                updateCommodityValuesForVmAndProvider(vm, commType, graph,
+                                    record.getProducerUuid(), peak, used);
+                            });
                     });
                 });
         });
