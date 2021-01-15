@@ -32,7 +32,8 @@ RUN dnf install -y rsyslog procps-ng python2 java-11-openjdk-headless gnutls && 
 ARG ZOOKEEPER_TAR=apache-zookeeper-${ZOOKEEPER_VERSION}-bin.tar.gz
 
 RUN cd /tmp && \
-    curl -k -s -O http://apache.mirrors.pair.com/zookeeper/zookeeper-${ZOOKEEPER_VERSION}/${ZOOKEEPER_TAR} && \
+    curl -k -s -O http://archive.apache.org/dist/zookeeper/zookeeper-${ZOOKEEPER_VERSION}/${ZOOKEEPER_TAR} && \
+    #curl -k -s -O http://apache.mirrors.pair.com/zookeeper/zookeeper-${ZOOKEEPER_VERSION}/${ZOOKEEPER_TAR} && \
     tar -C /opt -xvf ${ZOOKEEPER_TAR} && \
     ln -s apache-zookeeper-${ZOOKEEPER_VERSION}-bin /opt/zookeeper && \
     rm ${ZOOKEEPER_TAR} && \
