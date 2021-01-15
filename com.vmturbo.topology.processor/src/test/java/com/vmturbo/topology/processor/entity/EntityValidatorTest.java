@@ -2,7 +2,6 @@ package com.vmturbo.topology.processor.entity;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 
 import java.util.HashMap;
 import java.util.Optional;
@@ -11,9 +10,6 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableMap;
 
-import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.spi.ExtendedLogger;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -30,7 +26,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
-import com.vmturbo.topology.processor.entity.EntityValidator.ClutterResistantLogger;
 import com.vmturbo.topology.processor.entity.EntityValidator.EntityValidationFailure;
 import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
 
@@ -43,26 +38,6 @@ public class EntityValidatorTest {
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
-
-    @Test
-    public void testLogger() {
-        EntityValidator.ClutterResistantLogger logger =
-            new ClutterResistantLogger((ExtendedLogger) LogManager.getLogger());
-
-        assertEquals(1, ClutterResistantLogger.N_NON_SUPPRESSED_MESSAGES);
-
-        assertFalse(logger.isSuppressed("Hello World!"));
-        logger.warn("Hello World!");
-        assertTrue(logger.isSuppressed("Hello World!")); // Shouldn't print anything.
-        logger.warn("Hello World!");
-
-        assertFalse(logger.isSuppressed("{} entities are missing."));
-        logger.warn("{} entities are missing.", 5);
-        assertTrue(logger.isSuppressed("{} entities are missing."));
-        logger.warn("{} entities are missing.", 12); // Shouldn't print anything.
-
-        logger.logSuppressedMessageCounts(Level.WARN);
-    }
 
     @Test
     public void testNoCommodities() throws Exception {

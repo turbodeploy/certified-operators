@@ -16,13 +16,7 @@ import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Marker;
-import org.apache.logging.log4j.message.Message;
-import org.apache.logging.log4j.spi.AbstractLogger;
 import org.apache.logging.log4j.spi.ExtendedLogger;
-
-import it.unimi.dsi.fastutil.objects.Object2IntLinkedOpenHashMap;
-import it.unimi.dsi.fastutil.objects.Object2IntMap;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
@@ -32,6 +26,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
+import com.vmturbo.commons.utils.ClutterResistantLogger;
 
 /**
  * Validates {@link TopologyEntity}s during topology pipeline.
@@ -50,174 +45,6 @@ public class EntityValidator {
      * TODO consider also caching usages - although they have smaller processing impact
      */
     private Map<SoldCommodityReference, Double> capacities = new HashMap<>();
-
-    /**
-     * A logger that attempts to reduce log clutter by suppressing messages that have already been
-     * printed multiple times.
-     *
-     * The idea is that messages containing placeholders (to be substituted by actual values) are
-     * printed using the logger. If the same message (before substitution) is printed multiple times
-     * then requests to log that same message are silently rejected. At the end a synopsis of the
-     * suppressed messages can be printed.
-     */
-    public static class ClutterResistantLogger extends AbstractLogger {
-        /** How many times a message can be printed before the logger starts suppressing it. */
-        public static final int N_NON_SUPPRESSED_MESSAGES = 1;
-        /** The logger to use internally to log the messages. */
-        private final ExtendedLogger logger_;
-        /** How many times each message has been printed so far. */
-        private final Object2IntLinkedOpenHashMap<Object> messageCounters_ =
-            new Object2IntLinkedOpenHashMap<>();
-
-        public ClutterResistantLogger(@Nonnull ExtendedLogger logger) {
-            logger_ = logger;
-        }
-
-        /**
-         * Adds a message in the logs per unique message that has been suppressed including the
-         * message and how many times it was suppressed.
-         */
-        public void logSuppressedMessageCounts(Level level) {
-            for (Object2IntMap.Entry<Object> entry : messageCounters_.object2IntEntrySet()) {
-                if (entry.getIntValue() > N_NON_SUPPRESSED_MESSAGES) {
-                    logger_.log(level, "{} additional message(s) of the form '{}' were suppressed "
-                            + "to avoid cluttering the logs.",
-                        entry.getIntValue() - N_NON_SUPPRESSED_MESSAGES, entry.getKey());
-                } // end if
-            } // end for
-        }
-
-        /**
-         * Resets all message counters so previously suppressed messages can be printed again.
-         */
-        public void clearMessageCounters() {
-            messageCounters_.clear();
-        }
-
-        public boolean isSuppressed(Object message) {
-            return messageCounters_.getInt(message) >= N_NON_SUPPRESSED_MESSAGES;
-        }
-
-        @Override
-        public boolean isEnabled(final Level level, final Marker marker, final Message message,
-                                 final Throwable t) {
-            return logger_.isEnabled(level, marker, message, t);
-        }
-
-        @Override
-        public boolean isEnabled(final Level level, final Marker marker, final CharSequence message,
-                                 final Throwable t) {
-            return logger_.isEnabled(level, marker, message, t);
-        }
-
-        @Override
-        public boolean isEnabled(final Level level, final Marker marker, final Object message,
-                                 final Throwable t) {
-            return logger_.isEnabled(level, marker, message, t);
-        }
-
-        @Override
-        public boolean isEnabled(final Level level, final Marker marker, final String message,
-                                 final Throwable t) {
-            return logger_.isEnabled(level, marker, message, t);
-        }
-
-        @Override
-        public boolean isEnabled(final Level level, final Marker marker, final String message) {
-            return logger_.isEnabled(level, marker, message);
-        }
-
-        @Override
-        public boolean isEnabled(final Level level, final Marker marker, final String message,
-                                 final Object... params) {
-            return logger_.isEnabled(level, marker, message, params);
-        }
-
-        @Override
-        public boolean isEnabled(final Level level, final Marker marker, final String message,
-                                 final Object p0) {
-            return logger_.isEnabled(level, marker, message, p0);
-        }
-
-        @Override
-        public boolean isEnabled(final Level level, final Marker marker, final String message,
-                                 final Object p0, final Object p1) {
-            return logger_.isEnabled(level, marker, message, p0, p1);
-        }
-
-        @Override
-        public boolean isEnabled(final Level level, final Marker marker, final String message,
-                                 final Object p0, final Object p1, final Object p2) {
-            return logger_.isEnabled(level, marker, message, p0, p1, p2);
-        }
-
-        @Override
-        public boolean isEnabled(final Level level, final Marker marker, final String message,
-                                 final Object p0, final Object p1, final Object p2,
-                                 final Object p3) {
-            return logger_.isEnabled(level, marker, message, p0, p1, p2, p3);
-        }
-
-        @Override
-        public boolean isEnabled(final Level level, final Marker marker, final String message,
-                                 final Object p0, final Object p1, final Object p2, final Object p3,
-                                 final Object p4) {
-            return logger_.isEnabled(level, marker, message, p0, p1, p2, p3, p4);
-        }
-
-        @Override
-        public boolean isEnabled(final Level level, final Marker marker, final String message,
-                                 final Object p0, final Object p1, final Object p2, final Object p3,
-                                 final Object p4, final Object p5) {
-            return logger_.isEnabled(level, marker, message, p0, p1, p2, p3, p4, p5);
-        }
-
-        @Override
-        public boolean isEnabled(final Level level, final Marker marker, final String message,
-                                 final Object p0, final Object p1, final Object p2, final Object p3,
-                                 final Object p4, final Object p5, final Object p6) {
-            return logger_.isEnabled(level, marker, message, p0, p1, p2, p3, p4, p5, p6);
-        }
-
-        @Override
-        public boolean isEnabled(final Level level, final Marker marker, final String message,
-                                 final Object p0, final Object p1, final Object p2, final Object p3,
-                                 final Object p4, final Object p5, final Object p6,
-                                 final Object p7) {
-            return logger_.isEnabled(level, marker, message, p0, p1, p2, p3, p4, p5, p6, p7);
-        }
-
-        @Override
-        public boolean isEnabled(final Level level, final Marker marker, final String message,
-                                 final Object p0, final Object p1, final Object p2, final Object p3,
-                                 final Object p4, final Object p5, final Object p6, final Object p7,
-                                 final Object p8) {
-            return logger_.isEnabled(level, marker, message, p0, p1, p2, p3, p4, p5, p6, p7, p8);
-        }
-
-        @Override
-        public boolean isEnabled(final Level level, final Marker marker, final String message,
-                                 final Object p0, final Object p1, final Object p2, final Object p3,
-                                 final Object p4, final Object p5, final Object p6, final Object p7,
-                                 final Object p8, final Object p9) {
-            return logger_.isEnabled(level,marker, message, p0, p1, p2, p3, p4, p5, p6, p7, p8, p9);
-        }
-
-        @Override
-        public void logMessage(final String fqcn, final Level level, final Marker marker,
-                               final Message message, final Throwable t) {
-            final int newCount = messageCounters_.getInt(message.getFormat()) + 1;
-            messageCounters_.put(message.getFormat(), newCount);
-            if (newCount <= N_NON_SUPPRESSED_MESSAGES) {
-                logger_.logMessage(fqcn, level, marker, message, t);
-            }
-        }
-
-        @Override
-        public Level getLevel() {
-            return logger_.getLevel();
-        }
-    } // end class ClutterResistantLogger
 
     /**
      * Construct the entity validator.
