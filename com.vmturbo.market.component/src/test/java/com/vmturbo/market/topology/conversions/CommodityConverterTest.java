@@ -484,4 +484,24 @@ public class CommodityConverterTest {
             assertEquals(MarketAnalysisUtils.LOW_PRICE_WEIGHT, priceFunction.getStandardWeighted().getWeight(), 0);
         });
     }
+
+    /**
+     * Test that virtual machine numberConsumers commodity get the correct price function.
+     */
+    @Test
+    public void testNumberConsumersCommodityPriceFunctions() {
+        final TopologyEntityDTO virtualMachine = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setEntityState(EntityState.POWERED_ON)
+                .setOid(1L)
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                                .setCommodityType(CommodityType.newBuilder()
+                                        .setType(CommodityDTO.CommodityType.NUMBER_CONSUMERS_VALUE)))
+                .build();
+        converterToTest.commoditiesSoldList(virtualMachine).forEach(to -> {
+            final PriceFunctionTO priceFunction = to.getSettings().getPriceFunction();
+            assertEquals(PriceFunctionTypeCase.STEP, priceFunction.getPriceFunctionTypeCase());
+            assertEquals(MarketAnalysisUtils.STEP_ABOVE_ONE_VALUE, priceFunction.getStep().getStepAt(), 0);
+        });
+    }
 }

@@ -85,9 +85,9 @@ public final class MarketAnalysisUtils {
                                     CommodityDTO.CommodityType.DRS_SEGMENTATION_VALUE);
 
     /**
-     * Step price function used for these commodities.
+     * Commodities using step at one price function.
      */
-    private static final Set<Integer> STEP_PRICE_TYPES =
+    private static final Set<Integer> STEP_AT_ONE_PRICE_TYPES =
                     ImmutableSet.of(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE,
                                     CommodityDTO.CommodityType.STORAGE_PROVISIONED_VALUE,
                                     CommodityDTO.CommodityType.VSTORAGE_VALUE,
@@ -95,6 +95,12 @@ public final class MarketAnalysisUtils {
                                     CommodityDTO.CommodityType.VMEM_LIMIT_QUOTA_VALUE,
                                     CommodityDTO.CommodityType.VCPU_REQUEST_QUOTA_VALUE,
                                     CommodityDTO.CommodityType.VMEM_REQUEST_QUOTA_VALUE);
+
+    /**
+     * Commodities using step above one price function.
+     */
+    private static final Set<Integer> STEP_ABOVE_ONE_PRICE_TYPES =
+                    ImmutableSet.of(CommodityDTO.CommodityType.NUMBER_CONSUMERS_VALUE);
 
     /**
      * Commodities using standard-weighted price functions with a low price weight.
@@ -376,10 +382,33 @@ public final class MarketAnalysisUtils {
                     .setConstant(PriceFunctionTO.Constant.newBuilder().setValue(0.00001f).build())
                     .build();
 
-    private static final PriceFunctionTO STEP = PriceFunctionTO.newBuilder()
+    /**
+     * A step function with a stepAt value set to 1.
+     */
+    private static final PriceFunctionTO STEP_AT_ONE = PriceFunctionTO.newBuilder()
                     .setStep(PriceFunctionTO.Step.newBuilder().setStepAt(1)
                                     .setPriceAbove(Float.POSITIVE_INFINITY).setPriceBelow(0.0001f)
                                     .build())
+                    .build();
+
+    /**
+     * A stepAt value at 1.00001. This assumes the commodity has a discrete integer values, which
+     * does not exceed 100000. Currently, NumberConsumers is the only commodity that uses
+     * STEP_ABOVE_ONE price function. It is used to model the number of container pods on a node,
+     * and we do not expect a node to host more than 100000 pods.
+     */
+    public static final float STEP_ABOVE_ONE_VALUE = 1.00001f;
+
+    /**
+     * A step function where the stepAt value is above 1 so that 100% utilization does not produce
+     * infinite price. This price function does not drive move-out actions from the provider at 100%
+     * utilization but will prevent move-in actions to the provider at 100% utilization.
+     * This price function should only be applied to commodities with discrete integer values.
+     */
+    private static final PriceFunctionTO STEP_ABOVE_ONE = PriceFunctionTO.newBuilder()
+                    .setStep(PriceFunctionTO.Step.newBuilder().setStepAt(STEP_ABOVE_ONE_VALUE)
+                            .setPriceAbove(Float.POSITIVE_INFINITY).setPriceBelow(0.0001f)
+                            .build())
                     .build();
 
     private static final PriceFunctionTO SWP = PriceFunctionTO.newBuilder().setStandardWeighted(
@@ -466,13 +495,15 @@ public final class MarketAnalysisUtils {
             return CONSTANT;
         } else if (SEGMENTATION_CONSTANT_PRICE_TYPES.contains(commodityType)) {
             return SEGMENTATION_CONSTANT;
-        } else if (STEP_PRICE_TYPES.contains(commodityType)) {
+        } else if (STEP_AT_ONE_PRICE_TYPES.contains(commodityType)) {
             if (dto != null && dto.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE
                 && (commodityType == CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE
                     || commodityType == CommodityDTO.CommodityType.STORAGE_PROVISIONED_VALUE)) {
                 return IG;
             }
-            return STEP;
+            return STEP_AT_ONE;
+        } else if (STEP_ABOVE_ONE_PRICE_TYPES.contains(commodityType)) {
+            return STEP_ABOVE_ONE;
         } else if (FINITE_SWP_PRICE_TYPES.contains(commodityType)) {
             return (additionalSoldWeight == 0) ? FSWP : PriceFunctionTO.newBuilder()
                     .setFiniteStandardWeighted(PriceFunctionTO.FiniteStandardWeighted.newBuilder()
