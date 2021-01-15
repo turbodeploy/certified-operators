@@ -12,6 +12,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.Spliterator;
 import java.util.Spliterators;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -64,20 +65,24 @@ public class DataProvider {
     private final DataRequests requests;
     private final RequestExecutor requestExecutor;
     private final SearchFilterResolver searchFilterResolver;
+    private final Predicate<TopologyDataDefinitionEntry> topologyDefinitionsFilter;
 
     /**
      * Constructor.
      *
-     * @param requestExecutor - an instance of {@link RequestExecutor}.
-     * @param requests        - an instance of {@link DataRequests}.
-     * @param filterResolver  - an instance of {@link SearchFilterResolver}.
+     * @param requestExecutor           - an instance of {@link RequestExecutor}.
+     * @param requests                  - an instance of {@link DataRequests}.
+     * @param filterResolver            - an instance of {@link SearchFilterResolver}.
+     * @param topologyDefinitionsFilter - a filter for topology definitions.
      */
     @ParametersAreNonnullByDefault
     public DataProvider(RequestExecutor requestExecutor, DataRequests requests,
-                        SearchFilterResolver filterResolver) {
+                        SearchFilterResolver filterResolver,
+                        Predicate<TopologyDataDefinitionEntry> topologyDefinitionsFilter) {
         this.requestExecutor = requestExecutor;
         this.requests = requests;
         this.searchFilterResolver = filterResolver;
+        this.topologyDefinitionsFilter = topologyDefinitionsFilter;
     }
 
     /**
@@ -109,6 +114,7 @@ public class DataProvider {
         return StreamSupport.stream(spliterator, false)
                 .filter(GetTopologyDataDefinitionResponse::hasTopologyDataDefinition)
                 .map(GetTopologyDataDefinitionResponse::getTopologyDataDefinition)
+                .filter(topologyDefinitionsFilter)
                 .collect(Collectors.toMap(TopologyDataDefinitionEntry::getId,
                         TopologyDataDefinitionEntry::getDefinition));
     }
