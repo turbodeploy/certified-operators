@@ -143,9 +143,6 @@ public class ActionExecutionContextFactory {
             case ATOMICRESIZE:
                 return new AtomicResizeContext(request, dataManager, entityStore, entityRetriever,
                     targetStore, probeStore, policyRetriever);
-            case RECONFIGURE:
-                return new ReconfigureContext(request, dataManager, entityStore, entityRetriever,
-                    targetStore, probeStore, policyRetriever);
             default:
                 throw new IllegalArgumentException("Unsupported action type: " +
                         actionInfo.getActionTypeCase());
