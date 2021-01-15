@@ -42,7 +42,7 @@ public enum ActionSettingType {
             switch (baseSetting) {
                 case Reconfigure:
                     enumSettingDataType = new EnumSettingDataType<>(ActionMode.RECOMMEND,
-                            ActionMode.RECOMMEND, null,
+                            null, null,
                             ImmutableMap.<EntityType, ActionMode>builder()
                                 .put(EntityType.PHYSICAL_MACHINE, ActionMode.DISABLED)
                             .build(),
