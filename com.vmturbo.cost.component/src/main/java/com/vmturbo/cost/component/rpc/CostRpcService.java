@@ -74,6 +74,7 @@ import com.vmturbo.cost.component.entity.cost.EntityCostStore;
 import com.vmturbo.cost.component.entity.cost.PlanProjectedEntityCostStore;
 import com.vmturbo.cost.component.entity.cost.ProjectedEntityCostStore;
 import com.vmturbo.cost.component.expenses.AccountExpensesStore;
+import com.vmturbo.cost.component.savings.EntitySavingsTracker;
 import com.vmturbo.cost.component.util.AccountExpensesFilter.AccountExpenseFilterBuilder;
 import com.vmturbo.cost.component.util.BusinessAccountHelper;
 import com.vmturbo.cost.component.util.CostFilter;
@@ -128,6 +129,8 @@ public class CostRpcService extends CostServiceImplBase {
 
     private final int maxNumberOfInnerStatRecords;
 
+    private final EntitySavingsTracker entitySavingsTracker;
+
     /**
      * Create a new RIAndExpenseUploadRpcService.
      *
@@ -141,6 +144,7 @@ public class CostRpcService extends CostServiceImplBase {
      * @param clock A clock providing access to the current instant, date and time using a time-zone
      * @param realtimeTopologyContextId real-time topology context ID
      * @param maxNumberOfInnerStatRecords maximum number of stats transferred in a single GRPC message
+     * @param entitySavingsTracker entity savings tracker
      */
     public CostRpcService(@Nonnull final DiscountStore discountStore,
                           @Nonnull final AccountExpensesStore accountExpensesStore,
@@ -151,7 +155,8 @@ public class CostRpcService extends CostServiceImplBase {
                           @Nonnull final BusinessAccountHelper businessAccountHelper,
                           @Nonnull final Clock clock,
                           final long realtimeTopologyContextId,
-                          final int maxNumberOfInnerStatRecords) {
+                          final int maxNumberOfInnerStatRecords,
+                          @Nonnull final EntitySavingsTracker entitySavingsTracker) {
         this.discountStore = Objects.requireNonNull(discountStore);
         this.accountExpensesStore = Objects.requireNonNull(accountExpensesStore);
         this.entityCostStore = Objects.requireNonNull(costStoreHouse);
@@ -162,6 +167,7 @@ public class CostRpcService extends CostServiceImplBase {
         this.clock = Objects.requireNonNull(clock);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.maxNumberOfInnerStatRecords = maxNumberOfInnerStatRecords;
+        this.entitySavingsTracker = entitySavingsTracker;
     }
 
     /**

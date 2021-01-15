@@ -3,6 +3,7 @@ package com.vmturbo.cost.component.discount;
 import java.time.Clock;
 
 import com.vmturbo.common.protobuf.cost.CostREST;
+import com.vmturbo.cost.component.savings.EntitySavingsConfig;
 import com.vmturbo.cost.component.CostComponentGlobalConfig;
 import com.vmturbo.cost.component.rpc.ReservedInstanceCostRpcService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,7 +26,8 @@ import com.vmturbo.cost.component.util.BusinessAccountHelper;
         IdentityProviderConfig.class,
         DiscountConfig.class,
         EntityCostConfig.class,
-        ReservedInstanceConfig.class})
+        ReservedInstanceConfig.class,
+        EntitySavingsConfig.class})
 public class CostConfig {
     @Autowired
     private CostDBConfig databaseConfig;
@@ -44,6 +46,9 @@ public class CostConfig {
 
     @Autowired
     private CostComponentGlobalConfig costComponentGlobalConfig;
+
+    @Autowired
+    private EntitySavingsConfig entitySavingsConfig;
 
     @Value("${persistEntityCostChunkSize:1000}")
     private int persistEntityCostChunkSize;
@@ -72,7 +77,8 @@ public class CostConfig {
                 businessAccountHelper(),
                 Clock.systemUTC(),
                 realtimeTopologyContextId,
-                maxNumberOfInnerStatRecords);
+                maxNumberOfInnerStatRecords,
+                entitySavingsConfig.entitySavingsTracker());
     }
 
     /**

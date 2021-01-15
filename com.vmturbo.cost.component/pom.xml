@@ -358,6 +358,10 @@
             <groupId>com.vmturbo</groupId>
             <artifactId>history-component-api</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>action-orchestrator-api</artifactId>
+        </dependency>
     </dependencies>
 
 </project>
