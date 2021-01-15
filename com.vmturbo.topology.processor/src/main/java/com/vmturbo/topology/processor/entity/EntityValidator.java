@@ -165,11 +165,10 @@ public class EntityValidator {
                                 .getCommoditiesBoughtFromProvidersList()
                                 .stream()
                                 .filter(grouping -> grouping.getProviderId() == entity.getOid())
-                                .filter(grouping -> grouping.getCommodityBoughtList().stream()
+                                .anyMatch(grouping -> grouping.getCommodityBoughtList().stream()
                                     .map(CommodityBoughtDTO::getCommodityType)
                                     .anyMatch(boughtCommType -> boughtCommType.equals(commoditySold.getCommodityType()))
-                                )
-                                .findFirst().isPresent();
+                                );
                         if (shouldMarkConsumerControllableFalse) {
                             consumer.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder().setControllable(false);
                             if (logger.isTraceEnabled()) {
