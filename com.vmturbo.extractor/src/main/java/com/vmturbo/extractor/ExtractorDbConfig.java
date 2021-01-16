@@ -32,18 +32,6 @@ public class ExtractorDbConfig {
     private SQLDatabaseConfig2 dbConfig;
 
     /**
-     * Configuration used to enable/disable search data ingestion.
-     */
-    @Value("${enableSearchApi:false}")
-    private boolean enableSearchApi;
-
-    /**
-     * Configuration used to enable/disable reporting data ingestion.
-     */
-    @Value("${enableReporting:false}")
-    private boolean enableReporting;
-
-    /**
      * DB endpoint to use for topology ingestion.
      *
      * @return endpoint the endpoint
@@ -55,7 +43,6 @@ public class ExtractorDbConfig {
                 .withDbAccess(DbEndpointAccess.ALL)
                 .withDbDestructiveProvisioningEnabled(true)
                 .withDbShouldProvision(true)
-                .withDbEndpointEnabled(enableReporting || enableSearchApi)
                 .build();
     }
 
@@ -70,7 +57,6 @@ public class ExtractorDbConfig {
                 .like(dbBaseConfig.ingesterEndpointBase())
                 .withDbAccess(DbEndpointAccess.READ_ONLY)
                 .withDbShouldProvisionUser(true)
-                .withDbEndpointEnabled(enableReporting || enableSearchApi)
                 .build();
     }
 
@@ -112,8 +98,7 @@ public class ExtractorDbConfig {
      */
     @Bean
     public Optional<DbEndpoint> grafanaWriterEndpoint() {
-        if (!StringUtils.isAnyEmpty(grafanaDataDbName, grafanaDataPassword, grafanaDataUsername)
-                && (enableReporting || enableSearchApi)) {
+        if (!StringUtils.isAnyEmpty(grafanaDataDbName, grafanaDataPassword, grafanaDataUsername)) {
             logger.info("Creating database endpoint for Grafana. Database {}, user {}",
                     grafanaDataDbName, grafanaDataUsername);
             return Optional.of(dbConfig.secondaryDbEndpoint("grafana_writer", SQLDialect.POSTGRES)
@@ -144,7 +129,6 @@ public class ExtractorDbConfig {
                 .withDbUserName(grafanaReaderUsername)
                 .withDbShouldProvisionUser(true)
                 .withNoDbMigrations()
-                .withDbEndpointEnabled(enableReporting || enableSearchApi)
                 .build();
     }
 }

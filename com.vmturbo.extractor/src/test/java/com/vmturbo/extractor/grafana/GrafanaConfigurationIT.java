@@ -87,7 +87,7 @@ public class GrafanaConfigurationIT {
                 .setTimescaleDisplayName("Test Endpoint")
                 .setErrorSleepInterval(10, TimeUnit.SECONDS);
 
-        grafanon = new Grafanon(config, dashboardsOnDisk, grafanaClient, true);
+        grafanon = new Grafanon(config, dashboardsOnDisk, grafanaClient);
     }
 
     /**
