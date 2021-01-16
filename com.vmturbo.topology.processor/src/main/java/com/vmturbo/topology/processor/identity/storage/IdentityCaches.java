@@ -8,7 +8,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
@@ -310,19 +309,25 @@ public class IdentityCaches {
         }
 
         private List<PropertyDescriptor> extractNonVolatileProperties(IdentityRecord identityRecord) {
+            List<PropertyDescriptor> nonVolatileProperties = new ArrayList<>();
             final ServiceEntityIdentityMetadataStore probeMetadata =
-                Objects.requireNonNull(perProbeMetadata.get(identityRecord.getProbeId()));
+                perProbeMetadata.get(identityRecord.getProbeId());
             ServiceEntityIdentityMetadata entityMetadata =
                 probeMetadata.getMetadata(identityRecord.getEntityType());
-            List<PropertyDescriptor> identifyingProperties =
-                new ArrayList<>(identityRecord.getDescriptor().getIdentifyingProperties());
-            List<PropertyDescriptor> nonVolatileProperties = new ArrayList<>();
-            for (ServiceEntityProperty property : entityMetadata.getNonVolatileProperties()) {
-                Optional<PropertyDescriptor> optionalPropertyDescriptor =
-                    findPropertyByRank(identifyingProperties, property.groupId);
-                optionalPropertyDescriptor.ifPresent(nonVolatileProperties::add);
+            if (entityMetadata != null) {
+                List<PropertyDescriptor> identifyingProperties =
+                    new ArrayList<>(identityRecord.getDescriptor().getIdentifyingProperties());
+                for (ServiceEntityProperty property : entityMetadata.getNonVolatileProperties()) {
+                    Optional<PropertyDescriptor> optionalPropertyDescriptor =
+                        findPropertyByRank(identifyingProperties, property.groupId);
+                    optionalPropertyDescriptor.ifPresent(nonVolatileProperties::add);
+                }
+            } else {
+                logger.warn("Could not find entity metadata for the following entity type {}, " +
+                        "this can happen if the entity type has been changed on the probe info",
+                    identityRecord.getEntityType());
             }
-            return  nonVolatileProperties;
+            return nonVolatileProperties;
         }
 
         private Optional<PropertyDescriptor> findPropertyByRank(List<PropertyDescriptor> propertyDescriptors,
