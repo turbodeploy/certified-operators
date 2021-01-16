@@ -56,6 +56,12 @@ public class GrafanaConfig {
     @Value("${grafanaBuiltinDashboardPath:/dashboards}")
     private String builtinDashboardPath;
 
+    /**
+     * Configuration used to enable/disable reporting data ingestion.
+     */
+    @Value("${enableReporting:false}")
+    private boolean enableReporting;
+
     @Autowired
     private ExtractorDbConfig extractorDbConfig;
 
@@ -72,7 +78,7 @@ public class GrafanaConfig {
             .setViewerDisplayName(grafanaViewerDisplayName)
             .setViewerUsername(grafanaViewerUsername)
             .setViewerPassword(grafanaViewerPassword);
-        return new Grafanon(config, dashboardsOnDisk(), grafanaClient());
+        return new Grafanon(config, dashboardsOnDisk(), grafanaClient(), enableReporting);
     }
 
     /**

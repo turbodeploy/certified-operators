@@ -29,6 +29,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.annotation.DirtiesContext.ClassMode;
 import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.extractor.ExtractorDbConfig;
@@ -49,6 +50,7 @@ import com.vmturbo.sql.utils.DbEndpointTestRule;
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(classes = {ExtractorDbConfig.class, ExtractorDbBaseConfig.class})
 @DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
+@TestPropertySource(properties = {"enableReporting=true"})
 public class DslReplaceRecordWriterTest {
 
     private static final WriterConfig config = ImmutableWriterConfig.builder()

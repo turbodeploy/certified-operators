@@ -48,14 +48,18 @@ public class Grafanon implements RequiresDataInitialization {
 
     private final DashboardsOnDisk dashboardsOnDisk;
 
+    private final boolean enableReporting;
+
     private CompletableFuture<RefreshSummary> initilizationResult = new CompletableFuture<>();
 
     Grafanon(@Nonnull final GrafanonConfig grafanonConfig,
             @Nonnull final DashboardsOnDisk dashboardsOnDisk,
-            @Nonnull final GrafanaClient grafanaClient) {
+            @Nonnull final GrafanaClient grafanaClient,
+            @Nonnull final boolean enableReporting) {
         this.grafanonConfig = grafanonConfig;
         this.dashboardsOnDisk = dashboardsOnDisk;
         this.grafanaClient = grafanaClient;
+        this.enableReporting = enableReporting;
     }
 
     @Nonnull
@@ -65,6 +69,10 @@ public class Grafanon implements RequiresDataInitialization {
 
     @Override
     public void initialize() {
+        // do not initialize if reporting is not enabled
+        if (!enableReporting) {
+            return;
+        }
         // We initialize asynchronously, with retries.
         new Thread(() -> {
             boolean initialized = false;

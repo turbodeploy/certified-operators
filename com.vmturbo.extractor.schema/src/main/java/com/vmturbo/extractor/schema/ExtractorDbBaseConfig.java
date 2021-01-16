@@ -34,6 +34,18 @@ public class ExtractorDbBaseConfig {
     private String extractorDatabaseName;
 
     /**
+     * Configuration used to enable/disable search data ingestion.
+     */
+    @Value("${enableSearchApi:false}")
+    private boolean enableSearchApi;
+
+    /**
+     * Configuration used to enable/disable reporting data ingestion.
+     */
+    @Value("${enableReporting:false}")
+    private boolean enableReporting;
+
+    /**
      * Abstract endpoint to use as base for active endpoints that access the extractor database.
      *
      * @return ingestion endpoint
@@ -43,6 +55,7 @@ public class ExtractorDbBaseConfig {
         return dbConfig.abstractDbEndpoint()
                 .withDbDatabaseName(extractorDatabaseName)
                 .withDbSchemaName(extractorDatabaseName)
+                .withDbEndpointEnabled(enableReporting || enableSearchApi)
                 .build();
     }
 }

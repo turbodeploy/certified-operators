@@ -54,6 +54,17 @@ public class ExtractorComponent extends BaseVmtComponent {
     @Value("${reportingMetricTableRetentionMonths:#{null}}")
     private Integer reportingMetricTableRetentionMonths;
 
+    /**
+     * Configuration used to enable/disable search data ingestion.
+     */
+    @Value("${enableSearchApi:false}")
+    private boolean enableSearchApi;
+
+    /**
+     * Configuration used to enable/disable reporting data ingestion.
+     */
+    @Value("${enableReporting:false}")
+    private boolean enableReporting;
 
     private void setupHealthMonitor() throws InterruptedException {
         logger.info("Adding PostgreSQL health checks to the component health monitor.");
@@ -83,19 +94,22 @@ public class ExtractorComponent extends BaseVmtComponent {
     @Override
     protected void onStartComponent() {
         logger.debug("Writer config: {}", listenerConfig.writerConfig());
-        try {
-            setupHealthMonitor();
-            // change retention policy if custom period is provided
-            if (reportingMetricTableRetentionMonths != null) {
-                extractorDbConfig.ingesterEndpoint().getAdapter().setupRetentionPolicy(
-                        "metric", ChronoUnit.MONTHS, reportingMetricTableRetentionMonths);
+        // only set up postgres health monitor if reporting or searchApi is enabled
+        if (enableReporting || enableSearchApi) {
+            try {
+                setupHealthMonitor();
+                // change retention policy if custom period is provided
+                if (reportingMetricTableRetentionMonths != null) {
+                    extractorDbConfig.ingesterEndpoint().getAdapter().setupRetentionPolicy(
+                            "metric", ChronoUnit.MONTHS, reportingMetricTableRetentionMonths);
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                logger.error("Failed to set up health monitor -"
+                        + "interrupted while waiting for endpoint initialization", e);
+            } catch (UnsupportedDialectException | SQLException e) {
+                logger.error("Failed to create retention policy", e);
             }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            logger.error("Failed to set up health monitor -"
-                + "interrupted while waiting for endpoint initialization", e);
-        } catch (UnsupportedDialectException | SQLException e) {
-            logger.error("Failed to create retention policy", e);
         }
     }
 }
