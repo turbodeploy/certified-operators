@@ -1423,6 +1423,9 @@ service CostService {
 
     // Delete plan entity costs
     rpc DeletePlanEntityCosts(DeletePlanEntityCostsRequest) returns (DeletePlanEntityCostsResponse);
+
+    // Get entity savings stats.
+    rpc GetEntitySavingsStats(GetEntitySavingsStatsRequest) returns (stream EntitySavingsStatsRecord);
 }
 
 // A service responsible for running a cloud commitment analysis against a migrated workload topology
@@ -1544,4 +1547,57 @@ service CloudCommitmentAnalysisService {
     // return a unique identifier for the analysis, in order to check the status.
     rpc StartCloudCommitmentAnalysis(StartCloudCommitmentAnalysisRequest)
     returns (StartCloudCommitmentAnalysisResponse);
+}
+
+message GetEntitySavingsStatsRequest {
+
+    // Start date. This value is inclusive.
+    // E.g requesting data for 10:00:00 to 14:00:00 time range will return all records starting and
+    // including 10 AM, 11 AM, 12 PM, 1PM, but not for record for 2PM.
+    optional uint64 start_date = 1;
+
+    // End date. This value is exclusive. See example above.
+    optional uint64 end_date = 2;
+
+    // Entity list
+    optional EntityFilter entity_filter = 3;
+
+    // Types of savings stats requested
+    repeated EntitySavingsStatsType stats_types = 4;
+}
+
+// Types of entity savings stats
+enum EntitySavingsStatsType {
+
+    REALIZED_SAVINGS = 1;
+
+    REALIZED_INVESTMENTS = 2;
+
+    MISSED_SAVINGS = 3;
+
+    MISSED_INVESTMENTS = 4;
+
+    CUMULATIVE_REALIZED_SAVINGS = 5;
+
+    CUMULATIVE_REALIZED_INVESTMENTS = 6;
+
+    CUMULATIVE_MISSED_SAVINGS = 7;
+
+    CUMULATIVE_MISSED_INVESTMENTS = 8;
+}
+
+message EntitySavingsStatsRecord {
+    // Stat snapshot timestamp
+    optional int64 snapshot_date = 1;
+
+    // Stats values at this time instant
+    repeated SavingsRecord stat_records = 2;
+
+    message SavingsRecord {
+        // name of the stat, e.g. realizedSavings, realizedInvestments
+        optional string name = 1;
+
+        // Dollar amount of the savings or investment
+        optional float value = 2;
+    }
 }
