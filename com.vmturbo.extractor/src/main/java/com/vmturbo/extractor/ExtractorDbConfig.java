@@ -113,7 +113,7 @@ public class ExtractorDbConfig {
     @Bean
     public Optional<DbEndpoint> grafanaWriterEndpoint() {
         if (!StringUtils.isAnyEmpty(grafanaDataDbName, grafanaDataPassword, grafanaDataUsername)
-                && (enableReporting || enableSearchApi)) {
+                && enableReporting) {
             logger.info("Creating database endpoint for Grafana. Database {}, user {}",
                     grafanaDataDbName, grafanaDataUsername);
             return Optional.of(dbConfig.secondaryDbEndpoint("grafana_writer", SQLDialect.POSTGRES)
@@ -144,7 +144,7 @@ public class ExtractorDbConfig {
                 .withDbUserName(grafanaReaderUsername)
                 .withDbShouldProvisionUser(true)
                 .withNoDbMigrations()
-                .withDbEndpointEnabled(enableReporting || enableSearchApi)
+                .withDbEndpointEnabled(enableReporting)
                 .build();
     }
 }
