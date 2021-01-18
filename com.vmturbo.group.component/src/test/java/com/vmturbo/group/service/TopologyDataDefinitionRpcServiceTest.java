@@ -56,7 +56,7 @@ public class TopologyDataDefinitionRpcServiceTest {
 
     private final TopologyDataDefinition emptyDefinition =
         TopologyDataDefinitionTestUtils.createManualTopologyDataDefinition(EntityType.SERVICE, NAME,
-            GROUP_ID, EntityType.VIRTUAL_MACHINE);
+            true, GROUP_ID, EntityType.VIRTUAL_MACHINE);
 
     private static final long OID = 1001L;
 
@@ -177,7 +177,7 @@ public class TopologyDataDefinitionRpcServiceTest {
             ArgumentCaptor.forClass(GetTopologyDataDefinitionResponse.class);
         final TopologyDataDefinition definition2 =
             TopologyDataDefinitionTestUtils.createManualTopologyDataDefinition(
-                EntityType.BUSINESS_TRANSACTION, "Bar", GROUP_ID, EntityType.VIRTUAL_MACHINE);
+                EntityType.BUSINESS_TRANSACTION, "Bar", true, GROUP_ID, EntityType.VIRTUAL_MACHINE);
         final TopologyDataDefinitionEntry entry2 = TopologyDataDefinitionEntry.newBuilder()
             .setDefinition(definition2)
             .setId(OID2)
@@ -206,7 +206,7 @@ public class TopologyDataDefinitionRpcServiceTest {
     @Test
     public void testUpdateTopologyDataDefinition() throws Exception {
         final TopologyDataDefinition updatedDef = TopologyDataDefinitionTestUtils
-            .createManualTopologyDataDefinition(EntityType.SERVICE, NAME, GROUP_ID2,
+            .createManualTopologyDataDefinition(EntityType.SERVICE, NAME, true, GROUP_ID2,
                     EntityType.APPLICATION_COMPONENT);
         final TopologyDataDefinitionEntry updatedDefEntry = TopologyDataDefinitionEntry.newBuilder()
             .setId(OID)

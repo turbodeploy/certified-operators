@@ -33,17 +33,19 @@ public class TopologyDataDefinitionTestUtils {
      *
      * @param entityType The type of entity the definition will create.
      * @param name The name of the entity the definition will create.
+     * @param isContextBased shows whether the TDD is context based or not.
      * @param groupId A groupId to use for the associated group field.
      * @param connectedEntityType The EntityType representing the type of entity in the group.
      * @return TopologyDataDefinition based on the parameters.
      */
     public static TopologyDataDefinition createManualTopologyDataDefinition(
-            @Nonnull EntityType entityType, @Nonnull String name, long groupId,
+            @Nonnull EntityType entityType, @Nonnull String name, boolean isContextBased, long groupId,
             @Nonnull EntityType connectedEntityType) {
         return TopologyDataDefinition.newBuilder()
                 .setManualEntityDefinition(ManualEntityDefinition.newBuilder()
                         .setEntityType(entityType)
                         .setEntityName(name)
+                        .setContextBased(isContextBased)
                         .addAssociatedEntities(AssociatedEntitySelectionCriteria.newBuilder()
                                 .setAssociatedGroup(GroupID.newBuilder()
                                         .setId(groupId)
@@ -59,17 +61,19 @@ public class TopologyDataDefinitionTestUtils {
      *
      * @param entityType EntityType to create.
      * @param name Name of created entity.
+     * @param isContextBased shows whether the TDD is context based or not.
      * @param associatedEntityType EntityType of associated entities.
      * @param associatedIds Set of Longs giving ids of associated entities.
      * @return TopologyDataDefinition representing the manual topology data definition.
      */
     public static TopologyDataDefinition createManualTopologyDataDefinition(
-            @Nonnull EntityType entityType, @Nonnull String name,
+            @Nonnull EntityType entityType, @Nonnull String name, boolean isContextBased,
             @Nonnull EntityType associatedEntityType, @Nonnull Set<Long> associatedIds) {
         return TopologyDataDefinition.newBuilder()
                 .setManualEntityDefinition(ManualEntityDefinition.newBuilder()
                         .setEntityType(entityType)
                         .setEntityName(name)
+                        .setContextBased(isContextBased)
                         .addAssociatedEntities(AssociatedEntitySelectionCriteria.newBuilder()
                                 .setStaticAssociatedEntities(StaticMembers.newBuilder()
                                         .addMembersByType(StaticMembersByType.newBuilder()
@@ -90,15 +94,17 @@ public class TopologyDataDefinitionTestUtils {
      *
      * @param entityType The type of entity to create.
      * @param name The name of the created entity.
+     * @param isContextBased shows whether the TDD is context based or not.
      * @param associatedEntityType The type of associated entities.
      * @return a manual topology data definition with entity filters defining associated entities.
      */
     public static TopologyDataDefinition createManualTopologyDataDefinition(
-            @Nonnull EntityType entityType, @Nonnull String name,
+            @Nonnull EntityType entityType, @Nonnull String name, boolean isContextBased,
             @Nonnull EntityType associatedEntityType) {
         return TopologyDataDefinition.newBuilder().setManualEntityDefinition(
                 ManualEntityDefinition.newBuilder()
                         .setEntityType(entityType)
+                        .setContextBased(isContextBased)
                         .setEntityName(name)
                         .addAssociatedEntities(AssociatedEntitySelectionCriteria.newBuilder()
                                 .setDynamicConnectionFilters(DynamicConnectionFilters.newBuilder()

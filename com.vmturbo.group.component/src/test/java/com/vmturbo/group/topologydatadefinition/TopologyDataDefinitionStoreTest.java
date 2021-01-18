@@ -59,7 +59,7 @@ public class TopologyDataDefinitionStoreTest {
 
     private static final TopologyDataDefinition MANUAL_TOPO_DATA_DEF =
         TopologyDataDefinitionTestUtils.createManualTopologyDataDefinition(EntityType.SERVICE,
-            MANUAL_ENTITY_NAME, GROUP_ID, EntityType.VIRTUAL_MACHINE);
+            MANUAL_ENTITY_NAME, true, GROUP_ID, EntityType.VIRTUAL_MACHINE);
 
     private TopologyDataDefinitionEntry manualTopoDataDefEntry;
 
@@ -153,11 +153,11 @@ public class TopologyDataDefinitionStoreTest {
     public void testOtherManualTopologyDefinitions() throws Exception {
         final TopologyDataDefinition manualWithStaticEntities =
                 TopologyDataDefinitionTestUtils.createManualTopologyDataDefinition(
-                        EntityType.BUSINESS_TRANSACTION, "manualTopoDataDef2",
+                        EntityType.BUSINESS_TRANSACTION, "manualTopoDataDef2", true,
                         EntityType.VIRTUAL_MACHINE, Sets.newHashSet(100L, 101L, 102L));
         final TopologyDataDefinition manualWithEntityFilters =
                 TopologyDataDefinitionTestUtils.createManualTopologyDataDefinition(
-                EntityType.BUSINESS_APPLICATION, "manualTopoDataDef3",
+                EntityType.BUSINESS_APPLICATION, "manualTopoDataDef3", true,
                 EntityType.APPLICATION_COMPONENT);
         long topoDefWithStaticEntitiesOid =
                 topologyDataDefinitionStore.createTopologyDataDefinition(manualWithStaticEntities)
@@ -214,7 +214,7 @@ public class TopologyDataDefinitionStoreTest {
         final long newGroupId = 2;
         final TopologyDataDefinition updatedManualDef =
             TopologyDataDefinitionTestUtils.createManualTopologyDataDefinition(EntityType.SERVICE,
-            MANUAL_ENTITY_NAME, newGroupId, EntityType.APPLICATION_COMPONENT);
+            MANUAL_ENTITY_NAME, false, newGroupId, EntityType.APPLICATION_COMPONENT);
         final Optional<TopologyDataDefinition> optUpdatedDef =
             topologyDataDefinitionStore.updateTopologyDataDefinition(manualTopoDataDefEntry.getId(),
                 updatedManualDef);
@@ -280,7 +280,7 @@ public class TopologyDataDefinitionStoreTest {
         // create a topology data definition that will be deleted when we restore from diags
         topologyDataDefinitionStore.createTopologyDataDefinition(TopologyDataDefinitionTestUtils
                 .createManualTopologyDataDefinition(EntityType.BUSINESS_APPLICATION,
-                        "ShouldGetDeleted", EntityType.PHYSICAL_MACHINE));
+                        "ShouldGetDeleted", true, EntityType.PHYSICAL_MACHINE));
         // confirm that we now have 3 topology data definitions
         Assert.assertEquals(3,
                 topologyDataDefinitionStore.getAllTopologyDataDefinitions().size());

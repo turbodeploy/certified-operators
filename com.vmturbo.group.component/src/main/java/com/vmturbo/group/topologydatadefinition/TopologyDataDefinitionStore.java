@@ -281,6 +281,7 @@ public class TopologyDataDefinitionStore implements DiagsRestorable<DSLContext> 
         manualDefinitionPojo.setId(oid);
         manualDefinitionPojo.setName(definition.getEntityName());
         manualDefinitionPojo.setEntityType(definition.getEntityType().getNumber());
+        manualDefinitionPojo.setContextBased(definition.getContextBased());
         if (definition.getAssociatedEntitiesList().isEmpty()) {
             logger.debug("Incorrectly formatted manual topology data definition for OID " + oid
                     + ". No associated entities defined.");
@@ -409,6 +410,7 @@ public class TopologyDataDefinitionStore implements DiagsRestorable<DSLContext> 
             final ManualEntityDefinition.Builder manualTopoDefBuilder =
                     ManualEntityDefinition.newBuilder();
             manualTopoDefBuilder.setEntityName(nxtEntry.getValue().getName());
+            manualTopoDefBuilder.setContextBased(nxtEntry.getValue().getContextBased());
             manualTopoDefBuilder.setEntityType(EntityType.forNumber(
                     nxtEntry.getValue().getEntityType()));
             associatedEntitiesMap.getOrDefault(nxtEntry.getKey(), Collections.emptySet())
