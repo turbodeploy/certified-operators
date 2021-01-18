@@ -485,29 +485,28 @@ public class Provision {
         double newRoI = ledger.getTraderIncomeStatements()
                 .get(topTrader.getEconomyIndex())
                 .getROI();
-        if (logger.isTraceEnabled()) {
-            logger.info("Evaluating provision: ROI of {}: original {}, new {}. "
+        if (logger.isDebugEnabled()) {
+            logger.debug("Evaluating provision: ROI of {}: original {}, new {}. "
                             + "Revenue: original {}, new {}.",
                     topTrader.getDebugInfoNeverUseInCode(), origRoI, newRoI,
                     origTopCommRev, newTopCommRev);
         }
         // Check quantity drop based stop criteria.
         // For certain commodities like Response Time, we use MM1 distribution after a provision.
-        // We want to make sure that, in addition to RoI and Revenue drop, there is also a minimal
-        // drop of quantity for the most top commodity to justify the provision.
+        // We want to make sure that there is a minimal drop of quantity for the most top commodity
+        // to justify the provision. We do not compare the before and after RoI in this case because
+        // the revenue and expense may be calculated with different price functions (e.g., FSWP vs SWP).
         if (mostProfitableBundle.getMinDecreasePct() > 0.0
                 && origTopCommDetails.getCommoditySpecification()
                 == newTopCommDetails.getCommoditySpecification()) {
             final double desiredTopCommQuantity = origTopCommQuantity
                     - origTopCommQuantity * mostProfitableBundle.getMinDecreasePct();
-            if (logger.isTraceEnabled()) {
-                logger.info("M/M/1: Quantity of {}: original {}, new {}, desired {}",
+            if (logger.isDebugEnabled()) {
+                logger.debug("M/M/1: Quantity of {}: original {}, new {}, desired {}",
                         origTopCommDetails.getCommoditySpecification().getDebugInfoNeverUseInCode(),
                         origTopCommQuantity, newTopCommQuantity, desiredTopCommQuantity);
             }
-            if (newTopCommQuantity >= desiredTopCommQuantity) {
-                return false;
-            }
+            return newTopCommQuantity < desiredTopCommQuantity;
         }
         // Check RoI drop based stop criteria
         return newRoI < origRoI && newTopCommRev < origTopCommRev;

@@ -112,8 +112,8 @@ public class MM1Distribution implements UpdatingFunction {
         // Aggregate quantities across all shopping lists
         final double originalQuantitySum = currentSLs.stream()
                 .peek(sl -> {
-                    if (logger.isTraceEnabled()) {
-                        logger.trace("M/M/1: {} to sum for {}: {}",
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("M/M/1: {} to sum for {}: {}",
                                 sl.getBasket().get(index).getDebugInfoNeverUseInCode(),
                                 sl.getDebugInfoNeverUseInCode(), sl.getQuantity(index));
                    }
@@ -124,8 +124,8 @@ public class MM1Distribution implements UpdatingFunction {
         final double originalAvgQuantity = originalQuantitySum / originalSize;
         double projectedQuantity = originalAvgQuantity;
         double projectedPeakQuantity = projectedQuantity;
-        if (logger.isTraceEnabled()) {
-            logger.trace("M/M/1: Average quantity: {}", originalAvgQuantity);
+        if (logger.isDebugEnabled()) {
+            logger.debug("M/M/1: Average quantity: {}", originalAvgQuantity);
         }
         List<Pair<Integer, Double>> projectedQuantityDependentComms = new ArrayList<>();
         final Set<TraderWithSettings> currentSuppliers = currentSLs.stream()
@@ -201,8 +201,8 @@ public class MM1Distribution implements UpdatingFunction {
             projectedQuantity = projectedQuantity * Math.pow(
                     (totalCapacity - totalUsed) / (projectedTotalCapacity - projectedTotalUsed),
                     mm1Commodity.getElasticity());
-            if (logger.isTraceEnabled()) {
-                logger.trace("M/M/1: Projection: buyers ({} => {}),"
+            if (logger.isDebugEnabled()) {
+                logger.debug("M/M/1: Projection: buyers ({} => {}),"
                                 + " total quantity {}, total capacity ({} => {}), Response "
                                 + "Time ({} => {})",
                         originalSize, newSize,

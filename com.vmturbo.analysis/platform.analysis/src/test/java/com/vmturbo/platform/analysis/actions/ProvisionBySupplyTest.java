@@ -596,6 +596,106 @@ public class ProvisionBySupplyTest {
     }
 
     /**
+     * Test provision by supply with MM1 distribution does not require RoI decrease.
+     *
+     * <p>One service consume on two apps, each hosted by a container.
+     * Each app sells 300(ms) response time. The service requests 20000(ms) response time from each app.
+     * Each container sells 575(MHz) VCPU, 65536(MB) memory.
+     * Each application requests 515(MHz) VCPU, 256(MB) memory.
+     * Stop criteria is set as 50% for each app (artificially control the number of clones).
+     *
+     * <p>Before provision, we have the following for each app:
+     * Original Quantity: 200000 (ms)
+     * Original Revenue: 20000/300 x 1E22 = 6.67E23
+     * Original Expense: 515/575 / (60/575)^2 = 82.257
+     * Original RoI: 6.67E23 / 82.257 = 8.1E21
+     *
+     * <p>After one provision through MM1Distribution, we will have the following for each app:
+     * New Quantity: 3453 (ms)
+     * New Revenue: 3453/300 x 1E22 = 1.15E23
+     * New Expense: 8.136 = (343/575 / (232/575)^2) [Used] + (172/575 / (60/232)^2) [Peak Used]
+     * New RoI: 1.15E23 / 8.136 = 1.41E22
+     *
+     * <p>Conclusion: Provision is taken when quantity drops more than 20% but RoI does not decrease.
+     * New Quantity (3453) < 80% of Original Quantity (0.8 x 20000 = 16000)
+     * New RoI > Original RoI
+     */
+    @Test
+    public void testProvisionBySupplyWithMM1DistributionDoNotEvaluateRoI() {
+        Economy e = new Economy();
+        // Set up the environment
+        Basket b1 = new Basket(TestUtils.VCPU, TestUtils.VMEM);
+        Basket b2 = new Basket(TestUtils.RESPONSE_TIME);
+        Trader c1 = TestUtils.createTrader(e, TestUtils.CONTAINER_TYPE, Collections.singletonList(0L),
+                Arrays.asList(TestUtils.VCPU, TestUtils.VMEM),
+                new double[]{575, 65536}, true, false);
+        c1.setDebugInfoNeverUseInCode("container1");
+        Trader c2 = TestUtils.createTrader(e, TestUtils.CONTAINER_TYPE, Collections.singletonList(0L),
+                Arrays.asList(TestUtils.VCPU, TestUtils.VMEM),
+                new double[]{575, 65536}, true, false);
+        c2.setDebugInfoNeverUseInCode("container2");
+        Trader app1 = TestUtils.createTrader(e, TestUtils.APP_TYPE, Collections.singletonList(0L),
+                Collections.singletonList(TestUtils.RESPONSE_TIME),
+                new double[]{300}, true, false);
+        app1.setDebugInfoNeverUseInCode("application1");
+        app1.getSettings()
+                .setProviderMustClone(true)
+                .setMaxDesiredUtil(0.75)
+                .setMinDesiredUtil(0.65);
+        Optional.ofNullable(app1.getCommoditySold(b2.get(0)).getSettings().getUpdatingFunction())
+                .filter(UpdatingFunctionFactory::isMM1DistributionFunction)
+                .map(MM1Distribution.class::cast).ifPresent(uf -> uf.setMinDecreasePct(0.5F));
+        ShoppingList sl1 = e.addBasketBought(app1, b1);
+        TestUtils.moveSlOnSupplier(e, sl1, c1, new double[]{515, 256});
+        Trader app2 = TestUtils.createTrader(e, TestUtils.APP_TYPE, Collections.singletonList(0L),
+                Collections.singletonList(TestUtils.RESPONSE_TIME),
+                new double[]{300}, true, false);
+        app2.setDebugInfoNeverUseInCode("application2");
+        app2.getSettings()
+                .setProviderMustClone(true)
+                .setMaxDesiredUtil(0.75)
+                .setMinDesiredUtil(0.65);
+        Optional.ofNullable(app2.getCommoditySold(b2.get(0)).getSettings().getUpdatingFunction())
+                .filter(UpdatingFunctionFactory::isMM1DistributionFunction)
+                .map(MM1Distribution.class::cast).ifPresent(uf -> uf.setMinDecreasePct(0.5F));
+        ShoppingList sl2 = e.addBasketBought(app2, b1);
+        TestUtils.moveSlOnSupplier(e, sl2, c2, new double[]{515, 256});
+        Trader svc = TestUtils.createTrader(e, TestUtils.SERVICE_TYPE, Collections.singletonList(0L),
+                Collections.emptyList(), new double[]{}, true, true);
+        svc.setDebugInfoNeverUseInCode("service");
+        ShoppingList sl3 = e.addBasketBought(svc, b2);
+        TestUtils.moveSlOnSupplier(e, sl3, app1, new double[]{20000});
+        ShoppingList sl4 = e.addBasketBought(svc, b2);
+        TestUtils.moveSlOnSupplier(e, sl4, app2, new double[]{20000});
+
+        // Populate market
+        e.populateMarketsWithSellersAndMergeConsumerCoverage();
+        Ledger ledger = new Ledger(e);
+
+        // Calculate the before RoI
+        ledger.calculateExpRevForTraderAndGetTopRevenue(e, app1);
+        final double beforeRoI = ledger.getTraderIncomeStatements()
+                .get(app1.getEconomyIndex()).getROI();
+
+        // Start provision simulation
+        List<Action> actions = Provision.provisionDecisions(e, ledger);
+
+        // Calculate the after RoI
+        ledger.calculateExpRevForTraderAndGetTopRevenue(e, app1);
+        final double afterRoI = ledger.getTraderIncomeStatements()
+                .get(app1.getEconomyIndex()).getROI();
+
+        // Assert one provision, two actions (app clone, and container clone)
+        assertEquals(2, actions.size());
+        assertEquals(TestUtils.APP_TYPE, actions.get(0).getActionTarget().getType());
+        assertEquals(TestUtils.CONTAINER_TYPE, actions.get(1).getActionTarget().getType());
+        // Assert afterRoI is larger than beforeRoI
+        assertEquals(8.104297636827229E21, beforeRoI, TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(1.4152927953194494E22, afterRoI, TestUtils.FLOATING_POINT_DELTA);
+        assertTrue(afterRoI > beforeRoI);
+    }
+
+    /**
      * Test provision by supply with MM1 distribution and a 50% stop condition.
      *
      * <p>The app sells 300(ms) response time. The service requests 20000(ms) response time.
@@ -624,7 +724,7 @@ public class ProvisionBySupplyTest {
         app.getSettings()
                 .setProviderMustClone(true)
                 .setMaxDesiredUtil(0.75)
-                .setMaxDesiredUtil(0.65);
+                .setMinDesiredUtil(0.65);
         // Set minimum desired quantity drop percentage to be 50%
         Basket bSvc = new Basket(TestUtils.RESPONSE_TIME);
         Optional.ofNullable(app.getCommoditySold(bSvc.get(0)).getSettings().getUpdatingFunction())
