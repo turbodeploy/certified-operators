@@ -1,0 +1,11 @@
+# Example scenario documented in the wiki
+0 0:00 start
+0 4:15 create VM-A t3.medium  # This is a comment
+0 4:15 power VM-A on
+# 1 0:00 resize VM-B 1.00 1.50  # not part of the scenario - testing only
+1 10:15 resize VM-A t3.medium t3.nano
+4 6:30 power VM-A off
+4 8:15 power VM-A on
+4 8:20 execute VM-A t3.medium t3.nano
+5 5:30 remove VM-A
+5 7:10 stop

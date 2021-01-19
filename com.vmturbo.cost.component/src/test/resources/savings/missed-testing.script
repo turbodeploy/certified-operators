@@ -1,0 +1,16 @@
+# start 1-20 12:00
+start
+0 0:00 resize   VM-A 6.00 3.00
+0 0:30 execute  VM-A 6.00 3.00
+
+0 3:00 resize VM-A 3.00 4.00
+0 5:15 execute VM-A 3.00 4.00
+
+# 0 2:00 execute VM-A 3.00 2.50
+#
+# 0 5:00 power VM-A off
+# 0 5:15 power VM-A on
+#
+# 0 6:00 execute VM-A 2.5 3.5
+
+0 9:00 stop
