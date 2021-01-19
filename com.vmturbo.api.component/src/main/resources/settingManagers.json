@@ -81,7 +81,8 @@
           },
           "PhysicalMachine" : {
             "provision" : "AUTOMATIC",
-            "suspend": "AUTOMATIC"
+            "suspend": "AUTOMATIC",
+            "reconfigure": "AUTOMATIC"
           },
           "Storage" : {
             "provision" : "AUTOMATIC",
