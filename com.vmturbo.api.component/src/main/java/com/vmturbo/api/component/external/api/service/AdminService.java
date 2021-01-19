@@ -6,14 +6,17 @@ import static com.vmturbo.components.common.setting.GlobalSettingSpecs.Telemetry
 
 import java.text.MessageFormat;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -126,7 +129,7 @@ public class AdminService implements IAdminService {
     private static final HttpProxyDTO EMPTY_PROXY_DTO = new HttpProxyDTO();
 
     // use single thread to ensure only one export diagnostics at a time.
-    private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+    private final ExecutorService executor = Executors.newSingleThreadExecutor();
 
     private final KeyValueStore keyValueStore;
 
@@ -149,6 +152,9 @@ public class AdminService implements IAdminService {
 
     @Value("${serverHttpPort}")
     private Integer httpPort;
+
+    @Value("${exportClientTimeoutHours:6}")
+    private Integer exportClientTimeoutHours;
 
     private static final Gson GSON = ComponentGsonFactory.createGson();
 
@@ -354,8 +360,10 @@ public class AdminService implements IAdminService {
 
     @VisibleForTesting
     Future<Boolean> invokeSchedulerToExportDiags() {
-        return scheduler.schedule(
-            () -> {
+        return executor.submit(() -> {
+            logger.info("Invoking export of diagnostics");
+            final ExecutorService invoker = Executors.newSingleThreadExecutor();
+            Future<Boolean> invokedExport = invoker.submit(() -> {
                 boolean exportedSucceed;
                 try {
                     exportedSucceed = clusterMgrApi.exportComponentDiagnostics(
@@ -387,7 +395,24 @@ public class AdminService implements IAdminService {
                         FAILED_TO_EXPORT_DIAGNOSTICS_FAILED);
                     return false;
                 }
-            }, 1, TimeUnit.MILLISECONDS);
+            });
+
+            try {
+                return invokedExport.get(exportClientTimeoutHours, TimeUnit.HOURS);
+            } catch (TimeoutException e) {
+                logger.warn("Export diags invocation timed out");
+                return false;
+            } catch (InterruptedException | ExecutionException e) {
+                logger.error("Export diags invocation was interrupted");
+                throw e;
+            } finally {
+                List<Runnable> tasks = invoker.shutdownNow();
+                logger.debug(
+                        tasks.size() + " tasks in invoker - invoker.isTerminated() == " + invoker
+                                .isTerminated() + " - invoker.shutDown() == " + invoker
+                                .isShutdown());
+            }
+        });
     }
 
     @Override
