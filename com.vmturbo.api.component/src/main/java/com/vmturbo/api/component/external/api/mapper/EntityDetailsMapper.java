@@ -12,9 +12,6 @@ import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.vmturbo.api.dto.entity.DetailDataApiDTO;
 import com.vmturbo.api.dto.entity.EntityDetailsApiDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -26,24 +23,18 @@ import com.vmturbo.topology.processor.api.util.ThinTargetCache;
  */
 public class EntityDetailsMapper {
 
-    private static final Logger logger = LogManager.getLogger();
-
     @VisibleForTesting
     static final String ENHANCED_BY_PROP = "Enhanced by";
 
     private final ThinTargetCache thinTargetCache;
-    private final boolean entityDetailsEnabled;
 
     /**
      * Constructor.
      *
-     * @param thinTargetCache a provider of target data.
-     * @param entityDetailsEnabled whether entity details are supported.
+     * @param thinTargetCache - a provider of target data.
      */
-    public EntityDetailsMapper(@Nonnull final ThinTargetCache thinTargetCache,
-                               final boolean entityDetailsEnabled) {
+    public EntityDetailsMapper(@Nonnull ThinTargetCache thinTargetCache) {
         this.thinTargetCache = thinTargetCache;
-        this.entityDetailsEnabled = entityDetailsEnabled;
     }
 
     /**
