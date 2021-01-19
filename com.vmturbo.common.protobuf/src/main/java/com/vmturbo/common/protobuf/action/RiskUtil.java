@@ -117,8 +117,7 @@ public class RiskUtil {
             return Optional.empty();
         }
         String commNames = ActionDTOUtil.getReasonCommodities(recommendation)
-            .filter(comm -> comm.getCommodityType().getType()
-                != CommonDTO.CommodityDTO.CommodityType.SEGMENTATION_VALUE)
+            .filter(comm -> !POLICY_COMMODITY_TYPES.contains(comm.getCommodityType().getType()))
             .map(ActionDTO.Explanation.ReasonCommodity::getCommodityType)
             .map(commType -> commodityDisplayName(commType, false))
             .collect(Collectors.joining(", "));
