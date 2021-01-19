@@ -52,12 +52,14 @@ public class TopologyDataDefinitionServiceTest {
     private static final String MANUAL_API_DTO = "/topologydefinition/TestManualDefinition.json";
     private static final String AUTOMATED_PROTO = "/topologydefinition/TestAutomatedDefinition.proto";
     private static final String MANUAL_PROTO = "/topologydefinition/TestManualDefinition.proto";
+    private static final String MANUAL_CONTEXT_BASED_PROTO = "/topologydefinition/TestManualContextBasedDefinition.proto";
 
     private TopologyDataDefinitionApiDTO manualApiDTO;
     private TopologyDataDefinitionApiDTO automatedApiDTO;
 
     private TopologyDataDefinition manualProto;
     private TopologyDataDefinition automatedProto;
+    private TopologyDataDefinition manualContextBasedProto;
 
     private TopologyDataDefinitionServiceMole spy = spy(new TopologyDataDefinitionServiceMole());
 
@@ -92,11 +94,16 @@ public class TopologyDataDefinitionServiceTest {
                 this.getClass().getResourceAsStream(AUTOMATED_PROTO),
                 "UTF-8"
         );
+        String manualContextBasedProtoText = IOUtils.toString(
+                this.getClass().getResourceAsStream(MANUAL_CONTEXT_BASED_PROTO),
+                "UTF-8"
+        );
         ObjectMapper objectMapper = new ObjectMapper();
         manualApiDTO = objectMapper.readValue(manualJsonText, TopologyDataDefinitionApiDTO.class);
         automatedApiDTO = objectMapper.readValue(automatedJsonText, TopologyDataDefinitionApiDTO.class);
         manualProto = TextFormat.parse(manualProtoText, TopologyDataDefinition.class);
         automatedProto = TextFormat.parse(automatedProtoText, TopologyDataDefinition.class);
+        manualContextBasedProto = TextFormat.parse(manualContextBasedProtoText, TopologyDataDefinition.class);
 
         TopologyDataDefinitionEntry manualEntry = TopologyDataDefinitionEntry.newBuilder()
                 .setId(123)
@@ -105,6 +112,10 @@ public class TopologyDataDefinitionServiceTest {
         TopologyDataDefinitionEntry automatedEntry = TopologyDataDefinitionEntry.newBuilder()
                 .setId(456)
                 .setDefinition(automatedProto)
+                .build();
+        TopologyDataDefinitionEntry manualContextBasedEntry = TopologyDataDefinitionEntry.newBuilder()
+                .setId(789)
+                .setDefinition(manualContextBasedProto)
                 .build();
 
         // No ID
@@ -120,6 +131,10 @@ public class TopologyDataDefinitionServiceTest {
                 GetTopologyDataDefinitionResponse
                         .newBuilder()
                         .setTopologyDataDefinition(automatedEntry)
+                        .build(),
+                GetTopologyDataDefinitionResponse
+                        .newBuilder()
+                        .setTopologyDataDefinition(manualContextBasedEntry)
                         .build())
         );
 

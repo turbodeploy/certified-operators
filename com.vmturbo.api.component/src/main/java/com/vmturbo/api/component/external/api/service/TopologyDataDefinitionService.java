@@ -65,6 +65,10 @@ public class TopologyDataDefinitionService implements ITopologyDefinitionService
                 continue;
             }
             TopologyDataDefinitionEntry entry = response.getTopologyDataDefinition();
+            if (isContextBasedDefinition(entry)) {
+                // Do not return context based ATDs until they won't be implemented
+                continue;
+            }
             checkId(entry);
             try {
                 TopologyDataDefinitionApiDTO dto = topologyDataDefinitionMapper.convertTopologyDataDefinition(
@@ -78,6 +82,18 @@ public class TopologyDataDefinitionService implements ITopologyDefinitionService
         }
 
         return definitions;
+    }
+
+    /**
+     * Checks {@link TopologyDataDefinitionEntry} on context based.
+     *
+     * @param entry topology definition entry to check on context based
+     * @return Returns {@code true} if it's a context based definition.
+     */
+    private static boolean isContextBasedDefinition(@Nonnull TopologyDataDefinitionEntry entry) {
+        return entry.hasDefinition()
+                && entry.getDefinition().hasManualEntityDefinition()
+                && entry.getDefinition().getManualEntityDefinition().getContextBased();
     }
 
     /**
