@@ -108,6 +108,17 @@ public class ScopeManagerTest {
     }
 
     /**
+     * Test that adding a symmetric scope adds the same scope both to the seed oid and the scope
+     * oid.
+     */
+    @Test
+    public void testSymmetricScope() {
+        scopeManager.addInCurrentScope(1L, true, 100L);
+        assertThat(scopeManager.getCurrentScopingSeeds(100L), containsInAnyOrder(1L));
+        assertThat(scopeManager.getCurrentScopingSeeds(1L), containsInAnyOrder(100L));
+    }
+
+    /**
      * Test that if prior state is empty when starting a topology, the prior state will be loaded
      * from the database.
      *

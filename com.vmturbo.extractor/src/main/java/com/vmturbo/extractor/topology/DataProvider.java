@@ -19,6 +19,8 @@ import it.unimi.dsi.fastutil.ints.Int2DoubleMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectArrayMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
+import it.unimi.dsi.fastutil.longs.LongSet;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
@@ -332,10 +334,11 @@ public class DataProvider {
      * @param entityOid oid of entity
      * @return set of related entities oids
      */
-    public Set<Long> getRelatedEntities(long entityOid) {
+    public LongSet getRelatedEntities(long entityOid) {
         return supplyChain.getRelatedEntities(entityOid).values().stream()
                 .flatMap(Collection::stream)
-                .collect(Collectors.toSet());
+                .mapToLong(Long::longValue)
+                .collect(LongOpenHashSet::new, LongSet::add, LongSet::addAll);
     }
 
     /**

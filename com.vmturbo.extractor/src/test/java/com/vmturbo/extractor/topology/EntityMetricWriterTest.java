@@ -45,6 +45,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -67,6 +68,9 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSetMultimap;
 import com.google.common.collect.Multimap;
+
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
+import it.unimi.dsi.fastutil.longs.LongSet;
 
 import org.javatuples.Quartet;
 import org.javatuples.Triplet;
@@ -174,6 +178,8 @@ public class EntityMetricWriterTest {
         doReturn(metricInserterSink).when(writer).getMetricInserterSink(any(DSLContext.class));
         doReturn(Stream.empty()).when(dataProvider).getAllGroups();
         doReturn(wastedFileReplacerSink).when(writer).getWastedFileReplacerSink(any(DSLContext.class));
+        LongSet relatedEntities = new LongOpenHashSet();
+        doReturn(relatedEntities).when(dataProvider).getRelatedEntities(anyLong());
     }
 
     private WriterConfig getWriteConfig(final List<Integer> commodityWhitelist,
