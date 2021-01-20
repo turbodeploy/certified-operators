@@ -18,8 +18,7 @@ import com.google.common.base.MoreObjects;
 @JsonPropertyOrder(alphabetic = true)
 public class Entity {
 
-    private String timestamp;
-    private Long id;
+    private Long oid;
     private String name;
     private String type;
     private String environment;
@@ -31,20 +30,12 @@ public class Entity {
     // mapping from related entity type key to list of related entities
     private Map<String, List<RelatedEntity>> related;
 
-    public String getTimestamp() {
-        return timestamp;
+    public Long getOid() {
+        return oid;
     }
 
-    public void setTimestamp(String timestamp) {
-        this.timestamp = timestamp;
-    }
-
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
+    public void setOid(Long oid) {
+        this.oid = oid;
     }
 
     public String getName() {
@@ -108,7 +99,7 @@ public class Entity {
         return MoreObjects.toStringHelper("Entity")
                 .omitNullValues()
                 .add("type", type)
-                .add("id", id)
+                .add("oid", oid)
                 .add("name", name)
                 .toString();
     }

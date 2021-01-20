@@ -78,8 +78,7 @@ public class DataExtractionWriter extends TopologyWriterBase {
         }
 
         final Entity entity = new Entity();
-        entity.setTimestamp(formattedTopologyCreationTime);
-        entity.setId(e.getOid());
+        entity.setOid(e.getOid());
         entity.setName(e.getDisplayName());
         // use proto db str (rather than api str) to keep consistent with reporting
         entity.setType(ExportUtils.getEntityTypeJsonKey(e.getEntityType()));
@@ -105,8 +104,9 @@ public class DataExtractionWriter extends TopologyWriterBase {
         timer.start(relatedStageLabel);
         final List<ExportedObject> exportedObjects = entities.parallelStream()
                 .map(entity -> {
-                    entity.setRelated(relatedEntitiesExtractor.extractRelatedEntities(entity.getId()));
+                    entity.setRelated(relatedEntitiesExtractor.extractRelatedEntities(entity.getOid()));
                     final ExportedObject exportedObject = new ExportedObject();
+                    exportedObject.setTimestamp(formattedTopologyCreationTime);
                     exportedObject.setEntity(entity);
                     return exportedObject;
                 }).collect(Collectors.toList());

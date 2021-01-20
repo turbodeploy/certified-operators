@@ -23,7 +23,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
@@ -207,7 +206,7 @@ public class DataExtractionPendingActionWriterTest {
 
     private DataExtractionPendingActionWriter writer;
 
-    private List<Action> actionsCapture;
+    private List<ExportedObject> actionsCapture;
 
     /**
      * Common setup code before each test.
@@ -219,9 +218,7 @@ public class DataExtractionPendingActionWriterTest {
         doAnswer(inv -> {
             Collection<ExportedObject> exportedObjects = inv.getArgumentAt(0, Collection.class);
             if (exportedObjects != null) {
-                actionsCapture.addAll(exportedObjects.stream()
-                        .map(ExportedObject::getAction)
-                        .collect(Collectors.toList()));
+                actionsCapture.addAll(exportedObjects);
             }
             return null;
         }).when(extractorKafkaSender).send(any());
@@ -247,10 +244,10 @@ public class DataExtractionPendingActionWriterTest {
         doReturn(relatedEntitiesExtractor).when(dataExtractionFactory).newRelatedEntitiesExtractor(any(), any(), any());
 
         RelatedEntity relatedEntity1 = new RelatedEntity();
-        relatedEntity1.setId(host1);
+        relatedEntity1.setOid(host1);
         relatedEntity1.setName(String.valueOf(host1));
         RelatedEntity relatedEntity2 = new RelatedEntity();
-        relatedEntity2.setId(storage1);
+        relatedEntity2.setOid(storage1);
         relatedEntity2.setName(String.valueOf(storage1));
         doReturn(ImmutableMap.of(
                 PHYSICAL_MACHINE.getLiteral(), Lists.newArrayList(relatedEntity1),
@@ -274,37 +271,37 @@ public class DataExtractionPendingActionWriterTest {
         // verify
         assertThat(actionsCapture.size(), is(1));
 
-        final Action action = actionsCapture.get(0);
+        final Action action = actionsCapture.get(0).getAction();
         // common fields
-        verifyCommonFields(action, COMPOUND_MOVE.getActionSpec());
+        verifyCommonFields(actionsCapture.get(0), COMPOUND_MOVE.getActionSpec());
         // target
-        assertThat(action.getTarget().getId(), is(vm1));
+        assertThat(action.getTarget().getOid(), is(vm1));
         assertThat(action.getTarget().getName(), is(String.valueOf(vm1)));
         assertThat(action.getTarget().getType(), is(VIRTUAL_MACHINE.getLiteral()));
         // related
         assertThat(action.getRelated().size(), is(2));
-        assertThat(action.getRelated().get(PHYSICAL_MACHINE.getLiteral()).get(0).getId(), is(host1));
-        assertThat(action.getRelated().get(STORAGE.getLiteral()).get(0).getId(), is(storage1));
+        assertThat(action.getRelated().get(PHYSICAL_MACHINE.getLiteral()).get(0).getOid(), is(host1));
+        assertThat(action.getRelated().get(STORAGE.getLiteral()).get(0).getOid(), is(storage1));
 
         // type specific info
         assertThat(action.getMoveInfo().size(), is(4));
         MoveChange moveChange = action.getMoveInfo().get(PHYSICAL_MACHINE.getLiteral());
-        assertThat(moveChange.getFrom().getId(), is(host1));
+        assertThat(moveChange.getFrom().getOid(), is(host1));
         assertThat(moveChange.getFrom().getName(), is(String.valueOf(host1)));
         assertThat(moveChange.getFrom().getType(), is(nullValue()));
-        assertThat(moveChange.getTo().getId(), is(host2));
+        assertThat(moveChange.getTo().getOid(), is(host2));
         assertThat(moveChange.getTo().getName(), is(String.valueOf(host2)));
         assertThat(moveChange.getTo().getType(), is(nullValue()));
 
         MoveChange moveChange2 = action.getMoveInfo().get(STORAGE.getLiteral());
         assertThat(moveChange2.getResource().size(), is(1));
-        assertThat(moveChange2.getResource().get(0).getId(), is(volume1));
+        assertThat(moveChange2.getResource().get(0).getOid(), is(volume1));
         assertThat(moveChange2.getResource().get(0).getName(), is(String.valueOf(volume1)));
         assertThat(moveChange2.getResource().get(0).getType(), is(VIRTUAL_VOLUME.getLiteral()));
-        assertThat(moveChange2.getFrom().getId(), is(storage1));
+        assertThat(moveChange2.getFrom().getOid(), is(storage1));
         assertThat(moveChange2.getFrom().getName(), is(String.valueOf(storage1)));
         assertThat(moveChange2.getFrom().getType(), is(nullValue()));
-        assertThat(moveChange2.getTo().getId(), is(storage2));
+        assertThat(moveChange2.getTo().getOid(), is(storage2));
         assertThat(moveChange2.getTo().getName(), is(String.valueOf(storage2)));
         assertThat(moveChange2.getTo().getType(), is(nullValue()));
 
@@ -324,11 +321,11 @@ public class DataExtractionPendingActionWriterTest {
         // verify
         assertThat(actionsCapture.size(), is(1));
 
-        final Action action = actionsCapture.get(0);
+        final Action action = actionsCapture.get(0).getAction();
         // common fields
-        verifyCommonFields(action, ATOMIC_RESIZE.getActionSpec());
+        verifyCommonFields(actionsCapture.get(0), ATOMIC_RESIZE.getActionSpec());
         // target
-        assertThat(action.getTarget().getId(), is(workloadController1));
+        assertThat(action.getTarget().getOid(), is(workloadController1));
         assertThat(action.getTarget().getName(), is(String.valueOf(workloadController1)));
         assertThat(action.getTarget().getType(), is(WORKLOAD_CONTROLLER.getLiteral()));
 
@@ -340,7 +337,7 @@ public class DataExtractionPendingActionWriterTest {
         assertThat(change.getTo(), is(200F));
         assertThat(change.getUnit(), is("KB"));
         assertThat(change.getAttribute(), is("CAPACITY"));
-        assertThat(change.getTarget().getId(), is(containerSpec1));
+        assertThat(change.getTarget().getOid(), is(containerSpec1));
         assertThat(change.getTarget().getName(), is(String.valueOf(containerSpec1)));
         assertThat(change.getTarget().getType(), is(CONTAINER_SPEC.getLiteral()));
 
@@ -350,7 +347,7 @@ public class DataExtractionPendingActionWriterTest {
         assertThat(change2.getTo(), is(400F));
         assertThat(change2.getUnit(), is("millicore"));
         assertThat(change2.getAttribute(), is("CAPACITY"));
-        assertThat(change2.getTarget().getId(), is(containerSpec1));
+        assertThat(change2.getTarget().getOid(), is(containerSpec1));
         assertThat(change2.getTarget().getName(), is(String.valueOf(containerSpec1)));
         assertThat(change2.getTarget().getType(), is(CONTAINER_SPEC.getLiteral()));
     }
@@ -358,18 +355,19 @@ public class DataExtractionPendingActionWriterTest {
     /**
      * Verify the common fields in {@link Action}.
      *
-     * @param action action sent to Kafka
+     * @param exportedObject action sent to Kafka
      * @param actionSpec action from AO
      */
-    private void verifyCommonFields(Action action, ActionSpec actionSpec) {
-        assertThat(action.getTimestamp(), is(ExportUtils.getFormattedDate(clock.millis())));
+    private void verifyCommonFields(ExportedObject exportedObject, ActionSpec actionSpec) {
+        assertThat(exportedObject.getTimestamp(), is(ExportUtils.getFormattedDate(clock.millis())));
+        final Action action = exportedObject.getAction();
         assertThat(action.getCreationTime(), is(ExportUtils.getFormattedDate(actionSpec.getRecommendationTime())));
-        assertThat(action.getId(), is(actionSpec.getRecommendation().getId()));
+        assertThat(action.getOid(), is(actionSpec.getRecommendation().getId()));
         assertThat(action.getState(), is(actionSpec.getActionState().name()));
         assertThat(action.getCategory(), is(actionSpec.getCategory().name()));
         assertThat(action.getMode(), is(actionSpec.getActionMode().name()));
         assertThat(action.getSeverity(), is(actionSpec.getSeverity().name()));
-        assertThat(action.getDetails(), is(actionSpec.getDescription()));
+        assertThat(action.getDescription(), is(actionSpec.getDescription()));
         assertThat(action.getType(), is(ActionDTOUtil.getActionInfoActionType(actionSpec.getRecommendation()).name()));
     }
 

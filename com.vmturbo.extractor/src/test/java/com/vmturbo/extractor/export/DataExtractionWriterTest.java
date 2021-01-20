@@ -211,7 +211,7 @@ public class DataExtractionWriterTest {
         assertThat(entitiesCapture.size(), is(4));
 
         final Map<Long, Entity> entityMap = entitiesCapture.stream()
-                .collect(Collectors.toMap(Entity::getId, e -> e));
+                .collect(Collectors.toMap(Entity::getOid, e -> e));
         final Entity vmEntity = entityMap.get(vm.getOid());
         final Entity pmEntity = entityMap.get(pm.getOid());
         final Entity stEntity1 = entityMap.get(st1.getOid());
@@ -344,7 +344,7 @@ public class DataExtractionWriterTest {
      */
     private static List<Long> getRelatedEntityIds(Entity entity, EntityType relatedEntityType) {
         return entity.getRelated().get(relatedEntityType.getLiteral()).stream()
-                .map(RelatedEntity::getId)
+                .map(RelatedEntity::getOid)
                 .collect(Collectors.toList());
     }
 }

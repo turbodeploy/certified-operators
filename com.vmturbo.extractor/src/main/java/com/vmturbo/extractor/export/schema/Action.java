@@ -17,18 +17,15 @@ import com.google.common.base.MoreObjects;
 @JsonPropertyOrder(alphabetic = true)
 public class Action {
 
-    // when the action is exported
-    private String timestamp;
-    private Long id;
+    private Long oid;
     private String creationTime;
     private String type;
     private String state;
     private String mode;
     private String category;
     private String severity;
-    private String details;
-    private String riskDescription;
-    private List<String> reasonCommodity;
+    private String description;
+    private String explanation;
     private ActionSavings savings;
     private ActionEntity target;
     // mapping from related entity type key to list of related entities
@@ -42,20 +39,12 @@ public class Action {
     // info for delete action
     private DeleteInfo deleteInfo;
 
-    public String getTimestamp() {
-        return timestamp;
+    public Long getOid() {
+        return oid;
     }
 
-    public void setTimestamp(String timestamp) {
-        this.timestamp = timestamp;
-    }
-
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
+    public void setOid(Long oid) {
+        this.oid = oid;
     }
 
     public Map<String, List<RelatedEntity>> getRelated() {
@@ -114,28 +103,20 @@ public class Action {
         this.severity = severity;
     }
 
-    public String getDetails() {
-        return details;
+    public String getDescription() {
+        return description;
     }
 
-    public void setDetails(String details) {
-        this.details = details;
+    public void setDescription(String description) {
+        this.description = description;
     }
 
-    public String getRiskDescription() {
-        return riskDescription;
+    public String getExplanation() {
+        return explanation;
     }
 
-    public void setRiskDescription(String riskDescription) {
-        this.riskDescription = riskDescription;
-    }
-
-    public List<String> getReasonCommodity() {
-        return reasonCommodity;
-    }
-
-    public void setReasonCommodity(List<String> reasonCommodity) {
-        this.reasonCommodity = reasonCommodity;
+    public void setExplanation(String explanation) {
+        this.explanation = explanation;
     }
 
     public ActionEntity getTarget() {
@@ -183,7 +164,7 @@ public class Action {
         return MoreObjects.toStringHelper("Action")
                 .omitNullValues()
                 .add("type", type)
-                .add("id", id)
+                .add("oid", oid)
                 .toString();
     }
 }

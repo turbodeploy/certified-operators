@@ -77,13 +77,13 @@ public class ExtractorKafkaSenderTest {
     private void sendToKafkaAndVerify() {
         // around 57 bytes
         final Entity entity1 = new Entity();
-        entity1.setId(1L);
+        entity1.setOid(1L);
         entity1.setName("foo");
         entity1.setType("VIRTUAL_MACHINE");
 
         // around 58 bytes
         final Entity entity2 = new Entity();
-        entity2.setId(2L);
+        entity2.setOid(2L);
         entity2.setName("bar");
         entity2.setType("PHYSICAL_MACHINE");
         // send
@@ -98,7 +98,7 @@ public class ExtractorKafkaSenderTest {
 
         Map<Long, Entity> entityById = objectsCapture.stream()
                 .map(ExportedObject::getEntity)
-                .collect(Collectors.toMap(Entity::getId, e -> e));
+                .collect(Collectors.toMap(Entity::getOid, e -> e));
 
         assertThat(entityById.get(1L).getName(), is(entity1.getName()));
         assertThat(entityById.get(1L).getType(), is(entity1.getType()));

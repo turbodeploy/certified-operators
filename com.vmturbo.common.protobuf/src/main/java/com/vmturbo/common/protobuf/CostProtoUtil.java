@@ -177,19 +177,10 @@ public class CostProtoUtil {
      * @return unit string
      */
     public static String getCurrencyUnit(@Nonnull CurrencyAmount currencyAmount) {
-        final Currency currency;
-        if (currencyAmount.hasCurrency()) {
-            Currency cur = CURRENCIES_BY_NUMERIC_CODE.get(currencyAmount.getCurrency());
-            if (cur != null) {
-                currency = cur;
-            } else {
-                logger.warn("Cannot find currency code {}. Defaulting to {}.",
-                        currencyAmount.getCurrency(), DEFAULT_CURRENCY.getDisplayName());
-                currency = DEFAULT_CURRENCY;
-            }
-        } else {
-            logger.warn("Currency code not defined {}. Defaulting to {}.", currencyAmount,
-                    DEFAULT_CURRENCY.getDisplayName());
+        Currency currency = CURRENCIES_BY_NUMERIC_CODE.get(currencyAmount.getCurrency());
+        if (currency == null) {
+            logger.warn("Cannot find currency code {}. Defaulting to {}.",
+                    currencyAmount.getCurrency(), DEFAULT_CURRENCY.getDisplayName());
             currency = DEFAULT_CURRENCY;
         }
         return currency.getSymbol() + "/h";

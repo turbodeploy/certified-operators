@@ -98,7 +98,7 @@ public class RelatedEntitiesExtractor {
                 if (entityTypeJsonKey != null) {
                     relatedEntities.put(entityTypeJsonKey, relatedEntityList);
                 } else {
-                    logger.error("Invalid entity type {}", relatedEntityType);
+                    logger.debug("Invalid entity type {} for entity {}", relatedEntityType, entityOid);
                 }
             }
         });
@@ -137,7 +137,7 @@ public class RelatedEntitiesExtractor {
     private RelatedEntity getOrCreateRelatedEntity(long id, String name) {
         return relatedEntityById.computeIfAbsent(id, k -> {
             final RelatedEntity relatedEntity = new RelatedEntity();
-            relatedEntity.setId(id);
+            relatedEntity.setOid(id);
             relatedEntity.setName(name);
             return relatedEntity;
         });

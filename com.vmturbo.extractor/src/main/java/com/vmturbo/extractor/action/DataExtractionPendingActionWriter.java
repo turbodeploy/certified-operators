@@ -21,14 +21,12 @@ import com.vmturbo.common.protobuf.action.ActionDTO.AtomicResize;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeleteExplanation;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.RiskUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.commons.Units;
 import com.vmturbo.components.common.ClassicEnumMapper;
 import com.vmturbo.components.common.utils.MultiStageTimer;
@@ -99,13 +97,12 @@ class DataExtractionPendingActionWriter implements IActionWriter {
         final ActionSpec actionSpec = aoAction.getActionSpec();
         final ActionDTO.Action recommendation = actionSpec.getRecommendation();
         final Action action = new Action();
-        action.setTimestamp(exportTimeFormatted);
-        action.setId(recommendation.getId());
+        action.setOid(recommendation.getId());
         action.setCreationTime(ExportUtils.getFormattedDate(actionSpec.getRecommendationTime()));
         action.setState(actionSpec.getActionState().name());
         action.setCategory(actionSpec.getCategory().name());
         action.setMode(actionSpec.getActionMode().name());
-        action.setDetails(actionSpec.getDescription());
+        action.setDescription(actionSpec.getDescription());
         action.setSeverity(actionSpec.getSeverity().name());
 
         // set risk description
@@ -115,15 +112,9 @@ class DataExtractionPendingActionWriter implements IActionWriter {
                     entityId -> topologyGraph.getEntity(entityId)
                             .map(SupplyChainEntity::getDisplayName)
                             .orElse(null));
-            action.setRiskDescription(riskDescription);
+            action.setExplanation(riskDescription);
         } catch (UnsupportedActionException e) {
             logger.error("Cannot calculate risk for unsupported action {}", actionSpec, e);
-        }
-
-        // set reason commodities
-        List<String> reasonCommodities = getReasonCommodities(recommendation);
-        if (!reasonCommodities.isEmpty()) {
-            action.setReasonCommodity(reasonCommodities);
         }
 
         // set target and related
@@ -179,6 +170,7 @@ class DataExtractionPendingActionWriter implements IActionWriter {
         final List<ExportedObject> exportedObjects = actions.stream()
                 .map(action -> {
                     ExportedObject exportedObject = new ExportedObject();
+                    exportedObject.setTimestamp(exportTimeFormatted);
                     exportedObject.setAction(action);
                     return exportedObject;
                 }).collect(Collectors.toList());
@@ -188,20 +180,6 @@ class DataExtractionPendingActionWriter implements IActionWriter {
         timer.stop();
         // update last extraction time
         lastActionExtraction.setValue(exportTimeInMillis);
-    }
-
-    /**
-     * Get reason commodities for the given action.
-     *
-     * @param action action from AO
-     * @return list of reason commodities
-     */
-    private static List<String> getReasonCommodities(ActionDTO.Action action) {
-        return ActionDTOUtil.getReasonCommodities(action)
-                .map(ReasonCommodity::getCommodityType)
-                .map(CommodityType::getType)
-                .map(ExportUtils::getCommodityTypeJsonKey)
-                .collect(Collectors.toList());
     }
 
     /**
@@ -326,7 +304,7 @@ class DataExtractionPendingActionWriter implements IActionWriter {
      */
     private ActionEntity getActionEntityWithoutType(ActionDTO.ActionEntity actionEntity) {
         final ActionEntity ae = new ActionEntity();
-        ae.setId(actionEntity.getId());
+        ae.setOid(actionEntity.getId());
         topologyGraph.getEntity(actionEntity.getId()).ifPresent(e -> ae.setName(e.getDisplayName()));
         return ae;
     }

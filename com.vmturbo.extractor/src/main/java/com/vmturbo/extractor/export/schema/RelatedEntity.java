@@ -11,15 +11,15 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 @JsonInclude(Include.NON_EMPTY)
 @JsonPropertyOrder(alphabetic = true)
 public class RelatedEntity {
-    private Long id;
+    private Long oid;
     private String name;
 
-    public Long getId() {
-        return id;
+    public Long getOid() {
+        return oid;
     }
 
-    public void setId(Long id) {
-        this.id = id;
+    public void setOid(Long oid) {
+        this.oid = oid;
     }
 
     public String getName() {
