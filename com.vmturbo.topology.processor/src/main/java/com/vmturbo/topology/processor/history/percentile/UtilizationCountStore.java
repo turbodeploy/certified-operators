@@ -242,12 +242,12 @@ public class UtilizationCountStore {
     }
 
     /**
-     * If the last timestamp is older than 90 days and latest is empty, return true so we can clean these records.
-     * @param currentTimestamp current moment
-     * @return true if this record is empty or older than 90 days.
+     * Whether the store is empty.
+     *
+     * @return true if no points have ever been added
      */
-    public synchronized boolean isEmptyOrOutdated(long currentTimestamp) {
-        return full.isEmptyOrOutdated(currentTimestamp) && latest.isEmpty();
+    public synchronized boolean isEmpty() {
+        return full.isEmpty() && latest.isEmpty();
     }
 
     public int getPeriodDays() {

@@ -67,7 +67,7 @@ public class HistoryAggregationConfig {
     private String percentileBucketsImageMem;
     @Value("${historyAggregation.percentileBuckets.IMAGE_STORAGE:}")
     private String percentileBucketsImageStorage;
-    @Value("${historyAggregation.grpcChannelMaxMessageSizeKb:1024000}")
+    @Value("${historyAggregation.grpcChannelMaxMessageSizeKb:204800}")
     private int grpcChannelMaxMessageSizeKb;
     @Value("${historyAggregation.grpcTimeSlotChannelMaxMessageSizeKb:20480}")
     private int grpcTimeSlotChannelMaxMessageSizeKb;

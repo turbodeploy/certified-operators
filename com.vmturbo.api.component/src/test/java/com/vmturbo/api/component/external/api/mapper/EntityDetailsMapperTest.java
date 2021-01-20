@@ -9,7 +9,6 @@ import java.util.Optional;
 import javax.annotation.Nonnull;
 
 import org.junit.Assert;
-import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -29,23 +28,13 @@ import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
  */
 public class EntityDetailsMapperTest {
 
-    ThinTargetCache targetCache;
-    EntityDetailsMapper entityDetailsMapper;
+    private final EntityDetailsMapper entityDetailsMapper = new EntityDetailsMapper(Mockito.mock(ThinTargetCache.class));
 
     private static final String PROBE_TYPE_APPDY = "AppDynamics";
     private static final String PROBE_TYPE_AWS = "AWS";
     private static final String PROBE_STORAGE_BROWSING =  "vCenter Storage Browsing";
     private static final long TARGET_ID_1 = 1L;
     private static final long TARGET_ID_2 = 2L;
-
-    /**
-     * Initialize classes.
-     */
-    @Before
-    public void setup() {
-        targetCache = Mockito.mock(ThinTargetCache.class);
-        entityDetailsMapper = new EntityDetailsMapper(targetCache, false);
-    }
 
     /**
      * Tests the correct translation from {@link TopologyEntityDTO} to {@link EntityDetailsApiDTO}.
@@ -71,12 +60,14 @@ public class EntityDetailsMapperTest {
      */
     @Test
     public void testEnhancedByProperty() {
+        final ThinTargetCache targetCache = Mockito.mock(ThinTargetCache.class);
+        final EntityDetailsMapper mapper = new EntityDetailsMapper(targetCache);
         final TopologyEntityDTO entityDTO = createTopologyDto(new long[]{TARGET_ID_1});
 
         final ThinTargetInfo targetInfo = getTargetInfo(PROBE_TYPE_APPDY);
         Mockito.when(targetCache.getTargetInfo(TARGET_ID_1)).thenReturn(Optional.of(targetInfo));
 
-        final EntityDetailsApiDTO detailsApiDTO = entityDetailsMapper.toEntityDetails(entityDTO);
+        final EntityDetailsApiDTO detailsApiDTO = mapper.toEntityDetails(entityDTO);
         validateDataDtoEnhancedProperty(detailsApiDTO, PROBE_TYPE_APPDY);
     }
 
@@ -86,13 +77,17 @@ public class EntityDetailsMapperTest {
      */
     @Test
     public void testEnhancedByPropertyTwoSecondaryTargets() {
+
+        final ThinTargetCache targetCache = Mockito.mock(ThinTargetCache.class);
+        final EntityDetailsMapper mapper = new EntityDetailsMapper(targetCache);
+
         final TopologyEntityDTO entityDTO = createTopologyDto(new long[]{TARGET_ID_1, TARGET_ID_2});
         final ThinTargetInfo targetInfo1 = getTargetInfo(PROBE_TYPE_APPDY);
         final ThinTargetInfo targetInfo2 = getTargetInfo(PROBE_TYPE_AWS);
         Mockito.when(targetCache.getTargetInfo(TARGET_ID_1)).thenReturn(Optional.of(targetInfo1));
         Mockito.when(targetCache.getTargetInfo(TARGET_ID_2)).thenReturn(Optional.of(targetInfo2));
 
-        final EntityDetailsApiDTO detailsApiDTO = entityDetailsMapper.toEntityDetails(entityDTO);
+        final EntityDetailsApiDTO detailsApiDTO = mapper.toEntityDetails(entityDTO);
         final String expectedEnhancedPropValue = PROBE_TYPE_APPDY + ", " + PROBE_TYPE_AWS;
         validateDataDtoEnhancedProperty(detailsApiDTO, expectedEnhancedPropValue);
 
@@ -104,6 +99,10 @@ public class EntityDetailsMapperTest {
      */
     @Test
     public void testNotShowingHiddenTargets() {
+
+        final ThinTargetCache targetCache = Mockito.mock(ThinTargetCache.class);
+        final EntityDetailsMapper mapper = new EntityDetailsMapper(targetCache);
+
         final TopologyEntityDTO entityDTO = createTopologyDto(new long[]{TARGET_ID_1});
         final ThinTargetInfo targetInfo = Mockito.mock(ThinTargetInfo.class);
         final ThinProbeInfo probeInfo = Mockito.mock(ThinProbeInfo.class);
@@ -112,7 +111,7 @@ public class EntityDetailsMapperTest {
         Mockito.when(targetInfo.isHidden()).thenReturn(true);
         Mockito.when(targetCache.getTargetInfo(TARGET_ID_1)).thenReturn(Optional.of(targetInfo));
 
-        final EntityDetailsApiDTO detailsApiDTO = entityDetailsMapper.toEntityDetails(entityDTO);
+        final EntityDetailsApiDTO detailsApiDTO = mapper.toEntityDetails(entityDTO);
         Assert.assertNotNull(detailsApiDTO.getDetails());
         Assert.assertTrue(detailsApiDTO.getDetails().isEmpty());
 

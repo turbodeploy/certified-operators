@@ -141,20 +141,6 @@ public class UtilizationCountArrayTest {
     }
 
     /**
-     * Test capacity is empty after subtraction.
-     * @throws HistoryCalculationException when exception
-     */
-    @Test
-    public void testEmptyCapacity() throws HistoryCalculationException {
-        UtilizationCountArray counts = new UtilizationCountArray(new PercentileBuckets());
-        addCount(counts, 1, 2);
-        counts.removePoint(1, 2, 50, timestamp + 1, "");
-        Assert.assertTrue(counts.isEmpty());
-        addCount(counts, 1, 3);
-        Assert.assertTrue(counts.isEmptyOrOutdated(timestamp + 7776000001L)); //90 days in milliseconds
-    }
-
-    /**
      * Test that usage is rescaled to current capacity when point is subtracted.
      *
      * @throws HistoryCalculationException when failed

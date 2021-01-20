@@ -62,7 +62,7 @@ public class UtilizationCountStoreTest {
     @Test
     public void testAddPoints() throws HistoryCalculationException {
         store.addPoints(ImmutableList.of(Double.NaN, Double.NaN), 1000d, 100);
-        Assert.assertTrue(store.isEmptyOrOutdated(System.currentTimeMillis()));
+        Assert.assertTrue(store.isEmpty());
         store.addPoints(ImmutableList.of(10d, 10d, 10d, 10d, 10d), 100d, 100);
         Integer percentile90 = store.getPercentile(90);
         Assert.assertNotNull(percentile90);
