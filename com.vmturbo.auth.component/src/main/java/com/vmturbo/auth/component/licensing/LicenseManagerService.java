@@ -149,6 +149,7 @@ public class LicenseManagerService extends LicenseManagerServiceImplBase {
                     responseBuilder.setLicenseDTO(license);
                 }
                 responseObserver.onNext(responseBuilder.build());
+                responseObserver.onCompleted();
             } catch (Exception e) {
                 responseObserver.onError(e);
                 RPC_ERROR_COUNT.labels("getLicense").increment();
