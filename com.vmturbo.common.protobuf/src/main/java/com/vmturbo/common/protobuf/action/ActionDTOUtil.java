@@ -1075,6 +1075,7 @@ public class ActionDTOUtil {
     public static String beautifyCommodityTypes(@Nonnull final List<TopologyDTO.CommodityType> commodityTypes) {
         return commodityTypes.stream()
             .map(ActionDTOUtil::getCommodityDisplayName)
+            .distinct()
             .collect(Collectors.joining(", "));
     }
 
