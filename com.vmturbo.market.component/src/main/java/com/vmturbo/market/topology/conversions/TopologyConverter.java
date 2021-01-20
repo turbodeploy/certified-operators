@@ -116,6 +116,7 @@ import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ScalingGr
 import com.vmturbo.market.topology.conversions.ConversionErrorCounts.ErrorCategory;
 import com.vmturbo.market.topology.conversions.ConversionErrorCounts.Phase;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
+import com.vmturbo.mediation.hybrid.cloud.utils.StorageTier;
 import com.vmturbo.platform.analysis.economy.EconomyConstants;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveTO;
@@ -4402,9 +4403,9 @@ public class TopologyConverter {
                     .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(
                             CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE).build())
                     .build();
-            if ("IO1".equals(tierName)
-                    || "IO2".equals(tierName)
-                    || "MANAGED_ULTRA_SSD".equals(tierName)) {
+            if (StorageTier.IO1.getDisplayName().equals(tierName)
+                    || StorageTier.IO2.getDisplayName().equals(tierName)
+                    || StorageTier.MANAGED_ULTRA_SSD.getDisplayName().equals(tierName)) {
                 // If moving to any of these higher tiers, then it is performance.
                 explanation = ChangeProviderExplanation.newBuilder()
                         .setCongestion(ChangeProviderExplanation.Congestion.newBuilder()

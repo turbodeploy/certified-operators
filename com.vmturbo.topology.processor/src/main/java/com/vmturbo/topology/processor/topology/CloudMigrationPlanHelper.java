@@ -82,6 +82,7 @@ import com.vmturbo.commons.Units;
 import com.vmturbo.components.common.pipeline.Pipeline.PipelineStageException;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.mediation.hybrid.cloud.common.OsType;
+import com.vmturbo.mediation.hybrid.cloud.utils.StorageTier;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -124,8 +125,8 @@ public class CloudMigrationPlanHelper {
      * For Cloud migration allocation (Lift_n_Shift) plan, we only support GP2 & managed_premium.
      */
     private static final Set<String> ALLOCATION_PLAN_KEEP_STORAGE_TIERS = ImmutableSet.of(
-            "GP2",
-            "MANAGED_PREMIUM"
+            StorageTier.GP2.getDisplayName(),
+            StorageTier.MANAGED_PREMIUM.getDisplayName()
     );
 
     /**
@@ -133,10 +134,10 @@ public class CloudMigrationPlanHelper {
      * Un-managed Azure storage tiers are also skipped for Cloud migration consumption plan.
      */
     private static final Set<String> CONSUMPTION_PLAN_SKIP_STORAGE_TIERS = ImmutableSet.of(
-            "HDD",
-            "SSD",
-            "UNMANAGED_STANDARD",
-            "UNMANAGED_PREMIUM"
+            StorageTier.HDD.getDisplayName(),
+            StorageTier.SSD.getDisplayName(),
+            StorageTier.UNMANAGED_STANDARD.getDisplayName(),
+            StorageTier.UNMANAGED_PREMIUM.getDisplayName()
     );
 
     private static final String CSP_AWS_DISPLAY_NAME = "AWS";
