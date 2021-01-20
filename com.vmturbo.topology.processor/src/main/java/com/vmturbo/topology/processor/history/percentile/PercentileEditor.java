@@ -256,7 +256,7 @@ public class PercentileEditor extends
 
             // clean up the empty entries
             int entriesBefore = getCache().size();
-            getCache().entrySet().removeIf(field2data -> field2data.getValue().getUtilizationCountStore().isEmpty());
+            getCache().entrySet().removeIf(field2data -> field2data.getValue().getUtilizationCountStore().isEmptyOrOutdated(getCheckpoint()));
             int entriesAfter = getCache().size();
             if (entriesAfter < entriesBefore && logger.isDebugEnabled()) {
                 logger.debug("Cleared {} empty percentile records out of {}",

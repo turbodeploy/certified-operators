@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -17,6 +18,8 @@ import it.unimi.dsi.fastutil.longs.LongList;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.components.common.setting.NumericSettingDataType;
 import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
 import com.vmturbo.topology.processor.history.HistoryCalculationException;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts.PercentileRecord;
@@ -38,6 +41,12 @@ public class UtilizationCountArray {
     private static final Logger logger = LogManager.getLogger();
     // change of capacity for more than half a % requires rescaling
     private static final float EPSILON = 0.005F;
+
+    //Records in cache older than this time will be removed from cache
+    private static final long MAX_MILLIS_IN_CACHE = TimeUnit.DAYS.toMillis(
+            ((long)((NumericSettingDataType)
+                    (EntitySettingSpecs.MaxObservationPeriodVirtualMachine.getDataStructure()))
+                    .getMax()));
 
     private final PercentileBuckets buckets;
     private int[] counts;
@@ -217,8 +226,9 @@ public class UtilizationCountArray {
             // something is wrong. log an error
             // TODO (mahdi) it may be good idea to to flag this record as invalid and therefore
             //  should be re-calculated.
-            logger.error("The is no datapoint to decrement for {} at index {}. This indicates "
-                + "corrupted percentile record.", key, bucketToDecrement);
+            logger.trace("The percentile bucket in the full record being decremented '{}' has a count of '{}', "
+                          + "which is smaller than the count '{}' for the OID '{}' at '{}'",
+                    bucketToDecrement, counts[bucketToDecrement], numberToDecrement, key, timestamp);
             counts[bucketToDecrement] = 0;
         }
     }
@@ -402,6 +412,16 @@ public class UtilizationCountArray {
         return capacityList.isEmpty();
     }
 
+    /**
+     * If the last timestamp is older than 90 days, return true so we can clean these records.
+     * @param currentTimestamp current moment
+     * @return true if this record is empty or older than 90 days.
+     */
+    public boolean isEmptyOrOutdated(long currentTimestamp) {
+        return capacityList.isEmpty()
+                || (getEndTimestamp() != 0 && getEndTimestamp() < currentTimestamp - MAX_MILLIS_IN_CACHE);
+    }
+
     private String createToString(boolean withoutCounts) {
         return String.format("%s#%s", UtilizationCountArray.class.getSimpleName(),
                         getFieldDescriptions(withoutCounts));
@@ -524,7 +544,7 @@ public class UtilizationCountArray {
             }
 
             int endIndex = 0;
-            while (endIndex < timestamps.size() - 1 && timestamps.getLong(endIndex) < timestamp) {
+            while (endIndex < timestamps.size() && timestamps.getLong(endIndex) < timestamp) {
                 endIndex++;
             }
 
