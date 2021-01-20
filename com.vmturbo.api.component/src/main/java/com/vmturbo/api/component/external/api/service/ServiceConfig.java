@@ -44,6 +44,7 @@ import com.vmturbo.api.component.external.api.util.stats.query.impl.ProjectedCom
 import com.vmturbo.api.component.external.api.util.stats.query.impl.RIStatsSubQuery;
 import com.vmturbo.api.component.external.api.util.stats.query.impl.ScopedUserCountStatsSubQuery;
 import com.vmturbo.api.component.external.api.util.stats.query.impl.StorageStatsSubQuery;
+import com.vmturbo.api.component.external.api.util.stats.query.impl.TemplateCostStatsSubQuery;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
 import com.vmturbo.api.component.security.HeaderAuthenticationCondition;
 import com.vmturbo.api.component.security.IntersightIdTokenVerifier;
@@ -900,6 +901,19 @@ public class ServiceConfig {
                 communicationConfig.repositoryApi());
         statsQueryExecutor().addSubquery(scopedUserCountStatsSubQuery);
         return scopedUserCountStatsSubQuery;
+    }
+
+    /**
+     * Template costs sub-query.
+     *
+     * @return the {@link TemplateCostStatsSubQuery}
+     */
+    @Bean
+    public TemplateCostStatsSubQuery templateCostsStatsSubQuery() {
+        final TemplateCostStatsSubQuery templateCostsStatsSubQuery =
+            new TemplateCostStatsSubQuery(mapperConfig.templatesUtils());
+        statsQueryExecutor().addSubquery(templateCostsStatsSubQuery);
+        return templateCostsStatsSubQuery;
     }
 
     @Bean
