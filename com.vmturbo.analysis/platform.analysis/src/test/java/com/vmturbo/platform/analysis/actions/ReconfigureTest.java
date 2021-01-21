@@ -214,7 +214,7 @@ public class ReconfigureTest {
         }};
         Trader pm2 = e.addTrader(2, TraderState.ACTIVE, basket3);
         ReconfigureProviderAddition additionAction = new ReconfigureProviderAddition(e,
-                (TraderWithSettings)pm2, comm);
+                (TraderWithSettings)pm2, (TraderWithSettings)pm, comm);
         additionAction.take();
         assertTrue(pm2.getCommoditiesSold().size() == 2);
         assertTrue(pm2.getBasketSold().size() == 2);

@@ -176,7 +176,7 @@ public class Reconfigure {
                         put(entry.getKey(), entry.getValue());
                     }};
                     ReconfigureProviderAddition commAddAction = new ReconfigureProviderAddition(economy,
-                        (TraderWithSettings)leastProfitableTrader, comm).take();
+                        (TraderWithSettings)leastProfitableTrader, (TraderWithSettings)mostProfitableTrader, comm).take();
                     actionsToAdd.add(commAddAction);
                     additionActions.add(commAddAction);
                 }

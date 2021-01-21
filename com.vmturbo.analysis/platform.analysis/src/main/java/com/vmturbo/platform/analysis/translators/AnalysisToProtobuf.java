@@ -427,8 +427,12 @@ public final class AnalysisToProtobuf {
                 ReconfigureTO.Builder reconfigureTO = ReconfigureTO.newBuilder();
                 ReconfigureProviderTO.Builder reconfigureProviderTO = ReconfigureProviderTO.newBuilder();
                 reconfigureProviderTO.setTargetTrader(reconfigureProvider.getActionTarget().getOid());
-                reconfigureProviderTO.setAddition(reconfigureProvider instanceof ReconfigureProviderAddition
-                    ? true : false);
+                if (reconfigureProvider instanceof ReconfigureProviderAddition) {
+                    reconfigureProviderTO.setModelTrader(((ReconfigureProviderAddition)reconfigureProvider).getModelSeller().getOid());
+                    reconfigureProviderTO.setAddition(true);
+                } else {
+                    reconfigureProviderTO.setAddition(false);
+                }
                 reconfigureTO.setProvider(reconfigureProviderTO.build());
                 reconfigureProvider.getReconfiguredCommodities().keySet().forEach(c -> reconfigureTO
                         .addCommodityToReconfigure(c.getType()));

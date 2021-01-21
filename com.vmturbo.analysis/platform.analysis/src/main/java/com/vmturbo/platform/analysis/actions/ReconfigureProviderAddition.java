@@ -22,16 +22,22 @@ import com.vmturbo.platform.analysis.economy.TraderWithSettings;
  */
 public class ReconfigureProviderAddition extends ReconfigureProvider {
 
+    // Model trader whose commodities are copied over to the target provider.
+    protected @NonNull TraderWithSettings model_;
+
     /**
      * Generates ReconfigureProviderAddition.
      *
      * @param economy - Economy.
      * @param provider - Provider to Reconfigure.
+     * @param model - Model trader to copy the commodities from.
      * @param commodities - Commodities to add.
      */
     public ReconfigureProviderAddition(@NonNull Economy economy, @NonNull TraderWithSettings provider,
-        @NonNull Map<CommoditySpecification, CommoditySold> commodities) {
+                                       TraderWithSettings model, @NonNull Map<CommoditySpecification,
+                                       CommoditySold> commodities) {
         super(economy, provider, commodities);
+        model_ = model;
     }
 
     @Override
@@ -99,5 +105,13 @@ public class ReconfigureProviderAddition extends ReconfigureProvider {
     public @NonNull @ReadOnly Object getCombineKey() {
         return Lists.newArrayList(ReconfigureProviderAddition.class, provider_,
             commodities_.keySet());
+    }
+
+    /**
+     * returns the modelSeller.
+     * @return the model trader whose commodities were copied over.
+     */
+    public @NonNull TraderWithSettings getModelSeller() {
+        return model_;
     }
 }
