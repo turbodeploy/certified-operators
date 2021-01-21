@@ -29,8 +29,6 @@ import io.grpc.StatusRuntimeException;
 
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
-import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
-import it.unimi.dsi.fastutil.longs.LongSet;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -87,12 +85,12 @@ import com.vmturbo.market.reservations.InitialPlacementFinder;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysis;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
+import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
+import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisService;
 import com.vmturbo.market.runner.reservedcapacity.ReservedCapacityAnalysisEngine;
 import com.vmturbo.market.runner.reservedcapacity.ReservedCapacityResults;
 import com.vmturbo.market.runner.wastedfiles.WastedFilesAnalysisEngine;
 import com.vmturbo.market.runner.wastedfiles.WastedFilesResults;
-import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
-import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisService;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.TopologyConversionConstants;
 import com.vmturbo.market.topology.TopologyEntitiesHandler;
@@ -664,14 +662,15 @@ public class Analysis {
 
                                 if (topologyInfo.hasPlanInfo()) {
                                     attachUnplacementReasons(unplacedReasonMap, projectedEntities);
-                                    if (isMigrateToCloud) {
-                                        // Find all VMs that are uncontrollable and add a unplacement
-                                        // reason for each of them.
-                                        Map<Long, List<UnplacementReason.Builder>> uncontrollableReasonMap =
-                                                getUnplacementReasonForUncontrollableVm();
-                                        attachUnplacementReasons(uncontrollableReasonMap, projectedEntities);
-                                        unplacedReasonMap.putAll(uncontrollableReasonMap);
 
+                                    // Find all VMs that are uncontrollable and
+                                    // add an unplacement reason for each of them.
+                                    Map<Long, List<UnplacementReason.Builder>> uncontrollableReasonMap = getUnplacementReasonForUncontrollableVm();
+                                    attachUnplacementReasons(uncontrollableReasonMap,
+                                            projectedEntities);
+                                    unplacedReasonMap.putAll(uncontrollableReasonMap);
+
+                                    if (isMigrateToCloud) {
                                         // detach the original provider from the migrating entities in
                                         // projected topology only in MCP.
                                         unplaceProjectedEntityWithReason(projectedEntities, unplacedReasonMap);
