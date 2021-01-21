@@ -1,6 +1,5 @@
 package com.vmturbo.api.component.external.api.mapper;
 
-import static com.vmturbo.api.component.external.api.mapper.EntityDetailsMapper.ENHANCED_BY_PROP;
 import static org.junit.Assert.assertEquals;
 
 import java.util.List;
@@ -20,6 +19,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.util.EntityDetailType;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinProbeInfo;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
@@ -126,7 +126,9 @@ public class EntityDetailsMapperTest {
         Assert.assertFalse(details.isEmpty());
 
         final DetailDataApiDTO enhancedPropDto = details.stream()
-                .filter(d -> d.getKey().equals(ENHANCED_BY_PROP)).findFirst().orElse(null);
+                .filter(d -> d.getKey().equals(EntityDetailType.ENHANCED_BY.getDisplayName()))
+                .findFirst()
+                .orElse(null);
         Assert.assertNotNull(enhancedPropDto);
         Assert.assertEquals(expectedEnhancedPropValue, enhancedPropDto.getValue());
     }

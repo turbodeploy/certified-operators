@@ -18,7 +18,9 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.api.dto.entity.DetailDataApiDTO;
 import com.vmturbo.api.dto.entity.EntityDetailsApiDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityDetail;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
+import com.vmturbo.platform.sdk.common.util.EntityDetailType;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 /**
@@ -27,9 +29,6 @@ import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 public class EntityDetailsMapper {
 
     private static final Logger logger = LogManager.getLogger();
-
-    @VisibleForTesting
-    static final String ENHANCED_BY_PROP = "Enhanced by";
 
     private final ThinTargetCache thinTargetCache;
     private final boolean entityDetailsEnabled;
@@ -80,6 +79,13 @@ public class EntityDetailsMapper {
     private List<DetailDataApiDTO> getDetails(@Nonnull final TopologyEntityDTO entity) {
         final List<DetailDataApiDTO> details = new ArrayList<>();
         getEnhancedByProperty(entity).ifPresent(details::add);
+        if (entityDetailsEnabled) {
+            entity.getDetailsList().stream()
+                    .map(this::toDetailDataApiDTO)
+                    .filter(Optional::isPresent)
+                    .map(Optional::get)
+                    .forEach(details::add);
+        }
         return details;
     }
 
@@ -87,20 +93,22 @@ public class EntityDetailsMapper {
     private Optional<DetailDataApiDTO> getEnhancedByProperty(@Nonnull final TopologyEntityDTO entity) {
         final Set<Long> targetsIds = getProxyOriginTargets(entity);
         if (!targetsIds.isEmpty()) {
-            final Set<String> probeTypes = getProbeTypes(targetsIds);
+            final List<String> probeTypes = getProbeTypes(targetsIds);
             if (!probeTypes.isEmpty()) {
-                final DetailDataApiDTO detailData = createDetailData(ENHANCED_BY_PROP,
-                        String.join(", ", probeTypes), true);
+                final DetailDataApiDTO detailData = createDetailData(
+                        EntityDetailType.ENHANCED_BY.getDisplayName(),
+                        probeTypes,
+                        true);
                 return Optional.of(detailData);
             }
         }
         return Optional.empty();
     }
 
-    private DetailDataApiDTO createDetailData(@Nonnull String key, @Nonnull String value, boolean isCritical) {
+    private DetailDataApiDTO createDetailData(@Nonnull String key, @Nonnull List<String> values, boolean isCritical) {
         final DetailDataApiDTO detailData = new DetailDataApiDTO();
         detailData.setKey(key);
-        detailData.setValue(value);
+        detailData.setValue(String.join(", ", values));
         detailData.setCritical(isCritical);
         return detailData;
     }
@@ -114,13 +122,20 @@ public class EntityDetailsMapper {
     }
 
     @Nonnull
-    private Set<String> getProbeTypes(@Nonnull final Set<Long> targetsIds) {
+    private List<String> getProbeTypes(@Nonnull final Set<Long> targetsIds) {
         return targetsIds.stream().map(thinTargetCache::getTargetInfo)
                 .filter(Optional::isPresent)
                 .map(Optional::get)
                 .filter(info -> !info.isHidden())
                 .map(info -> info.probeInfo().type())
-                .collect(Collectors.toSet());
+                .collect(Collectors.toList());
     }
 
+    private Optional<DetailDataApiDTO> toDetailDataApiDTO(EntityDetail detail) {
+        return EntityDetailType.getEntityDetailType(detail.getKey())
+                .map(entityDetailType -> createDetailData(
+                        entityDetailType.getDisplayName(),
+                        detail.getValuesList(),
+                        entityDetailType.isCritical()));
+    }
 }
