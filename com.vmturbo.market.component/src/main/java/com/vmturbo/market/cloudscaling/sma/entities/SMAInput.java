@@ -599,6 +599,8 @@ public class SMAInput {
         ComputeTierInfo computeTierInfo = computeTier.getTypeSpecificInfo().getComputeTier();
         String family = computeTierInfo.getFamily();
         float coupons = (float)computeTierInfo.getNumCoupons();
+        final float penalty =
+                (computeTierInfo.hasScalePenalty()) ? computeTierInfo.getScalePenalty().getPenalty() : 0F;
 
         /*
          * Find all the contexts in which this template belongs.  Iterate threw osTypes and lookup
@@ -630,7 +632,7 @@ public class SMAInput {
                 /*
                  * For each osType create template with osType specific cost.
                  */
-                SMATemplate template = new SMATemplate(oid, name, family, coupons, computeTier);
+                SMATemplate template = new SMATemplate(oid, name, family, coupons, computeTier, penalty);
                 logger.trace("processComputeTier: new {} in {}", template, context);
                 Set<SMATemplate> templates = smaContextToTemplates.getOrDefault(context, new HashSet<>());
                 templates.add(template);

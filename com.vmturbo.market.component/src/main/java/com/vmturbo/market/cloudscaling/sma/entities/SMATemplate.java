@@ -65,6 +65,13 @@ public class SMATemplate {
      */
     private Map<Long, Map<OSType, SMACost>> discountedCosts = new HashMap();
 
+
+    /**
+     * The scaling penalty that will be applied as a tie breaker in the
+     * natural template selection when the template prices are the same.
+     */
+    private final float scalingPenalty;
+
     /**
      * Constructor of the SMATemplate.
      *
@@ -73,18 +80,22 @@ public class SMATemplate {
      * @param family the family the template belongs to.
      * @param coupons the number of the coupons needed for SMA template.
      * @param computeTier link back to XL data structures for compute tier.  Needed to compute cost.
+     * @param scalingPenalty The scaling penalty from the compute tier info
+     *                      that will be applied as a tie breaker.
      */
     public SMATemplate(final long oid,
                        @Nonnull final String name,
                        @Nonnull final String family,
                        final float coupons,
-                       TopologyEntityDTO computeTier
+                       TopologyEntityDTO computeTier,
+                       final float scalingPenalty
                        ) {
         this.oid = oid;
         this.name = Objects.requireNonNull(name, "name is null");
         this.family = Objects.requireNonNull(family, "family is null");
         this.coupons = coupons;
         this.computeTier = computeTier;
+        this.scalingPenalty = scalingPenalty;
     }
 
     public void setComputeTier(final TopologyEntityDTO computeTier) {
@@ -202,6 +213,16 @@ public class SMATemplate {
         return SMAUtils.round(netCost);
     }
 
+    /**
+     * Getter for the scalingPenalty.
+     *
+     * @return the scaling penalty.
+     */
+    public float getScalingPenalty() {
+        return scalingPenalty;
+    }
+
+
     @Override
     public String toString() {
         return "SMATemplate{" +
@@ -211,7 +232,8 @@ public class SMATemplate {
             ", coupons=" + coupons +
             ", onDemandCosts=" + onDemandCosts +
             ", discountedCosts=" + discountedCosts +
-            '}';
+            ", scalingPenalty=" + scalingPenalty
+                + '}';
     }
 
     /**
@@ -225,7 +247,8 @@ public class SMATemplate {
             ", name='" + name + '\'' +
             ", family='" + family + '\'' +
             ", coupons=" + coupons +
-            '}';
+            ", scalingPenalty=" + scalingPenalty
+                + '}';
     }
 
     /**

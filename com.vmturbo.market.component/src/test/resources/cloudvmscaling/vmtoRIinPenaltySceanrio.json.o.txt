@@ -1,0 +1,12 @@
+[
+    {
+        "virtualMachineOid": "2000001",
+        "templateOid": "100002"
+    },
+    {
+        "virtualMachineOid": "2000002",
+        "templateOid": "100002",
+        "reservedInstanceOid": "1000001",
+        "discountedCoupons": 3
+    }
+]

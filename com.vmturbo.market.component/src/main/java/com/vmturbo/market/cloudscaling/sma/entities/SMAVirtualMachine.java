@@ -172,15 +172,29 @@ public class SMAVirtualMachine {
         }
         for (SMATemplate template : groupProviders) {
             float onDemandTotalCost = template.getOnDemandTotalCost(getCostContext());
+            final float tierBreakerOnDemandTotalCost = onDemandTotalCost + template.getScalingPenalty();
+            float tierBreakerminProviderCost = minCost;
+            if (minCostProvider.isPresent()) {
+                tierBreakerminProviderCost += minCostProvider.get().getScalingPenalty();
+            }
+
             if (onDemandTotalCost - minCost < (-1.0 * SMAUtils.EPSILON)) {
                 minCost = onDemandTotalCost;
                 minCostProvider = Optional.of(template);
             } else {
-                // Template cost is equal, then switch if the new template is the current
-                // template.
-                if ((Math.abs(onDemandTotalCost - minCost) < SMAUtils.EPSILON) &&
-                        getCurrentTemplate().getOid() == template.getOid()) {
+                // Template cost is equal, compare by factoring in scaling penalty if applicable
+                // on the new template and min cost provider.
+                if ((Math.abs(onDemandTotalCost - minCost) < SMAUtils.EPSILON) ) {
+                    // check if there is a winner when penalty is added,
+                    // or if there continues to be a tie breaker, check if template ooid matches the current template ooid.
+                    // in either case, template is selected for mon cost updates.
+                    final float tierBreakerPriceDiff = tierBreakerOnDemandTotalCost - tierBreakerminProviderCost;
+                    if (tierBreakerPriceDiff < (-1.0 * SMAUtils.EPSILON)
+                            || (tierBreakerPriceDiff < SMAUtils.EPSILON
+                            && getCurrentTemplate().getOid() == template.getOid())) {
+                        minCost = onDemandTotalCost;
                         minCostProvider = Optional.of(template);
+                    }
                 }
             }
             if (onDemandTotalCost - minCostPerFamily.get(template.getFamily())
@@ -189,17 +203,31 @@ public class SMAVirtualMachine {
                     template.getOnDemandTotalCost(getCostContext()));
                 minCostProviderPerFamily.put(template.getFamily(), template);
             } else {
-                // Template cost is equal, then switch if the new template is the current
-                // template.
+                // Template cost is equal, compare by factoring in scaling penalty if applicable
+                // on the new template and min cost provider.
                 if ((Math.abs(onDemandTotalCost - minCostPerFamily.get(template.getFamily()))
-                        < SMAUtils.EPSILON) &&
-                        getCurrentTemplate().getOid() == template.getOid()) {
-                    minCostPerFamily.put(template.getFamily(),
-                            template.getOnDemandTotalCost(getCostContext()));
-                    minCostProviderPerFamily.put(template.getFamily(), template);
+                        < SMAUtils.EPSILON)) {
+                    // check if there is a winner when penalty is added,
+                    // or if there continues to be a tie breaker, check if template ooid matches the current template ooid.
+                    // in either case, template is selected for mon cost updates
+                    float penalty = 0F;
+                    if (minCostProviderPerFamily.containsKey(template.getFamily())) {
+                        // When the ondemand cost is not available for template and
+                        // this is the first template in the family, minCostProviderPerFamily will be empty.
+                        penalty = minCostProviderPerFamily.get(template.getFamily()).getScalingPenalty();
+                    }
+                    tierBreakerminProviderCost =  minCostPerFamily.get(template.getFamily()) +  penalty;
+                    final float tierBreakerPriceDiff = tierBreakerOnDemandTotalCost - tierBreakerminProviderCost;
+                    if (tierBreakerPriceDiff < (-1.0 * SMAUtils.EPSILON)
+                            || (tierBreakerPriceDiff < SMAUtils.EPSILON
+                                && getCurrentTemplate().getOid() == template.getOid())) {
+                        minCostPerFamily.put(template.getFamily(),
+                                template.getOnDemandTotalCost(getCostContext()));
+                        minCostProviderPerFamily.put(template.getFamily(), template);
+
+                    }
                 }
             }
-
         }
         // If no minimum  is found, then use the current as the natural one
         naturalTemplate = minCostProvider.orElse(getCurrentTemplate());

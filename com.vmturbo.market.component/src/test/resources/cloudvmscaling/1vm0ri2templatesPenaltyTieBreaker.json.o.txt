@@ -1,0 +1,6 @@
+[
+    {
+        "virtualMachineOid": "2000001",
+        "templateOid": "100001"
+    }
+]

@@ -43,6 +43,8 @@ public class SMATest {
     @Test
     public void testAwsSMA() {
 
+        testExactResult("vmtoRIinPenaltySceanrio.json");
+
         testExactResult("3vm1ri.json");
 
         testExactResult("1vm1riPartialRI.json");
@@ -126,6 +128,26 @@ public class SMATest {
 
         // partial coverage should be preferred if it has better savings per coupon.
         testExactResult("partialoverfullinefficient.json");
+
+        /*
+         * 1 vm on a costlier template gets scaled down to a cheaper template. No RIs involved
+         * 2 cheaper templates with same price, tie breaker applied.
+         */
+        testExactResult("1vm0ri2templatesTieBreaker.json");
+
+        /*
+         * 1 vm on a costlier template gets scaled down to a cheaper template. No RIs involved
+         * 2 cheaper templates with same price,same penalty tie breaker applied twice and smaller
+         * oid is picked.
+         */
+        testExactResult("1vm0ri2templatesPenaltyTieBreaker.json");
+
+        /*
+         * 1 vm on a template with same price. Another template of same price available. No RIs involved
+         * 2 cheaper templates with same price,same penalty tie breaker applied  and current template picked
+         */
+        testExactResult("1vm0ri2templatesPenaltyTieBreakerChooseCurrent.json");
+
 
     }
 
