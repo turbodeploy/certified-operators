@@ -93,7 +93,7 @@ public class WastedFilesAnalysisEngine {
                         .filter(topoEntity -> topoEntity.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE)
                         .filter(topoEntity -> topoEntity.hasTypeSpecificInfo())
                         .filter(topoEntity -> topoEntity.getTypeSpecificInfo().hasVirtualVolume())
-                        .filter(topoEntity -> getStorageAmountCapacity(topoEntity) > 0
+                        .filter(topoEntity -> getStorageAmountCapacityKb(topoEntity) > 0
                                 || topoEntity.getTypeSpecificInfo().getVirtualVolume().getFilesCount() > 0)
                         // only include those which are "deletable" from setting
                         .filter(topoEntity -> topoEntity.hasAnalysisSettings()
@@ -118,12 +118,13 @@ public class WastedFilesAnalysisEngine {
         }
     }
 
-    private static double getStorageAmountCapacity(@Nonnull final TopologyEntityDTO entity) {
-        return entity.getCommoditySoldListList().stream()
+    private static long getStorageAmountCapacityKb(@Nonnull final TopologyEntityDTO entity) {
+        final double capacityMb = entity.getCommoditySoldListList().stream()
                 .filter(commodity -> commodity.getCommodityType().getType()
                         == CommodityType.STORAGE_AMOUNT.getNumber())
                 .map(CommoditySoldDTO::getCapacity)
                 .findAny().orElse(0D);
+        return (long)(capacityMb * Units.NUM_OF_KB_IN_MB);
     }
 
     /**
@@ -271,7 +272,7 @@ public class WastedFilesAnalysisEngine {
                     volume.getOid(), EntityType.VIRTUAL_VOLUME, storageOrStorageTierOid,
                     EntityType.STORAGE_TIER, null, volume.getEnvironmentType())
                     .setExplanation(Explanation.newBuilder().setDelete(DeleteExplanation.newBuilder()
-                            .setSizeKb((long)getStorageAmountCapacity(volume))))
+                            .setSizeKb(getStorageAmountCapacityKb(volume))))
                     .setSavingsPerHour(CurrencyAmount.newBuilder().setAmount(costSavings))
                     .build());
         } else {
