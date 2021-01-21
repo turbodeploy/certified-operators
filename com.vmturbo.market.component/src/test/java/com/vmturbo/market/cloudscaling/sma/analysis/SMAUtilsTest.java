@@ -382,7 +382,7 @@ public class SMAUtilsTest {
     private static void countTemplates(List<SMATemplate> templates) {
         Map<Integer, Integer> countTemplateSizes = new HashMap<>();
         for (SMATemplate template : templates) {
-            int coupons = template.getCoupons();
+            int coupons = Math.round(template.getCoupons());
             Integer nTemplates = countTemplateSizes.get(coupons);
             if (nTemplates == null) {
                 countTemplateSizes.put(coupons, 1);

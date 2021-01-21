@@ -34,9 +34,10 @@ public class SMAUtils {
      */
     public static final double EPSILON = 1e-20;
     /**
-     * Improvement factor for a vm to be discounted by an RI.
+     * epsilon for floating point comparison of coupons.
      */
     public static final double BIG_EPSILON = 0.01f;
+
     /**
      * ROUNDING to trim floating point for comparison.
      */

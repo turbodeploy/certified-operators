@@ -44,7 +44,7 @@ public class SMATemplate {
     /*
      * number of coupons
      */
-    private final int coupons;
+    private final float coupons;
 
     /*
      * The compute tier in XL data structures.  Needed to compute costs.
@@ -77,7 +77,7 @@ public class SMATemplate {
     public SMATemplate(final long oid,
                        @Nonnull final String name,
                        @Nonnull final String family,
-                       final int coupons,
+                       final float coupons,
                        TopologyEntityDTO computeTier
                        ) {
         this.oid = oid;
@@ -105,7 +105,7 @@ public class SMATemplate {
         return family;
     }
 
-    public int getCoupons() {
+    public float getCoupons() {
         return coupons;
     }
 
@@ -188,7 +188,7 @@ public class SMATemplate {
      */
     public float getNetCost(CostContext costContext, float discountedCoupons) {
         final float netCost;
-        if (coupons == 0) {
+        if (coupons < SMAUtils.BIG_EPSILON) {
             // If a template has 0 coupons, then it can't be discounted by a RI, and the on-demand
             // cost is returned.  E.g. Standard_A2m_v2.
             netCost = getOnDemandTotalCost(costContext);

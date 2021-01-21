@@ -47,9 +47,9 @@ public class SMAStatistics {
     /*
      * total VM coupons
      */
-    private int totalVmCurrentCoupons = 0;
-    private int totalVmNaturalCoupons = 0;
-    private int totalVmDesiredStateCoupons = 0;
+    private double totalVmCurrentCoupons = 0;
+    private double totalVmNaturalCoupons = 0;
+    private double totalVmDesiredStateCoupons = 0;
     /*
      * total RI coupons
      */
@@ -144,7 +144,7 @@ public class SMAStatistics {
     private float computeCurrentCostWithRICoverage(List<SMAVirtualMachine> vms) {
         float savings = 0;
         for (SMAVirtualMachine vm : vms) {
-            float currentRICoverageFraction = vm.getCurrentRICoverage() / (float)vm.getCurrentTemplate().getCoupons();
+            float currentRICoverageFraction = vm.getCurrentRICoverage() / vm.getCurrentTemplate().getCoupons();
             savings += vm.getCurrentTemplate().getOnDemandTotalCost(vm.getCostContext())
                 * (1.0 - currentRICoverageFraction);
         }
@@ -173,7 +173,7 @@ public class SMAStatistics {
             final CostContext costContext = vm.getCostContext();
             float onDemandTotalCost = template.getOnDemandTotalCost(costContext);
             float discountedTotalCost = template.getDiscountedTotalCost(costContext);
-            float discountPercent = match.getDiscountedCoupons() / (float)template.getCoupons();
+            float discountPercent = match.getDiscountedCoupons() / template.getCoupons();
             /*
              * This computation assumes that
              * on-demand cost is the sum of the template's onDemandCosts' compute and license costs, and
@@ -261,15 +261,15 @@ public class SMAStatistics {
     }
 
     //total VM coupons.
-    public void setTotalVmCurrentCoupons(int value) {
+    public void setTotalVmCurrentCoupons(double value) {
         totalVmCurrentCoupons = value;
     }
 
-    public void setTotalVmNaturalCoupons(int value) {
+    public void setTotalVmNaturalCoupons(double value) {
         totalVmNaturalCoupons = value;
     }
 
-    public void setTotalVmDesiredStateCoupons(int value) {
+    public void setTotalVmDesiredStateCoupons(double value) {
         totalVmDesiredStateCoupons = value;
     }
 

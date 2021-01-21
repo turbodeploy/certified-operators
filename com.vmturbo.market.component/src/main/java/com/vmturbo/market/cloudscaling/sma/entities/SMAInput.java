@@ -598,7 +598,7 @@ public class SMAInput {
         }
         ComputeTierInfo computeTierInfo = computeTier.getTypeSpecificInfo().getComputeTier();
         String family = computeTierInfo.getFamily();
-        int coupons = computeTierInfo.getNumCoupons();
+        float coupons = computeTierInfo.getNumCoupons();
 
         /*
          * Find all the contexts in which this template belongs.  Iterate threw osTypes and lookup

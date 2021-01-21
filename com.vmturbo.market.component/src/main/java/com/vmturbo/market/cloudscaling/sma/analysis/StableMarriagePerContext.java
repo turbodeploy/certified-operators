@@ -20,7 +20,6 @@ import com.google.common.base.Stopwatch;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.auth.api.Pair;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAContext;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAInputContext;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAMatch;
@@ -120,8 +119,8 @@ public class StableMarriagePerContext {
         statistics.setContext(inputContext.getContext());
         final List<SMAVirtualMachine> virtualMachines = inputContext.getVirtualMachines();
         statistics.setNumberOfVirtualMachines(virtualMachines.size());
-        statistics.setTotalVmCurrentCoupons(virtualMachines.stream().mapToInt(v -> v.getCurrentTemplate().getCoupons()).sum());
-        statistics.setTotalVmNaturalCoupons(virtualMachines.stream().mapToInt(v -> v.getNaturalTemplate().getCoupons()).sum());
+        statistics.setTotalVmCurrentCoupons(virtualMachines.stream().mapToDouble(v -> (double)v.getCurrentTemplate().getCoupons()).sum());
+        statistics.setTotalVmNaturalCoupons(virtualMachines.stream().mapToDouble(v -> (double)v.getNaturalTemplate().getCoupons()).sum());
         /*
          * Map from the group name to the virtual machine groups (auto scaling group)
          */
@@ -211,7 +210,8 @@ public class StableMarriagePerContext {
          * just enough coupons to partially cover one more vm.
          */
         runIterations(freeRIs, remainingCoupons,
-                currentEngagements, virtualMachineGroupMap, statistics);
+                currentEngagements, virtualMachineGroupMap, statistics,
+                inputContext.getSmaConfig().isReduceDependency());
 
         long timeInMilliseconds = stopWatch_iteration.elapsed(TimeUnit.MILLISECONDS);
         logger.debug("SMA iterations took {} ms.", timeInMilliseconds);
@@ -302,8 +302,8 @@ public class StableMarriagePerContext {
         }
     }
 
-    private static int computeDesiredStateCoupons(List<SMAMatch> matches) {
-        int coupons = 0;
+    private static double computeDesiredStateCoupons(List<SMAMatch> matches) {
+        double coupons = 0;
         for (SMAMatch match : matches) {
             coupons += match.getTemplate().getCoupons();
         }
@@ -328,7 +328,7 @@ public class StableMarriagePerContext {
             List<SMATemplate> templatesInFamily = entry.getValue();
             SMATemplate smallestTemplateInFamily = templatesInFamily.get(0);
             for (SMATemplate template : templatesInFamily) {
-                if (smallestTemplateInFamily.getCoupons() > template.getCoupons()) {
+                if (smallestTemplateInFamily.getCoupons() > template.getCoupons() + SMAUtils.BIG_EPSILON) {
                     smallestTemplateInFamily = template;
                 }
             }
@@ -513,10 +513,7 @@ public class StableMarriagePerContext {
                                             Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap,
                                             boolean reduceDependency) {
         Collections.sort(virtualMachineList, new RIPreference(riCoupons, ri, virtualMachineGroupMap, reduceDependency));
-        for (int i = 0; i < virtualMachineList.size(); i++) {
-            SMAVirtualMachine vm = virtualMachineList.get(i);
-            ri.addVMToCouponToBestVM(i, vm, false);
-        }
+        virtualMachineList.stream().forEach(vm -> ri.addVMToDiscountableVMs(vm, false));
     }
 
     /**
@@ -782,6 +779,7 @@ public class StableMarriagePerContext {
      * @param currentEngagements     map from vm to its current engagement. This is the map that gets
      *                               populated and acts as a return parameter.
      * @param virtualMachineGroupMap map from group name to virtual machines in that group
+     * @param reduceDependency  if true will reduce relinquishing
      * @param statistics             datastructure used to maintain statistics
      */
 
@@ -789,7 +787,8 @@ public class StableMarriagePerContext {
                                      Map<SMAReservedInstance, Float> remainingCoupons,
                                      Map<SMAVirtualMachine, SMAMatch> currentEngagements,
                                      Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap,
-                                     SMAStatistics statistics) {
+                                     SMAStatistics statistics,
+                                     boolean reduceDependency) {
         while (!freeRIs.isEmpty()) {
             statistics.incrementIterations();
             SMAReservedInstance currentRI = freeRIs.poll();
@@ -810,16 +809,14 @@ public class StableMarriagePerContext {
                     }
                 }
             }
-            if (currentRICoupons > SMAUtils.EPSILON && !currentRI.isCouponToBestVMEmpty()) {
+            if (currentRICoupons > SMAUtils.EPSILON && !currentRI.isDisountableVMsEmpty()) {
                 logger.debug("SMA new RI={} remainingCoupons={}", currentRI.getName(),
                         currentRICoupons);
-                Pair<SMAVirtualMachine, Integer> currentVMIndexPair = currentRI
-                        .findBestVMIndexFromCouponToBestVM(currentRICoupons, virtualMachineGroupMap);
-                SMAVirtualMachine currentVM = currentVMIndexPair.first;
+                SMAVirtualMachine currentVM = currentRI
+                        .findBestDiscountableVM(currentRICoupons, virtualMachineGroupMap, reduceDependency);
                 if (currentVM == null) {
                     continue;
                 }
-                int  currentVMIndex = currentVMIndexPair.second;
                 int groupSize = currentVM.getGroupSize();
 
                 /*
@@ -838,8 +835,8 @@ public class StableMarriagePerContext {
                     }
                 }
                 // the number of coupons the VM will require if it has to be fully discounted.
-                Integer currentVMCouponRequest = destinationTemplate.getCoupons() * groupSize;
-                if (currentVMCouponRequest == 0) {
+                float currentVMCouponRequest = destinationTemplate.getCoupons() * groupSize;
+                if (currentVMCouponRequest < SMAUtils.BIG_EPSILON) {
                     logger.error("SMA currentVMCouponRequest can't be zero " +
                             "destinationTemplate={} groupSize={} ", destinationTemplate, groupSize);
                     continue;
@@ -854,7 +851,7 @@ public class StableMarriagePerContext {
                 if (!freeRIs.contains(currentRI)) {
                     freeRIs.addFirst(currentRI);
                 }
-                currentRI.removeVMFromCouponToBestVM(currentVMCouponRequest);
+                currentRI.removeVMFromDiscountableVMs(currentVMCouponRequest);
                 SMAMatch newEngagement = new SMAMatch(currentVM, destinationTemplate,
                         currentRI, discountedCoupons);
                 Boolean isCurrentRIBetter = isCurrentRIBetterThanOldRI(oldEngagement,
@@ -894,7 +891,7 @@ public class StableMarriagePerContext {
                         }
                     }
                 } else if (currentRICoupons < currentVMCouponRequest - SMAUtils.EPSILON) {
-                    currentRI.addToSkippedVMsWIthIndex(currentVM, currentVMIndex);
+                    currentRI.addToSkippedVMs(currentVM);
                 }
 
             }

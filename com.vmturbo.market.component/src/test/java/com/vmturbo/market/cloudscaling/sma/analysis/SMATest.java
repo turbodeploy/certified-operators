@@ -155,6 +155,8 @@ public class SMATest {
     @Test
     public void testAwsSMA() {
 
+        testExactResult("3vm1ri.json");
+
         testExactResult("1vm1riPartialRI.json");
 
         /*
@@ -294,7 +296,7 @@ public class SMATest {
             for (SMAMatch match2 : matches2) {
                 if (compareReservedInstance(match1.getReservedInstance(),
                         match2.getReservedInstance())
-                        && Math.abs(match1.getDiscountedCoupons() - match2.getDiscountedCoupons()) < SMAUtils.EPSILON
+                        && Math.abs(match1.getDiscountedCoupons() - match2.getDiscountedCoupons()) < SMAUtils.BIG_EPSILON
                         && (match1.getVirtualMachine().getOid() == match2.getVirtualMachine().getOid())
                         && (match1.getTemplate().getOid() == match2.getTemplate().getOid())) {
                     found = true;
