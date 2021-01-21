@@ -81,38 +81,83 @@ public class EconomyCaches {
     /**
      *  The state of the two economy caches.
      */
-    private EconomyCachesState state = EconomyCachesState.NOT_READY;
+    private EconomyCachesState state = new EconomyCachesState();
 
     /**
      * State of economy caches.
      */
-    public enum EconomyCachesState {
+    public class EconomyCachesState {
+
+        // the value is set to true when the exxisting reservations are updated from the PO.
+        private boolean reservationReceived = false;
+        // the value is set to true when the market receives a broadcast and realtimeEconomy is set.
+        private boolean realtimeCacheReceived = false;
+        // the value is set to true when the market recieves a cluster headroom plan
+        // and historical cache is set.
+        private boolean historicalCacheReceived = false;
 
         /**
-         * The market has realtime cache available.
+         * getter for historicalCacheReceived.
+         * @return the historicalCacheReceived
          */
-
-        REALTIME_READY,
-
-        /**
-         * The list of existing reservations are received from plan orchestrator.
-         */
-        RESERVATION_RECEIVED,
+        public boolean isHistoricalCacheReceived() {
+            return historicalCacheReceived;
+        }
 
         /**
-         * The market is ready for placement.
+         * getter for realtimeCacheReceived.
+         * @return the realtimeCacheReceived.
          */
-        READY,
+        public boolean isRealtimeCacheReceived() {
+            return realtimeCacheReceived;
+        }
 
         /**
-         * The market has not yet got cached economy.
+         * getter for reservationReceived.
+         * @return the reservationReceived.
          */
-        NOT_READY;
+        public boolean isReservationReceived() {
+            return reservationReceived;
+        }
+
+        /**
+         * setter for historicalCacheReceived.
+         * @param historicalCacheReceived value to be set.
+         */
+        public void setHistoricalCacheReceived(final boolean historicalCacheReceived) {
+            this.historicalCacheReceived = historicalCacheReceived;
+        }
+
+        /**
+         * setter for realtimeCacheReceived.
+         * @param realtimeCacheReceived value to be set.
+         */
+        public void setRealtimeCacheReceived(final boolean realtimeCacheReceived) {
+            this.realtimeCacheReceived = realtimeCacheReceived;
+        }
+
+        /**
+         * setter for reservationReceived.
+         * @param reservationReceived the value to be set.
+         */
+        public void setReservationReceived(final boolean reservationReceived) {
+            this.reservationReceived = reservationReceived;
+        }
+
+        /**
+         * Checks if all the data structures are ready.
+         * @return true if all data structures are ready
+         */
+        public boolean isEconomyReady() {
+            return isRealtimeCacheReceived()
+                    && isReservationReceived();
+        }
+
     }
 
     // A minimal version of realtime economy which only contains reservation entities and PM, DS
     @VisibleForTesting
-    protected Economy realtimeCachedEconomy;
+    protected Economy realtimeCachedEconomy = null;
 
     // A minimal version of economy loaded with systemLoad statistics with only reservation entities and PM, DS.
     // The historical economy cache will not be created until first headroom plan runs.
@@ -174,6 +219,8 @@ public class EconomyCaches {
         this.realtimeCachedCommTypeMap = realtimeCachedCommTypeMap;
         this.historicalCachedEconomy = historicalCachedEconomy;
         this.realtimeCachedEconomy = realtimeCachedEconomy;
+        this.getState().setHistoricalCacheReceived(historicalCachedEconomy != null);
+        this.getState().setRealtimeCacheReceived(realtimeCachedEconomy != null);
     }
 
     /**
@@ -188,14 +235,6 @@ public class EconomyCaches {
      */
     public EconomyCachesState getState() {
         return state;
-    }
-
-    /**
-     * Set the economy caches state.
-     * @param state state of the economy caches.
-     */
-    public void setState(EconomyCachesState state) {
-        this.state = state;
     }
 
     /**
@@ -230,13 +269,8 @@ public class EconomyCaches {
         realtimeCachedCommTypeMap = HashBiMap.create(commTypeToSpecMap);
         // Update cachedEconomy
         realtimeCachedEconomy = newEconomy;
-        // Set state to ready once reservations are received from PO and real time economy is ready.
-        if (state == EconomyCachesState.RESERVATION_RECEIVED) {
-            setState(EconomyCachesState.READY);
-        } else if (state != EconomyCachesState.READY) {
-            setState(EconomyCachesState.REALTIME_READY);
-        }
         realtimeCacheEndUpdateTime = clock.instant();
+        getState().setRealtimeCacheReceived(true);
         logger.info(logPrefix + "Real time economy cache is ready now.");
         logger.info(logPrefix + "Real time reservation cache update time : " + realtimeCacheStartUpdateTime
                 .until(realtimeCacheEndUpdateTime, ChronoUnit.SECONDS) + " seconds");
@@ -279,6 +313,7 @@ public class EconomyCaches {
         // Update cachedEconomy
         historicalCachedEconomy = newEconomy;
         historicalCacheEndUpdateTime = clock.instant();
+        getState().setHistoricalCacheReceived(true);
         logger.info(logPrefix + "Historical economy cache is ready now.");
         logger.info(logPrefix + "Historical reservation cache update time : " + historicalCacheStartUpdateTime
                 .until(historicalCacheEndUpdateTime, ChronoUnit.SECONDS) + " seconds");
@@ -386,7 +421,9 @@ public class EconomyCaches {
                 // should become unplaced and removed from economy.
                 newPlacementResult.values().stream().flatMap(List::stream).forEach(i -> i.supplier = Optional.empty());
                 removeDeletedTraders(economy, newPlacementResult.keySet());
-                removeDeletedTraders(realtimeCachedEconomy, newPlacementResult.keySet());
+                if (getState().isRealtimeCacheReceived()) {
+                    removeDeletedTraders(realtimeCachedEconomy, newPlacementResult.keySet());
+                }
                 // Update new result in buyerOidToPlacement because some buyers failed in the chosen
                 // cluster.
                 newPlacementResult.entrySet().forEach(e -> buyerOidToPlacement.put(e.getKey(), e.getValue()));
@@ -403,7 +440,7 @@ public class EconomyCaches {
      * @param buyersToBeDeleted oids of reservation buyers to be removed
      */
     public void clearDeletedBuyersFromCache(@Nonnull final Set<Long> buyersToBeDeleted) {
-        if (state != EconomyCachesState.READY) {
+        if (!getState().isEconomyReady()) {
             logger.warn(logPrefix + "Economy caches are not ready to remove any buyers");
             return;
         }
@@ -490,20 +527,21 @@ public class EconomyCaches {
             @Nonnull final List<InitialPlacementBuyer> buyers,
             @Nonnull final Map<Long, CommodityType> slToClusterMap,
             final int maxRetry) {
-        if (state != EconomyCachesState.READY) {
+        if (!getState().isEconomyReady()) {
             logger.warn(logPrefix + "Market is not ready to run reservation yet, wait for another broadcast to retry");
             return new HashMap();
         }
         // Create buyers and add into historical cache
         List<TraderTO> traderTOs = new ArrayList();
         Map<Long, List<InitialPlacementDecision>> firstRoundPlacement = new HashMap();
+
         Set<Long> buyerFailedInHistoricalCache = new HashSet();
         // A map of shopping list oid to its supplier's cluster commodity.
         final Map<Long, CommodityType> clusterCommPerSl = new HashMap();
-        if (historicalCachedEconomy != null) {
+        if (getState().isHistoricalCacheReceived()) {
             for (InitialPlacementBuyer buyer : buyers) {
-                Optional<TraderTO> traderTO = InitialPlacementUtils.constructTraderTO(buyer, historicalCachedCommTypeMap,
-                        new HashMap());
+                Optional<TraderTO> traderTO = InitialPlacementUtils.constructTraderTO(buyer,
+                        historicalCachedCommTypeMap, new HashMap());
                 if (traderTO.isPresent()) {
                     traderTOs.add(traderTO.get());
                 } else {
@@ -515,7 +553,8 @@ public class EconomyCaches {
             logger.info(logPrefix + "Placing reservation buyers on historical economy cache");
             InitialPlacementUtils.printPlacementDecisions(firstRoundPlacement);
             clusterCommPerSl.putAll(InitialPlacementUtils.extractClusterBoundary(historicalCachedEconomy,
-                    historicalCachedCommTypeMap, firstRoundPlacement, buyers, buyerFailedInHistoricalCache));
+                    historicalCachedCommTypeMap, firstRoundPlacement, buyers,
+                    buyerFailedInHistoricalCache));
         }
         if (!buyerFailedInHistoricalCache.isEmpty()) {
             // Not all buyers given to this method can find placement, we should fail the reservation
@@ -555,14 +594,13 @@ public class EconomyCaches {
                 failedBuyerOids.add(entry.getKey());
             }
         }
-        if ((maxRetry == 0 || historicalCachedEconomy == null) && !failedBuyerOids.isEmpty()) {
+        if ((maxRetry == 0 || !getState().isHistoricalCacheReceived()) && !failedBuyerOids.isEmpty()) {
             // No need to retry, unplace the entire reservation and clear all buyers
             logger.info(logPrefix + "Not all buyers in reservation {} can be placed according to real time stats.",
                     buyers.get(0).getReservationId());
             processRetryPlacementsDecisions(secondRoundPlacement, slToClusterMap);
         } else if (!failedBuyerOids.isEmpty()) {
-            // Retry means the cluster chosen in historical economy may not be good in real time. When
-            // historicalCachedEconomy is null, no need to retry at all.
+            // Retry means the cluster chosen in historical economy may not be good in real time.
             Map<Long, List<InitialPlacementDecision>> retryResult = retryPlacement(buyers.stream()
                     .filter(b -> failedBuyerOids.contains(b.getBuyerId())).collect(Collectors.toList()),
                     clusterCommPerSl, slToClusterMap, maxRetry - 1);
@@ -573,7 +611,7 @@ public class EconomyCaches {
             } else {
                 secondRoundPlacement.putAll(retryResult);
             }
-        } else if (historicalCachedEconomy == null && failedBuyerOids.isEmpty()) {
+        }  else if (!getState().isHistoricalCacheReceived() && failedBuyerOids.isEmpty()) {
             // Populate the cluster map which will be used for stats
             slToClusterMap.putAll(InitialPlacementUtils.extractClusterBoundary(realtimeCachedEconomy,
                     realtimeCachedCommTypeMap, secondRoundPlacement, buyers, new HashSet()));
@@ -704,13 +742,6 @@ public class EconomyCaches {
             }
         }
         return traderIdToPlacement;
-    }
-
-    /**
-     * Update the HistoricalCachedEconomy to null.
-     */
-    public void clearHistoricalCachedEconomy() {
-        this.historicalCachedEconomy = null;
     }
 }
 
