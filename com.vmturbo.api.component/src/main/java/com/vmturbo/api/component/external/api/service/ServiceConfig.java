@@ -35,7 +35,6 @@ import com.vmturbo.api.component.external.api.util.stats.StatsQueryScopeExpander
 import com.vmturbo.api.component.external.api.util.stats.query.impl.CloudCostsStatsSubQuery;
 import com.vmturbo.api.component.external.api.util.stats.query.impl.CloudPlanNumEntitiesByTierSubQuery;
 import com.vmturbo.api.component.external.api.util.stats.query.impl.ClusterStatsSubQuery;
-import com.vmturbo.api.component.external.api.util.stats.query.impl.EntitySavingsSubQuery;
 import com.vmturbo.api.component.external.api.util.stats.query.impl.HistoricalCommodityStatsSubQuery;
 import com.vmturbo.api.component.external.api.util.stats.query.impl.NumClustersStatsSubQuery;
 import com.vmturbo.api.component.external.api.util.stats.query.impl.PlanCommodityStatsSubQuery;
@@ -180,9 +179,6 @@ public class ServiceConfig {
      */
     @Value("${allowTargetManagementInIntegrationMode:false}")
     private boolean allowTargetManagementInIntegrationMode;
-
-    @Value("${enableEntitySavings:false}")
-    private boolean enableEntitySavings;
 
     /**
      * We allow autowiring between different configuration objects, but not for a bean.
@@ -776,21 +772,6 @@ public class ServiceConfig {
                 userSessionContext());
         statsQueryExecutor().addSubquery(cloudCostsStatsQuery);
         return cloudCostsStatsQuery;
-    }
-
-    /**
-     * Bean for {@link EntitySavingsSubQuery}.
-     *
-     * @return entity savings sub-query
-     */
-    @Bean
-    public EntitySavingsSubQuery entitySavingsSubQuery() {
-        final EntitySavingsSubQuery entitySavingsSubQuery =
-                new EntitySavingsSubQuery(communicationConfig.costServiceBlockingStub());
-        if (enableEntitySavings) {
-            statsQueryExecutor().addSubquery(entitySavingsSubQuery);
-        }
-        return entitySavingsSubQuery;
     }
 
     @Bean
