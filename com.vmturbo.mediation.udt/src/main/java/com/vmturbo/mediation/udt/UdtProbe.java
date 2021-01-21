@@ -228,8 +228,12 @@ public class UdtProbe implements IDiscoveryProbe<UdtProbeAccount>, ISupplyChainA
     public static Predicate<TopologyDataDefinitionEntry> buildTopologyDefinitionsFilter(boolean enableContextBased) {
         Predicate<TopologyDataDefinitionEntry> filter = TopologyDataDefinitionEntry::hasDefinition;
         if (!enableContextBased) {
-            filter = filter.and(entry -> entry.getDefinition().hasManualEntityDefinition()
-                    && !entry.getDefinition().getManualEntityDefinition().getContextBased());
+            filter = filter.and(entry -> {
+                if (entry.getDefinition().hasManualEntityDefinition()) {
+                    return !entry.getDefinition().getManualEntityDefinition().getContextBased();
+                }
+                return true;
+            });
         }
         return filter;
     }
