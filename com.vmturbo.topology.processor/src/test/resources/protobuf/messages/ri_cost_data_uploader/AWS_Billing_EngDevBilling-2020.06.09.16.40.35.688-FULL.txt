@@ -11,7 +11,8 @@ entityDTO {
     offeringType: NO_UPFRONT
     availabilityZone: "aws::ap-southeast-2::PM::ap-southeast-2c"
     platform: LINUX
-    numberOfCoupons: 2
+    num_coupons: 2
+    numberOfCoupons: 0
     numberOfCouponsUsed: 0.0
     fixedCost: 0.0
     usageCost: 0.0
@@ -37,7 +38,8 @@ entityDTO {
     offeringType: ALL_UPFRONT
     availabilityZone: "aws::ap-southeast-2::PM::ap-southeast-2a"
     platform: LINUX
-    numberOfCoupons: 2
+    num_coupons: 2
+    numberOfCoupons: 0
     numberOfCouponsUsed: 0.0
     fixedCost: 0.0
     usageCost: 0.0
@@ -63,7 +65,8 @@ entityDTO {
     offeringType: NO_UPFRONT
     availabilityZone: "aws::ap-southeast-2::PM::ap-southeast-2a"
     platform: WINDOWS
-    numberOfCoupons: 4
+    num_coupons: 4
+    numberOfCoupons: 0
     numberOfCouponsUsed: 0.0
     fixedCost: 0.0
     usageCost: 0.0
@@ -89,7 +92,8 @@ entityDTO {
     offeringType: NO_UPFRONT
     availabilityZone: "aws::eu-west-1::PM::"
     platform: LINUX
-    numberOfCoupons: 20
+    num_coupons: 20
+    numberOfCoupons: 0
     numberOfCouponsUsed: 0.0
     fixedCost: 0.0
     usageCost: 0.0
@@ -115,6 +119,7 @@ entityDTO {
     offeringType: NO_UPFRONT
     availabilityZone: "aws::us-east-1::PM::"
     platform: LINUX
+    num_coupons: 0
     numberOfCoupons: 0
     numberOfCouponsUsed: 0.0
     fixedCost: 0.0
@@ -141,7 +146,8 @@ entityDTO {
     offeringType: PARTIAL_UPFRONT
     availabilityZone: "aws::us-east-2::PM::"
     platform: LINUX
-    numberOfCoupons: 16
+    num_coupons: 16
+    numberOfCoupons: 0
     numberOfCouponsUsed: 0.0
     fixedCost: 0.0
     usageCost: 0.0
@@ -167,7 +173,8 @@ entityDTO {
     offeringType: PARTIAL_UPFRONT
     availabilityZone: "aws::us-east-2::PM::"
     platform: LINUX
-    numberOfCoupons: 16
+    num_coupons: 16
+    numberOfCoupons: 0
     numberOfCouponsUsed: 0.0
     fixedCost: 0.0
     usageCost: 0.0
@@ -193,7 +200,8 @@ entityDTO {
     offeringType: PARTIAL_UPFRONT
     availabilityZone: "aws::us-east-2::PM::"
     platform: LINUX
-    numberOfCoupons: 16
+    num_coupons: 16
+    numberOfCoupons: 0
     numberOfCouponsUsed: 0.0
     fixedCost: 0.0
     usageCost: 0.0
@@ -219,7 +227,8 @@ entityDTO {
     offeringType: PARTIAL_UPFRONT
     availabilityZone: "aws::us-east-2::PM::"
     platform: LINUX
-    numberOfCoupons: 64
+    num_coupons: 64
+    numberOfCoupons: 0
     numberOfCouponsUsed: 0.0
     fixedCost: 0.0
     usageCost: 0.0
@@ -245,7 +254,8 @@ entityDTO {
     offeringType: NO_UPFRONT
     availabilityZone: "aws::us-west-2::PM::"
     platform: LINUX
-    numberOfCoupons: 8
+    num_coupons: 8
+    numberOfCoupons: 0
     numberOfCouponsUsed: 0.0
     fixedCost: 0.0
     usageCost: 0.0
@@ -271,7 +281,8 @@ entityDTO {
     offeringType: ALL_UPFRONT
     availabilityZone: "aws::eu-west-3::PM::"
     platform: LINUX
-    numberOfCoupons: 3
+    num_coupons: 3
+    numberOfCoupons: 0
     numberOfCouponsUsed: 0.0
     fixedCost: 0.0
     usageCost: 0.0
@@ -297,7 +308,8 @@ entityDTO {
     offeringType: NO_UPFRONT
     availabilityZone: "aws::eu-west-1::PM::"
     platform: LINUX
-    numberOfCoupons: 2
+    num_coupons: 2
+    numberOfCoupons: 0
     numberOfCouponsUsed: 0.0
     fixedCost: 0.0
     usageCost: 0.0
@@ -323,7 +335,8 @@ entityDTO {
     offeringType: ALL_UPFRONT
     availabilityZone: "aws::ap-northeast-2::PM::"
     platform: LINUX
-    numberOfCoupons: 2
+    num_coupons: 2
+    numberOfCoupons: 0
     numberOfCouponsUsed: 0.0
     fixedCost: 0.0
     usageCost: 0.0
@@ -349,7 +362,8 @@ entityDTO {
     offeringType: ALL_UPFRONT
     availabilityZone: "aws::ap-south-1::PM::"
     platform: LINUX
-    numberOfCoupons: 4
+    num_coupons: 4
+    numberOfCoupons: 0
     numberOfCouponsUsed: 0.0
     fixedCost: 0.0
     usageCost: 0.0
@@ -375,7 +389,8 @@ entityDTO {
     offeringType: NO_UPFRONT
     availabilityZone: "aws::ca-central-1::PM::"
     platform: LINUX
-    numberOfCoupons: 64
+    num_coupons: 64
+    numberOfCoupons: 0
     numberOfCouponsUsed: 0.0
     fixedCost: 0.0
     usageCost: 0.0
@@ -401,7 +416,7 @@ entityDTO {
     offeringType: PARTIAL_UPFRONT
     availabilityZone: "aws::ca-central-1::PM::"
     platform: LINUX
-    numberOfCoupons: 16
+    num_coupons: 16
     numberOfCouponsUsed: 0.0
     fixedCost: 0.0
     usageCost: 0.0
@@ -4158,8 +4173,8 @@ nonMarketEntityDTO {
           offeringClass: STANDARD
           offeringType: ALL_UPFRONT
           platform: LINUX
-          __deprecated__number_of_coupons: 0
-          numberOfCoupons: -1
+          num_coupons: -1
+          numberOfCoupons: 0
           numberOfCouponsUsed: -1.0
           fixedCost: -1.0
           usageCost: -1.0
@@ -4180,8 +4195,8 @@ nonMarketEntityDTO {
           offeringClass: STANDARD
           offeringType: ALL_UPFRONT
           platform: LINUX
-          __deprecated__number_of_coupons: 0
-          numberOfCoupons: -1
+          num_coupons: -1
+          numberOfCoupons: 0
           numberOfCouponsUsed: -1.0
           fixedCost: -1.0
           usageCost: -1.0
@@ -4202,8 +4217,8 @@ nonMarketEntityDTO {
           offeringClass: STANDARD
           offeringType: ALL_UPFRONT
           platform: LINUX
-          __deprecated__number_of_coupons: 0
-          numberOfCoupons: -1
+          num_coupons: -1
+          numberOfCoupons: 0
           numberOfCouponsUsed: -1.0
           fixedCost: -1.0
           usageCost: -1.0
@@ -4224,8 +4239,8 @@ nonMarketEntityDTO {
           offeringClass: STANDARD
           offeringType: ALL_UPFRONT
           platform: LINUX
-          __deprecated__number_of_coupons: 0
-          numberOfCoupons: -1
+          num_coupons: -1
+          numberOfCoupons: 0
           numberOfCouponsUsed: -1.0
           fixedCost: -1.0
           usageCost: -1.0
@@ -4246,8 +4261,8 @@ nonMarketEntityDTO {
           offeringClass: STANDARD
           offeringType: ALL_UPFRONT
           platform: LINUX
-          __deprecated__number_of_coupons: 0
-          numberOfCoupons: -1
+          num_coupons: -1
+          numberOfCoupons: 0
           numberOfCouponsUsed: -1.0
           fixedCost: -1.0
           usageCost: -1.0

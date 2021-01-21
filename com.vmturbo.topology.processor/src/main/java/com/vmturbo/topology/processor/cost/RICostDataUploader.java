@@ -386,8 +386,8 @@ public class RICostDataUploader {
             // we should remove our counting algorithm, or activate it only as a fallback for cases
             // where used is not available.
             final double numberOfCoupons;
-            if (riData.hasNumberOfCoupons()) {
-                numberOfCoupons = riData.getNumberOfCoupons();
+            if (riData.hasNumCoupons()) {
+                numberOfCoupons = riData.getNumCoupons();
             } else {
                 numberOfCoupons = getNumberOfCouponsFromInstanceFamily(riData.getRelatedProfileId(),
                         stitchingContext);
