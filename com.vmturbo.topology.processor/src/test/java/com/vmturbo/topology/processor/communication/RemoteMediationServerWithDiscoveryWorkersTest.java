@@ -7,6 +7,7 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -26,7 +27,6 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
-import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.ITransport;
 import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
@@ -40,6 +40,7 @@ import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
 import com.vmturbo.topology.processor.communication.queues.AggregatingDiscoveryQueue;
 import com.vmturbo.topology.processor.communication.queues.AggregatingDiscoveryQueueImpl;
 import com.vmturbo.topology.processor.communication.queues.IDiscoveryQueueElement;
+import com.vmturbo.topology.processor.operation.OperationTestUtilities;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.discovery.DiscoveryBundle;
 import com.vmturbo.topology.processor.operation.discovery.DiscoveryMessageHandler;
@@ -61,6 +62,8 @@ public class RemoteMediationServerWithDiscoveryWorkersTest {
 
     private static final long target2Id = 2020L;
 
+    private static final long verify_timeout_millis = 1000L;
+
     private Target target1 = mock(Target.class);
 
     private Target target2 = mock(Target.class);
@@ -73,20 +76,47 @@ public class RemoteMediationServerWithDiscoveryWorkersTest {
 
     private Discovery discovery1 = mock(Discovery.class);
 
+    private Discovery discovery2 = mock(Discovery.class);
+
+    private Discovery discovery3 = mock(Discovery.class);
+
+    private Discovery discovery4 = mock(Discovery.class);
+
     private DiscoveryBundle discoveryBundle1 = mock(DiscoveryBundle.class);
 
     private DiscoveryBundle discoveryBundle2 = mock(DiscoveryBundle.class);
+
+    private DiscoveryBundle discoveryBundle3 = mock(DiscoveryBundle.class);
+
+    private DiscoveryBundle discoveryBundle4 = mock(DiscoveryBundle.class);
 
     private final DiscoveryRequest discoveryRequest1 = DiscoveryRequest.newBuilder()
             .setProbeType(VC_PROBE_TYPE)
             .setDiscoveryType(DiscoveryType.FULL)
             .build();
 
-    @Mock
-    private Function<Runnable, DiscoveryBundle> discoveryMethod1;
+    private final DiscoveryRequest discoveryRequest2 = DiscoveryRequest.newBuilder()
+            .setProbeType(VC_PROBE_TYPE)
+            .setDiscoveryType(DiscoveryType.FULL)
+            .build();
 
-    @Mock
-    private Function<Runnable, DiscoveryBundle> discoveryMethod2;
+    private final DiscoveryRequest discoveryRequest3 = DiscoveryRequest.newBuilder()
+            .setProbeType(VC_PROBE_TYPE)
+            .setDiscoveryType(DiscoveryType.FULL)
+            .build();
+
+    private final DiscoveryRequest discoveryRequest4 = DiscoveryRequest.newBuilder()
+            .setProbeType(VC_PROBE_TYPE)
+            .setDiscoveryType(DiscoveryType.FULL)
+            .build();
+
+    private RunnableToDiscoveryBundle discoveryMethod1;
+
+    private RunnableToDiscoveryBundle discoveryMethod2;
+
+    private RunnableToDiscoveryBundle discoveryMethod3;
+
+    private RunnableToDiscoveryBundle discoveryMethod4;
 
     @Mock
     private BiConsumer<Discovery, Exception> errorHandler1;
@@ -120,6 +150,9 @@ public class RemoteMediationServerWithDiscoveryWorkersTest {
     @Captor
     private ArgumentCaptor<Runnable> runnableArgumentCaptor;
 
+    @Captor
+    private ArgumentCaptor<MediationServerMessage> transportSendCaptor;
+
     /**
      * Set up the mocks and create the TransportDiscoveryWorkers.
      */
@@ -129,20 +162,20 @@ public class RemoteMediationServerWithDiscoveryWorkersTest {
         queue = spy(new AggregatingDiscoveryQueueImpl(probeStore));
         when(probeStore.getProbeIdForType(VC_PROBE_TYPE)).thenReturn(Optional.of(probeIdVc));
         when(probeStore.getProbe(probeIdVc)).thenReturn(Optional.of(probeInfoVc1));
-        when(discoveryMethod1.apply(any(Runnable.class))).thenReturn(discoveryBundle1);
-        when(discoveryMethod2.apply(any(Runnable.class))).thenReturn(discoveryBundle2);
-        when(target1.getProbeId()).thenReturn(probeIdVc);
         TargetSpec defaultSpec = TargetSpec.getDefaultInstance();
+        when(target1.getProbeId()).thenReturn(probeIdVc);
         when(target1.getSpec()).thenReturn(defaultSpec);
         when(target1.getId()).thenReturn(target1Id);
         when(target1.getSerializedIdentifyingFields()).thenReturn(target1IdFields);
         when(target1.getProbeInfo()).thenReturn(probeInfoVc1);
+        when(target1.getDisplayName()).thenReturn(target1IdFields);
         when(target2.getProbeId()).thenReturn(probeIdVc);
         when(target2.getSpec()).thenReturn(defaultSpec);
         when(target2.getId()).thenReturn(target2Id);
         when(target2.getSerializedIdentifyingFields()).thenReturn(target2IdFields);
         when(target2.getProbeInfo()).thenReturn(probeInfoVc1);
-        when(discoveryBundle1.getDiscoveryRequest()).thenReturn(discoveryRequest1);
+        when(target2.getDisplayName()).thenReturn(target2IdFields);
+        setupBundles();
         remoteMediationServer = Mockito.spy(
                 new RemoteMediationServerWithDiscoveryWorkers(probeStore,
                         Mockito.mock(ProbePropertyStore.class),
@@ -152,42 +185,57 @@ public class RemoteMediationServerWithDiscoveryWorkersTest {
                         1));
     }
 
-    /**
-     * Test that when the TransportDiscoveryWorker starts, it runs only 1 discovery since it only
-     * has 1 permit.
-     *
-     * @throws InterruptedException if Thread.sleep is interrupted.
-     * @throws ProbeException if a problem occurs with the probe
-     */
-    @Test
-    public void testBasicFunctionality() throws InterruptedException, ProbeException {
-        remoteMediationServer.registerTransport(containerInfo, transport1);
-        when(discoveryBundle1.getDiscovery()).thenReturn(discovery1);
-        queue.offerDiscovery(target1, DiscoveryType.FULL, discoveryMethod1, errorHandler1, false);
-        // sleep to let the transport worker run the discovery
-        Thread.sleep(100L);
-        // Worker should call takeNextQueuedDiscovery once to get the queued discovery and then
-        // it will be out of permits, so no further calls can occur
-        verify(queue).takeNextQueuedDiscovery(eq(transport1),
-                eq(Collections.singleton(probeIdVc)),
-                eq(DiscoveryType.FULL));
-        // verify we tried to get the DiscoveryBundle
-        verify(discoveryMethod1).apply(any(Runnable.class));
-        verify(discoveryBundle1, times(2)).getDiscoveryRequest();
-        // this should cause the run method to exit
-        remoteMediationServer.processContainerClose(transport1);
-    }
-
     private void setupBundles() {
+        discoveryMethod1 = new RunnableToDiscoveryBundle(discoveryBundle1);
+        discoveryMethod2 = new RunnableToDiscoveryBundle(discoveryBundle2);
+        discoveryMethod3 = new RunnableToDiscoveryBundle(discoveryBundle3);
+        discoveryMethod4 = new RunnableToDiscoveryBundle(discoveryBundle4);
         when(discoveryBundle1.getDiscoveryRequest())
                 .thenReturn(discoveryRequest1);
         when(discoveryBundle2.getDiscoveryRequest())
-                .thenReturn(discoveryRequest1);
+                .thenReturn(discoveryRequest2);
+        when(discoveryBundle3.getDiscoveryRequest())
+                .thenReturn(discoveryRequest3);
+        when(discoveryBundle4.getDiscoveryRequest())
+                .thenReturn(discoveryRequest4);
         when(discoveryBundle1.getDiscoveryMessageHandler())
                 .thenReturn(mock(DiscoveryMessageHandler.class));
         when(discoveryBundle2.getDiscoveryMessageHandler())
                 .thenReturn(mock(DiscoveryMessageHandler.class));
+        when(discoveryBundle3.getDiscoveryMessageHandler())
+                .thenReturn(mock(DiscoveryMessageHandler.class));
+        when(discoveryBundle4.getDiscoveryMessageHandler())
+                .thenReturn(mock(DiscoveryMessageHandler.class));
         when(discoveryBundle1.getDiscovery()).thenReturn(discovery1);
+        when(discoveryBundle2.getDiscovery()).thenReturn(discovery2);
+        when(discoveryBundle3.getDiscovery()).thenReturn(discovery3);
+        when(discoveryBundle4.getDiscovery()).thenReturn(discovery4);
+        when(discovery1.getTargetId()).thenReturn(target1Id);
+        when(discovery2.getTargetId()).thenReturn(target2Id);
+        when(discovery3.getTargetId()).thenReturn(target1Id);
+        when(discovery4.getTargetId()).thenReturn(target2Id);
+    }
+
+    /**
+     * Test that when the TransportDiscoveryWorker starts, it runs only 1 discovery since it only
+     * has 1 permit.
+     *
+     * @throws Exception if a problem occurs with the Probe or if
+     * OperationTestUtilities.waitForEvent throws one.
+     */
+    @Test
+    public void testBasicFunctionality() throws Exception {
+        remoteMediationServer.registerTransport(containerInfo, transport1);
+        queue.offerDiscovery(target1, DiscoveryType.FULL, discoveryMethod1, errorHandler1, false);
+
+        // wait until transport1 handler thread has been started and processed discovery off the
+        // queue.
+        OperationTestUtilities.waitForEvent(() -> discoveryMethod1.runnable != null);
+
+        // verify we tried to get the DiscoveryBundle
+        verify(discoveryBundle1, times(2)).getDiscoveryRequest();
+        // clean up the transport workers associated with this transport
+        remoteMediationServer.processContainerClose(transport1);
     }
 
     /**
@@ -195,46 +243,66 @@ public class RemoteMediationServerWithDiscoveryWorkersTest {
      * as they each have one permit. When we queue up 2 more discoveries and then release the
      * permits, each worker again discovers its target.
      *
-     * @throws InterruptedException if Thread.sleep is interrupted.
-     * @throws CommunicationException if transport.send throws it.
-     * @throws ProbeException if a problem occurs with the probe
+     * @throws Exception if there is an exception with a probe or transport or if
+     * OperationTestUtilities.waitForEvent throws one.
      */
     @Test
-    public void testMultipleWorkers() throws InterruptedException, CommunicationException, ProbeException {
-        setupBundles();
+    public void testMultipleWorkers() throws Exception {
         queue.offerDiscovery(target1, DiscoveryType.FULL, discoveryMethod1, errorHandler1, false);
         queue.offerDiscovery(target2, DiscoveryType.FULL, discoveryMethod2, errorHandler2, false);
         remoteMediationServer.registerTransport(containerInfo, transport1);
-        // sleep to let the transport worker run the discovery
-        Thread.sleep(100L);
-        // Worker should call takeNextQueuedDiscovery once to get the queued discovery and then
-        // it will be out of permits, so no further calls can occur
-        verify(queue).takeNextQueuedDiscovery(eq(transport1),
-                eq(Collections.singleton(probeIdVc)),
-                eq(DiscoveryType.FULL));
-        // verify we tried to run the discovery
-        verify(discoveryMethod1).apply(runnableArgumentCaptor.capture());
-        verify(transport1).send(any());
+
+        // wait until transport1 handler thread has been started and processed discovery off the
+        // queue.
+        OperationTestUtilities.waitForEvent(() -> discoveryMethod1.runnable != null);
+
         // start the next discovery worker and it should grab the next discovery
         remoteMediationServer.registerTransport(containerInfo, transport2);
-        Thread.sleep(100L);
-        verify(discoveryMethod2).apply(runnableArgumentCaptor.capture());
-        verify(transport2).send(any());
 
-        // Now we've captured both runnables that should free up permits when called.  We'll queue
-        // up the discoveries again and see if they run.
-        queue.offerDiscovery(target1, DiscoveryType.FULL, discoveryMethod1, errorHandler1, false);
-        queue.offerDiscovery(target2, DiscoveryType.FULL, discoveryMethod2, errorHandler2, false);
+        // wait for second discovery to be processed
+        OperationTestUtilities.waitForEvent(() -> discoveryMethod2.runnable != null);
 
-        assertEquals(2, runnableArgumentCaptor.getAllValues().size());
-        runnableArgumentCaptor.getAllValues().forEach(runnable -> runnable.run());
+        // now both discoveries have been processed and we make sure targets have been assigned to
+        // transports
+        verify(queue, timeout(verify_timeout_millis).atLeast(2))
+                .assignTargetToTransport(any(), any());
 
-        verify(discoveryMethod1).apply(any(Runnable.class));
-        verify(discoveryMethod2).apply(any(Runnable.class));
-        verify(transport1).send(any());
-        verify(transport2).send(any());
+        // Now we queue up 2 more discoveries - they should only go to their assigned transports
+        queue.offerDiscovery(target1, DiscoveryType.FULL, discoveryMethod3, errorHandler1, false);
+        queue.offerDiscovery(target2, DiscoveryType.FULL, discoveryMethod4, errorHandler2, false);
 
-        // this should cause the run method to exit
+        // Nothing will happen until we free up the transport workers by returning a permit to each
+        discoveryMethod1.runnable.run();
+        discoveryMethod2.runnable.run();
+
+        // Wait for both discoveries to run
+        OperationTestUtilities.waitForEvent(() -> discoveryMethod3.runnable != null);
+        OperationTestUtilities.waitForEvent(() -> discoveryMethod4.runnable != null);
+
+        // Verify that transport worker 1 took 2 discoveries off the queue
+        verify(queue, times(2))
+                .takeNextQueuedDiscovery(eq(transport1), eq(Collections.singleton(probeIdVc)),
+                        eq(DiscoveryType.FULL));
+
+        // Verify that transport worker 2 took 2 discoveries off the queue
+        verify(queue, times(2))
+                .takeNextQueuedDiscovery(eq(transport2), eq(Collections.singleton(probeIdVc)),
+                        eq(DiscoveryType.FULL));
+
+        verify(transport1, timeout(verify_timeout_millis).times(2))
+                .send(transportSendCaptor.capture());
+        verify(transport2, timeout(verify_timeout_millis).times(2))
+                .send(transportSendCaptor.capture());
+        assertEquals(discoveryRequest1,
+                transportSendCaptor.getAllValues().get(0).getDiscoveryRequest());
+        assertEquals(discoveryRequest1,
+                transportSendCaptor.getAllValues().get(2).getDiscoveryRequest());
+        assertEquals(discoveryRequest2,
+                transportSendCaptor.getAllValues().get(1).getDiscoveryRequest());
+        assertEquals(discoveryRequest2,
+                transportSendCaptor.getAllValues().get(3).getDiscoveryRequest());
+
+        // shut down the worker threads
         remoteMediationServer.processContainerClose(transport1);
         remoteMediationServer.processContainerClose(transport2);
     }
@@ -248,22 +316,23 @@ public class RemoteMediationServerWithDiscoveryWorkersTest {
      */
     @Test
     public void testTransportClosed() throws InterruptedException, ProbeException {
-        setupBundles();
         remoteMediationServer.registerTransport(containerInfo, transport1);
-        // sleep to let the transport worker thread start
-        Thread.sleep(100L);
+        // When transport thread has started, it will call takeNextQueueDiscovery once for FULL
+        // and once for INCREMENTAL.
+        verify(queue, timeout(verify_timeout_millis).times(2))
+                .takeNextQueuedDiscovery(any(), any(), any());
 
         // close the transport, which should also interrupt the worker thread
         remoteMediationServer.processContainerClose(transport1);
-        // sleep to let the transport worker thread exit
-        Thread.sleep(100L);
+        // wait for queue to be notified of transport closure
+        verify(queue, timeout(verify_timeout_millis)).handleTransportRemoval(transport1);
 
         queue.offerDiscovery(target1, DiscoveryType.FULL, discoveryMethod1, errorHandler1, false);
         // Verify we didn't try to run the discovery. takeNextQueuedDiscovery should have only been
-        // called once and then interrupted and never called again.
-        verify(queue, times(1)).takeNextQueuedDiscovery(any(),
+        // called once for each discovery type and then interrupted and never called again.
+        verify(queue, times(2)).takeNextQueuedDiscovery(any(),
                 any(),
-                eq(DiscoveryType.FULL));
+                any());
     }
 
     /**
@@ -275,7 +344,6 @@ public class RemoteMediationServerWithDiscoveryWorkersTest {
      */
     @Test
     public void testTransportClosesBeforeRegistered() throws InterruptedException, ProbeException {
-        setupBundles();
         // simulate transport already being closed by the time it is registered
         doThrow(new IllegalStateException("transport closed"))
                 .when(transport1).addEventHandler(any());
@@ -309,5 +377,26 @@ public class RemoteMediationServerWithDiscoveryWorkersTest {
         assertTrue(takenDiscovery.getValue().get().isPresent());
         assertEquals(queuedDiscovery, takenDiscovery.getValue().get().get());
         executor.shutdownNow();
+    }
+
+    /**
+     * Helper class to take and record a Runnable and return a mock DiscoveryBundle to facilitate
+     * tracking of progress in the discovery process.
+     */
+    private class RunnableToDiscoveryBundle implements Function<Runnable, DiscoveryBundle> {
+
+        DiscoveryBundle bundle;
+
+        Runnable runnable;
+
+        RunnableToDiscoveryBundle(DiscoveryBundle bundle) {
+            this.bundle = bundle;
+        }
+
+        @Override
+        public DiscoveryBundle apply(Runnable runnable) {
+            this.runnable = runnable;
+            return bundle;
+        }
     }
 }
