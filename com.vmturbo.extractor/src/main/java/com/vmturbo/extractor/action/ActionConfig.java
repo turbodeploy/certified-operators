@@ -6,6 +6,9 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
+import com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility;
+import com.fasterxml.jackson.annotation.PropertyAccessor;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,6 +25,7 @@ import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeveri
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
 import com.vmturbo.extractor.ExtractorDbConfig;
+import com.vmturbo.extractor.ExtractorGlobalConfig;
 import com.vmturbo.extractor.topology.TopologyListenerConfig;
 import com.vmturbo.group.api.GroupClientConfig;
 
@@ -33,7 +37,8 @@ import com.vmturbo.group.api.GroupClientConfig;
         ActionOrchestratorClientConfig.class,
         GroupClientConfig.class,
         ExtractorDbConfig.class,
-        TopologyListenerConfig.class
+        TopologyListenerConfig.class,
+        ExtractorGlobalConfig.class,
 })
 public class ActionConfig {
 
@@ -49,6 +54,9 @@ public class ActionConfig {
     @Autowired
     private TopologyListenerConfig topologyListenerConfig;
 
+    @Autowired
+    private ExtractorGlobalConfig globalConfig;
+
     /**
      * Max time to wait for results of COPY FROM command that streams data to postgres, after all
      * records have been sent.
@@ -63,37 +71,20 @@ public class ActionConfig {
     private long actionMetricsWritingIntervalMins;
 
     /**
-     * Configuration used to enable/disable ingestion.
-     *
-     * <p/>This is only meaningful if "enableReporting" is true, and is a way to stop action ingestion
-     * without disabling the rest of reporting.
-     */
-    @Value("${enableActionIngestion:true}")
-    private boolean enableActionIngestion;
-
-    /**
-     * Configuration used to completely enable/disable reporting.
-     */
-    @Value("${enableReporting:false}")
-    private boolean enableReporting;
-
-    /**
-     * Whether or not to enable search data ingestion.
-     */
-    @Value("${enableSearchApi:false}")
-    private boolean enableSearchApi;
-
-    /**
-     * Configuration used to enable/disable data extraction. Disabled by default.
-     */
-    @Value("${enableDataExtraction:false}")
-    private boolean enableDataExtraction;
-
-    /**
      * The interval for extracting action information and sending to Kafka. Default to 6 hours.
      */
     @Value("${actionExtractionIntervalMins:360}")
     private long actionExtractionIntervalMins;
+
+    /**
+     * See {@link ActionAttributeExtractor}.
+     *
+     * @return The {@link ActionAttributeExtractor}.
+     */
+    @Bean
+    public ActionAttributeExtractor actionAttributeExtractor() {
+        return new ActionAttributeExtractor();
+    }
 
     /**
      * See {@link ActionConverter}.
@@ -102,7 +93,10 @@ public class ActionConfig {
      */
     @Bean
     public ActionConverter actionConverter() {
-        return new ActionConverter();
+        ObjectMapper objectMapper = new ObjectMapper();
+        // serialize all fields even through no getter defined or private
+        objectMapper.setVisibility(PropertyAccessor.FIELD, Visibility.ANY);
+        return new ActionConverter(actionAttributeExtractor(), objectMapper);
     }
 
     /**
@@ -147,9 +141,7 @@ public class ActionConfig {
             entitySeverityServiceStub(),
             policyService(),
             topologyListenerConfig.dataProvider(),
-            enableReporting && enableActionIngestion,
-            enableSearchApi,
-            enableDataExtraction,
+            globalConfig.featureFlags(),
             realtimeTopologyContextId,
             actionWriterFactory());
 
@@ -167,7 +159,7 @@ public class ActionConfig {
         final CompletedActionWriter completedActionWriter = new CompletedActionWriter(
                 extractorDbConfig.ingesterEndpoint(), completedActionExecutor(),
                 topologyListenerConfig.writerConfig(), topologyListenerConfig.pool(),
-                actionConverter());
+                actionConverter(), topologyListenerConfig.dataProvider(), globalConfig.featureFlags());
         actionClientConfig.actionOrchestratorClient().addListener(completedActionWriter);
         return completedActionWriter;
     }
@@ -202,7 +194,8 @@ public class ActionConfig {
                 topologyListenerConfig.dataProvider(),
                 topologyListenerConfig.extractorKafkaSender(),
                 topologyListenerConfig.dataExtractionFactory(),
-                TimeUnit.MINUTES.toMillis(actionExtractionIntervalMins)
+                TimeUnit.MINUTES.toMillis(actionExtractionIntervalMins),
+                actionAttributeExtractor()
         );
     }
 }
