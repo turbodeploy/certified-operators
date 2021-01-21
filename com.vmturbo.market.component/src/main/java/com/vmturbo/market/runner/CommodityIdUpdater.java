@@ -17,7 +17,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.commons.analysis.NumericIDAllocator;
 import com.vmturbo.market.topology.conversions.CommodityTypeAllocator;
 import com.vmturbo.platform.analysis.actions.Action;
-import com.vmturbo.platform.analysis.actions.Deactivate;
+import com.vmturbo.platform.analysis.economy.EconomyConstants;
 import com.vmturbo.platform.analysis.ede.ReplayActions;
 import com.vmturbo.platform.analysis.utilities.exceptions.ActionCantReplayException;
 
@@ -89,20 +89,26 @@ class CommodityIdUpdater {
             } catch (ActionCantReplayException e) {
                 logger.warn("Can't replay action {} because commodity type {} is missing.",
                     action, commodityIdToCommodityType.get(e.getMissingCommodityId()));
+            } catch (Exception e) {
+                logger.error(EconomyConstants.EXCEPTION_MESSAGE,
+                    "replay of action " + action, e.getMessage(), e);
             }
         }
 
-        final List<Deactivate> newDeactivateActions = new ArrayList<>(replayActions.getDeactivateActions().size());
-        for (Deactivate action : replayActions.getDeactivateActions()) {
+        final List<Action> newReduceSupplyActions = new ArrayList<>(replayActions.getReduceSupplyActions().size());
+        for (Action action : replayActions.getReduceSupplyActions()) {
             try {
-                newDeactivateActions.add(action.createActionWithNewCommodityId(commodityIdMap));
+                newReduceSupplyActions.add(action.createActionWithNewCommodityId(commodityIdMap));
             } catch (ActionCantReplayException e) {
                 logger.warn("Can't replay action {} because commodity type {} is missing.",
                     action, commodityIdToCommodityType.get(e.getMissingCommodityId()));
+            } catch (Exception e) {
+                logger.error(EconomyConstants.EXCEPTION_MESSAGE,
+                    "replay of action reduce supply action " + action, e.getMessage(), e);
             }
         }
 
-        analysis.setReplayActions(new ReplayActions(newActions, newDeactivateActions));
+        analysis.setReplayActions(new ReplayActions(newActions, newReduceSupplyActions));
     }
 
     /**

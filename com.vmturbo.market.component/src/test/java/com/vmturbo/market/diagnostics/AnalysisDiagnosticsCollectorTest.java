@@ -32,6 +32,7 @@ import java.util.stream.Collectors;
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Table;
 import com.google.gson.Gson;
 
@@ -332,7 +333,8 @@ public class AnalysisDiagnosticsCollectorTest {
     private Analysis createAnalysis() {
         Analysis analysis = mock(Analysis.class);
         when(analysis.isStopAnalysis()).thenReturn(false);
-        ReplayActions restoredReplayActions = new ReplayActions(replayActions, replayDeactivateActions);
+        ReplayActions restoredReplayActions = new ReplayActions(replayActions,
+            ImmutableList.copyOf(replayDeactivateActions));
         when(analysis.getReplayActions()).thenReturn(restoredReplayActions);
         return analysis;
     }

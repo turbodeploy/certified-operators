@@ -448,7 +448,7 @@ public class TopologyEntitiesHandlerTest {
                         .map(actionTo -> actionTo.getDeactivate().getTraderToDeactivate())
                         .collect(Collectors.toList());
         ReplayActions replayActions = analysis.getReplayActions();
-        List<Long> replayOids = replayActions.getDeactivateActions().stream()
+        List<Long> replayOids = replayActions.getReduceSupplyActions().stream()
                     .map(a -> a.getActionTarget().getOid())
                     .collect(Collectors.toList());
 
@@ -477,8 +477,8 @@ public class TopologyEntitiesHandlerTest {
         // Unchanged replay actions for plan.
         assertEquals(replayActions, analysis.getReplayActions());
         assertEquals(0, replayActions.getActions().size());
-        assertEquals(1, replayActions.getDeactivateActions().size());
-        assertEquals(deactivateAction, replayActions.getDeactivateActions().get(0));
+        assertEquals(1, replayActions.getReduceSupplyActions().size());
+        assertEquals(deactivateAction, replayActions.getReduceSupplyActions().get(0));
     }
 
     /**

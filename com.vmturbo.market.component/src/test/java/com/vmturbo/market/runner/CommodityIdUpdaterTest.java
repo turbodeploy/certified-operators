@@ -130,8 +130,8 @@ public class CommodityIdUpdaterTest {
         final ReplayActions newReplayActions = analysis.getReplayActions();
 
         // Check if new reply actions are correct
-        assertEquals(1, newReplayActions.getDeactivateActions().size());
-        final Deactivate newDeactivate = newReplayActions.getDeactivateActions().get(0);
+        assertEquals(1, newReplayActions.getReduceSupplyActions().size());
+        final Deactivate newDeactivate = (Deactivate)newReplayActions.getReduceSupplyActions().get(0);
         assertEquals(new Basket(new CommoditySpecification(5, 0), new CommoditySpecification(4, 1)),
             newDeactivate.getTriggeringBasket());
 

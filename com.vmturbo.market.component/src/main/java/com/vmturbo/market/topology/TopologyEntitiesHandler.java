@@ -42,6 +42,7 @@ import com.vmturbo.platform.analysis.actions.ProvisionBase;
 import com.vmturbo.platform.analysis.actions.ProvisionByDemand;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
 import com.vmturbo.platform.analysis.actions.ReconfigureProviderAddition;
+import com.vmturbo.platform.analysis.actions.ReconfigureProviderRemoval;
 import com.vmturbo.platform.analysis.actions.Resize;
 import com.vmturbo.platform.analysis.economy.CommodityResizeSpecification;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
@@ -377,8 +378,8 @@ public class TopologyEntitiesHandler {
                                 || action instanceof Activate)
                             .collect(Collectors.toList()) : Collections.emptyList(),
                         actions.stream()
-                            .filter(action -> action instanceof Deactivate)
-                            .map(action -> (Deactivate)action)
+                            .filter(action -> action instanceof Deactivate
+                                || action instanceof ReconfigureProviderRemoval)
                             .collect(Collectors.toList())));
                 }
             } catch (Exception e) {
