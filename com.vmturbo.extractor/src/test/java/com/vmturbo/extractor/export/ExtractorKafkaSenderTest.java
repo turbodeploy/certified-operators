@@ -19,8 +19,8 @@ import org.junit.Test;
 
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.server.IMessageSender;
-import com.vmturbo.extractor.export.schema.Entity;
-import com.vmturbo.extractor.export.schema.ExportedObject;
+import com.vmturbo.extractor.schema.json.export.Entity;
+import com.vmturbo.extractor.schema.json.export.ExportedObject;
 
 /**
  * Test that ExtractorKafkaSender works as expected, respecting size limit.

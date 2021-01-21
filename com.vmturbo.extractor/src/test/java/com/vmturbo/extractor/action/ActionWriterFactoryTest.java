@@ -73,6 +73,8 @@ public class ActionWriterFactoryTest {
 
     private DataExtractionFactory dataExtractionFactory = mock(DataExtractionFactory.class);
 
+    private ActionAttributeExtractor actionAttributeExtractor = mock(ActionAttributeExtractor.class);
+
     ActionWriterFactory actionWriterFactory;
 
     /**
@@ -89,7 +91,7 @@ public class ActionWriterFactoryTest {
         actionWriterFactory = new ActionWriterFactory(
                 clock, actionConverter, endpoint, ACTION_WRITING_INTERVAL_MS,
                 writerConfig, executorService, dataProvider, extractorKafkaSender,
-                dataExtractionFactory, ACTION_EXTRACTION_INTERVAL_MS);
+                dataExtractionFactory, ACTION_EXTRACTION_INTERVAL_MS, actionAttributeExtractor);
     }
 
     /**

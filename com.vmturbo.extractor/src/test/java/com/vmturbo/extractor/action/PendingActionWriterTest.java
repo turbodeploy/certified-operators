@@ -2,7 +2,6 @@ package com.vmturbo.extractor.action;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -56,14 +55,17 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.extractor.ExtractorDbConfig;
+import com.vmturbo.extractor.ExtractorGlobalConfig.ExtractorFeatureFlags;
 import com.vmturbo.extractor.export.DataExtractionFactory;
 import com.vmturbo.extractor.export.ExtractorKafkaSender;
 import com.vmturbo.extractor.schema.ExtractorDbBaseConfig;
 import com.vmturbo.extractor.topology.DataProvider;
 import com.vmturbo.extractor.topology.ImmutableWriterConfig;
+import com.vmturbo.extractor.topology.SupplyChainEntity;
 import com.vmturbo.extractor.topology.WriterConfig;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
+import com.vmturbo.topology.graph.TopologyGraph;
 
 /**
  * Unit tests for the {@link PendingActionWriter}.
@@ -114,7 +116,11 @@ public class PendingActionWriterTest {
     private ActionWriterFactory actionWriterFactory = mock(ActionWriterFactory.class);
     private ExtractorKafkaSender extractorKafkaSender = mock(ExtractorKafkaSender.class);
     private DataExtractionFactory dataExtractionFactory = mock(DataExtractionFactory.class);
+    private ActionAttributeExtractor actionAttributeExtractor = mock(ActionAttributeExtractor.class);
+    private TopologyGraph<SupplyChainEntity> topologyGraph = mock(TopologyGraph.class);
     private MutableLong lastWrite = new MutableLong(0);
+
+    private ExtractorFeatureFlags extractorFeatureFlags = mock(ExtractorFeatureFlags.class);
 
     private PendingActionWriter actionWriter;
 
@@ -125,23 +131,24 @@ public class PendingActionWriterTest {
      */
     @Before
     public void setup() throws Exception {
+        when(dataProvider.getTopologyGraph()).thenReturn(topologyGraph);
         final DbEndpoint endpoint = spy(dbConfig.ingesterEndpoint());
         doReturn(mock(DSLContext.class)).when(endpoint).dslContext();
         doReturn(Optional.of(new ReportPendingActionWriter(clock, pool, endpoint, writerConfig,
-                actionConverter, ACTION_WRITING_INTERVAL_MS, TypeInfoCase.MARKET, new HashMap<>())))
+                actionConverter, topologyGraph, ACTION_WRITING_INTERVAL_MS, TypeInfoCase.MARKET, new HashMap<>())))
                 .when(actionWriterFactory).getReportPendingActionWriter(any());
         doReturn(Optional.of(new DataExtractionPendingActionWriter(extractorKafkaSender,
-                dataExtractionFactory, dataProvider, clock, lastWrite)))
+                dataExtractionFactory, dataProvider, clock, lastWrite, actionAttributeExtractor)))
                 .when(actionWriterFactory).getDataExtractionActionWriter();
+
+        when(extractorFeatureFlags.isReportingActionIngestionEnabled()).thenReturn(true);
 
         actionWriter = spy(new PendingActionWriter(
                 ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 EntitySeverityServiceGrpc.newStub(grpcServer.getChannel()),
                 PolicyServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 dataProvider,
-                true,
-                false,
-                false,
+                extractorFeatureFlags,
                 REALTIME_CONTEXT,
                 actionWriterFactory));
 
@@ -153,7 +160,6 @@ public class PendingActionWriterTest {
                         .build()));
         severityService.setSeveritySupplier(Collections::emptyList);
         doReturn(Collections.emptyList()).when(policyBackend).getPolicies(any());
-        doAnswer(inv -> null).when(dataProvider).getTopologyGraph();
     }
 
     /**
@@ -207,16 +213,7 @@ public class PendingActionWriterTest {
      */
     @Test
     public void testDisableIngestion() throws Exception {
-        PendingActionWriter actionWriter = spy(new PendingActionWriter(
-                ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel()),
-                EntitySeverityServiceGrpc.newStub(grpcServer.getChannel()),
-                PolicyServiceGrpc.newBlockingStub(grpcServer.getChannel()),
-                dataProvider,
-                false,
-                false,
-                false,
-                REALTIME_CONTEXT,
-                actionWriterFactory));
+        when(extractorFeatureFlags.isReportingActionIngestionEnabled()).thenReturn(false);
         actionWriter.onActionsUpdated(actionsUpdated(REALTIME_CONTEXT));
 
         verify(actionWriter, never()).fetchPolicies(any());
@@ -229,16 +226,8 @@ public class PendingActionWriterTest {
      */
     @Test
     public void testFetchPolicies() {
-        PendingActionWriter actionWriter = spy(new PendingActionWriter(
-                ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel()),
-                EntitySeverityServiceGrpc.newStub(grpcServer.getChannel()),
-                PolicyServiceGrpc.newBlockingStub(grpcServer.getChannel()),
-                dataProvider,
-                false,
-                false,
-                true,
-                REALTIME_CONTEXT,
-                actionWriterFactory));
+        when(extractorFeatureFlags.isReportingActionIngestionEnabled()).thenReturn(false);
+        when(extractorFeatureFlags.isExtractionEnabled()).thenReturn(true);
         when(actionsBackend.getAllActions(any())).thenReturn(Collections.emptyList());
         actionWriter.onActionsUpdated(actionsUpdated(REALTIME_CONTEXT));
 

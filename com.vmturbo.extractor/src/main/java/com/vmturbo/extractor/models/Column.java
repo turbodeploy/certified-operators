@@ -279,6 +279,17 @@ public class Column<T> {
     }
 
     /**
+     * Create a new JSON column.
+     *
+     * @param name column name
+     * @return new column
+     */
+    public static Column<JsonString> jsonColumn(final Field<?> name) {
+        return new Column<>(name, ColType.JSON);
+    }
+
+
+    /**
      * A wrapper for string values for columns that use the Postgres 'jsonb' column type.
      */
     public static class JsonString {

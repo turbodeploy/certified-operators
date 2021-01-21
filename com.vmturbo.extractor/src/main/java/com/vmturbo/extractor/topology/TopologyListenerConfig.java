@@ -24,6 +24,8 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
 import com.vmturbo.extractor.ExtractorDbConfig;
+import com.vmturbo.extractor.ExtractorGlobalConfig;
+import com.vmturbo.extractor.ExtractorGlobalConfig.ExtractorFeatureFlags;
 import com.vmturbo.extractor.export.DataExtractionFactory;
 import com.vmturbo.extractor.export.DataExtractionWriter;
 import com.vmturbo.extractor.export.ExportUtils;
@@ -46,7 +48,8 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription.Top
         TopologyProcessorClientConfig.class,
         GroupClientConfig.class,
         ActionOrchestratorClientConfig.class,
-        ExtractorDbConfig.class
+        ExtractorDbConfig.class,
+        ExtractorGlobalConfig.class,
 })
 public class TopologyListenerConfig {
     @Autowired
@@ -63,6 +66,9 @@ public class TopologyListenerConfig {
 
     @Autowired
     private BaseKafkaProducerConfig kafkaProducerConfig;
+
+    @Autowired
+    private ExtractorGlobalConfig extractorGlobalConfig;
 
     /**
      * How often we update last-seen timestamps for entities whose hash values have not changed.
@@ -92,26 +98,6 @@ public class TopologyListenerConfig {
 
     @Value("${reportingCommodityWhitelistRemoved:#{null}}")
     private String[] reportingCommodityWhitelistRemoved;
-
-    /**
-     * Whether or not to enable search data ingestion. This feature flag is needed since XLR may
-     * be released first, but we don't want to ingest search data.
-     * todo: remove once search is released.
-     */
-    @Value("${enableSearchApi:false}")
-    private boolean enableSearchApi;
-
-    /**
-     * Configuration used to enable/disable reporting data ingestion. Disabled by default.
-     */
-    @Value("${enableReporting:false}")
-    private boolean enableReporting;
-
-    /**
-     * Configuration used to enable/disable data extraction. Disabled by default.
-     */
-    @Value("${enableDataExtraction:false}")
-    private boolean enableDataExtraction;
 
     /**
      * Whether the scope table should be populated.
@@ -214,14 +200,15 @@ public class TopologyListenerConfig {
     public List<Supplier<ITopologyWriter>> writerFactories() {
         final DbEndpoint dbEndpoint = dbConfig.ingesterEndpoint();
         ImmutableList.Builder<Supplier<ITopologyWriter>> builder = ImmutableList.builder();
-        if (enableSearchApi) {
+        ExtractorFeatureFlags featureFlags = extractorGlobalConfig.featureFlags();
+        if (featureFlags.isSearchEnabled()) {
             builder.add(() -> new SearchEntityWriter(dbEndpoint, pool()));
         }
-        if (enableReporting) {
+        if (featureFlags.isReportingEnabled()) {
             builder.add(() -> new EntityMetricWriter(dbEndpoint, entityHashManager(),
                     scopeManager(), entityIdManager(), pool()));
         }
-        if (enableDataExtraction) {
+        if (featureFlags.isExtractionEnabled()) {
             builder.add(() -> new DataExtractionWriter(extractorKafkaSender(), dataExtractionFactory()));
         }
         return builder.build();
