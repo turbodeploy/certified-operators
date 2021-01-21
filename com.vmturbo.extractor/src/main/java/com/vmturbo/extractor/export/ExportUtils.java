@@ -12,8 +12,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import com.vmturbo.extractor.export.schema.ExportedObject;
 import com.vmturbo.extractor.schema.enums.MetricType;
-import com.vmturbo.extractor.schema.json.export.ExportedObject;
 import com.vmturbo.extractor.search.EnumUtils.CommodityTypeUtils;
 import com.vmturbo.extractor.search.EnumUtils.EntityTypeUtils;
 import com.vmturbo.extractor.search.EnumUtils.GroupTypeUtils;

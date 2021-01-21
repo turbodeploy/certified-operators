@@ -30,8 +30,7 @@ import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
         ActionConfig.class,
         ExtractorDbConfig.class,
         GrafanaConfig.class,
-        ExtractorDiagnosticsConfig.class,
-        ExtractorGlobalConfig.class})
+        ExtractorDiagnosticsConfig.class})
 public class ExtractorComponent extends BaseVmtComponent {
     private static final Logger logger = LogManager.getLogger();
 
@@ -44,9 +43,6 @@ public class ExtractorComponent extends BaseVmtComponent {
     @Autowired
     private ExtractorDbConfig extractorDbConfig;
 
-    @Autowired
-    private ExtractorGlobalConfig extractorGlobalConfig;
-
     @Value("${timescaledbHealthCheckIntervalSeconds:60}")
     private int timescaledbHealthCheckIntervalSeconds;
 
@@ -57,6 +53,18 @@ public class ExtractorComponent extends BaseVmtComponent {
      */
     @Value("${reportingMetricTableRetentionMonths:#{null}}")
     private Integer reportingMetricTableRetentionMonths;
+
+    /**
+     * Configuration used to enable/disable search data ingestion.
+     */
+    @Value("${enableSearchApi:false}")
+    private boolean enableSearchApi;
+
+    /**
+     * Configuration used to enable/disable reporting data ingestion.
+     */
+    @Value("${enableReporting:false}")
+    private boolean enableReporting;
 
     private void setupHealthMonitor() throws InterruptedException {
         logger.info("Adding PostgreSQL health checks to the component health monitor.");
@@ -87,7 +95,7 @@ public class ExtractorComponent extends BaseVmtComponent {
     protected void onStartComponent() {
         logger.debug("Writer config: {}", listenerConfig.writerConfig());
         // only set up postgres health monitor if reporting or searchApi is enabled
-        if (extractorGlobalConfig.requireDatabase()) {
+        if (enableReporting || enableSearchApi) {
             try {
                 setupHealthMonitor();
                 // change retention policy if custom period is provided

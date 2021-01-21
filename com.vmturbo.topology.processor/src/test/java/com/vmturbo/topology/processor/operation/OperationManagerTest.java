@@ -73,7 +73,6 @@ import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.ValidationRequest;
 import com.vmturbo.platform.sdk.common.util.NotificationCategoryDTO;
-import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
 import com.vmturbo.topology.processor.TestIdentityStore;
@@ -217,9 +216,7 @@ public class OperationManagerTest {
         when(identityProvider.getProbeId(any())).thenReturn(probeId);
 
         System.setProperty("com.vmturbo.keydir", testFolder.newFolder().getAbsolutePath());
-        final ProbeInfo probeInfo = ProbeInfo.newBuilder(Probes.emptyProbe)
-                .setProbeCategory(ProbeCategory.COST.getCategory())
-                .build();
+        final ProbeInfo probeInfo = Probes.emptyProbe;
         probeStore.registerNewProbe(probeInfo, transport);
         final TargetSpec targetSpec = new TargetSpec(probeId, Collections.singletonList(new InputField("targetId",
             "123",
@@ -627,19 +624,6 @@ public class OperationManagerTest {
         final String errorMessage = errors.iterator().next();
         Assert.assertThat(errorMessage,
                 CoreMatchers.containsString("Target " + targetId + " removed."));
-    }
-
-    /**
-     * Test that when a target is removed, the correct calls are made.
-     */
-    @Test
-    public void testTargetRemoval() {
-       operationManager.onTargetRemoved(target);
-        verify(discoveredGroupUploader).targetRemoved(targetId);
-        verify(discoveredTemplatesUploader)
-                .deleteTemplateDeploymentProfileByTarget(targetId);
-        verify(discoveredWorkflowUploader).targetRemoved(targetId);
-        verify(discoveredCloudCostUploader).targetRemoved(targetId, Optional.of(ProbeCategory.COST));
     }
 
     /**

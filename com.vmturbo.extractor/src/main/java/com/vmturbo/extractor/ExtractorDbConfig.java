@@ -21,7 +21,7 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig2;
  * Config class that defines DB endpoints used by extractor component.
  */
 @Configuration
-@Import({SQLDatabaseConfig2.class, ExtractorGlobalConfig.class})
+@Import(SQLDatabaseConfig2.class)
 public class ExtractorDbConfig {
     private static final Logger logger = LogManager.getLogger();
 
@@ -29,10 +29,19 @@ public class ExtractorDbConfig {
     private ExtractorDbBaseConfig dbBaseConfig;
 
     @Autowired
-    private ExtractorGlobalConfig extractorGlobalConfig;
-
-    @Autowired
     private SQLDatabaseConfig2 dbConfig;
+
+    /**
+     * Configuration used to enable/disable search data ingestion.
+     */
+    @Value("${enableSearchApi:false}")
+    private boolean enableSearchApi;
+
+    /**
+     * Configuration used to enable/disable reporting data ingestion.
+     */
+    @Value("${enableReporting:false}")
+    private boolean enableReporting;
 
     /**
      * DB endpoint to use for topology ingestion.
@@ -46,7 +55,7 @@ public class ExtractorDbConfig {
                 .withDbAccess(DbEndpointAccess.ALL)
                 .withDbDestructiveProvisioningEnabled(true)
                 .withDbShouldProvision(true)
-                .withDbEndpointEnabled(extractorGlobalConfig.requireDatabase())
+                .withDbEndpointEnabled(enableReporting || enableSearchApi)
                 .build();
     }
 
@@ -61,7 +70,7 @@ public class ExtractorDbConfig {
                 .like(dbBaseConfig.ingesterEndpointBase())
                 .withDbAccess(DbEndpointAccess.READ_ONLY)
                 .withDbShouldProvisionUser(true)
-                .withDbEndpointEnabled(extractorGlobalConfig.requireDatabase())
+                .withDbEndpointEnabled(enableReporting || enableSearchApi)
                 .build();
     }
 
@@ -104,7 +113,7 @@ public class ExtractorDbConfig {
     @Bean
     public Optional<DbEndpoint> grafanaWriterEndpoint() {
         if (!StringUtils.isAnyEmpty(grafanaDataDbName, grafanaDataPassword, grafanaDataUsername)
-                && extractorGlobalConfig.featureFlags().isReportingEnabled()) {
+                && enableReporting) {
             logger.info("Creating database endpoint for Grafana. Database {}, user {}",
                     grafanaDataDbName, grafanaDataUsername);
             return Optional.of(dbConfig.secondaryDbEndpoint("grafana_writer", SQLDialect.POSTGRES)
@@ -135,7 +144,7 @@ public class ExtractorDbConfig {
                 .withDbUserName(grafanaReaderUsername)
                 .withDbShouldProvisionUser(true)
                 .withNoDbMigrations()
-                .withDbEndpointEnabled(extractorGlobalConfig.featureFlags().isReportingEnabled())
+                .withDbEndpointEnabled(enableReporting)
                 .build();
     }
 }

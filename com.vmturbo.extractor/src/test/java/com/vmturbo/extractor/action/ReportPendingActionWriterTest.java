@@ -4,7 +4,6 @@ import static com.vmturbo.extractor.util.RecordTestUtil.captureSink;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -34,11 +33,9 @@ import com.vmturbo.extractor.models.DslReplaceRecordSink;
 import com.vmturbo.extractor.models.Table.Record;
 import com.vmturbo.extractor.topology.DataProvider;
 import com.vmturbo.extractor.topology.ImmutableWriterConfig;
-import com.vmturbo.extractor.topology.SupplyChainEntity;
 import com.vmturbo.extractor.topology.WriterConfig;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
-import com.vmturbo.topology.graph.TopologyGraph;
 
 /**
  * Unit tests for the {@link ReportPendingActionWriter}.
@@ -77,8 +74,6 @@ public class ReportPendingActionWriterTest {
 
     private final MultiStageTimer timer = new MultiStageTimer(logger);
 
-    private final TopologyGraph<SupplyChainEntity> topologyGraph = mock(TopologyGraph.class);
-
     /**
      * Common setup code before each test.
      *
@@ -97,7 +92,6 @@ public class ReportPendingActionWriterTest {
                 endpoint,
                 writerConfig,
                 actionConverter,
-                topologyGraph,
                 ACTION_WRITING_INTERVAL_MS,
                 TypeInfoCase.MARKET,
                 new HashMap<>()));
@@ -120,8 +114,7 @@ public class ReportPendingActionWriterTest {
         Record pendingActionRecord = new Record(ActionModel.PendingAction.TABLE);
         pendingActionRecord.set(PendingAction.ACTION_OID, actionId);
 
-        when(actionConverter.makePendingActionRecord(eq(ACTION_SPEC), eq(topologyGraph)))
-                .thenReturn(pendingActionRecord);
+        when(actionConverter.makePendingActionRecord(ACTION_SPEC)).thenReturn(pendingActionRecord);
 
         // accept action and write
         actionWriter.recordAction(ACTION);

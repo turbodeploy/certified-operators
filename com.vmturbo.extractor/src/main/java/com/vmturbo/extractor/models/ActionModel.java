@@ -2,7 +2,6 @@ package com.vmturbo.extractor.models;
 
 import java.sql.Timestamp;
 
-import com.vmturbo.extractor.models.Column.JsonString;
 import com.vmturbo.extractor.schema.Tables;
 import com.vmturbo.extractor.schema.enums.ActionCategory;
 import com.vmturbo.extractor.schema.enums.ActionType;
@@ -68,17 +67,12 @@ public class ActionModel {
         public static final Column<Severity> SEVERITY = new Column<>(Tables.PENDING_ACTION.SEVERITY, ColType.SEVERITY);
 
         /**
-         * ATTRS column.
-         */
-        public static final Column<JsonString> ATTRS = Column.jsonColumn(Tables.PENDING_ACTION.ATTRS);
-
-        /**
-         * The PENDING_ACTION table.
+         * The ACTION_SPEC table.
          */
         public static final Table TABLE = Table.named(Tables.PENDING_ACTION.getName()).withColumns(
                 RECOMMENDATION_TIME, ACTION_OID, TYPE, SEVERITY, CATEGORY,
                 TARGET_ENTITY, INVOLVED_ENTITIES, DESCRIPTION,
-                SAVINGS, ATTRS).build();
+                SAVINGS).build();
     }
 
     /**
@@ -154,17 +148,12 @@ public class ActionModel {
         public static final Column<String> FINAL_MESSAGE = Column.stringColumn(Tables.COMPLETED_ACTION.FINAL_MESSAGE);
 
         /**
-         * ATTRS column.
-         */
-        public static final Column<JsonString> ATTRS = Column.jsonColumn(Tables.COMPLETED_ACTION.ATTRS);
-
-        /**
          * The ACTION_SPEC table.
          */
         public static final Table TABLE = Table.named(Tables.COMPLETED_ACTION.getName()).withColumns(
                 RECOMMENDATION_TIME, ACCEPTANCE_TIME, COMPLETION_TIME,
                 ACTION_OID, TYPE, SEVERITY, CATEGORY,
                 TARGET_ENTITY, INVOLVED_ENTITIES, DESCRIPTION,
-                SAVINGS, FINAL_STATE, FINAL_MESSAGE, ATTRS).build();
+                SAVINGS, FINAL_STATE, FINAL_MESSAGE).build();
     }
 }

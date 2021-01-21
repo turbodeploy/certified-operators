@@ -36,7 +36,6 @@ import com.vmturbo.components.api.FormattedString;
 import com.vmturbo.components.common.utils.MultiStageTimer;
 import com.vmturbo.components.common.utils.MultiStageTimer.AsyncTimer;
 import com.vmturbo.components.common.utils.MultiStageTimer.Detail;
-import com.vmturbo.extractor.ExtractorGlobalConfig.ExtractorFeatureFlags;
 import com.vmturbo.extractor.topology.DataProvider;
 import com.vmturbo.extractor.topology.SupplyChainEntity;
 import com.vmturbo.proactivesupport.DataMetricCounter;
@@ -62,7 +61,11 @@ public class PendingActionWriter implements ActionsListener {
 
     private final long realtimeContextId;
 
-    private final ExtractorFeatureFlags extractorFeatureFlags;
+    private final boolean enableReportingActionIngestion;
+
+    private final boolean enableSearchActionIngestion;
+
+    private final boolean enableDataExtraction;
 
     private final ActionWriterFactory actionWriterFactory;
 
@@ -70,17 +73,25 @@ public class PendingActionWriter implements ActionsListener {
                         @Nonnull final EntitySeverityServiceStub severityService,
                         @Nonnull final PolicyServiceBlockingStub policyService,
                         @Nonnull final DataProvider dataProvider,
-                        @Nonnull final ExtractorFeatureFlags extractorFeatureFlags,
+                        final boolean enableReportingActionIngestion,
+                        final boolean enableSearchActionIngestion,
+                        final boolean enableDataExtraction,
                         final long realtimeContextId,
                         @Nonnull final ActionWriterFactory actionWriterFactory) {
         this.actionService = actionService;
         this.severityService = severityService;
         this.policyService = policyService;
         this.realtimeContextId = realtimeContextId;
-        this.extractorFeatureFlags = extractorFeatureFlags;
+        this.enableReportingActionIngestion = enableReportingActionIngestion;
+        this.enableSearchActionIngestion = enableSearchActionIngestion;
+        this.enableDataExtraction = enableDataExtraction;
         this.dataProvider = dataProvider;
         this.actionWriterFactory = actionWriterFactory;
-        logger.info("Initialized action writer. Feature flags: {}", extractorFeatureFlags);
+        logger.info("Initialized action writer. Reporting action ingestion {}, "
+                        + "search action ingestion {}, data extraction ingestion {}",
+                enableReportingActionIngestion ? "enabled" : "disabled",
+                enableSearchActionIngestion ? "enabled" : "disabled",
+                enableDataExtraction ? "enabled" : "disabled");
     }
 
     @Override
@@ -167,7 +178,7 @@ public class PendingActionWriter implements ActionsListener {
      */
     private List<IActionWriter> createActionWriters(TypeInfoCase actionPlanType) {
         final ImmutableList.Builder<IActionWriter> builder = ImmutableList.builder();
-        if (extractorFeatureFlags.isSearchEnabled()) {
+        if (isEnableSearchActionIngestion()) {
             // there are two notifications in short time (buyRI & market), we should avoid fetching
             // twice in short time, currently we only fetch when it's MARKET type. maybe we need a
             // minimal fetching interval like 10 minutes for search, no matter which type.
@@ -176,14 +187,29 @@ public class PendingActionWriter implements ActionsListener {
             }
         }
 
-        if (extractorFeatureFlags.isReportingActionIngestionEnabled()) {
+        if (isEnableReportingActionIngestion()) {
             actionWriterFactory.getReportPendingActionWriter(actionPlanType).ifPresent(builder::add);
         }
 
-        if (extractorFeatureFlags.isExtractionEnabled()) {
+        if (isEnableActionExtraction()) {
             actionWriterFactory.getDataExtractionActionWriter().ifPresent(builder::add);
         }
         return builder.build();
+    }
+
+    @VisibleForTesting
+    public boolean isEnableReportingActionIngestion() {
+        return enableReportingActionIngestion;
+    }
+
+    @VisibleForTesting
+    public boolean isEnableSearchActionIngestion() {
+        return enableSearchActionIngestion;
+    }
+
+    @VisibleForTesting
+    public boolean isEnableActionExtraction() {
+        return enableDataExtraction;
     }
 
     @VisibleForTesting
