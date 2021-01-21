@@ -67,6 +67,7 @@ import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.RequestTargetId;
 import com.vmturbo.platform.sdk.common.MediationMessage.TargetUpdateRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ValidationRequest;
+import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKUtil;
 import com.vmturbo.proactivesupport.DataMetricGauge;
 import com.vmturbo.proactivesupport.DataMetricHistogram;
@@ -933,7 +934,12 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         discoveredGroupUploader.targetRemoved(targetId);
         discoveredTemplateDeploymentProfileNotifier.deleteTemplateDeploymentProfileByTarget(targetId);
         discoveredWorkflowUploader.targetRemoved(targetId);
-        discoveredCloudCostUploader.targetRemoved(targetId, targetStore.getProbeCategoryForTarget(targetId));
+        // Must generate category from ProbeInfo and not use targetStore method since target has
+        // already been removed from targetStore.
+        final Optional<ProbeCategory> probeCategory = probeStore.getProbe(target.getProbeId())
+                .flatMap(
+                probe -> Optional.ofNullable(ProbeCategory.create(probe.getProbeCategory())));
+        discoveredCloudCostUploader.targetRemoved(targetId, probeCategory);
     }
 
     /**
