@@ -128,6 +128,8 @@ public class ProvisionBySupply extends ProvisionBase implements Action {
         copySettings.setGuaranteedBuyer(getModelSeller().getSettings().isGuaranteedBuyer());
         copySettings.setProviderMustClone(getModelSeller().getSettings().isProviderMustClone());
         copySettings.setReconfigurable(getModelSeller().getSettings().isReconfigurable());
+        copySettings.setMinReplicas(getModelSeller().getSettings().getMinReplicas());
+        copySettings.setMaxReplicas(getModelSeller().getSettings().getMaxReplicas());
 
         List<Trader> unPlacedClones = new ArrayList<>();
         // Add basket(s) bought

@@ -265,7 +265,14 @@ public class Suspension {
                 }
                 return suspendActions;
             }
-
+            if (GuaranteedBuyerHelper.isTraderReplicasBeyondRange(trader, economy, false)) {
+                if (logger.isDebugEnabled()) {
+                    logger.debug("Do not suspend trader {} because its current replicas is"
+                                    + " not above the minReplicas {}.",
+                            traderDebugInfo, trader.getSettings().getMinReplicas());
+                }
+                return suspendActions;
+            }
             boolean isProviderOfResizeThroughSupplier = Utility.isProviderOfResizeThroughSupplierTrader(trader);
             Set<ShoppingList> resizeThroughSupplierCustomers = new LinkedHashSet<>();
             Set<Trader> resizeThroughSuppliers = new LinkedHashSet<>();

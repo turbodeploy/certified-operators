@@ -172,6 +172,12 @@ message TraderSettingsTO {
     // the market uses into millicores. This is important to ensure the market generates
     // actions that make sense in the unit the consistent scaling group must be consistent in.
     optional float consistent_scaling_factor = 20 [default = 1.0];
+
+    // Minimum replicas of trader during horizontal scale
+    optional int32 min_replicas = 21;
+
+    // Maximum replicas of trader during horizontal scale
+    optional int32 max_replicas = 22;
 }
 
 // The different states a trader can be in. The intention is to make this a boolean once we confirm

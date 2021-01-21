@@ -804,6 +804,73 @@ public class ProvisionBySupplyTest {
     }
 
     /**
+     * Test provision by supply with a max replicas constraint.
+     *
+     * <p>The app sells 300(ms) response time. The service requests 20000(ms) response time.
+     * The app has a max desired util of 0.75 and min desired util 0f 0.65.
+     * The app has a minReplicas=1, and maxReplicas=3.
+     * The response time commodity has MM1Distribution with one dependent VCPU commodity of default
+     * elasticity 1.0, and a default stop condition of 20%.
+     * The container sells 575(MHz) VCPU. The application requests 515(MHz) VCPU.
+     * There should be at most 3 applications (1 original, and 2 cloned)
+     */
+    @Test
+    public void testProvisionBySupplyWithMaxReplicas() {
+        Economy e = new Economy();
+        final int minReplicas = 1;
+        final int maxReplicas = 3;
+        // Create svc
+        Trader svc = TestUtils.createTrader(e, TestUtils.SERVICE_TYPE, Collections.singletonList(0L),
+                Collections.emptyList(), new double[]{}, true, true);
+        svc.setDebugInfoNeverUseInCode("service");
+        // Create app
+        Trader app = TestUtils.createTrader(e, TestUtils.APP_TYPE, Collections.singletonList(0L),
+                Collections.singletonList(TestUtils.RESPONSE_TIME),
+                new double[]{300}, true, false);
+        app.setDebugInfoNeverUseInCode("application");
+        app.getSettings()
+                .setProviderMustClone(true)
+                .setMaxDesiredUtil(0.75)
+                .setMaxDesiredUtil(0.65)
+                .setMinReplicas(minReplicas)
+                .setMaxReplicas(maxReplicas);
+        Trader app1 = TestUtils.createTrader(e, TestUtils.APP_TYPE, Collections.singletonList(0L),
+                Collections.singletonList(TestUtils.APPLICATION),
+                new double[]{1E22}, true, false);
+        app1.setDebugInfoNeverUseInCode("sidecar");
+        // Set stop condition to be 20%
+        Basket bSvc = new Basket(TestUtils.RESPONSE_TIME);
+        Optional.ofNullable(app.getCommoditySold(bSvc.get(0)).getSettings().getUpdatingFunction())
+                .filter(UpdatingFunctionFactory::isMM1DistributionFunction)
+                .map(MM1Distribution.class::cast).ifPresent(uf -> uf.setMinDecreasePct(0.2F));
+        // Create shopping list for svc, and place svc on app
+        ShoppingList slSvc = e.addBasketBought(svc, bSvc);
+        TestUtils.moveSlOnSupplier(e, slSvc, app, new double[]{20000});
+        Basket bSvc1 = new Basket(TestUtils.APPLICATION);
+        ShoppingList slSvc1 = e.addBasketBought(svc, bSvc1);
+        TestUtils.moveSlOnSupplier(e, slSvc1, app1, new double[]{1});
+        // Create shopping list for app
+        Basket bApp = new Basket(TestUtils.VCPU, TestUtils.VMEM);
+        ShoppingList slApp = e.addBasketBought(app, bApp);
+        // Create container
+        Trader container = TestUtils.createTrader(e, TestUtils.CONTAINER_TYPE, Collections.singletonList(0L),
+                Arrays.asList(TestUtils.VCPU, TestUtils.VMEM),
+                new double[]{575, 65536}, true, false);
+        container.setDebugInfoNeverUseInCode("container");
+        // Place app on container
+        TestUtils.moveSlOnSupplier(e, slApp, container, new double[]{515, 256});
+        // Populate market
+        e.populateMarketsWithSellersAndMergeConsumerCoverage();
+        Ledger ledger = new Ledger(e);
+        List<Action> actions = Provision.provisionDecisions(e, ledger);
+        final long numOfClonedApps = actions.stream()
+                .map(Action::getActionTarget)
+                .filter(target -> target.getType() == TestUtils.APP_TYPE)
+                .count();
+        assertEquals(maxReplicas, numOfClonedApps + 1);
+    }
+
+    /**
      * Case: Two containers on one pm, each container hosts one app.Both containers sell
      * 100 VCPU and buy 100 CPU from pm. The pm sells only 250 CPU.
      *

@@ -357,7 +357,8 @@ public final class ProtobufToAnalysis {
         if (source.hasCurrentContext() && source.getCurrentContext().hasBalanceAccount()) {
             populateCloudSpent(topology, input, destination);
         }
-
+        destination.setMinReplicas(source.getMinReplicas());
+        destination.setMaxReplicas(source.getMaxReplicas());
     }
 
     /**

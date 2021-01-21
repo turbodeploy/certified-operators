@@ -4,6 +4,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -685,6 +686,83 @@ public class SuspensionTest {
                         .findFirst();
         assertTrue(vmAction.isPresent());
         assertTrue(vmAction.get().isExecutable());
+    }
+
+    /**
+     * Case: One service consume on two apps, each hosted by a container.
+     * Each app sells 300(ms) response time. The service requests 50(ms) response time from each app.
+     * The containers sells 575(MHz) VCPU. The two applications requests 200(MHz) and 150(MHz) VCPU
+     * respectively.
+     * Test that if setting the min replicas to 2, the suspension doesn't happen
+     * Test that if setting the min replicas to 1, there will be 2 suspensions, 1 app, and 1 container
+     * due to providerMustClone
+     */
+    @Test
+    public void testSuspensionWithMinReplicas() {
+        Economy e = new Economy();
+        // App1
+        Trader app1 = TestUtils.createTrader(e, TestUtils.APP_TYPE, Collections.singletonList(0L),
+                Collections.singletonList(TestUtils.RESPONSE_TIME),
+                new double[]{300}, true, false);
+        app1.setDebugInfoNeverUseInCode("application1");
+        app1.getSettings()
+                .setProviderMustClone(true)
+                .setSuspendable(true)
+                .setMaxDesiredUtil(0.75)
+                .setMaxDesiredUtil(0.65)
+                .setMaxReplicas(2);
+        // Container1
+        Trader container1 = TestUtils.createTrader(e, TestUtils.CONTAINER_TYPE, Collections.singletonList(0L),
+                Collections.singletonList(TestUtils.VCPU),
+                new double[]{575}, true, false);
+        container1.setDebugInfoNeverUseInCode("container1");
+        // Move App1 on Container1
+        Basket basketVCPU = new Basket(TestUtils.VCPU);
+        ShoppingList slApp1Container1 = e.addBasketBought(app1, basketVCPU);
+        TestUtils.moveSlOnSupplier(e, slApp1Container1, container1, new double[]{200});
+        // App2
+        Trader app2 = TestUtils.createTrader(e, TestUtils.APP_TYPE, Collections.singletonList(0L),
+                Collections.singletonList(TestUtils.RESPONSE_TIME),
+                new double[]{300}, true, false);
+        app2.setDebugInfoNeverUseInCode("application2");
+        app2.getSettings()
+                .setProviderMustClone(true)
+                .setSuspendable(true)
+                .setMaxDesiredUtil(0.75)
+                .setMaxDesiredUtil(0.65)
+                .setMaxReplicas(2);
+        // Container2
+        Trader container2 = TestUtils.createTrader(e, TestUtils.CONTAINER_TYPE, Collections.singletonList(0L),
+                Collections.singletonList(TestUtils.VCPU),
+                new double[]{575}, true, false);
+        container2.setDebugInfoNeverUseInCode("container2");
+        // Move App2 on Container2
+        ShoppingList slApp2Container2 = e.addBasketBought(app2, basketVCPU);
+        TestUtils.moveSlOnSupplier(e, slApp2Container2, container2, new double[]{150});
+        // Service
+        Trader svc = TestUtils.createTrader(e, TestUtils.SERVICE_TYPE, Collections.singletonList(0L),
+                Collections.emptyList(), new double[]{}, true, true);
+        svc.setDebugInfoNeverUseInCode("service");
+        // Move Service on App1/App2/App3
+        Basket basketResponseTime = new Basket(TestUtils.RESPONSE_TIME);
+        ShoppingList slSvcApp1 = e.addBasketBought(svc, basketResponseTime);
+        TestUtils.moveSlOnSupplier(e, slSvcApp1, app1, new double[]{50});
+        ShoppingList slSvcApp2 = e.addBasketBought(svc, basketResponseTime);
+        TestUtils.moveSlOnSupplier(e, slSvcApp2, app2, new double[]{50});
+        // Populate market
+        e.populateMarketsWithSellersAndMergeConsumerCoverage();
+        Ledger ledger = new Ledger(e);
+        Suspension suspension = new Suspension(SuspensionsThrottlingConfig.DEFAULT);
+        // Setting the min replicas as the current replicas
+        app1.getSettings().setMinReplicas(2);
+        app2.getSettings().setMinReplicas(2);
+        // Assert that suspension won't happen
+        assertEquals(0, suspension.suspensionDecisions(e, ledger).size());
+        // Setting the min replicas to be 1 fewer than the current replicas
+        app1.getSettings().setMinReplicas(1);
+        app2.getSettings().setMinReplicas(1);
+        // Assert that suspension can happen (1 app, and 1 container due to providerMustClone)
+        assertEquals(2, suspension.suspensionDecisions(e, ledger).size());
     }
 
     /**

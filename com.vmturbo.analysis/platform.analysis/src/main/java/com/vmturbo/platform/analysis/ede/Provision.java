@@ -7,6 +7,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
+import javax.annotation.Nullable;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
 
@@ -17,6 +19,7 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ActionImpl;
 import com.vmturbo.platform.analysis.actions.Activate;
+import com.vmturbo.platform.analysis.actions.GuaranteedBuyerHelper;
 import com.vmturbo.platform.analysis.actions.ProvisionBase;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
 import com.vmturbo.platform.analysis.economy.Economy;
@@ -24,6 +27,7 @@ import com.vmturbo.platform.analysis.economy.EconomyConstants;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
+import com.vmturbo.platform.analysis.economy.TraderSettings;
 import com.vmturbo.platform.analysis.ledger.IncomeStatement;
 import com.vmturbo.platform.analysis.ledger.Ledger;
 import com.vmturbo.platform.analysis.ledger.Ledger.MostExpensiveCommodityDetails;
@@ -51,23 +55,32 @@ public class Provision {
      */
     public static class MostProfitableBundle {
 
-        Trader mostProfitableTrader_;
-        MostExpensiveCommodityDetails mostExpensiveCommodityDetails_;
+        @Nullable Trader mostProfitableTrader_;
+        @Nullable MostExpensiveCommodityDetails mostExpensiveCommodityDetails_;
         float minDecreasePct_;
 
-        MostProfitableBundle(Trader mostProfitableTrader,
-                             MostExpensiveCommodityDetails mostExpensiveCommodityDetails) {
+        MostProfitableBundle(@Nullable Trader mostProfitableTrader,
+                             @Nullable MostExpensiveCommodityDetails mostExpensiveCommodityDetails) {
             super();
             mostProfitableTrader_ = mostProfitableTrader;
             mostExpensiveCommodityDetails_ = mostExpensiveCommodityDetails;
             setMinDecreasePct();
         }
 
-        Trader getMostProfitableTrader() {
+        /**
+         * Get the most profitable {@link Trader}.
+         *
+         * @return the most profitable trader
+         */
+        @Nullable Trader getMostProfitableTrader() {
             return mostProfitableTrader_;
         }
 
-        MostExpensiveCommodityDetails getMostExpensiveCommodityDetails() {
+        /**
+         * Get the {@link MostExpensiveCommodityDetails}.
+         * @return the most expensive commodity details
+         */
+        @Nullable MostExpensiveCommodityDetails getMostExpensiveCommodityDetails() {
             return mostExpensiveCommodityDetails_;
         }
 
@@ -383,62 +396,83 @@ public class Provision {
         for (Trader seller : bucket) {
             boolean isDebugTrader = seller.isDebugEnabled();
             String traderDebugInfo = seller.getDebugInfoNeverUseInCode();
-            MostExpensiveCommodityDetails mostExpensiveCommodity = ledger.calculateExpRevForTraderAndGetTopRevenue(economy, seller);
-            if ((seller.getSettings().isCloneable() && !forReconfigure)
-                || forReconfigure) {
-                IncomeStatement traderIS = ledger.getTraderIncomeStatements().get(seller
-                        .getEconomyIndex());
-                // return the most profitable trader
-                double roiOfTrader = traderIS.getROI();
+            // The seller should be clonable or be reconfigurable
+            if (!seller.getSettings().isCloneable() && !forReconfigure) {
                 if (logger.isTraceEnabled() || isDebugTrader) {
-                    logger.info("{" + traderDebugInfo + "} trader ROI: " + roiOfTrader
-                            + ", max desired ROI: " + traderIS.getMaxDesiredROI() + ".");
+                    logger.info("Trader {} is neither clonable nor reconfigurable", traderDebugInfo);
                 }
-                // The seller should have at least 1 customer which is participating in the market
-                // so that this customer can be moved out when processing this market.
-                Set<ShoppingList> sellerCustomersInCurrentMarket = seller.getCustomers(market);
-                // TODO: evaluate if checking for movable customers earlier is beneficial
-                // clone candidate should either have at least one customer is movable or
-                // all customers that are from guaranteed buyer
-                if ((sellerCustomersInCurrentMarket.size() > 0 || forReconfigure)
-                    && (roiOfTrader > traderIS.getMaxDesiredROI())
-                        && (roiOfTrader > roiOfRichestTrader)
-                        && (seller.getCustomers().stream().anyMatch(ShoppingList::isMovable)
-                        || (seller.getCustomers().stream().allMatch(sl ->
-                        sl.getBuyer().getSettings().isGuaranteedBuyer())))) {
-                    mostProfitableTrader = seller;
-                    roiOfRichestTrader = roiOfTrader;
-                    mostProfitableCommodity = mostExpensiveCommodity;
-                } else {
-                    if (logger.isTraceEnabled() || isDebugTrader) {
-                        if (roiOfTrader <= traderIS.getMaxDesiredROI()) {
-                            logger.info("{" + traderDebugInfo + "} is not the best trader to"
-                                    + " engage because its ROI (" + roiOfTrader + ") is not"
-                                    + " bigger than its max desired ROI ("
-                                    + traderIS.getMaxDesiredROI() + ").");
-                        }
-                        if (roiOfTrader <= roiOfRichestTrader) {
-                            logger.info("{" + traderDebugInfo + "} is not the best trader to"
-                                    + " engage because its ROI (" + roiOfTrader + ") is not"
-                                    + " bigger than the ROI od the richest trader so far ("
-                                    + roiOfRichestTrader + ").");
-                        }
-                        if (seller.getCustomers().stream().noneMatch(ShoppingList::isMovable)
-                                && seller.getCustomers().stream().anyMatch(sl ->
-                                        !sl.getBuyer().getSettings().isGuaranteedBuyer())) {
-                            logger.info("{" + traderDebugInfo + "} is not the best trader to"
-                                    + " engage because it has no movable customer and none of them"
-                                    + " is a guaranteed buyer.");
-                        }
-                    }
-                }
-            } else {
-                if (logger.isTraceEnabled() || isDebugTrader) {
-                    logger.info("{" + traderDebugInfo + "} is not clonable.");
-
-                }
+                continue;
             }
+            // The seller should have at least 1 customer which is participating in the current market
+            // so that this customer can be moved out when processing this market (for provision only)
+            if (!forReconfigure && seller.getCustomers(market).size() == 0) {
+                if (logger.isTraceEnabled() || isDebugTrader) {
+                    logger.info("Trader {} does not have any customer, and is not reconfigurable.",
+                            traderDebugInfo);
+                }
+                continue;
+            }
+            IncomeStatement traderIS = ledger.getTraderIncomeStatements().get(seller.getEconomyIndex());
+            final double roiOfTrader = traderIS.getROI();
+            final double maxDesiredRoi = traderIS.getMaxDesiredROI();
+            if (logger.isTraceEnabled() || isDebugTrader) {
+                logger.info("Trader {}: ROI: {}, max desired ROI: {}.",
+                        traderDebugInfo, roiOfTrader, maxDesiredRoi);
+            }
+            // The seller's ROI should be larger than the max desired ROI
+            if (roiOfTrader <= traderIS.getMaxDesiredROI()) {
+                if (logger.isTraceEnabled() || isDebugTrader) {
+                    logger.info("Trader {} is not the best trader to engage because its"
+                                    + " ROI {} is not bigger than its max desired ROI {}.",
+                            traderDebugInfo, roiOfTrader, maxDesiredRoi);
+                }
+                continue;
+            }
+            // The seller's ROI should be larger than that of the richest trader so far
+            if (roiOfTrader <= roiOfRichestTrader) {
+                if (logger.isTraceEnabled() || isDebugTrader) {
+                    logger.info("Trader {} is not the best trader to engage because its"
+                                    + " ROI {} is not bigger than the ROI of the richest trader so far {}",
+                            traderDebugInfo, roiOfTrader, roiOfRichestTrader);
+                }
+                continue;
+            }
+            final List<ShoppingList> customers = seller.getCustomers();
+            // The seller should have at least one movable customer, otherwise, all buyers of the
+            // seller must be guaranteed buyers
+            if (customers.stream().noneMatch(ShoppingList::isMovable) && !customers.stream()
+                    .map(ShoppingList::getBuyer)
+                    .map(Trader::getSettings)
+                    .allMatch(TraderSettings::isGuaranteedBuyer)) {
+                if (logger.isTraceEnabled() || isDebugTrader) {
+                    logger.info("Trader {} is not the best trader to engage because it has"
+                                    + " no movable customers, and not all customers are guaranteed buyers.",
+                            traderDebugInfo);
+                }
+                continue;
+            }
+            // Check replicas for guaranteed buyers if needed (for provision only)
+            if (!forReconfigure
+                    && GuaranteedBuyerHelper.isTraderReplicasBeyondRange(seller, economy, true)) {
+                if (logger.isTraceEnabled() || isDebugTrader) {
+                    logger.info("Trader {} is not the best trader to engage because its"
+                                    + " current replicas is not below the maxReplicas {}.",
+                            traderDebugInfo, seller.getSettings().getMaxReplicas());
+                }
+                continue;
+            }
+            // The seller meets all the following conditions for provision or reconfigure:
+            // - Has at least one customer that participates in the current market (provision only)
+            // - Has at least one movable customer, or all customers are guaranteed buyers
+            // - Has ROI larger than the max desired ROI
+            // - Has ROI larger than that of the richest trader so far
+            // - If the seller is a provider to a guaranteed buyer, and has non-zero max replicas
+            //   constraint, the current replicas is smaller than the max replicas (provision only)
+            mostProfitableCommodity = ledger.calculateExpRevForTraderAndGetTopRevenue(economy, seller);
+            mostProfitableTrader = seller;
+            roiOfRichestTrader = roiOfTrader;
         }
+        // Return the most profitable trader and commodity
         return new MostProfitableBundle(mostProfitableTrader, mostProfitableCommodity);
     }
 

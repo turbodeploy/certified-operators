@@ -57,6 +57,14 @@ public final class TraderWithSettings extends Trader implements TraderSettings {
 
     // Whether the trader resizes commodity capacities through its Supplier cloning or suspending.
     private boolean isResizeThroughSupplier_ = false;
+    /**
+     * The minimum allowed replicas of the trader.
+     */
+    private int minReplicas_;
+    /**
+     * The maximum allowed replicas of the trader.
+     */
+    private int maxReplicas_;
 
     // Constructors
 
@@ -394,6 +402,46 @@ public final class TraderWithSettings extends Trader implements TraderSettings {
         super.clearShoppingAndMarketData();
         marketsAsBuyer_.clear();
         marketsAsSeller_.clear();
+    }
+
+    /**
+     * Sets the minimum replicas for a trader.
+     *
+     * @param minReplicas the minimum replicas
+     */
+    @Override
+    public @NonNull TraderSettings setMinReplicas(int minReplicas) {
+        minReplicas_ = minReplicas;
+        return this;
+    }
+
+    /**
+     * Gets the minimum replicas for a trader.
+     * @return the minimum replicas
+     */
+    @Override
+    public int getMinReplicas() {
+        return minReplicas_;
+    }
+
+    /**
+     * Sets the maximum replicas for a trader.
+     *
+     * @param maxReplicas the maximum replicas
+     */
+    @Override
+    public @NonNull TraderSettings setMaxReplicas(int maxReplicas) {
+        maxReplicas_ = maxReplicas;
+        return this;
+    }
+
+    /**
+     * Gets the maximum replicas for a trader.
+     * @return the maximum replicas
+     */
+    @Override
+    public int getMaxReplicas() {
+        return maxReplicas_;
     }
 
     /**

@@ -385,4 +385,31 @@ public interface TraderSettings {
      */
     void setContext(Context context);
 
+    /**
+     * Sets the minimum replicas for a trader.
+     *
+     * @param minReplicas the minimum replicas
+     * @return {@code this}
+     */
+    @NonNull TraderSettings setMinReplicas(int minReplicas);
+
+    /**
+     * Gets the minimum replicas for a trader.
+     * @return the minimum replicas
+     */
+    int getMinReplicas();
+
+    /**
+     * Sets the maximum replicas for a trader.
+     *
+     * @param maxReplicas the maximum replicas
+     * @return {@code this}
+     */
+    @NonNull TraderSettings setMaxReplicas(int maxReplicas);
+
+    /**
+     * Gets the maximum replicas for a trader.
+     * @return the maximum replicas
+     */
+    int getMaxReplicas();
 } // end TraderSettings interface

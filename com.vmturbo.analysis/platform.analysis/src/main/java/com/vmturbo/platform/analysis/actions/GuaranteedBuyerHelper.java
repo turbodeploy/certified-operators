@@ -1,6 +1,9 @@
 package com.vmturbo.platform.analysis.actions;
 
+import static com.google.common.base.Preconditions.checkArgument;
+
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -315,5 +318,77 @@ public final class GuaranteedBuyerHelper {
                 }
             }
         }
+    }
+
+    /**
+     * A helper function to check if the current replicas of a trader is beyond the allowed range.
+     * The trader must be a provider to a guaranteed buyer.
+     *
+     * <p>A trader may theoretically have more than one guaranteed buyers, in which case we need to
+     * find the number of replicas for all guaranteed buyers. For provision, the final replicas is
+     * the maximum of replicas from all guaranteed buyers. For suspension, the final replicas is
+     * the minimum of replicas from all guaranteed buyers.
+     *
+     * <p>In reality, a trader rarely has more than one guaranteed buyers. For example, a kubernetes
+     * application should only belong to one service. If an application belongs to more than one
+     * services, most likely there are some mis-configurations, such as incorrect service labels.
+     *
+     * @param trader the trader to check
+     * @param economy the economy
+     * @param provision if this check is for provision
+     * @return true if the current replicas of the trader is beyond the allowed range, false otherwise
+     */
+    public static boolean isTraderReplicasBeyondRange(@NonNull final Trader trader,
+                                                      @NonNull final Economy economy,
+                                                      final boolean provision) {
+        final int minReplicas = trader.getSettings().getMinReplicas();
+        final int maxReplicas = trader.getSettings().getMaxReplicas();
+        if (minReplicas == 0 && maxReplicas == 0) {
+            // Min/Max replicas are not set for the trader
+            return false;
+        }
+        // Check semantics of the Min/Max replicas setting
+        checkArgument(minReplicas > 0 && maxReplicas > 0 && maxReplicas >= minReplicas,
+                "Expect positive minReplicas and maxReplicas, "
+                        + "and maxReplicas >= minReplicas. MinReplicas: %s, MaxReplicas: %s.",
+                minReplicas, maxReplicas);
+        final List<ShoppingList> slsBetweenSellerAndGuaranteedBuyer =
+                findSlsBetweenSellerAndGuaranteedBuyer(trader);
+        if (slsBetweenSellerAndGuaranteedBuyer.isEmpty()) {
+            // The trader is not a provider to guaranteed buyer
+            return false;
+        }
+        // Get the baskets that are sold by this trader. When calculating the number of replicas
+        // for a guaranteed buyer, we should only include the shopping lists that buy the same
+        // baskets.
+        // For example, a service buys SL1 (ResponseTime and Transaction) from app1 (main app),
+        // and buys SL2 (Application) from app2 (sidecar app). When checking the replicas of app1,
+        // we should only check the SLs that buy the same basket as SL1 (i.e., ResponseTime and Transactions).
+        final Set<Basket> validBaskets = slsBetweenSellerAndGuaranteedBuyer.stream()
+                .map(ShoppingList::getBasket)
+                .collect(Collectors.toSet());
+        final Set<Integer> replicasSet = slsBetweenSellerAndGuaranteedBuyer.stream()
+                .map(ShoppingList::getBuyer)
+                .map(economy::getMarketsAsBuyer)
+                .map(Map::keySet)
+                .map(allSls -> removeSLsWithInvalidBasket(allSls, validBaskets))
+                .map(Set::size)
+                .collect(Collectors.toSet());
+        return provision ? Collections.max(replicasSet) >= maxReplicas
+                : Collections.min(replicasSet) <= minReplicas;
+    }
+
+    /**
+     * A helper function to remove shopping lists with invalid baskets.
+     *
+     * @param allSls the list of {@link ShoppingList} to check
+     * @param validBaskets the valid set of {@link Basket}
+     * @return a set of {@link ShoppingList} that buy the valid baskets
+     */
+    private static Set<ShoppingList> removeSLsWithInvalidBasket(@NonNull final Set<ShoppingList> allSls,
+                                                                @NonNull final Set<Basket> validBaskets) {
+        return allSls.stream()
+                .filter(sl -> validBaskets.contains(sl.getBasket()))
+                .collect(Collectors.toSet());
     }
 } // end GuaranteedBuyerHelper class
