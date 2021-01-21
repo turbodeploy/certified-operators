@@ -190,6 +190,21 @@ public class SdkToTopologyEntityConverter {
     public static TopologyDTO.TopologyEntityDTO.Builder newTopologyEntityDTO(
             @Nonnull final TopologyStitchingEntity entity,
             @Nonnull final ResoldCommodityCache resoldCommodityCache) {
+        return newTopologyEntityDTO(entity, resoldCommodityCache, false);
+    }
+
+    /**
+     * Convert one probe entity DTO to one topology entity DTO.
+     *
+     * @param entity probe entity DTO.
+     * @param resoldCommodityCache cache to look up which commodities are resold.
+     * @param entityDetailsEnabled whether entity details are supported.
+     * @return topology entity DTOs.
+     */
+    public static TopologyDTO.TopologyEntityDTO.Builder newTopologyEntityDTO(
+            @Nonnull final TopologyStitchingEntity entity,
+            @Nonnull final ResoldCommodityCache resoldCommodityCache,
+            final boolean entityDetailsEnabled) {
         final CommonDTO.EntityDTOOrBuilder dto = entity.getEntityBuilder();
 
         final int entityType = type(dto);
@@ -276,6 +291,10 @@ public class SdkToTopologyEntityConverter {
         });
 
         injectEntityProperties(entity, result.getMutableEntityPropertyMap());
+
+        if (entityDetailsEnabled) {
+            result.addAllDetails(dto.getDetailsList());
+        }
 
         result.setAnalysisSettings(buildAnalysisSettings(entity));
         result.setTypeSpecificInfo(mapToTypeSpecificInfo(dto, result.getMutableEntityPropertyMap()));
