@@ -193,7 +193,7 @@ public class ActionClassifierTest {
             ReplayActions thirdReplayActions = new ReplayActions(ImmutableList.of(),
                                                                  ImmutableList.of(thirdDeactivate));
             assertEquals(1,
-                thirdReplayActions.tryReplayDeactivateActions(third, new Ledger(third),
+                thirdReplayActions.tryReplayReduceSupplyActions(third, new Ledger(third),
                                            SuspensionsThrottlingConfig.DEFAULT).size());
         } catch (ClassNotFoundException | IOException e) {
             fail();

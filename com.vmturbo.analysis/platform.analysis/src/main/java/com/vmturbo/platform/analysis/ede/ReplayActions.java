@@ -18,6 +18,7 @@ import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.Activate;
 import com.vmturbo.platform.analysis.actions.Deactivate;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
+import com.vmturbo.platform.analysis.actions.ReconfigureProviderRemoval;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ledger.Ledger;
@@ -37,8 +38,8 @@ public class ReplayActions {
 
     // The actions to be replayed during the 2nd analysis sub-cycle.
     private final @NonNull ImmutableList<@NonNull Action> actions_;
-    // The deactivate actions to be replayed during the 1st analysis sub-cycle.
-    private final @NonNull ImmutableList<@NonNull Deactivate> deactivateActions_;
+    // The deactivate or reconfigure removal actions to be replayed during the 1st analysis sub-cycle.
+    private final @NonNull ImmutableList<@NonNull Action> reduceSupplyActions_;
     // Constructors
 
     /**
@@ -46,7 +47,7 @@ public class ReplayActions {
      */
     public ReplayActions() {
         actions_ = ImmutableList.of();
-        deactivateActions_ = ImmutableList.of();
+        reduceSupplyActions_ = ImmutableList.of();
     }
 
     /**
@@ -54,14 +55,14 @@ public class ReplayActions {
      *
      * @param actions The list of actions {@code this} object will attempt to replay. It may be
      *                copied internally as needed to ensure that the internal list wont be modified.
-     * @param deactivateActions The list of deactivate actions {@code this} object will attempt to
-     *                          replay. It may be copied internally as needed to ensure that the
-     *                          internal list wont be modified.
+     * @param reduceSupplyActions The list of deactivate or ReconfigureProviderRemoval actions
+     *                          {@code this} object will attempt to replay. It may be copied
+     *                          internally as needed to ensure that the internal list wont be modified.
      */
     public ReplayActions(@NonNull List<@NonNull Action> actions,
-                         @NonNull List<@NonNull Deactivate> deactivateActions) {
+                         @NonNull List<@NonNull Action> reduceSupplyActions) {
         actions_ = ImmutableList.copyOf(actions);
-        deactivateActions_ = ImmutableList.copyOf(deactivateActions);
+        reduceSupplyActions_ = ImmutableList.copyOf(reduceSupplyActions);
 
         // TODO: Support actions with shoppingLists that have to be translated.
         for (Action action : actions) {
@@ -83,13 +84,13 @@ public class ReplayActions {
     }
 
     /**
-     * Returns an immutable list of deactivate actions {@code this} object is responsible for
-     * replaying.
+     * Returns an immutable list of supply reduction actions such as deactivate or reconfigure removal
+     * that this {@code this} object is responsible for replaying.
      */
     @Pure
-    public @NonNull ImmutableList<@NonNull Deactivate>
-                                                getDeactivateActions(@ReadOnly ReplayActions this) {
-        return deactivateActions_;
+    public @NonNull ImmutableList<@NonNull Action>
+                                                getReduceSupplyActions(@ReadOnly ReplayActions this) {
+        return reduceSupplyActions_;
     }
 
     /**
@@ -127,57 +128,82 @@ public class ReplayActions {
     } // end replayActions
 
     /**
-     * Tries to replay {@link #getDeactivateActions() deactivate actions} only if we are able to
-     * move all customers out of current trader.
+     * Tries to replay {@link #getReduceSupplyActions() deactivate or reconfigure removal actions}
+     * only if we are able to move all customers out of current trader.
      *
      * @param economy The {@link Economy} in which actions are to be replayed.
      * @param ledger The {@link Ledger} related to current {@link Economy}.
      * @param suspensionsThrottlingConfig level of Suspension throttling.
      * @return action list related to suspension of trader.
      */
-    public @NonNull List<@NonNull Action> tryReplayDeactivateActions(@NonNull Economy economy,
+    public @NonNull List<@NonNull Action> tryReplayReduceSupplyActions(@NonNull Economy economy,
                     Ledger ledger, SuspensionsThrottlingConfig suspensionsThrottlingConfig) {
-        @NonNull List<@NonNull Action> suspendActions = new ArrayList<>();
-        if (getDeactivateActions().isEmpty()) {
-            return suspendActions;
+        @NonNull List<@NonNull Action> reduceSupplyActions = new ArrayList<>();
+        if (getReduceSupplyActions().isEmpty()) {
+            return reduceSupplyActions;
         }
         Suspension suspensionInstance = new Suspension(suspensionsThrottlingConfig);
         // adjust utilThreshold of the seller to maxDesiredUtil*utilTh. Thereby preventing moves
         // that force utilization to exceed maxDesiredUtil*utilTh.
-        suspensionInstance.adjustUtilThreshold(economy, true);
-        for (Deactivate deactivateAction : getDeactivateActions()) {
+        Suspension.adjustUtilThreshold(economy, true);
+        for (Action reduceSupplyAction : getReduceSupplyActions()) {
             try {
-                @NonNull Deactivate ported = deactivateAction.port(economy,
-                    oldTrader -> mapTrader(oldTrader, economy.getTopology()),
-                    Function.identity() // Deactivate actions do not have a shpping list
-                );
-                @NonNull Trader newTrader = ported.getTarget();
-                if (ported.isValid() && isEligibleforSuspensionReplay(newTrader, economy)) {
-                    if (suspensionsThrottlingConfig == SuspensionsThrottlingConfig.CLUSTER) {
-                        Suspension.makeCoSellersNonSuspendable(economy, newTrader);
+                if (reduceSupplyAction instanceof Deactivate) {
+                    @NonNull Deactivate ported = ((Deactivate)reduceSupplyAction).port(economy,
+                        oldTrader -> mapTrader(oldTrader, economy.getTopology()),
+                        Function.identity() // Deactivate actions do not have a shpping list
+                    );
+                    @NonNull Trader newTrader = ported.getTarget();
+                    if (ported.isValid() && isEligibleforSuspensionReplay(newTrader, economy)) {
+                        if (suspensionsThrottlingConfig == SuspensionsThrottlingConfig.CLUSTER) {
+                            Suspension.makeCoSellersNonSuspendable(economy, newTrader);
+                        }
+                        if (newTrader.getSettings().isControllable()) {
+                            reduceSupplyActions.addAll(
+                                suspensionInstance.deactivateTraderIfPossible(newTrader, economy,
+                                                                              ledger, true));
+                        } else {
+                            // If controllable is false, deactivate the trader without checking criteria
+                            // as entities may not be able to move out of the trader with controllable
+                            // false.
+                            reduceSupplyActions.add(ported.take());
+                            // Any orphan suspensions generated will be added to the replayed suspension's
+                            // subsequent actions list.
+                            suspensionInstance.suspendOrphanedCustomers(economy, ported);
+                            reduceSupplyActions.addAll(ported.getSubsequentActions());
+                        }
                     }
-                    if (newTrader.getSettings().isControllable()) {
-                        suspendActions.addAll(
-                            suspensionInstance.deactivateTraderIfPossible(newTrader, economy,
-                                                                          ledger, true));
-                    } else {
-                        // If controllable is false, deactivate the trader without checking criteria
-                        // as entities may not be able to move out of the trader with controllable
-                        // false.
-                        suspendActions.add(ported.take());
-                        // Any orphan suspensions generated will be added to the replayed suspension's
-                        // subsequent actions list.
-                        suspensionInstance.suspendOrphanedCustomers(economy, ported);
-                        suspendActions.addAll(ported.getSubsequentActions());
+                } else if (reduceSupplyAction instanceof ReconfigureProviderRemoval) {
+                    @NonNull ReconfigureProviderRemoval ported = ((ReconfigureProviderRemoval)reduceSupplyAction)
+                        .port(economy,
+                            oldTrader -> mapTrader(oldTrader, economy.getTopology()),
+                            Function.identity());
+                    @NonNull Trader newTrader = ported.getActionTarget();
+                    if (ported.isValid() && isEligibleforSuspensionReplay(newTrader, economy)) {
+                        if (newTrader.getSettings().isControllable()) {
+                            ported.getReconfiguredCommodities().keySet().forEach(commSpec -> {
+                                reduceSupplyActions.addAll(
+                                    Reconfigure.tryCommodityRemoval(newTrader, economy,
+                                                                                  ledger, commSpec));
+                            });
+                        } else {
+                            // If controllable is false, reconfigure the trader without checking criteria
+                            // as entities may not be able to move out of the trader with controllable
+                            // false.
+                            reduceSupplyActions.add(ported.take());
+                            reduceSupplyActions.addAll(ported.getSubsequentActions());
+                        }
                     }
+                } else {
+                    logger.warn("Action {} is not supported for supply reduction actions", reduceSupplyAction.toString());
                 }
             } catch (Exception e) {
-                logger.debug("Could not replay {}", deactivateAction.toString(), e);
+                logger.debug("Could not replay {}", reduceSupplyAction.toString(), e);
             }
         }
         //reset the above set utilThreshold.
-        suspensionInstance.adjustUtilThreshold(economy, false);
-        return suspendActions;
+        Suspension.adjustUtilThreshold(economy, false);
+        return reduceSupplyActions;
     }
 
     /**
@@ -225,7 +251,7 @@ public class ReplayActions {
      * @return all actions
      */
     public Stream<Action> getAllActions() {
-        return Stream.concat(getActions().stream(), getDeactivateActions().stream());
+        return Stream.concat(getActions().stream(), getReduceSupplyActions().stream());
     }
 
     /**
@@ -234,6 +260,6 @@ public class ReplayActions {
      * @return if there's any replay action
      */
     public boolean isEmpty() {
-        return getActions().isEmpty() && getDeactivateActions().isEmpty();
+        return getActions().isEmpty() && getReduceSupplyActions().isEmpty();
     }
 }

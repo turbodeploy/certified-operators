@@ -317,7 +317,7 @@ public class Reconfigure {
      *
      * @return The actions.
      */
-    private static List<Action> tryCommodityRemoval(Trader t, Economy economy, Ledger ledger,
+    public static List<Action> tryCommodityRemoval(Trader t, Economy economy, Ledger ledger,
         CommoditySpecification cs) {
         List<@NonNull Action> removeCommodityActions = new ArrayList<>();
         Map<CommoditySpecification, CommoditySold> comm = new HashMap<CommoditySpecification, CommoditySold>() {{

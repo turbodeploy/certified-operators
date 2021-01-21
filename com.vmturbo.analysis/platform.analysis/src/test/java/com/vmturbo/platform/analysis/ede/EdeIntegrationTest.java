@@ -128,7 +128,7 @@ public class EdeIntegrationTest {
         ReplayActions replayActions = new ReplayActions(ImmutableList.of(),
                                                     ImmutableList.of(deactivate));
         // assert absence of replayed suspension
-        assertTrue(replayActions.tryReplayDeactivateActions(first, ledger,
+        assertTrue(replayActions.tryReplayReduceSupplyActions(first, ledger,
                                                  SuspensionsThrottlingConfig.DEFAULT).isEmpty());
 
         // assert absence of provision/activates
@@ -154,7 +154,7 @@ public class EdeIntegrationTest {
                                                     ImmutableList.of(deactivate));
         Ledger ledger = new Ledger(first);
         // validate that suspension was replayed
-        assertFalse(replayActions.tryReplayDeactivateActions(first, ledger,
+        assertFalse(replayActions.tryReplayReduceSupplyActions(first, ledger,
                                                  SuspensionsThrottlingConfig.DEFAULT).isEmpty());
 
         // validate that there is a resize
@@ -182,7 +182,7 @@ public class EdeIntegrationTest {
         ReplayActions replayActions = new ReplayActions(ImmutableList.of(),
             ImmutableList.of(deactivate));
         Ledger ledger = new Ledger(first);
-        List<Action> actions = replayActions.tryReplayDeactivateActions(first, ledger,
+        List<Action> actions = replayActions.tryReplayReduceSupplyActions(first, ledger,
             SuspensionsThrottlingConfig.DEFAULT);
         assertThat(actions.size(), is(2));
         assertTrue(actions.get(0) instanceof Deactivate);
@@ -203,7 +203,7 @@ public class EdeIntegrationTest {
         ReplayActions replayActions = new ReplayActions(ImmutableList.of(),
             ImmutableList.of(deactivate));
         Ledger ledger = new Ledger(first);
-        List<Action> actions = replayActions.tryReplayDeactivateActions(first, ledger,
+        List<Action> actions = replayActions.tryReplayReduceSupplyActions(first, ledger,
             SuspensionsThrottlingConfig.DEFAULT);
         assertThat(actions.size(), is(1));
         assertTrue(actions.get(0) instanceof Deactivate);

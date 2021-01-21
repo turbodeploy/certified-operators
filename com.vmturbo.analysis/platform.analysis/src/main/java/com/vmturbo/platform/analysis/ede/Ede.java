@@ -1,6 +1,5 @@
 package com.vmturbo.platform.analysis.ede;
 
-import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -341,7 +340,7 @@ public final class Ede {
 
             try (ITracerScope tracerScope = tracer.trace(EconomyConstants.REPLAY_PHASE)) {
                 if (isReplay) {
-                    actions.addAll(seedActions.tryReplayDeactivateActions(economy, ledger, suspensionsThrottlingConfig));
+                    actions.addAll(seedActions.tryReplayReduceSupplyActions(economy, ledger, suspensionsThrottlingConfig));
                     logPhaseAndClearPlacementStats(actionStats, economy.getPlacementStats(), "replaying");
                 }
             } catch (Exception e) {
