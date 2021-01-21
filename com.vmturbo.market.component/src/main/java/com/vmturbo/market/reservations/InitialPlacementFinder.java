@@ -42,7 +42,6 @@ import com.vmturbo.components.api.RetriableOperation.RetriableOperationFailedExc
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory.DefaultAnalysisDiagnosticsCollectorFactory;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisMode;
-import com.vmturbo.market.reservations.EconomyCaches.EconomyCachesState;
 import com.vmturbo.market.reservations.InitialPlacementFinderResult.FailureInfo;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
 
@@ -186,7 +185,8 @@ public class InitialPlacementFinder {
                 } catch (Exception exception) {
                     // In case any reservation trader failed to be cleared from economy, ask user wait for
                     // both historical cache and realtime cache updated.
-                    economyCaches.setState(EconomyCachesState.NOT_READY);
+                    economyCaches.getState().setHistoricalCacheReceived(false);
+                    economyCaches.getState().setRealtimeCacheReceived(false);
                     logger.warn(logPrefix + "Setting economy caches state to NOT READY. Wait for 24 hours to run"
                             + " other reservation requests.");
                     logger.error(logPrefix + "Reservation {} can not be remove with {} entities due to {}.",
@@ -218,6 +218,10 @@ public class InitialPlacementFinder {
         // A map to keep track of reservation buyer's shopping list oid to its cluster mapping.
         Map<Long, CommodityType> slToClusterMap = new HashMap();
         synchronized (reservationLock) {
+            if (!economyCaches.getState().isEconomyReady()) {
+                logger.warn(logPrefix + "Market is not ready to run reservation yet, wait for another broadcast to retry");
+                return HashBasedTable.create();
+            }
             // Find providers for buyers via running placements in economy caches. Keep track of
             // placement results in buyerPlacements.
             // Save the diagnostics if the debug is turned on.
@@ -437,22 +441,18 @@ public class InitialPlacementFinder {
             }
             logger.info(logPrefix + "Existing reservations are: reservation ids {}", existingReservations.keySet());
             // Set state to ready once reservations are received from PO and real time economy is ready.
-            if (economyCaches.getState() == EconomyCachesState.REALTIME_READY) {
-                economyCaches.setState(EconomyCachesState.READY);
-                logger.info(logPrefix + "Economy caches state is set to READY");
-            } else if (economyCaches.getState() == EconomyCachesState.NOT_READY) {
-                economyCaches.setState(EconomyCachesState.RESERVATION_RECEIVED);
-                logger.info(logPrefix + "Economy caches state is set to RESERVATION_RECEIVED");
-            }
+            economyCaches.getState().setReservationReceived(true);
+            logger.info(logPrefix + "Economy caches state is set to RESERVATION_RECEIVED");
+
         }
     }
 
     /**
-     * Update the HistoricalCachedEconomy to null.
+     * Update the historicalCacheReceived flag to false.
      */
-    public void clearHistoricalCachedEconomy() {
+    public void resetHistoricalCacheReceived() {
         synchronized (reservationLock) {
-            economyCaches.clearHistoricalCachedEconomy();
+            economyCaches.getState().setHistoricalCacheReceived(false);
         }
     }
 

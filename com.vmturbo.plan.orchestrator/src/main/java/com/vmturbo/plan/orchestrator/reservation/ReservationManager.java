@@ -15,6 +15,8 @@ import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import io.grpc.stub.StreamObserver;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.joda.time.DateTime;
@@ -32,6 +34,9 @@ import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyerPlacementInfo;
 import com.vmturbo.common.protobuf.market.InitialPlacement.UpdateHistoricalCachedEconomyRequest;
 import com.vmturbo.common.protobuf.market.InitialPlacementServiceGrpc.InitialPlacementServiceBlockingStub;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ReservationDTO;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ConstraintInfoCollection;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
@@ -56,6 +61,8 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.common.utils.ReservationProtoUtil;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
+import com.vmturbo.plan.orchestrator.plan.PlanDao;
+import com.vmturbo.plan.orchestrator.plan.PlanRpcService;
 import com.vmturbo.plan.orchestrator.templates.TemplatesDao;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -88,6 +95,14 @@ public class ReservationManager implements ReservationDeletedListener {
 
     private static final String DELETED_STATUS = "DELETED";
 
+    private final PlanDao planDao;
+
+    private final PlanRpcService planService;
+
+    private final boolean prepareReservationCache;
+
+
+
     /**
      * Track reservation counts.
      */
@@ -104,18 +119,26 @@ public class ReservationManager implements ReservationDeletedListener {
      * @param reservationNotificationSender the reservation notification sender.
      * @param initialPlacementServiceBlockingStub for grpc call to market component.
      * @param templatesDao  input template dao
+     * @param planDao the planDao.
+     * @param planService the plan rpc service.
+     * @param prepareReservationCache if false don't run reservation.
      */
     public ReservationManager(@Nonnull final ReservationDao reservationDao,
                               @Nonnull final ReservationNotificationSender reservationNotificationSender,
                               @Nonnull final InitialPlacementServiceBlockingStub initialPlacementServiceBlockingStub,
-                              @Nonnull final TemplatesDao templatesDao
-    ) {
+                              @Nonnull final TemplatesDao templatesDao,
+                              @Nonnull final PlanDao planDao,
+                              @Nonnull final PlanRpcService planService,
+                              final boolean prepareReservationCache) {
         this.reservationDao = Objects.requireNonNull(reservationDao);
         this.reservationNotificationSender = Objects.requireNonNull(reservationNotificationSender);
         this.reservationDao.addListener(this);
         this.initialPlacementServiceBlockingStub = Objects.requireNonNull(initialPlacementServiceBlockingStub);
         this.templatesDao = templatesDao;
+        this.planDao = planDao;
+        this.planService = planService;
         getProvidersOfExistingReservations();
+        this.prepareReservationCache = prepareReservationCache;
     }
 
     /**
@@ -162,10 +185,10 @@ public class ReservationManager implements ReservationDeletedListener {
                     ReservationConstraintInfo reservationConstraintInfo =
                             this.constraintIDToCommodityTypeMap.get(id);
                     return reservationConstraintInfo == null
-                        // if both the maps have the constraintID but the commodity key associated
-                        // with is different.
-                        || !reservationConstraintInfoMap.get(id).getKey()
-                        .equals(reservationConstraintInfo.getKey());
+                            // if both the maps have the constraintID but the commodity key associated
+                            // with is different.
+                            || !reservationConstraintInfoMap.get(id).getKey()
+                            .equals(reservationConstraintInfo.getKey());
                 })
                 .collect(Collectors.toSet());
         Set<Long> deletedConstraints = this.constraintIDToCommodityTypeMap.keySet().stream().filter(
@@ -173,17 +196,21 @@ public class ReservationManager implements ReservationDeletedListener {
                 .collect(Collectors.toSet());
 
         if (!addedConstraints.isEmpty() || !deletedConstraints.isEmpty()) {
-            logger.info(logPrefix + "Policy/ Target changed. "
-                    + "Added Constraints: {} Deleted Constraints: {}"
-                    + "Sending trigger to market to update historical cache",
+            logger.info(logPrefix + "Constraint changed. "
+                            + "Added Constraints: {} Deleted Constraints: {}",
                     addedConstraints, deletedConstraints);
+            // TODO: do not set historicalCachedEconomy to false, discuss the solution in 8.0.8.
+            /**
             try {
                 initialPlacementServiceBlockingStub.updateHistoricalCachedEconomy(
                         UpdateHistoricalCachedEconomyRequest.newBuilder().build());
             } catch (Exception e) {
                 logger.warn(logPrefix
                         + "Failed to update market HistoricalCachedEconomy  with exception {} ", e);
-            }
+            }*/
+            // run cluster Headroom if things change.
+            // TODO: discuss if this is will be the solution for restart/target changes in 8.0.8.
+            // runClusterHeadroom();
         }
 
         synchronized (reservationSetLock) {
@@ -877,5 +904,49 @@ public class ReservationManager implements ReservationDeletedListener {
         RESERVATION_STATUS_COUNTER.labels(DELETED_STATUS).increment();
         deleteReservationFromMarketCache(Collections.singleton(reservation));
         checkAndStartReservationPlan();
+    }
+
+    /**
+     * Send request to run cluster headroom plan.
+     */
+    public void runClusterHeadroom() {
+        if (!prepareReservationCache) {
+            return;
+        }
+        try {
+            Optional<PlanInstance> planInstanceOptional =
+                    planDao.getAllPlanInstances().stream()
+                            .filter(a -> a.getProjectType() == PlanProjectType.CLUSTER_HEADROOM)
+                            .findFirst();
+            if (planInstanceOptional.isPresent()) {
+                final PlanInstance planInstance =
+                        planDao.createPlanInstance(
+                                planInstanceOptional.get().getScenario(),
+                                PlanProjectType.CLUSTER_HEADROOM);
+                planService.runPlan(
+                        PlanId.newBuilder()
+                                .setPlanId(planInstance.getPlanId())
+                                .build(),
+                        new StreamObserver<PlanInstance>() {
+                            @Override
+                            public void onNext(PlanInstance value) {
+                            }
+
+                            @Override
+                            public void onError(Throwable t) {
+                                logger.error(logPrefix + "Error occurred while executing plan"
+                                        +  planInstance.getPlanId(), t);
+                            }
+
+                            @Override
+                            public void onCompleted() {
+                            }
+                        });
+            } else {
+                logger.error(logPrefix + "Could not find a cluster headroom plan instance");
+            }
+        } catch (Exception e) {
+            logger.error(logPrefix + "Failed to create a plan instance for cluster headroom: ", e);
+        }
     }
 }

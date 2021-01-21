@@ -1,6 +1,7 @@
 package com.vmturbo.plan.orchestrator.reservation;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
@@ -11,6 +12,7 @@ import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
 import com.vmturbo.market.component.api.impl.MarketClientConfig;
 import com.vmturbo.plan.orchestrator.PlanOrchestratorDBConfig;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientImpl;
+import com.vmturbo.plan.orchestrator.plan.PlanConfig;
 import com.vmturbo.plan.orchestrator.templates.TemplatesConfig;
 
 /**
@@ -28,6 +30,9 @@ public class ReservationConfig {
     private TemplatesConfig templatesConfig;
 
     @Autowired
+    private PlanConfig planConfig;
+
+    @Autowired
     private PlanOrchestratorDBConfig dbConfig;
 
     @Autowired
@@ -35,6 +40,9 @@ public class ReservationConfig {
 
     @Autowired
     private MarketClientConfig marketClientConfig;
+
+    @Value("${prepareReservationCache:true}")
+    private boolean prepareReservationCache;
 
     @Bean
     public ReservationRpcService reservationRpcService() {
@@ -72,7 +80,7 @@ public class ReservationConfig {
     public ReservationManager reservationManager() {
         ReservationManager reservationManager = new ReservationManager(dbConfig.reservationDao(),
                 reservationNotificationSender(), initialPlacementService(),
-                templatesConfig.templatesDao());
+                templatesConfig.templatesDao(), planConfig.planDao(), planConfig.planService(), prepareReservationCache);
         return reservationManager;
     }
 }

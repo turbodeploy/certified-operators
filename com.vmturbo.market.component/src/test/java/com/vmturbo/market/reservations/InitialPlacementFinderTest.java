@@ -36,7 +36,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.market.reservations.EconomyCaches.EconomyCachesState;
 import com.vmturbo.market.reservations.InitialPlacementFinderResult.FailureInfo;
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.economy.Basket;
@@ -159,7 +158,7 @@ public class InitialPlacementFinderTest {
                 reservationServiceBlockingStub, true, 1);
         // Create both economy caches using same economy.
         Economy originalEconomy = getOriginalEconomy();
-        pf.economyCaches.setState(EconomyCachesState.READY);
+        pf.economyCaches.getState().setReservationReceived(true);
         pf.updateCachedEconomy(originalEconomy, commTypeToSpecMap, true);
         pf.updateCachedEconomy(originalEconomy, commTypeToSpecMap, false);
         double used = 10;
@@ -191,7 +190,8 @@ public class InitialPlacementFinderTest {
                 reservationServiceBlockingStub, true, 0);
         Economy originalEconomy = getOriginalEconomy();
         pf.updateCachedEconomy(originalEconomy, commTypeToSpecMap, true);
-        pf.economyCaches.setState(EconomyCachesState.READY);
+        pf.updateCachedEconomy(originalEconomy, commTypeToSpecMap, false);
+        pf.economyCaches.getState().setReservationReceived(true);
         InitialPlacementBuyer buyer = getTradersToPlace(vmID, pmSlOid, PM_TYPE, MEM_TYPE, 100);
         Table<Long, Long, InitialPlacementFinderResult> result = pf.findPlacement(Arrays.asList(buyer));
         List<FailureInfo> failureInfo = result.get(vmID, pmSlOid).getFailureInfoList();
@@ -214,7 +214,8 @@ public class InitialPlacementFinderTest {
                 reservationServiceBlockingStub, true, 0);
         Economy originalEconomy = getOverflowEconomy();
         pf.updateCachedEconomy(originalEconomy, commTypeToSpecMap, true);
-        pf.economyCaches.setState(EconomyCachesState.READY);
+        pf.updateCachedEconomy(originalEconomy, commTypeToSpecMap, false);
+        pf.economyCaches.getState().setReservationReceived(true);
         InitialPlacementBuyer buyer = getTradersToPlace(vmID, pmSlOid, PM_TYPE, MEM_TYPE, 100);
         Table<Long, Long, InitialPlacementFinderResult> result = pf.findPlacement(Arrays.asList(buyer));
         List<FailureInfo> failureInfo = result.get(vmID, pmSlOid).getFailureInfoList();
@@ -355,7 +356,7 @@ public class InitialPlacementFinderTest {
                 reservationServiceBlockingStub, true, 1);
         Economy originalEconomy = getOriginalEconomy();
         // Create both economy caches using same economy.
-        pf.economyCaches.setState(EconomyCachesState.READY);
+        pf.economyCaches.getState().setReservationReceived(true);
         pf.updateCachedEconomy(originalEconomy, commTypeToSpecMap, true);
         pf.updateCachedEconomy(originalEconomy, commTypeToSpecMap, false);
         long vm2Oid = 10002L;
@@ -393,8 +394,9 @@ public class InitialPlacementFinderTest {
         InitialPlacementFinder pf = new InitialPlacementFinder(executorService,
                 reservationServiceBlockingStub, true, 1);
         Economy originalEconomy = getOriginalEconomy();
-        pf.economyCaches.setState(EconomyCachesState.READY);
+        pf.economyCaches.getState().setReservationReceived(true);
         pf.updateCachedEconomy(originalEconomy, commTypeToSpecMap, true);
+        pf.updateCachedEconomy(originalEconomy, commTypeToSpecMap, false);
 
         long vm2Oid = 10002L;
         long vm2SlOid = 20002L;
