@@ -36,7 +36,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityDetail;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.StitchingEntity;
 
@@ -91,18 +90,6 @@ public class StitchingTestUtils {
         final long DEFAULT_TARGET_ID = 12345L;
 
         return new StitchingDataAllowingTargetChange(builder, DEFAULT_TARGET_ID, IdentityGenerator.next());
-    }
-
-    @Nonnull
-    public static StitchingDataAllowingTargetChange stitchingDataWithDetails(@Nonnull final String localId,
-                  @Nonnull final EntityType entityType,
-                  @Nonnull final List<EntityDetail> entityDetails) {
-        final EntityDTO.Builder builder = EntityDTO.newBuilder()
-                .setId(localId)
-                .setEntityType(entityType)
-                .addAllDetails(entityDetails);
-
-        return stitchingData(builder);
     }
 
     @Nonnull
