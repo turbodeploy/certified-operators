@@ -233,7 +233,7 @@ public class RemoteMediationServerWithDiscoveryWorkersTest {
         OperationTestUtilities.waitForEvent(() -> discoveryMethod1.runnable != null);
 
         // verify we tried to get the DiscoveryBundle
-        verify(discoveryBundle1, times(2)).getDiscoveryRequest();
+        verify(discoveryBundle1, timeout(verify_timeout_millis).times(2)).getDiscoveryRequest();
         // clean up the transport workers associated with this transport
         remoteMediationServer.processContainerClose(transport1);
     }
