@@ -1124,6 +1124,8 @@ message TopologyEntityDTO {
             NOT_CONTROLLABLE = 1;
       }
     }
+
+    repeated .common_dto.EntityDTO.EntityDetail details = 17;
 }
 
 // related information for the target that discovers the entity

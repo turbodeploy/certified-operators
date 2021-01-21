@@ -128,6 +128,7 @@ public class TopologyStitchingChanges {
         private final CommoditySoldMerger commoditySoldMerger;
         private final PropertiesMerger propertiesMerger;
         private final List<EntityFieldMerger<?>> fieldMergers;
+        private final EntityDetailsMerger entityDetailsMerger;
         private final boolean mergeCommodities;
 
         public MergeEntitiesChange(@Nonnull final StitchingContext stitchingContext,
@@ -136,6 +137,7 @@ public class TopologyStitchingChanges {
                                    @Nonnull final CommoditySoldMerger commoditySoldMerger,
                                    @Nonnull final PropertiesMerger propertiesMerger,
                                    @Nonnull final List<EntityFieldMerger<?>> fieldMergers,
+                                   @Nonnull final EntityDetailsMerger entityDetailsMerger,
                                    final boolean mergeCommodities) {
             this.stitchingContext = Objects.requireNonNull(stitchingContext);
             this.mergeFromEntities = Objects.requireNonNull(mergeFromEntities);
@@ -143,6 +145,7 @@ public class TopologyStitchingChanges {
             this.commoditySoldMerger = Objects.requireNonNull(commoditySoldMerger);
             this.propertiesMerger = Objects.requireNonNull(propertiesMerger);
             this.fieldMergers = Objects.requireNonNull(fieldMergers);
+            this.entityDetailsMerger = Objects.requireNonNull(entityDetailsMerger);
             this.mergeCommodities = mergeCommodities;
         }
 
@@ -151,13 +154,15 @@ public class TopologyStitchingChanges {
                 @Nonnull final StitchingEntity mergeOntoEntity,
                 @Nonnull final CommoditySoldMerger commoditySoldMerger,
                 @Nonnull final PropertiesMerger propertiesMerger,
-                @Nonnull final List<EntityFieldMerger<?>> fieldMergers) {
+                @Nonnull final List<EntityFieldMerger<?>> fieldMergers,
+                @Nonnull final EntityDetailsMerger entityDetailsMerger) {
             this.stitchingContext = Objects.requireNonNull(stitchingContext);
             this.mergeFromEntities = Collections.singletonList(Objects.requireNonNull(mergeFromEntity));
             this.mergeOntoEntity = Objects.requireNonNull(mergeOntoEntity);
             this.commoditySoldMerger = Objects.requireNonNull(commoditySoldMerger);
             this.propertiesMerger = Objects.requireNonNull(propertiesMerger);
             this.fieldMergers = Objects.requireNonNull(fieldMergers);
+            this.entityDetailsMerger = Objects.requireNonNull(entityDetailsMerger);
             this.mergeCommodities = true;
         }
 
@@ -169,6 +174,7 @@ public class TopologyStitchingChanges {
                 new CommoditySoldMerger(mergeDetails.getMergeCommoditySoldStrategy()),
                 new PropertiesMerger(mergeDetails.getMergePropertiesStrategy()),
                 mergeDetails.getFieldMergers(),
+                new EntityDetailsMerger(),
                 mergeDetails.mergeCommodities());
         }
 
@@ -281,6 +287,11 @@ public class TopologyStitchingChanges {
 
             // Merge entity properties
             propertiesMerger.merge(from.getEntityBuilder(), onto.getEntityBuilder());
+
+            // Merge entity details
+            if (stitchingContext.getEntityDetailsEnabled()) {
+                entityDetailsMerger.merge(from.getEntityBuilder(), onto.getEntityBuilder());
+            }
 
             trackMergeInformation(from, onto);
             stitchingContext.removeEntity(from);
