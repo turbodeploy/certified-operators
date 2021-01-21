@@ -375,8 +375,7 @@ public class StitchingContext {
                         stitchingEntity -> {
                             return SdkToTopologyEntityConverter
                                             .newTopologyEntityDTO(stitchingEntity,
-                                                    resoldCommodityCache,
-                                                    entityDetailsEnabled)
+                                                            resoldCommodityCache)
                                             .setOrigin(Origin.newBuilder().setDiscoveryOrigin(
                                                             stitchingEntity.buildDiscoveryOrigin()));
                         };

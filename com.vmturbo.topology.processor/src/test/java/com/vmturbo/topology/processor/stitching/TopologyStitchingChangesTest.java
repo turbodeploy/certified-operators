@@ -8,7 +8,6 @@ import static com.vmturbo.stitching.utilities.MergeEntities.mergeEntity;
 import static com.vmturbo.topology.processor.stitching.StitchingTestUtils.buying;
 import static com.vmturbo.topology.processor.stitching.StitchingTestUtils.newStitchingGraph;
 import static com.vmturbo.topology.processor.stitching.StitchingTestUtils.stitchingData;
-import static com.vmturbo.topology.processor.stitching.StitchingTestUtils.stitchingDataWithDetails;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -43,7 +42,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityDetail;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
 import com.vmturbo.stitching.EntityToAdd;
@@ -115,8 +113,6 @@ public class TopologyStitchingChangesTest {
 
     private final PropertiesMerger defaultPropertiesMerger = new PropertiesMerger(
             MergePropertiesStrategy.KEEP_ONTO);
-
-    private final EntityDetailsMerger entityDetailsMerger = new EntityDetailsMerger();
 
     final StitchingJournal journal = new StitchingJournal<>();
 
@@ -285,7 +281,7 @@ public class TopologyStitchingChangesTest {
         new MergeEntitiesChange(stitchingContext, entity3, entity1,
             new CommoditySoldMerger(KEEP_DISTINCT_FAVOR_ONTO),
             new PropertiesMerger(MergePropertiesStrategy.KEEP_ONTO),
-            Collections.emptyList(), new EntityDetailsMerger()).applyChange(new StitchingJournal<>());
+            Collections.emptyList()).applyChange(new StitchingJournal<>());
 
         verify(stitchingContext).removeEntity(entity3);
         assertThat(entity4.getProviders(), contains(entity1));
@@ -330,8 +326,7 @@ public class TopologyStitchingChangesTest {
         when(stitchingContext.hasEntity(entity1)).thenReturn(true);
 
         final MergeEntitiesChange merge = new MergeEntitiesChange(stitchingContext, entity3, entity1,
-            new CommoditySoldMerger(KEEP_DISTINCT_FAVOR_ONTO), defaultPropertiesMerger,
-                Collections.emptyList(), entityDetailsMerger);
+            new CommoditySoldMerger(KEEP_DISTINCT_FAVOR_ONTO), defaultPropertiesMerger, Collections.emptyList());
         when(stitchingContext.hasEntity(entity3)).thenReturn(true);
         merge.applyChange(new StitchingJournal<>());
         verify(stitchingContext, times(1)).removeEntity(entity3);
@@ -362,12 +357,10 @@ public class TopologyStitchingChangesTest {
         when(stitchingContext.hasEntity(entity2)).thenReturn(true);
         when(stitchingContext.hasEntity(entity3)).thenReturn(true);
 
-        final MergeEntitiesChange mergeThreeOntoTwo = new MergeEntitiesChange(stitchingContext,
-                entity3, entity2, new CommoditySoldMerger(KEEP_DISTINCT_FAVOR_ONTO),
-                defaultPropertiesMerger, Collections.emptyList(), entityDetailsMerger);
-        final MergeEntitiesChange mergeTwoOntoOne = new MergeEntitiesChange(stitchingContext,
-                entity2, entity1, new CommoditySoldMerger(KEEP_DISTINCT_FAVOR_ONTO),
-                defaultPropertiesMerger, Collections.emptyList(), entityDetailsMerger);
+        final MergeEntitiesChange mergeThreeOntoTwo = new MergeEntitiesChange(stitchingContext, entity3, entity2,
+            new CommoditySoldMerger(KEEP_DISTINCT_FAVOR_ONTO), defaultPropertiesMerger, Collections.emptyList());
+        final MergeEntitiesChange mergeTwoOntoOne = new MergeEntitiesChange(stitchingContext, entity2, entity1,
+            new CommoditySoldMerger(KEEP_DISTINCT_FAVOR_ONTO), defaultPropertiesMerger, Collections.emptyList());
         assertEquals(1000L, entity1.getLastUpdatedTime());
         assertEquals(2000L, entity2.getLastUpdatedTime());
 
@@ -387,7 +380,7 @@ public class TopologyStitchingChangesTest {
 
         final MergeEntitiesChange merge = new MergeEntitiesChange(stitchingContext, entity1, entity1,
             new CommoditySoldMerger(KEEP_DISTINCT_FAVOR_ONTO), defaultPropertiesMerger,
-            Collections.emptyList(), entityDetailsMerger);
+            Collections.emptyList());
         merge.applyChange(new StitchingJournal<>());
 
         verify(stitchingContext, never()).removeEntity(entity1);
@@ -406,7 +399,7 @@ public class TopologyStitchingChangesTest {
             ));
 
         final MergeEntitiesChange merge = new MergeEntitiesChange(stitchingContext, entity2, entity3,
-            merger, defaultPropertiesMerger, Collections.emptyList(), entityDetailsMerger);
+            merger, defaultPropertiesMerger, Collections.emptyList());
         merge.applyChange(new StitchingJournal<>());
 
         assertThat(entity3.getCommoditiesSold()
@@ -442,7 +435,7 @@ public class TopologyStitchingChangesTest {
 
         final MergeEntitiesChange merge = new MergeEntitiesChange(stitchingContext, entity2, entity1,
             new CommoditySoldMerger(KEEP_DISTINCT_FAVOR_ONTO), defaultPropertiesMerger,
-            Collections.emptyList(), entityDetailsMerger);
+            Collections.emptyList());
         merge.applyChange(new StitchingJournal<>());
 
         assertThat(entity3.getCommodityBoughtListByProvider().get(entity1).stream()
@@ -543,8 +536,7 @@ public class TopologyStitchingChangesTest {
 
         // merge connectedTo from ba1 to ba2
         final MergeEntitiesChange merge = new MergeEntitiesChange(stitchingContext, ba1, ba2,
-                mock(CommoditySoldMerger.class), defaultPropertiesMerger, Collections.emptyList(),
-                entityDetailsMerger);
+                mock(CommoditySoldMerger.class), defaultPropertiesMerger, Collections.emptyList());
         merge.applyChange(new StitchingJournal<>());
 
         // after merging
@@ -566,62 +558,11 @@ public class TopologyStitchingChangesTest {
         final PropertiesMerger propertiesMerger = spy(new PropertiesMerger(
                 MergePropertiesStrategy.KEEP_ONTO));
         final MergeEntitiesChange merge = new MergeEntitiesChange(stitchingContext, entity1,
-                entity2, commoditySoldMerger, propertiesMerger, Collections.emptyList(),
-                entityDetailsMerger);
+                entity2, commoditySoldMerger, propertiesMerger, Collections.emptyList());
         merge.applyChange(new StitchingJournal<>());
 
         // Make sure that property merger was invoked
         Mockito.verify(propertiesMerger, Mockito.times(1))
                 .merge(entity1.getEntityBuilder(), entity2.getEntityBuilder());
-    }
-
-    /**
-     * Test that when 2 targets discover the same entity but with different details, the stitched
-     * entity contains both details.
-     */
-    @Test
-    public void testMergeEntityDetails() {
-
-        final String localEntityId = "1";
-        final long targetId1 = 1L;
-        final long targetId2 = 2L;
-        final int detailType1 = 1;
-        final int detailType2 = 2;
-        final String detailValue1 = "Val1";
-        final String detailValue2 = "Val2";
-
-        // setup
-        EntityDetail detail1 = EntityDetail.newBuilder()
-                .setKey(detailType1)
-                .addValues(detailValue1)
-                .build();
-
-        EntityDetail detail2 = EntityDetail.newBuilder()
-                .setKey(detailType2)
-                .addValues(detailValue2)
-                .build();
-
-        TopologyStitchingEntity actualVM = new TopologyStitchingEntity(
-                stitchingDataWithDetails(localEntityId, EntityType.VIRTUAL_MACHINE,
-                        Collections.singletonList(detail1)).forTarget(targetId1));
-
-        TopologyStitchingEntity proxyVM = new TopologyStitchingEntity(
-                stitchingDataWithDetails(localEntityId, EntityType.VIRTUAL_MACHINE,
-                        Collections.singletonList(detail2)).forTarget(targetId2));
-
-        when(stitchingContext.getEntityDetailsEnabled()).thenReturn(true);
-        when(stitchingContext.hasEntity(actualVM)).thenReturn(true);
-        when(stitchingContext.hasEntity(proxyVM)).thenReturn(true);
-
-        final MergeEntitiesChange merge = new MergeEntitiesChange(stitchingContext, proxyVM, actualVM,
-                mock(CommoditySoldMerger.class), defaultPropertiesMerger, Collections.emptyList(),
-                entityDetailsMerger);
-
-        // merge
-        merge.applyChange(new StitchingJournal<>());
-
-        // assert
-        assertEquals(2, actualVM.getEntityBuilder().getDetailsList().size());
-        assertEquals(Arrays.asList(detail1, detail2), actualVM.getEntityBuilder().getDetailsList());
     }
 }
