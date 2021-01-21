@@ -3,9 +3,11 @@ package com.vmturbo.extractor.action;
 import static com.vmturbo.extractor.util.RecordTestUtil.captureSink;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertThat;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
@@ -20,11 +22,15 @@ import org.mockito.ArgumentCaptor;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionFailure;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionSuccess;
+import com.vmturbo.extractor.ExtractorGlobalConfig.ExtractorFeatureFlags;
 import com.vmturbo.extractor.action.CompletedActionWriter.RecordBatchWriter;
 import com.vmturbo.extractor.models.ActionModel.CompletedAction;
 import com.vmturbo.extractor.models.DslUpsertRecordSink;
 import com.vmturbo.extractor.models.Table.Record;
+import com.vmturbo.extractor.topology.DataProvider;
+import com.vmturbo.extractor.topology.SupplyChainEntity;
 import com.vmturbo.sql.utils.DbEndpoint;
+import com.vmturbo.topology.graph.TopologyGraph;
 
 /**
  * Unit tests for the {@link CompletedActionWriter}.
@@ -39,6 +45,14 @@ public class CompletedPendingActionWriterTest {
 
     private ActionConverter actionConverter = mock(ActionConverter.class);
 
+    private DataProvider dataProvider = mock(DataProvider.class);
+
+    private TopologyGraph<SupplyChainEntity> topologyGraph = mock(TopologyGraph.class);
+
+    private ExtractorFeatureFlags featureFlags = mock(ExtractorFeatureFlags.class);
+
+    private final DbEndpoint endpoint = mock(DbEndpoint.class);
+
     /**
      * Common code to run before every test.
      *
@@ -46,16 +60,19 @@ public class CompletedPendingActionWriterTest {
      */
     @Before
     public void setup() throws Exception {
-        ExecutorService batchExecutor = mock(ExecutorService.class);
-        final DbEndpoint endpoint = mock(DbEndpoint.class);
         doReturn(mock(DSLContext.class)).when(endpoint).dslContext();
         DslUpsertRecordSink upsertSink = mock(DslUpsertRecordSink.class);
         this.executedActionUpsertCapture = captureSink(upsertSink, false);
 
-        writer = new CompletedActionWriter(endpoint, batchExecutor, actionConverter, dsl -> upsertSink);
+        when(featureFlags.isReportingEnabled()).thenReturn(true);
+
+        ExecutorService batchExecutor = mock(ExecutorService.class);
+        writer = new CompletedActionWriter(endpoint, batchExecutor, actionConverter, dataProvider, featureFlags, dsl -> upsertSink);
         ArgumentCaptor<Runnable> submittedBatchWriter = ArgumentCaptor.forClass(Runnable.class);
         verify(batchExecutor).submit(submittedBatchWriter.capture());
         recordBatchWriter = (RecordBatchWriter)submittedBatchWriter.getValue();
+
+        when(dataProvider.getTopologyGraph()).thenReturn(topologyGraph);
     }
 
     /**
@@ -137,8 +154,32 @@ public class CompletedPendingActionWriterTest {
         Record mappedRecord = new Record(CompletedAction.TABLE);
         mappedRecord.set(CompletedAction.ACTION_OID, spec.getRecommendation().getId());
         mappedRecord.set(CompletedAction.FINAL_MESSAGE, finalMessage);
-        when(actionConverter.makeExecutedActionSpec(spec, finalMessage))
-                .thenReturn(mappedRecord);
+        when(actionConverter.makeExecutedActionSpec(eq(spec), eq(finalMessage), eq(topologyGraph)))
+            .thenReturn(mappedRecord);
         return Pair.of(spec, mappedRecord);
+    }
+
+    /**
+     * Test that disabling reporting prevents completed actions from being recorded.
+     *
+     * @throws Exception To satisfy compiler.
+     */
+    @Test
+    public void testReportingDisabled() throws Exception {
+        when(featureFlags.isReportingEnabled()).thenReturn(false);
+
+        writer.onActionSuccess(ActionSuccess.newBuilder()
+                .setActionId(1)
+                .setSuccessDescription("SUCCESS 1")
+                .setActionSpec(ActionSpec.newBuilder()
+                     .setExplanation("foo"))
+                .build());
+
+        recordBatchWriter.runIteration();
+
+        // Nothing converted.
+        verifyZeroInteractions(actionConverter);
+        // No interactions with the endpoint, because there are no reporting actions to ingest.
+        verifyZeroInteractions(endpoint);
     }
 }

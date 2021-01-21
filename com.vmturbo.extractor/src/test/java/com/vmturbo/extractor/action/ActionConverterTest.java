@@ -3,10 +3,14 @@ package com.vmturbo.extractor.action;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.sql.Timestamp;
 import java.util.HashSet;
 import java.util.Set;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.junit.Test;
 
@@ -34,8 +38,11 @@ import com.vmturbo.extractor.schema.enums.ActionCategory;
 import com.vmturbo.extractor.schema.enums.ActionType;
 import com.vmturbo.extractor.schema.enums.Severity;
 import com.vmturbo.extractor.schema.enums.TerminalState;
+import com.vmturbo.extractor.schema.json.reporting.ActionAttributes;
+import com.vmturbo.extractor.topology.SupplyChainEntity;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
+import com.vmturbo.topology.graph.TopologyGraph;
 
 /**
  * Unit tests for {@link ActionConverter}.
@@ -92,14 +99,28 @@ public class ActionConverterTest {
             .setActionState(ActionState.FAILED)
             .build();
 
-    private ActionConverter actionConverter = new ActionConverter();
+    private ActionAttributeExtractor actionAttributeExtractor = mock(ActionAttributeExtractor.class);
+
+    private TopologyGraph<SupplyChainEntity> topologyGraph = mock(TopologyGraph.class);
+
+    private ObjectMapper objectMapper = mock(ObjectMapper.class);
+
+    private final ActionAttributes attrs = mock(ActionAttributes.class);
+
+    private final String attrsJson = "{ \"foo\" : \"bar\" }";
+
+    private ActionConverter actionConverter = new ActionConverter(actionAttributeExtractor, objectMapper);
 
     /**
      * Test converting an {@link ActionSpec} for a pending actionto a database record.
+     *
+     * @throws Exception If there is an issue.
      */
     @Test
-    public void testPendingActionRecord() {
-        Record record = actionConverter.makePendingActionRecord(actionSpec);
+    public void testPendingActionRecord() throws Exception {
+        when(actionAttributeExtractor.extractAttributes(actionSpec, topologyGraph)).thenReturn(attrs);
+        when(objectMapper.writeValueAsString(attrs)).thenReturn(attrsJson);
+        Record record = actionConverter.makePendingActionRecord(actionSpec, topologyGraph);
         assertThat(record.get(PendingAction.RECOMMENDATION_TIME),
                 is(new Timestamp(actionSpec.getRecommendationTime())));
         assertThat(record.get(ActionModel.PendingAction.TYPE), is(ActionType.MOVE));
@@ -114,14 +135,19 @@ public class ActionConverterTest {
         assertThat(record.get(ActionModel.PendingAction.DESCRIPTION), is(description));
         assertThat(record.get(ActionModel.PendingAction.SAVINGS), is(savings));
         assertThat(record.get(PendingAction.ACTION_OID), is(actionOid));
+        assertThat(record.get(PendingAction.ATTRS).toString(), is(attrsJson));
     }
 
     /**
      * Test converting an {@link ActionSpec} for a succeeded action to a database record.
+     *
+     * @throws Exception If there is an issue.
      */
     @Test
-    public void testExecutedSucceededActionRecord() {
-        Record record = actionConverter.makeExecutedActionSpec(succeededActionSpec, "SUCCESS!");
+    public void testExecutedSucceededActionRecord() throws Exception {
+        when(actionAttributeExtractor.extractAttributes(succeededActionSpec, topologyGraph)).thenReturn(attrs);
+        when(objectMapper.writeValueAsString(attrs)).thenReturn(attrsJson);
+        Record record = actionConverter.makeExecutedActionSpec(succeededActionSpec, "SUCCESS!", topologyGraph);
         assertThat(record.get(CompletedAction.RECOMMENDATION_TIME),
                 is(new Timestamp(actionSpec.getRecommendationTime())));
         assertThat(record.get(CompletedAction.TYPE), is(ActionType.MOVE));
@@ -143,6 +169,7 @@ public class ActionConverterTest {
                 is(new Timestamp(succeededActionSpec.getExecutionStep().getCompletionTime())));
         assertThat(record.get(CompletedAction.FINAL_STATE), is(TerminalState.SUCCEEDED));
         assertThat(record.get(CompletedAction.FINAL_MESSAGE), is("SUCCESS!"));
+        assertThat(record.get(CompletedAction.ATTRS).toString(), is(attrsJson));
     }
 
     /**
@@ -150,7 +177,7 @@ public class ActionConverterTest {
      */
     @Test
     public void testExecutedFailedActionRecord() {
-        Record record = actionConverter.makeExecutedActionSpec(failedActionSpec, "FAILURE!");
+        Record record = actionConverter.makeExecutedActionSpec(failedActionSpec, "FAILURE!", topologyGraph);
         assertThat(record.get(CompletedAction.FINAL_STATE), is(TerminalState.FAILED));
         assertThat(record.get(CompletedAction.FINAL_MESSAGE), is("FAILURE!"));
     }

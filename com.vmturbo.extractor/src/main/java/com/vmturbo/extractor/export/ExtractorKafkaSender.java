@@ -18,7 +18,7 @@ import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.chunking.GetSerializedSizeException;
 import com.vmturbo.components.api.chunking.OversizedElementException;
 import com.vmturbo.components.api.server.IMessageSender;
-import com.vmturbo.extractor.export.schema.ExportedObject;
+import com.vmturbo.extractor.schema.json.export.ExportedObject;
 
 /**
  * Class for sending {@link ExportedObject}s to a Kafka topic. We sent objects in chunks. The chunk

@@ -1,4 +1,4 @@
-package com.vmturbo.extractor.export.schema;
+package com.vmturbo.extractor.schema.json.export;
 
 import java.util.List;
 import java.util.Map;
@@ -7,6 +7,11 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.google.common.base.MoreObjects;
+
+import com.vmturbo.extractor.schema.json.common.ActionEntity;
+import com.vmturbo.extractor.schema.json.common.CommodityChange;
+import com.vmturbo.extractor.schema.json.common.DeleteInfo;
+import com.vmturbo.extractor.schema.json.common.MoveChange;
 
 /**
  * Class containing all the fields of an entity or action that need to be exported.

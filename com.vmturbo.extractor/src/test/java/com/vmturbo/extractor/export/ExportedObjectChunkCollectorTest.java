@@ -13,7 +13,7 @@ import org.junit.Test;
 
 import com.vmturbo.components.api.chunking.GetSerializedSizeException;
 import com.vmturbo.components.api.chunking.OversizedElementException;
-import com.vmturbo.extractor.export.schema.ExportedObject;
+import com.vmturbo.extractor.schema.json.export.ExportedObject;
 
 /**
  * Test for {@link ExportedObjectChunkCollector}.

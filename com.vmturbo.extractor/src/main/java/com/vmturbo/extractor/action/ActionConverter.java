@@ -2,8 +2,11 @@ package com.vmturbo.extractor.action;
 
 import java.sql.Timestamp;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.ImmutableBiMap;
 
@@ -18,11 +21,15 @@ import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.extractor.models.ActionModel;
 import com.vmturbo.extractor.models.ActionModel.CompletedAction;
+import com.vmturbo.extractor.models.Column.JsonString;
 import com.vmturbo.extractor.models.Table.Record;
 import com.vmturbo.extractor.schema.enums.ActionCategory;
 import com.vmturbo.extractor.schema.enums.ActionType;
 import com.vmturbo.extractor.schema.enums.Severity;
 import com.vmturbo.extractor.schema.enums.TerminalState;
+import com.vmturbo.extractor.schema.json.reporting.ActionAttributes;
+import com.vmturbo.extractor.topology.SupplyChainEntity;
+import com.vmturbo.topology.graph.TopologyGraph;
 
 /**
  * Responsible for converting {@link ActionSpec}s coming from the action orchestrator to the
@@ -87,8 +94,26 @@ public class ActionConverter {
                     .put(ActionDTO.ActionCategory.COMPLIANCE, ActionCategory.COMPLIANCE)
                     .build();
 
+    private final ActionAttributeExtractor actionAttributeExtractor;
+
+    private final ObjectMapper objectMapper;
+
+    /**
+     * Create a new instance of the converter.
+     *
+     * @param actionAttributeExtractor The {@link ActionAttributeExtractor} used to extract
+     *                                 type-specific action attributes.
+     * @param objectMapper The {@link ObjectMapper} used to serialize JSON.
+     */
+    public ActionConverter(@Nonnull final ActionAttributeExtractor actionAttributeExtractor,
+                           @Nonnull final ObjectMapper objectMapper) {
+        this.actionAttributeExtractor = actionAttributeExtractor;
+        this.objectMapper = objectMapper;
+    }
+
     @Nullable
-    Record makeExecutedActionSpec(ActionSpec actionSpec, String message) {
+    Record makeExecutedActionSpec(ActionSpec actionSpec, String message,
+            TopologyGraph<SupplyChainEntity> topologyGraph) {
         final Record executedActionRecord = new Record(CompletedAction.TABLE);
         try {
             final long primaryEntityId = ActionDTOUtil.getPrimaryEntity(actionSpec.getRecommendation()).getId();
@@ -124,6 +149,7 @@ public class ActionConverter {
             executedActionRecord.set(CompletedAction.INVOLVED_ENTITIES,
                     ActionDTOUtil.getInvolvedEntityIds(actionSpec.getRecommendation())
                             .toArray(new Long[0]));
+            executedActionRecord.set(CompletedAction.ATTRS, extractAttrs(actionSpec, topologyGraph));
             executedActionRecord.set(CompletedAction.DESCRIPTION, actionSpec.getDescription());
             executedActionRecord.set(CompletedAction.SAVINGS,
                     actionSpec.getRecommendation().getSavingsPerHour().getAmount());
@@ -146,10 +172,12 @@ public class ActionConverter {
      * Create a record for the pending action table from a particular {@link ActionSpec}.
      *
      * @param actionSpec The {@link ActionSpec} from the action orchestrator.
+     * @param topologyGraph The topology graph, used to help find additional entity information
+     *                      (e.g. display names) for action attributes.
      * @return The database {@link Record}, or null if the action is unsupported.
      */
     @Nullable
-    Record makePendingActionRecord(ActionSpec actionSpec) {
+    Record makePendingActionRecord(ActionSpec actionSpec, TopologyGraph<SupplyChainEntity> topologyGraph) {
         final Record pendingActionRecord = new Record(ActionModel.PendingAction.TABLE);
         try {
             final long primaryEntityId = ActionDTOUtil.getPrimaryEntity(actionSpec.getRecommendation()).getId();
@@ -166,8 +194,8 @@ public class ActionConverter {
             pendingActionRecord.set(ActionModel.PendingAction.DESCRIPTION, actionSpec.getDescription());
             pendingActionRecord.set(ActionModel.PendingAction.SAVINGS,
                     actionSpec.getRecommendation().getSavingsPerHour().getAmount());
-
-            // We don't set the hash here. We set it when we write the data.
+            pendingActionRecord.set(ActionModel.PendingAction.ATTRS, extractAttrs(actionSpec,
+                    topologyGraph));
 
             return pendingActionRecord;
         } catch (UnsupportedActionException e) {
@@ -186,5 +214,17 @@ public class ActionConverter {
 
     private Severity extractSeverity(ActionSpec spec) {
         return SEVERITY_MAP.getOrDefault(spec.getSeverity(), Severity.NORMAL);
+    }
+
+    @Nullable
+    private JsonString extractAttrs(@Nonnull final ActionSpec actionSpec,
+            TopologyGraph<SupplyChainEntity> topologyGraph) {
+        ActionAttributes actionAttributes = actionAttributeExtractor.extractAttributes(actionSpec, topologyGraph);
+        try {
+            return new JsonString(objectMapper.writeValueAsString(actionAttributes));
+        } catch (JsonProcessingException e) {
+            logger.error("Failed to convert action to JSON.", e);
+            return null;
+        }
     }
 }

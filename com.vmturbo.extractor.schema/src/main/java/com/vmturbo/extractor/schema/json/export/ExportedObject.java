@@ -1,4 +1,4 @@
-package com.vmturbo.extractor.export.schema;
+package com.vmturbo.extractor.schema.json.export;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
