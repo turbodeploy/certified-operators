@@ -172,7 +172,7 @@
                                 </goals>
                                 <configuration>
                                     <dockerHost>${dockerHost}</dockerHost>
-                                    <showLogs>true</showLogs>
+                                    <showLogs>false</showLogs>
                                     <images>
                                         <image>
                                             <alias>tsdb</alias>
@@ -203,7 +203,7 @@
                                                         -->
                                                         <![CDATA[(?s)TimescaleDB background worker launcher connected to shared catalogs.*TimescaleDB background worker launcher connected to shared catalogs]]>
                                                     </log>
-                                                    <time>30000</time>
+                                                    <time>120000</time>
                                                 </wait>
                                             </run>
                                         </image>
