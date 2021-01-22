@@ -7,8 +7,10 @@ import static com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationVerifier.IP
 import static com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationVerifier.UUID_CLAIM;
 import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.ADMINISTRATOR;
 import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.PREDEFINED_SECURITY_GROUPS_SET;
+import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.REPORT_EDITOR;
 import static com.vmturbo.auth.component.store.AuthProviderHelper.areValidRoles;
 import static com.vmturbo.auth.component.store.AuthProviderHelper.changePasswordAllowed;
+import static com.vmturbo.auth.component.store.AuthProviderHelper.getAllUsers;
 import static com.vmturbo.auth.component.store.AuthProviderHelper.mayAlterUserWithRoles;
 import static com.vmturbo.auth.component.store.AuthProviderHelper.roleMatched;
 
@@ -20,7 +22,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -642,6 +643,8 @@ public class AuthProvider extends AuthProviderBase {
         }
 
         validateScopeGroups(roleNames, scopeGroups);
+        validateReportEditorRoleLimit(new AuthUserDTO( provider, userName, null,
+           "", "", "", roleNames, scopeGroups));
 
         try {
             UserInfo info = new UserInfo();
@@ -662,6 +665,27 @@ public class AuthProvider extends AuthProviderBase {
             logger_.error("Error adding user", e);
             logger_.error("AUDIT::FAILURE:AUTH: Error adding user: " + userName);
             return "";
+        }
+    }
+
+    // Disallow adding Report Editor role to user, if it will exceed the limit defined in reporting policy
+    private void validateReportEditorRoleLimit(@Nonnull AuthUserDTO authUserDTO) {
+
+        if (roleMatched(authUserDTO.getRoles(), REPORT_EDITOR)) {
+            // Don't allow modifying role for the last local admin user
+            Map<String, String> allUsers;
+            synchronized (storeLock_) {
+                allUsers = keyValueStore_.getByPrefix(PREFIX);
+            }
+            // Check if the Reporting policy allow assigning more Report Editor role to user.
+            try {
+                userPolicy.isAddingReportEditorRoleAllowed(authUserDTO, getAllUsers(allUsers).stream()
+                        .map(this::convertUserInfoToDTO)
+                        .collect(Collectors.toList()));
+            } catch (IllegalArgumentException e) {
+                logger_.error("AUDIT::" + e.getMessage());
+                throw e;
+            }
         }
     }
 
@@ -921,6 +945,19 @@ public class AuthProvider extends AuthProviderBase {
                 userName);
             return new ResponseEntity<>("SITE_ADMIN not allowed to modify role for " +
                 "administrator user: " + userName, HttpStatus.FORBIDDEN);
+        }
+
+        // Check if the Reporting policy allow assigning more Report Editor role to user.
+        try {
+            userPolicy.isAddingReportEditorRoleAllowed(
+                new AuthUserDTO(info.provider, info.userName, info.uuid, "",
+                        "", "", roleNames, scopeGroups),
+                getAllUsers(allUsers).stream()
+                        .map(this::convertUserInfoToDTO)
+                        .collect(Collectors.toList()));
+        } catch (IllegalArgumentException e) {
+            logger_.error("AUDIT::" + e.getMessage());
+            return new ResponseEntity<>(e.getMessage(), HttpStatus.FORBIDDEN);
         }
 
         try {
@@ -1340,60 +1377,6 @@ public class AuthProvider extends AuthProviderBase {
         }
     }
 
-
-    /**
-     * The internal user information structure.
-     * <p> <tt>uuid discussion</tt> </p>
-     * Current approach: <p>
-     * From Gary Zeng:
-     * uuid is String type, since according to RFC 4122 (https://tools.ietf.org/html/rfc4122),
-     * it includes non-numerical characters.
-     * e.g. 0f4f8d29-577d-456f-bfc7-71dbeacf5300 (version 4).
-     * Should we use UUID as the unique identifier for user object?
-     * In legacy, we used uuid as unique identifier for user, e.g. in login.config.topology.
-     * uuid="_4T_7kwY-Ed-WUKbEYSVIDw" name="administrator"
-     * For XL, I currently don’t see a strong case of changing it.
-     * Should AO and other components use user’s UUID as unique identifier?
-     * if #2 is valid, probably other components should use UUID too.
-     * </p>>
-     *
-     * Alternatives <p>
-     * 1. replace uuid (String) with oid (long).</p>
-     * From Mark Laff:
-     * In my opinion, we should not care that legacy calls the field in the API a uuid –
-     * we should create and manage OIDs within XL, and return them in string from where the UX
-     * expects a UUID. The UX never parses the string; that would be really bad. So it doesn’t
-     * matter that there are no letters or ‘-‘ in a uuid, just that it is unique. We will,
-     * over time, migrate the field name in the API from ‘uuid’ to ‘oid’. We just need to insist
-     * that the UX never-never-never uses what it thinks is a know ‘uuid’ in a REST API call to XL.
-     * As an extra added interesting item – ‘uuid’s in legacy are not guaranteed unique.
-     * For example, I’m pretty sure that if you clone a VM in VCenter you will end up with the
-     * same UUID (or it may have to do with storages or networks). The only way to guarantee
-     * uniqueness is to use our OID generator, which is already in use in Legacy in some places.
-     * So the REST API uses the wrong names, but I think going with longs is still the right approach.
-     * 2. replace uuid (String) to uuid (long).<p>
-     * Similar to the #1, just keeping the variable 'uuid' instead of changing it to oid.</p>
-     */
-    public static class UserInfo {
-        AuthUserDTO.PROVIDER provider;
-
-        String userName;
-
-        String uuid;
-
-        String passwordHash;
-
-        List<String> roles;
-
-        List<Long> scopeGroups;
-
-        boolean unlocked;
-
-        public boolean isAdminUser() {
-            return roles.stream().anyMatch(role -> role.equalsIgnoreCase(ADMINISTRATOR));
-        }
-    }
-
     /**
      * Test if there is only one local admin user.
      *
@@ -1407,12 +1390,7 @@ public class AuthProvider extends AuthProviderBase {
         if (roleMatched(userInfo.roles, ADMINISTRATOR)
                 // the user the admin user
                 && userInfo.provider.equals(PROVIDER.LOCAL)) { // the provider is local
-            List<UserInfo> userInfoList = new ArrayList<>();
-            for (String jsonData : users.values()) {
-                UserInfo info = GSON.fromJson(jsonData, UserInfo.class);
-                userInfoList.add(info);
-            }
-            long administratorCount = userInfoList.stream()
+            long administratorCount = getAllUsers(users).stream()
                     .filter(user -> user.provider.equals(PROVIDER.LOCAL)
                             && roleMatched(user.roles, ADMINISTRATOR))
                     .count();

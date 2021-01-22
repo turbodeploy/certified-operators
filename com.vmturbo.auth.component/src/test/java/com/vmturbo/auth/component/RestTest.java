@@ -2,6 +2,7 @@ package com.vmturbo.auth.component;
 
 import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.ADMINISTRATOR;
 import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.OBSERVER;
+import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.REPORT_EDITOR;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -17,6 +18,11 @@ import java.util.List;
 import java.util.Random;
 import java.util.Set;
 
+import com.google.common.collect.ImmutableList;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+
+import org.assertj.core.util.Lists;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -63,10 +69,6 @@ import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 import org.springframework.web.util.NestedServletException;
 
-import com.google.common.collect.ImmutableList;
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-
 import com.vmturbo.auth.api.authentication.AuthenticationException;
 import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationToken;
 import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationVerifier;
@@ -80,6 +82,7 @@ import com.vmturbo.auth.api.usermgmt.AuthUserModifyDTO;
 import com.vmturbo.auth.api.usermgmt.AuthorizeUserInGroupsInputDTO;
 import com.vmturbo.auth.api.usermgmt.AuthorizeUserInputDTO;
 import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
+import com.vmturbo.auth.component.policy.ReportPolicy;
 import com.vmturbo.auth.component.policy.UserPolicy;
 import com.vmturbo.auth.component.policy.UserPolicy.LoginPolicy;
 import com.vmturbo.auth.component.services.AuthUsersController;
@@ -132,9 +135,15 @@ public class RestTest {
     /**
      * The K/V local auth store.
      */
-    private static AuthProvider authStore = new AuthProvider(kvStore, null,
-            () -> System.getProperty("com.vmturbo.kvdir"), null, new UserPolicy(LoginPolicy.ALL),
-            new SsoUtil(), false);
+    private static AuthProvider authStore;
+
+    static final SsoUtil ssoUtil = new SsoUtil();
+
+    static {
+        authStore = new AuthProvider(kvStore, null,
+                () -> System.getProperty("com.vmturbo.kvdir"), null, new UserPolicy(LoginPolicy.ALL,
+                new ReportPolicy(1)), ssoUtil, false);
+    }
 
     /**
      * The verifier.
@@ -154,6 +163,10 @@ public class RestTest {
         System.setProperty("com.vmturbo.keydir", tempFolder.newFolder().getAbsolutePath());
         System.setProperty("com.vmturbo.kvdir", tempFolder.newFolder().getAbsolutePath());
         mockMvc = MockMvcBuilders.webAppContextSetup(wac).build();
+        kvStore.removeKeysWithPrefix("users");
+        kvStore.removeKeysWithPrefix("groups");
+        kvStore.removeKeysWithPrefix("ad");
+        ssoUtil.reset();
     }
 
     private static final String RET_TYPE = MediaType.APPLICATION_JSON_UTF8_VALUE;
@@ -240,6 +253,18 @@ public class RestTest {
                                           constructPassword(suffix), "1.1.1.1", null, null,
                                           ImmutableList.of(new Random().nextBoolean() ? ADMINISTRATOR.toUpperCase()
                                                   : ADMINISTRATOR.toLowerCase(), OBSERVER), null);
+        // For debigging purposes.
+        String json = GSON.toJson(dto, AuthUserDTO.class);
+        return json;
+    }
+
+    private String constructReportEditorUser(int suffix, Long... scopes) {
+        // ideally we should use Parameterized test, but we already have Spring Runner, so
+        // we just randomly change to role to upper case or lower case.
+        AuthUserDTO dto = new AuthUserDTO(AuthUserDTO.PROVIDER.LOCAL, "user" + suffix,
+                constructPassword(suffix), "1.1.1.1", null, null,
+                ImmutableList.of(new Random().nextBoolean() ? ADMINISTRATOR.toUpperCase()
+                        : ADMINISTRATOR.toLowerCase(), REPORT_EDITOR), Lists.newArrayList(scopes));
         // For debigging purposes.
         String json = GSON.toJson(dto, AuthUserDTO.class);
         return json;
@@ -476,6 +501,111 @@ public class RestTest {
         SecurityContextHolder.getContext().setAuthentication(null);
     }
 
+    /**
+     * Test not allow adding more user with report editor role.
+     * @throws Exception which should not happen
+     */
+    @Test
+    public void testCreateNewUserRespectReportEditorLimit() throws Exception {
+        logon("ADMINISTRATOR");
+
+        // First report editor user
+        mockMvc.perform(post("/users/add")
+                .content(constructReportEditorUser(10))
+                .contentType(RET_TYPE)
+                .accept(RET_TYPE))
+                .andExpect(status().isOk());
+
+        // add another report editor user
+        mockMvc.perform(post("/users/add")
+                .content(constructReportEditorUser(20))
+                .contentType(RET_TYPE)
+                .accept(RET_TYPE))
+                .andExpect(status().is4xxClientError());
+        SecurityContextHolder.getContext().setAuthentication(null);
+    }
+
+
+    /**
+     * Test that you create a report editor with a scope.
+     *
+     * @throws Exception To satisfy complier.
+     */
+    @Test
+    public void testCreateNewUserReportEditorScoped() throws Exception {
+        mockMvc.perform(post("/users/add")
+                // With scope
+                .content(constructReportEditorUser(20, 1000L))
+                .contentType(RET_TYPE)
+                .accept(RET_TYPE))
+                .andExpect(status().is4xxClientError());
+        SecurityContextHolder.getContext().setAuthentication(null);
+    }
+
+    /**
+     * Test that you cannot edit a report editor to add scope.
+     *
+     * @throws Exception To satisfy complier.
+     */
+    @Test
+    public void testSetRolesDisallowScopedReportEditor() throws Exception {
+        logon("ADMINISTRATOR");
+
+        final int userId = 1;
+
+        // First report editor user
+        mockMvc.perform(post("/users/add")
+                .content(constructReportEditorUser(userId))
+                .contentType(RET_TYPE)
+                .accept(RET_TYPE))
+                .andExpect(status().isOk());
+
+        // Attempt to add scope. Should fail.
+        mockMvc.perform(post("/users/add")
+                // With scope
+                .content(constructReportEditorUser(userId, 1000L))
+                .contentType(RET_TYPE)
+                .accept(RET_TYPE))
+                .andExpect(status().is4xxClientError());
+        SecurityContextHolder.getContext().setAuthentication(null);
+
+    }
+
+    /**
+     * Test not allow setting more user with report editor role.
+     * @throws Exception which should not happen
+     */
+    @Test
+    public void testSetRolesRespectReportEditorLimit() throws Exception {
+        logon("ADMINISTRATOR");
+
+        // First report editor user
+        mockMvc.perform(post("/users/add")
+                .content(constructReportEditorUser(1))
+                .contentType(RET_TYPE)
+                .accept(RET_TYPE))
+                .andExpect(status().isOk());
+
+        // First report editor user
+        mockMvc.perform(post("/users/add")
+                .content(constructAddDTO(12))
+                .contentType(RET_TYPE)
+                .accept(RET_TYPE))
+                .andExpect(status().isOk());
+
+
+        AuthUserDTO dto = new AuthUserDTO(AuthUserDTO.PROVIDER.LOCAL, "user" + 12, null,
+                ImmutableList.of(ADMINISTRATOR, REPORT_EDITOR));
+        String json = GSON.toJson(dto, AuthUserDTO.class);
+
+        mockMvc.perform(put("/users/setroles")
+                .content(json)
+                .contentType(RET_TYPE)
+                .accept(RET_TYPE))
+                .andExpect(status().is4xxClientError());
+        SecurityContextHolder.getContext().setAuthentication(null);
+    }
+
     @Test
     public void testSetRolesHasNoAccess() throws Exception {
         logon("ADMINISTRATOR");
@@ -519,15 +649,15 @@ public class RestTest {
     @Test
     public void testDelete() throws Exception {
         logon("ADMINISTRATOR");
-        String result = mockMvc.perform(postAdd(3))
+        String result = mockMvc.perform(postAdd(30))
                 .andReturn().getResponse().getContentAsString();
         validateAddUserResult(result);
         // Create another local admin user
-        mockMvc.perform(postAdd(4))
+        mockMvc.perform(postAdd(40))
                 .andReturn().getResponse().getContentAsString();
 
         // delete the first admin user
-        mockMvc.perform(delete("/users/remove/user3")
+        mockMvc.perform(delete("/users/remove/user30")
                 .accept(RET_TYPE))
                 .andExpect(status().isOk())
                 .andReturn().getResponse()
@@ -536,11 +666,11 @@ public class RestTest {
         // Authenticate against the original user.
         // We throw the SecurityException in our implementation, and the NestedServletException
         // will contain it.
-        mockMvc.perform(get("/users/authenticate/user3/password3")
+        mockMvc.perform(get("/users/authenticate/user30/password3")
                 .accept(RET_TYPE)).andExpect(status().isForbidden());
 
         // Delete the last admin user. We throw the SecurityException in our implementation.
-        mockMvc.perform(delete("/users/remove/user3")
+        mockMvc.perform(delete("/users/remove/user40")
                 .accept(RET_TYPE))
                 .andExpect(status().isForbidden())
                 .andReturn().getResponse()

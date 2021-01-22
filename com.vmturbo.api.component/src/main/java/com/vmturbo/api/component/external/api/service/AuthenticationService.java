@@ -1,10 +1,16 @@
 package com.vmturbo.api.component.external.api.service;
 
+import static com.vmturbo.api.component.external.api.util.ApiUtils.sortRoleByPrivileges;
+
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -26,14 +32,12 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableList;
-
 import com.vmturbo.api.component.communication.RestAuthenticationProvider;
 import com.vmturbo.api.component.external.api.mapper.LoginProviderMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.ErrorApiDTO;
+import com.vmturbo.api.dto.user.RoleApiDTO;
 import com.vmturbo.api.dto.user.UserApiDTO;
 import com.vmturbo.api.exceptions.InvalidCredentialsException;
 import com.vmturbo.api.exceptions.ServiceUnavailableException;
@@ -161,7 +165,9 @@ public class AuthenticationService implements IAuthenticationService {
             UserApiDTO user = new UserApiDTO();
             user.setUsername(username);
             // administrator user will always have "administrator" role.
-            user.setRoleName(ADMINISTRATOR);
+            final RoleApiDTO roleApiDTO = new RoleApiDTO();
+            roleApiDTO.setName(ADMINISTRATOR);
+            user.setRoles(ImmutableList.of(roleApiDTO));
             AuditLog.newEntry(AuditAction.SYSTEM_INIT,
                 "Turbonomic instance initialization succeeded", true)
                 .targetName(username)
@@ -216,10 +222,13 @@ public class AuthenticationService implements IAuthenticationService {
             user.setUuid(dto.getUuid());
             user.setLoginProvider(LoginProviderMapper.toApi(dto.getProvider()));
             user.setAuthToken(dto.getToken());
-            // just like legacy, pass the user role to UI
-            if (!dto.getRoles().isEmpty()) {
-                user.setRoleName(dto.getRoles().get(0));
-            }
+            user.setRoles(sortRoleByPrivileges(dto.getRoles().stream()
+                .map(role -> {
+                    RoleApiDTO d = new RoleApiDTO();
+                    d.setName(role);
+                    return d;
+                })
+                .collect(Collectors.toList())));
             setSessionMaxInactiveInterval(sessionTimeoutSeconds);
             if (logger.isDebugEnabled()) {
                 logger.debug("Setting session max inactive interval to: " + sessionTimeoutSeconds);
@@ -316,7 +325,7 @@ public class AuthenticationService implements IAuthenticationService {
      *
      * @see <a href="https://docs.spring.io/spring-security/site/docs/current/reference/html/servletapi.html/">
      * Servlet API integration</a>
-     * {@link com.vmturbo.api.component.external.api.ApiSecurityConfig#configure}
+     * {@link com.vmturbo.api.component.external.api.ApiSecurityConfig}
      */
     private void changeSessionId() {
         final RequestAttributes attrs = RequestContextHolder.currentRequestAttributes();

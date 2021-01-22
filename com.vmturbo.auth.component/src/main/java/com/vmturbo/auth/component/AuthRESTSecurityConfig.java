@@ -17,6 +17,7 @@ import com.vmturbo.auth.api.SpringSecurityConfig;
 import com.vmturbo.auth.api.auditing.AuditLog;
 import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.auth.component.handler.GlobalExceptionHandler;
+import com.vmturbo.auth.component.policy.ReportPolicy;
 import com.vmturbo.auth.component.policy.UserPolicy;
 import com.vmturbo.auth.component.policy.UserPolicy.LoginPolicy;
 import com.vmturbo.auth.component.services.AuthUsersController;
@@ -49,6 +50,9 @@ public class AuthRESTSecurityConfig extends WebSecurityConfigurerAdapter {
 
     @Value("${enableMultiADGroupSupport:false}")
     private boolean enableMultiADGroupSupport;
+
+    @Value("${allowedMaximumEditor:1}")
+    private int allowedMaximumEditor;
 
     /**
      * We allow autowiring between different configuration objects, but not for a bean.
@@ -172,7 +176,8 @@ public class AuthRESTSecurityConfig extends WebSecurityConfigurerAdapter {
     @Bean
     public UserPolicy userPolicy() {
         final LoginPolicy policy = LoginPolicy.valueOf(loginPolicy);
-        final UserPolicy userPolicy = new UserPolicy(policy);
+        final ReportPolicy reportPolicy = new ReportPolicy(allowedMaximumEditor);
+        final UserPolicy userPolicy = new UserPolicy(policy, reportPolicy);
         AuditLog.newEntry(userPolicy.getAuditAction(),
                 "User login policy is set to " + loginPolicy, true)
                 .targetName("Login Policy")

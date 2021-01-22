@@ -49,6 +49,7 @@ import com.vmturbo.api.component.communication.RestAuthenticationProvider;
 import com.vmturbo.api.component.external.api.util.ReportingUserCalculator;
 import com.vmturbo.api.dto.user.ActiveDirectoryApiDTO;
 import com.vmturbo.api.dto.user.ActiveDirectoryGroupApiDTO;
+import com.vmturbo.api.dto.user.RoleApiDTO;
 import com.vmturbo.api.dto.user.UserApiDTO;
 import com.vmturbo.auth.api.authentication.credentials.SAMLUserUtils;
 import com.vmturbo.auth.api.usermgmt.ActiveDirectoryDTO;
@@ -74,7 +75,7 @@ public class UserServiceTest {
     private WidgetSetsService widgetSetsService = mock(WidgetSetsService.class);
     private final SessionInformation sessionInformation = mock(SessionInformation.class);
     private final SessionRegistry sessionRegistry = mock(SessionRegistry.class);
-    private final ReportingUserCalculator reportingUserCalculator = new ReportingUserCalculator(false, false, "foo");
+    private final ReportingUserCalculator reportingUserCalculator = new ReportingUserCalculator(false, "foo");
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
@@ -487,7 +488,7 @@ public class UserServiceTest {
         UserApiDTO userApiDTO = new UserApiDTO();
         userApiDTO.setUsername(userName);
         userApiDTO.setType(userType);
-        userApiDTO.setRoleName(userRole);
+        userApiDTO.setRoles(makeRole(userRole));
         userApiDTO.setLoginProvider(userLoginProvider);
 
         // This should throw an illegal argument exception
@@ -510,7 +511,7 @@ public class UserServiceTest {
         UserApiDTO userApiDTO = new UserApiDTO();
         userApiDTO.setUsername(userName);
         userApiDTO.setType(userType);
-        userApiDTO.setRoleName(userRole);
+        userApiDTO.setRoles(makeRole(userRole));
         userApiDTO.setLoginProvider(userLoginProvider);
 
         // This should throw an illegal argument exception
@@ -533,7 +534,7 @@ public class UserServiceTest {
         UserApiDTO userApiDTO = new UserApiDTO();
         userApiDTO.setUsername(userName);
         userApiDTO.setType(userType);
-        userApiDTO.setRoleName(userRole);
+        userApiDTO.setRoles(makeRole(userRole));
         userApiDTO.setLoginProvider(userLoginProvider);
 
         // This should throw an illegal argument exception
@@ -557,7 +558,7 @@ public class UserServiceTest {
         UserApiDTO userApiDTO = new UserApiDTO();
         userApiDTO.setUsername(userName);
         userApiDTO.setType(userType);
-        userApiDTO.setRoleName(userRole);
+        userApiDTO.setRoles(makeRole(userRole));
         userApiDTO.setLoginProvider(userLoginProvider);
 
         // This should throw an illegal argument exception
@@ -581,7 +582,7 @@ public class UserServiceTest {
         UserApiDTO userApiDTO = new UserApiDTO();
         userApiDTO.setUsername(userName);
         userApiDTO.setType(userType);
-        userApiDTO.setRoleName(userRole);
+        userApiDTO.setRoles(makeRole(userRole));
         userApiDTO.setLoginProvider(userLoginProvider);
 
         // This should throw an illegal argument exception
@@ -605,7 +606,30 @@ public class UserServiceTest {
         UserApiDTO userApiDTO = new UserApiDTO();
         userApiDTO.setUsername(userName);
         userApiDTO.setType(userType);
-        userApiDTO.setRoleName(userRole);
+        userApiDTO.setRoles(makeRole(userRole));
+        userApiDTO.setLoginProvider(userLoginProvider);
+
+        // This should throw an illegal argument exception
+        expectedException.expect(IllegalArgumentException.class);
+        UserApiDTO resultUser = usersService.editUser(userId, userApiDTO);
+    }
+
+    /**
+     * Testing that when the api input has no user role, the service will
+     * throw an IllegalArgumentException.
+     *
+     * @throws Exception when the service fails to edit the user
+     */
+    @Test
+    public void testEditNoRole() throws Exception {
+        final String userId = "1234";
+        final String userName = "testUser2";
+        final String userType = "DedicatedCustomer";
+        final String userLoginProvider = "LOCAL";
+
+        UserApiDTO userApiDTO = new UserApiDTO();
+        userApiDTO.setUsername(userName);
+        userApiDTO.setType(userType);
         userApiDTO.setLoginProvider(userLoginProvider);
 
         // This should throw an illegal argument exception
@@ -629,7 +653,7 @@ public class UserServiceTest {
         UserApiDTO userApiDTO = new UserApiDTO();
         userApiDTO.setUsername(userName);
         userApiDTO.setType(userType);
-        userApiDTO.setRoleName(userRole);
+        userApiDTO.setRoles(makeRole(userRole));
         userApiDTO.setPassword(password);
         userApiDTO.setLoginProvider(userLoginProvider);
         // create user case.
@@ -654,7 +678,7 @@ public class UserServiceTest {
         UserApiDTO userApiDTO = new UserApiDTO();
         userApiDTO.setUsername(userName);
         userApiDTO.setType(userType);
-        userApiDTO.setRoleName(userRole);
+        userApiDTO.setRoles(makeRole(userRole));
         userApiDTO.setPassword(password);
         userApiDTO.setLoginProvider(userLoginProvider);
         // create user case.
@@ -678,7 +702,7 @@ public class UserServiceTest {
         UserApiDTO userApiDTO = new UserApiDTO();
         userApiDTO.setUsername(userName);
         userApiDTO.setType(userType);
-        userApiDTO.setRoleName(userRole);
+        userApiDTO.setRoles(makeRole(userRole));
         userApiDTO.setLoginProvider(userLoginProvider);
         userApiDTO.setUuid("not1234");
 
@@ -704,7 +728,7 @@ public class UserServiceTest {
         userApiDTO.setUsername(userName);
         userApiDTO.setPassword(userName);
         userApiDTO.setType(userType);
-        userApiDTO.setRoleName(userRole);
+        userApiDTO.setRoles(makeRole(userRole));
         userApiDTO.setLoginProvider(userLoginProvider);
 
         final HttpEntity<AuthUserDTO> entity = new HttpEntity<>(composeHttpHeaders());
@@ -742,6 +766,12 @@ public class UserServiceTest {
         verifyEditUser(false);
     }
 
+    private List<RoleApiDTO> makeRole(String roleName) {
+        RoleApiDTO role = new RoleApiDTO();
+        role.setName(roleName);
+        return Collections.singletonList(role);
+    }
+
     private void verifyEditUser(boolean passwordChanged) throws Exception {
         final String userName = "test2";
         final String userId = "123456";
@@ -753,7 +783,7 @@ public class UserServiceTest {
         UserApiDTO userApiDTO = new UserApiDTO();
         userApiDTO.setUsername(userName);
         userApiDTO.setType(userType);
-        userApiDTO.setRoleName(userRole);
+        userApiDTO.setRoles(makeRole(userRole));
         userApiDTO.setLoginProvider(userLoginProvider);
         if (passwordChanged) {
             userApiDTO.setPassword(userName);
@@ -880,7 +910,7 @@ public class UserServiceTest {
         UserApiDTO userApiDTO = new UserApiDTO();
         userApiDTO.setUsername(TEST_USER);
         userApiDTO.setType(DEDICATED_CUSTOMER);
-        userApiDTO.setRoleName(OBSERVER);
+        userApiDTO.setRoles(makeRole(OBSERVER));
         userApiDTO.setLoginProvider(LDAP);
         final HttpEntity<AuthUserDTO> entity = new HttpEntity<>(composeHttpHeaders());
         final ResponseEntity<String> responseEntity = new ResponseEntity<>("234256", HttpStatus.OK);
