@@ -75,14 +75,14 @@ public class ActionInfoModelCreatorTest {
                         .addChanges(ChangeProvider.newBuilder()
                                 .setSource(createActionEntity(1L))
                                 .setDestination(createActionEntity(2L))
-                                .setResource(createActionEntity(3L)))
+                                .addResource(createActionEntity(3L)))
                         .addChanges(ChangeProvider.newBuilder()
                                 .setSource(createActionEntity(4L))
                                 .setDestination(createActionEntity(5L))))
                 .build();
         final ActionInfoModel model = modelCreator.apply(move);
         Assert.assertEquals(Optional.of(
-                Sets.newHashSet("{\"sourceId\":\"1\",\"destinationId\":\"2\",\"resourceId\":\"3\"}",
+                Sets.newHashSet("{\"sourceId\":\"1\",\"destinationId\":\"2\",\"resourceIds\":[\"3\"]}",
                         "{\"sourceId\":\"4\",\"destinationId\":\"5\"}")),
                 model.getAdditionalDetails());
     }

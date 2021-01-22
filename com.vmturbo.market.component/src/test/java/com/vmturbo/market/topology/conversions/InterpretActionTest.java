@@ -57,7 +57,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
-import com.vmturbo.commons.Pair;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
@@ -96,6 +95,7 @@ import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.util.Pair;
 
 /**
  * Test various actions.
@@ -253,7 +253,7 @@ public class InterpretActionTest {
     public void testInterpretMoveAction() throws IOException {
         TopologyDTO.TopologyEntityDTO entityDto =
                 TopologyConverterFromMarketTest.messageFromJsonFile("protobuf/messages/vm-1.dto.json");
-        long resourceId = entityDto.getCommoditiesBoughtFromProviders(0).getVolumeId();
+        long resourceId = entityDto.getConnectedEntityList(0).getConnectedEntityId();
 
         final TopologyConverter converter =
             new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
@@ -330,8 +330,6 @@ public class InterpretActionTest {
         assertEquals(srcType, actionInfo.getMove().getChanges(0).getSource().getType());
         assertEquals(destId, actionInfo.getMove().getChanges(0).getDestination().getId());
         assertEquals(destType, actionInfo.getMove().getChanges(0).getDestination().getType());
-        assertEquals(resourceId, actionInfo.getMove().getChanges(0).getResource().getId());
-        assertEquals(resourceType, actionInfo.getMove().getChanges(0).getResource().getType());
 
         assertEquals(ActionTypeCase.MOVE, actionInfoWithOutSource.getActionTypeCase());
         assertEquals(1, actionInfoWithOutSource.getMove().getChangesList().size());
@@ -362,7 +360,7 @@ public class InterpretActionTest {
 
         final long shoppingListId = 5L;
         final ShoppingListInfo slInfo = new ShoppingListInfo(shoppingListId, businessUser.getOid(), 666L,
-            null, null, null, Arrays.asList());
+            Collections.emptySet(), null, null, Arrays.asList());
         final Map<Long, ShoppingListInfo> slInfoMap = ImmutableMap.of(shoppingListId, slInfo);
         final Map<Long, TopologyEntityDTO> originalTopology = ImmutableMap.of(businessUser.getOid(),
             businessUser);
@@ -523,8 +521,8 @@ public class InterpretActionTest {
                 TopologyConverterFromMarketTest.messageFromJsonFile("protobuf/messages/vm-1.dto.json");
 
         final long shoppingListId = 5L;
-        final ShoppingListInfo slInfo = new ShoppingListInfo(shoppingListId, entityDto.getOid(), null, null,
-                null, null, Arrays.asList());
+        final ShoppingListInfo slInfo = new ShoppingListInfo(shoppingListId, entityDto.getOid(), null,
+                        Collections.emptySet(), null, null, Arrays.asList());
         final Map<Long, ShoppingListInfo> slInfoMap = ImmutableMap.of(shoppingListId, slInfo);
         final Map<Long, TopologyEntityDTO> originalTopology = ImmutableMap.of(entityDto.getOid(),
                 entityDto);
@@ -964,7 +962,8 @@ public class InterpretActionTest {
         when(mockCloudTc.getSourceOrDestinationTierFromMoveTo(any(), eq(vm.getOid()), eq(true))).thenReturn(Optional.of(m1Large.getOid()));
         when(mockCloudTc.getSourceOrDestinationTierFromMoveTo(any(), eq(vm.getOid()), eq(false))).thenReturn(Optional.of(m1Medium.getOid()));
 
-        ShoppingListInfo slInfo = new ShoppingListInfo(5, vm.getOid(), null, null, null, null, Arrays.asList());
+        ShoppingListInfo slInfo = new ShoppingListInfo(5, vm.getOid(), null, Collections.emptySet(),
+                        null, null, Arrays.asList());
         Map<Long, ShoppingListInfo> slInfoMap = ImmutableMap.of(5l, slInfo);
         TopologyCostCalculator mockTopologyCostCalculator = mock(TopologyCostCalculator.class);
         CostJournal<TopologyEntityDTO> sourceCostJournal = mock(CostJournal.class);

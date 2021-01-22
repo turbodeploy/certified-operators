@@ -46,6 +46,7 @@ import org.apache.commons.lang3.mutable.MutableDouble;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
+import org.springframework.util.CollectionUtils;
 
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
@@ -75,6 +76,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.TypeCase;
@@ -82,7 +84,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Virtual
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.utils.StringConstants;
-import com.vmturbo.commons.Pair;
 import com.vmturbo.commons.Units;
 import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.commons.analysis.NumericIDAllocator;
@@ -142,6 +143,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
+import com.vmturbo.platform.sdk.common.util.Pair;
 
 /**
  * Convert topology DTOs to economy DTOs.
@@ -163,7 +165,9 @@ public class TopologyConverter {
     // because the AZ or Region might have changed.
     private final Map<Integer, Set<Integer>> projectedConnectedEntityTypesToCompute = ImmutableMap.of(
             EntityType.VIRTUAL_MACHINE_VALUE,
-                    ImmutableSet.of(EntityType.AVAILABILITY_ZONE_VALUE, EntityType.REGION_VALUE),
+                    ImmutableSet.of(EntityType.AVAILABILITY_ZONE_VALUE, EntityType.REGION_VALUE,
+                                    // connections of vm to volume are added during extra resources creation
+                                    EntityType.VIRTUAL_VOLUME_VALUE),
             EntityType.DATABASE_VALUE, ImmutableSet.of(EntityType.AVAILABILITY_ZONE_VALUE),
             EntityType.DATABASE_SERVER_VALUE, ImmutableSet.of(EntityType.AVAILABILITY_ZONE_VALUE));
 
@@ -1027,19 +1031,15 @@ public class TopologyConverter {
      * @param sl       ShoppingListTO of the projectedTraderTO
      * @param commList List of CommodityBoughtDTO
      * @param buyerOid id of the buyer for which the CommoditiesBoughtFromProvider is being created
-     * @return CommoditiesBoughtFromProvider
+     * @return CommoditiesBoughtFromProvider to related resources (can be null)
      */
-    private CommoditiesBoughtFromProvider createCommoditiesBoughtFromProvider(
+    private Pair<CommoditiesBoughtFromProvider, Set<Long>> createCommoditiesBoughtFromProvider(
             EconomyDTOs.ShoppingListTO sl, List<TopologyDTO.CommodityBoughtDTO> commList,
             final long buyerOid) {
         final CommoditiesBoughtFromProvider.Builder commoditiesBoughtFromProviderBuilder =
             CommoditiesBoughtFromProvider.newBuilder().addAllCommodityBought(commList);
-        // if can not find the ShoppingListInfo, that means Market generate some wrong shopping
-        // list.
+        // already created a backup info, cannot be null
         ShoppingListInfo slInfo = shoppingListOidToInfos.get(sl.getOid());
-        if (slInfo == null) {
-            throw new IllegalStateException("Market returned invalid shopping list for : " + sl);
-        }
         // Six cases for a sl move:
         // active provider -> active provider/provisioned provider/unplaced
         // unplaced -> active provider/provisioned provider/unplaced
@@ -1052,14 +1052,14 @@ public class TopologyConverter {
         Long supplier = null;
         if (sl.hasSupplier()) {
             supplier = sl.getSupplier();
-        } else if (skippedEntities.containsKey(slInfo.sellerId)) {
+        } else if (skippedEntities.containsKey(slInfo.getSellerId())) {
             // If a sl is unplaced due to skipped provider, which makes it movable false,
             // we should set the supplier of it to the original skipped provider.
             // Why do we need else if here, not just else?
             // Because for a sl moving from active provider to unplaced, the supplier should be null.
             // If we just use else here, then the supplier will be the original active provider,
             // which is not correct.
-            supplier = slInfo.sellerId;
+            supplier = slInfo.getSellerId();
         }
 
         Integer supplierEntityType = null;
@@ -1116,8 +1116,7 @@ public class TopologyConverter {
                         .ifPresent(commoditiesBoughtFromProviderBuilder::setProviderEntityType);
             }
         }
-        slInfo.getResourceId().ifPresent(commoditiesBoughtFromProviderBuilder::setVolumeId);
-        return commoditiesBoughtFromProviderBuilder.build();
+        return Pair.create(commoditiesBoughtFromProviderBuilder.build(), slInfo.getResourceIds());
     }
 
     /**
@@ -1162,7 +1161,10 @@ public class TopologyConverter {
             TopologyDTO.TopologyEntityDTO originalEntity = traderOidToEntityDTO.get(traderTO.getOid());
             final List<ShoppingListTO> collapsedShoppingLists = new ArrayList<>();
 
-            final Map<Long, ShoppingListTO> volumeIdToShoppingListTOMap = new HashMap<>();
+            // TODO on-prem vvs p2 this structure will be simplified
+            // stores information required to create extra projected entities for a buyer->seller link
+            final Map<CommoditiesBoughtFromProvider, Pair<ShoppingListTO, Set<Long>>> commBought2shoppingListAndResourceId = new HashMap<>();
+
             for (EconomyDTOs.ShoppingListTO sl : traderTO.getShoppingListsList()) {
                 List<TopologyDTO.CommodityBoughtDTO> commList = new ArrayList<>();
 
@@ -1217,7 +1219,7 @@ public class TopologyConverter {
                                     sl.getOid(), traderTO.getDebugInfoNeverUseInCode(),
                                     supplier != null ? supplier.getDebugInfoNeverUseInCode() : null);
                     ShoppingListInfo slInfo = new ShoppingListInfo(sl.getOid(), traderTO.getOid(),
-                                    sl.getSupplier(), null, null,
+                                    sl.getSupplier(), Collections.emptySet(), null,
                                     supplier != null ? supplier.getType() : null, commList);
                     shoppingListOidToInfos.put(sl.getOid(), slInfo);
                 }
@@ -1225,11 +1227,14 @@ public class TopologyConverter {
                 if (shoppingListInfo != null && shoppingListInfo.getCollapsedBuyerId().isPresent()) {
                     collapsedShoppingLists.add(sl);
                 }
-                CommoditiesBoughtFromProvider commoditiesBoughtFromProvider =
+                Pair<CommoditiesBoughtFromProvider, Set<Long>> commoditiesBought2resourceId =
                         createCommoditiesBoughtFromProvider(sl, commList, traderTO.getOid());
-                topoDTOCommonBoughtGrouping.add(commoditiesBoughtFromProvider);
-                if (commoditiesBoughtFromProvider.hasVolumeId()) {
-                    volumeIdToShoppingListTOMap.put(commoditiesBoughtFromProvider.getVolumeId(), sl);
+                topoDTOCommonBoughtGrouping.add(commoditiesBought2resourceId.getFirst());
+                if (commoditiesBought2resourceId.getSecond() != null) {
+                    // remember the SLs with associated resources to create extra projected entities for them
+                    commBought2shoppingListAndResourceId.put(
+                                    commoditiesBought2resourceId.getFirst(),
+                                    Pair.create(sl, commoditiesBought2resourceId.getSecond()));
                 }
             }
 
@@ -1327,13 +1332,18 @@ public class TopologyConverter {
             updateProjectedEntityOsType(entityDTOBuilder);
             updateProjectedCores(entityDTOBuilder);
 
+
+
+            // TODO (on-prem vvs p2) the subsequent two control flows should be merged back into common logic
+            // both cloud and on-prem will situationally want to use collapsed buyers technique
+            // there is no more single volume id related to a SL in either environment type
+            // when source volume is on-prem volume with volumeId
+            topologyEntityDTOs.addAll(createResources(entityDTOBuilder, commBought2shoppingListAndResourceId));
+            // when source volume is cloud volume with collapsedBuyerId
+            topologyEntityDTOs.addAll(createCollapsedTopologyEntityDTOs(entityDTOBuilder, collapsedShoppingLists,
+                            reservedCapacityResults));
             TopologyEntityDTO entityDTO = entityDTOBuilder.build();
             topologyEntityDTOs.add(entityDTO);
-            // when source volume is on-prem volume with volumeId
-            topologyEntityDTOs.addAll(createResources(entityDTO, volumeIdToShoppingListTOMap));
-            // when source volume is cloud volume with collapsedBuyerId
-            topologyEntityDTOs.addAll(createCollapsedTopologyEntityDTOs(entityDTO, collapsedShoppingLists,
-                    reservedCapacityResults));
         } catch (Exception e) {
             logger.error(EconomyConstants.EXCEPTION_MESSAGE,
                 traderTO.getDebugInfoNeverUseInCode(), e.getMessage(), e);
@@ -1342,7 +1352,7 @@ public class TopologyConverter {
     }
 
     private List<TopologyEntityDTO> createCollapsedTopologyEntityDTOs(
-            final TopologyEntityDTO projectedEntityForConsumerOfCollapsedEntity,
+            final TopologyEntityDTOOrBuilder projectedEntityForConsumerOfCollapsedEntity,
             final List<ShoppingListTO> collapsedShoppingList,
             final ReservedCapacityResults reservedCapacityResults) {
         final List<TopologyEntityDTO> result = new ArrayList<>();
@@ -1368,7 +1378,7 @@ public class TopologyConverter {
                     .map(Optional::get)
                     .collect(Collectors.toList());
                 CommoditiesBoughtFromProvider commBoughtGrouping = createCommoditiesBoughtFromProvider(
-                        shoppingListTO, boughtCommodityDTOS, collapsedEntityDTO.getOid());
+                        shoppingListTO, boughtCommodityDTOS, collapsedEntityDTO.getOid()).getFirst();
                 projectedEntity.addCommoditiesBoughtFromProviders(commBoughtGrouping);
                 final List<CommoditySoldDTO> soldDTOS =
                     createCommoditySoldFromCommBoughtTO(collapsedEntityDTO,
@@ -1738,23 +1748,30 @@ public class TopologyConverter {
      * For ex. If a Cloud VM has a volume, then we create the projected version of the volume here.
      *
      * @param topologyEntityDTO The entity for which the resources need to be created
-     * @param volumeIdToShoppingListTOMap maps volume ID to ShoppingListTO
+     * @param commBought2shoppingListAndResourceId maps commbought to related shopping list
      * @return set of resources
      */
     @VisibleForTesting
-    Set<TopologyEntityDTO> createResources(TopologyEntityDTO topologyEntityDTO,
-                                           Map<Long, ShoppingListTO> volumeIdToShoppingListTOMap) {
+    Set<TopologyEntityDTO> createResources(TopologyEntityDTO.Builder topologyEntityDTO,
+                    Map<CommoditiesBoughtFromProvider, Pair<ShoppingListTO, Set<Long>>> commBought2shoppingListAndResourceId) {
         Set<TopologyEntityDTO> resources = Sets.newHashSet();
-        for (CommoditiesBoughtFromProvider commBoughtGrouping :
-                topologyEntityDTO.getCommoditiesBoughtFromProvidersList()) {
+        final Collection<CommoditiesBoughtFromProvider> cbfpWithUpdatedProvider = new HashSet<>();
+        for (int i = topologyEntityDTO.getCommoditiesBoughtFromProvidersCount() - 1; i >= 0; i--) {
+            final CommoditiesBoughtFromProvider commBoughtGrouping = topologyEntityDTO.getCommoditiesBoughtFromProviders(i);
             // create entities for volumes
-            if (commBoughtGrouping.hasVolumeId()) {
-                TopologyEntityDTO originalVolume = entityOidToDto.get(commBoughtGrouping.getVolumeId());
+            Pair<ShoppingListTO, Set<Long>> sl2resourceId = commBought2shoppingListAndResourceId.get(commBoughtGrouping);
+            if (sl2resourceId == null || CollectionUtils.isEmpty(sl2resourceId.getSecond())) {
+                // no extra resources to create for this market link
+                continue;
+            }
+            ShoppingListTO shoppingList = sl2resourceId.getFirst();
+            for (Long sourceVolumeId : sl2resourceId.getSecond()) {
+                TopologyEntityDTO originalVolume = entityOidToDto.get(sourceVolumeId);
                 if (originalVolume != null && originalVolume.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE) {
                     if (!commBoughtGrouping.hasProviderId() || !commBoughtGrouping.hasProviderEntityType()) {
                         logger.error("commBoughtGrouping of projected entity {} has volume Id {} " +
                             "but no associated storage or storageTier",
-                            topologyEntityDTO.getDisplayName(), commBoughtGrouping.getVolumeId());
+                            topologyEntityDTO.getDisplayName(), sl2resourceId.getSecond());
                         continue;
                     }
                     // Build a volume which is connected to the same Storage or StorageTier
@@ -1765,7 +1782,8 @@ public class TopologyConverter {
                             .setEntityType(originalVolume.getEntityType())
                             .setOid(originalVolume.getOid());
 
-                    // connect to storage or storage tier
+                    // connect to storage tier - regardless of commodities presence
+                    // TODO on-prem vvs p2 - do not connect to storage when commodities are added
                     final ConnectedEntity connectedStorage = ConnectedEntity.newBuilder()
                             .setConnectedEntityId(commBoughtGrouping.getProviderId())
                             .setConnectedEntityType(commBoughtGrouping.getProviderEntityType())
@@ -1787,60 +1805,32 @@ public class TopologyConverter {
                         volume.addConnectedEntityList(connectedAzOrRegion);
                     }
 
-                    // Create commodities of the volume. Volumes don't have a corresponding trader
-                    // object. The commodity values are taken from the commodity bought list of the VM.
+                    // TODO on-prem vvs p2 - change this condition for creating projected commodities
                     if (commBoughtGrouping.getProviderEntityType() == EntityType.STORAGE_TIER_VALUE) {
-                        // Add commodity bought list
-                        CommoditiesBoughtFromProvider.Builder commBoughtListBuilder =
-                                CommoditiesBoughtFromProvider.newBuilder()
-                                        .setProviderEntityType(EntityType.STORAGE_TIER_VALUE)
-                                        .setProviderId(commBoughtGrouping.getProviderId());
-                        for (CommodityBoughtDTO comm : commBoughtGrouping.getCommodityBoughtList()) {
-                            if (OLD_QUANTITY_REQUIRED_COMM_TYPES.contains(comm.getCommodityType().getType())) {
-                                CommodityBoughtDTO.Builder commBoughtBuilder = CommodityBoughtDTO.newBuilder()
-                                        .setCommodityType(comm.getCommodityType());
-                                if (comm.getCommodityType().getType() == CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE) {
-                                    // Storage amount unit was converted to GB when creating traderTO.
-                                    // Convert the unit back to MB when creating the projected value.
-                                    // Cost and API expects storage to be in MB.
-                                    commBoughtBuilder.setUsed(comm.getUsed() * Units.KIBI);
-                                } else {
-                                    commBoughtBuilder.setUsed(comm.getUsed());
-                                }
-                                commBoughtListBuilder.addCommodityBought(commBoughtBuilder);
-                            }
-                        }
-                        volume.addCommoditiesBoughtFromProviders(commBoughtListBuilder);
+                        createVolumeCommodities(commBoughtGrouping, shoppingList, volume);
 
-                        // Get the adjusted storage amount and storage access values assigned by the market.
-                        Map<Integer, Float> commTypeToAssignedCapacity = new HashMap<>();
-                        ShoppingListTO shoppingList = volumeIdToShoppingListTOMap.get(commBoughtGrouping.getVolumeId());
-                        if (shoppingList != null) {
-                            for (final CommodityBoughtTO commodityBoughtTO : shoppingList.getCommoditiesBoughtList()) {
-                                commTypeToAssignedCapacity.put(commodityBoughtTO.getSpecification().getBaseType(), commodityBoughtTO.getAssignedCapacityForBuyer());
+                        // Change VM to make it buy from new volume
+                        final CommoditiesBoughtFromProvider.Builder changedCommodityBoughtGrouping =
+                                        commBoughtGrouping.toBuilder();
+                        // filter out commodities that have not been sold by VV
+                        for (int j = 0; j < changedCommodityBoughtGrouping.getCommodityBoughtCount(); j++) {
+                            final int commodityType = changedCommodityBoughtGrouping.getCommodityBought(j)
+                                            .getCommodityType().getType();
+                            if (!OLD_QUANTITY_REQUIRED_COMM_TYPES.contains(commodityType)) {
+                                changedCommodityBoughtGrouping.removeCommodityBought(j);
                             }
                         }
-                        // Add commodity sold list
-                        for (CommodityBoughtDTO comm : commBoughtGrouping.getCommodityBoughtList()) {
-                            if (OLD_QUANTITY_REQUIRED_COMM_TYPES.contains(comm.getCommodityType().getType())) {
-                                CommoditySoldDTO.Builder commSoldBuilder = CommoditySoldDTO.newBuilder()
-                                        .setCommodityType(comm.getCommodityType());
-                                if (comm.getCommodityType().getType() == CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE) {
-                                    Float assignedCapacity = commTypeToAssignedCapacity.get(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE);
-                                    if (assignedCapacity != null) {
-                                        commSoldBuilder.setCapacity(assignedCapacity * Units.KIBI);
-                                    }
-                                } else if (comm.getCommodityType().getType() == CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE) {
-                                    Float assignedCapacity = commTypeToAssignedCapacity.get(CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE);
-                                    if (assignedCapacity != null) {
-                                        commSoldBuilder.setCapacity(assignedCapacity);
-                                    }
-                                } else {
-                                    commSoldBuilder.setCapacity(comm.getUsed());
-                                }
-                                volume.addCommoditySoldList(commSoldBuilder);
-                            }
-                        }
+                        changedCommodityBoughtGrouping.setProviderId(volume.getOid());
+                        changedCommodityBoughtGrouping.setProviderEntityType(volume.getEntityType());
+                        cbfpWithUpdatedProvider.add(changedCommodityBoughtGrouping.build());
+                        topologyEntityDTO.removeCommoditiesBoughtFromProviders(i);
+                    } else {
+                        // connect vm to volume
+                        final ConnectedEntity connectedVolume = ConnectedEntity.newBuilder()
+                                        .setConnectedEntityId(volume.getOid())
+                                        .setConnectedEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                                        .setConnectionType(ConnectionType.NORMAL_CONNECTION).build();
+                        topologyEntityDTO.addConnectedEntityList(connectedVolume);
                     }
 
                     copyStaticAttributes(originalVolume, volume);
@@ -1849,11 +1839,74 @@ public class TopologyConverter {
                 }
             }
         }
+        topologyEntityDTO.addAllCommoditiesBoughtFromProviders(cbfpWithUpdatedProvider);
         return resources;
     }
 
+    /**
+     * Create commodities of the projected entity that was collapsed as buyer.
+     * Example: when volume is on cloud, or on-prem per-volume analysis is turned on.
+     * Volumes don't have a corresponding trader object.
+     * The commodity values are taken from the commodity bought list of the VM.
+     *
+     * @param commBoughtGrouping source commodities bought by vm
+     * @param shoppingList corresponding shopping list
+     * @param volume volume to add commodities to
+     */
+    private void createVolumeCommodities(final CommoditiesBoughtFromProvider commBoughtGrouping,
+                    ShoppingListTO shoppingList, TopologyEntityDTO.Builder volume) {
+        // Add commodity bought list
+        CommoditiesBoughtFromProvider.Builder commBoughtListBuilder =
+                CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderEntityType(EntityType.STORAGE_TIER_VALUE)
+                        .setProviderId(commBoughtGrouping.getProviderId());
+        for (CommodityBoughtDTO comm : commBoughtGrouping.getCommodityBoughtList()) {
+            if (OLD_QUANTITY_REQUIRED_COMM_TYPES.contains(comm.getCommodityType().getType())) {
+                CommodityBoughtDTO.Builder commBoughtBuilder = CommodityBoughtDTO.newBuilder()
+                        .setCommodityType(comm.getCommodityType());
+                if (comm.getCommodityType().getType() == CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE) {
+                    // Storage amount unit was converted to GB when creating traderTO.
+                    // Convert the unit back to MB when creating the projected value.
+                    // Cost and API expects storage to be in MB.
+                    commBoughtBuilder.setUsed(comm.getUsed() * Units.KIBI);
+                } else {
+                    commBoughtBuilder.setUsed(comm.getUsed());
+                }
+                commBoughtListBuilder.addCommodityBought(commBoughtBuilder);
+            }
+        }
+        volume.addCommoditiesBoughtFromProviders(commBoughtListBuilder);
+
+        // Get the adjusted storage amount and storage access values assigned by the market.
+        Map<Integer, Float> commTypeToAssignedCapacity = new HashMap<>();
+        for (final CommodityBoughtTO commodityBoughtTO : shoppingList.getCommoditiesBoughtList()) {
+            commTypeToAssignedCapacity.put(commodityBoughtTO.getSpecification().getBaseType(), commodityBoughtTO.getAssignedCapacityForBuyer());
+        }
+        // Add commodity sold list
+        for (CommodityBoughtDTO comm : commBoughtGrouping.getCommodityBoughtList()) {
+            if (OLD_QUANTITY_REQUIRED_COMM_TYPES.contains(comm.getCommodityType().getType())) {
+                CommoditySoldDTO.Builder commSoldBuilder = CommoditySoldDTO.newBuilder()
+                        .setCommodityType(comm.getCommodityType());
+                if (comm.getCommodityType().getType() == CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE) {
+                    Float assignedCapacity = commTypeToAssignedCapacity.get(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE);
+                    if (assignedCapacity != null) {
+                        commSoldBuilder.setCapacity(assignedCapacity * Units.KIBI);
+                    }
+                } else if (comm.getCommodityType().getType() == CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE) {
+                    Float assignedCapacity = commTypeToAssignedCapacity.get(CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE);
+                    if (assignedCapacity != null) {
+                        commSoldBuilder.setCapacity(assignedCapacity);
+                    }
+                } else {
+                    commSoldBuilder.setCapacity(comm.getUsed());
+                }
+                volume.addCommoditySoldList(commSoldBuilder);
+            }
+        }
+    }
+
     private Optional<ConnectedEntity> createConnectedAzOrRegion(
-        final TopologyEntityDTO topologyEntityDTO) {
+        final TopologyEntityDTOOrBuilder topologyEntityDTO) {
         final List<TopologyEntityDTO> azOrRegions = TopologyDTOUtil.getConnectedEntitiesOfType(
             topologyEntityDTO,
             Sets.newHashSet(EntityType.AVAILABILITY_ZONE_VALUE, EntityType.REGION_VALUE),
@@ -2469,14 +2522,12 @@ public class TopologyConverter {
         final float peakQuantity = peak; // It must be final
 
         final ShoppingListInfo shoppingListInfo = shoppingListOidToInfos.get(slOid);
-        long volumeId = Optional.ofNullable(shoppingListInfo)
-                        .flatMap(ShoppingListInfo::getResourceId).orElse(0L);
         return commodityConverter.marketToTopologyCommodity(commBoughtTO.getSpecification())
                 .map(commType -> {
                     Optional<CommodityBoughtDTO> boughtDTObyTraderFromProjectedSellerInRealTopology =
-                        getCommodityIndex().getCommBought(traderOid, supplierOid, commType, volumeId);
+                        getCommodityIndex().getCommBought(traderOid, supplierOid, commType);
                     double currentUsage = getOriginalUsedValue(commBoughtTO, traderOid,
-                            supplierOid, commType, volumeId, originalEntity);
+                            supplierOid, commType, originalEntity);
                     currentUsage = TopologyConversionUtils.convertMarketUnitToTopologyUnit(
                             commType.getType(), currentUsage, originalEntity);
                     final Builder builder = CommodityBoughtDTO.newBuilder();
@@ -2559,7 +2610,7 @@ public class TopologyConverter {
         }
 
         final List<CommodityBoughtDTO> commodityBoughtDTOs =
-                        shoppingListInfo.commodities.stream()
+                        shoppingListInfo.getCommodities().stream()
                                         .filter(commodity -> commType
                                                         .equals(commodity.getCommodityType()))
                                         .collect(Collectors.toList());
@@ -2614,7 +2665,7 @@ public class TopologyConverter {
                                         .filter(capacity -> capacity != 0);
         if (oldCapacity.isPresent() && newCapacity.isPresent()) {
             logger.debug("converting for commType={}, buyer oid {}, seller {} oid={}.  oldCapacity={}, newcapacity={}, originalPercentile={}, newPercentile={}",
-                commType, shoppingListInfo.getBuyerId(), shoppingListInfo.sellerEntityType, shoppingListInfo.getSellerId(), oldCapacity, newCapacity, originalPercentile, originalPercentile * oldCapacity.get() / newCapacity.get());
+                commType, shoppingListInfo.getBuyerId(), shoppingListInfo.getSellerEntityType(), shoppingListInfo.getSellerId(), oldCapacity, newCapacity, originalPercentile, originalPercentile * oldCapacity.get() / newCapacity.get());
             return originalPercentile * oldCapacity.get() / newCapacity.get();
         }
 
@@ -2633,13 +2684,11 @@ public class TopologyConverter {
      * @param traderOid Trader Oid
      * @param supplierOid Provider Oid
      * @param commType commodity type
-     * @param volumeId Volume Id
      * @param originalEntity the original topology entity DTO for the trader.
      * @return the used value
      */
     private float getOriginalUsedValue(final CommodityBoughtTO commBoughtTO, final long traderOid,
                                        final long supplierOid, final CommodityType commType,
-                                       final long volumeId,
                                        @Nullable final TopologyEntityDTO originalEntity) {
         float currentUsage = commBoughtTO.getQuantity();
         // If this is a cloud entity, find the original bought commodity from supplier.
@@ -2663,7 +2712,7 @@ public class TopologyConverter {
                     Optional<CommodityBoughtDTO> originalCommodityBoughtDTO =
                         getCommodityIndex().getCommBought(traderOid,
                             providerDTO.stream().findFirst().get().getOid(),
-                            commType, volumeId);
+                            commType);
                     if (originalCommodityBoughtDTO.isPresent()) {
                         currentUsage = (float)originalCommodityBoughtDTO.get().getUsed();
                     }
@@ -2788,7 +2837,7 @@ public class TopologyConverter {
 
             Pair<List<EconomyDTOs.ShoppingListTO>, Long> p =
                     createAllShoppingListsAndReturnProviderId(topologyDTO);
-            List<EconomyDTOs.ShoppingListTO> shoppingLists = p.first;
+            List<EconomyDTOs.ShoppingListTO> shoppingLists = p.getFirst();
             TraderTO.Builder traderDTOBuilder = TraderTO.newBuilder()
                     // Type and Oid are the same in the topology DTOs and economy DTOs
                     .setOid(topologyDTO.getOid())
@@ -2798,7 +2847,7 @@ public class TopologyConverter {
                     .addAllCommoditiesSold(createAllCommoditySoldTO(topologyDTO))
                     .addAllShoppingLists(shoppingLists)
                     .addAllCliques(allCliques);
-            createCurrentContext(topologyDTO, p.second)
+            createCurrentContext(topologyDTO, p.getSecond())
                 .ifPresent(settingsBuilder::setCurrentContext);
             consistentScalingHelper.getScalingGroupId(topologyDTO.getOid())
                 .ifPresent(traderDTOBuilder::setScalingGroupId);
@@ -2929,18 +2978,18 @@ public class TopologyConverter {
         Map<Long, Long> providers = TopologyDTOUtil.parseOldProvidersMap(topologyEntity, gson);
         List<ShoppingListTO> shoppingLists = new ArrayList<>();
         Long computeTierProviderId = null;
-        // We want the input into M2 to be consistent across cycles. So, we sort the commBoughtGroupings.
+        // Sort the commBoughtGroupings based on provider type and oid so
+        // that the input into analysis is consistent every cycle
         // 1. First based on provider type. So this way, for VMs, the storage SLs appear
         //    followed by the PM SL. And we can use this fact in SNM for a performance gain. We can
         //    ignore the simulation of the last 2 SLs (the last storage SL and the PM SL).
-        // 2. Next, sort by volumeId. This is needed for VMs that have multiple volumes.
-        // 3. And lastly, by providerId. This was needed for VSAN DataStores, which have multiple PM SLs.
+        // 2. And lastly, by providerId. This was needed for VSAN DataStores, which have multiple PM SLs.
         //    To consistently order these, we sort by the providerId of the SL.
         List<CommoditiesBoughtFromProvider> sortedCommBoughtGrouping = topologyEntity.getCommoditiesBoughtFromProvidersList().stream()
                 .sorted(Comparator.comparing(CommoditiesBoughtFromProvider::getProviderEntityType)
-                .thenComparing(CommoditiesBoughtFromProvider::getVolumeId)
-                .thenComparing(CommoditiesBoughtFromProvider::getProviderId))
-            .collect(Collectors.toList());
+                                .thenComparing(CommoditiesBoughtFromProvider::getProviderId))
+                .collect(Collectors.toList());
+        // We want the input into M2 to be consistent across cycles. So, we sort the commBoughtGroupings.
         for (TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider commBoughtGrouping : sortedCommBoughtGrouping) {
             // skip converting shoppinglist that buys from VDC
             // TODO: we also skip the sl that consumes AZ which contains Zone commodity because zonal RI is not yet supported
@@ -2985,8 +3034,8 @@ public class TopologyConverter {
                 } else {
                     providerId = getProviderId(commBoughtGroupingForSL, entityForSL);
                 }
-                if (providerId.second == RiDiscountedMarketTier.class) {
-                    computeTierProviderId = providerId.first;
+                if (providerId.getSecond() == RiDiscountedMarketTier.class) {
+                    computeTierProviderId = providerId.getFirst();
                 }
                 if (skipShoppingListCreation(entityForSL)) {
                     logger.trace("For context: {}: Skip SL creation for: {} ({}), entity: {}.",
@@ -2994,7 +3043,7 @@ public class TopologyConverter {
                             entityForSL.getOid(), topologyEntity.getDisplayName());
                 } else {
                     shoppingLists.add(createShoppingList(entityForSL, topologyEntity, entityForSL.getEntityType(),
-                            topologyEntity.getAnalysisSettings().getShopTogether(), providerId.first,
+                            topologyEntity.getAnalysisSettings().getShopTogether(), providerId.getFirst(),
                             // Pass scalingGroupUsage down to underlying methods only when creating shoppingList
                             // for topologyEntity. If shoppingList is created for entityForSL(which is different
                             // from topologyEntity), no need to use scalingGroupUsage which is for topologyEntity.
@@ -3063,7 +3112,7 @@ public class TopologyConverter {
                     usage.setProviderId(oid, providerId);
                     if (logger.isTraceEnabled()) {
                         logger.trace("Setting {} scaling group usage data provider id to {}, {}",
-                            topologyEntity.getDisplayName(), providerId.first, providerId.second);
+                            topologyEntity.getDisplayName(), providerId.getFirst(), providerId.getSecond().getSimpleName());
                     }
                     for (CommodityBoughtDTO commBought : commBoughtGrouping.getCommodityBoughtList()) {
                         if (!commBought.getActive() || !consistentScalingHelper
@@ -3072,7 +3121,7 @@ public class TopologyConverter {
                         }
                         final List<UsedAndPeak> boughtQuantities =
                                 getCommBoughtQuantities(topologyEntity,
-                                commBought, providerId.first);
+                                commBought, providerId.getFirst());
                         usage.addUsage(commBought, boughtQuantities.get(0).used);
                     }
                     // We've processed the grouping with the compute tier provider, so we're done.
@@ -3166,7 +3215,7 @@ public class TopologyConverter {
             // Create template exclusion commodity bought
             values.addAll(createTierExclusionCommodityBoughtForCloudEntity(providerOid, entityForSLOid));
         } else if (isCloudMigration) {
-            values.addAll(createTierExclusionCommodityBoughtForMigratingEntity(providerOid, entityForSLOid, commBoughtGroupingForSL));
+            values.addAll(createTierExclusionCommodityBoughtForMigratingEntity(providerOid, entityForSL, commBoughtGroupingForSL));
         }
         final long id = shoppingListId++;
         // Check if the provider of the shopping list is UNKNOWN. If true, set movable false.
@@ -3244,11 +3293,18 @@ public class TopologyConverter {
         }
         final Integer providerEntityType = commBoughtGroupingForSL.hasProviderEntityType()
                 ? commBoughtGroupingForSL.getProviderEntityType() : null;
-        final Long resourceId = commBoughtGroupingForSL.hasVolumeId() ? commBoughtGroupingForSL.getVolumeId() : null;
+        // multiple on-prem per-disk volumes placed on the same storage are still shopping together (as vm)
+        Set<Long> resourceIds = getRelatedVolumesOnProvider(entityForSL,
+                        commBoughtGroupingForSL.getProviderId());
+        if (isCloudMigration && !resourceIds.isEmpty()) {
+            // for MCP choose any of them from current provider for referencing in SL
+            // in the projected topology only one volume will be created for possibly multiple source
+            resourceIds = Collections.singleton(resourceIds.iterator().next());
+        }
         // Preserve collapsedBuyerId in ShoppingListInfo.
         final Long collapsedBuyerId = entityForSL == originalEntityAsTrader ? null : entityForSLOid;
         shoppingListOidToInfos.put(id,
-                new ShoppingListInfo(id, originalEntityAsTrader.getOid(), providerOid, resourceId, collapsedBuyerId, providerEntityType,
+                new ShoppingListInfo(id, originalEntityAsTrader.getOid(), providerOid, resourceIds, collapsedBuyerId, providerEntityType,
                     commBoughtGroupingForSL.getCommodityBoughtList()));
 
         // in SMAOnly mode we are preventing M2 to generate actions for cloud VMs
@@ -3448,25 +3504,28 @@ public class TopologyConverter {
      * currently on-prem.
      *
      * @param providerOid oid of the provider
-     * @param buyerOid the cloud consumer
+     * @param buyer the cloud consumer
      * @param commBoughtGroupingForSL commBoughtGrouping that is currently checked for the consumer
      * @return the list of template exclusion commodities the consumer needs to buy
      */
     @Nonnull
     private Set<CommodityBoughtTO> createTierExclusionCommodityBoughtForMigratingEntity(
-        long providerOid, long buyerOid, @Nonnull final CommoditiesBoughtFromProvider commBoughtGroupingForSL) {
+        long providerOid, TopologyEntityDTO buyer, @Nonnull final CommoditiesBoughtFromProvider commBoughtGroupingForSL) {
 
         TopologyEntityDTO provider = entityOidToDto.get(providerOid);
         if (provider == null) {
             return Collections.emptySet();
         }
         if (provider.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE) {
-            return createTierExclusionCommodityBought(buyerOid);
-        } else if (provider.getEntityType() == EntityType.STORAGE_VALUE && commBoughtGroupingForSL.hasVolumeId()) {
+            return createTierExclusionCommodityBought(buyer.getOid());
+        } else if (provider.getEntityType() == EntityType.STORAGE_VALUE) {
             // For on-prem to cloud migration, in source topology, VM's storage side provider is Storage instead of VirtualVolume.
             // However, StorageTier exclusion policy in "Virtual Volume Defaults" is configured as policies on all cloud volume
-            // entities. Thus StorageTier exclusion should be retrieved from the volume.
-            return createTierExclusionCommodityBought(commBoughtGroupingForSL.getVolumeId());
+            // entities. Thus StorageTier exclusion should be retrieved from the volumes.
+            Set<Long> volumes = getRelatedVolumesOnProvider(buyer, providerOid);
+            return volumes.stream().flatMap(
+                            volumeId -> createTierExclusionCommodityBought(volumeId).stream())
+                            .collect(Collectors.toSet());
         }
         return Collections.emptySet();
     }
@@ -4171,8 +4230,8 @@ public class TopologyConverter {
         // however, because the definition of ShoppingListInfo requires providerOid and
         // commodityBoughtList, we have to give some dummy values
         list.forEach(l -> shoppingListOidToInfos.put(l.getNewShoppingList(),
-                    new ShoppingListInfo(l.getNewShoppingList(), l.getBuyer(), null, null, null, null,
-                            Lists.newArrayList())));
+                    new ShoppingListInfo(l.getNewShoppingList(), l.getBuyer(), null,
+                                    Collections.emptySet(), null, null, Lists.newArrayList())));
     }
 
     /**
@@ -4446,10 +4505,11 @@ public class TopologyConverter {
             @Nonnull final ShoppingListInfo slInfo, long buyerVmId, @Nonnull final String tierName,
             @Nonnull final ReasonCommodity iopsReasonCommodity,
             @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology) {
+        // TODO on-prem vvs p2 - support two scenarios of volumes shopping separately or together
+
         // For onPrem -> cloud, we have volumeId in resourceId field, for cloud -> cloud, it is
         // available in the collapsedBuyerId field instead.
-        final Long volumeId = slInfo.getResourceId().isPresent() ? slInfo.getResourceId().get()
-                : slInfo.getCollapsedBuyerId().orElse(null);
+        final Long volumeId = slInfo.getActingId();
         if (volumeId == null) {
             logger.trace("MCP Performance risk (VM: {}, tier: {}) No volume id available.",
                     buyerVmId, tierName);
@@ -4463,7 +4523,7 @@ public class TopologyConverter {
             return null;
         }
         // Get disk size before plan.
-        double diskSizeBeforeMb = slInfo.commodities.stream()
+        double diskSizeBeforeMb = slInfo.getCommodities().stream()
                 .filter(commBought -> commBought.getCommodityType().getType()
                         == CommodityDTO.CommodityType.STORAGE_PROVISIONED_VALUE)
                 .map(CommodityBoughtDTO::getUsed)
@@ -4511,5 +4571,27 @@ public class TopologyConverter {
             this.used = used;
             this.peak = peak;
         }
+    }
+
+    private Set<Long> getRelatedVolumesOnProvider(TopologyEntityDTO vm, long storageProvider) {
+        // TODO on-prem vvs p2 we will have on-prem probes optionally discovering
+        // - either vm->volume->storage commodities
+        // - or vm->storage commodities and multiple associated connected volumes
+        // account for both scenarios here
+        Set<TopologyEntityDTO> volumes = vm.getConnectedEntityListList().stream()
+                        .filter(connectedEntity -> connectedEntity
+                                        .getConnectedEntityType() == EntityType.VIRTUAL_VOLUME_VALUE)
+                        .map(ConnectedEntity::getConnectedEntityId).map(entityOidToDto::get)
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toSet());
+        Set<Long> matchingVolumeIds = new HashSet<>();
+        for (TopologyEntityDTO volume : volumes) {
+            volume.getConnectedEntityListList().stream()
+                            .map(ConnectedEntity::getConnectedEntityId)
+                            .filter(storageId -> storageId == storageProvider)
+                            .findAny()
+                            .ifPresent(storageId -> matchingVolumeIds.add(volume.getOid()));
+        }
+        return matchingVolumeIds;
     }
 }

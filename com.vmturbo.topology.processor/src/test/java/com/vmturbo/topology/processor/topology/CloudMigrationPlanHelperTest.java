@@ -184,11 +184,6 @@ public class CloudMigrationPlanHelperTest {
         @Nullable Long storageProviderId2 = null;
 
         /**
-         * Volume id, used for on-prem storage.
-         */
-        long volumeId = 0;
-
-        /**
          * Expected commBoughtDTO per provider, used for count verifications before and after.
          */
         final Map<Long, Long> countsByProvider = new HashMap<>();
@@ -390,7 +385,6 @@ public class CloudMigrationPlanHelperTest {
         CommBoughtExpectedTestSettings settings = new CommBoughtExpectedTestSettings();
         settings.hostProviderId = 73433887033680L;
         settings.storageProviderId1 = 73433887031974L;
-        settings.volumeId = 73433887060893L;
 
         settings.movable = false;
         settings.totalSkipped = 5;
@@ -435,7 +429,6 @@ public class CloudMigrationPlanHelperTest {
         settings.hostProviderId = 73320334249387L;
         settings.storageProviderId1 = 73320335294658L;
         settings.storageProviderId2 = 73320335294657L;
-        settings.volumeId = 0;
 
         settings.movable = false;
         settings.totalSkipped = 3;
@@ -504,7 +497,6 @@ public class CloudMigrationPlanHelperTest {
         CommBoughtExpectedTestSettings settings = new CommBoughtExpectedTestSettings();
         settings.hostProviderId = 73320835644202L;
         settings.storageProviderId1 = 73320835644316L;
-        settings.volumeId = 0;
 
         settings.movable = false;
         settings.totalSkipped = 2;
@@ -543,7 +535,7 @@ public class CloudMigrationPlanHelperTest {
      */
     private void verifyStorageCommBought(@Nonnull final TopologyEntityDTO.Builder dtoBuilder,
                                          @Nonnull final CommBoughtExpectedTestSettings settings) {
-        // Verify storage commBoughtGrouping is correct, with volumeId still there.
+        // Verify storage commBoughtGrouping is correct.
         Optional<CommoditiesBoughtFromProvider> optGrouping = dtoBuilder
                 .getCommoditiesBoughtFromProvidersList()
                 .stream()
@@ -555,7 +547,6 @@ public class CloudMigrationPlanHelperTest {
         CommoditiesBoughtFromProvider storageCommBought = optGrouping.get();
         // Make sure commBoughtGrouping is now movable.
         assertTrue(storageCommBought.getMovable());
-        assertEquals(settings.volumeId, storageCommBought.getVolumeId());
     }
 
     /**

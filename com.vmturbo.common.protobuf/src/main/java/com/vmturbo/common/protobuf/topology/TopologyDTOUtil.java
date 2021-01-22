@@ -29,7 +29,6 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
-import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
@@ -237,7 +236,7 @@ public final class TopologyDTOUtil {
      */
     @Nonnull
     public static List<TopologyEntityDTO> getConnectedEntitiesOfType(
-            @Nonnull final TopologyEntityDTO entity, final int connectedEntityType,
+            @Nonnull final TopologyEntityDTOOrBuilder entity, final int connectedEntityType,
             @Nonnull Map<Long, TopologyEntityDTO> topology) {
         return entity.getConnectedEntityListList().stream()
                 .filter(e -> e.getConnectedEntityType() == connectedEntityType)
@@ -255,7 +254,7 @@ public final class TopologyDTOUtil {
      */
     @Nonnull
     public static List<TopologyEntityDTO> getConnectedEntitiesOfType(
-            @Nonnull final TopologyEntityDTO topologyEntity, final Set<Integer> connectedEntityType,
+            @Nonnull final TopologyEntityDTOOrBuilder topologyEntity, final Set<Integer> connectedEntityType,
             @Nonnull Map<Long, TopologyEntityDTO> topology) {
         return topologyEntity.getConnectedEntityListList().stream()
             .filter(entity -> connectedEntityType.contains(entity.getConnectedEntityType()))
@@ -617,17 +616,15 @@ public final class TopologyDTOUtil {
      * @return optional OID of volume providers (Storage or Storage Tier).
      */
     public static Optional<Long> getVolumeProvider(@Nonnull final TopologyEntityDTO volume) {
-        if (volume.getEnvironmentType() == EnvironmentType.CLOUD) {
-            // Get storage tier selling commodities to the volume (cloud case)
-            return volume.getCommoditiesBoughtFromProvidersList().stream()
-                    .filter(commBought -> commBought.getProviderEntityType()
-                            == EntityType.STORAGE_TIER_VALUE)
-                    .map(CommoditiesBoughtFromProvider::getProviderId)
-                    .findFirst();
-        } else {
-            // Get storage connected to the volume (on prem case)
-            return TopologyDTOUtil.getOidsOfConnectedEntityOfType(volume,
-                    EntityType.STORAGE.getNumber()).findFirst();
-        }
+        // Try to get 1st storage or storage tier selling commodities to the volume
+        return Optional.ofNullable(volume.getCommoditiesBoughtFromProvidersList().stream()
+                        .filter(commBought -> commBought
+                                        .getProviderEntityType() == EntityType.STORAGE_TIER_VALUE
+                                        || commBought.getProviderEntityType() == EntityType.STORAGE_VALUE)
+                        .map(CommoditiesBoughtFromProvider::getProviderId)
+                        .findFirst()
+                        // Get storage connected to the volume
+                        .orElse(TopologyDTOUtil.getOidsOfConnectedEntityOfType(volume,
+                                        EntityType.STORAGE.getNumber()).findFirst().orElse(null)));
     }
 }

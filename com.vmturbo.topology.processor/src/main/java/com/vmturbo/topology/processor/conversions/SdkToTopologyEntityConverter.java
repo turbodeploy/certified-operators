@@ -238,10 +238,6 @@ public class SdkToTopologyEntityConverter {
                 commodityBought.getBoughtList().forEach(b -> {
                     cbBuilder.addCommodityBought(newCommodityBoughtDTO(b, e.getCommoditiesSold()));
                 });
-                Long volumeId = commodityBought.getVolumeId();
-                if (volumeId != null) {
-                    cbBuilder.setVolumeId(volumeId);
-                }
                 // Transfer the action eligibility settings from the
                 // TopologyStitchingEntity's CommoditiesBought (if they were set)
                 // to the TopologyEntityDTO's CommoditiesBoughtFromProvider
