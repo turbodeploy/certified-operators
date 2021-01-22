@@ -8,6 +8,8 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -54,10 +56,10 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.Vir
  * Unit tests for {@link WastedFilesAnalysisEngine}.
  */
 public class WastedFilesAnalysisEngineTest {
-    private static final long STORAGE_AMOUNT_CAPACITY = 20;
-    private final long topologyContextId = 1111;
-    private final long topologyId = 2222;
-    private final TopologyType topologyType = TopologyType.REALTIME;
+    private static final int STORAGE_AMOUNT_CAPACITY = 20;
+    private long topologyContextId = 1111;
+    private long topologyId = 2222;
+    private TopologyType topologyType = TopologyType.REALTIME;
 
     private final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
         .setTopologyContextId(topologyContextId)
@@ -65,7 +67,11 @@ public class WastedFilesAnalysisEngineTest {
         .setTopologyType(topologyType)
         .build();
 
-    private final WastedFilesAnalysisEngine wastedFilesAnalysisEngine = new WastedFilesAnalysisEngine();
+
+    private static final Instant START_INSTANT = Instant.EPOCH.plus(90, ChronoUnit.MINUTES);
+    private static final Instant END_INSTANT = Instant.EPOCH.plus(100, ChronoUnit.MINUTES);
+
+    private WastedFilesAnalysisEngine wastedFilesAnalysisEngine = new WastedFilesAnalysisEngine();
 
     /**
      * Common setup code.
@@ -160,6 +166,8 @@ public class WastedFilesAnalysisEngineTest {
         final TopologyEntityDTO.Builder wastedFileVolume2 = createOnPremEntity(wastedFileVolume2Oid,
             EntityType.VIRTUAL_VOLUME);
         final String[] filePathsWasted = {"/foo/bar/file1", "/etc/turbo/file2.iso", "file3"};
+        final String[] filePathsWasted2 = {"skippedWastedFile1", "skippedWastedFile2",
+            "skippedWastedFile3"};
         final String[] filePathsUsed = {"/foo/bar/used1", "/etc/turbo/used2.iso", "used3"};
         final long[] wastedSizesKb = {900, 1100, 2400000};
         final long[] usedSizesKb = {800, 1200, 2500000};
@@ -318,9 +326,7 @@ public class WastedFilesAnalysisEngineTest {
             assertTrue(action.hasExplanation());
             assertTrue(action.getExplanation().hasDelete());
             assertTrue(action.getExplanation().getDelete().hasSizeKb());
-            final long capacityMb = action.getExplanation().getDelete().getSizeKb()
-                    / Units.NUM_OF_KB_IN_MB;
-            assertEquals(STORAGE_AMOUNT_CAPACITY, capacityMb, .001);
+            assertEquals(STORAGE_AMOUNT_CAPACITY, action.getExplanation().getDelete().getSizeKb(), .001);
         });
 
         // make sure storage tier is the target of each action
