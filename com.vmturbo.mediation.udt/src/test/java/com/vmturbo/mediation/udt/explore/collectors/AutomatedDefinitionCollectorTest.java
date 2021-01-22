@@ -32,6 +32,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  * Test class for {@link AutomatedDefinitionCollector}.
  */
 public class AutomatedDefinitionCollectorTest {
+    private static final Long DEFINITION_ID = 1000L;
 
     /**
      * The method tests that the collector correctly generates ID for a UDT entity.
@@ -39,7 +40,7 @@ public class AutomatedDefinitionCollectorTest {
     @Test
     public void testGenerateId() {
         AutomatedDefinitionCollector collector
-                = new AutomatedDefinitionCollector(1000L, AutomatedEntityDefinition.newBuilder().build());
+                = new AutomatedDefinitionCollector(DEFINITION_ID, AutomatedEntityDefinition.newBuilder().build());
         String name = "some-object-name";
         String id = collector.generateUdtEntityId(name);
         Assert.assertEquals("1d3f1f6ed0961903b2edac41d3f99921c176b900", id);
@@ -82,7 +83,7 @@ public class AutomatedDefinitionCollectorTest {
                         .setTagKey(tag)
                         .build())
                 .build();
-        AutomatedDefinitionCollector collector = new AutomatedDefinitionCollector(1000L, definition);
+        AutomatedDefinitionCollector collector = new AutomatedDefinitionCollector(DEFINITION_ID, definition);
         Set<UdtEntity> set = collector.collectEntities(dataProvider);
         Assert.assertEquals(2, set.size());
         UdtEntity usRegionEntity = set.stream().filter(udt -> udt.getChildren().size() == 2).findFirst().orElse(null);
@@ -90,6 +91,20 @@ public class AutomatedDefinitionCollectorTest {
         Assert.assertEquals("udt_Region_us", usRegionEntity.getName());
         Assert.assertEquals("0474bc8c48a6b0bfc77bda29c045075e9451c384", usRegionEntity.getId());
         Assert.assertEquals(EntityType.SERVICE, usRegionEntity.getEntityType());
+    }
+
+    /**
+     * The method tests that the collector returns empty collection if definition is invalid-.
+     */
+    @Test
+    public void testCollectEntitiesIfDefinitionInvalid() {
+        DataProvider dataProvider = Mockito.mock(DataProvider.class);
+
+        AutomatedEntityDefinition definition = AutomatedEntityDefinition.newBuilder()
+                .build();
+        AutomatedDefinitionCollector collector = new AutomatedDefinitionCollector(DEFINITION_ID, definition);
+        Set<UdtEntity> set = collector.collectEntities(dataProvider);
+        Assert.assertTrue(set.isEmpty());
     }
 
     /**
@@ -112,7 +127,7 @@ public class AutomatedDefinitionCollectorTest {
                                                         .setTagKey(tag)
                                                         .build())
                         .build();
-        AutomatedDefinitionCollector collector = new AutomatedDefinitionCollector(1000L, definition);
+        AutomatedDefinitionCollector collector = new AutomatedDefinitionCollector(DEFINITION_ID, definition);
         Set<UdtEntity> set = collector.collectEntities(dataProvider);
         Assert.assertTrue(set.isEmpty());
     }
@@ -147,7 +162,7 @@ public class AutomatedDefinitionCollectorTest {
                         .setTagKey(tag)
                         .build())
                 .build();
-        AutomatedDefinitionCollector collector = new AutomatedDefinitionCollector(1000L, definition);
+        AutomatedDefinitionCollector collector = new AutomatedDefinitionCollector(DEFINITION_ID, definition);
         Set<UdtEntity> set = collector.collectEntities(dataProvider);
         Assert.assertEquals(2, set.size());
         List<UdtEntity> udtList = new ArrayList<>(set);

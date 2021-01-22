@@ -6,6 +6,8 @@ import static com.vmturbo.platform.sdk.common.util.SDKUtil.VENDOR_ID;
 import static java.util.Collections.emptySet;
 
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 
 import com.google.common.collect.Sets;
 
@@ -44,9 +46,28 @@ public class OidToUdtMappingTaskTest {
                 .putEntityPropertyMap(VENDOR, UDT_PROBE_TAG)
                 .putEntityPropertyMap(VENDOR_ID, udtId)
                 .build();
+        Mockito.when(dataProvider.getUdtTargetId()).thenReturn(1L);
         Mockito.when(dataProvider.searchEntitiesByTargetId(Mockito.anyLong()))
                 .thenReturn(Collections.singleton(entityDTO));
         OidToUdtMappingTask.execute(Sets.newHashSet(udtTransaction, udtService), dataProvider);
         Assert.assertEquals(udtId, childService.getDtoId());
+    }
+
+    /**
+     * Tests executing {@link OidToUdtMappingTask} task when Udt target identifier
+     * cannot be determined.
+     */
+    @Test
+    public void testExecuteIfNoUdtTargetId() {
+        Set<UdtEntity> definedEntities = new HashSet<>();
+        DataProvider dataProvider = Mockito.mock(DataProvider.class);
+
+        Mockito.when(dataProvider.getUdtTargetId()).thenReturn(null);
+
+        Set<UdtEntity> result = OidToUdtMappingTask.execute(definedEntities, dataProvider);
+
+        Assert.assertNotNull(result);
+        Assert.assertTrue(result.isEmpty());
+        Assert.assertSame(definedEntities, result);
     }
 }

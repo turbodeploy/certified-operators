@@ -26,27 +26,41 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  * Test class for {@link ManualDefinitionCollector}.
  */
 public class ManualDefinitionCollectorTest {
+    private static final Long DEFINITION_ID = 1000L;
 
     /**
      * The method test that the collector correctly handles definition without associated entities.
      */
     @Test
     public void testCollectEntities() {
-        Long id = 1000L;
         ManualEntityDefinition definition = ManualEntityDefinition
                 .newBuilder()
                 .setEntityName("UDT-Service")
                 .setEntityType(EntityType.SERVICE)
                 .addAssociatedEntities(AssociatedEntitySelectionCriteria.newBuilder().build())
                 .build();
-        ManualDefinitionCollector collector = new ManualDefinitionCollector(id, definition);
+        ManualDefinitionCollector collector = new ManualDefinitionCollector(DEFINITION_ID, definition);
         DataProvider dataProvider = Mockito.mock(DataProvider.class);
         Set<UdtEntity> udtEntities = collector.collectEntities(dataProvider);
         Assert.assertFalse(udtEntities.isEmpty());
         UdtEntity udtEntity = udtEntities.iterator().next();
-        Assert.assertEquals(String.valueOf(id), udtEntity.getId());
+        Assert.assertEquals(String.valueOf(DEFINITION_ID), udtEntity.getId());
         Assert.assertEquals(EntityType.SERVICE, udtEntity.getEntityType());
         Assert.assertEquals("UDT-Service", udtEntity.getName());
+    }
+
+    /**
+     * The method test that the collector correctly handles invalid definitions.
+     */
+    @Test
+    public void testCollectEntitiesIfDefinitionInvalid() {
+        ManualEntityDefinition definition = ManualEntityDefinition
+                .newBuilder()
+                .build();
+        ManualDefinitionCollector collector = new ManualDefinitionCollector(DEFINITION_ID, definition);
+        DataProvider dataProvider = Mockito.mock(DataProvider.class);
+        Set<UdtEntity> udtEntities = collector.collectEntities(dataProvider);
+        Assert.assertTrue(udtEntities.isEmpty());
     }
 
     /**
@@ -71,7 +85,7 @@ public class ManualDefinitionCollectorTest {
                                 .build())
                         .build())
                 .build();
-        ManualDefinitionCollector collector = new ManualDefinitionCollector(1000L, definition);
+        ManualDefinitionCollector collector = new ManualDefinitionCollector(DEFINITION_ID, definition);
         DataProvider dataProvider = Mockito.mock(DataProvider.class);
         Set<UdtEntity> udtEntities = collector.collectEntities(dataProvider);
         Assert.assertFalse(udtEntities.isEmpty());
@@ -97,7 +111,7 @@ public class ManualDefinitionCollectorTest {
                         .setAssociatedGroup(groupID)
                         .build())
                 .build();
-        ManualDefinitionCollector collector = new ManualDefinitionCollector(1000L, definition);
+        ManualDefinitionCollector collector = new ManualDefinitionCollector(DEFINITION_ID, definition);
         DataProvider dataProvider = Mockito.mock(DataProvider.class);
         Mockito.when(dataProvider.getGroupMembersIds(groupID))
                 .thenReturn(Sets.newSet(1000L, 2000L, 3000L));
@@ -133,7 +147,7 @@ public class ManualDefinitionCollectorTest {
                         .setConnectedEntityType(EntityType.APPLICATION_COMPONENT)
                         .build())
                 .build();
-        ManualDefinitionCollector collector = new ManualDefinitionCollector(1000L, definition);
+        ManualDefinitionCollector collector = new ManualDefinitionCollector(DEFINITION_ID, definition);
         DataProvider dataProvider = Mockito.mock(DataProvider.class);
         Mockito.when(dataProvider.searchEntities(dynamicConnectionFilters.getSearchParametersList()))
                 .thenReturn(Sets.newSet(

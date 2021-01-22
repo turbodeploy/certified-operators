@@ -113,6 +113,7 @@ public class TopologyDataDefinitionServiceTest {
                 .setId(456)
                 .setDefinition(automatedProto)
                 .build();
+        // Context-based ATD to verify that it won't be returned from service implementation
         TopologyDataDefinitionEntry manualContextBasedEntry = TopologyDataDefinitionEntry.newBuilder()
                 .setId(789)
                 .setDefinition(manualContextBasedProto)
