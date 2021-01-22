@@ -3,23 +3,19 @@ package com.vmturbo.cost.component.savings;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
-import java.io.IOException;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
-import org.apache.commons.collections4.MultiValuedMap;
-import org.apache.commons.collections4.multimap.HashSetValuedHashMap;
+import com.google.common.collect.ImmutableSet;
+
 import org.jooq.DSLContext;
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -30,9 +26,6 @@ import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;
 import com.vmturbo.components.api.TimeUtil;
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.cost.component.db.Cost;
-import com.vmturbo.cost.component.db.Tables;
-import com.vmturbo.cost.component.db.tables.records.EntityCloudScopeRecord;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
 
@@ -83,21 +76,6 @@ public class SqlEntitySavingsStoreTest {
     private static final long vm2Id = 201L;
 
     /**
-     * Account id.
-     */
-    private static final long account1Id = 301L;
-
-    /**
-     * Region.
-     */
-    private static final long region1Id = 401L;
-
-    /**
-     * CSP scope.
-     */
-    private static final long csp1Id = 501L;
-
-    /**
      * Realized savings test value.
      */
     private static final double realizedSavings = 10.532d;
@@ -131,14 +109,10 @@ public class SqlEntitySavingsStoreTest {
      * Testing reads/writes for hourly stats table.
      *
      * @throws EntitySavingsException Thrown on DB error.
-     * @throws IOException Thrown on insert scope DB error.
      */
     @Test
-    public void testHourlyStats() throws EntitySavingsException, IOException {
+    public void testHourlyStats() throws EntitySavingsException {
         final Set<EntitySavingsStats> hourlyStats = new HashSet<>();
-
-        // Set scope
-        insertScopeRecords();
 
         // Get exact time, strip of the hour part.
         final LocalDateTime timeExact1PM = Instant.now(clock).atZone(ZoneOffset.UTC)
@@ -155,89 +129,47 @@ public class SqlEntitySavingsStoreTest {
         setStatsValues(hourlyStats, vm2Id, timeExact2PM, 40); // VM2 at 2PM.
 
         setStatsValues(hourlyStats, vm1Id, timeExact3PM, 50); // VM1 at 3PM.
-        setStatsValues(hourlyStats, vm2Id, timeExact3PM, 50); // VM2 at 3PM.
+        setStatsValues(hourlyStats, vm2Id, timeExact3PM, 60); // VM2 at 3PM.
 
         // Write it.
         store.addHourlyStats(hourlyStats);
 
         final Set<EntitySavingsStatsType> allStatsTypes = Arrays.stream(EntitySavingsStatsType
                 .values()).collect(Collectors.toSet());
-
         // Read back and verify.
-        MultiValuedMap<EntityType, Long> entitiesByType = new HashSetValuedHashMap<>();
-        entitiesByType.put(EntityType.VIRTUAL_MACHINE, vm1Id);
-        entitiesByType.put(EntityType.VIRTUAL_MACHINE, vm2Id);
-
-        Set<AggregatedSavingsStats> statsReadBack = store.getHourlyStats(allStatsTypes,
+        final Set<Long> bothVms = ImmutableSet.of(vm1Id, vm2Id);
+        Set<EntitySavingsStats> statsReadBack = store.getHourlyStats(allStatsTypes,
                 TimeUtil.localDateTimeToMilli(timeExact0PM, clock),
                 TimeUtil.localDateTimeToMilli(timeExact1PM, clock),
-                entitiesByType);
-        // 0 stats sets, for 12-1 PM range, because end time (1 PM) is exclusive.
-        assertEquals(0, statsReadBack.size());
+                bothVms);
+        assertEquals(0, statsReadBack.size()); // 0 stats sets, for 12-1 PM range.
 
         statsReadBack = store.getHourlyStats(allStatsTypes,
                 TimeUtil.localDateTimeToMilli(timeExact1PM, clock),
                 TimeUtil.localDateTimeToMilli(timeExact2PM, clock),
-                entitiesByType);
-        // 1 stats sets of 8 stats types, aggregated for both VMs, both 1PM, for 1-2 PM range.
-        assertEquals(8, statsReadBack.size());
+                bothVms);
+        assertEquals(16, statsReadBack.size()); // 2 stats sets, both 1PM, for 1-2 PM range.
 
         statsReadBack = store.getHourlyStats(allStatsTypes,
                 TimeUtil.localDateTimeToMilli(timeExact2PM, clock),
                 TimeUtil.localDateTimeToMilli(timeExact3PM, clock),
-                entitiesByType);
-        // 1 stats sets of 8 stats types, aggregated for both VMs, for 2-3 PM range.
-        assertEquals(8, statsReadBack.size());
+                bothVms);
+        assertEquals(16, statsReadBack.size()); // 2 stats sets, both 2PM, for 2-3 PM range.
 
         statsReadBack = store.getHourlyStats(allStatsTypes,
                 TimeUtil.localDateTimeToMilli(timeExact3PM, clock),
                 TimeUtil.localDateTimeToMilli(timeExact4PM, clock),
-                entitiesByType);
-        // 1 stats sets of 8 stats types, aggregated for both VMs, both 3PM, for 3-4 PM range.
-        assertEquals(8, statsReadBack.size());
-        checkStatsValues(statsReadBack, vm1Id, timeExact3PM, 50, vm2Id);
+                bothVms);
+        assertEquals(16, statsReadBack.size()); // 2 stats sets, both 3PM, for 3-4 PM range.
 
         // Verify data for 1 VM.
-        entitiesByType.removeMapping(EntityType.VIRTUAL_MACHINE, vm2Id);
         statsReadBack = store.getHourlyStats(allStatsTypes,
                 TimeUtil.localDateTimeToMilli(timeExact3PM, clock),
                 TimeUtil.localDateTimeToMilli(timeExact4PM, clock),
-                entitiesByType);
-        // 1 stats sets of 8 stats types, for the 1 VM, both 3PM, for 3-4 PM range.
-        assertEquals(8, statsReadBack.size());
-        checkStatsValues(statsReadBack, vm1Id, timeExact3PM, 50, null);
-    }
-
-    /**
-     * Inserts entries into scope table, required because of join with that table.
-     *
-     * @throws IOException Thrown on insert error.
-     */
-    private void insertScopeRecords() throws IOException {
-        final List<EntityCloudScopeRecord> scopeRecords = new ArrayList<>();
-        final EntityCloudScopeRecord rec1 = new EntityCloudScopeRecord();
-        rec1.setEntityOid(vm1Id);
-        rec1.setAccountOid(account1Id);
-        rec1.setRegionOid(region1Id);
-        rec1.setServiceProviderOid(csp1Id);
-        scopeRecords.add(rec1);
-        final EntityCloudScopeRecord rec2 = new EntityCloudScopeRecord();
-        rec2.setEntityOid(vm2Id);
-        rec2.setAccountOid(account1Id);
-        rec2.setRegionOid(region1Id);
-        rec2.setServiceProviderOid(csp1Id);
-        scopeRecords.add(rec2);
-
-        ((SqlEntitySavingsStore)store).getDsl().loadInto(Tables.ENTITY_CLOUD_SCOPE)
-                .batchAll()
-                .onDuplicateKeyUpdate()
-                .loadRecords(scopeRecords)
-                .fields(Tables.ENTITY_CLOUD_SCOPE.ENTITY_OID,
-                        Tables.ENTITY_CLOUD_SCOPE.ACCOUNT_OID,
-                        Tables.ENTITY_CLOUD_SCOPE.REGION_OID,
-                        Tables.ENTITY_CLOUD_SCOPE.AVAILABILITY_ZONE_OID,
-                        Tables.ENTITY_CLOUD_SCOPE.SERVICE_PROVIDER_OID)
-                .execute();
+                ImmutableSet.of(vm1Id));
+        assertEquals(8, statsReadBack.size()); // 1 stats set, for vm1, for 3-4 PM range.
+        final EntitySavingsStats stats = statsReadBack.iterator().next();
+        checkStatsValues(statsReadBack, vm1Id, timeExact3PM, 50);
     }
 
     /**
@@ -291,19 +223,16 @@ public class SqlEntitySavingsStoreTest {
      * @param vmId Id of VM.
      * @param dateTime Stats time.
      * @param multiple Multiple value used for dummy stats data.
-     * @param vm2Id Id of 2nd VM, if non-null.
      */
-    private void checkStatsValues(@Nonnull final Set<AggregatedSavingsStats> statsReadBack, long vmId,
-            @Nonnull final LocalDateTime dateTime, int multiple, @Nullable Long vm2Id) {
+    private void checkStatsValues(@Nonnull final Set<EntitySavingsStats> statsReadBack, long vmId,
+            @Nonnull final LocalDateTime dateTime, int multiple) {
         assertNotNull(statsReadBack);
         statsReadBack.forEach(stats -> {
+                    assertEquals(stats.getEntityId(), vmId);
                     assertEquals(TimeUtil.localDateTimeToMilli(dateTime, clock),
                             stats.getTimestamp());
 
                     double expectedValue = getDummyValue(stats.getType(), multiple, vmId);
-                    if (vm2Id != null) {
-                        expectedValue += getDummyValue(stats.getType(), multiple, vm2Id);
-                    }
                     assertEquals(expectedValue, stats.getValue(), EPSILON_PRECISION);
                 });
     }

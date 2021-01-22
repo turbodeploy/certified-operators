@@ -4,10 +4,7 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.collections4.MultiValuedMap;
-
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Interface for read/write of entity savings/investments related hourly/daily/monthly statistics.
@@ -30,13 +27,12 @@ public interface EntitySavingsStore {
      * @param statsTypes Type of stats to query for.
      * @param startTime Start time (epoch millis) to fetch stats for. Inclusive.
      * @param endTime End time (epoch millis) to fetch stats for. Exclusive.
-     * @param entitiesByType EntityType to a set of entities of that type to scope by.
+     * @param entityIds Set of entity ids to get data for.
      * @return Set of queried stats.
      * @throws EntitySavingsException Thrown on storage error.
      */
     @Nonnull
-    Set<AggregatedSavingsStats> getHourlyStats(@Nonnull Set<EntitySavingsStatsType> statsTypes,
-            @Nonnull Long startTime, @Nonnull Long endTime,
-            @Nonnull MultiValuedMap<EntityType, Long> entitiesByType)
+    Set<EntitySavingsStats> getHourlyStats(@Nonnull Set<EntitySavingsStatsType> statsTypes,
+            @Nonnull Long startTime, @Nonnull Long endTime, @Nonnull Set<Long> entityIds)
             throws EntitySavingsException;
 }

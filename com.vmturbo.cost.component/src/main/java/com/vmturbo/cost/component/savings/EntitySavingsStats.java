@@ -12,11 +12,26 @@ import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;
 /**
  * Keeps stats (like REALIZED_SAVINGS) of a particular type, for an entity, at a given timestamp.
  */
-public class EntitySavingsStats extends BaseSavingsStats {
+public class EntitySavingsStats {
     /**
      * VM/DB/Volume id for which stats is stored.
      */
     private final long entityId;
+
+    /**
+     * Stats timestamp, e.g 14:00:00 for hourly stats.
+     */
+    private final long timestamp;
+
+    /**
+     * Type of stats, e.g CUMULATIVE_REALIZED_SAVINGS.
+     */
+    private final EntitySavingsStatsType type;
+
+    /**
+     * Value (cost price) of stats.
+     */
+    private final Double value;
 
     /**
      * Creates a new one.
@@ -28,8 +43,10 @@ public class EntitySavingsStats extends BaseSavingsStats {
      */
     public EntitySavingsStats(long entityId, long timestamp, EntitySavingsStatsType statsType,
             @Nonnull Double statsValue) {
-        super(timestamp, statsType, statsValue);
         this.entityId = entityId;
+        this.timestamp = timestamp;
+        this.type = statsType;
+        this.value = statsValue;
     }
 
     /**
@@ -42,6 +59,34 @@ public class EntitySavingsStats extends BaseSavingsStats {
     }
 
     /**
+     * Stats timestamp, e.g 14:00:00 for hourly stats.
+     *
+     * @return Stats timestamp, e.g 14:00:00 for hourly stats.
+     */
+    public long getTimestamp() {
+        return timestamp;
+    }
+
+    /**
+     * Gets type of the stats being stored.
+     *
+     * @return Stats type.
+     */
+    public EntitySavingsStatsType getType() {
+        return type;
+    }
+
+    /**
+     * Gets the stats value.
+     *
+     * @return Value of stats.
+     */
+    @Nonnull
+    public Double getValue() {
+        return value;
+    }
+
+    /**
      * Checking equality, entityId and timestamp together make up unique key.
      *
      * @param o Other stats object.
@@ -49,9 +94,6 @@ public class EntitySavingsStats extends BaseSavingsStats {
      */
     @Override
     public boolean equals(Object o) {
-        if (!super.equals(o)) {
-            return false;
-        }
         if (this == o) {
             return true;
         }
@@ -59,7 +101,7 @@ public class EntitySavingsStats extends BaseSavingsStats {
             return false;
         }
         EntitySavingsStats that = (EntitySavingsStats)o;
-        return entityId == that.entityId;
+        return entityId == that.entityId && timestamp == that.timestamp && type == that.type;
     }
 
     /**
