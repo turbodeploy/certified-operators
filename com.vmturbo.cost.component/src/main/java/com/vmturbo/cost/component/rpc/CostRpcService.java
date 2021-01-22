@@ -1,5 +1,6 @@
 package com.vmturbo.cost.component.rpc;
 
+import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.toSet;
 
 import java.time.Clock;
@@ -30,6 +31,8 @@ import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.collections4.MultiValuedMap;
+import org.apache.commons.collections4.multimap.HashSetValuedHashMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.exception.DataAccessException;
@@ -51,6 +54,9 @@ import com.vmturbo.common.protobuf.cost.Cost.Discount;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost.ComponentCost;
+import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsRecord;
+import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsRecord.SavingsRecord;
+import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudExpenseStatsRequest;
@@ -58,6 +64,7 @@ import com.vmturbo.common.protobuf.cost.Cost.GetCloudExpenseStatsRequest.GroupBy
 import com.vmturbo.common.protobuf.cost.Cost.GetCurrentAccountExpensesRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetCurrentAccountExpensesResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetDiscountRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetEntitySavingsStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetTierPriceForEntitiesRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetTierPriceForEntitiesResponse;
 import com.vmturbo.common.protobuf.cost.Cost.UpdateDiscountRequest;
@@ -74,6 +81,9 @@ import com.vmturbo.cost.component.entity.cost.EntityCostStore;
 import com.vmturbo.cost.component.entity.cost.PlanProjectedEntityCostStore;
 import com.vmturbo.cost.component.entity.cost.ProjectedEntityCostStore;
 import com.vmturbo.cost.component.expenses.AccountExpensesStore;
+import com.vmturbo.cost.component.savings.AggregatedSavingsStats;
+import com.vmturbo.cost.component.savings.EntitySavingsException;
+import com.vmturbo.cost.component.savings.EntitySavingsStore;
 import com.vmturbo.cost.component.savings.EntitySavingsTracker;
 import com.vmturbo.cost.component.util.AccountExpensesFilter.AccountExpenseFilterBuilder;
 import com.vmturbo.cost.component.util.BusinessAccountHelper;
@@ -131,6 +141,8 @@ public class CostRpcService extends CostServiceImplBase {
 
     private final EntitySavingsTracker entitySavingsTracker;
 
+    private final EntitySavingsStore entitySavingsStore;
+
     /**
      * Create a new RIAndExpenseUploadRpcService.
      *
@@ -145,6 +157,7 @@ public class CostRpcService extends CostServiceImplBase {
      * @param realtimeTopologyContextId real-time topology context ID
      * @param maxNumberOfInnerStatRecords maximum number of stats transferred in a single GRPC message
      * @param entitySavingsTracker entity savings tracker
+     * @param savingsStore Entity Savings DB store.
      */
     public CostRpcService(@Nonnull final DiscountStore discountStore,
                           @Nonnull final AccountExpensesStore accountExpensesStore,
@@ -156,7 +169,8 @@ public class CostRpcService extends CostServiceImplBase {
                           @Nonnull final Clock clock,
                           final long realtimeTopologyContextId,
                           final int maxNumberOfInnerStatRecords,
-                          @Nonnull final EntitySavingsTracker entitySavingsTracker) {
+                          @Nonnull final EntitySavingsTracker entitySavingsTracker,
+                          @Nonnull final EntitySavingsStore savingsStore) {
         this.discountStore = Objects.requireNonNull(discountStore);
         this.accountExpensesStore = Objects.requireNonNull(accountExpensesStore);
         this.entityCostStore = Objects.requireNonNull(costStoreHouse);
@@ -168,6 +182,7 @@ public class CostRpcService extends CostServiceImplBase {
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.maxNumberOfInnerStatRecords = maxNumberOfInnerStatRecords;
         this.entitySavingsTracker = entitySavingsTracker;
+        this.entitySavingsStore = savingsStore;
     }
 
     /**
@@ -584,7 +599,7 @@ public class CostRpcService extends CostServiceImplBase {
         String costUnits = timeFrame.getUnits();
         double costMultiplier = timeFrame.getMultiplier();
         final Map<Long, List<AccountExpenseStat>> aggregatedMap = accountExpenseStats.stream()
-                .collect(Collectors.groupingBy(AccountExpenseStat::getAssociatedEntityId));
+                .collect(groupingBy(AccountExpenseStat::getAssociatedEntityId));
         final List<StatRecord> aggregatedStatRecords = Lists.newArrayList();
         aggregatedMap.forEach((id, stats) -> {
             final CloudCostStatRecord.StatRecord.Builder statRecordBuilder = CloudCostStatRecord.StatRecord.newBuilder()
@@ -856,6 +871,64 @@ public class CostRpcService extends CostServiceImplBase {
         return discounts.stream()
                 .findFirst()
                 .orElseThrow(() -> new DiscountNotFoundException(FAILED_TO_FIND_THE_UPDATED_DISCOUNT));
+    }
+
+    /**
+     * Query savings stats records.
+     *
+     * @param request Stats request.
+     * @param responseObserver Response with stats records.
+     */
+    @Override
+    public void getEntitySavingsStats(@Nonnull final GetEntitySavingsStatsRequest request,
+            @Nonnull final StreamObserver<EntitySavingsStatsRecord> responseObserver) {
+        try {
+            final Set<EntitySavingsStatsType> statsTypes = new HashSet<>(request.getStatsTypesList());
+            final Set<Long> entityIds = new HashSet<>(request.getEntityFilter().getEntityIdList());
+            MultiValuedMap<EntityType, Long> entitiesByType = new HashSetValuedHashMap<>();
+            // Currently entities are assumed to be only VMs, later sprints will add more support.
+            entitiesByType.putAll(EntityType.VIRTUAL_MACHINE, entityIds);
+
+            final Set<AggregatedSavingsStats> stats = entitySavingsStore.getHourlyStats(statsTypes,
+                    request.getStartDate(), request.getEndDate(), entitiesByType);
+
+            final Set<EntitySavingsStatsRecord> records = createSavingsStatsRecords(stats);
+            records.forEach(responseObserver::onNext);
+            responseObserver.onCompleted();
+        } catch (EntitySavingsException | RuntimeException e) {
+            responseObserver.onError(Status.INTERNAL
+                    .withDescription(e.getMessage())
+                    .asException());
+        }
+    }
+
+    /**
+     * Converts stats coming from DB query response, into stats records that API needs.
+     *
+     * @param stats Stats from DB query, one per stats type, per VM and timestamp.
+     * @return Stats records, each with VM id and timestamp, having all stats type as records.
+     */
+    private Set<EntitySavingsStatsRecord> createSavingsStatsRecords(
+            @Nonnull final Set<AggregatedSavingsStats> stats) {
+        // Group stats by timestamp.
+        final Map<Long, List<AggregatedSavingsStats>> groupedStats =
+                stats.stream()
+                        .collect(groupingBy(oneStat -> oneStat.getTimestamp()));
+
+        // Now make up the stats records to be returned.
+        final Set<EntitySavingsStatsRecord> records = new HashSet<>();
+        groupedStats.forEach((timestamp, statsList) -> {
+            final EntitySavingsStatsRecord.Builder recBuilder = EntitySavingsStatsRecord.newBuilder()
+                    .setSnapshotDate(timestamp);
+            statsList.forEach(aStat -> {
+                recBuilder.addStatRecords(SavingsRecord.newBuilder()
+                        .setName(aStat.getType().name())
+                        .setValue(aStat.getValue().floatValue())
+                        .build());
+            });
+            records.add(recBuilder.build());
+        });
+        return records;
     }
 
     /**
