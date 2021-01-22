@@ -274,6 +274,24 @@ public class EconomyCaches {
         logger.info(logPrefix + "Real time economy cache is ready now.");
         logger.info(logPrefix + "Real time reservation cache update time : " + realtimeCacheStartUpdateTime
                 .until(realtimeCacheEndUpdateTime, ChronoUnit.SECONDS) + " seconds");
+        updateAccessCommoditiesInHistoricalEconomyCache(realtimeCachedEconomy, realtimeCachedCommTypeMap);
+    }
+
+    /**
+     * Update historical cached economy's access commodities based on real time cached economy.
+     *
+     * @param realtimeCachedEconomy real time economy.
+     * @param realtimeCachedCommTypeMap the commodity type to commoditySpecification's type mapping.
+     */
+    private void updateAccessCommoditiesInHistoricalEconomyCache(
+            @Nonnull final Economy realtimeCachedEconomy,
+            @Nonnull final BiMap<CommodityType, Integer> realtimeCachedCommTypeMap) {
+        if (!getState().isHistoricalCacheReceived() || historicalCachedEconomy.getTopology().getTradersByOid().isEmpty()) {
+            logger.warn(logPrefix + "Historical economy cache is not ready to be updated with commodities.");
+            return;
+        }
+        InitialPlacementUtils.updateAccessCommodities(realtimeCachedEconomy, realtimeCachedCommTypeMap,
+                historicalCachedEconomy, historicalCachedCommTypeMap);
     }
 
     /**

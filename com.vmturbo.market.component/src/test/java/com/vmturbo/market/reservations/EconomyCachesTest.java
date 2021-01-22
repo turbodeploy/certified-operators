@@ -45,10 +45,12 @@ public class EconomyCachesTest {
     private static final int ST_AMT_TYPE = CommodityType.STORAGE_AMOUNT_VALUE;
     private static final int CLUSTER1_COMM_SPEC_TYPE = 300;
     private static final int CLUSTER2_COMM_SPEC_TYPE = 400;
+    private static final int MERGE_CLUSTERS_COMM_SPEC_TYPE = 500;
     private static final int ST_CLUSTER1_COMM_SPEC_TYPE = 700;
     private static final int ST_CLUSTER2_COMM_SPEC_TYPE = 800;
     private static final String cluster1Key = "cluster1";
     private static final String cluster2Key = "cluster2";
+    private static final String mergeClusterKey = "merge";
     private static final double pmMemCapacity = 100;
     private static final long pm1Oid = 1111L;
     private static final double pm1MemUsed = 20;
@@ -87,7 +89,19 @@ public class EconomyCachesTest {
         commTypeToSpecMap.put(TopologyDTO.CommodityType.newBuilder()
                         .setType(CommodityType.STORAGE_CLUSTER_VALUE).setKey(cluster2Key).build(),
                 ST_CLUSTER2_COMM_SPEC_TYPE);
+        commTypeToSpecMap.put(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.CLUSTER_VALUE)
+                .setKey(mergeClusterKey).build(), MERGE_CLUSTERS_COMM_SPEC_TYPE);
+    }
 
+    /**
+     * A utility method to compare the two double values.
+     *
+     * @param a the value to be compared.
+     * @param b the value to be compared.
+     * @return true if two values are equal.
+     */
+    private boolean compareDoubleEqual(double a, double b) {
+        return Math.abs(a - b) <= 0.000001;
     }
 
     /**
@@ -115,15 +129,18 @@ public class EconomyCachesTest {
         Assert.assertFalse(economyCaches.getState().isEconomyReady());
         economyCaches.updateRealtimeCachedEconomy(simpleEconomy(), commTypeToSpecMap,
                 buyerPlacements, existingReservations);
+        Assert.assertTrue(economyCaches.getState().isRealtimeCacheReceived());
         Economy newEconomy =  economyCaches.realtimeCachedEconomy;
         Assert.assertTrue(newEconomy.getTraders().size() == 3);
         Trader trader = newEconomy.getTopology().getTradersByOid().get(buyerOid);
         Assert.assertTrue(trader != null && newEconomy.getMarketsAsBuyer(trader).keySet().stream()
                 .anyMatch(sl -> sl.getSupplier().getOid() == pm1Oid));
         Trader pm1 = newEconomy.getTopology().getTradersByOid().get(pm1Oid);
-        Assert.assertTrue(pm1.getCommoditiesSold().stream().allMatch(c -> c.getQuantity() == buyerMemUsed + pm1MemUsed));
+        Assert.assertTrue(pm1.getCommoditiesSold().stream().allMatch(c -> compareDoubleEqual(c.getQuantity(),
+                buyerMemUsed + pm1MemUsed)));
         Trader pm2 = newEconomy.getTopology().getTradersByOid().get(pm2Oid);
-        Assert.assertTrue(pm2.getCommoditiesSold().stream().allMatch(c -> c.getQuantity() ==  pm2MemUsed));
+        Assert.assertTrue(pm2.getCommoditiesSold().stream().allMatch(c -> compareDoubleEqual(c.getQuantity(),
+                pm2MemUsed)));
         Assert.assertTrue(economyCaches.getState().isRealtimeCacheReceived());
         Assert.assertTrue(newEconomy.getMarketsAsBuyer(trader).keySet().stream()
                 .allMatch(sl -> sl.isMovable() == false));
@@ -154,6 +171,7 @@ public class EconomyCachesTest {
         Map<Long, List<InitialPlacementDecision>> newPlacements = economyCaches
                 .updateHistoricalCachedEconomy(simpleEconomy(), commTypeToSpecMap, buyerPlacements,
                         existingReservations);
+        Assert.assertTrue(economyCaches.getState().isHistoricalCacheReceived());
         Economy newEconomy =  economyCaches.historicalCachedEconomy;
         Assert.assertTrue(newPlacements.get(buyerOid).stream().allMatch(i -> i.supplier.get() == pm2Oid));
         Assert.assertTrue(newEconomy.getTraders().size() == 3);
@@ -165,9 +183,10 @@ public class EconomyCachesTest {
                 .anyMatch(sl -> sl.getSupplier().getOid() == pm1Oid));
         Trader pm1 = newEconomy.getTopology().getTradersByOid().get(pm1Oid);
         Assert.assertTrue(pm1.getCommoditiesSold().stream()
-                .allMatch(c -> c.getQuantity() == buyerMemUsed + pm1MemUsed));
+                .allMatch(c -> compareDoubleEqual(c.getQuantity(), buyerMemUsed + pm1MemUsed)));
         Trader pm2 = newEconomy.getTopology().getTradersByOid().get(pm2Oid);
-        Assert.assertTrue(pm2.getCommoditiesSold().stream().allMatch(c -> c.getQuantity() ==  pm2MemUsed));
+        Assert.assertTrue(pm2.getCommoditiesSold().stream().allMatch(c ->
+                compareDoubleEqual(c.getQuantity(), pm2MemUsed)));
         Assert.assertTrue(newEconomy.getMarketsAsBuyer(trader).keySet().stream()
                 .allMatch(sl -> sl.isMovable() == false));
     }
@@ -210,7 +229,7 @@ public class EconomyCachesTest {
                 .anyMatch(sl -> sl.getSupplier().getOid() == pm1Oid));
         Trader pm1 = newEconomy.getTopology().getTradersByOid().get(pm1Oid);
         Assert.assertTrue(pm1.getCommoditiesSold().stream()
-                .anyMatch(c -> c.getQuantity() == buyerMemUsed + pm1MemUsed));
+                .anyMatch(c -> compareDoubleEqual(c.getQuantity(), buyerMemUsed + pm1MemUsed)));
         Assert.assertTrue(newEconomy.getMarketsAsBuyer(trader).keySet().stream()
                 .allMatch(sl -> sl.isMovable() == false));
     }
@@ -240,16 +259,19 @@ public class EconomyCachesTest {
         economyCaches.getState().setReservationReceived(true);
         economyCaches.updateRealtimeCachedEconomy(simpleEconomy(), commTypeToSpecMap, buyerPlacements,
                         existingReservations);
+        Assert.assertTrue(economyCaches.getState().isRealtimeCacheReceived());
         Map<Long, List<InitialPlacementDecision>> newPlacements = economyCaches
                 .updateHistoricalCachedEconomy(simpleEconomy(), commTypeToSpecMap, buyerPlacements,
                         existingReservations);
+        Assert.assertTrue(economyCaches.getState().isHistoricalCacheReceived());
         Economy newEconomy =  economyCaches.historicalCachedEconomy;
         Assert.assertTrue(newPlacements.get(buyerOid).stream()
                 .allMatch(i -> i.supplier.equals(Optional.empty())));
         Assert.assertTrue(newEconomy.getTraders().size() == 2);
         Assert.assertTrue(newEconomy.getTraders().stream().allMatch(t -> t.getType() == PM_TYPE));
         Trader pm2 = newEconomy.getTopology().getTradersByOid().get(pm2Oid);
-        Assert.assertTrue(pm2.getCommoditiesSold().stream().anyMatch(c -> c.getQuantity() ==  pm2MemUsed));
+        Assert.assertTrue(pm2.getCommoditiesSold().stream().anyMatch(c ->
+                compareDoubleEqual(c.getQuantity(), pm2MemUsed)));
         Assert.assertFalse(newEconomy.getTopology().getTradersByOid().containsKey(buyerOid));
         Assert.assertFalse(newEconomy.getTopology().getShoppingListOids().inverse().containsKey(buyerSlOid));
     }
@@ -280,15 +302,18 @@ public class EconomyCachesTest {
         economyCaches.getState().setReservationReceived(true);
         economyCaches.updateRealtimeCachedEconomy(simpleEconomy(), commTypeToSpecMap, buyerPlacements,
                 existingReservations);
+        Assert.assertTrue(economyCaches.getState().isRealtimeCacheReceived());
         Map<Long, List<InitialPlacementDecision>> newPlacements = economyCaches
                 .updateHistoricalCachedEconomy(simpleEconomy(), commTypeToSpecMap, buyerPlacements,
                         existingReservations);
+        Assert.assertTrue(economyCaches.getState().isHistoricalCacheReceived());
         Economy newEconomy =  economyCaches.historicalCachedEconomy;
         Assert.assertTrue(newPlacements.get(buyerOid).stream()
                 .allMatch(i -> i.supplier.get() == pm2Oid));
         Assert.assertTrue(newEconomy.getTraders().size() == 3);
         Trader pm1 = newEconomy.getTopology().getTradersByOid().get(pm1Oid);
-        Assert.assertTrue(pm1.getCommoditiesSold().stream().anyMatch(c -> c.getQuantity() ==  pm1MemUsed + buyerMemUsed));
+        Assert.assertTrue(pm1.getCommoditiesSold().stream().anyMatch(c -> compareDoubleEqual(c.getQuantity(),
+                pm1MemUsed + buyerMemUsed)));
         Assert.assertTrue(newEconomy.getTopology().getTradersByOid().containsKey(buyerOid));
         Assert.assertTrue(newEconomy.getTopology().getShoppingListOids().inverse().containsKey(buyerSlOid));
     }
@@ -324,8 +349,8 @@ public class EconomyCachesTest {
         Assert.assertTrue(newEconomy.getTopology().getTradersByOid().containsKey(buyerOid));
         Assert.assertTrue(newEconomy.getTopology().getShoppingListOids().inverse().containsKey(buyerSlOid));
         Trader pm1 = newEconomy.getTopology().getTradersByOid().get(pm1Oid);
-        Assert.assertTrue(pm1.getCommoditiesSold().stream().anyMatch(c -> c.getQuantity()
-                == pm1MemUsed + buyerMemUsed));
+        Assert.assertTrue(pm1.getCommoditiesSold().stream().anyMatch(c -> compareDoubleEqual(c.getQuantity(),
+                pm1MemUsed + buyerMemUsed)));
         // Remove buyer from economy
         economyCaches.removeDeletedTraders(newEconomy, new HashSet(Arrays.asList(buyerOid)));
         // Verify buyer is removed completely from economy.
@@ -333,8 +358,8 @@ public class EconomyCachesTest {
         Assert.assertFalse(newEconomy.getTopology().getTradersByOid().containsKey(buyerOid));
         Assert.assertFalse(newEconomy.getTopology().getShoppingListOids().inverse().containsKey(buyerSlOid));
         Trader pm1AfterRemove = newEconomy.getTopology().getTradersByOid().get(pm1Oid);
-        Assert.assertTrue(pm1AfterRemove.getCommoditiesSold().stream().anyMatch(c -> c.getQuantity()
-                == pm1MemUsed));
+        Assert.assertTrue(pm1AfterRemove.getCommoditiesSold().stream().anyMatch(c -> compareDoubleEqual(c.getQuantity(),
+                pm1MemUsed)));
     }
 
     /**
@@ -375,8 +400,8 @@ public class EconomyCachesTest {
         Optional<Trader> pm3InHistorical = economyCaches.historicalCachedEconomy.getTraders().stream()
                 .filter(t -> t.getOid() == pm3Oid).findFirst();
         int memIndex = pm3InHistorical.get().getBasketSold().indexOf(MEM_TYPE);
-        Assert.assertTrue(pm3InHistorical.get().getCommoditiesSold().get(memIndex).getQuantity()
-                == buyerMemUsed + pm3MemUsed);
+        Assert.assertTrue(compareDoubleEqual(pm3InHistorical.get().getCommoditiesSold().get(memIndex).getQuantity(),
+                buyerMemUsed + pm3MemUsed));
         Assert.assertTrue(economyCaches.realtimeCachedEconomy.getTraders().stream().anyMatch(t ->
                 t.getOid() == buyerOid));
         Assert.assertTrue(economyCaches.realtimeCachedEconomy.getTopology().getTradersByOid()
@@ -385,8 +410,8 @@ public class EconomyCachesTest {
                 .inverse().containsKey(buyerSlOid));
         Optional<Trader> pm3InRealtime = economyCaches.realtimeCachedEconomy.getTraders().stream()
                 .filter(t -> t.getOid() == pm3Oid).findFirst();
-        Assert.assertTrue(pm3InRealtime.get().getCommoditiesSold().get(memIndex).getQuantity()
-                == buyerMemUsed + pm3MemUsed);
+        Assert.assertTrue(compareDoubleEqual(pm3InRealtime.get().getCommoditiesSold().get(memIndex).getQuantity(),
+                buyerMemUsed + pm3MemUsed));
     }
 
     /**
@@ -427,7 +452,7 @@ public class EconomyCachesTest {
                 .inverse().containsKey(buyerSlOid));
         for (Trader trader : economyCaches.historicalCachedEconomy.getTraders()) {
             Assert.assertTrue(trader.getCommoditiesSold().stream().allMatch(c ->
-                    c.getQuantity() == pmMemCapacity || c.getQuantity() == 1));
+                    compareDoubleEqual(c.getQuantity(), pmMemCapacity) || compareDoubleEqual(c.getQuantity(), 1)));
         }
         Assert.assertTrue(economyCaches.realtimeCachedEconomy.getTraders().stream().noneMatch(t ->
                 t.getOid() == buyerOid));
@@ -482,24 +507,24 @@ public class EconomyCachesTest {
         for (Trader trader : economyCaches.historicalCachedEconomy.getTraders()) {
             if (trader.getOid() == pm1Oid) {
                 trader.getCommoditiesSold().stream().allMatch(c ->
-                        c.getQuantity() == pm1MemUsed || c.getQuantity() == 1);
+                        compareDoubleEqual(c.getQuantity(), pm1MemUsed) || compareDoubleEqual(c.getQuantity(), 1));
             }
             if (trader.getOid() == pm2Oid) {
                 trader.getCommoditiesSold().stream().allMatch(c ->
-                        c.getQuantity() == pm2MemUsed || c.getQuantity() == 1);
+                        compareDoubleEqual(c.getQuantity(), pm2MemUsed) || compareDoubleEqual(c.getQuantity(), 1));
             }
             if (trader.getOid() == pm3Oid) {
                 trader.getCommoditiesSold().stream().allMatch(c ->
-                        c.getQuantity() == pm3MemUsed || c.getQuantity() == 1);
+                        compareDoubleEqual(c.getQuantity(), pm3MemUsed) || compareDoubleEqual(c.getQuantity(), 1));
             }
             if (trader.getOid() == pm4Oid) {
                 trader.getCommoditiesSold().stream().allMatch(c ->
-                        c.getQuantity() == pm4MemUsed || c.getQuantity() == 1);
+                        compareDoubleEqual(c.getQuantity(), pm4MemUsed) || compareDoubleEqual(c.getQuantity(), 1));
             }
         }
         for (Trader trader : economyCaches.realtimeCachedEconomy.getTraders()) {
             Assert.assertTrue(trader.getCommoditiesSold().stream().allMatch(c ->
-                    c.getQuantity() == pmMemCapacity || c.getQuantity() == 1));
+                    compareDoubleEqual(c.getQuantity(), pmMemCapacity) || compareDoubleEqual(c.getQuantity(), 1)));
         }
     }
 
@@ -656,6 +681,143 @@ public class EconomyCachesTest {
                 commTypeToSpecMap, placements, new ArrayList(Arrays.asList(buyer)), new HashSet<>());
         Assert.assertTrue(map.get(slOid).getType() == CommodityType.STORAGE_CLUSTER_VALUE);
         Assert.assertTrue(map.get(slOid).getKey() == cluster2Key);
+    }
+
+    /**
+     * Test historical economy updated with new cluster commodities due to merge policy created
+     * in real time.
+     */
+    @Test
+    public void testUpdateRealtimeCachedEconomyWithPolicyChange() {
+        long buyerOid = 1234L;
+        long buyerSlOid = 1000L;
+        long reservationOid = 1L;
+        double buyerMemUsed = 20;
+        InitialPlacementBuyer buyer = initialPlacementBuyer(buyerOid, buyerSlOid, VM_TYPE, new HashMap() {{
+            put(TopologyDTO.CommodityType.newBuilder().setType(MEM_TYPE).build(), new Double(buyerMemUsed));
+            put(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.CLUSTER_VALUE)
+                    .setKey(cluster1Key).build(), 1.0d);
+        }});
+        Map<Long, List<InitialPlacementBuyer>> existingReservations =  new HashMap() {{
+            put(reservationOid, Arrays.asList(buyer));
+        }};
+        Map<Long, List<InitialPlacementDecision>> buyerPlacements = new HashMap() {{
+            put(buyerOid, Arrays.asList(new InitialPlacementDecision(buyerSlOid,
+                    Optional.of(pm2Oid), new ArrayList())));
+        }};
+        // Create a historical economy with 4 pms, 2 in each cluster. A reservation buyer is
+        // placed on pm2 cluster 1.
+        economyCaches.updateHistoricalCachedEconomy(economyWithCluster(new double[]{pm1MemUsed, pm2MemUsed,
+                pm3MemUsed, pm4MemUsed}), commTypeToSpecMap, buyerPlacements, existingReservations);
+        Assert.assertTrue(economyCaches.getState().isHistoricalCacheReceived());
+        economyCaches.historicalCachedEconomy.getTraders().stream()
+                .forEach(t -> {
+                    Assert.assertTrue(t.getBasketSold().stream()
+                            .filter(cs -> cs.getBaseType() == CommodityType.CLUSTER_VALUE)
+                            .allMatch(cs -> cs.getType() == CLUSTER1_COMM_SPEC_TYPE || cs.getType() == CLUSTER2_COMM_SPEC_TYPE));
+                });
+        Assert.assertTrue(economyCaches.historicalCachedEconomy.getTraders().stream().filter(t -> t.getOid() == pm2Oid)
+                .allMatch(t -> t.getCustomers().stream().allMatch(sl -> sl.getBuyer().getOid() == buyerOid)));
+
+        economyCaches.updateRealtimeCachedEconomy(createEconomyWithMergeClusters(), commTypeToSpecMap,
+                buyerPlacements, existingReservations);
+
+        economyCaches.historicalCachedEconomy.getTraders().stream()
+                .forEach(t -> {
+                   Assert.assertTrue(t.getBasketSold().stream()
+                           .filter(cs -> cs.getBaseType() == CommodityType.CLUSTER_VALUE)
+                           .allMatch(cs -> cs.getType() == MERGE_CLUSTERS_COMM_SPEC_TYPE));
+                });
+        Assert.assertTrue(economyCaches.historicalCachedEconomy.getTraders().stream().filter(t -> t.getOid() == pm2Oid)
+                .allMatch(t -> t.getCustomers().stream().allMatch(sl -> sl.getBuyer().getOid() == buyerOid)));
+    }
+
+    /**
+     * Created an economy with 4 pms. All of them are in the same merged cluster.
+     *
+     * @return an economy with merged clusters.
+     */
+    private Economy createEconomyWithMergeClusters() {
+        Topology t = new Topology();
+        Economy economy = t.getEconomyForTesting();
+        Basket basketSoldByCluster = new Basket(Arrays.asList(new CommoditySpecification(MEM_TYPE),
+                new CommoditySpecification(MERGE_CLUSTERS_COMM_SPEC_TYPE, CommodityType.CLUSTER_VALUE)));
+        List<Long> cliques = new ArrayList<>();
+        cliques.add(455L);
+
+        Trader pm1 = economy.addTrader(PM_TYPE, TraderState.ACTIVE, basketSoldByCluster, cliques);
+        pm1.setDebugInfoNeverUseInCode("PM1");
+        pm1.getSettings().setCanAcceptNewCustomers(true);
+        pm1.setOid(pm1Oid);
+        int memIndex1 = pm1.getBasketSold().indexOf(MEM_TYPE);
+        CommoditySold commSold = pm1.getCommoditiesSold().get(memIndex1);
+        commSold.setCapacity(pmMemCapacity);
+        commSold.setQuantity(pm1MemUsed);
+        commSold.setPeakQuantity(pm1MemUsed);
+        commSold.getSettings().setPriceFunction(PriceFunctionFactory.createStandardWeightedPriceFunction(7.0));
+        int clusterIndex1 = pm1.getBasketSold().indexOf(MERGE_CLUSTERS_COMM_SPEC_TYPE);
+        CommoditySold clusterSold1 = pm1.getCommoditiesSold().get(clusterIndex1);
+        clusterSold1.setCapacity(pmMemCapacity);
+        clusterSold1.setQuantity(1);
+        clusterSold1.setPeakQuantity(1);
+        clusterSold1.getSettings().setPriceFunction(PriceFunctionFactory.createStandardWeightedPriceFunction(7.0));
+
+        Trader pm2 = economy.addTrader(PM_TYPE, TraderState.ACTIVE, basketSoldByCluster, cliques);
+        pm2.setDebugInfoNeverUseInCode("PM2");
+        pm2.getSettings().setCanAcceptNewCustomers(true);
+        pm2.setOid(pm2Oid);
+        int memIndex2 = pm2.getBasketSold().indexOf(MEM_TYPE);
+        CommoditySold commSold2 = pm2.getCommoditiesSold().get(memIndex2);
+        commSold2.setCapacity(pmMemCapacity);
+        commSold2.setQuantity(pm2MemUsed);
+        commSold2.setPeakQuantity(pm2MemUsed);
+        commSold2.getSettings().setPriceFunction(PriceFunctionFactory.createStandardWeightedPriceFunction(7.0));
+        int clusterIndex2 = pm2.getBasketSold().indexOf(MERGE_CLUSTERS_COMM_SPEC_TYPE);
+        CommoditySold clusterSold2 = pm2.getCommoditiesSold().get(clusterIndex2);
+        clusterSold2.setCapacity(pmMemCapacity);
+        clusterSold2.setQuantity(1);
+        clusterSold2.setPeakQuantity(1);
+        clusterSold2.getSettings().setPriceFunction(PriceFunctionFactory.createStandardWeightedPriceFunction(7.0));
+
+        Trader pm3 = economy.addTrader(PM_TYPE, TraderState.ACTIVE, basketSoldByCluster, cliques);
+        pm3.setDebugInfoNeverUseInCode("PM3");
+        pm3.getSettings().setCanAcceptNewCustomers(true);
+        pm3.setOid(pm3Oid);
+        int memIndex3 = pm3.getBasketSold().indexOf(MEM_TYPE);
+        CommoditySold commSold3 = pm3.getCommoditiesSold().get(memIndex3);
+        commSold3.setCapacity(pmMemCapacity);
+        commSold3.setQuantity(pm3MemUsed);
+        commSold3.setPeakQuantity(pm3MemUsed);
+        commSold3.getSettings().setPriceFunction(PriceFunctionFactory.createStandardWeightedPriceFunction(7.0));
+        int clusterIndex3 = pm3.getBasketSold().indexOf(MERGE_CLUSTERS_COMM_SPEC_TYPE);
+        CommoditySold clusterSold3 = pm3.getCommoditiesSold().get(clusterIndex3);
+        clusterSold3.setCapacity(pmMemCapacity);
+        clusterSold3.setQuantity(1);
+        clusterSold3.setPeakQuantity(1);
+        clusterSold3.getSettings().setPriceFunction(PriceFunctionFactory.createStandardWeightedPriceFunction(7.0));
+
+        Trader pm4 = economy.addTrader(PM_TYPE, TraderState.ACTIVE, basketSoldByCluster, cliques);
+        pm4.setDebugInfoNeverUseInCode("PM4");
+        pm4.getSettings().setCanAcceptNewCustomers(true);
+        pm4.setOid(pm4Oid);
+        int memIndex4 = pm4.getBasketSold().indexOf(MEM_TYPE);
+        CommoditySold commSold4 = pm4.getCommoditiesSold().get(memIndex4);
+        commSold4.setCapacity(pmMemCapacity);
+        commSold4.setQuantity(pm4MemUsed);
+        commSold4.setPeakQuantity(pm4MemUsed);
+        commSold4.getSettings().setPriceFunction(PriceFunctionFactory.createStandardWeightedPriceFunction(7.0));
+        int clusterIndex4 = pm4.getBasketSold().indexOf(MERGE_CLUSTERS_COMM_SPEC_TYPE);
+        CommoditySold clusterSold4 = pm4.getCommoditiesSold().get(clusterIndex4);
+        clusterSold4.setCapacity(pmMemCapacity);
+        clusterSold4.setQuantity(1);
+        clusterSold4.setPeakQuantity(1);
+        clusterSold4.getSettings().setPriceFunction(PriceFunctionFactory.createStandardWeightedPriceFunction(7.0));
+
+        t.getModifiableTraderOids().put(pm1Oid, pm1);
+        t.getModifiableTraderOids().put(pm2Oid, pm2);
+        t.getModifiableTraderOids().put(pm3Oid, pm3);
+        t.getModifiableTraderOids().put(pm4Oid, pm4);
+        return economy;
     }
 
     /**

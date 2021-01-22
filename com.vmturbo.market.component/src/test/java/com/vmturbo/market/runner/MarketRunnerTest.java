@@ -174,7 +174,7 @@ public class MarketRunnerTest {
                     GroupServiceGrpc.newBlockingStub(grpcServer.getChannel());
             final MigratedWorkloadCloudCommitmentAnalysisService migratedWorkloadCloudCommitmentAnalysisService = mock(MigratedWorkloadCloudCommitmentAnalysisService.class);
             doNothing().when(migratedWorkloadCloudCommitmentAnalysisService).startAnalysis(anyLong(), any(), anyList());
-            return new Analysis(topologyInfo, entities, new GroupMemberRetriever(groupServiceGrpc),
+            return new Analysis(threadPool, topologyInfo, entities, new GroupMemberRetriever(groupServiceGrpc),
                     Clock.systemUTC(), configBuilder.build(),
                     cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
                     wastedFilesAnalysisEngine, buyRIImpactAnalysisFactory, tierExcluderFactory,
@@ -182,7 +182,7 @@ public class MarketRunnerTest {
                     consistentScalingHelperFactory, initialPlacementFinder,
                     reversibilitySettingFetcherFactory, migratedWorkloadCloudCommitmentAnalysisService,
                     new CommodityIdUpdater());
-        }).when(analysisFactory).newAnalysis(any(), any(), any(), any());
+        }).when(analysisFactory).newAnalysis(any(), any(), any(), any(), any());
     }
 
     @After
@@ -251,7 +251,7 @@ public class MarketRunnerTest {
     public void testBadPlan() throws InterruptedException {
         Set<TopologyEntityDTO> badDtos = dtos(false);
         Analysis badAnalysis = mock(Analysis.class);
-        doReturn(badAnalysis).when(analysisFactory).newAnalysis(any(), any(), any(), any());
+        doReturn(badAnalysis).when(analysisFactory).newAnalysis(any(), any(), any(), any(), any());
 
         when(badAnalysis.getContextId()).thenReturn(topologyInfo.getTopologyContextId());
         when(badAnalysis.isDone()).thenReturn(true);

@@ -386,7 +386,7 @@ public class InitialPlacementFinder {
                 GetBuyersOfExistingReservationsResponse response = RetriableOperation.newOperation(() ->
                         blockingStub.getBuyersOfExistingReservations(request))
                         .retryOnException(e -> e instanceof StatusRuntimeException)
-                        .backoffStrategy(curTry -> 60000) // wait 1 min between retries
+                        .backoffStrategy(curTry -> 120000) // wait 2 min between retries
                         .run(timeOut, TimeUnit.SECONDS);
 
                 List<InitialPlacementBuyer> reservationBuyers = new ArrayList();
