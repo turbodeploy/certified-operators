@@ -10,6 +10,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.external.api.mapper.TopologyDataDefinitionMapper;
+import com.vmturbo.api.component.external.api.util.ApiUtils;
+import com.vmturbo.api.dto.topologydefinition.TopoDataDefContextBasedApiDTO;
 import com.vmturbo.api.dto.topologydefinition.TopologyDataDefinitionApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
@@ -208,6 +210,24 @@ public class TopologyDataDefinitionService implements ITopologyDefinitionService
             logger.error(errorText);
             throw new UnknownObjectException(errorText);
         }
+    }
+
+    @Override
+    public List<TopoDataDefContextBasedApiDTO> getAllContextBasedTopologyDefinitions() {
+        throw ApiUtils.notImplementedInXL();
+    }
+
+    @Override
+    public TopoDataDefContextBasedApiDTO getContextBasedTopologyDefinition(String s)
+            throws UnknownObjectException {
+        throw ApiUtils.notImplementedInXL();
+    }
+
+    @Override
+    public TopoDataDefContextBasedApiDTO createContextBasedTopologyDefinition(
+            TopoDataDefContextBasedApiDTO topoDataDefContextBasedApiDTO)
+            throws OperationFailedException, IllegalArgumentException {
+        throw ApiUtils.notImplementedInXL();
     }
 
     /**
