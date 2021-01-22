@@ -228,7 +228,7 @@ public interface AnalysisFactory {
                     .forEachRemaining(setting -> settingsMap.put(setting.getSettingSpecName(), setting));
 
                 if (settingsMap.size() != inputSettings.size()) {
-                    logger.error("Failed to get requested global settings from group component."
+                    logger.warn("Failed to get requested global settings from group component."
                                     + " Requested {} but received {} .",
                                     inputSettings.size(), settingsMap.size());
                 }
