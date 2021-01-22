@@ -27,11 +27,9 @@ import com.vmturbo.extractor.models.ActionModel.PendingAction;
 import com.vmturbo.extractor.models.DslReplaceRecordSink;
 import com.vmturbo.extractor.models.Table.Record;
 import com.vmturbo.extractor.models.Table.TableWriter;
-import com.vmturbo.extractor.topology.SupplyChainEntity;
 import com.vmturbo.extractor.topology.WriterConfig;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
-import com.vmturbo.topology.graph.TopologyGraph;
 
 /**
  * Write action data related to reporting.
@@ -75,8 +73,6 @@ class ReportPendingActionWriter implements IActionWriter {
 
     private final TypeInfoCase actionPlanType;
 
-    private final TopologyGraph<SupplyChainEntity> topologyGraph;
-
     private final Map<TypeInfoCase, Long> lastActionWrite;
 
     ReportPendingActionWriter(@Nonnull final Clock clock,
@@ -84,7 +80,6 @@ class ReportPendingActionWriter implements IActionWriter {
             @Nonnull final DbEndpoint dbEndpoint,
             @Nonnull final WriterConfig writerConfig,
             @Nonnull final ActionConverter actionConverter,
-            @Nonnull final TopologyGraph<SupplyChainEntity> topologyGraph,
             final long actionWritingIntervalMillis,
             @Nonnull final TypeInfoCase actionPlanType,
             @Nonnull final Map<TypeInfoCase, Long> lastActionWrite) {
@@ -96,13 +91,12 @@ class ReportPendingActionWriter implements IActionWriter {
         this.actionWritingIntervalMillis = actionWritingIntervalMillis;
         this.actionPlanType = actionPlanType;
         this.lastActionWrite = lastActionWrite;
-        this.topologyGraph = topologyGraph;
     }
 
     @Override
     public void recordAction(ActionOrchestratorAction aoAction) {
         final ActionSpec actionSpec = aoAction.getActionSpec();
-        Record actionSpecRecord = actionConverter.makePendingActionRecord(actionSpec, topologyGraph);
+        Record actionSpecRecord = actionConverter.makePendingActionRecord(actionSpec);
         if (actionSpecRecord != null) {
             // Actions that are not in READY state don't go into the pending actions table.
             if (aoAction.getActionSpec().getActionState() == ActionState.READY) {

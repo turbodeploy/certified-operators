@@ -9,7 +9,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.extractor.ExtractorDbConfig;
-import com.vmturbo.extractor.ExtractorGlobalConfig;
 import com.vmturbo.extractor.grafana.Grafanon.GrafanonConfig;
 import com.vmturbo.extractor.grafana.client.GrafanaClient;
 import com.vmturbo.extractor.grafana.client.GrafanaClientConfig;
@@ -19,7 +18,7 @@ import com.vmturbo.extractor.schema.ExtractorDbBaseConfig;
  * Configures the Grafana initialization logic.
  */
 @Configuration
-@Import({ExtractorDbBaseConfig.class, ExtractorGlobalConfig.class})
+@Import({ExtractorDbBaseConfig.class})
 public class GrafanaConfig {
 
     @Value("${grafanaHost:grafana}")
@@ -40,14 +39,15 @@ public class GrafanaConfig {
     @Value("${grafanaTimescaleDatasourceName:Turbo Timescale}")
     private String datasourceName;
 
-    @Value("${grafanaEditorUsername:turbo-report-editor}")
-    private String grafanaEditorUsername;
+    @Value("${grafanaViewerUsername:report-viewer}")
+    private String grafanaViewerUsername;
 
-    @Value("${grafanaEditorDisplayName:Report Editor}")
-    private String grafanaEditorDisplayName;
+    @Value("${grafanaViewerDisplayName:Report Viewer}")
+    private String grafanaViewerDisplayName;
 
-    @Value("${grafanaEditorPassword:}")
-    private String grafanaEditorPassword;
+    @Value("${grafanaViewerPassword:}")
+    private String grafanaViewerPassword;
+
 
     /**
      * This is the path to the dashboard folders.
@@ -65,9 +65,6 @@ public class GrafanaConfig {
     @Autowired
     private ExtractorDbConfig extractorDbConfig;
 
-    @Autowired
-    private ExtractorGlobalConfig extractorGlobalConfig;
-
     /**
      * The one that drives the grafana refresh.
      *
@@ -78,10 +75,10 @@ public class GrafanaConfig {
         GrafanonConfig config = new GrafanonConfig(() -> extractorDbConfig.grafanaQueryEndpoint().getConfig())
                 .setTimescaleDisplayName(datasourceName)
                 .setErrorSleepInterval(grafanaErrorSleepIntervalSec, TimeUnit.SECONDS)
-                .setEditorDisplayName(grafanaEditorDisplayName)
-                .setEditorUsername(grafanaEditorUsername)
-                .setEditorPassword(grafanaEditorPassword);
-        return new Grafanon(config, dashboardsOnDisk(), grafanaClient(), extractorGlobalConfig.featureFlags());
+            .setViewerDisplayName(grafanaViewerDisplayName)
+            .setViewerUsername(grafanaViewerUsername)
+            .setViewerPassword(grafanaViewerPassword);
+        return new Grafanon(config, dashboardsOnDisk(), grafanaClient(), enableReporting);
     }
 
     /**

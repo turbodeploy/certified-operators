@@ -1,22 +1,16 @@
 package com.vmturbo.auth.component.policy;
 
-import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.REPORT_EDITOR;
-
-import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Supplier;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.auth.api.auditing.AuditAction;
-import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
-import com.vmturbo.auth.component.store.AuthProviderBase.UserInfo;
-import com.vmturbo.components.api.FormattedString;
+import com.vmturbo.auth.component.store.AuthProvider.UserInfo;
 
 /**
  * System wide user policy.
@@ -25,59 +19,15 @@ public class UserPolicy {
     private final LoginPolicy loginPolicy;
 
     private final Logger logger = LogManager.getLogger();
-    private final ReportPolicy reportPolicy;
 
     /**
      * Constructor.
      *
      * @param loginPolicy login policy.
-     * @param reportPolicy report policy.
      */
-    public UserPolicy(@Nonnull final LoginPolicy loginPolicy, @Nonnull final ReportPolicy reportPolicy) {
+    public UserPolicy(@Nonnull final LoginPolicy loginPolicy) {
         this.loginPolicy = Objects.requireNonNull(loginPolicy);
-        this.reportPolicy = Objects.requireNonNull(reportPolicy);
         logger.info("System is using {} login policy.", loginPolicy);
-        logger.info("System has maximum allowed report editor {}.", reportPolicy.getAllowedMaximumEditor());
-    }
-
-    /**
-     * Get allowed maximum number of editors.
-     *
-     * @return true if it's allowed.
-     */
-    public int getAllowedMaximumEditor() {
-        return reportPolicy.getAllowedMaximumEditor();
-    }
-
-    /**
-     * Is adding new user with report editor role allowed?
-     *
-     * @param userToCheck user to be add report editor role.
-     * @param allUsers    all existing users.
-     * @throws IllegalArgumentException If not allowed.
-     */
-    public void isAddingReportEditorRoleAllowed(@Nonnull final AuthUserDTO userToCheck,
-            @Nonnull final List<AuthUserDTO> allUsers) {
-
-        if (roleMatched(userToCheck, REPORT_EDITOR)) {
-            if (!CollectionUtils.isEmpty(userToCheck.getScopeGroups())) {
-                throw new IllegalArgumentException(FormattedString.format(
-                    "Scoped user {} cannot be designated as Report Editor.", userToCheck.getUser()));
-            }
-            long userCount = allUsers.stream()
-                    .filter(user -> user.getProvider().equals(userToCheck.getProvider())
-                            && roleMatched(user, REPORT_EDITOR))
-                    .count();
-            if (userCount >= getAllowedMaximumEditor()) {
-                throw new IllegalArgumentException(String.format(
-                        "Reporting policy forbid assigning more Report Editor role to user: %s. The maximum allowed user is: %s.",
-                        userToCheck.getUser(), getAllowedMaximumEditor()));
-            }
-        }
-    }
-
-    private boolean roleMatched(@Nonnull AuthUserDTO userInfo, @Nonnull String roleName) {
-        return userInfo.getRoles().stream().anyMatch(role -> role.equalsIgnoreCase(roleName));
     }
 
     /**

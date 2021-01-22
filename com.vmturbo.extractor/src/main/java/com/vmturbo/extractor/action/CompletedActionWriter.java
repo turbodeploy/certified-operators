@@ -5,7 +5,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.stream.Collectors;
@@ -23,17 +22,13 @@ import org.jooq.DSLContext;
 import com.vmturbo.action.orchestrator.api.ActionsListener;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionFailure;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionSuccess;
-import com.vmturbo.extractor.ExtractorGlobalConfig.ExtractorFeatureFlags;
 import com.vmturbo.extractor.models.ActionModel;
 import com.vmturbo.extractor.models.DslUpsertRecordSink;
 import com.vmturbo.extractor.models.Table.Record;
 import com.vmturbo.extractor.models.Table.TableWriter;
-import com.vmturbo.extractor.topology.DataProvider;
-import com.vmturbo.extractor.topology.SupplyChainEntity;
 import com.vmturbo.extractor.topology.WriterConfig;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
-import com.vmturbo.topology.graph.TopologyGraph;
 
 /**
  * Responsible for writing executed actions to the database as they are reported by the action
@@ -53,10 +48,6 @@ public class CompletedActionWriter implements ActionsListener {
 
     private final ActionConverter actionConverter;
 
-    private final DataProvider dataProvider;
-
-    private final ExtractorFeatureFlags featureFlags;
-
     /**
      * The queue for actions the extractor knows about.
      *
@@ -70,10 +61,8 @@ public class CompletedActionWriter implements ActionsListener {
             @Nonnull final ExecutorService recordBatcherExecutor,
             @Nonnull final WriterConfig writerConfig,
             @Nonnull final ExecutorService dbWriterPool,
-            @Nonnull final ActionConverter actionConverter,
-            @Nonnull final DataProvider dataProvider,
-            final ExtractorFeatureFlags featureFlags) {
-        this(dbEndpoint, recordBatcherExecutor, actionConverter, dataProvider, featureFlags,
+            @Nonnull final ActionConverter actionConverter) {
+        this(dbEndpoint, recordBatcherExecutor, actionConverter,
             dsl -> {
                 return new DslUpsertRecordSink(dsl, ActionModel.CompletedAction.TABLE, writerConfig, dbWriterPool,
                     "upsert",
@@ -87,12 +76,8 @@ public class CompletedActionWriter implements ActionsListener {
     CompletedActionWriter(@Nonnull final DbEndpoint dbEndpoint,
             @Nonnull final ExecutorService recordBatcherExecutor,
             @Nonnull final ActionConverter actionConverter,
-            @Nonnull final DataProvider dataProvider,
-            @Nonnull final ExtractorFeatureFlags featureFlags,
             @Nonnull final SinkFactory sinkFactory) {
         this.actionConverter = actionConverter;
-        this.dataProvider = dataProvider;
-        this.featureFlags = featureFlags;
         recordBatcherExecutor.submit(
                 new RecordBatchWriter(recordQueue, dbEndpoint, sinkFactory));
     }
@@ -125,12 +110,15 @@ public class CompletedActionWriter implements ActionsListener {
                     Thread.currentThread().interrupt();
                     logger.error("Executed action writer interrupted.", e);
                     break;
+                } catch (UnsupportedDialectException e) {
+                    logger.error("Endpoint {} configured incorrectly."
+                            + " Failed to write executed actions.", dbEndpoint, e);
                 }
             }
         }
 
         @VisibleForTesting
-        void runIteration() throws InterruptedException {
+        void runIteration() throws InterruptedException, UnsupportedDialectException {
             final List<CompletedActionWriter.CompletedAction> completedActionsBatch = new ArrayList<>();
             // Wait for a record to become available.
             final CompletedActionWriter.CompletedAction nextRecord = recordQueue.take();
@@ -138,36 +126,21 @@ public class CompletedActionWriter implements ActionsListener {
             // Drain any remaining records as well.
             recordQueue.drainTo(completedActionsBatch);
             logger.debug("Processing batch of {} completed actions.", completedActionsBatch.size());
-            recordActionBatchForReporting(completedActionsBatch);
-        }
-
-        private void recordActionBatchForReporting(List<CompletedActionWriter.CompletedAction> batch)
-                throws InterruptedException {
-            final List<Record> executedActionRecords = batch.stream()
-                    .map(CompletedAction::getRecord)
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toList());
-            if (executedActionRecords.size() != batch.size()) {
-                logger.debug("Recording {} of {} actions from batch for reporting."
-                    + "Either reporting is not enabled, or some actions did not pass validation.", executedActionRecords.size(), batch.size());
-            }
-            if (!executedActionRecords.isEmpty()) {
-                try (DSLContext dsl = dbEndpoint.dslContext(); TableWriter actionSpecReplacer = ActionModel.CompletedAction.TABLE.open(
-                        sinkFactory.newSink(dsl), "Action Spec Replacer", logger)) {
-                    batch.forEach(nextAction -> {
-                        try (Record r = actionSpecReplacer.open(nextAction.record)) {
-                            // Nothing to change in the record.
-                        }
-                    });
-                } catch (SQLException e) {
-                    // TODO - Consider putting the records back into the queue with a timed delay.
-                    logger.error("Failed to record actions {} to database.", batch.stream()
-                            .map(CompletedActionWriter.CompletedAction::getActionId)
-                            .map(Object::toString)
-                            .collect(Collectors.joining(",")));
-                } catch (UnsupportedDialectException e) {
-                    logger.error("Endpoint {} configured incorrectly." + " Failed to write executed actions.", dbEndpoint, e);
-                }
+            try (DSLContext dsl = dbEndpoint.dslContext();
+                 TableWriter actionSpecReplacer = ActionModel.CompletedAction.TABLE.open(
+                         sinkFactory.newSink(dsl), "Action Spec Replacer", logger)) {
+                completedActionsBatch.forEach(nextAction -> {
+                    try (Record r = actionSpecReplacer.open(nextAction.record)) {
+                        // Nothing to change in the record.
+                    }
+                });
+            } catch (SQLException e) {
+                // Put the records back into the queue.
+                // TODO - timed delay.
+                logger.error("Failed to record actions {} to database.", completedActionsBatch.stream()
+                        .map(CompletedActionWriter.CompletedAction::getActionId)
+                        .map(Object::toString)
+                        .collect(Collectors.joining(",")));
             }
         }
     }
@@ -183,19 +156,9 @@ public class CompletedActionWriter implements ActionsListener {
             return;
         }
 
-        final TopologyGraph<SupplyChainEntity> graph = dataProvider.getTopologyGraph();
-        if (graph == null) {
-            logger.error("No topology graph available when processing action success for action {} (id: {}).",
-                actionSuccess.getActionSpec().getDescription(), actionSuccess.getActionId());
-        }
-
-        final CompletedAction action = new CompletedAction(actionSuccess.getActionId());
-        if (featureFlags.isReportingEnabled()) {
-            action.setReportingRecord(actionConverter.makeExecutedActionSpec(actionSuccess.getActionSpec(),
-                    actionSuccess.getSuccessDescription(), graph));
-        }
-
-        queueAction(actionSuccess.getActionId(), action);
+        queueAction(actionSuccess.getActionId(),
+                actionConverter.makeExecutedActionSpec(actionSuccess.getActionSpec(),
+                        actionSuccess.getSuccessDescription()));
     }
 
     /**
@@ -209,24 +172,20 @@ public class CompletedActionWriter implements ActionsListener {
             return;
         }
 
-        final TopologyGraph<SupplyChainEntity> graph = dataProvider.getTopologyGraph();
-        if (graph == null) {
-            logger.error("No topology graph available when processing action failure for action {} (id: {}).",
-                    actionFailure.getActionSpec().getDescription(), actionFailure.getActionId());
-        }
+        queueAction(actionFailure.getActionId(),
+                actionConverter.makeExecutedActionSpec(actionFailure.getActionSpec(),
+                        actionFailure.getErrorDescription()));
 
-        final CompletedAction action = new CompletedAction(actionFailure.getActionId());
-        if (featureFlags.isReportingEnabled()) {
-            action.setReportingRecord(actionConverter.makeExecutedActionSpec(actionFailure.getActionSpec(),
-                    actionFailure.getErrorDescription(), graph));
-        }
-
-        queueAction(actionFailure.getActionId(), action);
     }
 
-    private void queueAction(final long actionId, @Nonnull final CompletedAction completedAction) {
+    private void queueAction(final long actionId, @Nullable final Record convertedRecord) {
+        if (convertedRecord == null) {
+            // Log and exit
+            return;
+        }
+
         int queueSize = recordQueue.size();
-        recordQueue.add(completedAction);
+        recordQueue.add(new CompletedAction(actionId, convertedRecord));
         logger.debug("Added action {} to the queue. The queue now has {} actions.",
             actionId, queueSize + 1);
     }
@@ -237,27 +196,20 @@ public class CompletedActionWriter implements ActionsListener {
      */
     private static class CompletedAction {
         private final long id;
-        private Record record = null;
+        private final Record record;
 
-        private CompletedAction(final long id) {
+        private CompletedAction(final long id, @Nonnull final Record record) {
             this.id = id;
+            this.record = record;
         }
 
         public long getActionId() {
             return id;
         }
 
-        public void setReportingRecord(Record record) {
-            this.record = record;
-        }
-
-        @Nullable
+        @Nonnull
         public Record getRecord() {
             return record;
-        }
-
-        public boolean hasData() {
-            return record != null;
         }
     }
 

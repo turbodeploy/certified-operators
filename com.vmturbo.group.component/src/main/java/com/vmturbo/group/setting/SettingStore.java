@@ -33,15 +33,14 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Functions;
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.HashMultimap;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
-import com.google.common.collect.Sets;
 import com.google.common.collect.Table;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import com.google.protobuf.InvalidProtocolBufferException;
+
 import io.grpc.Status;
+
 import org.apache.commons.lang.exception.ExceptionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -1608,47 +1607,6 @@ public class SettingStore implements DiagsRestorable<DSLContext> {
                 .where(conditions)
                 .fetch();
 
-        Set<Integer> settingIds = Sets.newHashSet();
-        Set<Integer> oidSettingIds = Sets.newHashSet();
-        for (Record record : entitySettings) {
-            final Integer settingId = record.get(ENTITY_SETTINGS.SETTING_ID);
-            final ValueCase settingType = ValueCase.forNumber(record.get(SETTINGS.SETTING_TYPE));
-            if (ValueCase.SORTED_SET_OF_OID_SETTING_VALUE.equals(settingType)) {
-                oidSettingIds.add(settingId);
-            }
-            settingIds.add(settingId);
-        }
-
-        // Collect Oids by Setting
-        Map<Integer, Set<Long>> settingToOids = Maps.newHashMap();
-        if (!oidSettingIds.isEmpty()) {
-            final Result<?> settingOids = dslContext.select().from(SETTINGS_OIDS)
-                    .where(SETTINGS_OIDS.SETTING_ID.in(oidSettingIds))
-                    .fetch();
-            settingToOids = settingOids.stream()
-                    .collect(Collectors.groupingBy(
-                            rec -> rec.get(SETTINGS_OIDS.SETTING_ID),
-                            Collectors.mapping(rec -> rec.get(SETTINGS_OIDS.OID),
-                                    Collectors.toSet())
-                            )
-                    );
-        }
-
-        // Collect Policies by Setting
-        Map<Integer, Set<Long>> settingToPolicyIds = Maps.newHashMap();
-        if (!settingIds.isEmpty()) {
-            final Result<?> settingsPolicies = dslContext.select().from(SETTINGS_POLICIES)
-                    .where(SETTINGS_POLICIES.SETTING_ID.in(settingIds))
-                    .fetch();
-            settingToPolicyIds = settingsPolicies.stream()
-                    .collect(Collectors.groupingBy(
-                            rec -> rec.get(SETTINGS_POLICIES.SETTING_ID),
-                            Collectors.mapping(rec -> rec.get(SETTINGS_POLICIES.POLICY_ID),
-                                    Collectors.toSet())
-                            )
-                    );
-        }
-
         final Multimap<Long, SettingToPolicyId> entityToSettingsMap = HashMultimap.create();
         for (Record record : entitySettings) {
             final Long entityId = record.get(ENTITY_SETTINGS.ENTITY_ID);
@@ -1656,10 +1614,26 @@ public class SettingStore implements DiagsRestorable<DSLContext> {
             final ValueCase settingType = ValueCase.forNumber(record.get(SETTINGS.SETTING_TYPE));
             final String value = record.get(SETTINGS.SETTING_VALUE);
             final Integer settingId = record.get(ENTITY_SETTINGS.SETTING_ID);
-            final Set<Long> oids = settingToOids.getOrDefault(settingId, Sets.newHashSet());
+            final List<Long> oids = new ArrayList<>();
+            if (ValueCase.SORTED_SET_OF_OID_SETTING_VALUE.equals(settingType)) {
+                final Result<?> settingOids = dslContext.select().from(SETTINGS_OIDS)
+                        .where(SETTINGS_OIDS.SETTING_ID.eq(settingId))
+                        .orderBy(SETTINGS_OIDS.OID)
+                        .fetch();
+                for (Record oidRecord : settingOids) {
+                    oids.add(oidRecord.get(SETTINGS_OIDS.OID));
+                }
+            }
             final SettingAdapter settingAdapter = new SettingAdapter(settingName, settingType,
-                    value, Lists.newArrayList(oids));
-            final Set<Long> policyIds = settingToPolicyIds.getOrDefault(settingId, Sets.newHashSet());
+                    value, oids);
+            final List<Long> policyIds = new ArrayList<>();
+            final Result<?> settingsPolicies = dslContext.select().from(SETTINGS_POLICIES)
+                .where(SETTINGS_POLICIES.SETTING_ID.eq(settingId))
+                .orderBy(SETTINGS_POLICIES.POLICY_ID)
+                .fetch();
+            for (Record settingsPoliciesRecord : settingsPolicies) {
+                policyIds.add(settingsPoliciesRecord.get(SETTINGS_POLICIES.POLICY_ID));
+            }
             final SettingToPolicyId settingToPolicyId = SettingToPolicyId.newBuilder()
                     .setSetting(settingAdapter.getSetting())
                     .addAllSettingPolicyId(policyIds)

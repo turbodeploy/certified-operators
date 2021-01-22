@@ -59,8 +59,6 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
-import com.vmturbo.plan.orchestrator.plan.PlanDao;
-import com.vmturbo.plan.orchestrator.plan.PlanRpcService;
 import com.vmturbo.plan.orchestrator.templates.TemplatesDao;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -91,10 +89,6 @@ public class ReservationManagerTest {
     private InitialPlacementServiceBlockingStub initialPlacementServiceBlockingStub;
 
     private TemplatesDao templatesDao;
-
-    private PlanDao planDao;
-
-    private PlanRpcService planService;
 
     @Captor
     private ArgumentCaptor<Set<Reservation>> updateBatchCaptor;
@@ -283,17 +277,8 @@ public class ReservationManagerTest {
         templatesDao = Mockito.mock(TemplatesDao.class);
         sender = Mockito.mock(IMessageSender.class);
         resNotificationSender = new ReservationNotificationSender(sender);
-        planDao = Mockito.mock(PlanDao.class);
-        planService = Mockito.mock(PlanRpcService.class);
 
-        templatesDao = Mockito.mock(TemplatesDao.class);
-
-        reservationManager = new ReservationManager(reservationDao,
-                resNotificationSender,
-                initialPlacementServiceBlockingStub,
-                templatesDao,
-                planDao,
-                planService, true);
+        reservationManager = new ReservationManager(reservationDao, resNotificationSender, initialPlacementServiceBlockingStub, templatesDao);
     }
 
     /**

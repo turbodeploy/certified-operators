@@ -40,7 +40,6 @@ import org.springframework.web.util.UriComponentsBuilder;
 import com.vmturbo.api.component.communication.RestAuthenticationProvider;
 import com.vmturbo.api.component.external.api.mapper.LoginProviderMapper;
 import com.vmturbo.api.component.external.api.mapper.UserMapper;
-import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.ReportingUserCalculator;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
@@ -406,7 +405,7 @@ public class UsersService implements IUsersService {
     private UserApiDTO populateResultUserApiDTOFromInput(@Nonnull UserApiDTO inputDto) {
         UserApiDTO user = new UserApiDTO();
         user.setUsername(inputDto.getUsername());
-        user.setRoles(ApiUtils.sortRoleByPrivileges(inputDto.getRoles()));
+        user.setRoleName(inputDto.getRoleName());
         user.setScope(inputDto.getScope());
         user.setUuid(inputDto.getUuid());
         user.setLoginProvider(inputDto.getLoginProvider());
@@ -454,10 +453,7 @@ public class UsersService implements IUsersService {
         if (StringUtils.isBlank(userApiDTO.getUsername())) {
             throw new IllegalArgumentException("No user name specified for user.");
         }
-        if (StringUtils.isBlank(userApiDTO.getRoleName())
-                // None of the RoleApiDTOs have a role name set.
-                && userApiDTO.getRoles().stream()
-                    .allMatch(role -> StringUtils.isBlank(role.getName()))) {
+        if (StringUtils.isBlank(userApiDTO.getRoleName())) {
             throw new IllegalArgumentException("No role specified for user.");
         }
         if (StringUtils.isBlank(userApiDTO.getType())) {

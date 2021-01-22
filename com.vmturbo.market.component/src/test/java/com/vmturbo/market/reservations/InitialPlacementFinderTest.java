@@ -1,7 +1,6 @@
 package com.vmturbo.market.reservations;
 
 import static junit.framework.TestCase.assertTrue;
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
@@ -37,6 +36,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.market.reservations.EconomyCaches.EconomyCachesState;
 import com.vmturbo.market.reservations.InitialPlacementFinderResult.FailureInfo;
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.economy.Basket;
@@ -110,8 +110,8 @@ public class InitialPlacementFinderTest {
         ShoppingListTO pmSlTO = vmTO.getShoppingLists(0);
         assertTrue(pmSlTO.getMovable() == true);
         assertTrue(pmSlTO.getOid() == pmSlOid);
-        assertEquals(pmSlTO.getCommoditiesBoughtList().get(0).getQuantity(), 100, 0.000001);
-        assertEquals(pmSlTO.getCommoditiesBought(0).getPeakQuantity(), 100, 0.000001);
+        assertTrue(pmSlTO.getCommoditiesBoughtList().get(0).getQuantity() == 100);
+        assertTrue(pmSlTO.getCommoditiesBought(0).getPeakQuantity() == 100);
         assertTrue(pmSlTO.getCommoditiesBought(0).getSpecification().getType() == MEM_TYPE);
     }
 
@@ -159,7 +159,7 @@ public class InitialPlacementFinderTest {
                 reservationServiceBlockingStub, true, 1);
         // Create both economy caches using same economy.
         Economy originalEconomy = getOriginalEconomy();
-        pf.economyCaches.getState().setReservationReceived(true);
+        pf.economyCaches.setState(EconomyCachesState.READY);
         pf.updateCachedEconomy(originalEconomy, commTypeToSpecMap, true);
         pf.updateCachedEconomy(originalEconomy, commTypeToSpecMap, false);
         double used = 10;
@@ -191,16 +191,15 @@ public class InitialPlacementFinderTest {
                 reservationServiceBlockingStub, true, 0);
         Economy originalEconomy = getOriginalEconomy();
         pf.updateCachedEconomy(originalEconomy, commTypeToSpecMap, true);
-        pf.updateCachedEconomy(originalEconomy, commTypeToSpecMap, false);
-        pf.economyCaches.getState().setReservationReceived(true);
+        pf.economyCaches.setState(EconomyCachesState.READY);
         InitialPlacementBuyer buyer = getTradersToPlace(vmID, pmSlOid, PM_TYPE, MEM_TYPE, 100);
         Table<Long, Long, InitialPlacementFinderResult> result = pf.findPlacement(Arrays.asList(buyer));
         List<FailureInfo> failureInfo = result.get(vmID, pmSlOid).getFailureInfoList();
         assertTrue(failureInfo.size() == 1);
         assertTrue(failureInfo.get(0).getCommodityType().getType() == MEM_TYPE);
-        assertEquals(failureInfo.get(0).getRequestedAmount(), 100, 0.000001);
+        assertTrue(failureInfo.get(0).getRequestedAmount() == 100);
         assertTrue(failureInfo.get(0).getClosestSellerOid() == pm2Oid);
-        assertEquals(failureInfo.get(0).getMaxQuantity(), 80, 0.000001);
+        assertTrue(failureInfo.get(0).getMaxQuantity() == 80);
     }
 
     /**
@@ -215,16 +214,15 @@ public class InitialPlacementFinderTest {
                 reservationServiceBlockingStub, true, 0);
         Economy originalEconomy = getOverflowEconomy();
         pf.updateCachedEconomy(originalEconomy, commTypeToSpecMap, true);
-        pf.updateCachedEconomy(originalEconomy, commTypeToSpecMap, false);
-        pf.economyCaches.getState().setReservationReceived(true);
+        pf.economyCaches.setState(EconomyCachesState.READY);
         InitialPlacementBuyer buyer = getTradersToPlace(vmID, pmSlOid, PM_TYPE, MEM_TYPE, 100);
         Table<Long, Long, InitialPlacementFinderResult> result = pf.findPlacement(Arrays.asList(buyer));
         List<FailureInfo> failureInfo = result.get(vmID, pmSlOid).getFailureInfoList();
         assertTrue(failureInfo.size() == 1);
         assertTrue(failureInfo.get(0).getCommodityType().getType() == MEM_TYPE);
-        assertEquals(failureInfo.get(0).getRequestedAmount(), 100, 0.000001);
+        assertTrue(failureInfo.get(0).getRequestedAmount() == 100);
         assertTrue(failureInfo.get(0).getClosestSellerOid() == pm1Oid);
-        assertEquals(failureInfo.get(0).getMaxQuantity(), 0, 0.000001);
+        assertTrue(failureInfo.get(0).getMaxQuantity() == 0);
     }
 
     /**
@@ -357,7 +355,7 @@ public class InitialPlacementFinderTest {
                 reservationServiceBlockingStub, true, 1);
         Economy originalEconomy = getOriginalEconomy();
         // Create both economy caches using same economy.
-        pf.economyCaches.getState().setReservationReceived(true);
+        pf.economyCaches.setState(EconomyCachesState.READY);
         pf.updateCachedEconomy(originalEconomy, commTypeToSpecMap, true);
         pf.updateCachedEconomy(originalEconomy, commTypeToSpecMap, false);
         long vm2Oid = 10002L;
@@ -395,9 +393,8 @@ public class InitialPlacementFinderTest {
         InitialPlacementFinder pf = new InitialPlacementFinder(executorService,
                 reservationServiceBlockingStub, true, 1);
         Economy originalEconomy = getOriginalEconomy();
-        pf.economyCaches.getState().setReservationReceived(true);
+        pf.economyCaches.setState(EconomyCachesState.READY);
         pf.updateCachedEconomy(originalEconomy, commTypeToSpecMap, true);
-        pf.updateCachedEconomy(originalEconomy, commTypeToSpecMap, false);
 
         long vm2Oid = 10002L;
         long vm2SlOid = 20002L;

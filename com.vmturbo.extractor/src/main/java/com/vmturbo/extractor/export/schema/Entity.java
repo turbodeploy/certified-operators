@@ -1,4 +1,4 @@
-package com.vmturbo.extractor.schema.json.export;
+package com.vmturbo.extractor.export.schema;
 
 import java.util.List;
 import java.util.Map;

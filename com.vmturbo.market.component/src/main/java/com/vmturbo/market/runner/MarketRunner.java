@@ -146,8 +146,7 @@ public class MarketRunner {
             logger.info("Received analysis {}: topology {}" +
                     " with {} topology DTOs from TopologyProcessor",
                     topologyContextId, topologyId, topologyDTOs.size());
-            analysis = analysisFactory.newAnalysis(runnerThreadPool,
-                    topologyInfo,
+            analysis = analysisFactory.newAnalysis(topologyInfo,
                     topologyDTOs,
                     configBuilder -> configBuilder
                         .setIncludeVDC(includeVDC)

@@ -22,7 +22,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.Executors;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -295,7 +294,7 @@ public class AnalysisDebuggingTest {
         doNothing().when(migratedWorkloadCloudCommitmentAnalysisService).startAnalysis(anyLong(), any(), anyList());
 
 
-        final Analysis analysis = new Analysis(Executors.newCachedThreadPool(), analysisInput.getTopologyInfo(),
+        final Analysis analysis = new Analysis(analysisInput.getTopologyInfo(),
             Sets.newHashSet(analysisInput.getEntitiesList()),
             new GroupMemberRetriever(GroupServiceGrpc.newBlockingStub(grpcTestServer.getChannel())),
             Clock.systemUTC(),

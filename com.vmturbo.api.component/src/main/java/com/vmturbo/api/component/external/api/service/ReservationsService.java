@@ -1,14 +1,9 @@
 package com.vmturbo.api.component.external.api.service;
 
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
 
 import javax.annotation.Nonnull;
 
@@ -21,27 +16,15 @@ import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.api.component.external.api.mapper.ReservationMapper;
-import com.vmturbo.api.component.external.api.mapper.UuidMapper;
-import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
-import com.vmturbo.api.dto.reservation.DemandEntityInfoDTO;
 import com.vmturbo.api.dto.reservation.DemandReservationApiDTO;
 import com.vmturbo.api.dto.reservation.DemandReservationApiInputDTO;
-import com.vmturbo.api.dto.statistic.StatApiDTO;
-import com.vmturbo.api.dto.statistic.StatApiInputDTO;
-import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
-import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
-import com.vmturbo.api.dto.statistic.StatValueApiDTO;
-import com.vmturbo.api.dto.template.ResourceApiDTO;
 import com.vmturbo.api.enums.ReservationAction;
 import com.vmturbo.api.enums.ReservationEditAction;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.IReservationsService;
 import com.vmturbo.api.utils.ParamStrings;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.CreateReservationRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.DeleteReservationByIdRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.GetAllReservationsRequest;
@@ -50,7 +33,6 @@ import com.vmturbo.common.protobuf.plan.ReservationDTO.GetReservationByStatusReq
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
-import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 
 /**
  * XL implementation of IReservationAndDeployService.
@@ -58,42 +40,18 @@ import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 public class ReservationsService implements IReservationsService {
     private static final Logger logger = LogManager.getLogger();
 
-    private static final Set<String> RESERVATION_RELATED_COMMODITIES
-            = new HashSet<>(Arrays.asList(
-            CommodityTypeUnits.CPU_PROVISIONED.getMixedCase(),
-            CommodityTypeUnits.MEM_PROVISIONED.getMixedCase(),
-            CommodityTypeUnits.CPU.getMixedCase(),
-            CommodityTypeUnits.MEM.getMixedCase(),
-            CommodityTypeUnits.IO_THROUGHPUT.getMixedCase(),
-            CommodityTypeUnits.NET_THROUGHPUT.getMixedCase(),
-            CommodityTypeUnits.STORAGE_AMOUNT.getMixedCase(),
-            CommodityTypeUnits.STORAGE_ACCESS.getMixedCase(),
-            CommodityTypeUnits.STORAGE_PROVISIONED.getMixedCase()));
-
     private final int maximumPlacementCount;
 
     private final ReservationServiceBlockingStub reservationService;
 
     private final ReservationMapper reservationMapper;
 
-    private final StatsService statsService;
-
-    private final GroupServiceBlockingStub groupServiceBlockingStub;
-
-    private final UuidMapper uuidMapper;
-
 
     ReservationsService(@Nonnull final ReservationServiceBlockingStub reservationService,
-                        @Nonnull final ReservationMapper reservationMapper, final int maximumPlacementCount,
-                        @Nonnull final StatsService statsService,
-                        @Nonnull final GroupServiceBlockingStub groupServiceBlockingStub,
-                        @Nonnull final UuidMapper uuidMapper) {
+            @Nonnull final ReservationMapper reservationMapper, final int maximumPlacementCount) {
         this.reservationService = Objects.requireNonNull(reservationService);
         this.reservationMapper = Objects.requireNonNull(reservationMapper);
         this.maximumPlacementCount = maximumPlacementCount;
-        this.statsService = statsService;
-        this.groupServiceBlockingStub = Objects.requireNonNull(groupServiceBlockingStub);
-        this.uuidMapper = uuidMapper;
     }
 
     @Override
@@ -105,109 +63,6 @@ public class ReservationsService implements IReservationsService {
         } else {
             return getAllReservations();
         }
-    }
-
-    @Override
-    public List<StatApiDTO> getReservationAwareStats(String entityId)
-            throws Exception {
-        final ApiId apiId = uuidMapper.fromUuid(entityId);
-        Set<Long> providers = new HashSet<>();
-        if (apiId.isGroup()) {
-            final GetMembersRequest.Builder membersBuilder =
-                    GetMembersRequest.newBuilder().setExpectPresent(true).addId(apiId.oid());
-            final Iterator<GetMembersResponse> groupMembersResp =
-                    groupServiceBlockingStub.getMembers(membersBuilder.build());
-            providers.addAll(groupMembersResp.next().getMemberIdList());
-        } else {
-            providers.add(apiId.oid());
-        }
-
-        if (providers.isEmpty()) {
-            throw new OperationFailedException(
-                    "No provider found for entity: " + entityId);
-        }
-        List<DemandReservationApiDTO> reservations = getAllReservations();
-        List<ResourceApiDTO> resourceApiDTOs = new ArrayList<>();
-        for (DemandReservationApiDTO reservationApiDTO : reservations) {
-            for (DemandEntityInfoDTO demandEntityInfoDTO : reservationApiDTO.getDemandEntities()) {
-                resourceApiDTOs.addAll(demandEntityInfoDTO.getPlacements().getComputeResources());
-                resourceApiDTOs.addAll(demandEntityInfoDTO.getPlacements().getStorageResources());
-            }
-        }
-
-        StatPeriodApiInputDTO statPeriodApiInputDTO = new StatPeriodApiInputDTO();
-        statPeriodApiInputDTO.setStatistics(new ArrayList<>());
-        // trim the stats to just the resources related to reservation.
-        for (String commName : RESERVATION_RELATED_COMMODITIES) {
-            StatApiInputDTO statApiInputDTO = new StatApiInputDTO();
-            statApiInputDTO.setName(commName);
-            statPeriodApiInputDTO.getStatistics().add(statApiInputDTO);
-        }
-        List<StatSnapshotApiDTO> entityStatSnapshot = statsService.getStatsByEntityQuery(entityId,
-                statPeriodApiInputDTO);
-
-        // entityStatSnapshot should be a singleton.
-        if (entityStatSnapshot.size() != 1 || entityStatSnapshot.get(0).getStatistics() == null) {
-            throw new OperationFailedException(
-                    "Failed to collect stats for entity: " + entityId);
-        }
-
-        List<StatApiDTO> entityStats = entityStatSnapshot.get(0).getStatistics();
-        trimReservationRelatedStats(entityStats, providers.size());
-        // add all the reservation related used values to the entityStats.
-        for (ResourceApiDTO resourceApiDTO : resourceApiDTOs) {
-            // if the reservation has a provider for which the stats is asked for
-            // add the utilisation of reservation to the used value of the provider.
-            if (providers.stream().anyMatch(providerId -> resourceApiDTO
-                    .getProvider().getUuid().equals(providerId.toString()))) {
-                // we are taking the entity stats and comparing them to the resource stats.
-                // If the stats name matches then add the stats together.
-                entityStats.stream().forEach(
-                        entityStat -> {
-                            Optional<StatApiDTO> vmStatOptional =
-                                    resourceApiDTO.getStats().stream()
-                                            .filter(stat -> stat.getName()
-                                                    .equals(entityStat.getName())).findFirst();
-                            if (vmStatOptional.isPresent()) {
-                                StatApiDTO vmStat = vmStatOptional.get();
-                                StatValueApiDTO statValueApiDTO = new StatValueApiDTO();
-                                statValueApiDTO.setAvg(entityStat.getValues().getAvg()
-                                        + vmStat.getValues().getAvg());
-                                entityStat.setValues(statValueApiDTO);
-                            }
-                        }
-                );
-            }
-        }
-        return entityStats;
-
-    }
-
-    /**
-     * Remove all other entries other average attribute of capacity and values.
-     * Convert the stats from average to aggregate by multiplying with entitySize.
-     *
-     * @param stats the stats which need to be trimmed.
-     * @param entitySize the number of members in the entity.
-     */
-    private void trimReservationRelatedStats(List<StatApiDTO> stats, float entitySize) {
-        stats.removeIf(stat -> stat.getCapacity() == null || stat.getValues() == null);
-        List<StatApiDTO> trimmedStats = new ArrayList<>();
-        stats.stream().forEach(stat -> {
-            // create a new StatApiDTO with just name , units, values and capacity.
-            StatApiDTO trimmedStat = new StatApiDTO();
-            trimmedStat.setUnits(stat.getUnits());
-            trimmedStat.setName(stat.getName());
-            StatValueApiDTO statValueApiDTO = new StatValueApiDTO();
-            statValueApiDTO.setAvg(stat.getValues().getAvg() * entitySize);
-            trimmedStat.setValues(statValueApiDTO);
-            StatValueApiDTO statCapacityApiDTO = new StatValueApiDTO();
-            statCapacityApiDTO.setAvg(stat.getCapacity().getAvg() * entitySize);
-            trimmedStat.setCapacity(statCapacityApiDTO);
-            trimmedStats.add(trimmedStat);
-        });
-        stats.clear();
-        stats.addAll(trimmedStats);
     }
 
     private List<DemandReservationApiDTO> getAllReservations() throws Exception {

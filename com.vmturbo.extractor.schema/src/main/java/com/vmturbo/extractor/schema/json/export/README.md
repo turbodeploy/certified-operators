@@ -1,1 +1,0 @@
-This part of the JSON model is specific to data extraction.

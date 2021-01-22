@@ -28,7 +28,7 @@ public class MarketRpcConfig {
     @Value("${maxRetry:1}")
     private int maxRetry;
 
-    @Value("${maxRequestReservationTimeoutInSeconds:6000}")
+    @Value("${maxRequestReservationTimeoutInSeconds:600}")
     private long maxRequestReservationTimeoutInSeconds;
 
     @Autowired

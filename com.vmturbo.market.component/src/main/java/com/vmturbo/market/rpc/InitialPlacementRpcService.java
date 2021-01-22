@@ -141,7 +141,7 @@ public class InitialPlacementRpcService extends InitialPlacementServiceImplBase 
     public void updateHistoricalCachedEconomy(final UpdateHistoricalCachedEconomyRequest request,
                                       final StreamObserver<UpdateHistoricalCachedEconomyResponse> responseObserver) {
         logger.info(logPrefix + "Received a request to update historical cache from Plan Orchestrator");
-        initPlacementFinder.resetHistoricalCacheReceived();
+        initPlacementFinder.clearHistoricalCachedEconomy();
         UpdateHistoricalCachedEconomyResponse.Builder response = UpdateHistoricalCachedEconomyResponse
                 .newBuilder();
         try {

@@ -7,7 +7,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.ExecutorService;
 
 import javax.annotation.Nonnull;
 
@@ -50,7 +49,6 @@ public interface AnalysisFactory {
     /**
      * Create a new {@link Analysis}.
      *
-     * @param threadPool the thread pool used in market component.
      * @param topologyInfo Information about the topology this analysis applies to.
      * @param topologyEntities The entities in the topology.
      * @param configCustomizer A {@link AnalysisConfigCustomizer} to tweak the configuration of
@@ -59,8 +57,7 @@ public interface AnalysisFactory {
      * @return The {@link Analysis} object.
      */
     @Nonnull
-    Analysis newAnalysis(@Nonnull ExecutorService threadPool,
-                         @Nonnull TopologyInfo topologyInfo,
+    Analysis newAnalysis(@Nonnull final TopologyInfo topologyInfo,
                          @Nonnull final Collection<TopologyEntityDTO> topologyEntities,
                          @Nonnull AnalysisConfigCustomizer configCustomizer,
                          @Nonnull InitialPlacementFinder initialPlacementFinder);
@@ -188,8 +185,7 @@ public interface AnalysisFactory {
          */
         @Override
         @Nonnull
-        public Analysis newAnalysis(@Nonnull final ExecutorService threadPool,
-                                    @Nonnull final TopologyInfo topologyInfo,
+        public Analysis newAnalysis(@Nonnull final TopologyInfo topologyInfo,
                                     @Nonnull final Collection<TopologyEntityDTO> topologyEntities,
                                     @Nonnull final AnalysisConfigCustomizer configCustomizer,
                                     @Nonnull final InitialPlacementFinder initialPlacementFinder) {
@@ -199,7 +195,7 @@ public interface AnalysisFactory {
             final AnalysisConfig.Builder configBuilder = AnalysisConfig.newBuilderWithSMA(marketMode, quoteFactor,
                 liveMarketMoveCostFactor, this.suspensionsThrottlingConfig, globalSettings, fullPriceForQuote);
             configCustomizer.customize(configBuilder);
-            return new Analysis(threadPool, topologyInfo, topologyEntities,
+            return new Analysis(topologyInfo, topologyEntities,
                 groupMemberRetriever, clock,
                 configBuilder.build(), cloudTopologyFactory,
                 topologyCostCalculatorFactory, priceTableFactory, wastedFilesAnalysisEngine,

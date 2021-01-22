@@ -1,7 +1,7 @@
 package com.vmturbo.extractor.export;
 
 import com.vmturbo.components.api.chunking.ChunkCollector;
-import com.vmturbo.extractor.schema.json.export.ExportedObject;
+import com.vmturbo.extractor.export.schema.ExportedObject;
 
 /**
  * Utility to collect list of exported objects into chunks, respecting size (in bytes) limits.

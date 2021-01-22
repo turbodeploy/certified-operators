@@ -1,29 +1,23 @@
 package com.vmturbo.api.component.external.api.util;
 
-import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.PRIVILEGE_MAP;
-
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.servlet.http.HttpServletRequest;
 
 import com.google.common.collect.ImmutableMap;
 
-import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
-import com.vmturbo.api.dto.user.RoleApiDTO;
 import com.vmturbo.auth.api.authorization.jwt.JwtCallCredential;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
@@ -222,20 +216,6 @@ public class ApiUtils {
         } else {
             return Optional.empty();
         }
-    }
-
-    /**
-     * Sort roleNames by privileges in descending order.
-     *
-     * @param roleNames roleNames to be sorted
-     * @return sorted roleNames
-     */
-    public static List<RoleApiDTO> sortRoleByPrivileges(@Nonnull List<RoleApiDTO> roleNames) {
-        final Comparator<RoleApiDTO> c = Comparator.comparingInt(dto -> PRIVILEGE_MAP.get(dto.getName().toUpperCase()));
-        return roleNames.stream()
-            .filter(role -> !StringUtils.isBlank(role.getName()))
-            .sorted(c.reversed())
-            .collect(Collectors.toList());
     }
 }
 

@@ -62,6 +62,7 @@ import com.vmturbo.market.cloudscaling.sma.entities.SMAReservedInstance;
 import com.vmturbo.market.cloudscaling.sma.entities.SMATemplate;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAVirtualMachine;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.InitialPlacementCommTypeMap;
+import com.vmturbo.market.reservations.EconomyCaches.EconomyCachesState;
 import com.vmturbo.market.reservations.InitialPlacementFinder;
 import com.vmturbo.market.reservations.InitialPlacementFinderResult;
 import com.vmturbo.market.reservations.InitialPlacementUtils;
@@ -177,13 +178,12 @@ public class AnalysisDiagnosticsCollectorTest {
         BiMap<CommodityType, Integer> historicalCachedCommTypeMap = HashBiMap.create();
         realtimeCachedCommType.stream().forEach(entry -> realtimeCachedCommTypeMap.put(entry.commodityType, entry.type));
         historicalCachedCommType.stream().forEach(entry -> historicalCachedCommTypeMap.put(entry.commodityType, entry.type));
-        pf.getEconomyCaches().getState().setReservationReceived(true);
+        pf.getEconomyCaches().setState(EconomyCachesState.READY);
         pf.getEconomyCaches().setEconomiesAndCachedCommType(historicalCachedCommTypeMap,
                 realtimeCachedCommTypeMap,
                 historicalCachedEconomy == null ? null : InitialPlacementUtils.cloneEconomy(
                         historicalCachedEconomy, true),
-                realtimeCachedEconomy == null ? null : InitialPlacementUtils.cloneEconomy(
-                        realtimeCachedEconomy, true));
+                InitialPlacementUtils.cloneEconomy(realtimeCachedEconomy, true));
         Table<Long, Long, InitialPlacementFinderResult> result = pf.findPlacement(newBuyers);
         assertFalse(result.isEmpty());
     }

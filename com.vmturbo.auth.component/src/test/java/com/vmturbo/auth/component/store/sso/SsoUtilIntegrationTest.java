@@ -34,7 +34,6 @@ import org.junit.runners.Parameterized.Parameters;
 import com.vmturbo.auth.api.authentication.AuthenticationException;
 import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationToken;
 import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
-import com.vmturbo.auth.component.policy.ReportPolicy;
 import com.vmturbo.auth.component.policy.UserPolicy;
 import com.vmturbo.auth.component.policy.UserPolicy.LoginPolicy;
 import com.vmturbo.auth.component.store.AuthProvider;
@@ -230,7 +229,7 @@ public class SsoUtilIntegrationTest {
         ssoUtil.putSecurityGroup(GROUP_NAME, securityGroup);
         ssoUtil.putSecurityGroup(GROUP_NAME_ADDITION, securityGroup1);
         AuthProvider store = new AuthProvider(keyValueStore, groupServiceClient, kvSupplier, null,
-                        new UserPolicy(LoginPolicy.AD_ONLY, new ReportPolicy(1)), ssoUtil, true);
+                        new UserPolicy(LoginPolicy.AD_ONLY), ssoUtil, true);
 
         final JWTAuthorizationToken authenticate =
                         store.authenticate(username, PASSWORD, "10.10.10.1");

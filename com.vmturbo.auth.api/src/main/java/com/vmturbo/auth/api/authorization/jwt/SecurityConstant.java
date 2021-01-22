@@ -3,12 +3,10 @@ package com.vmturbo.auth.api.authorization.jwt;
 import static io.grpc.Metadata.ASCII_STRING_MARSHALLER;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
@@ -111,11 +109,6 @@ public class SecurityConstant {
     public static final String SITE_ADMIN = PredefinedRole.SITE_ADMIN.name();
 
     /**
-     * The role for report_editor.
-     */
-    public static final String REPORT_EDITOR = PredefinedRole.REPORT_EDITOR.name();
-
-    /**
      * The legacy customer type.
      */
     public static final String DEDICATED_CUSTOMER = "DedicatedCustomer";
@@ -198,29 +191,6 @@ public class SecurityConstant {
         /**
          * SHARED_OBSERVER role.
          */
-        SHARED_OBSERVER,
-        /**
-         * REPORT role.
-         */
-        REPORT_EDITOR,
+        SHARED_OBSERVER
     }
-
-    /**
-     * Role to privilege map which is used for calculating privileges (permissions). The
-     * bigger number on value, the more privilege the role has. For example, ADMINISTRATOR role have
-     * max privileges with 100 as value; SHARED_OBSERVER has min privileges with 40 as value.
-     */
-    public static final Map<String, Integer> PRIVILEGE_MAP =
-            ImmutableMap.<String, Integer>builder()
-                    .put(ADMINISTRATOR, 100)
-                    .put(SITE_ADMIN, 90)
-                    .put(AUTOMATOR, 80)
-                    .put(ADVISOR, 70)
-                    .put(SHARED_ADVISOR, 60)
-                    .put(DEPLOYER, 50)
-                    .put(OBSERVER, 40)
-                    .put(SHARED_OBSERVER, 30)
-                    .put(OPERATIONAL_OBSERVER, 20)
-                    .put(REPORT_EDITOR, 10)
-                    .build();
 }

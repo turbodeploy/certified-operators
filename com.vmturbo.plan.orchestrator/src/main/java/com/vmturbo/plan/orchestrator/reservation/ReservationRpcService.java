@@ -80,9 +80,6 @@ public class ReservationRpcService extends ReservationServiceImplBase {
                                                 StreamObserver<GetBuyersOfExistingReservationsResponse> responseObserver) {
 
         try {
-            // market just restarted. The historical cache has to be updated. Run a cluster headroom.
-            // TODO: discuss if this is will be the solution for restart/target changes in 8.0.8.
-            // reservationManager.runClusterHeadroom();
             final Set<Reservation> reservations = new HashSet<>();
             reservationDao.getAllReservations().forEach(reservation -> {
                 if (reservation.getStatus() == ReservationStatus.RESERVED) {
@@ -93,6 +90,7 @@ public class ReservationRpcService extends ReservationServiceImplBase {
                     = GetBuyersOfExistingReservationsResponse.newBuilder();
             reservationManager.buildInitialPlacementBuyerList(reservations).stream()
                     .forEach(buyer -> response.addInitialPlacementBuyer(buyer));
+
             responseObserver.onNext(response.build());
             responseObserver.onCompleted();
         } catch (Exception e) {

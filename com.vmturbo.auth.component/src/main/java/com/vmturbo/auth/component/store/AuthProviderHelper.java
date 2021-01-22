@@ -4,20 +4,17 @@ import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.ADMINISTRA
 import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.PREDEFINED_ROLE_SET;
 import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.SITE_ADMIN;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.gson.GsonBuilder;
 
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import com.vmturbo.auth.api.authentication.credentials.SAMLUserUtils;
-import com.vmturbo.auth.component.store.AuthProviderBase.UserInfo;
+import com.vmturbo.auth.component.store.AuthProvider.UserInfo;
 
 /**
  * Helper class for {@link AuthProvider}.
@@ -113,21 +110,6 @@ class AuthProviderHelper {
         return !isAdminUser && authentication.getAuthorities()
                 .stream()
                 .anyMatch(ga -> SPRING_SITE_ADMIN_ROLE_TAG.equals(ga.getAuthority()));
-    }
-
-    /**
-     * Convert persisted users to auth users.
-     *
-     * @param users users from Consul.
-     * @return list of auth users.
-     */
-    public static List<UserInfo> getAllUsers(@Nonnull final Map<String, String> users) {
-        List<UserInfo> userInfoList = new ArrayList<>();
-        for (String jsonData : users.values()) {
-            UserInfo info = (new GsonBuilder().create()).fromJson(jsonData, UserInfo.class);
-            userInfoList.add(info);
-        }
-        return userInfoList;
     }
 
 }

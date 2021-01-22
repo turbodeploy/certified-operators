@@ -11,15 +11,12 @@ import org.junit.Test;
 import org.mockito.Mockito;
 
 import com.vmturbo.api.component.external.api.mapper.ReservationMapper;
-import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.dto.reservation.DemandReservationApiDTO;
 import com.vmturbo.api.dto.reservation.DemandReservationApiInputDTO;
 import com.vmturbo.api.dto.reservation.DemandReservationParametersDTO;
 import com.vmturbo.api.dto.reservation.PlacementParametersDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
-import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanDTOMoles.PlanServiceMole;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
 import com.vmturbo.common.protobuf.plan.ReservationDTOMoles.ReservationServiceMole;
@@ -35,7 +32,6 @@ public class ReservationServiceTest {
             Mockito.spy(new ReservationServiceMole());
 
     private ReservationMapper reservationMapper;
-    private StatsService statsService;
 
     private PlanServiceMole planServiceMole = Mockito.spy(new PlanServiceMole());
 
@@ -43,24 +39,18 @@ public class ReservationServiceTest {
 
     private TemplateServiceMole templateServiceMole = Mockito.spy(new TemplateServiceMole());
 
-    private GroupServiceMole groupServiceMole = Mockito.spy(new GroupServiceMole());
-
-    private UuidMapper mockUuidMapper = Mockito.mock(UuidMapper.class);
-
     private ReservationsService reservationsService;
 
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(reservationServiceMole,
-            planServiceMole, actionsServiceMole, templateServiceMole, groupServiceMole);
+            planServiceMole, actionsServiceMole, templateServiceMole);
 
     @Before
     public void setup() {
         reservationMapper = Mockito.mock(ReservationMapper.class);
-        statsService = Mockito.mock(StatsService.class);
         reservationsService = new ReservationsService(
                 ReservationServiceGrpc.newBlockingStub(grpcServer.getChannel()), reservationMapper,
-                MAXIMUM_PLACEMENT_COUNT, statsService,
-                GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()), mockUuidMapper);
+                MAXIMUM_PLACEMENT_COUNT);
     }
 
     @Test

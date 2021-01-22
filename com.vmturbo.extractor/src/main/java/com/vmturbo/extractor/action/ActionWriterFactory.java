@@ -15,10 +15,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.TypeInfoCase;
 import com.vmturbo.extractor.export.DataExtractionFactory;
 import com.vmturbo.extractor.export.ExtractorKafkaSender;
 import com.vmturbo.extractor.topology.DataProvider;
-import com.vmturbo.extractor.topology.SupplyChainEntity;
 import com.vmturbo.extractor.topology.WriterConfig;
 import com.vmturbo.sql.utils.DbEndpoint;
-import com.vmturbo.topology.graph.TopologyGraph;
 
 /**
  * Factory for creating different action writers, while respecting the writing interval.
@@ -47,7 +45,6 @@ public class ActionWriterFactory {
     private final DataProvider dataProvider;
     private final ExtractorKafkaSender extractorKafkaSender;
     private final DataExtractionFactory dataExtractionFactory;
-    private final ActionAttributeExtractor actionAttributeExtractor;
     /**
      * The minimum interval for writing action information to the database. We don't write actions
      * every broadcast, because for reporting purposes we don't need action information at 10-minute
@@ -72,7 +69,6 @@ public class ActionWriterFactory {
      * @param extractorKafkaSender for sending actions to kafka
      * @param dataExtractionFactory factory for creating different extractors
      * @param actionExtractionIntervalMillis interval for extracting actions
-     * @param actionAttributeExtractor Extracts type-specific action attributes.
      */
     public ActionWriterFactory(Clock clock,
                                ActionConverter actionConverter,
@@ -83,8 +79,7 @@ public class ActionWriterFactory {
                                DataProvider dataProvider,
                                ExtractorKafkaSender extractorKafkaSender,
                                DataExtractionFactory dataExtractionFactory,
-                               long actionExtractionIntervalMillis,
-                               ActionAttributeExtractor actionAttributeExtractor) {
+                               long actionExtractionIntervalMillis) {
         this.clock = clock;
         this.actionConverter = actionConverter;
         this.ingesterEndpoint = ingesterEndpoint;
@@ -95,7 +90,6 @@ public class ActionWriterFactory {
         this.dataExtractionFactory = dataExtractionFactory;
         this.actionWritingIntervalMillis = actionWritingIntervalMillis;
         this.actionExtractionIntervalMillis = actionExtractionIntervalMillis;
-        this.actionAttributeExtractor = actionAttributeExtractor;
     }
 
     /**
@@ -110,16 +104,9 @@ public class ActionWriterFactory {
         final long now = clock.millis();
         final long nextUpdateTime = lastWriteForType + actionWritingIntervalMillis;
         if (nextUpdateTime <= now) {
-            TopologyGraph<SupplyChainEntity> topologyGraph = dataProvider.getTopologyGraph();
-            if (topologyGraph != null) {
-                return Optional.of(new ReportPendingActionWriter(clock, pool, ingesterEndpoint,
-                    writerConfig, actionConverter, topologyGraph, actionWritingIntervalMillis,
+            return Optional.of(new ReportPendingActionWriter(clock, pool, ingesterEndpoint,
+                    writerConfig, actionConverter, actionWritingIntervalMillis,
                     actionPlanType, lastActionWrite));
-            } else {
-                logger.error("Not writing reporting actions because no topology graph "
-                    + "is available from ingestion.");
-                return Optional.empty();
-            }
         } else {
             logger.info("Not writing reporting action metrics for another {} minutes.",
                     TimeUnit.MILLISECONDS.toMinutes(nextUpdateTime - now));
@@ -154,7 +141,7 @@ public class ActionWriterFactory {
         final long nextExtractionTime = lastActionExtraction.longValue() + actionExtractionIntervalMillis;
         if (nextExtractionTime <= now) {
             return Optional.of(new DataExtractionPendingActionWriter(extractorKafkaSender,
-                    dataExtractionFactory, dataProvider, clock, lastActionExtraction, actionAttributeExtractor));
+                    dataExtractionFactory, dataProvider, clock, lastActionExtraction));
         } else {
             logger.info("Not extracting actions for another {} minutes.",
                     TimeUnit.MILLISECONDS.toMinutes(nextExtractionTime - now));

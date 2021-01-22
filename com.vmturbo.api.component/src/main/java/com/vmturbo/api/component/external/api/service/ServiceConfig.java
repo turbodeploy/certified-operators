@@ -163,12 +163,8 @@ public class ServiceConfig {
     @Value("${enableSearchApi:false}")
     private boolean enableSearchApi;
 
-    /**
-     * The name to use for the REPORT_EDITOR user to log into grafana.
-     * Note: Needs to be in sync with extractor component.
-     */
-    @Value("${grafanaEditorUsername:turbo-report-editor}")
-    private String grafanaEditorUsername;
+    @Value("${grafanaViewerUsername:report-viewer}")
+    private String grafanaViewerUsername;
 
     @Value("${apiPaginationDefaultLimit:100}")
     private int apiPaginationDefaultLimit;
@@ -468,10 +464,7 @@ public class ServiceConfig {
         return new ReservationsService(
                 communicationConfig.reservationServiceBlockingStub(),
                 mapperConfig.reservationMapper(),
-                maximumPlacementCount,
-                statsService(),
-                communicationConfig.groupRpcService(),
-                mapperConfig.uuidMapper());
+                maximumPlacementCount);
     }
 
     @Bean
@@ -707,7 +700,7 @@ public class ServiceConfig {
      */
     @Bean
     public ReportingUserCalculator reportingUserCalculator() {
-        return new ReportingUserCalculator(enableReporting, grafanaEditorUsername);
+        return new ReportingUserCalculator(enableReporting, samlEnabled, grafanaViewerUsername);
     }
 
     /**

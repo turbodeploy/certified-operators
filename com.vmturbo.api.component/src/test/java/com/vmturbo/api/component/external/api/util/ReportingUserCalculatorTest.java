@@ -4,12 +4,8 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertFalse;
 
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-
 import org.junit.Test;
 
-import com.vmturbo.api.dto.user.RoleApiDTO;
 import com.vmturbo.api.dto.user.UserApiDTO;
 import com.vmturbo.api.serviceinterfaces.IUsersService.LoggedInUserInfo;
 import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
@@ -24,44 +20,76 @@ public class ReportingUserCalculatorTest {
      */
     @Test
     public void testDisabledReports() {
-        ReportingUserCalculator calculator = new ReportingUserCalculator(false, "foo");
-        LoggedInUserInfo info = calculator.getMe(makeUser("administrator", SecurityConstant.REPORT_EDITOR));
+        ReportingUserCalculator calculator = new ReportingUserCalculator(false, false, "foo");
+        LoggedInUserInfo info = calculator.getMe(makeUser("administrator"));
         assertFalse(info.getReportingUserName().isPresent());
     }
 
     /**
-     * Test that for administrators the reporting user header gets set to the report editor.
+     * Test that for administrators the reporting user header gets set to the username.
      */
     @Test
-    public void testEnabledReportsEditorRole() {
-        final String username = "blah";
-        final String editorUser = "iamaneditor";
-        ReportingUserCalculator calculator = new ReportingUserCalculator(true, editorUser);
-        LoggedInUserInfo info = calculator.getMe(makeUser(username, SecurityConstant.AUTOMATOR, SecurityConstant.REPORT_EDITOR));
-        assertThat(info.getReportingUserName().get(), is(editorUser));
-    }
-
-    /**
-     * Test that for non-administrators the reporting user header gets set to the username.
-     */
-    @Test
-    public void testEnabledReportsNonEditorRole() {
-        final String username = "oiarnsto";
-        ReportingUserCalculator calculator = new ReportingUserCalculator(true, "foo");
-        LoggedInUserInfo info = calculator.getMe(makeUser(username, SecurityConstant.ADMINISTRATOR));
+    public void testEnabledReportsAdministrator() {
+        final String username = "administrator";
+        ReportingUserCalculator calculator = new ReportingUserCalculator(true, false, "foo");
+        LoggedInUserInfo info = calculator.getMe(makeUser(username));
         assertThat(info.getReportingUserName().get(), is(username));
     }
 
-    private UserApiDTO makeUser(String name, String... roles) {
+    /**
+     * Test that for administrators the reporting user header gets set to the username in a case
+     * insensitive fashion.
+     */
+    @Test
+    public void testEnabledReportsAdministratorCaseInsensitive() {
+        final String username = "AdministRator";
+        ReportingUserCalculator calculator = new ReportingUserCalculator(true, false, "foo");
+        LoggedInUserInfo info = calculator.getMe(makeUser(username));
+        assertThat(info.getReportingUserName().get(), is(username));
+    }
+
+    /**
+     * Test that for non-administrators the reporting user header gets set to the viewer user.
+     */
+    @Test
+    public void testEnabledReportsNonAdministrator() {
+        final String username = "oiarnsto";
+        final String viewerUser = "iamaviewer";
+        ReportingUserCalculator calculator = new ReportingUserCalculator(true, false, viewerUser);
+        LoggedInUserInfo info = calculator.getMe(makeUser(username));
+        assertThat(info.getReportingUserName().get(), is(viewerUser));
+    }
+
+    /**
+     * Test that the reporting user is set when SAML is enabled and the role is admin.
+     */
+    @Test
+    public void testSamlEnabledAdministratorRole() {
+        final String username = "administrator";
+        ReportingUserCalculator calculator = new ReportingUserCalculator(true, true, "foo");
+        UserApiDTO userApiDTO = makeUser(username);
+        userApiDTO.setRoleName(SecurityConstant.ADMINISTRATOR);
+        LoggedInUserInfo info = calculator.getMe(userApiDTO);
+        assertThat(info.getReportingUserName().get(), is(username));
+    }
+
+    /**
+     * Test that the reporting user is the viewer user when SAML is enabled and the role is non-admin.
+     */
+    @Test
+    public void testSamlEnabledNotAdministratorRole() {
+        final String username = "administrator";
+        final String viewerUser = "iamaviewer";
+        ReportingUserCalculator calculator = new ReportingUserCalculator(true, true, viewerUser);
+        UserApiDTO userApiDTO = makeUser(username);
+        userApiDTO.setRoleName(SecurityConstant.SITE_ADMIN);
+        LoggedInUserInfo info = calculator.getMe(userApiDTO);
+        assertThat(info.getReportingUserName().get(), is(viewerUser));
+    }
+
+    private UserApiDTO makeUser(String name) {
         UserApiDTO user = new UserApiDTO();
         user.setUsername(name);
-        user.setRoles(Stream.of(roles)
-            .map(role -> {
-                RoleApiDTO dto = new RoleApiDTO();
-                dto.setName(role);
-                return dto;
-            })
-            .collect(Collectors.toList()));
         return user;
     }
 }

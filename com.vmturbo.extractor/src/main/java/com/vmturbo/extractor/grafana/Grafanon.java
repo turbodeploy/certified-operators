@@ -18,14 +18,12 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.components.common.RequiresDataInitialization;
 import com.vmturbo.components.common.utils.BuildProperties;
-import com.vmturbo.extractor.ExtractorGlobalConfig.ExtractorFeatureFlags;
 import com.vmturbo.extractor.grafana.client.GrafanaClient;
 import com.vmturbo.extractor.grafana.model.DashboardSpec;
 import com.vmturbo.extractor.grafana.model.DashboardSpec.UpsertDashboardRequest;
 import com.vmturbo.extractor.grafana.model.DashboardVersion;
 import com.vmturbo.extractor.grafana.model.DatasourceInput;
 import com.vmturbo.extractor.grafana.model.Folder;
-import com.vmturbo.extractor.grafana.model.Role;
 import com.vmturbo.extractor.grafana.model.UserInput;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.sql.utils.DbEndpointConfig;
@@ -50,18 +48,18 @@ public class Grafanon implements RequiresDataInitialization {
 
     private final DashboardsOnDisk dashboardsOnDisk;
 
-    private final ExtractorFeatureFlags extractorFeatureFlags;
+    private final boolean enableReporting;
 
     private CompletableFuture<RefreshSummary> initilizationResult = new CompletableFuture<>();
 
     Grafanon(@Nonnull final GrafanonConfig grafanonConfig,
             @Nonnull final DashboardsOnDisk dashboardsOnDisk,
             @Nonnull final GrafanaClient grafanaClient,
-            @Nonnull final ExtractorFeatureFlags extractorFeatureFlags) {
+            @Nonnull final boolean enableReporting) {
         this.grafanonConfig = grafanonConfig;
         this.dashboardsOnDisk = dashboardsOnDisk;
         this.grafanaClient = grafanaClient;
-        this.extractorFeatureFlags = extractorFeatureFlags;
+        this.enableReporting = enableReporting;
     }
 
     @Nonnull
@@ -72,7 +70,7 @@ public class Grafanon implements RequiresDataInitialization {
     @Override
     public void initialize() {
         // do not initialize if reporting is not enabled
-        if (!extractorFeatureFlags.isReportingEnabled()) {
+        if (!enableReporting) {
             return;
         }
         // We initialize asynchronously, with retries.
@@ -113,11 +111,14 @@ public class Grafanon implements RequiresDataInitialization {
      * @throws IllegalArgumentException If there is some configuration error.
      */
     public void refreshGrafana(@Nonnull final RefreshSummary refreshSummary) {
-        if (grafanonConfig.getEditorUserInput().isPresent()) {
-            UserInput userInput = grafanonConfig.getEditorUserInput().get();
-            grafanaClient.ensureUserExists(userInput, Role.ADMIN, refreshSummary);
-            grafanaClient.ensureReportEditorIsAdmin(userInput.getUsername(), refreshSummary);
+        if (grafanonConfig.getViewerUserInput().isPresent()) {
+            grafanaClient.ensureUserExists(grafanonConfig.getViewerUserInput().get(), refreshSummary);
         }
+
+        // Temporary - re-assign all editors to be organizational admins.
+        // TODO (roman, Sept 18 2020 OM-62720: Remove this after customers are
+        // migrated to 7.22.9 or later.
+        grafanaClient.ensureTurboAdminIsAdmin(refreshSummary);
 
         try {
             // Get the endpoint here (inside the initialization thread) to avoid blocking the
@@ -225,9 +226,9 @@ public class Grafanon implements RequiresDataInitialization {
         private final Supplier<DbEndpointConfig> postgresDatasourceEndpoint;
         private long onErrorSleepIntervalMs = 30_000;
 
-        private String editorUsername;
-        private String editorDisplayName;
-        private String editorPassword;
+        private String viewerUsername;
+        private String viewerDisplayName;
+        private String viewerPassword;
 
         GrafanonConfig(@Nonnull final Supplier<DbEndpointConfig> dbEndpoint) {
             this.postgresDatasourceEndpoint = dbEndpoint;
@@ -251,8 +252,8 @@ public class Grafanon implements RequiresDataInitialization {
          * @return The config, for method chaining.
          */
         @Nonnull
-        public GrafanonConfig setEditorUsername(String username) {
-            this.editorUsername = username;
+        public GrafanonConfig setViewerUsername(String username) {
+            this.viewerUsername = username;
             return this;
         }
 
@@ -263,8 +264,8 @@ public class Grafanon implements RequiresDataInitialization {
          * @return The config, for method chaining.
          */
         @Nonnull
-        public GrafanonConfig setEditorDisplayName(String displayName) {
-            this.editorDisplayName = displayName;
+        public GrafanonConfig setViewerDisplayName(String displayName) {
+            this.viewerDisplayName = displayName;
             return this;
         }
 
@@ -275,8 +276,8 @@ public class Grafanon implements RequiresDataInitialization {
          * @return The config, for method chaining.
          */
         @Nonnull
-        public GrafanonConfig setEditorPassword(String password) {
-            this.editorPassword = password;
+        public GrafanonConfig setViewerPassword(String password) {
+            this.viewerPassword = password;
             return this;
         }
 
@@ -321,18 +322,18 @@ public class Grafanon implements RequiresDataInitialization {
          * @return The {@link UserInput} optional.
          */
         @Nonnull
-        public Optional<UserInput> getEditorUserInput() {
-            if (StringUtils.isEmpty(editorDisplayName) || StringUtils.isEmpty(editorUsername)) {
+        public Optional<UserInput> getViewerUserInput() {
+            if (StringUtils.isEmpty(viewerDisplayName) || StringUtils.isEmpty(viewerUsername)) {
                 return Optional.empty();
             } else {
-                String password = editorPassword;
+                String password = viewerPassword;
                 if (StringUtils.isEmpty(password)) {
                     // If there is no explicit password provided, create a random alpha-numeric
                     // password. We don't really care about this password, because we never log
                     // in with the "viewer" user directly, only through the reverse proxy.
                     password = RandomStringUtils.randomAlphanumeric(10).toUpperCase();
                 }
-                return Optional.of(new UserInput(editorDisplayName, editorUsername, password));
+                return Optional.of(new UserInput(viewerDisplayName, viewerUsername, password));
             }
         }
 
