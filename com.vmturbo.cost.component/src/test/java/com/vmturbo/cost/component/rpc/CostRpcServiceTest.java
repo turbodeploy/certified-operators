@@ -89,6 +89,7 @@ import com.vmturbo.cost.component.entity.cost.EntityCostToStatRecordConverter;
 import com.vmturbo.cost.component.entity.cost.PlanProjectedEntityCostStore;
 import com.vmturbo.cost.component.entity.cost.ProjectedEntityCostStore;
 import com.vmturbo.cost.component.expenses.AccountExpensesStore;
+import com.vmturbo.cost.component.savings.EntitySavingsStore;
 import com.vmturbo.cost.component.util.BusinessAccountHelper;
 import com.vmturbo.cost.component.util.CostFilter;
 import com.vmturbo.cost.component.util.EntityCostFilter;
@@ -227,6 +228,7 @@ public class CostRpcServiceTest {
     private BusinessAccountHelper businessAccountHelper = new BusinessAccountHelper();
     private TimeFrameCalculator timeFrameCalculator = mock(TimeFrameCalculator.class);
     private Clock clock = new MutableFixedClock(TIME);
+    private EntitySavingsStore entitySavingsStore = mock(EntitySavingsStore.class);
 
     //CostRpcService under test
     private CostRpcService costRpcService;
@@ -238,7 +240,8 @@ public class CostRpcServiceTest {
         businessAccountHelper.storeDiscoveredBusinessAccount(ACCOUNT_DTO);
         costRpcService = new CostRpcService(discountStore, accountExpenseStore, entityCostStore,
             projectedEntityCostStore, planProjectedEntityCostStore, timeFrameCalculator,
-            businessAccountHelper, clock, RT_TOPO_CONTEXT_ID, MAX_INNER_STAT_RECORDS, null);
+            businessAccountHelper, clock, RT_TOPO_CONTEXT_ID, MAX_INNER_STAT_RECORDS, null,
+                entitySavingsStore);
         repositoryClient = mock(RepositoryClient.class);
         serviceBlockingStub = SupplyChainServiceGrpc.newBlockingStub(mock(Channel.class));
         when(timeFrameCalculator.millis2TimeFrame(anyLong())).thenReturn(TimeFrame.LATEST);

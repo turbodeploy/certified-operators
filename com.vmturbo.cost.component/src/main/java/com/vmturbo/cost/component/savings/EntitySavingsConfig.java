@@ -1,13 +1,16 @@
 package com.vmturbo.cost.component.savings;
 
+import java.time.Clock;
 import java.util.concurrent.Executors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
+import com.vmturbo.cost.component.CostDBConfig;
 
 /**
  * Configuration for cloud savings/investment tracking.  Interesting event types are: entity
@@ -16,6 +19,18 @@ import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
 @Configuration
 @Import({ActionOrchestratorClientConfig.class})
 public class EntitySavingsConfig {
+    /**
+     * DB config for DSL access.
+     */
+    @Autowired
+    private CostDBConfig databaseConfig;
+
+    /**
+     * Chunk size configuration.
+     */
+    @Value("${persistEntityCostChunkSize:1000}")
+    private int persistEntityCostChunkSize;
+
     /*
      * Enable cloud savings tracking.
      */
@@ -60,5 +75,16 @@ public class EntitySavingsConfig {
     public EntitySavingsTracker entitySavingsTracker() {
        return new EntitySavingsTracker(this, aoClientConfig,
                Executors.newSingleThreadScheduledExecutor());
+    }
+
+    /**
+     * Get access to savings DB store.
+     *
+     * @return Savings store.
+     */
+    @Bean
+    public EntitySavingsStore entitySavingsStore() {
+        return new SqlEntitySavingsStore(databaseConfig.dsl(), Clock.systemUTC(),
+                persistEntityCostChunkSize);
     }
 }

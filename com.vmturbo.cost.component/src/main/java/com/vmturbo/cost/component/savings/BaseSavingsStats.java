@@ -10,35 +10,63 @@ import org.apache.commons.lang.builder.ToStringBuilder;
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;
 
 /**
- * Keeps stats (like REALIZED_SAVINGS) of a particular type, for an entity, at a given timestamp.
+ * Keeps stats (like REALIZED_SAVINGS) of a particular type, at a given timestamp.
  */
-public class EntitySavingsStats extends BaseSavingsStats {
+abstract class BaseSavingsStats {
     /**
-     * VM/DB/Volume id for which stats is stored.
+     * Stats timestamp, e.g 14:00:00 for hourly stats.
      */
-    private final long entityId;
+    protected final long timestamp;
+
+    /**
+     * Type of stats, e.g CUMULATIVE_REALIZED_SAVINGS.
+     */
+    protected final EntitySavingsStatsType type;
+
+    /**
+     * Value (cost price) of stats.
+     */
+    protected final Double value;
 
     /**
      * Creates a new one.
      *
-     * @param entityId VM/DB/Volume id for which stats is stored.
      * @param timestamp Stats timestamp, e.g 14:00:00 for hourly stats.
      * @param statsType Type of stats, e.g REALIZED_INVESTMENTS.
      * @param statsValue Value of stats field.
      */
-    public EntitySavingsStats(long entityId, long timestamp, EntitySavingsStatsType statsType,
-            @Nonnull Double statsValue) {
-        super(timestamp, statsType, statsValue);
-        this.entityId = entityId;
+    BaseSavingsStats(long timestamp, EntitySavingsStatsType statsType, @Nonnull Double statsValue) {
+        this.timestamp = timestamp;
+        this.type = statsType;
+        this.value = statsValue;
     }
 
     /**
-     * VM/DB/Volume id for which stats is stored.
+     * Stats timestamp, e.g 14:00:00 for hourly stats.
      *
-     * @return VM/DB/Volume id for which stats is stored.
+     * @return Stats timestamp, e.g 14:00:00 for hourly stats.
      */
-    public long getEntityId() {
-        return entityId;
+    public long getTimestamp() {
+        return timestamp;
+    }
+
+    /**
+     * Gets type of the stats being stored.
+     *
+     * @return Stats type.
+     */
+    public EntitySavingsStatsType getType() {
+        return type;
+    }
+
+    /**
+     * Gets the stats value.
+     *
+     * @return Value of stats.
+     */
+    @Nonnull
+    public Double getValue() {
+        return value;
     }
 
     /**
@@ -49,17 +77,14 @@ public class EntitySavingsStats extends BaseSavingsStats {
      */
     @Override
     public boolean equals(Object o) {
-        if (!super.equals(o)) {
-            return false;
-        }
         if (this == o) {
             return true;
         }
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        EntitySavingsStats that = (EntitySavingsStats)o;
-        return entityId == that.entityId;
+        BaseSavingsStats that = (BaseSavingsStats)o;
+        return timestamp == that.timestamp && type == that.type;
     }
 
     /**
@@ -69,7 +94,7 @@ public class EntitySavingsStats extends BaseSavingsStats {
      */
     @Override
     public int hashCode() {
-        return Objects.hash(entityId, timestamp, type);
+        return Objects.hash(timestamp, type);
     }
 
     /**
@@ -80,7 +105,6 @@ public class EntitySavingsStats extends BaseSavingsStats {
     @Override
     public String toString() {
         return new ToStringBuilder(this)
-                .append("entityOID", entityId)
                 .append("timestamp", new Timestamp(timestamp).toLocalDateTime())
                 .append("type", type)
                 .append("value", value)
