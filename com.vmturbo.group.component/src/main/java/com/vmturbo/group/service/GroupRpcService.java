@@ -19,6 +19,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableTable;
 import com.google.common.collect.Table;
@@ -75,14 +76,20 @@ import com.vmturbo.common.protobuf.group.GroupDTO.StoreDiscoveredGroupsPoliciesS
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceImplBase;
+import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.TargetSearchServiceGrpc.TargetSearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.group.common.Truncator;
+import com.vmturbo.group.db.tables.pojos.GroupSupplementaryInfo;
 import com.vmturbo.group.group.DiscoveredGroupHash;
+import com.vmturbo.group.group.GroupEnvironment;
+import com.vmturbo.group.group.GroupEnvironmentTypeResolver;
 import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.group.group.IGroupStore.DiscoveredGroup;
 import com.vmturbo.group.group.TemporaryGroupCache;
@@ -133,6 +140,8 @@ public class GroupRpcService extends GroupServiceImplBase {
 
     private final GroupMemberCalculator memberCalculator;
 
+    private final GroupEnvironmentTypeResolver groupEnvironmentTypeResolver;
+
     private final long groupLoadTimeoutMs;
 
     /**
@@ -152,6 +161,7 @@ public class GroupRpcService extends GroupServiceImplBase {
      * @param groupLoadTimeoutSec timeout to await for permits to load groups from DAO. If
      *         this timeout expires, {@link #getGroupsByIds(IGroupStore, List, StreamObserver,
      *         StopWatch, boolean)} will return a error.
+     * @param groupEnvironmentTypeResolver utility class for group environment type resolution
      */
     public GroupRpcService(@Nonnull final TemporaryGroupCache tempGroupCache,
             @Nonnull final SearchServiceBlockingStub searchServiceRpc,
@@ -163,7 +173,9 @@ public class GroupRpcService extends GroupServiceImplBase {
             @Nonnull DiscoveredSettingPoliciesUpdater settingPolicyUpdater,
             @Nonnull DiscoveredPlacementPolicyUpdater placementPolicyUpdater,
             GroupMemberCalculator memberCalculator,
-            int groupLoadPermits, long groupLoadTimeoutSec) {
+            int groupLoadPermits,
+            long groupLoadTimeoutSec,
+            @Nonnull GroupEnvironmentTypeResolver groupEnvironmentTypeResolver) {
         this.tempGroupCache = Objects.requireNonNull(tempGroupCache);
         this.searchServiceRpc = Objects.requireNonNull(searchServiceRpc);
         this.userSessionContext = Objects.requireNonNull(userSessionContext);
@@ -184,6 +196,7 @@ public class GroupRpcService extends GroupServiceImplBase {
         }
         this.groupLoadTimeoutMs = groupLoadTimeoutSec * 1000;
         this.memberCalculator = memberCalculator;
+        this.groupEnvironmentTypeResolver = Objects.requireNonNull(groupEnvironmentTypeResolver);
     }
 
     @Override
@@ -801,6 +814,11 @@ public class GroupRpcService extends GroupServiceImplBase {
             long groupOid = identityProvider.next();
             groupStore.createGroup(groupOid, request.getOrigin(), groupDef, expectedTypes,
                                     supportsMemberReverseLookup);
+            // We split group creation to two different methods to benefit from the group membership
+            // cache.
+            // Supplementary info derive from group members, so we create them after the cache has
+            // been updated.
+            storeSingleGroupSupplementaryInfo(groupStore, groupOid);
             createdGroup = Grouping.newBuilder()
                 .setId(groupOid)
                 .setDefinition(groupDef)
@@ -815,6 +833,41 @@ public class GroupRpcService extends GroupServiceImplBase {
                             .setGroup(createdGroup)
                             .build());
         responseObserver.onCompleted();
+
+    }
+
+    /**
+     * Creates group supplementary info that derive from group members.
+     * These data currently include emptiness, environment type & cloud type.
+     *
+     * @param groupStore group store to use for queries
+     * @param groupId the group to update
+     * @throws StoreOperationException on db error
+     */
+    private void storeSingleGroupSupplementaryInfo(@Nonnull IGroupStore groupStore,
+            final long groupId) throws StoreOperationException {
+        Set<Long> groupEntities = memberCalculator.getGroupMembers(groupStore,
+                Collections.singleton(groupId), true);
+        final boolean isEmpty = groupEntities.size() == 0;
+        List<PartialEntity> entitiesWithEnvironment =
+                fetchEntitiesWithEnvironment(groupEntities);
+        if (entitiesWithEnvironment == null) {
+            return;
+        }
+        // calculate environment type based on members environment type
+        GroupEnvironment groupEnvironment =
+                groupEnvironmentTypeResolver.getEnvironmentAndCloudTypeForGroup(groupId,
+                        entitiesWithEnvironment
+                                .stream()
+                                .map(PartialEntity::getWithOnlyEnvironmentTypeAndTargets)
+                                .filter(Objects::nonNull)
+                                .collect(Collectors.toSet()),
+                        ArrayListMultimap.create());
+        // add group info to the database
+        groupStore.createGroupSupplementaryInfo(new GroupSupplementaryInfo(groupId,
+                        isEmpty,
+                        groupEnvironment.getEnvironmentType().getNumber(),
+                        groupEnvironment.getCloudType().getNumber()));
 
     }
 
@@ -890,11 +943,78 @@ public class GroupRpcService extends GroupServiceImplBase {
         final Grouping newGroup =
                 groupStore.updateGroup(request.getId(), groupDefinition, expectedTypes,
                         supportsMemberReverseLookup);
+        // We split updating some information related to group to a different method, to benefit
+        // from the group membership cache.
+        // Supplementary info derive from group members, so we update them after the cache has been
+        // updated (during the previous call).
+        updateSingleGroupSupplementaryInfo(groupStore, newGroup.getId());
         postValidateNewGroup(groupStore, newGroup);
+
         final UpdateGroupResponse res =
                 UpdateGroupResponse.newBuilder().setUpdatedGroup(newGroup).build();
         responseObserver.onNext(res);
         responseObserver.onCompleted();
+    }
+
+    /**
+     * Updates group supplementary info that derive from group members.
+     * These data currently include emptiness, environment type & cloud type.
+     *
+     * @param groupStore group store to use for queries
+     * @param groupId the group to update
+     * @throws StoreOperationException on db error
+     */
+    private void updateSingleGroupSupplementaryInfo(@Nonnull IGroupStore groupStore,
+            final long groupId) throws StoreOperationException {
+        Set<Long> groupEntities =
+            memberCalculator.getGroupMembers(groupStore, Collections.singleton(groupId), true);
+        List<PartialEntity> entitiesWithEnvironment =
+                fetchEntitiesWithEnvironment(groupEntities);
+        if (entitiesWithEnvironment == null) {
+            return;
+        }
+        // calculate environment type based on members environment type
+        GroupEnvironment groupEnvironment =
+                groupEnvironmentTypeResolver.getEnvironmentAndCloudTypeForGroup(groupId,
+                        entitiesWithEnvironment
+                                .stream()
+                                .map(PartialEntity::getWithOnlyEnvironmentTypeAndTargets)
+                                .filter(Objects::nonNull)
+                                .collect(Collectors.toSet()),
+                        ArrayListMultimap.create());
+        // add record to the database
+        groupStore.updateSingleGroupSupplementaryInfo(groupId, groupEntities.isEmpty(), groupEnvironment);
+    }
+
+    /**
+     * Given a set of entities, it returns a list of those entities with information about their
+     * environment type and the targets that discovered them, by querying the repository.
+     *
+     * @param entities the entities to query for
+     * @return A list of {@link PartialEntity} containing
+     *         {@link PartialEntity.EntityWithOnlyEnvironmentTypeAndTargets} for the entities
+     *         provided.
+     */
+    private List<PartialEntity> fetchEntitiesWithEnvironment(Set<Long> entities) {
+        List<PartialEntity> entitiesWithEnvironment = new ArrayList<>();
+        if (entities.isEmpty()) {
+            return entitiesWithEnvironment;
+        }
+        SearchEntitiesRequest request = SearchEntitiesRequest.newBuilder()
+                .addAllEntityOid(entities)
+                .setReturnType(Type.WITH_ONLY_ENVIRONMENT_TYPE_AND_TARGETS)
+                .build();
+        // (When there's no real time topology in repository, we get a status runtime
+        // exception.)
+        try {
+            searchServiceRpc.searchEntitiesStream(request).forEachRemaining(e ->
+                    entitiesWithEnvironment.addAll(e.getEntitiesList()));
+        } catch (StatusRuntimeException e) {
+            logger.warn(
+                    "Request for entities failed. Group supplementary info cannot be updated.");
+            return null;
+        }
+        return entitiesWithEnvironment;
     }
 
     @Override

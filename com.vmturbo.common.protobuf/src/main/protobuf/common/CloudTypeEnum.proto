@@ -1,0 +1,25 @@
+syntax = "proto2";
+
+package common;
+
+option java_package = "com.vmturbo.common.protobuf.common";
+
+
+// The environment subtype for CLOUD environment type.
+enum CloudType {
+    // If the environment type was either not cloud or could not be determined.
+    // It's up to the caller to decide whether how to treat UNKNOWN.
+    UNKNOWN_CLOUD = 0;
+
+    // Amazon Web Services.
+    AWS = 1;
+
+    // Microsoft Azure.
+    AZURE = 2;
+
+    // Google Cloud.
+    GCP = 3;
+
+     // In the case of groups we may have more than one cloud type.
+    HYBRID_CLOUD = 4;
+}

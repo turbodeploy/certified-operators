@@ -25,6 +25,7 @@ import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
 import com.vmturbo.components.common.migration.Migration;
 import com.vmturbo.group.diagnostics.GroupDiagnosticsConfig;
+import com.vmturbo.group.pipeline.PipelineConfig;
 import com.vmturbo.group.schedule.ScheduleConfig;
 import com.vmturbo.group.service.RpcConfig;
 import com.vmturbo.group.setting.SettingConfig;
@@ -42,7 +43,8 @@ import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientConfig;
         GroupApiSecurityConfig.class,
         GroupDiagnosticsConfig.class,
         PlanOrchestratorClientConfig.class,
-        SpringSecurityConfig.class})
+        SpringSecurityConfig.class,
+        PipelineConfig.class})
 public class GroupComponent extends BaseVmtComponent {
 
     @Autowired
@@ -65,6 +67,9 @@ public class GroupComponent extends BaseVmtComponent {
 
     @Autowired
     private SpringSecurityConfig securityConfig;
+
+    @Autowired
+    private PipelineConfig pipelineConfig;
 
     private static Logger logger = LoggerFactory.getLogger(GroupComponent.class);
 

@@ -33,6 +33,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPart
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithOnlyEnvironmentTypeAndTargets;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
@@ -305,6 +306,22 @@ public class PartialEntityConverterTest {
         assertThat(withConnections.getDisplayName(), is(ENTITY.getDisplayName()));
         assertThat(withConnections.getEntityType(), is(ENTITY.getEntityType()));
         assertThat(withConnections.getConnectedEntitiesList(), is(ENTITY.getConnectedEntityListList()));
+    }
+
+    /**
+     * Tests that {@link PartialEntityConverter} correctly creates
+     * EntityWithOnlyEnvironmentTypeAndTargets objects.
+     */
+    @Test
+    public void testGraphEntityToWithOnlyEnvironmentTypeAndTargets() {
+        final EntityWithOnlyEnvironmentTypeAndTargets withOnlyEnvTypeAndTargets =
+                converter.createPartialEntities(Stream.of(graphEntity),
+                                Type.WITH_ONLY_ENVIRONMENT_TYPE_AND_TARGETS)
+                        .findFirst().get().getWithOnlyEnvironmentTypeAndTargets();
+
+        assertThat(withOnlyEnvTypeAndTargets.getOid(), is(ENTITY.getOid()));
+        assertThat(withOnlyEnvTypeAndTargets.getEnvironmentType(), is(ENTITY.getEnvironmentType()));
+        assertThat(withOnlyEnvTypeAndTargets.getDiscoveringTargetIdsList(), contains(TARGET_ID));
     }
 
     @Test

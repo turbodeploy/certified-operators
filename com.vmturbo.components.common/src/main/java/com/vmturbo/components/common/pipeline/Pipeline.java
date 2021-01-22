@@ -120,7 +120,7 @@ public abstract class Pipeline<I, O, C extends PipelineContext, S extends Pipeli
                     curStageInput = result.getResult();
                     pipelineSummary.endStage(result.getStatus());
                 } catch (PipelineStageException | RuntimeException e) {
-                    final String message = "Topology pipeline failed at stage "
+                    final String message = "Pipeline failed at stage "
                         + stage.getClass().getSimpleName() + " with error: " + e.getMessage();
                     pipelineSummary.fail(message);
                     logger.info("\n{}", pipelineSummary);

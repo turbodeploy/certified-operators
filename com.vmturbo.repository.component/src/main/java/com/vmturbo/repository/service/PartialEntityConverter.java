@@ -24,6 +24,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPart
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithOnlyEnvironmentTypeAndTargets;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
@@ -139,6 +140,15 @@ public class PartialEntityConverter {
                                         .setDisplayName(repoGraphEntity.getDisplayName());
                         withConnectionsBuilder.addAllConnectedEntities(repoGraphEntity.getBroadcastConnections());
                         partialEntityBldr.setWithConnections(withConnectionsBuilder);
+                        break;
+                    case WITH_ONLY_ENVIRONMENT_TYPE_AND_TARGETS:
+                        partialEntityBldr.setWithOnlyEnvironmentTypeAndTargets(
+                                EntityWithOnlyEnvironmentTypeAndTargets.newBuilder()
+                                        .setOid(repoGraphEntity.getOid())
+                                        .setEnvironmentType(repoGraphEntity.getEnvironmentType())
+                                        .addAllDiscoveringTargetIds(
+                                                repoGraphEntity.getDiscoveringTargetIds()
+                                                        .collect(Collectors.toList())));
                         break;
                     case ACTION:
                         // Information required by the action orchestrator.

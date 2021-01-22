@@ -9,6 +9,9 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 
+import com.google.common.collect.Multimap;
+import com.google.common.collect.Table;
+
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.GroupFilters;
@@ -16,6 +19,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
 import com.vmturbo.group.DiscoveredObjectVersionIdentity;
+import com.vmturbo.group.db.tables.pojos.GroupSupplementaryInfo;
 import com.vmturbo.group.service.StoreOperationException;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
@@ -40,6 +44,38 @@ public interface IGroupStore {
     void createGroup(long oid, @Nonnull Origin origin, @Nonnull GroupDefinition groupDefinition,
             @Nonnull Set<MemberType> expecMemberTypes, boolean supportReverseLookup)
             throws StoreOperationException;
+
+    /**
+     * Creates a new entry with the supplementary characteristics of the group, for the group
+     * provided. These are data that are not known when we create the group (they derive from
+     * calculations after the definition & other information have been created), so a different call
+     * is required.
+     * Currently they include emptiness, environment and cloud type.
+     *
+     * @param group a collection with the characteristics of the group to be inserted.
+     */
+    void createGroupSupplementaryInfo(GroupSupplementaryInfo group);
+
+    /**
+     * Returns the group type for the given group.
+     *
+     * @param groupId the group whose type to return.
+     * @return the group's type, or null if the group was not found in the database.
+     */
+    @Nullable
+    GroupType getGroupType(long groupId);
+
+    /**
+     * Get the expected member types for a single group. These are the entity (or group)  types that
+     * the members of the group conform to.
+     *
+     * @param groupId The groups to fetch
+     * @return A table of (group) -> (member type) -> (boolean). The boolean indicates whether the
+     *         type is:
+     *         - a direct member (true)
+     *         - an indirect member (in case of nested groups) (false).
+     */
+    Table<Long, MemberType, Boolean> getExpectedMemberTypesForGroup(long groupId);
 
     /**
      * Retrieves groups by id.
@@ -75,6 +111,26 @@ public interface IGroupStore {
     Grouping updateGroup(long groupId, @Nonnull GroupDefinition groupDefinition,
             @Nonnull Set<MemberType> expectedMemberTypes, boolean supportReverseLookups)
             throws StoreOperationException;
+
+    /**
+     * Updates supplementary characteristics of the group. These are data that are not known when we
+     * update the group (they derive from calculations after the definition & other information have
+     * been updated), so a different call is required.
+     * Currently they include emptiness, environment and cloud type.
+     *
+     * @param groupId group's id
+     * @param isEmpty whether the group is currently empty or not
+     * @param groupEnvironment wrapper for environment and cloud type of the group
+     */
+    void updateSingleGroupSupplementaryInfo(long groupId, boolean isEmpty,
+            GroupEnvironment groupEnvironment);
+
+    /**
+     * Updates GroupSupplementaryInfo data in bulk.
+     *
+     * @param groups a collection with information for each group to be updated.
+     */
+    void updateBulkGroupSupplementaryInfo(Collection<GroupSupplementaryInfo> groups);
 
     /**
      * Returns the next page of groups, conforming to the request specified.
@@ -137,6 +193,14 @@ public interface IGroupStore {
      */
     @Nonnull
     Collection<DiscoveredGroupId> getDiscoveredGroupsIds();
+
+    /**
+     * Returns discovered groups with the discovering target ids for each group.
+     *
+     * @return a multimap from group uuid to targets' uuids.
+     */
+    @Nonnull
+    Multimap<Long, Long> getDiscoveredGroupsWithTargets();
 
     /**
      * Returns a set of groups discovered by the specified targets.

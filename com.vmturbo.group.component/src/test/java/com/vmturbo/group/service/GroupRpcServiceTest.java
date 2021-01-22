@@ -65,6 +65,8 @@ import org.springframework.jdbc.BadSqlGrammarException;
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessScopeException;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
+import com.vmturbo.common.protobuf.common.CloudTypeEnum.CloudType;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.CountGroupsResponse;
@@ -123,6 +125,8 @@ import com.vmturbo.components.common.identity.OidSet;
 import com.vmturbo.group.DiscoveredObjectVersionIdentity;
 import com.vmturbo.group.group.DiscoveredGroupHash;
 import com.vmturbo.group.group.GroupDAO.DiscoveredGroupIdImpl;
+import com.vmturbo.group.group.GroupEnvironment;
+import com.vmturbo.group.group.GroupEnvironmentTypeResolver;
 import com.vmturbo.group.group.GroupMembersPlain;
 import com.vmturbo.group.group.IGroupStore.DiscoveredGroup;
 import com.vmturbo.group.group.ProtobufMessageMatcher;
@@ -150,6 +154,8 @@ public class GroupRpcServiceTest {
     private SearchServiceMole searchServiceMole;
     private TargetSearchServiceMole targetSearchServiceMole;
     private TemporaryGroupCache temporaryGroupCache = mock(TemporaryGroupCache.class);
+    private final GroupEnvironmentTypeResolver groupEnvironmentTypeResolver =
+            mock(GroupEnvironmentTypeResolver.class);
 
     private GroupRpcService groupRpcService;
 
@@ -228,7 +234,8 @@ public class GroupRpcServiceTest {
                 settingPolicyUpdater,
                 placementPolicyUpdater,
                 groupMemberCalculatorSpy,
-                2, 120);
+                2, 120,
+                groupEnvironmentTypeResolver);
         when(temporaryGroupCache.getGrouping(anyLong())).thenReturn(Optional.empty());
         when(temporaryGroupCache.deleteGrouping(anyLong())).thenReturn(Optional.empty());
         MockitoAnnotations.initMocks(this);
@@ -1570,6 +1577,7 @@ public class GroupRpcServiceTest {
                                 "src3", GroupType.RESOURCE),
                         new DiscoveredGroupIdImpl(new DiscoveredObjectVersionIdentity(oid2, null), 110L,
                                 "src3", GroupType.RESOURCE)));
+
         requestObserver.onNext(DiscoveredGroupsPoliciesSettings.newBuilder()
                 .setTargetId(110L)
                 .setProbeType(SDKProbeType.AZURE.toString())
@@ -1621,6 +1629,7 @@ public class GroupRpcServiceTest {
                                 "src1", GroupType.REGULAR),
                         new DiscoveredGroupIdImpl(new DiscoveredObjectVersionIdentity(oid2, hash), TARGET1,
                                 "src2", GroupType.REGULAR)));
+
         requestObserver.onNext(DiscoveredGroupsPoliciesSettings.newBuilder()
                 .setTargetId(TARGET1)
                 .setProbeType(SDKProbeType.VCENTER.toString())
@@ -1680,6 +1689,9 @@ public class GroupRpcServiceTest {
 
         long groupingOid = 5;
         Mockito.when(identityProvider.next()).thenReturn(groupingOid).thenReturn(-1L);
+        Mockito.when(groupEnvironmentTypeResolver
+                .getEnvironmentAndCloudTypeForGroup(anyLong(), any(), any())).thenReturn(
+                        new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD));
 
         groupRpcService.createGroup(groupRequest, mockObserver);
         verify(groupStoreDAO).createGroup(eq(groupingOid), eq(origin), eq(group), any(),
@@ -1704,7 +1716,7 @@ public class GroupRpcServiceTest {
      * @throws Exception if something goes wrong.
      */
     @Test
-    public void testRecursiveGroupOgGroup() throws Exception {
+    public void testRecursiveGroupOfGroups() throws Exception {
         final long idA = 1;
         final long idB = 2;
         final GroupFilters groupFiltersA =
@@ -1742,6 +1754,9 @@ public class GroupRpcServiceTest {
             mock(StreamObserver.class);
 
         Mockito.when(identityProvider.next()).thenReturn(idA).thenReturn(idB);
+        Mockito.when(groupEnvironmentTypeResolver
+                .getEnvironmentAndCloudTypeForGroup(anyLong(), any(), any())).thenReturn(
+                        new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD));
         groupRpcService.createGroup(groupRequest, mockObserver);
         HashSet<Long> idAList = new HashSet<>(Collections.singletonList(idA));
         HashSet<Long> idBList = new HashSet<>(Collections.singletonList(idB));
@@ -2118,6 +2133,10 @@ public class GroupRpcServiceTest {
 
         final StreamObserver<UpdateGroupResponse> mockObserver =
                         mock(StreamObserver.class);
+
+        Mockito.when(groupEnvironmentTypeResolver
+                .getEnvironmentAndCloudTypeForGroup(anyLong(), any(), any())).thenReturn(
+                        new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD));
 
         given(groupStoreDAO
                         .updateGroup(eq(groupingOid), eq(group), eq(expectedTypes),

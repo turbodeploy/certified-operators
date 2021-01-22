@@ -488,6 +488,7 @@ message PartialEntity {
         FULL = 1;
         MINIMAL = 2;
         WITH_CONNECTIONS = 5;
+        WITH_ONLY_ENVIRONMENT_TYPE_AND_TARGETS = 13;
 
         // The following are component-specific.
         // Some components require fairly specific subsets of the TopologyEntityDTO, and it would be
@@ -523,6 +524,16 @@ message PartialEntity {
 
         // The entities this entity is connected to.
         repeated TopologyEntityDTO.ConnectedEntity connected_entities = 10;
+    }
+
+    // Just the entity oid, the environment type and the discovering targets. Used when calculating
+    // group environment type, so there's no need to include any other entity data in the message.
+    message EntityWithOnlyEnvironmentTypeAndTargets {
+        required int64 oid = 1;
+
+        optional .common.EnvironmentType environment_type = 2;
+
+        repeated int64 discovering_target_ids = 5;
     }
 
     // Contains the fields required by the action orchestrator to calculate action modes.
@@ -650,6 +661,7 @@ message PartialEntity {
         .topology.TopologyEntityDTO full_entity = 1;
         MinimalEntity minimal = 2;
         EntityWithConnections with_connections = 4;
+        EntityWithOnlyEnvironmentTypeAndTargets with_only_environment_type_and_targets = 12;
 
         ActionPartialEntity action = 10;
         ApiPartialEntity api = 11;

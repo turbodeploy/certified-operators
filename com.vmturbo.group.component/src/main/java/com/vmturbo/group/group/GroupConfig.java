@@ -14,11 +14,16 @@ import com.vmturbo.group.GroupComponentDBConfig;
 import com.vmturbo.group.IdentityProviderConfig;
 import com.vmturbo.group.flyway.V1_11_Callback;
 import com.vmturbo.group.group.pagination.GroupPaginationConfig;
+import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
+import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription;
+import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription.Topic;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 @Configuration
 @Import({IdentityProviderConfig.class,
         GroupComponentDBConfig.class,
-        GroupPaginationConfig.class})
+        GroupPaginationConfig.class,
+        TopologyProcessorClientConfig.class})
 public class GroupConfig {
 
     @Value("${tempGroupExpirationTimeMins:30}")
@@ -32,6 +37,9 @@ public class GroupConfig {
 
     @Autowired
     private GroupPaginationConfig groupPaginationConfig;
+
+    @Autowired
+    private TopologyProcessorClientConfig topologyProcessorClientConfig;
 
     /**
      * Define flyway callbacks to be active during migrations for group component.
@@ -57,5 +65,26 @@ public class GroupConfig {
     public GroupDAO groupStore() {
         return new GroupDAO(databaseConfig.dsl(),
                 groupPaginationConfig.groupPaginationParams());
+    }
+
+    /**
+     * Cache for targets.
+     *
+     * @return the {@link ThinTargetCache}.
+     */
+    @Bean
+    public ThinTargetCache thinTargetCache() {
+        return new ThinTargetCache(topologyProcessorClientConfig.topologyProcessor(
+                TopologyProcessorSubscription.forTopic(Topic.Notifications)));
+    }
+
+    /**
+     * Calculates environment & cloud type for a group.
+     *
+     * @return the {@link GroupEnvironmentTypeResolver}.
+     */
+    @Bean
+    public GroupEnvironmentTypeResolver groupEnvironmentTypeResolver() {
+        return new GroupEnvironmentTypeResolver(thinTargetCache(), groupStore());
     }
 }

@@ -13,6 +13,10 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.Multimap;
+import com.google.common.collect.Table;
+
 import org.apache.commons.collections4.CollectionUtils;
 import org.junit.Assert;
 
@@ -28,6 +32,8 @@ import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
+import com.vmturbo.group.db.tables.pojos.GroupSupplementaryInfo;
+import com.vmturbo.group.group.GroupEnvironment;
 import com.vmturbo.group.group.GroupMembersPlain;
 import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
@@ -38,6 +44,11 @@ import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 public class MockGroupStore implements IGroupStore {
 
     private final Map<Long, Grouping> groups = new HashMap<>();
+
+    /**
+     * Map to keep the group supplementary info, representing the GROUP_SUPPLEMENTARY_INFO table.
+     */
+    private final Map<Long, GroupSupplementaryInfo> groupSupplementaryInfoMap = new HashMap<>();
 
     /**
      * Registers a new groups into store to be included in lookups.
@@ -61,6 +72,17 @@ public class MockGroupStore implements IGroupStore {
         groups.put(oid, createdGroup);
     }
 
+    /**
+     * Mock for {@link IGroupStore#createGroupSupplementaryInfo}.
+     * Stores supplementary info for groups.
+     *
+     * @param group supplementary info for the group to store.
+     */
+    @Override
+    public void createGroupSupplementaryInfo(GroupSupplementaryInfo group) {
+        groupSupplementaryInfoMap.putIfAbsent(group.getGroupId(), group);
+    }
+
     @Nonnull
     @Override
     public Collection<Grouping> getGroupsById(@Nonnull Collection<Long> groupId) {
@@ -72,6 +94,33 @@ public class MockGroupStore implements IGroupStore {
     public Grouping updateGroup(long groupId, @Nonnull GroupDefinition groupDefinition,
             @Nonnull Set<MemberType> expectedMemberTypes, boolean supportReverseLookups)
             throws StoreOperationException {
+        return null;
+    }
+
+    @Override
+    public void updateSingleGroupSupplementaryInfo(long groupId, boolean isEmpty,
+            GroupEnvironment groupEnvironment) {
+        groupSupplementaryInfoMap.put(groupId, new GroupSupplementaryInfo(groupId, isEmpty,
+                groupEnvironment.getEnvironmentType().getNumber(),
+                groupEnvironment.getCloudType().getNumber()));
+    }
+
+    @Override
+    public void updateBulkGroupSupplementaryInfo(Collection<GroupSupplementaryInfo> groups) {
+        groups.forEach(g -> groupSupplementaryInfoMap.put(g.getGroupId(), g));
+    }
+
+    @Override
+    public GroupType getGroupType(long groupId) {
+        return groups.values().stream()
+                .filter(g -> g.getId() == groupId)
+                .map(g -> g.getDefinition().getType())
+                .findFirst()
+                .orElse(null);
+    }
+
+    @Override
+    public Table<Long, MemberType, Boolean> getExpectedMemberTypesForGroup(long groupId) {
         return null;
     }
 
@@ -148,6 +197,12 @@ public class MockGroupStore implements IGroupStore {
     @Override
     public Collection<DiscoveredGroupId> getDiscoveredGroupsIds() {
         return Collections.emptySet();
+    }
+
+    @Nonnull
+    @Override
+    public Multimap<Long, Long> getDiscoveredGroupsWithTargets() {
+        return ArrayListMultimap.create();
     }
 
     @Nonnull

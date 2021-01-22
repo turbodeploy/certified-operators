@@ -4,6 +4,7 @@ package group;
 option java_package = "com.vmturbo.common.protobuf.group";
 
 import "common/EnvironmentTypeEnum.proto";
+import "common/CloudTypeEnum.proto";
 import "common/Pagination.proto";
 import "search/Search.proto";
 import "setting/Setting.proto";
@@ -209,6 +210,28 @@ message GroupFilter {
 
     // Return only groups with the specific origin.
     optional OriginFilter origin_filter = 9;
+
+    // If true, return only static groups.
+    // If false, return only dynamic groups.
+    // If not set, return both.
+    optional StaticOrDynamicFilter static_or_dynamic = 11 [default = BOTH];
+
+    // If true, return only non-empty groups.
+    // Otherwise all groups will be returned.
+    optional bool exclude_empty = 12 [default = false];
+
+    // environment type of groups to restrict search to
+    optional common.EnvironmentType environmentType = 13;
+
+    // cloud type of groups, relevant only for groups with environment type CLOUD
+    optional common.CloudType cloudType = 14;
+
+    // enum to identify whether we want to return static and/or dynamic groups
+    enum StaticOrDynamicFilter {
+        STATIC = 1;
+        DYNAMIC = 2;
+        BOTH = 3;
+    }
 }
 
 message MemberType {

@@ -11,7 +11,6 @@ import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
@@ -45,7 +44,6 @@ public class CachingMemberCalculatorTest {
 
     private GroupDAO groupDAO = mock(GroupDAO.class);
 
-
     private static final long TOPOLOGY_ID = 1L;
 
     private static final long CONTEXT_ID = 2L;
@@ -71,7 +69,7 @@ public class CachingMemberCalculatorTest {
     public void testRegrouping() throws Exception {
         // ARRANGE
         final CachingMemberCalculator memberCalculator = new CachingMemberCalculator(groupDAO,
-                internalCalculator, Type.SET, true, threadFactory);
+                internalCalculator, Type.SET, threadFactory);
 
         Grouping g1 = Grouping.newBuilder()
             .setId(1)
@@ -93,7 +91,7 @@ public class CachingMemberCalculatorTest {
             .thenReturn(g2Members);
 
         // ACT
-        memberCalculator.onSourceTopologyAvailable(TOPOLOGY_ID, CONTEXT_ID);
+        memberCalculator.regroup();
 
         // ASSERT
         verify(internalCalculator, times(2))
@@ -119,7 +117,7 @@ public class CachingMemberCalculatorTest {
     @Test
     public void testRecursiveGroupResolution() throws Exception {
         final CachingMemberCalculator memberCalculator = new CachingMemberCalculator(groupDAO,
-            internalCalculator, Type.SET, true, threadFactory);
+            internalCalculator, Type.SET, threadFactory);
 
         Grouping g1 = Grouping.newBuilder()
             .setId(1)
@@ -139,7 +137,7 @@ public class CachingMemberCalculatorTest {
             .thenReturn(g1Members);
         when(internalCalculator.getGroupMembers(groupDAO, g2.getDefinition(), false))
             .thenReturn(g2Members);
-        memberCalculator.onSourceTopologyAvailable(TOPOLOGY_ID, CONTEXT_ID);
+        memberCalculator.regroup();
         memberCalculator.getGroupMembers(groupDAO, Collections.singletonList(1L), true);
         verify(internalCalculator, times(2))
             .getGroupMembers(any(IGroupStore.class), any(GroupDefinition.class), anyBoolean());
@@ -153,29 +151,31 @@ public class CachingMemberCalculatorTest {
     @Test
     public void testGetExpandedMembers() throws Exception {
         final CachingMemberCalculator memberCalculator = new CachingMemberCalculator(groupDAO,
-                internalCalculator, Type.SET, false, threadFactory);
+                internalCalculator, Type.SET, threadFactory);
 
+        GroupDefinition parentGroupDefinition = GroupDefinition.newBuilder()
+                .setDisplayName("foo").build();
         Grouping parentGroup = Grouping.newBuilder()
             .setId(1)
-            .setDefinition(GroupDefinition.newBuilder()
-                .setDisplayName("foo"))
+            .setDefinition(parentGroupDefinition)
             .build();
+        GroupDefinition childGroupDefinition = GroupDefinition.newBuilder()
+                .setDisplayName("bar").build();
         Grouping childGroup = Grouping.newBuilder()
             .setId(2)
-            .setDefinition(GroupDefinition.newBuilder()
-                .setDisplayName("bar"))
+            .setDefinition(childGroupDefinition)
             .build();
         // The child group, plus an entity.
         Set<Long> parentGroupMembers = Sets.newHashSet(childGroup.getId(), 9L);
         Set<Long> childGroupMembers = Sets.newHashSet(10L, 11L);
-        when(internalCalculator.getGroupMembers(groupDAO, Collections.singleton(parentGroup.getId()), false))
+        when(internalCalculator.getGroupMembers(groupDAO, parentGroupDefinition, false))
             .thenReturn(parentGroupMembers);
-        when(internalCalculator.getGroupMembers(groupDAO, Collections.singleton(childGroup.getId()), false))
+        when(internalCalculator.getGroupMembers(groupDAO, childGroupDefinition, false))
             .thenReturn(childGroupMembers);
         when(groupDAO.getGroups(any())).thenReturn(Arrays.asList(parentGroup, childGroup));
         when(groupDAO.getGroupIds(any())).thenReturn(Sets.newHashSet(parentGroup.getId(), childGroup.getId()));
 
-        memberCalculator.onSourceTopologyAvailable(TOPOLOGY_ID, CONTEXT_ID);
+        memberCalculator.regroup();
 
         // Expand parent group
         assertThat(memberCalculator.getGroupMembers(groupDAO, Collections.singleton(parentGroup.getId()), true),
@@ -193,7 +193,7 @@ public class CachingMemberCalculatorTest {
     public void testUserGroupCreated() throws Exception {
         // Regrouping set to "true" because otherwise we don't eagerly cache created groups.
         CachingMemberCalculator memberCalculator = new CachingMemberCalculator(groupDAO,
-                internalCalculator, Type.SET, true, threadFactory);
+                internalCalculator, Type.SET, threadFactory);
         GroupDefinition groupDefinition = GroupDefinition.newBuilder()
                 .setDisplayName("foo")
                 .build();
@@ -215,43 +215,6 @@ public class CachingMemberCalculatorTest {
     }
 
     /**
-     * Test that newly created user group notifications do not cache the group members if
-     * doRegrouping = false.
-     *
-     * @throws Exception To satisfy compiler.
-     */
-    @Test
-    public void testUserGroupCreatedNoRegrouping() throws Exception {
-        // Regrouping set to "false" to avoid eager caching.because otherwise we don't eagerly cache created groups.
-        CachingMemberCalculator memberCalculator = new CachingMemberCalculator(groupDAO,
-                internalCalculator, Type.SET, false, threadFactory);
-        GroupDefinition groupDefinition = GroupDefinition.newBuilder()
-                .setDisplayName("foo")
-                .build();
-
-        Set<Long> members = Sets.newHashSet(9L, 10L);
-        when(internalCalculator.getGroupMembers(groupDAO, Collections.singleton(1L), false))
-                .thenReturn(members);
-
-
-        memberCalculator.onUserGroupCreated(1L, groupDefinition);
-
-        verifyZeroInteractions(internalCalculator);
-
-        assertThat(memberCalculator.getGroupMembers(groupDAO,
-                Collections.singleton(1L), false), is(members));
-
-        // Underlying query.
-        verify(internalCalculator, times(1)).getGroupMembers(groupDAO, Collections.singleton(1L), false);
-
-        assertThat(memberCalculator.getGroupMembers(groupDAO,
-                Collections.singleton(1L), false), is(members));
-
-        // No additional query to the underlying calculator.
-        verify(internalCalculator, times(1)).getGroupMembers(groupDAO, Collections.singleton(1L), false);
-    }
-
-    /**
      * Test that updated user group notifications cache the new group members.
      *
      * @throws Exception To satisfy compiler.
@@ -260,7 +223,7 @@ public class CachingMemberCalculatorTest {
     public void testUserGroupUpdated() throws Exception {
         // ARRANGE
         CachingMemberCalculator memberCalculator = new CachingMemberCalculator(groupDAO,
-                internalCalculator, Type.SET, true, threadFactory);
+                internalCalculator, Type.SET, threadFactory);
 
         Grouping g1 = Grouping.newBuilder()
                 .setId(1)
@@ -274,7 +237,7 @@ public class CachingMemberCalculatorTest {
                 .thenReturn(initialMembers);
 
         // Trigger regrouping.
-        memberCalculator.onSourceTopologyAvailable(TOPOLOGY_ID, CONTEXT_ID);
+        memberCalculator.regroup();
 
         GroupDefinition updatedDef = GroupDefinition.newBuilder()
                 .setDisplayName("foo1")
@@ -303,48 +266,6 @@ public class CachingMemberCalculatorTest {
     }
 
     /**
-     * Test that updated user group notifications do not cache the updated group members if
-     * doRegrouping = false.
-     *
-     * @throws Exception To satisfy compiler.
-     */
-    @Test
-    public void testUserGroupUpdatedNoRegrouping() throws Exception {
-        // No regrouping.
-        CachingMemberCalculator memberCalculator = new CachingMemberCalculator(groupDAO,
-                internalCalculator, Type.SET, false, threadFactory);
-
-        Grouping g1 = Grouping.newBuilder()
-                .setId(1)
-                .setDefinition(GroupDefinition.newBuilder()
-                        .setDisplayName("foo"))
-                .build();
-        Set<Long> initialMembers = Sets.newHashSet(8L, 9L);
-
-        when(groupDAO.getGroups(any())).thenReturn(Arrays.asList(g1));
-        when(internalCalculator.getGroupMembers(groupDAO, Collections.singleton(g1.getId()), false))
-                .thenReturn(initialMembers);
-
-        // Ask for the members to put them into the cache.
-        assertThat(memberCalculator.getGroupMembers(groupDAO,
-                Collections.singleton(g1.getId()), false), is(initialMembers));
-
-        GroupDefinition updatedDef = GroupDefinition.newBuilder()
-                .setDisplayName("foo1")
-                .build();
-        Set<Long> updatedMembers = Sets.newHashSet(10L, 11L);
-
-        when(internalCalculator.getGroupMembers(groupDAO, Collections.singleton(g1.getId()), false))
-                .thenReturn(updatedMembers);
-
-        // Trigger group update.
-        memberCalculator.onUserGroupUpdated(g1.getId(), updatedDef);
-
-        assertThat(memberCalculator.getGroupMembers(groupDAO,
-                Collections.singleton(g1.getId()), false), is(updatedMembers));
-    }
-
-    /**
      * Test that if a user group is deleted we remove it from the cache.
      *
      * @throws Exception To satisfy compiler.
@@ -352,7 +273,7 @@ public class CachingMemberCalculatorTest {
     @Test
     public void testUserGroupDeleted() throws Exception {
         CachingMemberCalculator memberCalculator = new CachingMemberCalculator(groupDAO,
-                internalCalculator, Type.SET, false, threadFactory);
+                internalCalculator, Type.SET, threadFactory);
 
         Grouping g1 = Grouping.newBuilder()
                 .setId(1)
@@ -389,7 +310,7 @@ public class CachingMemberCalculatorTest {
     public void testRegroupOnInitialize() throws Exception {
         final ArgumentCaptor<Runnable> initCaptor = ArgumentCaptor.forClass(Runnable.class);
         final CachingMemberCalculator memberCalculator = new CachingMemberCalculator(groupDAO,
-                internalCalculator, Type.SET, true, threadFactory);
+                internalCalculator, Type.SET, threadFactory);
         verify(threadFactory).apply(initCaptor.capture(), anyString());
 
         Grouping g1 = Grouping.newBuilder()

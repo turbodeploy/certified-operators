@@ -8,6 +8,8 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableMap;
 
+import com.vmturbo.common.protobuf.common.CloudTypeEnum;
+
 /**
  * Cloud types enumeration.
  */
@@ -64,5 +66,23 @@ public enum CloudType {
     public static Optional<CloudType> fromProbeType(@Nonnull String probeType) {
         Objects.requireNonNull(probeType);
         return Optional.ofNullable(cloudTypeByProbeType.get(probeType.toLowerCase()));
+    }
+
+    /**
+     * Converts the given cloud type to the corresponding protobuf enum value.
+     *
+     * @param cloudType the cloud type to convert.
+     * @return the corresponding value of the protobuf enum.
+     */
+    public static Optional<CloudTypeEnum.CloudType> toProtoCloudType(CloudType cloudType) {
+        switch (cloudType) {
+            case AWS:
+                return Optional.of(CloudTypeEnum.CloudType.AWS);
+            case AZURE:
+                return Optional.of(CloudTypeEnum.CloudType.AZURE);
+            case GCP:
+                return Optional.of(CloudTypeEnum.CloudType.GCP);
+        }
+        return Optional.empty();
     }
 }

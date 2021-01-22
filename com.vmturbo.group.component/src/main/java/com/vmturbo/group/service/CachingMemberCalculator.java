@@ -2,6 +2,7 @@ package com.vmturbo.group.service;
 
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -30,7 +31,6 @@ import org.jooq.exception.DataAccessException;
 
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.GroupFilters;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.memory.MemoryMeasurer;
 import com.vmturbo.common.protobuf.memory.MemoryMeasurer.MemoryMeasurement;
@@ -44,13 +44,12 @@ import com.vmturbo.group.group.GroupUpdateListener;
 import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
-import com.vmturbo.repository.api.RepositoryListener;
 
 /**
  * A {@link GroupMemberCalculator} that delegates to an internal {@link GroupMemberCalculator},
  * but caches results - either eagerly or lazily.
  */
-public class CachingMemberCalculator implements GroupMemberCalculator, RepositoryListener, GroupUpdateListener {
+public class CachingMemberCalculator implements GroupMemberCalculator, GroupUpdateListener {
 
     private static final CachedGroupMembers EMPTY_GROUP = new CachedGroupMembers() {
         @Override
@@ -87,37 +86,26 @@ public class CachingMemberCalculator implements GroupMemberCalculator, Repositor
 
     private final Supplier<CachedGroupMembers> cachedMemberFactory;
 
-    /**
-     * If true, we eagerly resolve all groups every time a new topology is available in the
-     * repository.
-     *
-     * <p/>If false, we cache groups only when they are queried.
-     */
-    private final boolean doRegrouping;
-
     CachingMemberCalculator(@Nonnull final GroupDAO groupDAO,
             @Nonnull final GroupMemberCalculator internalCalculator,
-            @Nonnull final CachedGroupMembers.Type memberCacheType,
-            final boolean doRegrouping) {
-        this(groupDAO, internalCalculator, memberCacheType, doRegrouping, Thread::new);
+            @Nonnull final CachedGroupMembers.Type memberCacheType) {
+        this(groupDAO, internalCalculator, memberCacheType, Thread::new);
     }
 
     @VisibleForTesting
     CachingMemberCalculator(@Nonnull final GroupDAO groupDAO,
-                @Nonnull final GroupMemberCalculator internalCalculator,
-                @Nonnull final CachedGroupMembers.Type memberCacheType,
-                final boolean doRegrouping,
-                BiFunction<Runnable, String, Thread> threadFactory) {
+            @Nonnull final GroupMemberCalculator internalCalculator,
+            @Nonnull final CachedGroupMembers.Type memberCacheType,
+            BiFunction<Runnable, String, Thread> threadFactory) {
         this.groupDAO = groupDAO;
         this.internalCalculator = internalCalculator;
-        this.doRegrouping = doRegrouping;
         this.cachedMemberFactory = memberCacheType.getFactory();
 
         // When the group component comes up, we try to do regrouping to initialize the cache.
         threadFactory.apply(() -> {
             try {
                 RetriableOperation.newOperation(this::regroup)
-                        .retryOnOutput(success -> !success)
+                        .retryOnOutput(Objects::isNull)
                         .run(10, TimeUnit.MINUTES);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
@@ -130,19 +118,30 @@ public class CachingMemberCalculator implements GroupMemberCalculator, Repositor
         }, "regrouping-initialization").start();
     }
 
-    private boolean regroup() {
-        // Invert the conditions because the "not" case is very short.
-        if (!doRegrouping) {
-            // We need to know all the group ids even if we're not doing regrouping, because we use
-            // them when expanding nested groups.
-            final Set<Long> allGroups;
+    /**
+     * Perform regrouping, clearing the cache and recalculating group members for all groups.
+     *
+     * @return a summary of the result. Includes a flag on whether regrouping was successful, and in
+     *         case it was, the ids of the groups whose members were resolved as well as some
+     *         statistics on the cache (group/entities counts & memory size). If regrouping failed,
+     *         then only the successful flag carries meaningful information.
+     */
+    public RegroupingResult regroup() {
+        final Tracer tracer = Tracing.tracer();
+        try (DataMetricTimer timer = Metrics.REGROUPING_SUMMARY.startTimer();
+             TracingScope scope = Tracing.trace("regrouping", tracer)) {
+            final LongSet distinctMembers = new LongOpenHashSet();
+            long totalMemberCnt = 0;
+            final Collection<Grouping> groups;
             try {
-                allGroups = groupDAO.getGroupIds(GroupFilters.getDefaultInstance());
+                groups = groupDAO.getGroups(GroupDTO.GroupFilter.getDefaultInstance());
             } catch (DataAccessException e) {
-                logger.error("Failed to fetch all group ids.", e);
-                return false;
+                logger.error("Abandoning regrouping because the query for all groups failed.", e);
+                return new RegroupingResult(false, null, 0, 0, null);
             } finally {
-                // Clear any cached members every time we regroup topology.
+                // Clear all cached members even if there was an error.
+                // We don't need to clear the "allGroupIds" in the error case because we will
+                // not reassign the ids of previously-existing groups to new non-group objects.
                 lock.writeLock().lock();
                 try {
                     cachedMembers.clear();
@@ -151,113 +150,70 @@ public class CachingMemberCalculator implements GroupMemberCalculator, Repositor
                 }
             }
 
-            // Replace the group ids.
+            // Record all the group IDs.
             lock.writeLock().lock();
             try {
                 allGroupIds.clear();
-                allGroupIds.addAll(allGroups);
+                groups.forEach(g -> allGroupIds.add(g.getId()));
                 allGroupIds.trim();
-                return true;
             } finally {
                 lock.writeLock().unlock();
             }
-        } else {
-            final Tracer tracer = Tracing.tracer();
-            try (DataMetricTimer timer = Metrics.REGROUPING_SUMMARY.startTimer();
-                 TracingScope scope = Tracing.trace("regrouping", tracer)) {
-                final LongSet distinctMembers = new LongOpenHashSet();
-                long totalMemberCnt = 0;
-                final Collection<Grouping> groups;
-                try {
-                    groups = groupDAO.getGroups(GroupDTO.GroupFilter.getDefaultInstance());
-                } catch (DataAccessException e) {
-                    logger.error("Abandoning regrouping because the query for all groups failed.", e);
-                    return false;
-                } finally {
-                    // Clear all cached members even if there was an error.
-                    // We don't need to clear the "allGroupIds" in the error case because we will
-                    // not reassign the ids of previously-existing groups to new non-group objects.
-                    lock.writeLock().lock();
-                    try {
-                        cachedMembers.clear();
-                    } finally {
-                        lock.writeLock().unlock();
-                    }
-                }
 
-                // Record all the group IDs.
-                lock.writeLock().lock();
-                try {
-                    allGroupIds.clear();
-                    groups.forEach(g -> allGroupIds.add(g.getId()));
-                    allGroupIds.trim();
-                } finally {
-                    lock.writeLock().unlock();
-                }
-
-                for (final Grouping group : groups) {
-                    // Before resolving the group, check to make sure it's not already cached.
-                    // A concurrent request may have triggered the computation + caching of the
-                    // group's members.
-                    lock.readLock().lock();
-                    try {
-                        if (cachedMembers.containsKey(group.getId())) {
-                            continue;
-                        }
-                    } finally {
-                        lock.readLock().unlock();
-                    }
-
-                    // Do not expand nested groups - we only put the direct members into the
-                    // cache, and resolve nested groups recursively at query-time.
-                    try {
-                        final CachedGroupMembers m = cachedMemberFactory.get();
-                        m.set(getGroupMembers(groupDAO, group.getDefinition(), false));
-                        lock.writeLock().lock();
-                        try {
-                            // There are two ways the group may find itself in the cache:
-                            // 1) There was a concurrent external query for the group's members, and the
-                            //    results were cached. In this case it's safe to keep the cached results.
-                            // 2) There was a concurrent update to an existing group, and the
-                            //    new members were eagerly cached. In this case it would be wrong to
-                            //    overwrite.
-                            this.cachedMembers.putIfAbsent(group.getId(), m);
-                        } finally {
-                            lock.writeLock().unlock();
-                        }
-
-                        m.get(distinctMembers::add);
-                        totalMemberCnt += m.size();
-                    } catch (StoreOperationException e) {
-                        logger.error("Failed to do regrouping. Error: ", e);
-                    }
-                }
-
-                final MemoryMeasurement memory;
+            for (final Grouping group : groups) {
+                // Before resolving the group, check to make sure it's not already cached.
+                // A concurrent request may have triggered the computation + caching of the
+                // group's members.
                 lock.readLock().lock();
                 try {
-                    memory = MemoryMeasurer.measure(cachedMembers);
+                    if (cachedMembers.containsKey(group.getId())) {
+                        continue;
+                    }
                 } finally {
                     lock.readLock().unlock();
                 }
+
+                // Do not expand nested groups - we only put the direct members into the
+                // cache, and resolve nested groups recursively at query-time.
+                try {
+                    final CachedGroupMembers m = cachedMemberFactory.get();
+                    m.set(getGroupMembers(groupDAO, group.getDefinition(), false));
+                    lock.writeLock().lock();
+                    try {
+                        // There are two ways the group may find itself in the cache:
+                        // 1) There was a concurrent external query for the group's members, and the
+                        //    results were cached. In this case it's safe to keep the cached results.
+                        // 2) There was a concurrent update to an existing group, and the
+                        //    new members were eagerly cached. In this case it would be wrong to
+                        //    overwrite.
+                        this.cachedMembers.putIfAbsent(group.getId(), m);
+                    } finally {
+                        lock.writeLock().unlock();
+                    }
+
+                    m.get(distinctMembers::add);
+                    totalMemberCnt += m.size();
+                } catch (StoreOperationException e) {
+                    logger.error("Failed to do regrouping. Error: ", e);
+                }
+            }
+
+            final MemoryMeasurement memory;
+            lock.readLock().lock();
+            try {
+                memory = MemoryMeasurer.measure(cachedMembers);
                 Metrics.REGROUPING_SIZE_SUMMARY.observe((double)memory.getTotalSizeBytes());
                 Metrics.REGROUPING_CNT_SUMMARY.observe((double)totalMemberCnt);
                 Metrics.REGROUPING_DISTINCT_CNT_SUMMARY.observe((double)distinctMembers.size());
                 logger.info("Completed regrouping in {} seconds. {} members ({} distinct entities)"
                                 + " in {} groups. Cached members memory: {}", timer.getTimeElapsedSecs(),
                         totalMemberCnt, distinctMembers.size(), groups.size(), memory);
-                return true;
+                return new RegroupingResult(true, allGroupIds, totalMemberCnt,
+                        distinctMembers.size(), memory);
+            } finally {
+                lock.readLock().unlock();
             }
         }
-    }
-
-    @Override
-    public void onSourceTopologyAvailable(long topologyId, long topologyContextId) {
-        // TODO (roman, Oct 14 2020: - if we get a flurry of "topology available" messages (e.g.
-        // reading from the start of the topic) we should skip to the last one. This will also
-        // let us avoid infinite staleness if regrouping somehow becomes slower than topology
-        // ingestion.
-        regroup();
     }
 
     @Nonnull
@@ -348,9 +304,7 @@ public class CachingMemberCalculator implements GroupMemberCalculator, Repositor
 
     @Override
     public void onUserGroupCreated(final long createdGroup, @Nonnull final GroupDefinition groupDefinition) {
-        if (doRegrouping) {
-            cacheGroupMembers(createdGroup, groupDefinition);
-        }
+        cacheGroupMembers(createdGroup, groupDefinition);
     }
 
     private void cacheGroupMembers(final long groupId, @Nonnull final GroupDefinition groupDefinition) {
@@ -385,10 +339,57 @@ public class CachingMemberCalculator implements GroupMemberCalculator, Repositor
 
     @Override
     public void onUserGroupUpdated(final long updatedGroup, @Nonnull final GroupDefinition groupDefinition) {
-        if (doRegrouping) {
-            cacheGroupMembers(updatedGroup, groupDefinition);
-        } else {
-            remove(updatedGroup);
+        cacheGroupMembers(updatedGroup, groupDefinition);
+    }
+
+    /**
+     * Wrapper for the result of regrouping.
+     */
+    public class RegroupingResult {
+        private final boolean success;
+        private final LongOpenHashSet resolvedGroupsIds;
+        private final long totalMemberCount;
+        private final int distinctEntitiesCount;
+        private final MemoryMeasurement memory;
+
+        /**
+         * Constructor.
+         *
+         * @param success flag to indicate whether regrouping finished successfully or not.
+         * @param resolvedGroupsIds the ids of the groups whose members were resolved.
+         * @param totalMemberCount the total number of members, aggregating all groups.
+         * @param distinctEntitiesCount total number of distinct entities that are members of a
+         *                              group.
+         * @param memory measures the size of the cache.
+         */
+        public RegroupingResult(final boolean success, final LongOpenHashSet resolvedGroupsIds,
+                final long totalMemberCount, final int distinctEntitiesCount,
+                final MemoryMeasurement memory) {
+            this.success = success;
+            this.resolvedGroupsIds = resolvedGroupsIds;
+            this.totalMemberCount = totalMemberCount;
+            this.distinctEntitiesCount = distinctEntitiesCount;
+            this.memory = memory;
+        }
+
+        public boolean isSuccessfull() {
+            return success;
+        }
+
+        public LongOpenHashSet getResolvedGroupsIds() {
+            return resolvedGroupsIds;
+        }
+
+        public long getTotalMemberCount() {
+            return totalMemberCount;
+        }
+
+        public int getDistinctEntitiesCount() {
+            return distinctEntitiesCount;
+        }
+
+        public MemoryMeasurement getMemory() {
+            return memory;
         }
     }
 
