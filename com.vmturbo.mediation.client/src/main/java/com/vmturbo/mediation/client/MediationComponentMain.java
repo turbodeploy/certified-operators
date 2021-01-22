@@ -4,6 +4,7 @@ import java.io.File;
 import java.util.Collection;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.zip.ZipOutputStream;
 
@@ -21,6 +22,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.stereotype.Component;
 
 import com.vmturbo.components.common.BaseVmtComponent;
+import com.vmturbo.mediation.common.ContainerJavaHeapResourceValueSupplier;
 import com.vmturbo.components.common.ExecutionStatus;
 import com.vmturbo.mediation.common.ProbeConfigurationLoadException;
 import com.vmturbo.mediation.common.ProbeProperties;
@@ -52,6 +54,8 @@ public class MediationComponentMain extends BaseVmtComponent {
     private long chunkTimeoutSec;
     @Value("${mediation.dataSharingMaxSizeKb:10240}")
     private long dataSharingMaxSizeKb;
+    @Value("${mediation.resourceUsageInterval.msec:30000}")
+    private long resourceUsageIntervalMillis;
     @Value("${communicationBindingChannel:#{null}}")
     private String communicationBindingChannel;
 
@@ -72,9 +76,11 @@ public class MediationComponentMain extends BaseVmtComponent {
     @Bean
     public RemoteComposer remoteComposer() {
         try {
-            return new RemoteComposer(probePropertiesCollection(), config(), lifecycleListener(), threadPool(),
+            return new RemoteComposer(probePropertiesCollection(), config(), lifecycleListener(),
+                threadPool(), scheduledExecutor(),
+                new ContainerJavaHeapResourceValueSupplier(Runtime.getRuntime()),
                 negotiationTimeoutSec, keepAliveIntervalSec, chunkSendDelay, chunkTimeoutSec,
-                dataSharingMaxSizeKb, communicationBindingChannel);
+                dataSharingMaxSizeKb, resourceUsageIntervalMillis, communicationBindingChannel);
         } catch (ProbeConfigurationLoadException e) {
             throw new RuntimeException(e);
         }
@@ -143,8 +149,20 @@ public class MediationComponentMain extends BaseVmtComponent {
     @Bean(destroyMethod = "shutdownNow")
     public ExecutorService threadPool() {
         final ThreadFactory threadFactory =
-                        new ThreadFactoryBuilder().setNameFormat(instanceId + "-%d").build();
+                new ThreadFactoryBuilder().setNameFormat(instanceId + "-%d").build();
         return Executors.newCachedThreadPool(threadFactory);
+    }
+
+    /**
+     * Setup and return a ScheduledExecutorService for the running of recurrent tasks.
+     *
+     * @return a new single threaded scheduled executor service with the thread factory configured.
+     */
+    @Bean(destroyMethod = "shutdownNow")
+    public ScheduledExecutorService scheduledExecutor() {
+        final ThreadFactory threadFactory =
+                new ThreadFactoryBuilder().setNameFormat(instanceId + "-%d").build();
+        return Executors.newSingleThreadScheduledExecutor(threadFactory);
     }
 
     /**

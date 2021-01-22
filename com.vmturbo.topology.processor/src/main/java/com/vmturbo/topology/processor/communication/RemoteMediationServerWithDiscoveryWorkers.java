@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.communication;
 
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -13,11 +14,13 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.ITransport;
+import com.vmturbo.communication.ITransport.ResourceValue;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.sdk.common.MediationMessage.ContainerInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.DiscoveryRequest;
@@ -306,21 +309,31 @@ public class RemoteMediationServerWithDiscoveryWorkers extends RemoteMediationSe
             transportClosed.set(true);
         }
 
-        private int returnPermit(long targetId) {
+        private int returnPermit(Target target) {
             final int permits = numPermits.incrementAndGet();
-            logger.info("Number of permits after discovery completed for target {}({}): {}",
-                    targetId, discoveryType, permits);
+            final Level logLevel = discoveryType == DiscoveryType.FULL ? Level.INFO : Level.DEBUG;
+            logger.log(logLevel, "Number of permits after discovery completed for target {}({}) "
+                            + "with probe ID {}: {} of {}",
+                    target.getId(), discoveryType, target.getProbeId(), permits, maxPermits);
+            Iterator<ResourceValue> iterator = serverEndpoint.getResourceUsage().iterator();
+            while (iterator.hasNext()) {
+                final ResourceValue resourceValue = iterator.next();
+                logger.log(logLevel, "Transport {}: \t Category: {} \t Current Usage: {} \t "
+                        + "Capacity: {}", serverEndpoint, resourceValue.getResourceType(),
+                        resourceValue.getCurrentValue(), resourceValue.getMaxValue());
+            }
             synchronized (numPermits) {
                 numPermits.notifyAll();
             }
             return permits;
         }
 
-        private void logAndRecordException(@Nonnull Exception e, @Nonnull DiscoveryBundle bundle) {
-            final long targetId = bundle.getDiscovery().getTargetId();
+        private void logAndRecordException(@Nonnull Exception e, @Nonnull DiscoveryBundle bundle,
+                @Nonnull Target target) {
+            final long targetId = target.getId();
             logger.error("Exception while trying to execute discovery for "
                     + "target {}", targetId, e);
-            returnPermit(targetId);
+            returnPermit(target);
             bundle.setException(e);
         }
 
@@ -334,6 +347,7 @@ public class RemoteMediationServerWithDiscoveryWorkers extends RemoteMediationSe
         public void run() {
             logger.info("Starting transport worker for DiscoveryType {} and probe IDs {}",
                     discoveryType, probesSupported);
+            final Level logLevel = discoveryType == DiscoveryType.FULL ? Level.INFO : Level.DEBUG;
             while (!transportClosed.get()) {
                 if (numPermits.getAndDecrement() > 0) {
                     try {
@@ -352,8 +366,7 @@ public class RemoteMediationServerWithDiscoveryWorkers extends RemoteMediationSe
                             logger.debug("Acquired discovery for target {}",
                                     discoveryElement.getTarget().getId());
                             final Target target = discoveryElement.getTarget();
-                            final long targetId = target.getId();
-                            logger.info("Beginning discovery of target {}({}) leaving {} of {} "
+                            logger.log(logLevel, "Beginning discovery of target {}({}) leaving {} of {} "
                                             + "permits available.", target.getId(), discoveryType,
                                     numPermits.get(), maxPermits);
                             discoveryElement.performDiscovery((bundle) -> {
@@ -361,26 +374,26 @@ public class RemoteMediationServerWithDiscoveryWorkers extends RemoteMediationSe
                                     if (bundle.getDiscoveryRequest() == null) {
                                         // There was already a running discovery. We shouldn't run
                                         // another one.
-                                        returnPermit(targetId);
+                                        returnPermit(target);
                                     } else {
                                         final int messageId = sendDiscoveryRequest(target,
                                                 bundle.getDiscoveryRequest(),
                                                 bundle.getDiscoveryMessageHandler(),
                                                 serverEndpoint);
                                         bundle.getDiscovery().setMediationMessageId(messageId);
-                                        logger.info("Beginning {}", bundle.getDiscovery());
+                                        logger.log(logLevel, "Beginning {}", bundle.getDiscovery());
                                     }
                                 } catch (InterruptedException e) {
-                                    logAndRecordException(e, bundle);
+                                    logAndRecordException(e, bundle, target);
                                     Thread.currentThread().interrupt();
                                 } catch (CommunicationException | RuntimeException e) {
-                                    logAndRecordException(e, bundle);
+                                    logAndRecordException(e, bundle, target);
                                 }
                                 logger.debug("Returning discovery {} for target {}({})",
                                         bundle.getDiscovery(),
                                         discoveryElement.getTarget().getId(), discoveryType);
                                 return bundle.getDiscovery();
-                            }, () -> returnPermit(targetId));
+                            }, () -> returnPermit(target));
                         });
                     } catch (InterruptedException e) {
                         // interrupt() is called when transport has been closed
