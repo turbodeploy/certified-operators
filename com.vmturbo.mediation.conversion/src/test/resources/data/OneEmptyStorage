@@ -1,0 +1,33 @@
+entityDTO {
+  entityType: STORAGE
+  id: "dsb-065fc994-5a00efdc"
+  displayName: "QS2:ESXDC7DS1"
+  commoditiesSold {
+    commodityType: STORAGE_AMOUNT
+    used: 1.0
+    capacity: 1.0E9
+    active: true
+    resizable: false
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "LocalName"
+    value: "datastore-30"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "StorageId"
+    value: "065fc994-5a00efdc"
+  }
+  origin: PROXY
+  replacementEntityData {
+    identifyingProp: "StorageId"
+    extEntityPropDef {
+      entity: STORAGE
+      attribute: "Uuid"
+    }
+  }
+  powerState: POWERED_ON
+  storage_data {
+  }
+}

@@ -1,0 +1,106 @@
+entityDTO {
+  entityType: STORAGE
+  id: "dsb-065fc994-5a00efdc"
+  displayName: "QS2:ESXDC7DS1"
+  commoditiesSold {
+    commodityType: STORAGE_AMOUNT
+    used: 1.0
+    capacity: 1.0E9
+    active: true
+    resizable: false
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "LocalName"
+    value: "datastore-30"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "StorageId"
+    value: "065fc994-5a00efdc"
+  }
+  origin: PROXY
+  replacementEntityData {
+    identifyingProp: "StorageId"
+    extEntityPropDef {
+      entity: STORAGE
+      attribute: "Uuid"
+    }
+  }
+  powerState: POWERED_ON
+  storage_data {
+    file {
+      path: "/File1.log"
+      sizeKb: 0
+      modificationTimeMs: 1538449874000
+      type: LOG
+      iopsProvisioned: 0
+    }
+    file {
+      path: "/file2.vswp"
+      sizeKb: 93184
+      modificationTimeMs: 1540912610000
+      type: SWAP
+      iopsProvisioned: 0
+    }
+    file {
+      path: "/file3.vmsd"
+      sizeKb: 0
+      modificationTimeMs: 1534873374000
+      type: SNAPSHOT
+      iopsProvisioned: 0
+    }
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "dsb-421e348a-5036-4cac-e0ff-456a1048770e"
+  displayName: "arsen-empty-vm-dc7"
+  commoditiesBought {
+    providerId: "065fc994-5a00efdc"
+    bought {
+      commodityType: STORAGE_AMOUNT
+      used: 1.0
+      active: true
+      resizable: false
+    }
+    providerType: STORAGE
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "LocalName"
+    value: "vm-1023"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "VM"
+    value: "421e348a-5036-4cac-e0ff-456a1048770e"
+  }
+  origin: PROXY
+  replacementEntityData {
+    identifyingProp: "VM"
+    extEntityPropDef {
+      entity: VIRTUAL_MACHINE
+      attribute: "Uuid"
+    }
+  }
+  powerState: POWERED_ON
+  virtual_machine_data {
+    vmState {
+    }
+    file {
+      storageId: "065fc994-5a00efdc"
+      path: "/file3.vmsd"
+      sizeKb: 0
+      type: SNAPSHOT
+    }
+    file {
+      storageId: "065fc994-5a00efdc"
+      path: "/file2.vswp"
+      sizeKb: 0
+      type: SWAP
+    }
+  }
+  virtual_machine_related_data {
+  }
+}

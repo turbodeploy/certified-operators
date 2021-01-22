@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.topology;
 
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.BUSINESS_ACCOUNT;
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.BUSINESS_ACCOUNT_VALUE;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.COMPUTE_TIER;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.DATACENTER;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.DISK_ARRAY;
@@ -16,6 +17,7 @@ import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.VIR
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.VIRTUAL_VOLUME_VALUE;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -1526,36 +1528,40 @@ public class CloudMigrationPlanHelper {
             @Nonnull final TopologyEntity inputEntity) {
         Map<EntityType, List<MigrationReference>> volumesByStorageType = new HashMap<>();
 
-        // either vm buys-> volume buys-> storage tier
-        // or (temporarily) vm connectedto-> volume connectedto-> storage
-        Stream.concat(inputEntity.getProviders().stream(), inputEntity.getOutboundAssociatedEntities().stream())
-            .filter(e -> e.getEntityType() == VIRTUAL_VOLUME_VALUE)
-            .forEach(volume -> {
-                addVolumeConnections(volumesByStorageType, volume,
-                                volume.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList(),
-                                CommoditiesBoughtFromProvider::getProviderEntityType);
-                addVolumeConnections(volumesByStorageType, volume,
-                                volume.getOutboundAssociatedEntities(),
-                                TopologyEntity::getEntityType);
-            });
+        // If we are getting a cloud VM, then we need to process its volumes instead. Policy
+        // in this case needs to be created on those volumes, with providers being storage tiers.
+        Stream.of(inputEntity)
+                .map(entity -> {
+                    if (!isCloudEntity(entity)) {
+                        return Collections.singletonList(entity);
+                    }
+                    return entity.getProviders()
+                            .stream()
+                            .filter(e -> e.getEntityType() == VIRTUAL_VOLUME_VALUE)
+                            .collect(Collectors.toSet());
+                })
+                .flatMap(Collection::stream)
+                .forEach(entity -> {
+                    // This entity is a VM in case of on-prem source. For cloud sources, this is
+                    // the cloud volume, with provider being storage tier.
+                    entity.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
+                            .stream()
+                            .filter(commBought -> commBought.hasProviderId()
+                                    && (commBought.getProviderEntityType() == STORAGE_VALUE
+                                    || commBought.getProviderEntityType() == STORAGE_TIER_VALUE))
+                            .forEach(commBought -> {
+                                long volumeId = commBought.getVolumeId();
+                                if (volumeId == 0) {
+                                    // For cloud volume, entity itself it the volume, so get its id.
+                                    volumeId = entity.getOid();
+                                }
+                                volumesByStorageType.computeIfAbsent(EntityType.forNumber(
+                                        commBought.getProviderEntityType()),
+                                        k -> new ArrayList<>()).add(MigrationReference.newBuilder()
+                                        .setOid(volumeId).build());
+                            });
+                });
         return volumesByStorageType;
-    }
-
-    private static <T> void addVolumeConnections(
-                    Map<EntityType, List<MigrationReference>> volumesByStorageType,
-                    TopologyEntity volume, List<T> associatedEntities,
-                    Function<T, Integer> typeExtractor) {
-        associatedEntities.stream()
-                        .filter(connectedTo -> typeExtractor.apply(connectedTo) == STORAGE_VALUE
-                                        || typeExtractor.apply(connectedTo) == STORAGE_TIER_VALUE)
-                        .forEach(connectedTo -> {
-                            volumesByStorageType
-                                            .computeIfAbsent(EntityType.forNumber(typeExtractor
-                                                                            .apply(connectedTo)),
-                                                            k -> new ArrayList<>())
-                                            .add(MigrationReference.newBuilder()
-                                                            .setOid(volume.getOid()).build());
-                        });
     }
 
     /**
@@ -1683,6 +1689,18 @@ public class CloudMigrationPlanHelper {
         }
 
         return licensingMap.build();
+    }
+
+    /**
+     * Checks if entity has an associated business account, if so, it is considered cloud entity.
+     * Env type doesn't seem to be set reliably, so cannot be considered for the check.
+     *
+     * @param entity Entity to check.
+     * @return Whether entity is a cloud entity or not.
+     */
+    private boolean isCloudEntity(@Nonnull final TopologyEntity entity) {
+        return entity.getOwner().isPresent() && entity.getOwner().get().getEntityType()
+                == BUSINESS_ACCOUNT_VALUE;
     }
 
     /**

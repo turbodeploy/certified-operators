@@ -687,6 +687,15 @@ public class MarketStatsAccumulatorTest {
 //            CommoditiesBoughtFromProvider.getDefaultInstance(), Collections.emptyMap());
 //        assertFalse(extractedKey2.isPresent());
 
+        final long volumeId = 1234567;
+        final CommoditiesBoughtFromProvider commoditiesBought =
+            CommoditiesBoughtFromProvider.newBuilder().setVolumeId(volumeId).build();
+
+        // case when bought commodity's volume does not appear in map
+
+//        final Optional<String> extractedKey3 = accumulator.extractVolumeKey(buyerEntity,
+//            commoditiesBought, Collections.emptyMap());
+//        assertFalse(extractedKey3.isPresent());
     }
 
     /**
@@ -702,7 +711,7 @@ public class MarketStatsAccumulatorTest {
             .setEnvironmentType(EnvironmentType.CLOUD)
             .build();
         final CommoditiesBoughtFromProvider commoditiesBought =
-            CommoditiesBoughtFromProvider.newBuilder().build();
+            CommoditiesBoughtFromProvider.newBuilder().setVolumeId(volumeId).build();
         final Builder volumeEntityBuilder = TopologyEntityDTO.newBuilder()
             .setOid(volumeId)
             .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)

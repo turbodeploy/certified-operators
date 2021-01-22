@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<probe>
+    <full-class-name>com.vmturbo.mediation.vmm.VmmConversionProbe</full-class-name>
+    <type>VMM</type>
+    <category>Cloud Management</category>
+    <ui-category>Private Cloud</ui-category>
+    <version>1.0.0</version>
+</probe>

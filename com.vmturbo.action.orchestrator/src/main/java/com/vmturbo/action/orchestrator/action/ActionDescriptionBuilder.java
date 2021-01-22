@@ -26,7 +26,6 @@ import org.springframework.util.CollectionUtils;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.common.protobuf.StringUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.Allocate;
@@ -443,17 +442,12 @@ public class ActionDescriptionBuilder {
                 }
             }
             String resource = "";
-            if (primaryChange.getResourceCount() > 0) {
-                List<String> resources = primaryChange.getResourceList().stream()
-                                .map(ActionEntity::getId)
-                                .filter(id -> id != targetEntityId)
-                                .map(id -> entitiesSnapshot.getEntityFromOid(id))
-                                .filter(Optional::isPresent)
-                                .map(Optional::get)
-                                .map(ActionDTOUtil::beautifyEntityTypeAndName)
-                                .collect(Collectors.toList());
-                if (!resources.isEmpty()) {
-                    resource = resources.stream().sorted().collect(Collectors.joining(", ")) + OF;
+            if (primaryChange.hasResource()
+                    && targetEntityId != primaryChange.getResource().getId()) {
+                Optional<ActionPartialEntity> resourceEntity = entitiesSnapshot.getEntityFromOid(
+                        primaryChange.getResource().getId());
+                if (resourceEntity.isPresent()) {
+                    resource = beautifyEntityTypeAndName(resourceEntity.get()) + OF;
                 }
             }
             String actionMessage = ActionMessageFormat.ACTION_DESCRIPTION_MOVE.format(verb, resource,

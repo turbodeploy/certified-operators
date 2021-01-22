@@ -167,7 +167,6 @@ public class ProbeStitchingDependencyTracker {
                 .requireThatProbeCategory(ProbeCategory.DATABASE_SERVER).stitchAfter(ProbeCategory.CLOUD_MANAGEMENT)
                 .requireThatProbeCategory(ProbeCategory.CLOUD_NATIVE).stitchAfter(ProbeCategory.HYPERVISOR)
                 .requireThatProbeCategory(ProbeCategory.CLOUD_NATIVE).stitchAfter(ProbeCategory.CLOUD_MANAGEMENT)
-                .requireThatProbeCategory(ProbeCategory.CLOUD_NATIVE).stitchAfter(ProbeCategory.STORAGE_BROWSING)
                 .requireThatProbeCategory(ProbeCategory.PAAS).stitchAfter(ProbeCategory.HYPERVISOR)
                 .requireThatProbeCategory(ProbeCategory.PAAS).stitchAfter(ProbeCategory.CLOUD_MANAGEMENT)
                 .requireThatProbeCategory(ProbeCategory.GUEST_OS_PROCESSES).stitchAfter(ProbeCategory.HYPERVISOR)

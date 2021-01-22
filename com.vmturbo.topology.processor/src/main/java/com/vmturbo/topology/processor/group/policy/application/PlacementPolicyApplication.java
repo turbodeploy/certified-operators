@@ -354,6 +354,7 @@ public abstract class PlacementPolicyApplication<P extends PlacementPolicy> {
             final TopologyEntity entity = optionalConsumer.get();
 
             final TopologyEntityDTO.Builder consumer;
+            final Optional<Long> volumeId;
             if (isOnPremVolume(entity)) {
                 // if it's volume, the real consumer should be the VM which uses this volume
                 Optional<TopologyEntity> optVM = entity
@@ -378,29 +379,34 @@ public abstract class PlacementPolicyApplication<P extends PlacementPolicy> {
                 }
                 // consumer should be the VM which is connected to this volume
                 consumer = optVM.get().getTopologyEntityDtoBuilder();
+                volumeId = Optional.of(consumerId);
             } else {
                 // We come here if either entity is not a volume (e.g is a VM) or if it is a
                 // cloud volume, in which case we create policy on that volume, instead of the VM,
                 // so consumer in this case should be the cloud volume.
+                // Set the volumeId to empty, as we cannot use the volumeId in the
+                // commBoughtGrouping from volume -> storageTier. In this case, only check
+                // the providerType to verify it matches with cloud storageTier.
                 consumer = entity.getTopologyEntityDtoBuilder();
+                volumeId = Optional.empty();
             }
 
             // Separate commoditiesBoughtFromProvider into two category:
             // Key is True: list of commodityBought group, whose provider entity type matches
-            // with given providerType
+            // with given providerType (and volumeId matches if consumer is VirtualVolume)
             // Key is False: list of commodityBought group, whose provider entity type doesn't
-            // match with given providerType
+            // match with given providerType (or volumeId doesn't match if consumer is VirtualVolume)
             final Map<Boolean, List<CommoditiesBoughtFromProvider>> commodityBoughtsChangeMap =
                 consumer.getCommoditiesBoughtFromProvidersList().stream()
                     .collect(Collectors.partitioningBy(commodityBoughtGroup ->
                         shouldAddSegmentToCommodityBought(commodityBoughtGroup, topologyGraph,
-                            providerType)));
+                            providerType, volumeId)));
 
             // All Commodity Bought list which should be added segmentation commodity
             final List<CommoditiesBoughtFromProvider> commodityBoughtsToAddSegment = commodityBoughtsChangeMap.get(true);
             // All Commodity Bought list which should not be added segmentation commodity
             final List<CommoditiesBoughtFromProvider> commodityBoughtsToNotAddSegment = commodityBoughtsChangeMap.get(false);
-            // If there is no matched provider type, it means the consumer doesn't
+            // If there is no matched provider type and volumeId, it means the consumer doesn't
             // buy any commodity from this provider type. For example, VM1 buying ST1, and VM2
             // not buying ST at all, If create a policy to Force VM1 and VM2 to buy ST1,
             // it should throw exception, because VM2 doesn't buy any Storage type.
@@ -408,7 +414,7 @@ public abstract class PlacementPolicyApplication<P extends PlacementPolicy> {
                 consumersWithPolicyApplicationExceptions.add(consumerId);
             }
             // For each bundle of commodities bought for the entity type that matches the
-            // provider type, add the segmentation commodity.
+            // provider type and volumeId, add the segmentation commodity.
             addCommodityBoughtForProviders(segmentationCommodity, consumer,
                 commodityBoughtsToAddSegment, commodityBoughtsToNotAddSegment);
         }
@@ -421,24 +427,29 @@ public abstract class PlacementPolicyApplication<P extends PlacementPolicy> {
     }
 
     /**
-     * Check if commodity bought has same provider entity type as providerType parameter.
+     * Check if commodity bought has same provider entity type as providerType parameter. If
+     * volumeId is provided, the volumeId in the commodity bought should also match.
      *
      * @param commodityBoughtGrouping Contains a bundle of commodity bought.
      * @param topologyGraph The graph containing the topology.
      * @param providerType The type of provider that will be providing the segment commodity
      *                     these consumers must be buying.
+     * @param volumeId the volumeId to match if provided
      * @return boolean type represents if provider entity type matches.
      */
     private boolean shouldAddSegmentToCommodityBought(@Nonnull CommoditiesBoughtFromProvider commodityBoughtGrouping,
                                                       @Nonnull final TopologyGraph<TopologyEntity> topologyGraph,
-                                                      final int providerType) {
+                                                      final int providerType,
+                                                      @Nonnull Optional<Long> volumeId) {
         // TODO: After we guarantee that commodity type always have provider entity type, we will not
         // need to check topology graph to get provider entity type.
         if (commodityBoughtGrouping.hasProviderEntityType()) {
-            return commodityBoughtGrouping.getProviderEntityType() == providerType;
+            return commodityBoughtGrouping.getProviderEntityType() == providerType &&
+                (!volumeId.isPresent() || volumeId.get() == commodityBoughtGrouping.getVolumeId());
         } else {
             return commodityBoughtGrouping.hasProviderId() &&
-                isProviderOfType(commodityBoughtGrouping.getProviderId(), topologyGraph, providerType);
+                isProviderOfType(commodityBoughtGrouping.getProviderId(), topologyGraph, providerType) &&
+                (!volumeId.isPresent() || volumeId.get() == commodityBoughtGrouping.getVolumeId());
         }
     }
 

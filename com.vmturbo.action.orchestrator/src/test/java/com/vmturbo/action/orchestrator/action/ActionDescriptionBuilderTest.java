@@ -8,14 +8,10 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 
 import javax.annotation.Nonnull;
-
-import com.google.common.collect.ImmutableSet;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -220,24 +216,14 @@ public class ActionDescriptionBuilderTest {
     private static final String ON_PREM_SOURCE_STORAGE_NAME = "NIMHF40:ACMDS1";
 
     /**
-     * ID of onPrem volume one (disk) that is being migrated to cloud.
+     * ID of onPrem volume (disk) that is being migrated to cloud.
      */
     private static final Long ON_PREM_VOLUME_RESOURCE_ID = 73433887060876L;
 
     /**
-     * ID of onPrem volume two (disk) that is being migrated to cloud (same storage as the first).
-     */
-    private static final Long ON_PREM_VOLUME_RESOURCE_ID_2 = 157L;
-
-    /**
-     * Name of onPrem volume one (disk) that is being migrated to cloud.
+     * Name of onPrem volume (disk) that is being migrated to cloud.
      */
     private static final String ON_PREM_VOLUME_RESOURCE_NAME = "Vol-Tomcat-172.216-NIMHF40:ACMDS1";
-
-    /**
-     * Name of onPrem volume two (disk) that is being migrated to cloud.
-     */
-    private static final String ON_PREM_VOLUME_RESOURCE_NAME_2 = "Disk 2";
 
     /**
      * Source compute tier id being migrated from.
@@ -436,7 +422,7 @@ public class ActionDescriptionBuilderTest {
 
         // Cloud->Cloud storage move.
         final ActionInfo.Builder cloudStorageMove = makeMoveInfo(AZURE_VM_ID,
-                Collections.singleton(CLOUD_VOLUME_RESOURCE_ID),
+                CLOUD_VOLUME_RESOURCE_ID,
                 EntityType.VIRTUAL_VOLUME_VALUE,
                 CLOUD_SOURCE_STORAGE_TIER_ID,
                 EntityType.STORAGE_TIER_VALUE, CLOUD_DESTINATION_STORAGE_TIER_ID,
@@ -481,11 +467,11 @@ public class ActionDescriptionBuilderTest {
 
         // onPrem->Cloud storage move.
         final ActionInfo.Builder onPremStorageMove = makeMoveInfo(ON_PREM_VM_ID,
-                        ImmutableSet.of(ON_PREM_VOLUME_RESOURCE_ID, ON_PREM_VOLUME_RESOURCE_ID_2),
-                        EntityType.VIRTUAL_VOLUME_VALUE,
-                        ON_PREM_SOURCE_STORAGE_ID,
-                        EntityType.STORAGE_VALUE, CLOUD_DESTINATION_STORAGE_TIER_ID,
-                        EntityType.STORAGE_TIER_VALUE);
+                ON_PREM_VOLUME_RESOURCE_ID,
+                EntityType.VIRTUAL_VOLUME_VALUE,
+                ON_PREM_SOURCE_STORAGE_ID,
+                EntityType.STORAGE_VALUE, CLOUD_DESTINATION_STORAGE_TIER_ID,
+                EntityType.STORAGE_TIER_VALUE);
         onPremStorageMove.getMoveBuilder().addChanges(ChangeProvider.newBuilder()
                 .setSource(ActionEntity.newBuilder()
                         .setId(ON_PREM_SOURCE_STORAGE_ID)
@@ -501,8 +487,6 @@ public class ActionDescriptionBuilderTest {
                 ON_PREM_SOURCE_STORAGE_NAME);
         makeMockEntityCondition(ON_PREM_VOLUME_RESOURCE_ID, EntityType.VIRTUAL_VOLUME_VALUE,
                 ON_PREM_VOLUME_RESOURCE_NAME);
-        makeMockEntityCondition(ON_PREM_VOLUME_RESOURCE_ID_2, EntityType.VIRTUAL_VOLUME_VALUE,
-                        ON_PREM_VOLUME_RESOURCE_NAME_2);
 
         // Cloud zone (AWS) -> region (Azure) compute move.
         final ActionInfo.Builder zoneToRegionMove = makeMoveInfo(AWS_VM_ID,
@@ -758,19 +742,18 @@ public class ActionDescriptionBuilderTest {
             .build());
     }
 
-    private static ActionInfo.Builder makeMoveInfo(
+    private ActionInfo.Builder makeMoveInfo(
         long targetId,
         long sourceId,
         int sourceType,
         long destinationId,
         int destinationType) {
-        return makeMoveInfo(targetId, Collections.emptySet(), 0, sourceId, sourceType,
-                        destinationId, destinationType);
+        return makeMoveInfo(targetId, 0, 0, sourceId, sourceType, destinationId, destinationType);
     }
 
-    private static ActionInfo.Builder makeMoveInfo(
+    private ActionInfo.Builder makeMoveInfo(
         long targetId,
-        Set<Long> resourceIds,
+        long resourceId,
         int resourceType,
         long sourceId,
         int sourceType,
@@ -786,13 +769,11 @@ public class ActionDescriptionBuilderTest {
                 .setId(destinationId)
                 .setType(destinationType)
                 .build());
-        if (resourceType != 0) {
-            for (Long resourceId : resourceIds) {
-                changeBuilder.addResource(ActionEntity.newBuilder()
-                                .setType(resourceType)
-                                .setId(resourceId)
-                                .build());
-            }
+        if (resourceId != 0 && resourceType != 0) {
+            changeBuilder.setResource(ActionEntity.newBuilder()
+                .setType(resourceType)
+                .setId(resourceId)
+                .build());
         }
         return ActionInfo.newBuilder().setMove(Move.newBuilder()
             .setTarget(ActionOrchestratorTestUtils.createActionEntity(targetId))
@@ -819,7 +800,7 @@ public class ActionDescriptionBuilderTest {
                         .setType(destinationType)
                         .build());
         if (resourceId != 0 && resourceType != 0) {
-            changeBuilder.addResource(ActionEntity.newBuilder()
+            changeBuilder.setResource(ActionEntity.newBuilder()
                     .setType(resourceType)
                     .setId(resourceId)
                     .build());
@@ -1100,9 +1081,8 @@ public class ActionDescriptionBuilderTest {
         // onPrem->Cloud storage move.
         actualDescription = ActionDescriptionBuilder.buildActionDescription(
                 entitySettingsCache, onPremToCloudStorageMove);
-        expectedDescription = String.format("Move Volume %s, Volume %s of Virtual Machine %s from %s to %s",
-                        ON_PREM_VOLUME_RESOURCE_NAME_2, ON_PREM_VOLUME_RESOURCE_NAME,
-                        ON_PREM_VM_NAME, ON_PREM_SOURCE_STORAGE_NAME, AWS_REGION_NAME);
+        expectedDescription = String.format("Move Volume %s from %s to %s",
+                ON_PREM_VOLUME_RESOURCE_NAME, ON_PREM_SOURCE_STORAGE_NAME, AWS_REGION_NAME);
         assertEquals(expectedDescription, actualDescription);
 
         // AWS zone to Azure region compute move.

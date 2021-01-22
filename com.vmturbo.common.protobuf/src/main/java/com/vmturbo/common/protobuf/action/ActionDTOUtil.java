@@ -238,9 +238,8 @@ public class ActionDTOUtil {
     public static ActionEntity getPrimaryEntity(
             final long actionId,
             @Nonnull final ActionInfo actionInfo,
-            // TODO on-prem vvs p2 get rid of this parameter, despite the fact that Move actions
-            // may still sometimes be associated with vm (and may reference multiple volume resources)
-            // use getInvolvedEntities for scoping, getPrimaryEntity for invocation
+            // TODO: Get rid of this parameter. Move Volume actions must be associated with Volume
+            //  rather than VM.
             final boolean returnVolumeForMoveVolumeAction)
             throws UnsupportedActionException {
         switch (actionInfo.getActionTypeCase()) {
@@ -316,23 +315,20 @@ public class ActionDTOUtil {
      * @param actionInfo action info to be assessed
      * @return the entity that should be treated as its target
      */
-    private static ActionEntity getMoveActionTarget(final ActionInfo actionInfo) {
+    public static ActionEntity getMoveActionTarget(final ActionInfo actionInfo) {
         if (!actionInfo.getMove().getChangesList().isEmpty()) {
             final Optional<ChangeProvider> primaryChangeProviderOpt = getPrimaryChangeProvider(actionInfo);
             if (primaryChangeProviderOpt.isPresent()) {
                 final ChangeProvider primaryChangeProvider = primaryChangeProviderOpt.get();
-                // TODO on-prem vvs p2 - support multiple resources
-                // use cases for getPrimaryEntity: AO, API (ActionSpecMapper), TP (action contexts)
                 if (primaryChangeProvider.hasSource()
                         && primaryChangeProvider.hasDestination()
-                        // TODO this is temporary, but e.g. when moving more than one volume at once, still choose the vm
-                        && primaryChangeProvider.getResourceCount() == 1
+                        && primaryChangeProvider.hasResource()
                         && (TopologyDTOUtil.isTierEntityType(primaryChangeProvider.getSource().getType())
                         || EntityType.STORAGE_VALUE == primaryChangeProvider.getSource().getType())
                         && TopologyDTOUtil.isTierEntityType(primaryChangeProvider.getDestination().getType())
                         && TopologyDTOUtil.isStorageEntityType(primaryChangeProvider.getSource().getType())
                         && TopologyDTOUtil.isStorageEntityType(primaryChangeProvider.getDestination().getType())) {
-                    return primaryChangeProvider.getResource(0);
+                    return primaryChangeProvider.getResource();
                 }
             }
         }
@@ -524,7 +520,9 @@ public class ActionDTOUtil {
                 && (!isCompliance || involvedEntityCalculation != InvolvedEntityCalculation.INCLUDE_SOURCE_PROVIDERS_WITH_RISKS)) {
                 retList.add(change.getSource());
             }
-            retList.addAll(change.getResourceList());
+            if (change.hasResource()) {
+                retList.add(change.getResource());
+            }
             if (involvedEntityCalculation != InvolvedEntityCalculation.INCLUDE_SOURCE_PROVIDERS_WITH_RISKS) {
                 retList.add(change.getDestination());
             }
@@ -542,7 +540,9 @@ public class ActionDTOUtil {
             if (change.getSource().getId() != 0) {
                 retList.add(change.getSource());
             }
-            retList.addAll(change.getResourceList());
+            if (change.hasResource()) {
+                retList.add(change.getResource());
+            }
             if (involvedEntityCalculation != InvolvedEntityCalculation.INCLUDE_SOURCE_PROVIDERS_WITH_RISKS) {
                 retList.add(change.getDestination());
             }

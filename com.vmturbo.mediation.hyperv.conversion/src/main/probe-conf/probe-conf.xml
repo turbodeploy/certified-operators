@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<probe>
+    <full-class-name>com.vmturbo.mediation.hyperv.HyperVConversionProbe</full-class-name>
+    <type>Hyper-V</type>
+    <category>Hypervisor</category>
+    <ui-category>Hypervisor</ui-category>
+    <version>1.0.0</version>
+</probe>

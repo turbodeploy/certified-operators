@@ -139,7 +139,8 @@ public class BindToGroupPolicyTest {
         topologyMap.get(11L)
             .getEntityBuilder()
             .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                .setProviderId(7L))
+                .setProviderId(7L)
+                .setVolumeId(10L))
             .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
                 .setProviderId(8L));
 

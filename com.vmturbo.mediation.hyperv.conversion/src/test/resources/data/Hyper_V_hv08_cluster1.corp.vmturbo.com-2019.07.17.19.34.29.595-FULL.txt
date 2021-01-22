@@ -1,0 +1,794 @@
+entityDTO {
+  entityType: DISK_ARRAY
+  id: "1910C10C-F92F-33B4-917D-4DC9F4A468A6"
+  displayName: "DiskArray-Cluster Disk 2\\HV08DS1"
+  commoditiesSold {
+    commodityType: DISK_ARRAY_ACCESS
+    key: "DiskArray-1910C10C-F92F-33B4-917D-4DC9F4A468A6"
+    capacity: 1.0E9
+  }
+  commoditiesSold {
+    commodityType: STORAGE_LATENCY
+    storage_latency_data {
+      supportsDiskArrayLatency: true
+    }
+  }
+  commoditiesSold {
+    commodityType: STORAGE_ACCESS
+    storage_access_data {
+    }
+  }
+  commoditiesSold {
+    commodityType: EXTENT
+    key: "DiskArray-1910C10C-F92F-33B4-917D-4DC9F4A468A6"
+    capacity: 1.0E9
+  }
+  origin: REPLACEABLE
+  disk_array_data {
+  }
+}
+entityDTO {
+  entityType: STORAGE
+  id: "68391AFF-1356-11E8-AA5C-005056B8087A"
+  displayName: "Cluster Disk 2\\HV08DS1"
+  commoditiesSold {
+    commodityType: STORAGE_PROVISIONED
+    thin: false
+    computedUsed: false
+    storage_provisioned_data {
+    }
+  }
+  commoditiesSold {
+    commodityType: STORAGE_LATENCY
+    storage_latency_data {
+    }
+  }
+  commoditiesSold {
+    commodityType: STORAGE_ACCESS
+    used: 0.0
+    storage_access_data {
+    }
+  }
+  commoditiesSold {
+    commodityType: STORAGE_AMOUNT
+    used: 16557.0
+    capacity: 511996.0
+  }
+  commoditiesSold {
+    commodityType: DSPM_ACCESS
+    key: "PhysicalMachine::F1D33842-458E-CAB1-91A3-DA8DB59D0503"
+    capacity: 1.0E9
+  }
+  commoditiesBought {
+    providerId: "1910C10C-F92F-33B4-917D-4DC9F4A468A6"
+    bought {
+      commodityType: STORAGE_LATENCY
+      storage_latency_data {
+      }
+    }
+    bought {
+      commodityType: EXTENT
+      key: "DiskArray-1910C10C-F92F-33B4-917D-4DC9F4A468A6"
+      used: 1.0
+    }
+    bought {
+      commodityType: STORAGE_ACCESS
+      used: 0.0
+      storage_access_data {
+      }
+    }
+    providerType: DISK_ARRAY
+  }
+  monitored: true
+  storage_data {
+    storageType: ISCSI
+  }
+}
+entityDTO {
+  entityType: PHYSICAL_MACHINE
+  id: "F1D33842-458E-CAB1-91A3-DA8DB59D0503"
+  displayName: "hv0801.corp.vmturbo.com"
+  commoditiesSold {
+    commodityType: IO_THROUGHPUT
+    used: 0.0
+    capacity: 366210.9375
+  }
+  commoditiesSold {
+    commodityType: DATASTORE
+    key: "Storage::68391AFF-1356-11E8-AA5C-005056B8087A"
+    capacity: 1.0E9
+  }
+  commoditiesSold {
+    commodityType: DATACENTER
+    key: "DataCenter::96D4407A-594B-364A-A3DF-8DD2FBB5E1D4"
+    capacity: 1.0E9
+  }
+  commoditiesSold {
+    commodityType: CLUSTER
+    key: "Cluster::F1D33842-458E-CAB1-91A3-DA8DB59D0503"
+    capacity: 1.0E9
+  }
+  commoditiesSold {
+    commodityType: MEM_PROVISIONED
+  }
+  commoditiesSold {
+    commodityType: CPU_PROVISIONED
+  }
+  commoditiesSold {
+    commodityType: NET_THROUGHPUT
+    capacity: 366210.9375
+  }
+  commoditiesSold {
+    commodityType: CPU
+    used: 104.0
+    capacity: 10400.0
+  }
+  commoditiesSold {
+    commodityType: DATASTORE
+    key: "Storage::E096B537-12D4-11E8-B0C9-806E6F6E6963"
+    capacity: 1.0E9
+  }
+  commoditiesSold {
+    commodityType: NETWORK
+    key: "Network::0A77BB8A-04A4-3F2E-A3FE-D8F60E10A67B"
+    capacity: 1.0E9
+  }
+  commoditiesSold {
+    commodityType: MEM
+    used: 1858620.0
+    capacity: 8388152.0
+  }
+  commoditiesBought {
+    providerId: "96D4407A-594B-364A-A3DF-8DD2FBB5E1D4"
+    bought {
+      commodityType: SPACE
+      used: 1.0
+    }
+    bought {
+      commodityType: POWER
+      used: 1.0
+    }
+    bought {
+      commodityType: COOLING
+      used: 1.0
+    }
+    bought {
+      commodityType: DATACENTER
+      key: "DataCenter::DataCenter::96D4407A-594B-364A-A3DF-8DD2FBB5E1D4"
+    }
+    providerType: DATACENTER
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "cpuModel"
+    value: "Intel(R) Xeon(R) CPU E5-2670 0 @ 2.60GHz"
+  }
+  monitored: true
+  powerState: POWERED_ON
+  physical_machine_data {
+    pmState {
+    }
+    numCpuSockets: 1
+    numCpuCores: 4
+    numCpuThreads: 4
+    cpuCoreMhz: 2600
+  }
+  physical_machine_related_data {
+    memory {
+      id: "Memory/F1D33842-458E-CAB1-91A3-DA8DB59D0503"
+      displayName: "Memory/hv0801.corp.vmturbo.com"
+      capacity: 8388152.0
+    }
+    processor {
+      id: "PROC-CPU0-0/F1D33842-458E-CAB1-91A3-DA8DB59D0503"
+      displayName: "PROC-CPU0-0/hv0801.corp.vmturbo.com"
+      capacity: 2600.0
+    }
+    processor {
+      id: "PROC-CPU0-1/F1D33842-458E-CAB1-91A3-DA8DB59D0503"
+      displayName: "PROC-CPU0-1/hv0801.corp.vmturbo.com"
+      capacity: 2600.0
+    }
+    processor {
+      id: "PROC-CPU0-2/F1D33842-458E-CAB1-91A3-DA8DB59D0503"
+      displayName: "PROC-CPU0-2/hv0801.corp.vmturbo.com"
+      capacity: 2600.0
+    }
+    processor {
+      id: "PROC-CPU0-3/F1D33842-458E-CAB1-91A3-DA8DB59D0503"
+      displayName: "PROC-CPU0-3/hv0801.corp.vmturbo.com"
+      capacity: 2600.0
+    }
+    io {
+      id: "NIC-12/F1D33842-458E-CAB1-91A3-DA8DB59D0503"
+      displayName: "NIC-12/hv0801.corp.vmturbo.com"
+      speed: 122070.3125
+      macAddress: "00:50:56:B8:08:7A"
+    }
+    io {
+      id: "NIC-10/F1D33842-458E-CAB1-91A3-DA8DB59D0503"
+      displayName: "NIC-10/hv0801.corp.vmturbo.com"
+      speed: 122070.3125
+      macAddress: "00:50:56:B8:7B:74"
+    }
+    io {
+      id: "NIC-7/F1D33842-458E-CAB1-91A3-DA8DB59D0503"
+      displayName: "NIC-7/hv0801.corp.vmturbo.com"
+      speed: 122070.3125
+      macAddress: "00:50:56:B8:47:5E"
+    }
+  }
+}
+entityDTO {
+  entityType: NETWORK
+  id: "e2f1ecfa-90fa-4695-941c-d267d189bb64"
+  displayName: "VM Network [HV0801]"
+  monitored: false
+}
+entityDTO {
+  entityType: STORAGE
+  id: "E096B537-12D4-11E8-B0C9-806E6F6E6963"
+  displayName: "hv0801.corp.vmturbo.com_C:"
+  commoditiesSold {
+    commodityType: STORAGE_PROVISIONED
+    thin: false
+    computedUsed: false
+    storage_provisioned_data {
+    }
+  }
+  commoditiesSold {
+    commodityType: STORAGE_LATENCY
+    storage_latency_data {
+    }
+  }
+  commoditiesSold {
+    commodityType: STORAGE_ACCESS
+    storage_access_data {
+    }
+  }
+  commoditiesSold {
+    commodityType: STORAGE_AMOUNT
+    used: 26515.171875
+    capacity: 40857.99609375
+  }
+  commoditiesSold {
+    commodityType: STORAGE_CLUSTER
+    key: "c:\\temp\\tinycore-current.iso"
+  }
+  commoditiesSold {
+    commodityType: DSPM_ACCESS
+    key: "PhysicalMachine::F1D33842-458E-CAB1-91A3-DA8DB59D0503"
+    capacity: 1.0E9
+  }
+  commoditiesBought {
+    providerId: "4965F8D2-BCB3-3CEC-8718-0B52D57A7A6F"
+    bought {
+      commodityType: STORAGE_LATENCY
+      storage_latency_data {
+      }
+    }
+    bought {
+      commodityType: STORAGE_ACCESS
+      storage_access_data {
+      }
+    }
+    bought {
+      commodityType: EXTENT
+      key: "DiskArray-4965F8D2-BCB3-3CEC-8718-0B52D57A7A6F"
+      used: 1.0
+    }
+    providerType: DISK_ARRAY
+  }
+  monitored: true
+  providerPolicy {
+    localSupported: true
+  }
+  storage_data {
+    storageType: LOCAL
+  }
+}
+entityDTO {
+  entityType: DISK_ARRAY
+  id: "4965F8D2-BCB3-3CEC-8718-0B52D57A7A6F"
+  displayName: "DiskArray-hv0801.corp.vmturbo.com_C:"
+  commoditiesSold {
+    commodityType: STORAGE_LATENCY
+    storage_latency_data {
+      supportsDiskArrayLatency: true
+    }
+  }
+  commoditiesSold {
+    commodityType: DISK_ARRAY_ACCESS
+    key: "DiskArray-4965F8D2-BCB3-3CEC-8718-0B52D57A7A6F"
+    capacity: 1.0E9
+  }
+  commoditiesSold {
+    commodityType: STORAGE_ACCESS
+    storage_access_data {
+    }
+  }
+  commoditiesSold {
+    commodityType: EXTENT
+    key: "DiskArray-4965F8D2-BCB3-3CEC-8718-0B52D57A7A6F"
+    capacity: 1.0E9
+  }
+  origin: REPLACEABLE
+  disk_array_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "737471DB-5BEE-4810-A7F8-40399BF2E531"
+  displayName: "turbonomic-opsmgr-6.2.8"
+  commoditiesSold {
+    commodityType: VCPU
+    capacity: 10400.0
+    limit: -1.0
+    resizable: false
+    vcpu_data {
+    }
+  }
+  commoditiesSold {
+    commodityType: APPLICATION
+    key: "VirtualMachine::737471DB-5BEE-4810-A7F8-40399BF2E531"
+    capacity: 1.0E9
+  }
+  commoditiesSold {
+    commodityType: VMEM
+    capacity: 1.6777216E7
+    resizable: false
+    vmem_data {
+      hotAddSupported: false
+    }
+  }
+  commoditiesBought {
+    providerId: "68391AFF-1356-11E8-AA5C-005056B8087A"
+    bought {
+      commodityType: STORAGE_PROVISIONED
+      used: 0.0
+      computedUsed: false
+      storage_provisioned_data {
+      }
+    }
+    bought {
+      commodityType: STORAGE_ACCESS
+      storage_access_data {
+      }
+    }
+    bought {
+      commodityType: STORAGE_AMOUNT
+      used: 4613.11962890625
+    }
+    bought {
+      commodityType: DSPM_ACCESS
+      key: "PhysicalMachine::F1D33842-458E-CAB1-91A3-DA8DB59D0503"
+      used: 1.0
+    }
+    providerType: STORAGE
+  }
+  commoditiesBought {
+    providerId: "F1D33842-458E-CAB1-91A3-DA8DB59D0503"
+    bought {
+      commodityType: DATASTORE
+      key: "Storage::68391AFF-1356-11E8-AA5C-005056B8087A"
+      used: 1.0
+    }
+    bought {
+      commodityType: IO_THROUGHPUT
+    }
+    bought {
+      commodityType: DATACENTER
+      key: "DataCenter::96D4407A-594B-364A-A3DF-8DD2FBB5E1D4"
+      used: 1.0
+    }
+    bought {
+      commodityType: CLUSTER
+      key: "Cluster::F1D33842-458E-CAB1-91A3-DA8DB59D0503"
+      used: 1.0
+    }
+    bought {
+      commodityType: MEM_PROVISIONED
+      used: 1.6777216E7
+      thin: false
+    }
+    bought {
+      commodityType: CPU_PROVISIONED
+      used: 10400.0
+      thin: false
+    }
+    bought {
+      commodityType: NET_THROUGHPUT
+    }
+    bought {
+      commodityType: CPU
+      resizable: true
+    }
+    bought {
+      commodityType: MEM
+      reservation: 1.6777216E7
+      resizable: true
+    }
+    providerType: PHYSICAL_MACHINE
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "LocalName"
+    value: "737471DB-5BEE-4810-A7F8-40399BF2E531"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "numCpus"
+    value: "4"
+  }
+  powerState: POWERED_OFF
+  layeredOver: "VirtualVolume-dsb-737471DB-5BEE-4810-A7F8-40399BF2E531-dsb-68391AFF-1356-11E8-AA5C-005056B8087A"
+  virtual_machine_data {
+    vmState {
+    }
+  }
+  virtual_machine_related_data {
+    memory {
+      id: "Memory/737471DB-5BEE-4810-A7F8-40399BF2E531"
+      displayName: "Memory/turbonomic-opsmgr-6.2.8"
+      capacity: 1.6777216E7
+    }
+    processor {
+      id: "CPU-0/737471DB-5BEE-4810-A7F8-40399BF2E531"
+      displayName: "CPU-0/turbonomic-opsmgr-6.2.8"
+      capacity: 2600.0
+    }
+    processor {
+      id: "CPU-1/737471DB-5BEE-4810-A7F8-40399BF2E531"
+      displayName: "CPU-1/turbonomic-opsmgr-6.2.8"
+      capacity: 2600.0
+    }
+    processor {
+      id: "CPU-2/737471DB-5BEE-4810-A7F8-40399BF2E531"
+      displayName: "CPU-2/turbonomic-opsmgr-6.2.8"
+      capacity: 2600.0
+    }
+    processor {
+      id: "CPU-3/737471DB-5BEE-4810-A7F8-40399BF2E531"
+      displayName: "CPU-3/turbonomic-opsmgr-6.2.8"
+      capacity: 2600.0
+    }
+  }
+}
+entityDTO {
+  entityType: APPLICATION_COMPONENT
+  id: "4710859F-D32C-3301-94E4-79A4631BDFE8"
+  displayName: "GuestLoad [turbonomic-opsmgr-6.2.8]"
+  commoditiesBought {
+    providerId: "737471DB-5BEE-4810-A7F8-40399BF2E531"
+    bought {
+      commodityType: VCPU
+      vcpu_data {
+      }
+    }
+    bought {
+      commodityType: APPLICATION
+      key: "VirtualMachine::737471DB-5BEE-4810-A7F8-40399BF2E531"
+      used: 1.0
+    }
+    bought {
+      commodityType: VMEM
+      vmem_data {
+      }
+    }
+    providerType: VIRTUAL_MACHINE
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "pmId"
+    value: "F1D33842-458E-CAB1-91A3-DA8DB59D0503"
+  }
+  origin: PROXY
+  powerState: POWERED_OFF
+  application_data {
+    type: "GuestLoad"
+  }
+}
+entityDTO {
+  entityType: APPLICATION_COMPONENT
+  id: "37B451B3-C2B5-3A1F-B9C5-63DAA2CCE452"
+  displayName: "GuestLoad [testVM]"
+  commoditiesBought {
+    providerId: "2DF78113-F88D-49B7-87FD-FBFAB097B909"
+    bought {
+      commodityType: VCPU
+      used: 78.0
+      vcpu_data {
+      }
+    }
+    bought {
+      commodityType: VMEM
+      used: 524288.0
+      vmem_data {
+      }
+    }
+    bought {
+      commodityType: APPLICATION
+      key: "VirtualMachine::2DF78113-F88D-49B7-87FD-FBFAB097B909"
+      used: 1.0
+    }
+    providerType: VIRTUAL_MACHINE
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "pmId"
+    value: "F1D33842-458E-CAB1-91A3-DA8DB59D0503"
+  }
+  origin: PROXY
+  powerState: POWERED_ON
+  application_data {
+    type: "GuestLoad"
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "2DF78113-F88D-49B7-87FD-FBFAB097B909"
+  displayName: "testVM"
+  commoditiesSold {
+    commodityType: VCPU
+    used: 78.0
+    capacity: 10400.0
+    limit: -1.0
+    resizable: true
+    vcpu_data {
+    }
+  }
+  commoditiesSold {
+    commodityType: VMEM
+    used: 524288.0
+    capacity: 524288.0
+    resizable: false
+    vmem_data {
+      hotAddSupported: false
+    }
+  }
+  commoditiesSold {
+    commodityType: APPLICATION
+    key: "VirtualMachine::2DF78113-F88D-49B7-87FD-FBFAB097B909"
+    capacity: 1.0E9
+  }
+  commoditiesBought {
+    providerId: "E096B537-12D4-11E8-B0C9-806E6F6E6963"
+    bought {
+      commodityType: STORAGE_PROVISIONED
+      used: 0.0
+      computedUsed: false
+      storage_provisioned_data {
+      }
+    }
+    bought {
+      commodityType: STORAGE_ACCESS
+      storage_access_data {
+      }
+    }
+    bought {
+      commodityType: STORAGE_AMOUNT
+      used: 0.0
+    }
+    bought {
+      commodityType: STORAGE_CLUSTER
+      key: "c:\\temp\\tinycore-current.iso"
+    }
+    bought {
+      commodityType: DSPM_ACCESS
+      key: "PhysicalMachine::F1D33842-458E-CAB1-91A3-DA8DB59D0503"
+      used: 1.0
+    }
+    providerType: STORAGE
+  }
+  commoditiesBought {
+    providerId: "68391AFF-1356-11E8-AA5C-005056B8087A"
+    bought {
+      commodityType: STORAGE_PROVISIONED
+      used: 0.0
+      computedUsed: false
+      storage_provisioned_data {
+      }
+    }
+    bought {
+      commodityType: STORAGE_ACCESS
+      used: 0.0
+      storage_access_data {
+      }
+    }
+    bought {
+      commodityType: STORAGE_AMOUNT
+      used: 0.00390625
+    }
+    bought {
+      commodityType: DSPM_ACCESS
+      key: "PhysicalMachine::F1D33842-458E-CAB1-91A3-DA8DB59D0503"
+      used: 1.0
+    }
+    providerType: STORAGE
+  }
+  commoditiesBought {
+    providerId: "F1D33842-458E-CAB1-91A3-DA8DB59D0503"
+    bought {
+      commodityType: DATASTORE
+      key: "Storage::68391AFF-1356-11E8-AA5C-005056B8087A"
+      used: 1.0
+    }
+    bought {
+      commodityType: IO_THROUGHPUT
+      used: 0.0
+    }
+    bought {
+      commodityType: DATACENTER
+      key: "DataCenter::96D4407A-594B-364A-A3DF-8DD2FBB5E1D4"
+      used: 1.0
+    }
+    bought {
+      commodityType: MEM_PROVISIONED
+      used: 524288.0
+      thin: false
+    }
+    bought {
+      commodityType: CPU_PROVISIONED
+      used: 10400.0
+      thin: false
+    }
+    bought {
+      commodityType: NET_THROUGHPUT
+      used: 1.171875
+    }
+    bought {
+      commodityType: CPU
+      used: 78.0
+      reservation: 0.0
+      resizable: true
+    }
+    bought {
+      commodityType: DATASTORE
+      key: "Storage::E096B537-12D4-11E8-B0C9-806E6F6E6963"
+      used: 1.0
+    }
+    bought {
+      commodityType: MEM
+      used: 524288.0
+      reservation: 524288.0
+      resizable: true
+    }
+    bought {
+      commodityType: NETWORK
+      key: "Network::0A77BB8A-04A4-3F2E-A3FE-D8F60E10A67B"
+      used: 1.0
+    }
+    providerType: PHYSICAL_MACHINE
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "LocalName"
+    value: "2DF78113-F88D-49B7-87FD-FBFAB097B909"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "numCpus"
+    value: "4"
+  }
+  powerState: POWERED_ON
+  layeredOver: "VirtualVolume-dsb-2DF78113-F88D-49B7-87FD-FBFAB097B909-dsb-E096B537-12D4-11E8-B0C9-806E6F6E6963"
+  layeredOver: "VirtualVolume-dsb-2DF78113-F88D-49B7-87FD-FBFAB097B909-dsb-68391AFF-1356-11E8-AA5C-005056B8087A"
+  virtual_machine_data {
+    vmState {
+    }
+  }
+  virtual_machine_related_data {
+    memory {
+      id: "Memory/2DF78113-F88D-49B7-87FD-FBFAB097B909"
+      displayName: "Memory/testVM"
+      capacity: 524288.0
+    }
+    processor {
+      id: "CPU-0/2DF78113-F88D-49B7-87FD-FBFAB097B909"
+      displayName: "CPU-0/testVM"
+      capacity: 2.6E9
+    }
+    processor {
+      id: "CPU-1/2DF78113-F88D-49B7-87FD-FBFAB097B909"
+      displayName: "CPU-1/testVM"
+      capacity: 2.6E9
+    }
+    processor {
+      id: "CPU-2/2DF78113-F88D-49B7-87FD-FBFAB097B909"
+      displayName: "CPU-2/testVM"
+      capacity: 2.6E9
+    }
+    processor {
+      id: "CPU-3/2DF78113-F88D-49B7-87FD-FBFAB097B909"
+      displayName: "CPU-3/testVM"
+      capacity: 2.6E9
+    }
+  }
+}
+entityDTO {
+  entityType: DATACENTER
+  id: "96D4407A-594B-364A-A3DF-8DD2FBB5E1D4"
+  displayName: "Hyper-V Datacenter"
+  commoditiesSold {
+    commodityType: SPACE
+    capacity: 100000.0
+  }
+  commoditiesSold {
+    commodityType: POWER
+    capacity: 100000.0
+  }
+  commoditiesSold {
+    commodityType: COOLING
+    capacity: 100000.0
+  }
+  commoditiesSold {
+    commodityType: DATACENTER
+    key: "DataCenter::DataCenter::96D4407A-594B-364A-A3DF-8DD2FBB5E1D4"
+    capacity: 1.0E9
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_VOLUME
+  id: "VirtualVolume-dsb-737471DB-5BEE-4810-A7F8-40399BF2E531-dsb-68391AFF-1356-11E8-AA5C-005056B8087A"
+  displayName: "VirtualVolume-turbonomic-opsmgr-6.2.8-Cluster Disk 2\\HV08DS1"
+  layeredOver: "68391AFF-1356-11E8-AA5C-005056B8087A"
+  virtual_volume_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_VOLUME
+  id: "VirtualVolume-dsb-2DF78113-F88D-49B7-87FD-FBFAB097B909-dsb-E096B537-12D4-11E8-B0C9-806E6F6E6963"
+  displayName: "VirtualVolume-testVM-hv0801.corp.vmturbo.com_C:"
+  layeredOver: "E096B537-12D4-11E8-B0C9-806E6F6E6963"
+  virtual_volume_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_VOLUME
+  id: "VirtualVolume-dsb-2DF78113-F88D-49B7-87FD-FBFAB097B909-dsb-68391AFF-1356-11E8-AA5C-005056B8087A"
+  displayName: "VirtualVolume-testVM-Cluster Disk 2\\HV08DS1"
+  layeredOver: "68391AFF-1356-11E8-AA5C-005056B8087A"
+  virtual_volume_data {
+  }
+}
+discoveredGroup {
+  entity_type: VIRTUAL_MACHINE
+  display_name: "Hyper-V Datacenter\\hv08-cluster1"
+  constraint_info {
+    constraint_type: CLUSTER
+    constraint_id: "4602A12D-8D3C-3708-A79E-47B2DD0FF6BB"
+    is_buyer: true
+    constraint_name: "Hyper-V Datacenter\\hv08-cluster1"
+    forExcludedConsumers: true
+  }
+  member_list {
+    member: "737471DB-5BEE-4810-A7F8-40399BF2E531"
+  }
+}
+discoveredGroup {
+  entity_type: PHYSICAL_MACHINE
+  display_name: "Hyper-V Datacenter\\hv08-cluster1"
+  constraint_info {
+    constraint_type: CLUSTER
+    constraint_id: "4602A12D-8D3C-3708-A79E-47B2DD0FF6BB"
+    constraint_name: "Hyper-V Datacenter\\hv08-cluster1"
+    constraint_display_name: "Hyper-V Datacenter\\hv08-cluster1"
+  }
+  member_list {
+    member: "F1D33842-458E-CAB1-91A3-DA8DB59D0503"
+  }
+}
+discoveredGroup {
+  entity_type: PHYSICAL_MACHINE
+  group_name: "96D4407A-594B-364A-A3DF-8DD2FBB5E1D4"
+  member_list {
+    member: "F1D33842-458E-CAB1-91A3-DA8DB59D0503"
+    member: "4602A12D-8D3C-3708-A79E-47B2DD0FF6BB"
+  }
+}
+notification {
+  event: "HyperV: hv0802 discovery failed"
+  category: "DISCOVERY"
+  description: "Error occurred during \'hv0802.corp.vmturbo.com\' host discovering"
+  severity: MAJOR
+}

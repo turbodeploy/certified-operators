@@ -259,7 +259,7 @@ public class TopologyStitchingEntity implements StitchingEntity {
             return Optional.empty();
         }
         return commoditiesBoughtList.stream()
-                .filter(cb -> cb.equals(commoditiesBought))
+                .filter(cb -> cb.match(commoditiesBought))
                 .findAny();
     }
 

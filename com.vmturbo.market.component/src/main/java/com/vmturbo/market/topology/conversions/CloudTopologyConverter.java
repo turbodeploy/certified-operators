@@ -272,11 +272,11 @@ public class CloudTopologyConverter {
                             .filter(commList -> commList.getProviderEntityType() == EntityType.VIRTUAL_VOLUME_VALUE)
                             .map(CommoditiesBoughtFromProvider::getProviderId)
                             .collect(Collectors.toList()));
-                    // If provider is a storage (on-prem), get the volume ID from the connected entities
-                    volumeIds.addAll(sourceEntity.getConnectedEntityListList().stream()
-                                    .filter(connectedEntity -> connectedEntity.getConnectedEntityType() == EntityType.VIRTUAL_VOLUME_VALUE)
-                                    .map(ConnectedEntity::getConnectedEntityId)
-                                    .collect(Collectors.toList()));
+                    // If provider is a storage (on-prem), get the volume ID from the volumeId field.
+                    volumeIds.addAll(sourceEntity.getCommoditiesBoughtFromProvidersList().stream()
+                            .filter(commList -> commList.getProviderEntityType() == EntityType.STORAGE_VALUE)
+                            .map(CommoditiesBoughtFromProvider::getVolumeId)
+                            .collect(Collectors.toList()));
                 }
                 if (businessAccountToNewlyOwnedEntities.containsKey(businessAccountOid)) {
                     businessAccountToNewlyOwnedEntities

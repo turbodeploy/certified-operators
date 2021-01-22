@@ -781,7 +781,7 @@ public class ActionDTOUtilTest {
                             .setType(EntityType.STORAGE_TIER_VALUE)
                             .setId(cloudStorageTierId)
                             .build())
-                        .addResource(ActionEntity.newBuilder()
+                        .setResource(ActionEntity.newBuilder()
                             .setEnvironmentType(EnvironmentType.CLOUD)
                             .setType(EntityType.VIRTUAL_VOLUME_VALUE)
                             .setId(cloudVvId)

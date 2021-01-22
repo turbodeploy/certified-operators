@@ -54,22 +54,24 @@ public class CommodityIndexTest {
             .setEntityType(ENTITY_TYPE)
             .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
                 .setProviderId(PROVIDER)
+                .setVolumeId(1l)
                 .addCommodityBought(commBought1)
                 .addCommodityBought(commBought2))
             .build());
 
         // Test getting specific commodity.
-        assertThat(index.getCommBought(ENTITY, PROVIDER, COMM_TYPE).get(),
+        assertThat(index.getCommBought(ENTITY, PROVIDER, COMM_TYPE, 1l).get(),
             is(commBought1));
-        assertThat(index.getCommBought(ENTITY, PROVIDER, COMM_TYPE_2).get(),
+        assertThat(index.getCommBought(ENTITY, PROVIDER, COMM_TYPE_2, 1l).get(),
             is(commBought2));
 
         // Test each possible missing argument.
-        assertFalse(index.getCommBought(ENTITY + 1, PROVIDER, COMM_TYPE).isPresent());
-        assertFalse(index.getCommBought(ENTITY, PROVIDER + 1, COMM_TYPE).isPresent());
+        assertFalse(index.getCommBought(ENTITY + 1, PROVIDER, COMM_TYPE, 1l).isPresent());
+        assertFalse(index.getCommBought(ENTITY, PROVIDER + 1, COMM_TYPE, 1l).isPresent());
         assertFalse(index.getCommBought(ENTITY, PROVIDER, COMM_TYPE.toBuilder()
             .setType(TYPE + 1)
-            .build()).isPresent());
+            .build(), 1l).isPresent());
+        assertFalse(index.getCommBought(ENTITY, PROVIDER, COMM_TYPE, 0).isPresent());
     }
 
     @Test
@@ -127,7 +129,7 @@ public class CommodityIndexTest {
             .build());
 
         // Verify that it contains the most recently entered value
-        Optional<CommodityBoughtDTO> commBought = index.getCommBought(ENTITY, PROVIDER, COMM_TYPE);
+        Optional<CommodityBoughtDTO> commBought = index.getCommBought(ENTITY, PROVIDER, COMM_TYPE, 0);
         assertTrue(commBought.isPresent());
         assertEquals(cb2, commBought.get());
     }

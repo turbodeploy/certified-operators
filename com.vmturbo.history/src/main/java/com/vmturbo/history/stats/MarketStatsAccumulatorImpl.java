@@ -688,7 +688,12 @@ public class MarketStatsAccumulatorImpl implements MarketStatsAccumulator {
             }
             Double capacity = null;
             if (providerId != null) {
-                capacity = capacityCache.getCapacity(providerId, commodityBoughtDTO.getCommodityType());
+                if (commoditiesBought.hasVolumeId()) {
+                    capacity = capacityCache.getCapacity(commoditiesBought.getVolumeId(), commodityBoughtDTO.getCommodityType());
+                }
+                if (capacity == null) {
+                    capacity = capacityCache.getCapacity(providerId, commodityBoughtDTO.getCommodityType());
+                }
             }
             // all "used" subtype entries should have a capacity
             if (capacity == null || capacity <= 0) {

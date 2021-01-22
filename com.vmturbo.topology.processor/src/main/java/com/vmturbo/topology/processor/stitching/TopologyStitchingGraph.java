@@ -199,10 +199,28 @@ public class TopologyStitchingGraph {
 
                 // add commodity bought for this provider, there may be multiple set of commodity
                 // bought from same provider
+                final Long volumeId;
+                if (!commodityBought.hasSubDivision()) {
+                    volumeId = null;
+                } else {
+                    String volumeLocalId = commodityBought.getSubDivision().getSubDivisionId();
+                    StitchingEntityData volumeData = entityMap.get(volumeLocalId);
+                    if (volumeData == null) {
+                        // Serious error, and the IDs will be helpful to diagnose where it came
+                        // from.
+                        logger.error("Entity {} (local id: {}) connected to non-existing sub-division {}.",
+                            entity.getOid(), entityData.getLocalId(), volumeLocalId);
+                        errorsByCategory.computeIfAbsent(StitchingErrorCode.INVALID_COMM_BOUGHT,
+                            k -> new MutableInt(0)).increment();
+                        invalidCommBought.add(i);
+                        continue;
+                    }
+                    volumeId = volumeData.getOid();
+                }
+
                 CommoditiesBought bought = new CommoditiesBought(
-                        commodityBought.getBoughtList().stream()
-                                .map(CommodityDTO::toBuilder)
-                                .collect(Collectors.toList()));
+                        commodityBought.getBoughtBuilderList(), volumeId);
+
                 // Pass on the action eligibility settings that are provided in the
                 // CommodityBought section of the SDK's EntityDTO
                 CopyActionEligibility.transferActionEligibilitySettingsFromEntityDTO(

@@ -315,7 +315,7 @@ public class TopologyConverterToMarketTest {
                         .filter(sl -> sl.getSupplier() == 102)
                         .findAny().orElseThrow(() -> new RuntimeException("cannot find supplier 102"));
         // PM shopping list is created last because we sort the commBoughtGroupings by provider
-        // type and then by provider.
+        // type and then by volume id.
         assertEquals(1002, pmShoppingList.getOid());
         assertTrue(pmShoppingList.getMovable());
         List<CommodityBoughtTO> commoditiesBoughtList = pmShoppingList.getCommoditiesBoughtList();
@@ -455,7 +455,7 @@ public class TopologyConverterToMarketTest {
     }
 
     /**
-     * We sort the shopping lists by provider entity type followed by provider id. This test verifies this.
+     * We sort the shopping lists by provider entity type followed by volume id. This test verifies this.
      * We setup a VM with 3 commBoughtGroupings in this order - PM grouping (provider type 14),
      * volume 2 grouping (volume id 10, provider type 2), volume 1 SL (volume id 9, , provider type 2)
      * The trader should be created with shopping lists in the order - volume 1, volume 2, PM
@@ -471,6 +471,9 @@ public class TopologyConverterToMarketTest {
             .getCommoditiesBoughtFromProvidersList().get(1).toBuilder();
         CommoditiesBoughtFromProvider.Builder volume2CommBoughtGrouping = vmDTO
             .getCommoditiesBoughtFromProvidersList().get(2).toBuilder();
+        pmCommBoughtGrouping.clearVolumeId();
+        volume1CommBoughtGrouping.setVolumeId(9L);
+        volume2CommBoughtGrouping.setVolumeId(10L);
         TopologyEntityDTO.Builder entityDTOBuilder = vmDTO.toBuilder();
         entityDTOBuilder.clearCommoditiesBoughtFromProviders();
         entityDTOBuilder.addAllCommoditiesBoughtFromProviders(Arrays.asList(pmCommBoughtGrouping.build(),
@@ -494,10 +497,10 @@ public class TopologyConverterToMarketTest {
         TraderTO vm = traderByType.get(EntityType.VIRTUAL_MACHINE_VALUE);
         ShoppingListInfo volume1slInfo = converter.getShoppingListOidToInfos().get(
             vm.getShoppingListsList().get(0).getOid());
-        Assert.assertEquals(205L, volume1slInfo.getSellerId().longValue());
+        assertEquals(9L, (long)volume1slInfo.getResourceId().get());
         ShoppingListInfo volume2slInfo = converter.getShoppingListOidToInfos().get(
             vm.getShoppingListsList().get(1).getOid());
-        Assert.assertEquals(206L, volume2slInfo.getSellerId().longValue());
+        assertEquals(10L, (long)volume2slInfo.getResourceId().get());
         ShoppingListInfo pmSlInfo = converter.getShoppingListOidToInfos().get(
             vm.getShoppingListsList().get(2).getOid());
         assertEquals(14, (int)pmSlInfo.getSellerEntityType().get());

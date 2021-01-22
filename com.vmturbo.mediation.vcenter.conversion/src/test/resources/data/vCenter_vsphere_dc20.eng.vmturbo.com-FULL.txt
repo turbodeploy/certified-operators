@@ -1,0 +1,2273 @@
+entityDTO {
+  entityType: DATACENTER
+  id: "d173186797f5287e8282a6245c05c772db3a2088"
+  displayName: "vsphere-dc20-DC01"
+  commoditiesSold {
+    commodityType: DATACENTER
+    key: "DataCenter::DataCenter::d173186797f5287e8282a6245c05c772db3a2088"
+    used: 1.0
+    capacity: 1.0E9
+    active: true
+    resizable: false
+  }
+  commoditiesSold {
+    commodityType: COOLING
+    used: 1.0
+    capacity: 1.0E9
+    active: true
+    resizable: false
+  }
+  commoditiesSold {
+    commodityType: SPACE
+    used: 1.0
+    capacity: 1.0E9
+    active: true
+    resizable: false
+  }
+  commoditiesSold {
+    commodityType: POWER
+    used: 1.0
+    capacity: 1.0E9
+    active: true
+    resizable: false
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "LocalName"
+    value: "datacenter-2"
+  }
+  origin: REPLACEABLE
+  powerState: POWERED_ON
+}
+entityDTO {
+  entityType: DISK_ARRAY
+  id: "DiskArray-9bd4ee88-99c64661"
+  displayName: "DiskArray-QS1:NFSShare"
+  commoditiesSold {
+    commodityType: EXTENT
+    key: "DiskArray-9bd4ee88-99c64661"
+    used: 1.0
+    capacity: 1.0E9
+    active: true
+    resizable: false
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "LocalName"
+    value: "datastore-19"
+  }
+  origin: REPLACEABLE
+  powerState: POWERED_ON
+  disk_array_data {
+  }
+}
+entityDTO {
+  entityType: DISK_ARRAY
+  id: "DiskArray-a4333cd86d12707a0439be48750b890aae825a9b"
+  displayName: "DiskArray-DC20:vsanDatastore"
+  commoditiesSold {
+    commodityType: EXTENT
+    key: "DiskArray-a4333cd86d12707a0439be48750b890aae825a9b"
+    used: 1.0
+    capacity: 1.0E9
+    active: true
+    resizable: false
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "LocalName"
+    value: "datastore-21"
+  }
+  origin: REPLACEABLE
+  powerState: POWERED_ON
+  disk_array_data {
+  }
+}
+entityDTO {
+  entityType: STORAGE
+  id: "9bd4ee88-99c64661"
+  displayName: "QS1:NFSShare"
+  commoditiesSold {
+    commodityType: DSPM_ACCESS
+    key: "PhysicalMachine::Virtual_ESX_42389915-e26e-537c-d50d-de0aadd91454"
+    used: 1.0
+    capacity: 1.0E9
+    active: true
+    resizable: false
+  }
+  commoditiesSold {
+    commodityType: DSPM_ACCESS
+    key: "PhysicalMachine::Virtual_ESX_4238d876-1163-eebb-d0c5-533094a488e8"
+    used: 1.0
+    capacity: 1.0E9
+    active: true
+    resizable: false
+  }
+  commoditiesSold {
+    commodityType: DSPM_ACCESS
+    key: "PhysicalMachine::Virtual_ESX_42385480-eb0d-f982-ee95-f26456236ca7"
+    used: 1.0
+    capacity: 1.0E9
+    active: true
+    resizable: false
+  }
+  commoditiesSold {
+    commodityType: STORAGE_AMOUNT
+    used: 2473844.25
+    capacity: 2761695.0
+    active: true
+    resizable: false
+  }
+  commoditiesSold {
+    commodityType: DSPM_ACCESS
+    key: "PhysicalMachine::Virtual_ESX_4238958f-6cac-266e-b666-25d60c5c6bcc"
+    used: 1.0
+    capacity: 1.0E9
+    active: true
+    resizable: false
+  }
+  commoditiesSold {
+    commodityType: STORAGE_CLUSTER
+    key: "free_storage_cluster"
+    capacity: 1.0E9
+  }
+  commoditiesSold {
+    commodityType: STORAGE_PROVISIONED
+    used: 2473844.25
+    active: true
+    resizable: true
+  }
+  commoditiesSold {
+    commodityType: STORAGE_ACCESS
+    active: true
+    resizable: true
+    computedUsed: true
+    storage_access_data {
+      supportsStorageIOPS: false
+    }
+  }
+  commoditiesSold {
+    commodityType: STORAGE_LATENCY
+    active: true
+    resizable: true
+    computedUsed: true
+    storage_latency_data {
+      supportsStorageLatency: false
+    }
+  }
+  commoditiesBought {
+    providerId: "DiskArray-9bd4ee88-99c64661"
+    bought {
+      commodityType: EXTENT
+      key: "DiskArray-9bd4ee88-99c64661"
+      used: 1.0
+      active: true
+      resizable: false
+    }
+    providerType: DISK_ARRAY
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "LocalName"
+    value: "datastore-19"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "VcTgtIdAndInternalName"
+    value: "7ce1676fde1f80e369fb1c243160947e0ab33046"
+  }
+  powerState: POWERED_ON
+  providerPolicy {
+    localSupported: false
+  }
+  layeredOver: "Virtual_ESX_42389915-e26e-537c-d50d-de0aadd91454"
+  layeredOver: "Virtual_ESX_4238d876-1163-eebb-d0c5-533094a488e8"
+  layeredOver: "Virtual_ESX_42385480-eb0d-f982-ee95-f26456236ca7"
+  layeredOver: "Virtual_ESX_4238958f-6cac-266e-b666-25d60c5c6bcc"
+  maintenance: false
+  storage_data {
+    storageType: NFS
+    externalName: "nfs:10.10.100.101#/export/share/nfs"
+    externalName: "nfs:10.10.100.101#/export/share/nfs"
+  }
+}
+entityDTO {
+  entityType: STORAGE
+  id: "a4f589d00efc133585b3b702a1da990d2aa527e5"
+  displayName: "DC20:vsanDatastore"
+  commoditiesSold {
+    commodityType: DSPM_ACCESS
+    key: "PhysicalMachine::Virtual_ESX_42389915-e26e-537c-d50d-de0aadd91454"
+    used: 1.0
+    capacity: 1.0E9
+    active: true
+    resizable: false
+  }
+  commoditiesSold {
+    commodityType: DSPM_ACCESS
+    key: "PhysicalMachine::Virtual_ESX_4238d876-1163-eebb-d0c5-533094a488e8"
+    used: 1.0
+    capacity: 1.0E9
+    active: true
+    resizable: false
+  }
+  commoditiesSold {
+    commodityType: DSPM_ACCESS
+    key: "PhysicalMachine::Virtual_ESX_42385480-eb0d-f982-ee95-f26456236ca7"
+    used: 1.0
+    capacity: 1.0E9
+    active: true
+    resizable: false
+  }
+  commoditiesSold {
+    commodityType: STORAGE_AMOUNT
+    used: 133648.0
+    capacity: 506848.0
+    active: true
+    resizable: false
+  }
+  commoditiesSold {
+    commodityType: DSPM_ACCESS
+    key: "PhysicalMachine::Virtual_ESX_4238958f-6cac-266e-b666-25d60c5c6bcc"
+    used: 1.0
+    capacity: 1.0E9
+    active: true
+    resizable: false
+  }
+  commoditiesSold {
+    commodityType: STORAGE_CLUSTER
+    key: "free_storage_cluster"
+    capacity: 1.0E9
+  }
+  commoditiesSold {
+    commodityType: STORAGE_PROVISIONED
+    used: 330195.19921875
+    active: true
+    resizable: true
+  }
+  commoditiesSold {
+    commodityType: STORAGE_ACCESS
+    active: true
+    resizable: true
+    computedUsed: true
+    storage_access_data {
+      supportsStorageIOPS: false
+    }
+  }
+  commoditiesSold {
+    commodityType: STORAGE_LATENCY
+    active: true
+    resizable: true
+    computedUsed: true
+    storage_latency_data {
+      supportsStorageLatency: false
+    }
+  }
+  commoditiesBought {
+    providerId: "DiskArray-a4333cd86d12707a0439be48750b890aae825a9b"
+    bought {
+      commodityType: EXTENT
+      key: "DiskArray-a4333cd86d12707a0439be48750b890aae825a9b"
+      used: 1.0
+      active: true
+      resizable: false
+    }
+    providerType: DISK_ARRAY
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "LocalName"
+    value: "datastore-21"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "VcTgtIdAndInternalName"
+    value: "a4f589d00efc133585b3b702a1da990d2aa527e5"
+  }
+  powerState: POWERED_ON
+  providerPolicy {
+    availableForPlacement: true
+    localSupported: true
+  }
+  layeredOver: "Virtual_ESX_4238958f-6cac-266e-b666-25d60c5c6bcc"
+  layeredOver: "Virtual_ESX_42389915-e26e-537c-d50d-de0aadd91454"
+  layeredOver: "Virtual_ESX_4238d876-1163-eebb-d0c5-533094a488e8"
+  layeredOver: "Virtual_ESX_42385480-eb0d-f982-ee95-f26456236ca7"
+  maintenance: false
+  storage_data {
+    storageType: GENERIC_BLOCK
+  }
+}
+entityDTO {
+  entityType: STORAGE
+  id: "d471fce3-2670600b"
+  displayName: "QS4:ESXDC20DS1"
+  commoditiesSold {
+    commodityType: DSPM_ACCESS
+    key: "PhysicalMachine::Virtual_ESX_42385480-eb0d-f982-ee95-f26456236ca7"
+    used: 1.0
+    capacity: 1.0E9
+    active: true
+    resizable: false
+  }
+  commoditiesSold {
+    commodityType: DSPM_ACCESS
+    key: "PhysicalMachine::Virtual_ESX_4238d876-1163-eebb-d0c5-533094a488e8"
+    used: 1.0
+    capacity: 1.0E9
+    active: true
+    resizable: false
+  }
+  commoditiesSold {
+    commodityType: DSPM_ACCESS
+    key: "PhysicalMachine::Virtual_ESX_42389915-e26e-537c-d50d-de0aadd91454"
+    used: 1.0
+    capacity: 1.0E9
+    active: true
+    resizable: false
+  }
+  commoditiesSold {
+    commodityType: STORAGE_AMOUNT
+    used: 333867.75
+    capacity: 2816103.25
+    active: true
+    resizable: false
+  }
+  commoditiesSold {
+    commodityType: DSPM_ACCESS
+    key: "PhysicalMachine::Virtual_ESX_4238958f-6cac-266e-b666-25d60c5c6bcc"
+    used: 1.0
+    capacity: 1.0E9
+    active: true
+    resizable: false
+  }
+  commoditiesSold {
+    commodityType: STORAGE_CLUSTER
+    key: "free_storage_cluster"
+    capacity: 1.0E9
+  }
+  commoditiesSold {
+    commodityType: STORAGE_PROVISIONED
+    used: 1786350.5703125
+    active: true
+    resizable: true
+  }
+  commoditiesSold {
+    commodityType: STORAGE_ACCESS
+    active: true
+    resizable: true
+    computedUsed: true
+    storage_access_data {
+      supportsStorageIOPS: false
+    }
+  }
+  commoditiesSold {
+    commodityType: STORAGE_LATENCY
+    active: true
+    resizable: true
+    computedUsed: true
+    storage_latency_data {
+      supportsStorageLatency: false
+    }
+  }
+  commoditiesBought {
+    providerId: "DiskArray-d471fce3-2670600b"
+    bought {
+      commodityType: EXTENT
+      key: "DiskArray-d471fce3-2670600b"
+      used: 1.0
+      active: true
+      resizable: false
+    }
+    providerType: DISK_ARRAY
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "LocalName"
+    value: "datastore-22"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "VcTgtIdAndInternalName"
+    value: "5300078b5723fa35ed32cf7d6efee996dcea9496"
+  }
+  powerState: POWERED_ON
+  providerPolicy {
+    localSupported: false
+  }
+  layeredOver: "Virtual_ESX_4238958f-6cac-266e-b666-25d60c5c6bcc"
+  layeredOver: "Virtual_ESX_42385480-eb0d-f982-ee95-f26456236ca7"
+  layeredOver: "Virtual_ESX_4238d876-1163-eebb-d0c5-533094a488e8"
+  layeredOver: "Virtual_ESX_42389915-e26e-537c-d50d-de0aadd91454"
+  maintenance: false
+  storage_data {
+    storageType: NFS
+    externalName: "nfs:10.10.100.104#/export/dc20ds1"
+    externalName: "nfs:10.10.100.104#/export/dc20ds1"
+  }
+}
+entityDTO {
+  entityType: PHYSICAL_MACHINE
+  id: "Virtual_ESX_42389915-e26e-537c-d50d-de0aadd91454"
+  displayName: "hp-esx96.eng.vmturbo.com"
+  commoditiesSold {
+    commodityType: CLUSTER
+    key: "Cluster::3a3142473f427568456a0310d86b2e6d8551f1da"
+    used: 1.0
+    capacity: 1.0E9
+    active: true
+    resizable: false
+  }
+  commoditiesSold {
+    commodityType: DATASTORE
+    key: "Storage::d471fce3-2670600b"
+    used: 1.0
+    capacity: 1.0E9
+    active: true
+    resizable: false
+  }
+  commoditiesSold {
+    commodityType: MEM_PROVISIONED
+    capacity: 2.51653E7
+    active: true
+    resizable: false
+  }
+  commoditiesSold {
+    commodityType: CPU
+    used: 3571.0333333333333
+    capacity: 5200.0
+    peak: 4531.0
+    active: true
+    resizable: false
+    utilizationThresholdPct: 100.0
+  }
+  commoditiesSold {
+    commodityType: MEM
+    used: 1.95202672E7
+    capacity: 2.51653E7
+    peak: 1.9532172E7
+    active: true
+    resizable: false
+    utilizationThresholdPct: 100.0
+  }
+  commoditiesSold {
+    commodityType: Q2_VCPU
+    capacity: 20000.0
+  }
+  commoditiesSold {
+    commodityType: NET_THROUGHPUT
+    used: 32449.0
+    capacity: 3840000.0
+    peak: 91785.0
+    active: true
+    resizable: false
+  }
+  commoditiesSold {
+    commodityType: DATACENTER
+    key: "DataCenter::d173186797f5287e8282a6245c05c772db3a2088"
+    used: 1.0
+    capacity: 1.0E9
+    active: true
+    resizable: false
+  }
+  commoditiesSold {
+    commodityType: SWAPPING
+    used: 0.0
+    capacity: 5000000.0
+    active: false
+    resizable: true
+  }
+  commoditiesSold {
+    commodityType: BALLOONING
+    used: 0.0
+    capacity: 2.51653E7
+    active: false
+    resizable: true
+  }
+  commoditiesSold {
+    commodityType: Q1_VCPU
+    capacity: 20000.0
+  }
+  commoditiesSold {
+    commodityType: IO_THROUGHPUT
+    used: 988.0333333333333
+    capacity: 1024000.0
+    peak: 4405.0
+    active: true
+    resizable: false
+  }
+  commoditiesSold {
+    commodityType: NETWORK
+    key: "Network::VM Network"
+    used: 1.0
+    capacity: 1.0E9
+    active: true
+    resizable: false
+  }
+  commoditiesSold {
+    commodityType: CPU_PROVISIONED
+    capacity: 5200.0
+    active: true
+    resizable: false
+  }
+  commoditiesSold {
+    commodityType: DATASTORE
+    key: "Storage::9bd4ee88-99c64661"
+    used: 1.0
+    capacity: 1.0E9
+    active: true
+    resizable: false
+  }
+  commoditiesSold {
+    commodityType: MEM_ALLOCATION
+    key: "PhysicalMachine::Virtual_ESX_42389915-e26e-537c-d50d-de0aadd91454"
+    used: 1.95202672E7
+    capacity: 2.51653E7
+    peak: 1.9532172E7
+    active: true
+    resizable: false
+  }
+  commoditiesSold {
+    commodityType: CPU_ALLOCATION
+    key: "PhysicalMachine::Virtual_ESX_42389915-e26e-537c-d50d-de0aadd91454"
+    used: 3571.0333333333333
+    capacity: 5200.0
+    peak: 4531.0
+    active: true
+    resizable: false
+  }
+  commoditiesSold {
+    commodityType: DATASTORE
+    key: "Storage::a4f589d00efc133585b3b702a1da990d2aa527e5"
+    used: 1.0
+    capacity: 1.0E9
+    active: true
+    resizable: false
+  }
+  commoditiesSold {
+    commodityType: HOST_LUN_ACCESS
+    used: 4.0
+    capacity: 256.0
+    active: true
+    resizable: false
+  }
+  commoditiesBought {
+    providerId: "d471fce3-2670600b"
+    bought {
+      commodityType: STORAGE_ACCESS
+      used: 25.166666666666664
+      active: false
+      resizable: true
+      storage_access_data {
+      }
+    }
+    bought {
+      commodityType: STORAGE_LATENCY
+      used: 166.63333333333333
+      active: false
+      resizable: true
+      storage_latency_data {
+      }
+    }
+    providerType: STORAGE
+  }
+  commoditiesBought {
+    providerId: "a4f589d00efc133585b3b702a1da990d2aa527e5"
+    bought {
+      commodityType: STORAGE_ACCESS
+      active: false
+      resizable: true
+      storage_access_data {
+      }
+    }
+    bought {
+      commodityType: STORAGE_LATENCY
+      active: false
+      resizable: true
+      storage_latency_data {
+      }
+    }
+    providerType: STORAGE
+  }
+  commoditiesBought {
+    providerId: "d173186797f5287e8282a6245c05c772db3a2088"
+    bought {
+      commodityType: DATACENTER
+      key: "DataCenter::DataCenter::d173186797f5287e8282a6245c05c772db3a2088"
+      used: 1.0
+      active: true
+      resizable: false
+    }
+    bought {
+      commodityType: COOLING
+      used: 1.0
+      active: true
+      resizable: false
+    }
+    bought {
+      commodityType: SPACE
+      used: 1.0
+      active: true
+      resizable: false
+    }
+    bought {
+      commodityType: POWER
+      used: 1.0
+      active: true
+      resizable: false
+    }
+    providerType: DATACENTER
+  }
+  commoditiesBought {
+    providerId: "9bd4ee88-99c64661"
+    bought {
+      commodityType: STORAGE_ACCESS
+      used: 0.0
+      active: false
+      resizable: true
+      storage_access_data {
+      }
+    }
+    bought {
+      commodityType: STORAGE_LATENCY
+      used: 0.0
+      active: false
+      resizable: true
+      storage_latency_data {
+      }
+    }
+    providerType: STORAGE
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "LocalName"
+    value: "host-10"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "cpuModel"
+    value: "Intel(R) Xeon(R) CPU E5-2670 0 @ 2.60GHz"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "model"
+    value: "VMware Virtual Platform"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "vendor"
+    value: "VMware, Inc."
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "timezone"
+    value: "UTC"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "AssetTag"
+    value: " No Asset Tag"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "ServiceTag"
+    value: "VMware-42 38 99 15 e2 6e 53 7c-d5 0d de 0a ad d9 14 54"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "VcTgtIdAndInternalName"
+    value: "809d13b6b84b518f12d802ad1346e4db507f18a8"
+  }
+  powerState: POWERED_ON
+  providerPolicy {
+    availableForPlacement: true
+  }
+  maintenance: false
+  physical_machine_data {
+    pmState {
+      failover: false
+    }
+    numCpuSockets: 1
+    numCpuCores: 2
+    numCpuThreads: 2
+    cpuCoreMhz: 2600
+  }
+  physical_machine_related_data {
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_DATACENTER
+  id: "b8e098ef2cb4009659277f22bad15d0355d630ef"
+  displayName: "Resources-vsphere-dc20-Clus01"
+  commoditiesSold {
+    commodityType: MEM_ALLOCATION
+    key: "VirtualDataCenter::b8e098ef2cb4009659277f22bad15d0355d630ef"
+    used: 5.2478473E7
+    capacity: 5.9986944E7
+    active: true
+    resizable: false
+  }
+  commoditiesSold {
+    commodityType: CPU_ALLOCATION
+    key: "VirtualDataCenter::b8e098ef2cb4009659277f22bad15d0355d630ef"
+    used: 9706.0
+    capacity: 10920.0
+    active: true
+    resizable: false
+  }
+  commoditiesBought {
+    providerId: "Virtual_ESX_4238d876-1163-eebb-d0c5-533094a488e8"
+    bought {
+      commodityType: CPU_ALLOCATION
+      key: "PhysicalMachine::Virtual_ESX_4238d876-1163-eebb-d0c5-533094a488e8"
+      used: 0.0
+      active: true
+      resizable: true
+    }
+    bought {
+      commodityType: MEM_ALLOCATION
+      key: "PhysicalMachine::Virtual_ESX_4238d876-1163-eebb-d0c5-533094a488e8"
+      used: 0.0
+      active: true
+      resizable: true
+    }
+    providerType: PHYSICAL_MACHINE
+  }
+  commoditiesBought {
+    providerId: "Virtual_ESX_42385480-eb0d-f982-ee95-f26456236ca7"
+    bought {
+      commodityType: CPU_ALLOCATION
+      key: "PhysicalMachine::Virtual_ESX_42385480-eb0d-f982-ee95-f26456236ca7"
+      used: 0.0
+      active: true
+      resizable: true
+    }
+    bought {
+      commodityType: MEM_ALLOCATION
+      key: "PhysicalMachine::Virtual_ESX_42385480-eb0d-f982-ee95-f26456236ca7"
+      used: 0.0
+      active: true
+      resizable: true
+    }
+    providerType: PHYSICAL_MACHINE
+  }
+  commoditiesBought {
+    providerId: "Virtual_ESX_42389915-e26e-537c-d50d-de0aadd91454"
+    bought {
+      commodityType: MEM_ALLOCATION
+      key: "PhysicalMachine::Virtual_ESX_42389915-e26e-537c-d50d-de0aadd91454"
+      used: 0.0
+      active: true
+      resizable: true
+    }
+    bought {
+      commodityType: CPU_ALLOCATION
+      key: "PhysicalMachine::Virtual_ESX_42389915-e26e-537c-d50d-de0aadd91454"
+      used: 0.0
+      active: true
+      resizable: true
+    }
+    providerType: PHYSICAL_MACHINE
+  }
+  commoditiesBought {
+    providerId: "Virtual_ESX_4238958f-6cac-266e-b666-25d60c5c6bcc"
+    bought {
+      commodityType: MEM_ALLOCATION
+      key: "PhysicalMachine::Virtual_ESX_4238958f-6cac-266e-b666-25d60c5c6bcc"
+      used: 0.0
+      active: true
+      resizable: true
+    }
+    bought {
+      commodityType: CPU_ALLOCATION
+      key: "PhysicalMachine::Virtual_ESX_4238958f-6cac-266e-b666-25d60c5c6bcc"
+      used: 0.0
+      active: true
+      resizable: true
+    }
+    providerType: PHYSICAL_MACHINE
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "LocalName"
+    value: "resgroup-8"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "VcTgtIdAndInternalName"
+    value: "b8e098ef2cb4009659277f22bad15d0355d630ef"
+  }
+  powerState: POWERED_ON
+  virtual_datacenter_data {
+    supportsStorage: false
+    vdc_type_props {
+      role: PRODUCER
+      supportsNesting: false
+      nestedConsumer: false
+    }
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_DATACENTER
+  id: "bfbb85c52549cb3dcc742d8b0c6e16a58bf0615e"
+  displayName: "TestSpecifyNameRp"
+  commoditiesSold {
+    commodityType: MEM_ALLOCATION
+    key: "VirtualDataCenter::bfbb85c52549cb3dcc742d8b0c6e16a58bf0615e"
+    capacity: 5.9986944E7
+    active: true
+    resizable: true
+  }
+  commoditiesSold {
+    commodityType: CPU_ALLOCATION
+    key: "VirtualDataCenter::bfbb85c52549cb3dcc742d8b0c6e16a58bf0615e"
+    capacity: 10920.0
+    active: true
+    resizable: true
+  }
+  commoditiesBought {
+    providerId: "b8e098ef2cb4009659277f22bad15d0355d630ef"
+    bought {
+      commodityType: MEM_ALLOCATION
+      key: "VirtualDataCenter::b8e098ef2cb4009659277f22bad15d0355d630ef"
+      reservation: 5.9986944E7
+      active: true
+      resizable: true
+    }
+    bought {
+      commodityType: CPU_ALLOCATION
+      key: "VirtualDataCenter::b8e098ef2cb4009659277f22bad15d0355d630ef"
+      reservation: 10920.0
+      active: true
+      resizable: true
+    }
+    providerType: VIRTUAL_DATACENTER
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "LocalName"
+    value: "resgroup-208"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "VcTgtIdAndInternalName"
+    value: "bfbb85c52549cb3dcc742d8b0c6e16a58bf0615e"
+  }
+  powerState: POWERED_ON
+  virtual_datacenter_data {
+    supportsStorage: false
+    vdc_type_props {
+      role: CONSUMER
+      supportsNesting: true
+      nestedConsumer: false
+    }
+    vdc_allocation_model: PAY_AS_YOU_GO
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "4215c20c-1b81-e411-8907-766b3201ed54"
+  displayName: "S01-P01-P02-02"
+  commoditiesSold {
+    commodityType: APPLICATION
+    key: "VirtualMachine::4215c20c-1b81-e411-8907-766b3201ed54"
+    used: 1.0
+    capacity: 1.0E9
+    active: true
+    resizable: false
+  }
+  commoditiesSold {
+    commodityType: VSTORAGE
+    key: "VirtualMachine::445672186eb3371c23c1565b4089f92d1561c04a"
+    used: 10616.046875
+    capacity: 32665.99609375
+    active: true
+    resizable: true
+    vstorage_partition_data {
+      partition: "C:\\"
+    }
+  }
+  commoditiesSold {
+    commodityType: VMEM
+    used: 154488.93333333332
+    capacity: 2097152.0
+    limit: -1.0
+    peak: 230684.0
+    active: true
+    resizable: true
+    vmem_data {
+      hotAddSupported: false
+    }
+  }
+  commoditiesSold {
+    commodityType: VCPU
+    used: 84.56666666666666
+    capacity: 2600.0
+    limit: -1.0
+    peak: 148.0
+    active: true
+    resizable: true
+    vcpu_data {
+      hotAddSupported: false
+      hotRemoveSupported: false
+    }
+  }
+  commoditiesBought {
+    providerId: "d471fce3-2670600b"
+    bought {
+      commodityType: DSPM_ACCESS
+      key: "PhysicalMachine::Virtual_ESX_42389915-e26e-537c-d50d-de0aadd91454"
+      used: 1.0
+      active: true
+      resizable: false
+    }
+    bought {
+      commodityType: STORAGE_AMOUNT
+      used: 14424.742037773132
+      computedUsed: false
+    }
+    bought {
+      commodityType: STORAGE_CLUSTER
+      key: "free_storage_cluster"
+      used: 1.0
+      active: true
+      resizable: false
+    }
+    bought {
+      commodityType: STORAGE_PROVISIONED
+      used: 42652.31479167938
+      computedUsed: false
+    }
+    bought {
+      commodityType: STORAGE_ACCESS
+      used: 0.1
+      active: true
+      resizable: true
+      storage_access_data {
+      }
+    }
+    bought {
+      commodityType: STORAGE_LATENCY
+      used: 126.33333333333333
+      active: true
+      resizable: true
+      storage_latency_data {
+      }
+    }
+    providerType: STORAGE
+  }
+  commoditiesBought {
+    providerId: "Virtual_ESX_42389915-e26e-537c-d50d-de0aadd91454"
+    bought {
+      commodityType: CLUSTER
+      key: "Cluster::3a3142473f427568456a0310d86b2e6d8551f1da"
+      used: 1.0
+      active: true
+      resizable: false
+    }
+    bought {
+      commodityType: DATASTORE
+      key: "Storage::d471fce3-2670600b"
+      used: 1.0
+      active: true
+      resizable: false
+    }
+    bought {
+      commodityType: MEM_PROVISIONED
+      used: 2097152.0
+      active: true
+      resizable: true
+    }
+    bought {
+      commodityType: CPU
+      used: 84.56666666666666
+      peak: 148.0
+      active: true
+      resizable: true
+    }
+    bought {
+      commodityType: MEM
+      used: 1772002.1333333333
+      peak: 1778120.0
+      active: true
+      resizable: true
+    }
+    bought {
+      commodityType: NET_THROUGHPUT
+      used: 0.0
+      active: true
+      resizable: true
+    }
+    bought {
+      commodityType: SWAPPING
+      used: 0.0
+      active: false
+      resizable: true
+    }
+    bought {
+      commodityType: DATACENTER
+      key: "DataCenter::d173186797f5287e8282a6245c05c772db3a2088"
+      used: 1.0
+      active: true
+      resizable: false
+    }
+    bought {
+      commodityType: BALLOONING
+      used: 0.0
+      active: false
+      resizable: true
+    }
+    bought {
+      commodityType: Q1_VCPU
+      used: 556.0
+    }
+    bought {
+      commodityType: IO_THROUGHPUT
+      active: true
+      resizable: true
+    }
+    bought {
+      commodityType: NETWORK
+      key: "Network::VM Network"
+      used: 1.0
+      active: true
+      resizable: false
+    }
+    bought {
+      commodityType: CPU_PROVISIONED
+      used: 2600.0
+      active: true
+      resizable: true
+    }
+    bought {
+      commodityType: DATASTORE
+      key: "Storage::9bd4ee88-99c64661"
+      used: 1.0
+      active: false
+      resizable: false
+    }
+    providerType: PHYSICAL_MACHINE
+  }
+  commoditiesBought {
+    providerId: "9bd4ee88-99c64661"
+    bought {
+      commodityType: DSPM_ACCESS
+      key: "PhysicalMachine::Virtual_ESX_42389915-e26e-537c-d50d-de0aadd91454"
+      used: 1.0
+      active: true
+      resizable: false
+    }
+    bought {
+      commodityType: STORAGE_AMOUNT
+    }
+    bought {
+      commodityType: STORAGE_CLUSTER
+      key: "free_storage_cluster"
+      used: 1.0
+      active: true
+      resizable: false
+    }
+    bought {
+      commodityType: STORAGE_PROVISIONED
+    }
+    bought {
+      commodityType: STORAGE_ACCESS
+      active: true
+      resizable: true
+      storage_access_data {
+      }
+    }
+    bought {
+      commodityType: STORAGE_LATENCY
+      active: true
+      resizable: true
+      storage_latency_data {
+      }
+    }
+    providerType: STORAGE
+  }
+  commoditiesBought {
+    providerId: "133c605ef983d8370fd91a41872f3f6e2593dc56"
+    bought {
+      commodityType: CPU_ALLOCATION
+      key: "VirtualDataCenter::133c605ef983d8370fd91a41872f3f6e2593dc56"
+      used: 84.56666666666666
+      peak: 148.0
+      active: true
+      resizable: true
+    }
+    bought {
+      commodityType: MEM_ALLOCATION
+      key: "VirtualDataCenter::133c605ef983d8370fd91a41872f3f6e2593dc56"
+      used: 1772002.1333333333
+      peak: 1778120.0
+      active: true
+      resizable: true
+    }
+    providerType: VIRTUAL_DATACENTER
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "LocalName"
+    value: "vm-111"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "numCpus"
+    value: "1"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "VcTgtIdAndInternalName"
+    value: "abf9af29d9f39e5db660391aaceabb5389b53d76"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "instanceUuid"
+    value: "501570e3-2c6f-59b4-9553-abf164bfe8b9"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "targetAddress"
+    value: "vsphere-dc20.eng.vmturbo.com"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "vmHardwareCompatibilityVersion"
+    value: "vmx-11"
+  }
+  powerState: POWERED_ON
+  consumerPolicy {
+    shopsTogether: true
+  }
+  layeredOver: "7aa36cbb3a9127365738a7581d928dc5d72dfefb"
+  virtual_machine_data {
+    ipAddress: "10.10.168.179"
+    vmState {
+      connected: true
+    }
+    guestName: "Microsoft Windows 7 (64-bit)"
+  }
+  virtual_machine_related_data {
+    io {
+      id: "ETH-vm-111"
+      displayName: "vm-111"
+      macAddress: "00-50-56-95-1e-07"
+    }
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "4215b405-9f48-f397-e26e-a7298e339566"
+  displayName: "S01-P01-P02-09"
+  commoditiesSold {
+    commodityType: VSTORAGE
+    key: "VirtualMachine::5e4d988bb5f8a928992c190f8d5053c12cd2560d"
+    used: 9872.6171875
+    capacity: 32665.99609375
+    active: true
+    resizable: true
+    vstorage_partition_data {
+      partition: "C:\\"
+    }
+  }
+  commoditiesSold {
+    commodityType: APPLICATION
+    key: "VirtualMachine::4215b405-9f48-f397-e26e-a7298e339566"
+    used: 1.0
+    capacity: 1.0E9
+    active: true
+    resizable: false
+  }
+  commoditiesSold {
+    commodityType: VMEM
+    used: 161479.6
+    capacity: 1048576.0
+    limit: -1.0
+    peak: 199228.0
+    active: true
+    resizable: true
+    vmem_data {
+      hotAddSupported: false
+    }
+  }
+  commoditiesSold {
+    commodityType: VCPU
+    used: 69.7
+    capacity: 2600.0
+    limit: -1.0
+    peak: 97.0
+    active: true
+    resizable: true
+    vcpu_data {
+      hotAddSupported: false
+      hotRemoveSupported: false
+    }
+  }
+  commoditiesBought {
+    providerId: "a4f589d00efc133585b3b702a1da990d2aa527e5"
+    bought {
+      commodityType: DSPM_ACCESS
+      key: "PhysicalMachine::Virtual_ESX_42389915-e26e-537c-d50d-de0aadd91454"
+      used: 1.0
+      active: true
+      resizable: false
+    }
+    bought {
+      commodityType: STORAGE_AMOUNT
+      used: 38784.60396575928
+      computedUsed: false
+    }
+    bought {
+      commodityType: STORAGE_CLUSTER
+      key: "free_storage_cluster"
+      used: 1.0
+      active: true
+      resizable: false
+    }
+    bought {
+      commodityType: STORAGE_PROVISIONED
+      used: 99879.60396575928
+      computedUsed: false
+    }
+    bought {
+      commodityType: STORAGE_ACCESS
+      used: 0.0
+      storage_access_data {
+      }
+    }
+    bought {
+      commodityType: STORAGE_LATENCY
+      used: 0.0
+      storage_latency_data {
+      }
+    }
+    providerType: STORAGE
+  }
+  commoditiesBought {
+    providerId: "Virtual_ESX_42389915-e26e-537c-d50d-de0aadd91454"
+    bought {
+      commodityType: CLUSTER
+      key: "Cluster::3a3142473f427568456a0310d86b2e6d8551f1da"
+      used: 1.0
+      active: true
+      resizable: false
+    }
+    bought {
+      commodityType: MEM_PROVISIONED
+      used: 1048576.0
+      active: true
+      resizable: true
+    }
+    bought {
+      commodityType: CPU
+      used: 69.7
+      peak: 97.0
+      active: true
+      resizable: true
+    }
+    bought {
+      commodityType: MEM
+      used: 1005366.5333333333
+      peak: 1007060.0
+      active: true
+      resizable: true
+    }
+    bought {
+      commodityType: NET_THROUGHPUT
+      used: 0.0
+      active: true
+      resizable: true
+    }
+    bought {
+      commodityType: SWAPPING
+      used: 0.0
+      active: false
+      resizable: true
+    }
+    bought {
+      commodityType: DATACENTER
+      key: "DataCenter::d173186797f5287e8282a6245c05c772db3a2088"
+      used: 1.0
+      active: true
+      resizable: false
+    }
+    bought {
+      commodityType: BALLOONING
+      used: 0.0
+      active: false
+      resizable: true
+    }
+    bought {
+      commodityType: Q1_VCPU
+      used: 419.0
+    }
+    bought {
+      commodityType: IO_THROUGHPUT
+      active: true
+      resizable: true
+    }
+    bought {
+      commodityType: NETWORK
+      key: "Network::VM Network"
+      used: 1.0
+      active: true
+      resizable: false
+    }
+    bought {
+      commodityType: CPU_PROVISIONED
+      used: 2600.0
+      active: true
+      resizable: true
+    }
+    bought {
+      commodityType: DATASTORE
+      key: "Storage::9bd4ee88-99c64661"
+      used: 1.0
+      active: false
+      resizable: false
+    }
+    bought {
+      commodityType: DATASTORE
+      key: "Storage::a4f589d00efc133585b3b702a1da990d2aa527e5"
+      used: 1.0
+      active: true
+      resizable: false
+    }
+    providerType: PHYSICAL_MACHINE
+  }
+  commoditiesBought {
+    providerId: "9bd4ee88-99c64661"
+    bought {
+      commodityType: DSPM_ACCESS
+      key: "PhysicalMachine::Virtual_ESX_42389915-e26e-537c-d50d-de0aadd91454"
+      used: 1.0
+      active: true
+      resizable: false
+    }
+    bought {
+      commodityType: STORAGE_AMOUNT
+    }
+    bought {
+      commodityType: STORAGE_CLUSTER
+      key: "free_storage_cluster"
+      used: 1.0
+      active: true
+      resizable: false
+    }
+    bought {
+      commodityType: STORAGE_PROVISIONED
+    }
+    bought {
+      commodityType: STORAGE_ACCESS
+      active: true
+      resizable: true
+      storage_access_data {
+      }
+    }
+    bought {
+      commodityType: STORAGE_LATENCY
+      active: true
+      resizable: true
+      storage_latency_data {
+      }
+    }
+    providerType: STORAGE
+  }
+  commoditiesBought {
+    providerId: "133c605ef983d8370fd91a41872f3f6e2593dc56"
+    bought {
+      commodityType: CPU_ALLOCATION
+      key: "VirtualDataCenter::133c605ef983d8370fd91a41872f3f6e2593dc56"
+      used: 69.7
+      peak: 97.0
+      active: true
+      resizable: true
+    }
+    bought {
+      commodityType: MEM_ALLOCATION
+      key: "VirtualDataCenter::133c605ef983d8370fd91a41872f3f6e2593dc56"
+      used: 1005366.5333333333
+      peak: 1007060.0
+      active: true
+      resizable: true
+    }
+    providerType: VIRTUAL_DATACENTER
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "LocalName"
+    value: "vm-116"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "numCpus"
+    value: "1"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "VcTgtIdAndInternalName"
+    value: "4a7bc1f6a912407ae393ff944905ef8e7be63f5c"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "instanceUuid"
+    value: "5015cc45-216a-29cf-a4d9-2af37a195418"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "targetAddress"
+    value: "vsphere-dc20.eng.vmturbo.com"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "vmHardwareCompatibilityVersion"
+    value: "vmx-11"
+  }
+  powerState: POWERED_ON
+  consumerPolicy {
+    shopsTogether: true
+  }
+  layeredOver: "7aa36cbb3a9127365738a7581d928dc5d72dfefb"
+  virtual_machine_data {
+    ipAddress: "10.10.168.237"
+    vmState {
+      connected: true
+    }
+    guestName: "Microsoft Windows 7 (64-bit)"
+  }
+  virtual_machine_related_data {
+    io {
+      id: "ETH-vm-116"
+      displayName: "vm-116"
+      macAddress: "00-50-56-95-c7-0a"
+    }
+  }
+}
+entityDTO {
+  entityType: VIRTUAL_MACHINE
+  id: "4215f88f-e877-42e0-3725-8cab2cb4e8d3"
+  displayName: "S01-P01-P02-10"
+  commoditiesSold {
+    commodityType: APPLICATION
+    key: "VirtualMachine::4215f88f-e877-42e0-3725-8cab2cb4e8d3"
+    used: 1.0
+    capacity: 1.0E9
+    active: true
+    resizable: false
+  }
+  commoditiesSold {
+    commodityType: VMEM
+    capacity: 2097152.0
+    limit: -1.0
+    active: true
+    resizable: true
+    vmem_data {
+      hotAddSupported: false
+    }
+  }
+  commoditiesSold {
+    commodityType: VCPU
+    capacity: 2600.0
+    limit: -1.0
+    active: true
+    resizable: true
+    vcpu_data {
+      hotAddSupported: false
+      hotRemoveSupported: false
+    }
+  }
+  commoditiesBought {
+    providerId: "d471fce3-2670600b"
+    bought {
+      commodityType: DSPM_ACCESS
+      key: "PhysicalMachine::Virtual_ESX_4238d876-1163-eebb-d0c5-533094a488e8"
+      used: 1.0
+      active: true
+      resizable: false
+    }
+    bought {
+      commodityType: STORAGE_AMOUNT
+      used: 10109.498815536499
+      computedUsed: false
+    }
+    bought {
+      commodityType: STORAGE_CLUSTER
+      key: "free_storage_cluster"
+      used: 1.0
+      active: true
+      resizable: false
+    }
+    bought {
+      commodityType: STORAGE_PROVISIONED
+      used: 45098.03934288025
+      computedUsed: false
+    }
+    bought {
+      commodityType: STORAGE_ACCESS
+      active: true
+      resizable: true
+      storage_access_data {
+      }
+    }
+    bought {
+      commodityType: STORAGE_LATENCY
+      active: true
+      resizable: true
+      storage_latency_data {
+      }
+    }
+    providerType: STORAGE
+  }
+  commoditiesBought {
+    providerId: "Virtual_ESX_4238d876-1163-eebb-d0c5-533094a488e8"
+    bought {
+      commodityType: CLUSTER
+      key: "Cluster::3a3142473f427568456a0310d86b2e6d8551f1da"
+      used: 1.0
+      active: true
+      resizable: false
+    }
+    bought {
+      commodityType: DATASTORE
+      key: "Storage::d471fce3-2670600b"
+      used: 1.0
+      active: true
+      resizable: false
+    }
+    bought {
+      commodityType: MEM_PROVISIONED
+      used: 2097152.0
+      active: true
+      resizable: true
+    }
+    bought {
+      commodityType: CPU
+      active: true
+      resizable: true
+    }
+    bought {
+      commodityType: MEM
+      active: true
+      resizable: true
+    }
+    bought {
+      commodityType: NET_THROUGHPUT
+      active: true
+      resizable: true
+    }
+    bought {
+      commodityType: SWAPPING
+      active: false
+      resizable: true
+    }
+    bought {
+      commodityType: DATACENTER
+      key: "DataCenter::d173186797f5287e8282a6245c05c772db3a2088"
+      used: 1.0
+      active: true
+      resizable: false
+    }
+    bought {
+      commodityType: BALLOONING
+      active: false
+      resizable: true
+    }
+    bought {
+      commodityType: Q1_VCPU
+    }
+    bought {
+      commodityType: IO_THROUGHPUT
+      active: true
+      resizable: true
+    }
+    bought {
+      commodityType: NETWORK
+      key: "Network::VM Network"
+      used: 1.0
+      active: true
+      resizable: false
+    }
+    bought {
+      commodityType: CPU_PROVISIONED
+      used: 2600.0
+      active: true
+      resizable: true
+    }
+    bought {
+      commodityType: DATASTORE
+      key: "Storage::9bd4ee88-99c64661"
+      used: 1.0
+      active: false
+      resizable: false
+    }
+    providerType: PHYSICAL_MACHINE
+  }
+  commoditiesBought {
+    providerId: "9bd4ee88-99c64661"
+    bought {
+      commodityType: DSPM_ACCESS
+      key: "PhysicalMachine::Virtual_ESX_4238d876-1163-eebb-d0c5-533094a488e8"
+      used: 1.0
+      active: true
+      resizable: false
+    }
+    bought {
+      commodityType: STORAGE_AMOUNT
+    }
+    bought {
+      commodityType: STORAGE_CLUSTER
+      key: "free_storage_cluster"
+      used: 1.0
+      active: true
+      resizable: false
+    }
+    bought {
+      commodityType: STORAGE_PROVISIONED
+    }
+    bought {
+      commodityType: STORAGE_ACCESS
+      active: true
+      resizable: true
+      storage_access_data {
+      }
+    }
+    bought {
+      commodityType: STORAGE_LATENCY
+      active: true
+      resizable: true
+      storage_latency_data {
+      }
+    }
+    providerType: STORAGE
+  }
+  commoditiesBought {
+    providerId: "133c605ef983d8370fd91a41872f3f6e2593dc56"
+    bought {
+      commodityType: CPU_ALLOCATION
+      key: "VirtualDataCenter::133c605ef983d8370fd91a41872f3f6e2593dc56"
+      active: true
+      resizable: true
+    }
+    bought {
+      commodityType: MEM_ALLOCATION
+      key: "VirtualDataCenter::133c605ef983d8370fd91a41872f3f6e2593dc56"
+      active: true
+      resizable: true
+    }
+    providerType: VIRTUAL_DATACENTER
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "LocalName"
+    value: "vm-117"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "numCpus"
+    value: "1"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "VcTgtIdAndInternalName"
+    value: "6739c4506b3434cfef3796b03fb097f9c632c897"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "instanceUuid"
+    value: "5015a975-bbeb-97d5-624b-0c6c781f1dc4"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "targetAddress"
+    value: "vsphere-dc20.eng.vmturbo.com"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "vmHardwareCompatibilityVersion"
+    value: "vmx-11"
+  }
+  powerState: POWERED_OFF
+  consumerPolicy {
+    shopsTogether: true
+  }
+  layeredOver: "7aa36cbb3a9127365738a7581d928dc5d72dfefb"
+  virtual_machine_data {
+    vmState {
+      connected: true
+    }
+    guestName: "Microsoft Windows 7 (64-bit)"
+  }
+  virtual_machine_related_data {
+    io {
+      id: "ETH-vm-117"
+      displayName: "vm-117"
+      macAddress: "00-50-56-95-0b-60"
+    }
+  }
+}
+entityDTO {
+  entityType: APPLICATION_COMPONENT
+  id: "2f36f42451c20d66f8f5f912ad82ce837593e9a5"
+  displayName: "GuestLoad[S01-P01-P02-01]"
+  commoditiesBought {
+    providerId: "42154da8-12f1-7b81-3b23-1d05dff579f6"
+    bought {
+      commodityType: APPLICATION
+      key: "VirtualMachine::42154da8-12f1-7b81-3b23-1d05dff579f6"
+      used: 1.0
+      active: true
+      resizable: false
+    }
+    bought {
+      commodityType: VSTORAGE
+      key: "VirtualMachine::00d70c3f6b1f631784c0304e992e59ec07dada35"
+      used: 10575.86328125
+      active: true
+      resizable: true
+      displayName: "S01-P01-P02-01_C:\\"
+      vstorage_partition_data {
+      }
+    }
+    bought {
+      commodityType: VMEM
+      used: 285909.86666666664
+      peak: 356512.0
+      active: true
+      resizable: true
+      vmem_data {
+      }
+    }
+    bought {
+      commodityType: VCPU
+      used: 258.1
+      peak: 390.0
+      active: true
+      resizable: true
+      vcpu_data {
+      }
+    }
+    providerType: VIRTUAL_MACHINE
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "LocalName"
+    value: "vm-110"
+  }
+  origin: PROXY
+  powerState: POWERED_ON
+  application_data {
+    type: "GuestLoad"
+  }
+}
+entityDTO {
+  entityType: APPLICATION_COMPONENT
+  id: "7ae768769132de7c802e595eb81c3b391e1d587e"
+  displayName: "GuestLoad[S01-P01-P02-02]"
+  commoditiesBought {
+    providerId: "4215c20c-1b81-e411-8907-766b3201ed54"
+    bought {
+      commodityType: APPLICATION
+      key: "VirtualMachine::4215c20c-1b81-e411-8907-766b3201ed54"
+      used: 1.0
+      active: true
+      resizable: false
+    }
+    bought {
+      commodityType: VSTORAGE
+      key: "VirtualMachine::445672186eb3371c23c1565b4089f92d1561c04a"
+      used: 10616.046875
+      active: true
+      resizable: true
+      displayName: "S01-P01-P02-02_C:\\"
+      vstorage_partition_data {
+      }
+    }
+    bought {
+      commodityType: VMEM
+      used: 154488.93333333332
+      peak: 230684.0
+      active: true
+      resizable: true
+      vmem_data {
+      }
+    }
+    bought {
+      commodityType: VCPU
+      used: 84.56666666666666
+      peak: 148.0
+      active: true
+      resizable: true
+      vcpu_data {
+      }
+    }
+    providerType: VIRTUAL_MACHINE
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "LocalName"
+    value: "vm-111"
+  }
+  origin: PROXY
+  powerState: POWERED_ON
+  application_data {
+    type: "GuestLoad"
+  }
+}
+entityDTO {
+  entityType: APPLICATION_COMPONENT
+  id: "5522f6ddfcb8f4165221b25d7308d7885b17955f"
+  displayName: "GuestLoad[S01-P01-P02-09]"
+  commoditiesBought {
+    providerId: "4215b405-9f48-f397-e26e-a7298e339566"
+    bought {
+      commodityType: VSTORAGE
+      key: "VirtualMachine::5e4d988bb5f8a928992c190f8d5053c12cd2560d"
+      used: 9872.6171875
+      active: true
+      resizable: true
+      displayName: "S01-P01-P02-09_C:\\"
+      vstorage_partition_data {
+      }
+    }
+    bought {
+      commodityType: APPLICATION
+      key: "VirtualMachine::4215b405-9f48-f397-e26e-a7298e339566"
+      used: 1.0
+      active: true
+      resizable: false
+    }
+    bought {
+      commodityType: VMEM
+      used: 161479.6
+      peak: 199228.0
+      active: true
+      resizable: true
+      vmem_data {
+      }
+    }
+    bought {
+      commodityType: VCPU
+      used: 69.7
+      peak: 97.0
+      active: true
+      resizable: true
+      vcpu_data {
+      }
+    }
+    providerType: VIRTUAL_MACHINE
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "LocalName"
+    value: "vm-116"
+  }
+  origin: PROXY
+  powerState: POWERED_ON
+  application_data {
+    type: "GuestLoad"
+  }
+}
+discoveredGroup {
+  entity_type: STORAGE
+  constraint_info {
+    constraint_type: CLUSTER
+    constraint_id: "924722e4493b48d118eb0ee2d48bf338e9845812"
+    constraint_name: "datastore-21Cluster"
+  }
+  added_and_removed_members {
+    addedMembers: "a4f589d00efc133585b3b702a1da990d2aa527e5"
+  }
+}
+discoveredGroup {
+  entity_type: STORAGE
+  display_name: "vsphere-dc20.eng.vmturbo.com :: VM_HOME_63762e07-a648-435d-b2f9-179962d16688"
+  group_name: "bb51d6ef0b09d38582b9c7e4d5280f42c48c1479"
+  member_list {
+    member: "a4f589d00efc133585b3b702a1da990d2aa527e5"
+  }
+}
+discoveredGroup {
+  entity_type: PHYSICAL_MACHINE
+  display_name: "vsphere-dc20-Clus01"
+  constraint_info {
+    constraint_type: CLUSTER
+    constraint_id: "3a3142473f427568456a0310d86b2e6d8551f1da"
+    constraint_name: "domain-c7"
+    constraint_display_name: "vsphere-dc20-Clus01"
+  }
+  member_list {
+    member: "Virtual_ESX_4238958f-6cac-266e-b666-25d60c5c6bcc"
+    member: "b8e098ef2cb4009659277f22bad15d0355d630ef"
+    member: "Virtual_ESX_4238d876-1163-eebb-d0c5-533094a488e8"
+    member: "Virtual_ESX_42389915-e26e-537c-d50d-de0aadd91454"
+    member: "Virtual_ESX_42385480-eb0d-f982-ee95-f26456236ca7"
+  }
+}
+discoveredGroup {
+  entity_type: VIRTUAL_MACHINE
+  display_name: "Desktop Pools"
+  group_name: "379855421a222222845248774c26c111b93d69e7"
+  member_list {
+    member: "9a11e82cac957039f2ba00345afd9c9a3087aa24"
+    member: "07f9473e7125165fc312b02bc0f1c4212d456337"
+    member: "7a43485db3e7c68b776d972484989ada5013bbd9"
+    member: "59449b8b00e2befdad26aff948beea9c0fbd436f"
+    member: "dfe9075303b69aaf7da55d111c9228c3283cf01a"
+    member: "a37f7202aa0130e9e3a952a483ec1bb3b26bc2f1"
+  }
+}
+discoveredGroup {
+  entity_type: VIRTUAL_MACHINE
+  display_name: "ClonePrepInternalTemplateFolder"
+  group_name: "edf01fb8d98769c8f68c03a098cbc813f098b3d6"
+  member_list {
+    member: "42153510-b9b8-a398-b9a3-0fb2919dd7c1"
+  }
+}
+discoveredGroup {
+  entity_type: STORAGE
+  display_name: "vsphere-dc20.eng.vmturbo.com :: REPLICA_DISK_63762e07-a648-435d-b2f9-179962d16688"
+  group_name: "bec5d9ae7def739e5da50bcbf07c7bf4b885d815"
+  member_list {
+    member: "a4f589d00efc133585b3b702a1da990d2aa527e5"
+  }
+}
+discoveredGroup {
+  entity_type: STORAGE
+  display_name: "vsphere-dc20.eng.vmturbo.com :: Virtual SAN Default Storage Policy"
+  group_name: "cf5fe2a9294918129f42acbcae1d6f03300df7b4"
+  member_list {
+    member: "a4f589d00efc133585b3b702a1da990d2aa527e5"
+  }
+}
+discoveredGroup {
+  entity_type: PHYSICAL_MACHINE
+  display_name: "vsphere-dc20-DC01"
+  group_name: "d173186797f5287e8282a6245c05c772db3a2088"
+  member_list {
+    member: "bc4d7e6c48110fdd5b0eda823b161bc3ed473a81"
+    member: "db491f32e514bc62102b4e5b0986960fd9165743"
+    member: "d3c2d844fab6a7913b0cdcbae19c566873ca6f61"
+    member: "b1c25e94869b5da1928152e25a9cf55299140edd"
+  }
+}
+discoveredGroup {
+  entity_type: VIRTUAL_MACHINE
+  display_name: "SITE01-POD01-POOL02-MEDIUM-LINKEDCLONE"
+  group_name: "7a43485db3e7c68b776d972484989ada5013bbd9"
+  member_list {
+    member: "4215f88f-e877-42e0-3725-8cab2cb4e8d3"
+    member: "42152079-11c3-d625-da08-bcf0e66006ca"
+    member: "4215d3e9-1fcc-2538-ce95-78c67586e336"
+    member: "4215c20c-1b81-e411-8907-766b3201ed54"
+    member: "42154da8-12f1-7b81-3b23-1d05dff579f6"
+    member: "42153650-6d61-f43c-1b61-22ffe537228e"
+    member: "42152a35-a6d7-b318-0165-720a39505c81"
+    member: "42154fbd-b62d-8420-6178-5f23c5fc8151"
+    member: "4215b405-9f48-f397-e26e-a7298e339566"
+    member: "4215abb5-4e49-5b5d-3780-a1ab62d0abb9"
+    member: "4215b3eb-6154-c008-abc0-32435934f483"
+    member: "4215aadb-df52-c3da-137e-52157ab8e28c"
+  }
+}
+discoveredGroup {
+  entity_type: DATACENTER
+  display_name: "Datacenters"
+  group_name: "2415e64411e77f9ee61c680d2f53d437b25d511d"
+  member_list {
+    member: "d173186797f5287e8282a6245c05c772db3a2088"
+  }
+}
+discoveredGroup {
+  entity_type: VIRTUAL_MACHINE
+  display_name: "SITE01-POD01-POOL01-SMALL-FULLCLONE"
+  group_name: "a37f7202aa0130e9e3a952a483ec1bb3b26bc2f1"
+  member_list {
+    member: "42155ab1-139f-8522-78fe-86e447fefb8c"
+    member: "421598a0-8f2c-33a3-a0a7-7dcac6b92913"
+    member: "42153fd9-e4ab-9def-1401-85a90f5ea730"
+    member: "42158ff5-8460-3c96-8252-958ceae74a1e"
+    member: "42155967-cead-18ea-86e8-990d4cd41d41"
+    member: "421573e2-6c6e-cedb-2a9b-cb9ef6bc12a7"
+    member: "4215533e-1af9-da51-3fbc-576af3032332"
+  }
+}
+discoveredGroup {
+  entity_type: STORAGE
+  display_name: "vsphere-dc20.eng.vmturbo.com :: OS_DISK_FLOATING_63762e07-a648-435d-b2f9-179962d16688"
+  group_name: "3607530ec99a6e4af817b33ec820f1a6f31673dd"
+  member_list {
+    member: "a4f589d00efc133585b3b702a1da990d2aa527e5"
+  }
+}
+discoveredGroup {
+  entity_type: VIRTUAL_MACHINE
+  display_name: "SITE01-POD01-POOL03-LARGE-INSTANTCLONE"
+  group_name: "9a11e82cac957039f2ba00345afd9c9a3087aa24"
+  member_list {
+    member: "4215dab3-2ed2-68f3-fe5e-576907699dfc"
+    member: "4215b979-0eb0-7f2c-2393-8e9789136377"
+    member: "42152783-ee36-1262-a8c2-d54eb661c3db"
+    member: "4215d600-ef13-a439-f6d9-9d66f207c87f"
+    member: "4215c671-7480-f1a5-0fd9-27d8bcc950e6"
+    member: "421516fb-b5cd-5973-fd34-4d55e65b02e6"
+    member: "42151e64-d7e8-d0b4-aa5a-5a2c3781718e"
+    member: "4215efd5-62ac-4d85-0699-32b1713290dd"
+    member: "42155a67-f572-a6ce-93a7-adc5fe382fb3"
+  }
+}
+discoveredGroup {
+  entity_type: VIRTUAL_MACHINE
+  display_name: "VMwareViewComposerReplicaFolder"
+  group_name: "acb04ce4a538a6eb0555e47fe44fa9b8a39628b4"
+  member_list {
+    member: "42158c53-51b9-0cfe-b036-1cd0676880ef"
+  }
+}
+discoveredGroup {
+  entity_type: VIRTUAL_MACHINE
+  display_name: "SITE01-POD01-POOL04-SMALL-FULLCLONE"
+  group_name: "59449b8b00e2befdad26aff948beea9c0fbd436f"
+  member_list {
+    member: "42150d49-ffdd-e088-1ec4-9048b49a7426"
+    member: "42151f04-ec7c-ea41-8ce1-2b4dd61666ba"
+    member: "42155444-622e-fbdd-e060-61ce649e6e84"
+    member: "421501cb-9986-db51-1dc6-9145a68833b1"
+    member: "4215f164-8539-6ec0-409d-ab31dec9a7f2"
+    member: "42159b6e-d549-73dd-3d19-468ed7fd2912"
+  }
+}
+discoveredGroup {
+  entity_type: STORAGE
+  display_name: "vsphere-dc20.eng.vmturbo.com :: PERSISTENT_DISK_63762e07-a648-435d-b2f9-179962d16688"
+  group_name: "1d8ca5a529abc70277ad352517b6b9b70bb618b1"
+  member_list {
+    member: "a4f589d00efc133585b3b702a1da990d2aa527e5"
+  }
+}
+discoveredGroup {
+  entity_type: STORAGE
+  display_name: "vsphere-dc20.eng.vmturbo.com :: Default-VirtualDisk"
+  group_name: "4131738e441a7d2b74e18a312ff02f0f0366252f"
+  member_list {
+    member: "a4f589d00efc133585b3b702a1da990d2aa527e5"
+  }
+}
+discoveredGroup {
+  entity_type: PHYSICAL_MACHINE
+  display_name: "vsphere-dc20-DC01_host"
+  group_name: "bc4d7e6c48110fdd5b0eda823b161bc3ed473a81"
+  member_list {
+    member: "3a3142473f427568456a0310d86b2e6d8551f1da"
+  }
+}
+discoveredGroup {
+  entity_type: VIRTUAL_MACHINE
+  display_name: "vsphere-dc20-DC01_vm"
+  group_name: "db491f32e514bc62102b4e5b0986960fd9165743"
+  member_list {
+    member: "acb04ce4a538a6eb0555e47fe44fa9b8a39628b4"
+    member: "42158d04-4801-afc3-3f6e-1d04993cb013"
+    member: "421585d2-9275-1f07-1630-d1c739de5861"
+    member: "379855421a222222845248774c26c111b93d69e7"
+    member: "edf01fb8d98769c8f68c03a098cbc813f098b3d6"
+    member: "42153fe7-f77a-88e5-6651-fdb1a28cd6ca"
+    member: "b9d65a25150d1ba2881ea54402a39a5cbecb044f"
+    member: "4215eb83-c25a-9a10-8bbe-42a515f470d5"
+    member: "4215b1a2-2377-e87e-3041-21560bb2dc9e"
+    member: "421525fc-75f6-078c-693c-99bdb426851a"
+    member: "2d9841d14f8421390adf6898a4ea54d74897192f"
+    member: "421510f7-48e2-2820-0551-43673b230533"
+    member: "42156d71-649d-0d6e-1f5c-7b8222357efc"
+    member: "c81c4e83213d267510f5eee0b029193d1f7fb9b9"
+    member: "d069f6807ca9098cdffbf065f8028fbdd1a5792f"
+    member: "42150bf8-9910-1c4c-8b66-5d6714fe4765"
+  }
+}
+discoveredGroup {
+  entity_type: STORAGE
+  display_name: "vsphere-dc20.eng.vmturbo.com :: Default-VM-Home"
+  group_name: "945620605248697f2ec032be3473c8da248aa704"
+  member_list {
+    member: "a4f589d00efc133585b3b702a1da990d2aa527e5"
+  }
+}
+discoveredGroup {
+  entity_type: VIRTUAL_MACHINE
+  display_name: "Discovered virtual machine"
+  group_name: "2d9841d14f8421390adf6898a4ea54d74897192f"
+  member_list {
+    member: "4215a982-8136-adf9-5b75-a57d69cd7660"
+  }
+}
+discoveredGroup {
+  entity_type: STORAGE
+  display_name: "vsphere-dc20-DC01_datastore"
+  group_name: "b1c25e94869b5da1928152e25a9cf55299140edd"
+  member_list {
+    member: "a4f589d00efc133585b3b702a1da990d2aa527e5"
+    member: "d471fce3-2670600b"
+    member: "9bd4ee88-99c64661"
+  }
+}
+discoveredGroup {
+  entity_type: VIRTUAL_MACHINE
+  display_name: "ClonePrepParentVmFolder"
+  group_name: "c81c4e83213d267510f5eee0b029193d1f7fb9b9"
+  member_list {
+    member: "4215f334-3d51-5a9a-dafe-ec0fcd2dd3b9"
+    member: "4215749b-eb22-9eb8-aa51-3f2399c4ac35"
+    member: "42155111-4f41-c22b-2db0-2272c72212d6"
+    member: "421500d1-cb20-d7ce-737c-923bd110c239"
+  }
+}
+discoveredGroup {
+  entity_type: STORAGE
+  display_name: "vsphere-dc20.eng.vmturbo.com :: OS_DISK_63762e07-a648-435d-b2f9-179962d16688"
+  group_name: "755868f45a7e24974372b3bc805fa286f458fd47"
+  member_list {
+    member: "a4f589d00efc133585b3b702a1da990d2aa527e5"
+  }
+}
+discoveredGroup {
+  entity_type: VIRTUAL_MACHINE
+  display_name: "ClonePrepReplicaVmFolder"
+  group_name: "d069f6807ca9098cdffbf065f8028fbdd1a5792f"
+  member_list {
+    member: "42156b99-9a5a-1dc4-8db2-27c768876429"
+  }
+}
+discoveredGroup {
+  entity_type: STORAGE
+  group_name: "GROUP-SPBM-DS"
+  added_and_removed_members {
+    addedMembers: "4131738e441a7d2b74e18a312ff02f0f0366252f"
+    addedMembers: "cf5fe2a9294918129f42acbcae1d6f03300df7b4"
+    addedMembers: "3607530ec99a6e4af817b33ec820f1a6f31673dd"
+    addedMembers: "bb51d6ef0b09d38582b9c7e4d5280f42c48c1479"
+    addedMembers: "945620605248697f2ec032be3473c8da248aa704"
+    addedMembers: "bec5d9ae7def739e5da50bcbf07c7bf4b885d815"
+    addedMembers: "1d8ca5a529abc70277ad352517b6b9b70bb618b1"
+    addedMembers: "755868f45a7e24974372b3bc805fa286f458fd47"
+  }
+}
+entityProfile {
+  id: "T4215df44-d8dc-29d9-6e75-320dc88f24a9"
+  displayName: "vsphere-dc20.eng.vmturbo.com::TMP-S01-P01-P04-00"
+  entityType: VIRTUAL_MACHINE
+  commodityProfile {
+    commodityType: VMEM
+    capacity: 2097152.0
+  }
+  commodityProfile {
+    commodityType: MEM
+    reservation: 0.0
+  }
+  commodityProfile {
+    commodityType: CPU
+    reservation: 0.0
+  }
+  commodityProfile {
+    commodityType: NET_THROUGHPUT
+    consumed: 0.0
+  }
+  commodityProfile {
+    commodityType: IO_THROUGHPUT
+    consumed: 0.0
+  }
+  commodityProfile {
+    commodityType: STORAGE_ACCESS
+    consumed: 0.0
+  }
+  commodityProfile {
+    commodityType: STORAGE
+    consumed: 9.4921124E9
+  }
+  commodityProfile {
+    commodityType: VSTORAGE
+    capacity: 34999.168
+  }
+  description: "S01-P01-P04-00"
+  vmProfileDTO {
+    numVCPUs: 1
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "LocalName"
+    value: "vm-133"
+  }
+}
+entityProfile {
+  id: "T4215913d-a60d-56c2-d814-8ea801ed0595"
+  displayName: "vsphere-dc20.eng.vmturbo.com::TMP-S01-P01-P01-00"
+  entityType: VIRTUAL_MACHINE
+  commodityProfile {
+    commodityType: VMEM
+    capacity: 2097152.0
+  }
+  commodityProfile {
+    commodityType: MEM
+    reservation: 0.0
+  }
+  commodityProfile {
+    commodityType: CPU
+    reservation: 0.0
+  }
+  commodityProfile {
+    commodityType: NET_THROUGHPUT
+    consumed: 0.0
+  }
+  commodityProfile {
+    commodityType: IO_THROUGHPUT
+    consumed: 0.0
+  }
+  commodityProfile {
+    commodityType: STORAGE_ACCESS
+    consumed: 0.0
+  }
+  commodityProfile {
+    commodityType: STORAGE
+    consumed: 9.5005092E9
+  }
+  commodityProfile {
+    commodityType: VSTORAGE
+    capacity: 34999.164
+  }
+  description: "S01-P01-P01-00"
+  vmProfileDTO {
+    numVCPUs: 1
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "LocalName"
+    value: "vm-73"
+  }
+}
+deploymentProfile {
+  id: "DEP-4215df44-d8dc-29d9-6e75-320dc88f24a9"
+  profileName: "DEP-S01-P01-P04-00"
+  relatedEntityProfileId: "T4215df44-d8dc-29d9-6e75-320dc88f24a9"
+  relatedScopeId: "d173186797f5287e8282a6245c05c772db3a2088"
+  relatedScopeId: "7aa36cbb3a9127365738a7581d928dc5d72dfefb"
+}
+deploymentProfile {
+  id: "DEP-4215913d-a60d-56c2-d814-8ea801ed0595"
+  profileName: "DEP-S01-P01-P01-00"
+  relatedEntityProfileId: "T4215913d-a60d-56c2-d814-8ea801ed0595"
+  relatedScopeId: "d173186797f5287e8282a6245c05c772db3a2088"
+  relatedScopeId: "7aa36cbb3a9127365738a7581d928dc5d72dfefb"
+}
+derivedTarget {
+  probeType: "vCenter Storage Browsing"
+  accountValue {
+    key: "username"
+    stringValue: "corp\\ron.even"
+  }
+  accountValue {
+    key: "address"
+    stringValue: "vsphere-dc20.eng.vmturbo.com"
+  }
+  hidden: true
+  dependent: true
+}

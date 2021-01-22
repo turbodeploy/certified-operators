@@ -21,7 +21,6 @@ public class CommoditiesBoughtRepoFromProviderDTO {
 
     private List<CommodityBoughtRepoDTO> commodityBoughtRepoDTOs;
 
-    @Deprecated
     private Long volumeId;
 
     public Long getProviderId() {
@@ -62,6 +61,7 @@ public class CommoditiesBoughtRepoFromProviderDTO {
                 "providerId=" + providerId +
                 ", providerEntityType=" + providerEntityType +
                 ", commodityBoughtRepoDTOs=" + commodityBoughtRepoDTOs +
+                ", volumeId=" + volumeId +
                 '}';
     }
 
@@ -74,11 +74,12 @@ public class CommoditiesBoughtRepoFromProviderDTO {
 
         return Objects.equals(providerId, that.providerId) &&
                 Objects.equals(providerEntityType, that.providerEntityType) &&
+                Objects.equals(volumeId, that.volumeId) &&
                 Objects.equals(commodityBoughtRepoDTOs, that.commodityBoughtRepoDTOs);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(providerId, providerEntityType, commodityBoughtRepoDTOs);
+        return Objects.hash(providerId, providerEntityType, commodityBoughtRepoDTOs, volumeId);
     }
 }

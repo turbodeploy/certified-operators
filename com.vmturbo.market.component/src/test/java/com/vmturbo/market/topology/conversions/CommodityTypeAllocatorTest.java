@@ -19,10 +19,10 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.commons.Pair;
 import com.vmturbo.commons.analysis.NumericIDAllocator;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
-import com.vmturbo.platform.sdk.common.util.Pair;
 
 /**
  * Unit tests for {@link CommodityTypeAllocator}.
@@ -110,8 +110,8 @@ public class CommodityTypeAllocatorTest {
             commodityTypeAllocator.marketCommIdToCommodityTypeAndSlot(nonTimeSlotCommoditySpecs
                 .iterator().next().getType());
         assertEquals(CommodityDTO.CommodityType.VCPU_VALUE,
-            commTypeAndSlot.getFirst().getType());
-        assertFalse(commTypeAndSlot.getSecond().isPresent());
+            commTypeAndSlot.first.getType());
+        assertFalse(commTypeAndSlot.second.isPresent());
 
         // test timeslot commodity
         final Collection<CommoditySpecificationTO> timeSlotCommoditySpecs =
@@ -124,19 +124,19 @@ public class CommodityTypeAllocatorTest {
             .collect(Collectors.toList());
         final Pair<CommodityType, Optional<Integer>> commTypeAndSlot1 = commodityTypeAllocator
             .marketCommIdToCommodityTypeAndSlot(sortedspecs.get(0).getType());
-        assertEquals(CommodityDTO.CommodityType.POOL_CPU_VALUE, commTypeAndSlot1.getFirst().getType());
-        assertTrue(commTypeAndSlot1.getSecond().isPresent());
-        assertEquals(0, (int)commTypeAndSlot1.getSecond().get());
+        assertEquals(CommodityDTO.CommodityType.POOL_CPU_VALUE, commTypeAndSlot1.first.getType());
+        assertTrue(commTypeAndSlot1.second.isPresent());
+        assertEquals(0, (int)commTypeAndSlot1.second.get());
         final Pair<CommodityType, Optional<Integer>> commTypeAndSlot2 = commodityTypeAllocator
             .marketCommIdToCommodityTypeAndSlot(sortedspecs.get(1).getType());
-        assertEquals(CommodityDTO.CommodityType.POOL_CPU_VALUE, commTypeAndSlot2.getFirst().getType());
-        assertTrue(commTypeAndSlot2.getSecond().isPresent());
-        assertEquals(1, (int)commTypeAndSlot2.getSecond().get());
+        assertEquals(CommodityDTO.CommodityType.POOL_CPU_VALUE, commTypeAndSlot2.first.getType());
+        assertTrue(commTypeAndSlot2.second.isPresent());
+        assertEquals(1, (int)commTypeAndSlot2.second.get());
         final Pair<CommodityType, Optional<Integer>> commTypeAndSlot3 = commodityTypeAllocator
             .marketCommIdToCommodityTypeAndSlot(sortedspecs.get(2).getType());
-        assertEquals(CommodityDTO.CommodityType.POOL_CPU_VALUE, commTypeAndSlot3.getFirst().getType());
-        assertTrue(commTypeAndSlot3.getSecond().isPresent());
-        assertEquals(2, (int)commTypeAndSlot3.getSecond().get());
+        assertEquals(CommodityDTO.CommodityType.POOL_CPU_VALUE, commTypeAndSlot3.first.getType());
+        assertTrue(commTypeAndSlot3.second.isPresent());
+        assertEquals(2, (int)commTypeAndSlot3.second.get());
     }
 
     /**

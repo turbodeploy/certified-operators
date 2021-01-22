@@ -10,8 +10,6 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.Sets;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -22,7 +20,6 @@ import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.Builder;
@@ -34,7 +31,6 @@ import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.targets.TargetStore;
-
 
 /**
  * An abstract class for collecting data needed for Move or Scale action execution.
@@ -136,7 +132,6 @@ public abstract class ChangeProviderContext extends AbstractActionExecutionConte
         final EntityDTO fullEntityDTO = getFullEntityDTO(getPrimaryEntityId());
         // sort the changes list so host change comes first, and then others (storage move), since
         // the list coming from AO may be any order, but probe is assuming host move comes first
-        // TODO dmitry which probe and why? they should not
         final List<ChangeProvider> changeProviderList = new ArrayList<>(
                 ActionDTOUtil.getChangeProviderList(getActionInfo()));
         changeProviderList.sort(CHANGE_LIST_COMPARATOR);
@@ -207,25 +202,18 @@ public abstract class ChangeProviderContext extends AbstractActionExecutionConte
     }
 
     /**
-     * Get the {@link EntityType}.STORAGE storage providers and outbound connected storage OIDs
-     * for the given entity.
+     * Get the {@link EntityType}.STORAGE storage provider OIDs for the given entity.
      *
      * @param topologyEntityDTO an entity for which to retrieve the storage providers
      * @return a set containing the storage provider OIDs for the given entity
      */
     private static Set<Long> getAllStorageProviderIds(TopologyEntityDTO topologyEntityDTO) {
-        Set<Long> providers = topologyEntityDTO.getCommoditiesBoughtFromProvidersList().stream()
-                        .filter(CommoditiesBoughtFromProvider::hasProviderId)
-                        .filter(commoditiesBoughtFromProvider -> EntityType.STORAGE == EntityType
-                                        .forNumber(commoditiesBoughtFromProvider
-                                                        .getProviderEntityType()))
-                        .map(CommoditiesBoughtFromProvider::getProviderId)
-                        .collect(Collectors.toSet());
-        Set<Long> connected = topologyEntityDTO.getConnectedEntityListList().stream()
-                        .filter(ce -> EntityType.forNumber(
-                                        ce.getConnectedEntityType()) == EntityType.STORAGE)
-                        .map(ConnectedEntity::getConnectedEntityId).collect(Collectors.toSet());
-        return new HashSet<>(Sets.union(providers, connected));
+        return topologyEntityDTO.getCommoditiesBoughtFromProvidersList().stream()
+                .filter(CommoditiesBoughtFromProvider::hasProviderId)
+                .filter(commoditiesBoughtFromProvider -> EntityType.STORAGE.equals(
+                        EntityType.forNumber(commoditiesBoughtFromProvider.getProviderEntityType())))
+                .map(CommoditiesBoughtFromProvider::getProviderId)
+                .collect(Collectors.toSet());
     }
 
     private static ChangeProvider createStorageChange(long storageEntityId) {

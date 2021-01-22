@@ -183,7 +183,7 @@ public class PolicyMatcher {
         };
     }
 
-    public Matcher<TopologyEntity> hasConsumerSegment(long segmentId, long providerId) {
+    public Matcher<TopologyEntity> hasConsumerSegment(long segmentId, long providerId, long volumeId) {
         return new BaseMatcher<TopologyEntity>() {
             @Override
             public boolean matches(Object o) {
@@ -194,13 +194,14 @@ public class PolicyMatcher {
                             commodity.getCommodityType().getType() == CommodityType.SEGMENTATION_VALUE &&
                                 (!commodityBoughtGroup.hasProviderId() ||
                                     commodityBoughtGroup.getProviderId() == providerId)
-                                && commodity.getCommodityType().getKey().equals(Long.toString(segmentId))));
+                                && commodity.getCommodityType().getKey().equals(Long.toString(segmentId))
+                                && commodityBoughtGroup.getVolumeId() == volumeId));
             }
 
             @Override
             public void describeTo(Description description) {
                 description.appendText("should be buying a segmentation commodity from provider: "
-                    + providerId);
+                    + providerId + " with related volume: " + volumeId + ".");
             }
         };
     }

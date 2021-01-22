@@ -920,7 +920,8 @@ public class EntitySettingsApplicatorTest {
             .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
             .setOid(vmId)
             .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                .setProviderId(vvId).setProviderEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                .setProviderId(PARENT_ID).setProviderEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                .setVolumeId(vvId)
             );
 
         final TopologyEntityDTO.Builder vvEntity = TopologyEntityDTO.newBuilder()
@@ -992,6 +993,7 @@ public class EntitySettingsApplicatorTest {
             .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
                 .setProviderId(vvId)
                 .setProviderEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                .setVolumeId(vvId)
             );
         final TopologyEntityDTO.Builder vvEntity = createVirtualVolumeEntity(vvId, stId, originalAnalysisSettingForVVDeletable);
         final TopologyEntityDTO.Builder stEntity = createStorageTierEntity(stId);
@@ -1020,7 +1022,8 @@ public class EntitySettingsApplicatorTest {
             .setOid(vmId)
             .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
                 .setProviderId(vvId)
-                .setProviderEntityType(EntityType.VIRTUAL_VOLUME_VALUE));
+                .setProviderEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                .setVolumeId(vvId));
         final TopologyEntityDTO.Builder vvEntity = createVirtualVolumeEntity(vvId, stId, originalAnalysisSettingForVVDeletable);
         final TopologyEntityDTO.Builder stEntity = createStorageTierEntity(stId);
 
@@ -1048,6 +1051,7 @@ public class EntitySettingsApplicatorTest {
             .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
                 .setProviderId(vvId)
                 .setProviderEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                .setVolumeId(vvId)
                 .setMovable(false));
         final TopologyEntityDTO.Builder vvEntity = createVirtualVolumeEntity(vvId, stId, originalAnalysisSettingForVVDeletable);
         final TopologyEntityDTO.Builder stEntity = createStorageTierEntity(stId);

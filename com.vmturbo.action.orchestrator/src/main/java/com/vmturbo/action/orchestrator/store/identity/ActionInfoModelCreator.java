@@ -19,7 +19,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Strings;
 
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
@@ -260,11 +259,8 @@ public class ActionInfoModelCreator implements Function<ActionInfo, ActionInfoMo
         final Set<String> changes = new HashSet<>(providers.size());
         for (ChangeProvider changeProvider : providers) {
             final MoveChange change = new MoveChange(changeProvider.getSource().getId(),
-                            changeProvider.getDestination().getId(),
-                            changeProvider.getResourceCount() > 0
-                                ? changeProvider.getResourceList().stream()
-                                                .map(ActionEntity::getId).collect(Collectors.toSet())
-                                : null);
+                    changeProvider.getDestination().getId(),
+                    changeProvider.hasResource() ? changeProvider.getResource().getId() : null);
             changes.add(gson.toJson(change));
         }
         return changes;
@@ -290,17 +286,15 @@ public class ActionInfoModelCreator implements Function<ActionInfo, ActionInfoMo
      * Move change object. Used for JSON serialization. It is just a composition of fields.
      */
     private static class MoveChange {
+
         private final long sourceId;
         private final long destinationId;
-        // this is null for non-storage-moves so identity for them is backward-compatible
-        // as far as change from single to multiple resources is concerned
-        // storage moves lose the identity and cannot be migrated
-        private final Set<Long> resourceIds;
+        private final Long resourceId;
 
-        MoveChange(long sourceId, long destinationId, Set<Long> resourceIds) {
+        MoveChange(long sourceId, long destinationId, Long resourceId) {
             this.sourceId = sourceId;
             this.destinationId = destinationId;
-            this.resourceIds = resourceIds;
+            this.resourceId = resourceId;
         }
     }
 

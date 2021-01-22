@@ -10,7 +10,6 @@ import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -129,10 +128,8 @@ public class TierExcluderTest {
                     .setType(CommodityDTO.CommodityType.SEGMENTATION_VALUE)
                     .build();
             });
-        ShoppingListInfo slInfo1 = new ShoppingListInfo(VM1SlOid, VM1, null, Collections.emptySet(),
-                        null, null, Lists.newArrayList());
-        ShoppingListInfo slInfo2 = new ShoppingListInfo(VM2SlOid, VM2, null, Collections.emptySet(),
-                        null, null, Lists.newArrayList());
+        ShoppingListInfo slInfo1 = new ShoppingListInfo(VM1SlOid, VM1, null, null, null, null, Lists.newArrayList());
+        ShoppingListInfo slInfo2 = new ShoppingListInfo(VM2SlOid, VM2, null, null, null, null, Lists.newArrayList());
         tierExcluder = tierExcluderFactory.newExcluder(topologyInfo, commodityConverter,
             ImmutableMap.of(VM1SlOid, slInfo1, VM2SlOid, slInfo2));
         cloudTopology = mock(CloudTopology.class);

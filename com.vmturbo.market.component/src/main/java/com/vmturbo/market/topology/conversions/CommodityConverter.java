@@ -33,6 +33,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.commons.Pair;
 import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.commons.analysis.NumericIDAllocator;
 import com.vmturbo.market.topology.TopologyConversionConstants;
@@ -48,7 +49,6 @@ import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunct
 import com.vmturbo.platform.analysis.utilities.BiCliquer;
 import com.vmturbo.platform.common.builders.SDKConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
-import com.vmturbo.platform.sdk.common.util.Pair;
 
 /**
  * Commodity converter class is used to convert CommoditySoldDTOs sold by the TopologyEntityDTOs
@@ -64,6 +64,7 @@ public class CommodityConverter {
 
     private final Table<Long, CommodityType, Integer> numConsumersOfSoldCommTable;
     private final ConversionErrorCounts conversionErrorCounts;
+    private final ConsistentScalingHelper consistentScalingHelper;
 
     // provider oid -> commodity type -> used value of all consumers to be removed of this provider
     private Map<Long, Map<CommodityType, UsedAndPeak>> providerUsedSubtractionMap = Collections.emptyMap();
@@ -80,6 +81,7 @@ public class CommodityConverter {
         this.dsBasedBicliquer = dsBasedBicliquer;
         this.numConsumersOfSoldCommTable = numConsumersOfSoldCommTable;
         this.conversionErrorCounts = conversionErrorCounts;
+        this.consistentScalingHelper = consistentScalingHelper;
     }
 
     /**

@@ -1174,9 +1174,8 @@ public class ActionSpecMapper {
                     && SCALE_TIER_VALUES.contains(source.map(BaseApiDTO::getClassName).orElse(""))
                     ? "Scale" : "Move";
             String resource = "";
-            if (change.getResourceCount() > 0) {
-                // only applies to compound moves
-                final long resourceId = change.getResource(0).getId();
+            if (change.hasResource()) {
+                final long resourceId = change.getResource().getId();
                 final Optional<ServiceEntityApiDTO> resourceEntity =
                     context.getEntity(resourceId);
                 if (resourceEntity.isPresent() && resourceId != targetId) {
