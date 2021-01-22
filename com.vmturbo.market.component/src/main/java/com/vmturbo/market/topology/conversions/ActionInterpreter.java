@@ -69,7 +69,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
-import com.vmturbo.commons.Pair;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.journal.CostJournal;
@@ -100,6 +99,7 @@ import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
+import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.trax.Trax;
 import com.vmturbo.trax.TraxCollectors;
 import com.vmturbo.trax.TraxConfiguration.TraxContext;
@@ -491,10 +491,8 @@ public class ActionInterpreter {
     private TopologyEntityDTO getTopologyEntityMoving(MoveTO move) {
         final ShoppingListInfo shoppingListInfo =
                 shoppingListOidToInfos.get(move.getShoppingListToMove());
-        long entityMovingId = shoppingListInfo.getResourceId().orElse(shoppingListInfo.getBuyerId());
-        if (shoppingListInfo.getCollapsedBuyerId().isPresent()) {
-            entityMovingId = shoppingListInfo.getCollapsedBuyerId().get();
-        }
+        long entityMovingId = Optional.ofNullable(shoppingListInfo.getActingId())
+                        .orElse(shoppingListInfo.getBuyerId());
         return originalTopology.get(entityMovingId);
     }
 
@@ -671,14 +669,14 @@ public class ActionInterpreter {
             MarketTier destination = cloudTc.getMarketTier(moveTO.getDestination());
             if (destination != null && destination.hasRIDiscount()) {
                 logger.error("MoveTO for entity {} has RI {} as destination. This should not happen.",
-                    shoppingList.buyerId, destination.getDisplayName());
+                    shoppingList.getBuyerId(), destination.getDisplayName());
                 return Optional.empty();
             }
             List<ChangeProvider> changeProviderList = createChangeProviders(moveTO,
-                    projectedTopology, originalCloudTopology, shoppingList.buyerId);
+                    projectedTopology, originalCloudTopology, shoppingList.getBuyerId());
             if (!CollectionUtils.isEmpty(changeProviderList)) {
                 ActionDTO.Move.Builder builder = ActionDTO.Move.newBuilder()
-                        .setTarget(createActionEntity(shoppingList.buyerId, projectedTopology))
+                        .setTarget(createActionEntity(shoppingList.getBuyerId(), projectedTopology))
                         .addAllChanges(changeProviderList);
                 if (moveTO.hasScalingGroupId()) {
                     builder.setScalingGroupId(moveTO.getScalingGroupId());
@@ -1032,10 +1030,10 @@ public class ActionInterpreter {
             moveSource = shoppingListInfo.getSellerId();
         }
 
-        Long resourceId = shoppingListOidToInfos.get(move.getShoppingListToMove()).resourceId;
-        if (resourceId == null && shoppingListInfo.getCollapsedBuyerId().isPresent()) {
-            // For cloud->cloud move storage shopping list, use the collapsed buyer (volume id).
-            resourceId = shoppingListInfo.getCollapsedBuyerId().get();
+        Set<Long> resourceIds = shoppingListInfo.getResourceIds();
+        if (CollectionUtils.isEmpty(resourceIds) && shoppingListInfo.getCollapsedBuyerId().isPresent()) {
+            // For cloud->cloud move storage shopping list, use the collapsed buyer.
+            resourceIds = Collections.singleton(shoppingListInfo.getCollapsedBuyerId().get());
         }
         // 4 case of moves:
         // 1) Cloud to cloud. 2) on prem to cloud. 3) cloud to on prem. 4) on prem to on prem.
@@ -1073,7 +1071,7 @@ public class ActionInterpreter {
             if (generateTierAction) {
                 // Tier change provider
                 changeProviders.add(createChangeProvider(sourceTier.getOid(),
-                        destTier.getOid(), resourceId, projectedTopology));
+                        destTier.getOid(), resourceIds, projectedTopology));
             }
         } else if (sourceMarketTier == null && destMarketTier != null) {
             // On prem to cloud move (with or without source)
@@ -1083,16 +1081,16 @@ public class ActionInterpreter {
                 destAzOrRegion.getOid(), null, projectedTopology));
             // Tier change provider
             changeProviders.add(createChangeProvider(moveSource,
-                    destTier.getOid(), resourceId, projectedTopology));
+                    destTier.getOid(), resourceIds, projectedTopology));
         } else if (sourceMarketTier != null && destMarketTier == null) {
             // Cloud to on prem move
             changeProviders.add(createChangeProvider(sourceTier.getOid(),
-                    move.getDestination(), resourceId, projectedTopology));
+                    move.getDestination(), resourceIds, projectedTopology));
         } else {
             // On prem to on prem (with or without source)
             // A cloud container pod moving from a cloud VM to another cloud VM is covered by this case.
             changeProviders.add(createChangeProvider(moveSource,
-                    move.getDestination(), resourceId, projectedTopology));
+                    move.getDestination(), resourceIds, projectedTopology));
         }
         return changeProviders;
     }
@@ -1141,15 +1139,17 @@ public class ActionInterpreter {
     @Nonnull
     private ChangeProvider createChangeProvider(@Nullable final Long sourceId,
                             final long destinationId,
-                            @Nullable final Long resourceId,
+                            Set<Long> resourceIds,
                             @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology) {
         final ChangeProvider.Builder changeProviderBuilder = ChangeProvider.newBuilder()
             .setDestination(createActionEntity(destinationId, projectedTopology));
         if (sourceId != null) {
             changeProviderBuilder.setSource(createActionEntity(sourceId, projectedTopology));
         }
-        if (resourceId != null) {
-            changeProviderBuilder.setResource(createActionEntity(resourceId, projectedTopology));
+        if (resourceIds != null) {
+            for (Long resourceId : resourceIds) {
+                changeProviderBuilder.addResource(createActionEntity(resourceId, projectedTopology));
+            }
         }
         return changeProviderBuilder.build();
     }
@@ -1301,7 +1301,7 @@ public class ActionInterpreter {
                                     .setMaxAmountAvailable(maxAmount.getMaxAmountAvailable())
                                     .setRequestedAmount(maxAmount.getRequestedAmount()).build()));
             return expBuilder.setProvisionByDemandExplanation(ProvisionByDemandExplanation
-                    .newBuilder().setBuyerId(shoppingList.buyerId)
+                    .newBuilder().setBuyerId(shoppingList.getBuyerId())
                     .addAllCommodityNewCapacityEntry(capacityPerType)
                     .addAllCommodityMaxAmountAvailable(maxAmountPerType).build()).build();
         }
@@ -1372,11 +1372,11 @@ public class ActionInterpreter {
                 if (complianceExplanationOverride != null) {
                     final Pair<Boolean, ChangeProviderExplanation> overrideAndExplanation =
                             complianceExplanationOverride.apply(moveTO, projectedTopology);
-                    if (overrideAndExplanation.first) {
+                    if (overrideAndExplanation.getFirst()) {
                         // Need to override, see if there is an explanation available, e.g for vol.
-                        if (overrideAndExplanation.second != null) {
+                        if (overrideAndExplanation.getSecond() != null) {
                             changeProviderExplanation = ChangeProviderExplanation
-                                    .newBuilder(overrideAndExplanation.second);
+                                    .newBuilder(overrideAndExplanation.getSecond());
                         } else {
                             // No existing override explanation, get one from tracker, e.g for VMs.
                             changeProviderExplanation = changeExplanationFromTracker(moveTO, savings, projectedTopology)
@@ -1408,7 +1408,7 @@ public class ActionInterpreter {
                 // If the congested commodities contains segmentationCommodities, we categorize such an action as COMPLIANCE.
                 List<ReasonCommodity> congestedSegments = moveExplanation.getCongestion().getCongestedCommoditiesList().stream()
                         .map(commodityConverter::commodityIdToCommodityTypeAndSlot)
-                        .map(p -> p.first)
+                        .map(Pair::getFirst)
                         .filter(ct -> ct.getType() == CommodityDTO.CommodityType.SEGMENTATION_VALUE)
                         .map(commType2ReasonCommodity())
                         .collect(Collectors.toList());
@@ -1519,9 +1519,9 @@ public class ActionInterpreter {
         Pair<Set<CommodityType>, Set<CommodityType>> lowerAndHigherCapacityPair =
             calculateCommWithChangingProjectedCapacity(moveTO, actionTargetId, projectedTopology, sellerId);
         // Collection of commodities with lower projected capacity in projected topology.
-        final Set<CommodityType> lowerProjectedCapacityComms = lowerAndHigherCapacityPair.first;
+        final Set<CommodityType> lowerProjectedCapacityComms = lowerAndHigherCapacityPair.getFirst();
         // Collection of commodities with higher projected capacity in projected topology.
-        final Set<CommodityType> higherProjectedCapacityComms = lowerAndHigherCapacityPair.second;
+        final Set<CommodityType> higherProjectedCapacityComms = lowerAndHigherCapacityPair.getSecond();
 
         // Third, check if there is an under-utilized commodity which became lower capacity
         // in the projected topology.
@@ -1917,8 +1917,8 @@ public class ActionInterpreter {
     private Function<Pair<CommodityType, Optional<Integer>>, ReasonCommodity>
         commTypeAndSlot2ReasonCommodity(final long buyer, final long source) {
         return ct -> {
-            final CommodityType commType = ct.first;
-            final Optional<Integer> slot = ct.second;
+            final CommodityType commType = ct.getFirst();
+            final Optional<Integer> slot = ct.getSecond();
             final ReasonCommodity.Builder builder = ReasonCommodity.newBuilder().setCommodityType(commType);
             slot.ifPresent(sl -> builder.setTimeSlot(TimeSlotReasonInformation.newBuilder()
                 .setSlot(sl)

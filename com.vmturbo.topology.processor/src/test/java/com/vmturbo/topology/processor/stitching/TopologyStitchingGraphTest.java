@@ -43,7 +43,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ActionOnProviderEligibility;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.SubDivisionData;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.utilities.CommoditiesBought;
 import com.vmturbo.topology.processor.conversions.SdkToTopologyEntityConverter;
@@ -97,34 +96,6 @@ public class TopologyStitchingGraphTest {
             .addCommoditiesBought(validCommBought)
             .addCommoditiesBought(CommodityBought.newBuilder()
                 .setProviderId("another bad provider")));
-
-        final TopologyStitchingGraph graph = newStitchingGraph(topologyMapOf(validEntity, entity));
-
-        assertThat(graph.entityCount(), is(2));
-        final TopologyStitchingEntity resEntity = graph.getEntity(entity.getEntityDtoBuilder()).get();
-        assertTrue(resEntity.getStitchingErrors().contains(StitchingErrorCode.INVALID_COMM_BOUGHT));
-        assertThat(resEntity.getEntityBuilder().getCommoditiesBoughtList(),
-            containsInAnyOrder(validCommBought));
-    }
-
-    @Test
-    public void testInvalidCommBoughtSubdivision() {
-        final CommodityBought validCommBought = CommodityBought.newBuilder()
-            .setProviderId(validEntity.getLocalId())
-            .addBought(CommodityDTO.newBuilder()
-                .setCommodityType(CommodityType.MEM))
-            .build();
-
-        final StitchingEntityData entity = stitchingData(entityBuilder()
-            .addCommoditiesBought(CommodityBought.newBuilder()
-                .setProviderId(validEntity.getLocalId())
-                .setSubDivision(SubDivisionData.newBuilder()
-                    .setSubDivisionId("bad subdivision")))
-            .addCommoditiesBought(validCommBought)
-            .addCommoditiesBought(CommodityBought.newBuilder()
-                .setProviderId(validEntity.getLocalId())
-                .setSubDivision(SubDivisionData.newBuilder()
-                    .setSubDivisionId("another bad subdivision"))));
 
         final TopologyStitchingGraph graph = newStitchingGraph(topologyMapOf(validEntity, entity));
 

@@ -199,8 +199,6 @@ import org.apache.logging.log4j.Logger;
                 commoditiesBoughtFromProvider.getProviderId() : null);
         commoditiesBoughtRepoFromProviderDTO.setProviderEntityType(commoditiesBoughtFromProvider.hasProviderEntityType() ?
                 commoditiesBoughtFromProvider.getProviderEntityType() : null);
-        commoditiesBoughtRepoFromProviderDTO.setVolumeId(commoditiesBoughtFromProvider.hasVolumeId() ?
-                commoditiesBoughtFromProvider.getVolumeId() : null);
         return commoditiesBoughtRepoFromProviderDTO;
     }
 
@@ -224,10 +222,6 @@ import org.apache.logging.log4j.Logger;
         if (commoditiesBoughtRepoFromProviderDTO.getProviderEntityType() != null) {
             commodityBoughtFromProviderBuilder.setProviderEntityType(
                     commoditiesBoughtRepoFromProviderDTO.getProviderEntityType());
-        }
-        if (commoditiesBoughtRepoFromProviderDTO.getVolumeId() != null) {
-            commodityBoughtFromProviderBuilder.setVolumeId(
-                    commoditiesBoughtRepoFromProviderDTO.getVolumeId());
         }
         return commodityBoughtFromProviderBuilder.build();
     }

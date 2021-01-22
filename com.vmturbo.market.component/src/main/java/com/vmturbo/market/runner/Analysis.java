@@ -1003,14 +1003,8 @@ public class Analysis {
                 Long infiniteSlOid = topology.getShoppingListOids().get(explanation.shoppingList);
                 if (infiniteSlOid != null) {
                     ShoppingListInfo slInfo = converter.getShoppingListOidToInfos().get(infiniteSlOid);
-                    if (slInfo != null) {
-                        if (slInfo.getResourceId().isPresent()) {
-                            // when on prem VM failed on the shopping list that represents the volume
-                            reason.setResourceOwnerOid(slInfo.getResourceId().get());
-                        } else if (slInfo.getCollapsedBuyerId().isPresent()) {
-                            // when cloud VM failed on the shopping list that represents the volume
-                            reason.setResourceOwnerOid(slInfo.getCollapsedBuyerId().get());
-                        }
+                    if (slInfo != null && slInfo.getActingId() != null) {
+                        reason.setResourceOwnerOid(slInfo.getActingId());
                     }
                 }
                 for (InfiniteQuoteExplanation.CommodityBundle bundle : explanation.commBundle) {

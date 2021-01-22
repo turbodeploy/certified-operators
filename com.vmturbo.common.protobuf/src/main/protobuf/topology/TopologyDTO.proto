@@ -739,7 +739,8 @@ message TopologyEntityDTO {
 
         // id of the volume which is associated with this set of bought commodities, it is used to
         // support volumes in the cloud
-        optional int64 volume_id = 5;
+        // volumes are either provider for vm (cloud) or connected from vm (on-prem)
+        optional int64 volume_id = 5 [deprecated = true];
     }
 
     // entity state

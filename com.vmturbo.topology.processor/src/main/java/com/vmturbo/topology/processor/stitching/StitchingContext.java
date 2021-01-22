@@ -342,11 +342,6 @@ public class StitchingContext {
                     // set up connected relationship: consumer --> new entity --> provider
                     consumer.addConnectedTo(entity.getConnectionType(), newEntity);
                     newEntity.addConnectedTo(entity.getConnectionType(), provider);
-                    // if it is volume, we also need to set volume id on the related CommodityBought of consumer
-                    if (dto.getEntityType() == EntityType.VIRTUAL_VOLUME) {
-                        consumer.getCommodityBoughtListByProvider().get(provider).forEach(
-                            commoditiesBought -> commoditiesBought.setVolumeId(oid));
-                    }
                     // add new entity to stitching graph
                     final Map<Long, List<TopologyStitchingEntity>> existingEntitiesOfTypeByTarget =
                         entitiesByEntityTypeAndTarget.computeIfAbsent(dto.getEntityType(), eType -> new HashMap<>());

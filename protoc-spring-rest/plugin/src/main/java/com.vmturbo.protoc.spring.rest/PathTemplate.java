@@ -70,8 +70,7 @@ public class PathTemplate {
                     if (segment.getFieldPath().isPresent()) {
                         return "{" + segment.getFieldPath().get() + "}";
                     } else {
-                        return segment.getLiteral().orElseThrow(() ->
-                                new IllegalStateException("Should have field path or literal."));
+                        return segment.getLiteral().orElse("");
                     }
                 })
                 .collect(Collectors.joining("/"));
