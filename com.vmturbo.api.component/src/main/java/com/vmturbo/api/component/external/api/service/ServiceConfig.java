@@ -468,7 +468,10 @@ public class ServiceConfig {
         return new ReservationsService(
                 communicationConfig.reservationServiceBlockingStub(),
                 mapperConfig.reservationMapper(),
-                maximumPlacementCount);
+                maximumPlacementCount,
+                statsService(),
+                communicationConfig.groupRpcService(),
+                mapperConfig.uuidMapper());
     }
 
     @Bean
