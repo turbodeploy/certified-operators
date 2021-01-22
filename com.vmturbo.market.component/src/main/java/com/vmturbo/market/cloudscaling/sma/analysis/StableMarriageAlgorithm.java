@@ -49,6 +49,14 @@ public class StableMarriageAlgorithm {
         List<SMAOutputContext> outputContexts = new ArrayList<>();
         for (SMAInputContext inputContext : input.getContexts()) {
             SMAOutputContext outputContext = StableMarriagePerContext.execute(inputContext);
+            /*
+            vm1 was in ri1 and template1. vm1 got discounted by ri2.
+            post processing took the ri2 from vm1.we scale vm1 back to template1.
+            This is a RI optimisation action.
+            We will have to run postprocessing twice. On the 2nd round vm1 will
+            be identified as a VM that lost coupons while staying in same template.
+            */
+            postProcessing(outputContext);
             postProcessing(outputContext);
             outputContexts.add(outputContext);
             for (SMAMatch match : outputContext.getMatches()) {

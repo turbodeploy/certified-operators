@@ -176,17 +176,28 @@ public class SMAVirtualMachine {
                 minCost = onDemandTotalCost;
                 minCostProvider = Optional.of(template);
             } else {
-                // Template cost is equal, then switch if the new template is the natural
+                // Template cost is equal, then switch if the new template is the current
                 // template.
                 if ((Math.abs(onDemandTotalCost - minCost) < SMAUtils.EPSILON) &&
                         getCurrentTemplate().getOid() == template.getOid()) {
                         minCostProvider = Optional.of(template);
                 }
             }
-            if (onDemandTotalCost - minCostPerFamily.get(template.getFamily()) < SMAUtils.EPSILON) {
+            if (onDemandTotalCost - minCostPerFamily.get(template.getFamily())
+                    < (-1.0 * SMAUtils.EPSILON)) {
                 minCostPerFamily.put(template.getFamily(),
                     template.getOnDemandTotalCost(getCostContext()));
                 minCostProviderPerFamily.put(template.getFamily(), template);
+            } else {
+                // Template cost is equal, then switch if the new template is the current
+                // template.
+                if ((Math.abs(onDemandTotalCost - minCostPerFamily.get(template.getFamily()))
+                        < SMAUtils.EPSILON) &&
+                        getCurrentTemplate().getOid() == template.getOid()) {
+                    minCostPerFamily.put(template.getFamily(),
+                            template.getOnDemandTotalCost(getCostContext()));
+                    minCostProviderPerFamily.put(template.getFamily(), template);
+                }
             }
 
         }
