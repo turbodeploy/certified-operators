@@ -410,8 +410,8 @@ message ChangeProvider {
     // New provider.
     optional ActionEntity destination = 2;
 
-    // Resource moving. For ex. volume of a VirtualMachine
-    optional ActionEntity resource = 3;
+    // Related resources participating in the move. For ex. volumes of a VirtualMachine
+    repeated ActionEntity resource = 3;
 }
 
 message ActionEntity {

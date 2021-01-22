@@ -312,19 +312,17 @@ public class HistoricalEditor {
             }
 
     /**
-     * Returns the provider or volume id.
+     * Returns the provider.
      *
      * @param commBoughtProvider the given commodities bought bundle
-     * @return oid of the provider or volume
+     * @return oid of the provider
      */
     private long resolveSourceId(final @Nonnull CommoditiesBoughtFromProvider.Builder commBoughtProvider) {
         long sourceId = -1;
-        if (commBoughtProvider.hasVolumeId()) {
-            sourceId = commBoughtProvider.getVolumeId();
-        } else if (commBoughtProvider.hasProviderId()) {
+        if (commBoughtProvider.hasProviderId()) {
             sourceId = commBoughtProvider.getProviderId();
         } else {
-            logger.error("No volumeId or providerId exists for a bought commodity");
+            logger.error("No providerId exists for a bought commodity");
         }
         return sourceId;
     }

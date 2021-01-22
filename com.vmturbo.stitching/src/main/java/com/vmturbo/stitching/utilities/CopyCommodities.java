@@ -158,7 +158,7 @@ public class CopyCommodities {
                                 commodityBought.getBoughtList(),
                                 cb.map(CommoditiesBought::getBoughtList).orElse(null),
                                 commodityMetaData, commBoughtMetaData != null);
-                        return new CommoditiesBought(commoditiesBought, commodityBought.getVolumeId());
+                        return new CommoditiesBought(commoditiesBought);
                     }).collect(Collectors.toList());
             destinationBought.put(provider, cbList);
         });

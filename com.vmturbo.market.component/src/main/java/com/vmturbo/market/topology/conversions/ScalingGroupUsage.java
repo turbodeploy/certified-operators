@@ -8,10 +8,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.commons.Pair;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.OnDemandMarketTier;
 import com.vmturbo.market.topology.RiDiscountedMarketTier;
+import com.vmturbo.platform.sdk.common.util.Pair;
 
 /**
  * Contains top usage information on a per ScalingGroup basis.
@@ -40,7 +40,7 @@ public class ScalingGroupUsage {
     public void setProviderId(final Long oid, final Pair<Long, Class> providerId) {
         if (logger.isTraceEnabled()) {
             logger.trace("Adding provider OID {}/{} to scaling group {} provider map for OID {}",
-                providerId.first, providerId.second, name_, oid);
+                providerId.getFirst(), providerId.getSecond().getSimpleName(), name_, oid);
         }
         this.providerIdMap_.put(oid, providerId);
     }
@@ -57,7 +57,7 @@ public class ScalingGroupUsage {
         if (logger.isTraceEnabled()) {
             logger.trace("getProviderId in scaling group {} returned {}",
                 name_, result != null
-                    ? String.format("%s/%s", result.first, result.second)
+                    ? String.format("%s/%s", result.getFirst(), result.getSecond().getSimpleName())
                     : "NOT IN CACHE");
         }
         return result;

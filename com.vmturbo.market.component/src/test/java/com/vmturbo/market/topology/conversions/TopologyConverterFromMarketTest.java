@@ -84,7 +84,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Physica
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.common.protobuf.utils.StringConstants;
-import com.vmturbo.commons.Pair;
 import com.vmturbo.commons.analysis.NumericIDAllocator;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
@@ -124,6 +123,7 @@ import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
+import com.vmturbo.platform.sdk.common.util.Pair;
 
 /**
  * Unit tests for {@link TopologyConverter}.
@@ -297,8 +297,10 @@ public class TopologyConverterFromMarketTest {
                         .build());
 
         Map<Long, ShoppingListInfo> shoppingListMap = new HashMap<>();
-        shoppingListMap.put(VM_OID, new ShoppingListInfo(DSPM_TYPE_ID, DS_OID, PM_OID, null, null,
-                EntityType.PHYSICAL_MACHINE_VALUE, topologyDSPMBought));
+        shoppingListMap.put(VM_OID,
+                        new ShoppingListInfo(DSPM_TYPE_ID, DS_OID, PM_OID, Collections.emptySet(),
+                                        null, EntityType.PHYSICAL_MACHINE_VALUE,
+                                        topologyDSPMBought));
         Field shoppingListInfos =
                 TopologyConverter.class.getDeclaredField("shoppingListOidToInfos");
         shoppingListInfos.setAccessible(true);
@@ -402,8 +404,8 @@ public class TopologyConverterFromMarketTest {
                 CommodityBoughtDTO.newBuilder().setCommodityType(cpuCommType).build());
 
         Map<Long, ShoppingListInfo> shoppingListMap = new HashMap<>();
-        shoppingListMap.put(VM_OID, new ShoppingListInfo(2, DS_OID, PM_OID, null, null,
-                EntityType.PHYSICAL_MACHINE_VALUE, topologyDSPMBought));
+        shoppingListMap.put(VM_OID, new ShoppingListInfo(2, DS_OID, PM_OID, Collections.emptySet(),
+                        null, EntityType.PHYSICAL_MACHINE_VALUE, topologyDSPMBought));
         Field shoppingListInfos =
                 TopologyConverter.class.getDeclaredField("shoppingListOidToInfos");
         shoppingListInfos.setAccessible(true);
@@ -672,11 +674,8 @@ public class TopologyConverterFromMarketTest {
                 .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE).setOid(volumeOid)
                 .setDisplayName("volume1").setEnvironmentType(EnvironmentType.CLOUD)
                 .build();
-        TopologyDTO.TopologyEntityDTO vm = TopologyDTO.TopologyEntityDTO.newBuilder()
-                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE).setOid(vmOid)
-                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider
+        CommoditiesBoughtFromProvider commBought = CommoditiesBoughtFromProvider
                         .newBuilder().setProviderId(storageTierOid)
-                        .setVolumeId(volumeOid)
                         .setProviderEntityType(EntityType.STORAGE_TIER_VALUE)
                         .addCommodityBought(CommodityBoughtDTO.newBuilder()
                                 .setCommodityType(CommodityType.newBuilder()
@@ -685,12 +684,7 @@ public class TopologyConverterFromMarketTest {
                         .addCommodityBought(CommodityBoughtDTO.newBuilder()
                                 .setCommodityType(CommodityType.newBuilder()
                                         .setType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE))
-                                .setUsed(40)))
-                .addConnectedEntityList(
-                        ConnectedEntity.newBuilder().setConnectedEntityId(azOid)
-                                .setConnectedEntityType(az.getEntityType())
-                                .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION))
-                .build();
+                                .setUsed(40)).build();
         // Use reflection and these entities to the entityOidToDto map
         Field entityOidToDto = TopologyConverter.class.getDeclaredField("entityOidToDto");
         Map<Long, TopologyEntityDTO> map =
@@ -699,8 +693,9 @@ public class TopologyConverterFromMarketTest {
         entityOidToDto.set(converter, map);
 
         // Act
-        Map<Long, ShoppingListTO> volumeIdToShoppingListToMap = new HashMap<>();
-        volumeIdToShoppingListToMap.put(volumeOid, ShoppingListTO.newBuilder()
+        Map<CommoditiesBoughtFromProvider, Pair<ShoppingListTO, Set<Long>>> commBought2shoppingListAndResourceId =
+                        new HashMap<>();
+        commBought2shoppingListAndResourceId.put(commBought, Pair.create(ShoppingListTO.newBuilder()
                 .setOid(222)
                 .addCommoditiesBought(CommodityBoughtTO.newBuilder()
                         .setSpecification(CommoditySpecificationTO.newBuilder()
@@ -712,9 +707,15 @@ public class TopologyConverterFromMarketTest {
                                 .setType(2)
                                 .setBaseType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE))
                         .setAssignedCapacityForBuyer(20))
-                .build());
-        Set<TopologyEntityDTO> resources = converter.createResources(vm, volumeIdToShoppingListToMap);
-
+                .build(), Collections.singleton(volumeOid)));
+        TopologyDTO.TopologyEntityDTO.Builder vm = TopologyDTO.TopologyEntityDTO.newBuilder()
+                        .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE).setOid(vmOid)
+                        .addCommoditiesBoughtFromProviders(commBought)
+                        .addConnectedEntityList(
+                                        ConnectedEntity.newBuilder().setConnectedEntityId(azOid)
+                                                        .setConnectedEntityType(az.getEntityType())
+                                                        .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION));
+        Set<TopologyEntityDTO> resources = converter.createResources(vm, commBought2shoppingListAndResourceId);
         // Assert that the projected volume is connected to the storage and AZ which the VM is
         // connected to
         assertEquals(1, resources.size());
@@ -1906,7 +1907,7 @@ public class TopologyConverterFromMarketTest {
 
         doReturn(Optional.of(originalCommodityBought)).when(mockIndex).getCommBought(
             Mockito.eq(businessUserId), Mockito.eq(supplierId),
-            Mockito.eq(poolCpuCommType), Mockito.eq(0L));
+            Mockito.eq(poolCpuCommType));
 
         final TopologyDTO.TopologyEntityDTO originalEntityDTO = TopologyDTO.TopologyEntityDTO.newBuilder()
             .setOid(businessUserId)
@@ -2344,7 +2345,7 @@ public class TopologyConverterFromMarketTest {
 
         Mockito.doReturn(Optional.of(boughtDTO)).when(mockINdex)
                 .getCommBought(Mockito.anyLong(), Mockito.anyLong(),
-                        Mockito.anyObject(), Mockito.anyLong());
+                        Mockito.anyObject());
 
         TopologyDTO.TopologyEntityDTO originalEntityDTO = TopologyDTO.TopologyEntityDTO.newBuilder()
                 .setOid(CLOUD_VM_OID)
@@ -2595,7 +2596,7 @@ public class TopologyConverterFromMarketTest {
         // 4. For cloud -> cloud case, we don't have resourceId, instead the collapsedBuyerId is
         // the volumeId, so make sure we are picking that up.
         slInfo = new ShoppingListInfo(slOid, vmBuyerId, storageTierId,
-                null, volumeId, EntityType.STORAGE_TIER_VALUE, commBoughtList);
+                        Collections.emptySet(), volumeId, EntityType.STORAGE_TIER_VALUE, commBoughtList);
         shoppingListMap.put(slOid, slInfo);
         verifyOverrideExplanation(moveTO, projectedTopology,
                 ChangeProviderExplanationTypeCase.CONGESTION);
@@ -2614,11 +2615,11 @@ public class TopologyConverterFromMarketTest {
         final Pair<Boolean, ChangeProviderExplanation> overrideAndExplanation
                 = converter.getExplanationOverride().apply(moveTO, projectedTopology);
         assertNotNull(overrideAndExplanation);
-        assertTrue(overrideAndExplanation.first);
+        assertTrue(overrideAndExplanation.getFirst());
         if (expectedExplanationType == null) {
-            assertNull(overrideAndExplanation.second);
+            assertNull(overrideAndExplanation.getSecond());
         } else {
-            assertEquals(overrideAndExplanation.second.getChangeProviderExplanationTypeCase(),
+            assertEquals(overrideAndExplanation.getSecond().getChangeProviderExplanationTypeCase(),
                     expectedExplanationType);
         }
     }

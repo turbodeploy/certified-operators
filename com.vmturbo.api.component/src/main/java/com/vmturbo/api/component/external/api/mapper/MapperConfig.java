@@ -33,6 +33,7 @@ import com.vmturbo.api.component.external.api.mapper.aspect.StorageControllerAsp
 import com.vmturbo.api.component.external.api.mapper.aspect.StorageTierAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.VirtualMachineAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.VirtualVolumeAspectMapper;
+import com.vmturbo.api.component.external.api.mapper.aspect.VirtualVolumeEntityAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.WorkloadControllerAspectMapper;
 import com.vmturbo.api.component.external.api.service.ServiceConfig;
 import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
@@ -328,6 +329,17 @@ public class MapperConfig {
             getVolumeAttachmentHistoryRpcFutureTimeoutSeconds);
     }
 
+    /**
+     * Creates {@link VirtualVolumeEntityAspectMapper} to create aspects for Virtual Volume
+     * instances.
+     *
+     * @return {@link VirtualVolumeEntityAspectMapper} instance.
+     */
+    @Bean
+    public VirtualVolumeEntityAspectMapper virtualVolumeEntityAspectMapper() {
+        return new VirtualVolumeEntityAspectMapper();
+    }
+
     @Bean
     public CloudAspectMapper cloudAspectMapper() {
         return new CloudAspectMapper(communicationConfig.repositoryApi(), communicationConfig
@@ -450,7 +462,8 @@ public class MapperConfig {
                 storageAspectMapper(), diskArrayAspectMapper(), logicalPoolAspectMapper(),
                 storageControllerAspectMapper(), portsAspectMapper(), databaseAspectMapper(),
                 regionAspectMapper(), workloadControllerAspectMapper(), computeTierAspectMapper(),
-                databaseServerTierAspectMapper(), databaseTierAspectMapper(), businessUserAspectMapper(),
+                databaseServerTierAspectMapper(), databaseTierAspectMapper(),
+                businessUserAspectMapper(), virtualVolumeEntityAspectMapper(),
                 cloudCommitmentAspectMapper());
     }
 

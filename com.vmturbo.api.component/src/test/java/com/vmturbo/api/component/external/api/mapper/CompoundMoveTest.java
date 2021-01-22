@@ -376,7 +376,7 @@ public class CompoundMoveTest {
                         .setSource(ApiUtilsTest.createActionEntity(source, sourceType))
                         .setDestination(ApiUtilsTest.createActionEntity(destination, destType));
         if (resource != null) {
-            changeProviderBuilder.setResource(ApiUtilsTest.createActionEntity(resource));
+            changeProviderBuilder.addResource(ApiUtilsTest.createActionEntity(resource));
         }
         return changeProviderBuilder.build();
     }

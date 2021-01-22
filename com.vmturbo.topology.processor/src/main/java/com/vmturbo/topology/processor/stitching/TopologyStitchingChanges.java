@@ -343,8 +343,7 @@ public class TopologyStitchingChanges {
                     // remove old commodities bought set
                     commoditiesBoughtList.remove(ontoCommoditiesBought);
                     // add new merged commodities bought set
-                    commoditiesBoughtList.add(new CommoditiesBought(mergedBoughtCommodities,
-                        ontoCommoditiesBought.getVolumeId()));
+                    commoditiesBoughtList.add(new CommoditiesBought(mergedBoughtCommodities));
                 } else {
                     List<CommodityDTO.Builder> newBoughtList = CopyCommodities.matchBoughtToSold(
                             fromCommoditiesBought.getBoughtList(),
@@ -354,10 +353,6 @@ public class TopologyStitchingChanges {
                     fromCommoditiesBought.getMovable().ifPresent(newCommoditiesBought::setMovable);
                     fromCommoditiesBought.getStartable().ifPresent(newCommoditiesBought::setStartable);
                     fromCommoditiesBought.getScalable().ifPresent(newCommoditiesBought::setScalable);
-                    Long volumeId = fromCommoditiesBought.getVolumeId();
-                    if (volumeId != null) {
-                        newCommoditiesBought.setVolumeId(volumeId);
-                    }
                     commoditiesBoughtList.add(newCommoditiesBought);
                 }
             });
