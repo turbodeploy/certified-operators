@@ -15,18 +15,16 @@ import javax.annotation.concurrent.ThreadSafe;
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.spi.ExtendedLogger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.commons.utils.DuplicateSuppressingLogger;
 import com.vmturbo.platform.common.builders.SDKConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
-import com.vmturbo.commons.utils.ClutterResistantLogger;
 
 /**
  * Validates {@link TopologyEntity}s during topology pipeline.
@@ -34,8 +32,8 @@ import com.vmturbo.commons.utils.ClutterResistantLogger;
  */
 @ThreadSafe
 public class EntityValidator {
-    private static final ClutterResistantLogger logger =
-        new ClutterResistantLogger((ExtendedLogger) LogManager.getLogger());
+    private static final DuplicateSuppressingLogger logger =
+        new DuplicateSuppressingLogger(DuplicateSuppressingLogger.getLogger());
     private final boolean oldValuesCacheEnabled;
     /**
      * All non-access commodity capacities seen during the last live pipeline processing.
