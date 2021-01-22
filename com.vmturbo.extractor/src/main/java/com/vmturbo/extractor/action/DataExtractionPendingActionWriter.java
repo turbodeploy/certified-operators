@@ -197,9 +197,9 @@ class DataExtractionPendingActionWriter implements IActionWriter {
             moveChange.setFrom(getActionEntityWithoutType(change.getSource()));
             moveChange.setTo(getActionEntityWithoutType(change.getDestination()));
             // resource (like volume of a VM)
-            if (change.hasResource()) {
-                moveChange.setResource(Collections.singletonList(
-                        getActionEntityWithType(change.getResource())));
+            if (change.getResourceCount() > 0) {
+                moveChange.setResource(change.getResourceList().stream()
+                                .map(this::getActionEntityWithType).collect(Collectors.toList()));
             }
 
             String entityTypeJsonKey = ExportUtils.getEntityTypeJsonKey(change.getSource().getType());

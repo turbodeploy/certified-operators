@@ -416,7 +416,6 @@
                 <module>../com.vmturbo.mediation.baremetal.component</module>
                 <module>../com.vmturbo.mediation.client</module>
                 <module>../com.vmturbo.mediation.client.bootstrap</module>
-                <module>../com.vmturbo.mediation.conversion</module>
                 <module>../com.vmturbo.mediation.cloudfoundry.component</module>
                 <module>../com.vmturbo.mediation.compellent.component</module>
                 <module>../com.vmturbo.mediation.database.mssql.component</module>
@@ -439,7 +438,6 @@
                 <module>../com.vmturbo.mediation.horizon.component</module>
                 <module>../com.vmturbo.mediation.hpe3par.component</module>
                 <module>../com.vmturbo.mediation.hyperflex.component</module>
-                <module>../com.vmturbo.mediation.hyperv.conversion</module>
                 <module>../com.vmturbo.mediation.hyperv.component</module>
                 <module>../com.vmturbo.mediation.actionstream.kafka</module>
                 <module>../com.vmturbo.mediation.actionstream.kafka.component</module>
@@ -465,9 +463,7 @@
                 <module>../com.vmturbo.mediation.ucsdirector.component</module>
                 <module>../com.vmturbo.mediation.vcd.component</module>
                 <module>../com.vmturbo.mediation.vcenter.browsing.component</module>
-                <module>../com.vmturbo.mediation.vcenter.browsing.conversion</module>
                 <module>../com.vmturbo.mediation.vmax.component</module>
-                <module>../com.vmturbo.mediation.vmm.conversion</module>
                 <module>../com.vmturbo.mediation.vmm.component</module>
                 <module>../com.vmturbo.mediation.vplex.component</module>
                 <module>../com.vmturbo.mediation.xtremio.component</module>
@@ -568,9 +564,7 @@
         <profile>
             <id>mediation-vcenter</id>
             <modules>
-                <module>../com.vmturbo.mediation.conversion</module>
                 <module>../com.vmturbo.mediation.vcenter.component</module>
-                <module>../com.vmturbo.mediation.vcenter.conversion</module>
             </modules>
         </profile>
 
@@ -584,8 +578,6 @@
         <profile>
             <id>mediation-hyperv</id>
             <modules>
-                <module>../com.vmturbo.mediation.conversion</module>
-                <module>../com.vmturbo.mediation.hyperv.conversion</module>
                 <module>../com.vmturbo.mediation.hyperv.component</module>
             </modules>
         </profile>
@@ -621,8 +613,6 @@
         <profile>
             <id>mediation-vmm</id>
             <modules>
-                <module>../com.vmturbo.mediation.conversion</module>
-                <module>../com.vmturbo.mediation.vmm.conversion</module>
                 <module>../com.vmturbo.mediation.vmm.component</module>
             </modules>
         </profile>
@@ -724,8 +714,6 @@
         <profile>
             <id>mediation-vcenter-browsing</id>
             <modules>
-                <module>../com.vmturbo.mediation.conversion</module>
-                <module>../com.vmturbo.mediation.vcenter.browsing.conversion</module>
                 <module>../com.vmturbo.mediation.vcenter.browsing.component</module>
             </modules>
         </profile>
@@ -1038,9 +1026,6 @@
                 <module>../com.vmturbo.mediation.client</module>
                 <module>../com.vmturbo.mediation.client.bootstrap</module>
                 <module>../com.vmturbo.mediation.actionscript</module>
-                <module>../com.vmturbo.mediation.conversion</module>
-                <module>../com.vmturbo.mediation.vcenter.conversion</module>
-                <module>../com.vmturbo.mediation.vcenter.browsing.conversion</module>
                 <module>../com.vmturbo.mediation.horizon.component</module>
                 <module>../com.vmturbo.mediation.udt</module>
                 <module>../com.vmturbo.mediation.udt.component</module>
@@ -1243,7 +1228,6 @@
 
                 <module>../com.vmturbo.mediation.delegatingprobe</module>
                 <module>../com.vmturbo.mediation.actionscript</module>
-                <module>../com.vmturbo.mediation.conversion</module>
                 <module>../com.vmturbo.mediation.actionstream.kafka</module>
 
                 <!-- Mediation container with all the probes inside. -->
@@ -1288,7 +1272,6 @@
                 <module>../com.vmturbo.mediation.hpe3par.component</module>
                 <module>../com.vmturbo.mediation.hyperflex.component</module>
                 <module>../com.vmturbo.mediation.hyperv.component</module>
-                <module>../com.vmturbo.mediation.hyperv.conversion</module>
                 <module>../com.vmturbo.mediation.intersight.hyperflex.component</module>
                 <module>../com.vmturbo.mediation.intersight.server.component</module>
                 <module>../com.vmturbo.mediation.intersight.ucs.component</module>
@@ -1313,12 +1296,9 @@
                 <module>../com.vmturbo.mediation.ucsdirector.component</module>
                 <module>../com.vmturbo.mediation.vcd.component</module>
                 <module>../com.vmturbo.mediation.vcenter.browsing.component</module>
-                <module>../com.vmturbo.mediation.vcenter.browsing.conversion</module>
                 <module>../com.vmturbo.mediation.vcenter.component</module>
-                <module>../com.vmturbo.mediation.vcenter.conversion</module>
                 <module>../com.vmturbo.mediation.vmax.component</module>
                 <module>../com.vmturbo.mediation.vmm.component</module>
-                <module>../com.vmturbo.mediation.vmm.conversion</module>
                 <module>../com.vmturbo.mediation.vplex.component</module>
                 <module>../com.vmturbo.mediation.xtremio.component</module>
 

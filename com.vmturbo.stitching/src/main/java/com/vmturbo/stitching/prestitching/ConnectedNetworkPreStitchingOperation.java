@@ -1,7 +1,14 @@
 package com.vmturbo.stitching.prestitching;
 
-import java.util.List;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.EnumMap;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.BiConsumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -11,10 +18,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
+import com.google.common.collect.ImmutableSet;
 
-import jersey.repackaged.com.google.common.collect.Maps;
-
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.PreStitchingOperation;
@@ -32,6 +38,8 @@ import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
  * into VM {@link EntityDTO.VirtualMachineData.connectedNetwork} in response DTO.
  */
 public class ConnectedNetworkPreStitchingOperation implements PreStitchingOperation {
+    private static final Collection<EntityType> AFFECTED_ENTITY_TYPES =
+                    ImmutableSet.of(EntityType.VIRTUAL_MACHINE, EntityType.NETWORK);
 
     private final Logger logger = LogManager.getLogger();
 
@@ -48,52 +56,81 @@ public class ConnectedNetworkPreStitchingOperation implements PreStitchingOperat
     public TopologicalChangelog<StitchingEntity> performOperation(
         @Nonnull Stream<StitchingEntity> entities,
         @Nonnull StitchingChangesBuilder<StitchingEntity> resultBuilder) {
-        // list for storing all virtual machines
-        List<StitchingEntity> vms = Lists.newArrayList();
-        // map for storing the <UUID, network display name> pairs
-        Map<String, String> uuidToNetworks = Maps.newHashMap();
+        // map for storing the <EntityType, UUID, stitching entity> triplets
+        final Map<EntityType, Map<String, StitchingEntity>> entityTypeToUuidToEntity =
+                        new EnumMap<>(EntityType.class);
 
         entities.forEach(stitchingEntity -> {
-            EntityType entityType = stitchingEntity.getEntityType();
-            EntityDTO.Builder builder = stitchingEntity.getEntityBuilder();
-            if (entityType == EntityType.VIRTUAL_MACHINE) {
-                vms.add(stitchingEntity);
-            } else if (entityType == EntityType.NETWORK) {
-                uuidToNetworks.put(builder.getId(), builder.getDisplayName());
+            final EntityType entityType = stitchingEntity.getEntityType();
+            if (AFFECTED_ENTITY_TYPES.contains(entityType)) {
+                final Map<String, StitchingEntity> uuidToEntity = entityTypeToUuidToEntity
+                                .computeIfAbsent(entityType, k -> new HashMap<>());
+                uuidToEntity.put(stitchingEntity.getEntityBuilder().getId(), stitchingEntity);
             }
         });
 
-        // go through each VM and update the connected network display name
-        for (StitchingEntity vm : vms) {
-            EntityDTO.Builder vmBuilder = vm.getEntityBuilder();
-            // get all of the connected network display names of the VM
-            List<String> connectedNetworks = vmBuilder.getLayeredOverList().stream()
-                .filter(uuidToNetworks::containsKey)
-                .map(uuidToNetworks::get)
-                .collect(Collectors.toList());
-
-            if (!connectedNetworks.isEmpty()) {
-                resultBuilder.queueUpdateEntityAlone(vm, toBeUpdated ->
-                    addConnectedNetworks(toBeUpdated, connectedNetworks));
+        final Map<String, StitchingEntity> uuidToVm = entityTypeToUuidToEntity
+                        .getOrDefault(EntityType.VIRTUAL_MACHINE, Collections.emptyMap());
+        final Map<String, StitchingEntity> uuidToNetwork = entityTypeToUuidToEntity
+                        .getOrDefault(EntityType.NETWORK, Collections.emptyMap());
+        /*
+         go through each VM and update the connected network display name
+         collect all non-network layered over uuids to retain them
+         */
+        for (StitchingEntity vm : uuidToVm.values()) {
+            final EntityDTO.Builder vmBuilder = vm.getEntityBuilder();
+             /*
+              get all of the connected network display names of the VM and non-network
+              layered over UUIDs to retain them after clearing layered over UUIDs.
+              */
+            final Map<String, String> connectedNetworkDisplayNames = new HashMap<>();
+            final Collection<String> remainingUuids = new HashSet<>();
+            vmBuilder.getLayeredOverList().forEach(layeredOverUuid -> {
+                final StitchingEntity network = uuidToNetwork.get(layeredOverUuid);
+                if (network != null) {
+                    connectedNetworkDisplayNames.put(layeredOverUuid, network.getDisplayName());
+                } else {
+                    remainingUuids.add(layeredOverUuid);
+                }
+            });
+            if (!connectedNetworkDisplayNames.isEmpty()) {
+                resultBuilder.queueUpdateEntityAlone(vm, toBeUpdated -> {
+                    final EntityDTO.Builder updatingBuilder = toBeUpdated.getEntityBuilder();
+                    connectedNetworkDisplayNames.values()
+                                    .forEach(connectedNetwork -> updatingBuilder
+                                                    .getVirtualMachineDataBuilder()
+                                                    .addConnectedNetwork(connectedNetwork));
+                    clearAggregatedByConnection(toBeUpdated, StitchingEntity::getConnectedToByType,
+                                    uuidToNetwork.keySet(),
+                                    (updating, toRemove) -> updating.removeConnectedTo(toRemove,
+                                                    ConnectionType.AGGREGATED_BY_CONNECTION));
+                    updatingBuilder.clearLayeredOver();
+                    updatingBuilder.addAllLayeredOver(remainingUuids);
+                });
             }
-
-            logger.debug("VM {} add connected network(s) {}.", vm.getDisplayName(),
-                    connectedNetworks);
+            logger.debug("VM {} add connected network(s) {} and removed them from layered over relationships",
+                            vm::getDisplayName, () -> connectedNetworkDisplayNames);
         }
-
+        uuidToNetwork.values().forEach(network -> resultBuilder.queueUpdateEntityAlone(network,
+                        toBeUpdated -> clearAggregatedByConnection(toBeUpdated,
+                                        StitchingEntity::getConnectedFromByType, uuidToVm.keySet(),
+                                        (updating, toRemove) -> updating
+                                                        .removeConnectedFrom(toRemove,
+                                                                        ConnectionType.AGGREGATED_BY_CONNECTION))));
         return resultBuilder.build();
     }
 
-    /**
-     * Add connected networks for vm by adding all of the network display names to the VM
-     * {@link EntityDTO.VirtualMachineData.connectedNetwork}
-     *
-     * @param vm the VM whose connected networks are to be added
-     * @param connectedNetworks list of all of connected network display names
-     */
-    private void addConnectedNetworks(@Nonnull StitchingEntity vm,
-        @Nonnull List<String> connectedNetworks) {
-        connectedNetworks.stream().forEach(connectedNetwork -> vm.getEntityBuilder()
-            .getVirtualMachineDataBuilder().addConnectedNetwork(connectedNetwork));
+    private static void clearAggregatedByConnection(
+                    StitchingEntity toBeUpdated,
+                    Function<StitchingEntity, Map<ConnectionType, Set<StitchingEntity>>> connectedGetter,
+                    Collection<String> uuids,
+                    BiConsumer<StitchingEntity, StitchingEntity> removalFunction) {
+        final Set<StitchingEntity> toRemove = connectedGetter.apply(toBeUpdated)
+                        .getOrDefault(ConnectionType.AGGREGATED_BY_CONNECTION,
+                                        Collections.emptySet()).stream()
+                        .filter(se -> uuids.contains(se.getEntityBuilder().getId()))
+                        .collect(Collectors.toSet());
+        toRemove.forEach(removing -> removalFunction.accept(toBeUpdated, removing));
     }
+
 }

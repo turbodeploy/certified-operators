@@ -319,7 +319,8 @@
         {"inputType": "s", "elements": "discoveredBy:cloudProvider", "filterCategory": "property", "filterType": "volumeByCloudProvider", "loadOptions": true},
         {"inputType": "*", "elements": "vendorId", "filterCategory": "property", "filterType": "volumeById"},
         {"inputType": "s|*", "elements": "MemberOf:ResourceGroup:displayName", "filterCategory": "entity", "filterType": "volumeByResourceGroupName", "loadOptions": true},
-        {"inputType": "s", "elements": "deletable", "filterCategory": "property", "filterType": "volumeByDeletable"}
+        {"inputType": "s", "elements": "deletable", "filterCategory": "property", "filterType": "volumeByDeletable"},
+        {"inputType": "s", "elements": "Storage:displayName:CONNECTED_FROM:1", "filterCategory": "entity", "filterType": "volumeByStorage"}
       ]
     },
 

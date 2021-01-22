@@ -40,7 +40,7 @@ public class StitchingResultBuilder extends StitchingChangesBuilder<StitchingEnt
     }
 
     @Override
-    public TopologicalChangelog build() {
+    public TopologicalChangelog<StitchingEntity> build() {
         return buildInternal();
     }
 

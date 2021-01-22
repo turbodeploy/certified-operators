@@ -55,6 +55,7 @@ public class EntityAspectMapper {
                               @Nonnull final DatabaseServerTierAspectMapper databaseServerTierAspectMapper,
                               @Nonnull final DatabaseTierAspectMapper databaseTierAspectMapper,
                               @Nonnull final BusinessUserAspectMapper businessUserAspectMapper,
+                              @Nonnull final VirtualVolumeEntityAspectMapper virtualVolumeEntityAspecMapper,
                               @Nonnull final CloudCommitmentAspectMapper cloudCommitmentAspectMapper) {
 
         aspectMappers = new ImmutableMap.Builder<Integer, List<IAspectMapper>>()
@@ -97,7 +98,8 @@ public class EntityAspectMapper {
                 masterImageEntityAspectMapper))
             .put(EntityType.VIRTUAL_VOLUME_VALUE, ImmutableList.of(
                 virtualVolumeAspectMapper,
-                cloudAspectMapper))
+                cloudAspectMapper,
+                virtualVolumeEntityAspecMapper))
             .put(EntityType.REGION_VALUE, ImmutableList.of(
                 regionAspectMapper))
             .put(EntityType.WORKLOAD_CONTROLLER_VALUE,
