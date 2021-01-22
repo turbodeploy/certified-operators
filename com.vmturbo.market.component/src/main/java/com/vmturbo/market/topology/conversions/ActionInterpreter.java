@@ -775,6 +775,9 @@ public class ActionInterpreter {
             if (reconfigureTO.getProvider().getAddition()) {
                 // add commodity
                 builder.setIsAddition(true);
+                if (reconfigureTO.getProvider().hasModelTrader()) {
+                    builder.setSource(createActionEntity(reconfigureTO.getProvider().getModelTrader(), projectedTopology));
+                }
             } else {
                 // remove commodity
                 builder.setIsAddition(false);

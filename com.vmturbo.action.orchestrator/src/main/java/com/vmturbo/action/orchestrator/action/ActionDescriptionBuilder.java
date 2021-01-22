@@ -103,6 +103,7 @@ public class ActionDescriptionBuilder {
         ACTION_DESCRIPTION_RESIZE("Resize {0} {1} for {2} from {3} to {4}"),
         ACTION_DESCRIPTION_RESIZE_RESERVATION("Resize {0} {1} reservation for {2} from {3} to {4}"),
         ACTION_DESCRIPTION_RECONFIGURE_REASON_COMMODITIES("Reconfigure {0} to {1} {2}"),
+        ACTION_DESCRIPTION_RECONFIGURE_ADD_REASON_COMMODITIES("Reconfigure {0} to provide {1} from {2}"),
         ACTION_DESCRIPTION_RECONFIGURE_REASON_SETTINGS("Reconfigure {0}"),
         ACTION_DESCRIPTION_RECONFIGURE_WITHOUT_SOURCE("Reconfigure {0} as it is unplaced"),
         ACTION_DESCRIPTION_MOVE_WITHOUT_SOURCE("Start {0} on {1}"),
@@ -305,6 +306,15 @@ public class ActionDescriptionBuilder {
                 return ActionMessageFormat.ACTION_DESCRIPTION_RECONFIGURE_REASON_SETTINGS.format(
                     beautifyEntityTypeAndName(targetEntityDTO.get()));
             } else {
+                if (currentEntityDTO.isPresent() && reconfigure.getIsProvider()) {
+                    return ActionMessageFormat.ACTION_DESCRIPTION_RECONFIGURE_ADD_REASON_COMMODITIES.format(
+                            beautifyEntityTypeAndName(targetEntityDTO.get()),
+                            beautifyCommodityTypes(explanation.getReconfigure()
+                                    .getReconfigureCommodityList().stream()
+                                    .map(ReasonCommodity::getCommodityType)
+                                    .collect(Collectors.toList())),
+                            beautifyEntityTypeAndName(currentEntityDTO.get()));
+                }
                 return ActionMessageFormat.ACTION_DESCRIPTION_RECONFIGURE_REASON_COMMODITIES.format(
                     beautifyEntityTypeAndName(targetEntityDTO.get()),
                     ((reconfigure.getIsProvider() && !reconfigure.getIsAddition())
