@@ -2079,6 +2079,23 @@ public class ActionModeCalculatorTest {
         // scale for efficiency with investment
         final ActionDTO.Action effScaleWithInvestment = createScaleForEfficiencyAction(-100.0);
 
+        // scale for performance with -0.0 savings/investment
+        final ActionDTO.Action negativeZeroPerfScale = createScaleForPerformanceAction(-0.0);
+        // scale for efficiency with -0.0 savings/investment
+        final ActionDTO.Action negativeZeroEffScale = createScaleForEfficiencyAction(-0.0);
+
+        final double roundingError = 1.9054859495826193e-9;
+
+        // scale for performance with negative extremely small savings/investment
+        final ActionDTO.Action negativeErrorPerfScale = createScaleForPerformanceAction(-roundingError);
+        // scale for efficiency with  negative extremely small savings/investment
+        final ActionDTO.Action negativeErrorEffScale = createScaleForEfficiencyAction(-roundingError);
+
+        // scale for performance with extremely small savings/investment
+        final ActionDTO.Action errorPerfScale = createScaleForPerformanceAction(roundingError);
+        // scale for efficiency with  extremely small savings/investment
+        final ActionDTO.Action errorEffScale = createScaleForEfficiencyAction(roundingError);
+
         final Setting recommend = Setting.newBuilder()
                 .setSettingSpecName("")
                 .setEnumSettingValue(
@@ -2136,6 +2153,14 @@ public class ActionModeCalculatorTest {
         doGetScaleSpecTest(perfWithSavingsScale, case3, perfIsOverridden, CloudComputeScaleForPerf);
         doGetScaleSpecTest(effScaleWithInvestment, case3, perfIsOverridden, CloudComputeScale);
 
+        doGetScaleSpecTest(negativeZeroPerfScale, case3, perfIsOverridden, CloudComputeScaleForPerf);
+        doGetScaleSpecTest(negativeZeroEffScale, case3, perfIsOverridden, CloudComputeScaleForSavings);
+        doGetScaleSpecTest(negativeErrorPerfScale, case3, perfIsOverridden, CloudComputeScaleForPerf);
+        doGetScaleSpecTest(negativeErrorEffScale, case3, perfIsOverridden, CloudComputeScaleForSavings);
+        doGetScaleSpecTest(errorPerfScale, case3, perfIsOverridden, CloudComputeScaleForPerf);
+        doGetScaleSpecTest(errorEffScale, case3, perfIsOverridden, CloudComputeScaleForSavings);
+
+
         // 'Scale for Savings' is set in custom policy
         final Set<String> savingsIsOverridden = getDefaultPolicySettings(
                 CloudComputeScaleForSavings);
@@ -2145,6 +2170,14 @@ public class ActionModeCalculatorTest {
         doGetScaleSpecTest(perfWithSavingsScale, case3, savingsIsOverridden,
                 CloudComputeScaleForSavings);
         doGetScaleSpecTest(effScaleWithInvestment, case3, savingsIsOverridden, CloudComputeScale);
+
+
+        doGetScaleSpecTest(negativeZeroPerfScale, case3, savingsIsOverridden, CloudComputeScaleForPerf);
+        doGetScaleSpecTest(negativeZeroEffScale, case3, savingsIsOverridden, CloudComputeScaleForSavings);
+        doGetScaleSpecTest(negativeErrorPerfScale, case3, savingsIsOverridden, CloudComputeScaleForPerf);
+        doGetScaleSpecTest(negativeErrorEffScale, case3, savingsIsOverridden, CloudComputeScaleForSavings);
+        doGetScaleSpecTest(errorPerfScale, case3, savingsIsOverridden, CloudComputeScaleForPerf);
+        doGetScaleSpecTest(errorEffScale, case3, savingsIsOverridden, CloudComputeScaleForSavings);
     }
 
     /**

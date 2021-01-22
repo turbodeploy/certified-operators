@@ -1,5 +1,7 @@
 package com.vmturbo.action.orchestrator.action;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -97,6 +99,8 @@ public class ActionModeCalculator {
                 ConfigurableActionSettings.ResizeDownConnections)
         );
 
+    //scale, the number of digits to the right of the decimal point for rounding
+    private static final int PRECISION = 7;
     private final RangeAwareSpecCalculator rangeAwareSpecCalculator;
     private final boolean enableCloudScaleEnhancement;
 
@@ -1077,7 +1081,13 @@ public class ActionModeCalculator {
         final boolean scaleAllisOverridden = !defaultSettingsForEntity.contains(
                 ConfigurableActionSettings.CloudComputeScale.getSettingName());
         final ConfigurableActionSettings actionSetting;
-        final double savings = action.getSavingsPerHour().getAmount();
+
+        //round savings, sometimes we put extremely small values in savings, because of floating
+        //point rounding error, e.g. -1.9054859495826193e-9, in UI it is displayed as 0
+        BigDecimal bd = new BigDecimal(action.getSavingsPerHour().getAmount()).setScale(PRECISION,
+                RoundingMode.HALF_EVEN);
+        final double savings = bd.doubleValue();
+
         if (hasCongestion) {
             if (Double.compare(savings, 0.0) == 1) {
                 // Performance actions with Savings use-case
