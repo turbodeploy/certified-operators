@@ -1,6 +1,7 @@
 package com.vmturbo.market.reservations;
 
 import static junit.framework.TestCase.assertTrue;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
@@ -109,8 +110,8 @@ public class InitialPlacementFinderTest {
         ShoppingListTO pmSlTO = vmTO.getShoppingLists(0);
         assertTrue(pmSlTO.getMovable() == true);
         assertTrue(pmSlTO.getOid() == pmSlOid);
-        assertTrue(pmSlTO.getCommoditiesBoughtList().get(0).getQuantity() == 100);
-        assertTrue(pmSlTO.getCommoditiesBought(0).getPeakQuantity() == 100);
+        assertEquals(pmSlTO.getCommoditiesBoughtList().get(0).getQuantity(), 100, 0.000001);
+        assertEquals(pmSlTO.getCommoditiesBought(0).getPeakQuantity(), 100, 0.000001);
         assertTrue(pmSlTO.getCommoditiesBought(0).getSpecification().getType() == MEM_TYPE);
     }
 
@@ -197,9 +198,9 @@ public class InitialPlacementFinderTest {
         List<FailureInfo> failureInfo = result.get(vmID, pmSlOid).getFailureInfoList();
         assertTrue(failureInfo.size() == 1);
         assertTrue(failureInfo.get(0).getCommodityType().getType() == MEM_TYPE);
-        assertTrue(failureInfo.get(0).getRequestedAmount() == 100);
+        assertEquals(failureInfo.get(0).getRequestedAmount(), 100, 0.000001);
         assertTrue(failureInfo.get(0).getClosestSellerOid() == pm2Oid);
-        assertTrue(failureInfo.get(0).getMaxQuantity() == 80);
+        assertEquals(failureInfo.get(0).getMaxQuantity(), 80, 0.000001);
     }
 
     /**
@@ -221,9 +222,9 @@ public class InitialPlacementFinderTest {
         List<FailureInfo> failureInfo = result.get(vmID, pmSlOid).getFailureInfoList();
         assertTrue(failureInfo.size() == 1);
         assertTrue(failureInfo.get(0).getCommodityType().getType() == MEM_TYPE);
-        assertTrue(failureInfo.get(0).getRequestedAmount() == 100);
+        assertEquals(failureInfo.get(0).getRequestedAmount(), 100, 0.000001);
         assertTrue(failureInfo.get(0).getClosestSellerOid() == pm1Oid);
-        assertTrue(failureInfo.get(0).getMaxQuantity() == 0);
+        assertEquals(failureInfo.get(0).getMaxQuantity(), 0, 0.000001);
     }
 
     /**

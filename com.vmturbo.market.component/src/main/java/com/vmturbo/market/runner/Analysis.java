@@ -14,6 +14,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -168,6 +169,8 @@ public class Analysis {
 
     private final Logger logger = LogManager.getLogger();
 
+    private final ExecutorService threadPool;
+
     // Analysis started (kept true also when it is completed).
     private AtomicBoolean started = new AtomicBoolean();
 
@@ -256,6 +259,7 @@ public class Analysis {
      * apply, and a flag determining whether guaranteed buyers (VDC, VPod, DPod) are included
      * in the market analysis or not.
      *
+     * @param threadPool the thread pool used in market component.
      * @param topologyInfo descriptive info about the topology - id, type, etc
      * @param topologyDTOs the Set of {@link TopologyEntityDTO}s that make up the topology
      * @param groupMemberRetriever used to look up group and member information
@@ -274,7 +278,8 @@ public class Analysis {
      * @param migratedWorkloadCloudCommitmentAnalysisService cloud migration analysis
      * @param commodityIdUpdater commodity id updater
      */
-    public Analysis(@Nonnull final TopologyInfo topologyInfo,
+    public Analysis(@Nonnull final ExecutorService threadPool,
+                    @Nonnull final TopologyInfo topologyInfo,
                     @Nonnull final Collection<TopologyEntityDTO> topologyDTOs,
                     @Nonnull final GroupMemberRetriever groupMemberRetriever,
                     @Nonnull final Clock clock,
@@ -291,6 +296,7 @@ public class Analysis {
                     @Nonnull final ReversibilitySettingFetcherFactory reversibilitySettingFetcherFactory,
                     @NonNull final MigratedWorkloadCloudCommitmentAnalysisService migratedWorkloadCloudCommitmentAnalysisService,
                     @Nonnull final CommodityIdUpdater commodityIdUpdater) {
+        this.threadPool = threadPool;
         this.topologyInfo = topologyInfo;
         this.topologyDTOs = topologyDTOs.stream()
             .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
@@ -433,7 +439,9 @@ public class Analysis {
                 // whenever market receives entities from realtime broadcast, we update
                 // cachedEconomy and also pass the commodity type to specification map associated
                 // with that economy to initialPlacementFinder.
-                updateReservationEconomyCache(topology.getEconomy(), true);
+                threadPool.execute(() -> {
+                    updateReservationEconomyCache(topology.getEconomy(), true);
+                });
             }
             return new ConvertedTopology(topology, oidsToRemove, fakeEntityDTOs);
         } else {
@@ -537,7 +545,10 @@ public class Analysis {
                     // update method here will make sure the clusters in head room plan are balanced,
                     // because analysis already completed at this point.
                     if (TopologyDTOUtil.isPlanType(PlanProjectType.CLUSTER_HEADROOM, topologyInfo)) {
-                        updateReservationEconomyCache(convertedTopology.topology.getEconomy(), false);
+                        final UnmodifiableEconomy eco = convertedTopology.topology.getEconomy();
+                        threadPool.execute(() -> {
+                            updateReservationEconomyCache(eco, false);
+                        });
                     }
                     if (topologyInfo.getTopologyType() == TopologyType.REALTIME) {
                         commodityIdUpdater.saveCommodityIdToCommodityType(

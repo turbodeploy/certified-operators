@@ -42,18 +42,10 @@ public class CommodityTypeAllocator {
     // Mapping of CommoditySpecificationTO (string representation of type and baseType from
     // CommoditySpecificationTO) to specific CommodityType.
     private final Map<Integer, CommodityType>
-            commoditySpecMap = Maps.newHashMap();
+            commoditySpecMap = Maps.newConcurrentMap();
     // Reuse commodity specifications based on (numeric) type.
     private final Map<Integer, CommoditySpecificationTO> reusableCommoditySpecs
             = Maps.newHashMap();
-
-    // a set of commodity types that could be used as constraint in reservation
-    private static final Set<Integer> reservationConstraintCommodities = Sets.newHashSet(
-            CommodityDTO.CommodityType.MEM_PROVISIONED_VALUE, CommodityDTO.CommodityType.CPU_PROVISIONED_VALUE,
-            CommodityDTO.CommodityType.STORAGE_PROVISIONED_VALUE, CommodityDTO.CommodityType.CLUSTER_VALUE,
-            CommodityDTO.CommodityType.DATACENTER_VALUE, CommodityDTO.CommodityType.STORAGE_CLUSTER_VALUE,
-            CommodityDTO.CommodityType.NETWORK_VALUE, CommodityDTO.CommodityType.DRS_SEGMENTATION_VALUE,
-            CommodityDTO.CommodityType.SEGMENTATION_VALUE);
 
     public CommodityTypeAllocator(final NumericIDAllocator commodityTypeAllocator) {
         this.idAllocator = commodityTypeAllocator;

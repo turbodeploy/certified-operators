@@ -28,6 +28,8 @@ import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 import com.google.common.collect.ImmutableList;
@@ -169,7 +171,7 @@ public class AnalysisTest {
     private ConsistentScalingHelper csm = mock(ConsistentScalingHelper.class);
     private ReversibilitySettingFetcherFactory reversibilitySettingFetcherFactory
             = mock(ReversibilitySettingFetcherFactory.class);
-
+    private ExecutorService threadPool = Executors.newSingleThreadExecutor();
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(testGroupService,
                      testSettingPolicyService);
@@ -230,7 +232,7 @@ public class AnalysisTest {
         final MigratedWorkloadCloudCommitmentAnalysisService migratedWorkloadCloudCommitmentAnalysisService = mock(MigratedWorkloadCloudCommitmentAnalysisService.class);
         doNothing().when(migratedWorkloadCloudCommitmentAnalysisService).startAnalysis(anyLong(), any(), anyList());
 
-        return new Analysis(topoInfo, topologySet,
+        return new Analysis(Executors.newCachedThreadPool(), topoInfo, topologySet,
             new GroupMemberRetriever(groupServiceClient), mockClock, analysisConfig,
             cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
             wastedFilesAnalysisEngine, buyRIImpactAnalysisFactory, tierExcluderFactory,
