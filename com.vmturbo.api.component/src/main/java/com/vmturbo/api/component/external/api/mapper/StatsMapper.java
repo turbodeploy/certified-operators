@@ -403,10 +403,8 @@ public class StatsMapper {
         }
 
         // The "values" should be equivalent to "used".
-        if (convertedStatRecord.hasUsed()) {
-            statApiDTO.setValues(toStatValueApiDTO(convertedStatRecord.getUsed()));
-            statApiDTO.setValue(convertedStatRecord.getUsed().getAvg());
-        }
+        statApiDTO.setValues(toStatValueApiDTO(convertedStatRecord.getUsed()));
+        statApiDTO.setValue(convertedStatRecord.getUsed().getAvg());
 
         // Build filters
         final List<StatFilterApiDTO> filters = new ArrayList<>();

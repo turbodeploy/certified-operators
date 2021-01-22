@@ -45,21 +45,14 @@ public class UsageRecordVisitor extends AbstractVisitor<Record, UsageState> {
 
     @Override
     public void visit(@Nonnull Record record) {
-        final Float avgValue = getFloatValue(record, StringConstants.AVG_VALUE);
-        if (avgValue == null) {
-            return;
-        }
-        final float minValue = getFloatValue(record, StringConstants.MIN_VALUE, 0);
-        final float maxValue = getFloatValue(record, StringConstants.MAX_VALUE, 0);
+        final float avgValue = getFloatValue(record, StringConstants.AVG_VALUE, 0);
+        final float minValue = getFloatValue(record, StringConstants.MIN_VALUE, avgValue);
+        final float maxValue = getFloatValue(record, StringConstants.MAX_VALUE, avgValue);
         final String propertySubTypeValue =
                         RecordVisitor.getFieldValue(record, StringConstants.PROPERTY_SUBTYPE,
                                         String.class);
         final UsageState state = ensureState(() -> new UsageState(propertySubTypeValue), record);
         state.record(minValue, avgValue, maxValue);
-    }
-
-    private static Float getFloatValue(@Nonnull Record record, String fieldName) {
-        return RecordVisitor.getFieldValue(record, fieldName, Float.class);
     }
 
     private static Float getFloatValue(@Nonnull Record record, String fieldName,
