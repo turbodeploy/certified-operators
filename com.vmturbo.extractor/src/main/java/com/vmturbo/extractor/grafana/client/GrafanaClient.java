@@ -16,7 +16,6 @@ import javax.annotation.Nullable;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -39,7 +38,6 @@ import org.springframework.http.converter.json.GsonHttpMessageConverter;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
-import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
 import com.vmturbo.components.api.FormattedString;
 import com.vmturbo.extractor.grafana.model.CreateDatasourceResponse;
 import com.vmturbo.extractor.grafana.model.DashboardSpec.UpsertDashboardRequest;
@@ -48,6 +46,8 @@ import com.vmturbo.extractor.grafana.model.Datasource;
 import com.vmturbo.extractor.grafana.model.DatasourceInput;
 import com.vmturbo.extractor.grafana.model.Folder;
 import com.vmturbo.extractor.grafana.model.FolderInput;
+import com.vmturbo.extractor.grafana.model.OrganizationUser;
+import com.vmturbo.extractor.grafana.model.Role;
 import com.vmturbo.extractor.grafana.model.UserInput;
 
 /**
@@ -155,42 +155,45 @@ public class GrafanaClient {
     }
 
     /**
-     * This is a temporary method, that should get removed when we have no more reporting users
-     * on pre-7.22.9 installations.
+     * Ensure that the "report-editor" user is an admin, and that no other users in the
+     * organizations have admin privileges. This is important to avoid violating out license.
      *
-     * <p/>This ensures that the grafana user created to represent the turbo administrator has
-     * the "Admin" role in the default organization. This is necessary because only admins have
-     * access to the reports button.
-     *
+     * @param reportEditorUsername The name of the user that should be allowed to edit reports.
      * @param operationSummary To record the operations.
      */
-    public void ensureTurboAdminIsAdmin(@Nonnull final OperationSummary operationSummary) {
+    public void ensureReportEditorIsAdmin(@Nonnull final String reportEditorUsername,
+                                          @Nonnull final OperationSummary operationSummary) {
         final String defaultOrgId = "1";
-        String requiredRole = "Admin";
         final URI checkUri =  grafanaClientConfig.getGrafanaUrl("orgs", defaultOrgId, "users");
-        ResponseEntity<JsonArray> response = restTemplate.getForEntity(checkUri, JsonArray.class);
+        ResponseEntity<OrganizationUser[]> response = restTemplate.getForEntity(checkUri, OrganizationUser[].class);
         if (response.getBody() == null) {
             logger.warn("No response when getting users in default org: {}", defaultOrgId);
             return;
         }
 
-        for (int i = 0; i < response.getBody().size(); ++i) {
-            final JsonObject userObj = response.getBody().get(i).getAsJsonObject();
-            final String username = userObj.get("login").getAsString();
-            final long userId = userObj.get("userId").getAsLong();
-            if (username.equalsIgnoreCase(SecurityConstant.ADMINISTRATOR)) {
-                if (!userObj.get("role").getAsString().equalsIgnoreCase(requiredRole)) {
+        for (OrganizationUser user : response.getBody()) {
+            if (user.getUsername().equalsIgnoreCase(reportEditorUsername)) {
+                // The specified user should be an admin.
+                // If it's not the required role...
+                if (user.getRole() != Role.ADMIN) {
                     // The administrator user needs to have the "Admin" role.
-                    if (ensureUserRole(defaultOrgId, userId, requiredRole)) {
-                        operationSummary.recordUserChanged(username, userId);
+                    if (ensureUserRole(defaultOrgId, user.getUserId(), Role.ADMIN)) {
+                        operationSummary.recordUserChanged(user.getUsername(), user.getUserId());
                     } else {
-                        operationSummary.recordUserUnchanged(username, userId);
+                        operationSummary.recordUserUnchanged(user.getUsername(), user.getUserId());
                     }
                 } else {
-                    operationSummary.recordUserUnchanged(username, userId);
+                    operationSummary.recordUserUnchanged(user.getUsername(), user.getUserId());
                 }
-                // No need to continue once we find the right user.
-                break;
+            } else if (!user.isGlobalAdmin()) {
+                // All other users should be viewers.
+                if (user.getRole() != Role.VIEWER) {
+                    if (ensureUserRole(defaultOrgId, user.getUserId(), Role.VIEWER)) {
+                        operationSummary.recordUserChanged(user.getUsername(), user.getUserId());
+                    } else {
+                        operationSummary.recordUserUnchanged(user.getUsername(), user.getUserId());
+                    }
+                }
             }
         }
     }
@@ -199,9 +202,11 @@ public class GrafanaClient {
      * Ensure that a particular user exists in the system.
      *
      * @param userInput The {@link UserInput}.
+     * @param role The role the user should have.
      * @param refreshSummary The {@link OperationSummary} to record the operation.
      */
     public void ensureUserExists(@Nonnull final UserInput userInput,
+                                 @Nonnull final Role role,
                                  @Nonnull final OperationSummary refreshSummary) {
         final Optional<Long> existingId = getExistingUser(userInput.getUsername());
         Long userId = null;
@@ -221,23 +226,23 @@ public class GrafanaClient {
             refreshSummary.recordUserUnchanged(userInput.getUsername(), userId);
         }
 
-        // Ensure the user has a "viewer" role.
+        // Ensure the user has the desired role.
         if (userId != null) {
-            ensureUserRole(Integer.toString(userInput.getOrgId()), userId, "Viewer");
+            ensureUserRole(Integer.toString(userInput.getOrgId()), userId, role);
         }
     }
 
-    private boolean ensureUserRole(String orgId, long userId, String role) {
+    private boolean ensureUserRole(String orgId, long userId, Role role) {
         final URI orgRole = grafanaClientConfig.getGrafanaUrl("orgs", orgId, "users", Long.toString(userId));
         JsonParser jsonParser = new JsonParser();
-        JsonElement jsonElement = jsonParser.parse(FormattedString.format("{ \"role\" : \"{}\" }", role));
+        JsonElement jsonElement = jsonParser.parse(FormattedString.format("{ \"role\" : \"{}\" }", role.getName()));
         final ResponseEntity<JsonObject> userUpdateResp = restTemplate.exchange(orgRole, HttpMethod.PATCH,
             new HttpEntity<>(jsonElement), JsonObject.class);
         logger.info(userUpdateResp.getBody());
         if (userUpdateResp.getStatusCode() == HttpStatus.OK) {
             return true;
         } else {
-            logger.warn("Failed to change the role of user {} in org {} to {}", userId, orgId, role);
+            logger.warn("Failed to change the role of user {} in org {} to {}", userId, orgId, role.getName());
             return false;
         }
     }

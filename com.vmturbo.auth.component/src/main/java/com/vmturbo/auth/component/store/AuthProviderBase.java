@@ -1,5 +1,8 @@
 package com.vmturbo.auth.component.store;
 
+import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.ADMINISTRATOR;
+
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -10,6 +13,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
+import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.kvstore.KeyValueStore;
 
 /**
@@ -96,5 +100,33 @@ public class AuthProviderBase {
         synchronized (storeLock_) {
             keyValueStore_.removeKeysWithPrefix(prefix);
         }
+    }
+
+    /**
+     * The internal user information structure.
+     */
+    public static class UserInfo {
+        AuthUserDTO.PROVIDER provider;
+
+        String userName;
+
+        String uuid;
+
+        String passwordHash;
+
+        List<String> roles;
+
+        List<Long> scopeGroups;
+
+        boolean unlocked;
+
+        public boolean isAdminUser() {
+            return roles.stream().anyMatch(role -> role.equalsIgnoreCase(ADMINISTRATOR));
+        }
+    }
+
+    // helper method
+    protected AuthUserDTO convertUserInfoToDTO(UserInfo userInfo) {
+        return new AuthUserDTO(userInfo.provider, userInfo.userName, userInfo.uuid, userInfo.roles);
     }
 }

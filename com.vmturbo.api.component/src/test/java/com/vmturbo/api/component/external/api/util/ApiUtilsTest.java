@@ -1,5 +1,9 @@
 package com.vmturbo.api.component.external.api.util;
 
+import static com.vmturbo.api.component.external.api.util.ApiUtils.sortRoleByPrivileges;
+import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.ADMINISTRATOR;
+import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.ADVISOR;
+import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.REPORT_EDITOR;
 import static org.hamcrest.beans.SamePropertyValuesAs.samePropertyValuesAs;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -17,6 +21,8 @@ import java.util.Set;
 
 import javax.servlet.http.HttpServletRequest;
 
+import com.google.common.collect.Lists;
+
 import org.junit.Test;
 import org.mockito.Mockito;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -26,6 +32,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
+import com.vmturbo.api.dto.user.RoleApiDTO;
 import com.vmturbo.auth.api.authorization.jwt.JwtCallCredential;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
@@ -185,5 +192,24 @@ public class ApiUtilsTest {
         groups3.add("5678");
         assertTrue(ApiUtils.containsGlobalScope(groups2, groupExpander));
         assertFalse(ApiUtils.containsGlobalScope(groups3, groupExpander));
+    }
+
+    /**
+     * Test the REPORT_EDITOR role will always at the end of list.
+     */
+    @Test
+    public void testSortRoleByPrivileges() {
+        RoleApiDTO reportEditor = makeRole(REPORT_EDITOR);
+        RoleApiDTO admin = makeRole(ADMINISTRATOR);
+        RoleApiDTO advisor = makeRole(ADVISOR);
+        assertEquals(ADMINISTRATOR, sortRoleByPrivileges(Lists.newArrayList(reportEditor, admin)).get(0).getName());
+        assertEquals(ADVISOR, sortRoleByPrivileges(Lists.newArrayList(reportEditor, advisor)).get(0).getName());
+        assertEquals(REPORT_EDITOR, sortRoleByPrivileges(Lists.newArrayList(admin, reportEditor, advisor)).get(2).getName());
+    }
+
+    private RoleApiDTO makeRole(String name) {
+        RoleApiDTO d = new RoleApiDTO();
+        d.setName(name);
+        return d;
     }
 }

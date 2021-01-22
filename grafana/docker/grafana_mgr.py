@@ -75,9 +75,9 @@ class Grafana:
         self.license_path = license_path
         self.grafana_env = os.environ.copy()
         self.grafana_env["GF_ENTERPRISE_LICENSE_PATH"] = self.license_path
-        # There is one user that gets the "Admin" role (by default that's the "administrator"
-        # account). All other users share the "report-viewer" user with a "Viewer" role.
-        self.grafana_env["GF_USERS_AUTO_ASSIGN_ORG_ROLE"] = "Admin"
+        # There is one "report-editor" user created by the platform. All other users get the
+        # "Viewer" role.
+        self.grafana_env["GF_USERS_AUTO_ASSIGN_ORG_ROLE"] = "Viewer"
 
     def reboot(self):
         """ Restart the Grafana server. If the server is not up, starts the server. """

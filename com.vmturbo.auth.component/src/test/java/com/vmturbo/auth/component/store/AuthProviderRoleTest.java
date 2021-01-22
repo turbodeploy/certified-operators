@@ -44,9 +44,10 @@ import org.springframework.test.context.web.WebAppConfiguration;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
 import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
+import com.vmturbo.auth.component.policy.ReportPolicy;
 import com.vmturbo.auth.component.policy.UserPolicy;
 import com.vmturbo.auth.component.policy.UserPolicy.LoginPolicy;
-import com.vmturbo.auth.component.store.AuthProvider.UserInfo;
+import com.vmturbo.auth.component.store.AuthProviderBase.UserInfo;
 import com.vmturbo.auth.component.store.sso.SsoUtil;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.kvstore.KeyValueStore;
@@ -80,7 +81,8 @@ public class AuthProviderRoleTest {
     public void setup() {
         mockKeystore = mock(KeyValueStore.class);
         keyValueDir = mock(Supplier.class);
-        authProviderUnderTest = new AuthProvider(mockKeystore, null, keyValueDir, null, new UserPolicy(LoginPolicy.ALL),
+        authProviderUnderTest = new AuthProvider(mockKeystore, null, keyValueDir, null, new UserPolicy(LoginPolicy.ALL,
+                new ReportPolicy(1)),
                 new SsoUtil(), false);
     }
 

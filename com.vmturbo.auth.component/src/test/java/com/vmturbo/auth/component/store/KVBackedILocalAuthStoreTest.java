@@ -49,9 +49,10 @@ import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
 import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
 import com.vmturbo.auth.component.exception.DuplicateExternalGroupException;
+import com.vmturbo.auth.component.policy.ReportPolicy;
 import com.vmturbo.auth.component.policy.UserPolicy;
 import com.vmturbo.auth.component.policy.UserPolicy.LoginPolicy;
-import com.vmturbo.auth.component.store.AuthProvider.UserInfo;
+import com.vmturbo.auth.component.store.AuthProviderBase.UserInfo;
 import com.vmturbo.auth.component.store.sso.SsoUtil;
 import com.vmturbo.auth.component.widgetset.WidgetsetDbStore;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
@@ -152,7 +153,8 @@ public class KVBackedILocalAuthStoreTest {
 
     @NotNull
     private AuthProvider getStore(KeyValueStore keyValueStore) {
-        return new AuthProvider(keyValueStore, null, kvSupplier, null, new UserPolicy(LoginPolicy.ALL),
+        return new AuthProvider(keyValueStore, null, kvSupplier, null, new UserPolicy(LoginPolicy.ALL,
+                new ReportPolicy(1)),
                 new SsoUtil(), false);
     }
 
@@ -430,7 +432,8 @@ public class KVBackedILocalAuthStoreTest {
     @Test
     public void testModifyRoles() throws Exception {
         KeyValueStore keyValueStore = new MapKeyValueStore();
-        AuthProvider store = new AuthProvider(keyValueStore, groupServiceClient, kvSupplier, widgetsetDbStore, new UserPolicy(LoginPolicy.ALL),
+        AuthProvider store = new AuthProvider(keyValueStore, groupServiceClient, kvSupplier, widgetsetDbStore, new UserPolicy(LoginPolicy.ALL,
+                new ReportPolicy(1)),
                 new SsoUtil(), false);
 
         String result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0", ROLE_NAMES, ImmutableList.of(1L));
@@ -710,7 +713,8 @@ public class KVBackedILocalAuthStoreTest {
     @Test(expected = SecurityException.class)
     public void testAuthenticateWithADOnlyUserPolicyNegative() throws Exception {
         KeyValueStore keyValueStore = new MapKeyValueStore();
-        AuthProvider store = new AuthProvider(keyValueStore, null, kvSupplier, null, new UserPolicy(LoginPolicy.AD_ONLY),
+        AuthProvider store = new AuthProvider(keyValueStore, null, kvSupplier, null, new UserPolicy(LoginPolicy.AD_ONLY,
+                new ReportPolicy(1)),
                 new SsoUtil(), false);
         verifyAuthentication(keyValueStore, store, PROVIDER.LOCAL);
     }
@@ -722,7 +726,8 @@ public class KVBackedILocalAuthStoreTest {
     @Test
     public void testAuthenticateWithADOnlyUserPolicyPositive() throws Exception {
         KeyValueStore keyValueStore = new MapKeyValueStore();
-        AuthProvider store = new AuthProvider(keyValueStore, null, kvSupplier, null, new UserPolicy(LoginPolicy.AD_ONLY),
+        AuthProvider store = new AuthProvider(keyValueStore, null, kvSupplier, null, new UserPolicy(LoginPolicy.AD_ONLY,
+                new ReportPolicy(1)),
                 new SsoUtil(), false);
         try {
             verifyAuthentication(keyValueStore, store, PROVIDER.LDAP);

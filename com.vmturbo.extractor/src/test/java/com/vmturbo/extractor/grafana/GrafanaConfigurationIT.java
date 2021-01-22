@@ -3,6 +3,7 @@ package com.vmturbo.extractor.grafana;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.util.Collections;
 import java.util.HashSet;
@@ -23,6 +24,7 @@ import com.vmturbo.components.api.test.ResourcePath;
 import com.vmturbo.components.test.utilities.ComponentTestRule;
 import com.vmturbo.components.test.utilities.component.ComponentCluster;
 import com.vmturbo.components.test.utilities.component.ServiceHealthCheck.BasicServiceHealthCheck;
+import com.vmturbo.extractor.ExtractorGlobalConfig.ExtractorFeatureFlags;
 import com.vmturbo.extractor.grafana.Grafanon.GrafanonConfig;
 import com.vmturbo.extractor.grafana.client.GrafanaClient;
 import com.vmturbo.extractor.grafana.client.GrafanaClientConfig;
@@ -87,7 +89,9 @@ public class GrafanaConfigurationIT {
                 .setTimescaleDisplayName("Test Endpoint")
                 .setErrorSleepInterval(10, TimeUnit.SECONDS);
 
-        grafanon = new Grafanon(config, dashboardsOnDisk, grafanaClient, true);
+        ExtractorFeatureFlags extractorFeatureFlags = mock(ExtractorFeatureFlags.class);
+        when(extractorFeatureFlags.isReportingEnabled()).thenReturn(true);
+        grafanon = new Grafanon(config, dashboardsOnDisk, grafanaClient, extractorFeatureFlags);
     }
 
     /**

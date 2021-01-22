@@ -1,5 +1,7 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import static com.vmturbo.api.component.external.api.util.ApiUtils.sortRoleByPrivileges;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -11,8 +13,10 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.ImmutableList;
 
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import com.vmturbo.api.dto.group.GroupApiDTO;
+import com.vmturbo.api.dto.user.RoleApiDTO;
 import com.vmturbo.api.dto.user.UserApiDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
@@ -37,7 +41,12 @@ public class UserMapper {
         UserApiDTO user = new UserApiDTO();
         user.setLoginProvider(LoginProviderMapper.toApi(dto.getProvider()));
         user.setUsername(dto.getUser());
-        user.setRoleName(dto.getRoles().get(0));
+        user.setRoles(sortRoleByPrivileges(dto.getRoles().stream()
+            .map(name -> {
+                final RoleApiDTO d = new RoleApiDTO();
+                d.setName(name);
+                return d;
+            }).collect(Collectors.toList())));
         user.setScope(groupOidsToGroupApiDTOs(dto.getScopeGroups(), apiGroupsByOid));
         user.setUuid(dto.getUuid());
         // Mandatory fields.
@@ -80,15 +89,24 @@ public class UserMapper {
         // only propagate the password if withPassword = true and the provider is "local"
         final String password = keepPassword && provider.equals(PROVIDER.LOCAL) ? userApiDTO.getPassword() : null;
 
-        // convert to the list of roles. (note -- only one role seems to be supported in the UserApiDTO object)
-        List<String> roles = ImmutableList.of(userApiDTO.getRoleName().toUpperCase());
+        // convert to the list of roles.
+        final List<RoleApiDTO> roles = userApiDTO.getRoles();
+        List<String> roleNames;
+        if (!CollectionUtils.isEmpty(roles)) {
+            roleNames = roles.stream()
+                .filter(role -> !StringUtils.isBlank(role.getName()))
+                .map(role -> role.getName().toUpperCase())
+                .collect(Collectors.toList());
+        } else {
+            roleNames = ImmutableList.of(userApiDTO.getRoleName().toUpperCase());
+        }
 
         // capture any scope groups -- just keep the group id
         List<Long> groupsInScope = groupApiDTOsToOids(userApiDTO.getScope());
 
         // The explicitly added LDAP users will be kept in the same local database.
         AuthUserDTO authUserDTO = new AuthUserDTO(provider, userApiDTO.getUsername(), password, null,
-                null, null, roles, groupsInScope);
+                null, null, roleNames, groupsInScope);
 
         return authUserDTO;
     }
