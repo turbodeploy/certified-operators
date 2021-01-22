@@ -196,8 +196,9 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
             setMaxValuesConfig.getMaxValuesBackgroundLoadFrequencyMinutes();
         this.maxValuesBackgroundLoadDelayOnInitFailureMinutes =
             setMaxValuesConfig.getMaxValuesBackgroundLoadDelayOnInitFailureMinutes();
-        // Initialize the maxQuantities map by fetching from history component.
-        boolean wasInitialized = initializeMaxQuantityMap();
+        // If the maxQueryOnTPStartup is true, initialize the maxQuantities map by fetching from history component.
+        // Otherwise, do not fetch at start up. Let the background proecssor do this.
+        boolean wasInitialized = setMaxValuesConfig.getMaxQueryOnTPStartup() ? initializeMaxQuantityMap() : false;
         long initialDelay = ( wasInitialized ?
                 maxValuesBackgroundLoadFrequencyMinutes : maxValuesBackgroundLoadDelayOnInitFailureMinutes);
 

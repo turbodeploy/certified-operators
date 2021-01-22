@@ -44,7 +44,7 @@ public class StitchingConfig {
     @Value("${serverGrpcPort}")
     private int grpcPort;
 
-    @Value("${maxValuesBackgroundLoadFrequencyMinutes:720}") // default to 3 hours
+    @Value("${maxValuesBackgroundLoadFrequencyMinutes:720}") // default to 12 hours
     private long maxValuesBackgroundLoadFrequencyMinutes;
 
     @Value("${armCapacityRefreshIntervalHours:6}")
@@ -91,6 +91,9 @@ public class StitchingConfig {
 
     @Value("${journalsPerRecording:6}")
     private int journalsPerRecording;
+
+    @Value("${maxQueryOnTPStartup:true}")
+    private boolean maxQueryOnTPStartup;
 
     @Autowired
     private ClockConfig clockConfig;
@@ -171,7 +174,8 @@ public class StitchingConfig {
             new CommodityPostStitchingOperationConfig(
                 historyClient(),
                 maxValuesBackgroundLoadFrequencyMinutes,
-                maxValuesBackgroundLoadDelayOnInitFailureMinutes),
+                maxValuesBackgroundLoadDelayOnInitFailureMinutes,
+                maxQueryOnTPStartup),
                 diskPropertyCalculator(),
                 cpuCapacityConfig.cpucCapacityStore(),
                 clockConfig.clock(),

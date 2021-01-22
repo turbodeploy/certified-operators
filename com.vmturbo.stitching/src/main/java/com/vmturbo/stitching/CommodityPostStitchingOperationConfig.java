@@ -15,16 +15,21 @@ public class CommodityPostStitchingOperationConfig {
 
     private final long maxValuesBackgroundLoadDelayOnInitFailureMinutes;
 
+    private final boolean maxQueryOnTPStartup;
+
+
     public CommodityPostStitchingOperationConfig(
             @Nonnull StatsHistoryServiceBlockingStub statsClient,
             long maxValuesBackgroundLoadFrequencyMinutes,
-            long maxValuesBackgroundLoadDelayOnInitFailureMinutes) {
+            long maxValuesBackgroundLoadDelayOnInitFailureMinutes,
+            boolean maxQueryOnTPStartup) {
 
         this.statsHistoryClient = statsClient;
         this.maxValuesBackgroundLoadFrequencyMinutes =
             maxValuesBackgroundLoadFrequencyMinutes;
         this.maxValuesBackgroundLoadDelayOnInitFailureMinutes =
             maxValuesBackgroundLoadDelayOnInitFailureMinutes;
+        this.maxQueryOnTPStartup = maxQueryOnTPStartup;
     }
 
     public StatsHistoryServiceBlockingStub getStatsClient() {
@@ -37,5 +42,9 @@ public class CommodityPostStitchingOperationConfig {
 
     public long getMaxValuesBackgroundLoadDelayOnInitFailureMinutes() {
         return maxValuesBackgroundLoadDelayOnInitFailureMinutes;
+    }
+
+    public boolean getMaxQueryOnTPStartup() {
+        return maxQueryOnTPStartup;
     }
 }
