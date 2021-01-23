@@ -12,10 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-
-import com.google.common.base.Stopwatch;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -25,17 +22,13 @@ import com.vmturbo.market.cloudscaling.sma.entities.SMAInputContext;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAMatch;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAOutputContext;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAReservedInstance;
-import com.vmturbo.market.cloudscaling.sma.entities.SMAStatistics;
-import com.vmturbo.market.cloudscaling.sma.entities.SMAStatistics.TypeOfRIs;
 import com.vmturbo.market.cloudscaling.sma.entities.SMATemplate;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAVirtualMachine;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAVirtualMachine.CostContext;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAVirtualMachineGroup;
 
 /**
- * Given a context, run SMA, and update the context's matching field with the result.
- * Called from JUnit tests.
- * Question: if two providers are least cost, which is picked by the market.
+ * Given a context, run SMA, and generate the SMAOutputContext.
  */
 public class StableMarriagePerContext {
 
@@ -43,9 +36,6 @@ public class StableMarriagePerContext {
 
     /**
      * Run the StableMarriage algorithm until it converges.
-     * The Stable marriage with have a unique solution for a given preference list as long as all
-     * the VMs are buying the same number of coupons. But when the coupons bought by the
-     * VM is not same for each RI then the order in which the RI shops determines the output.
      * So we might have to run the algorithm multiple times for it to converge.
      * @param inputContext the input of SMA partitioned on a per context basis.
      * @return the matching in the inputContext.
@@ -81,7 +71,7 @@ public class StableMarriagePerContext {
     }
 
     /**
-     * Calculate the number of mismatch between the input VM and output VM. mismatch occurs if
+     * Calculate the number of mismatch between the outputContext and inputContext. mismatch occurs if
      * template or RI coverage change.
      * @param outputContext the output context
      * @param inputContext the input context
@@ -106,21 +96,10 @@ public class StableMarriagePerContext {
      * Given a inputContext, run SMA.
      *
      * @param inputContext the input of SMA partitioned on a per context basis.
-     * @return up date the matching in the inputContext.
+     * @return the generated SMAOutputContext .
      */
     public static SMAOutputContext executeOnce(SMAInputContext inputContext) {
-
-        logger.debug("SMA start");
-        final Stopwatch stopWatch = Stopwatch.createStarted();
-        /*
-         * Where to collect statistics
-         */
-        SMAStatistics statistics = new SMAStatistics();
-        statistics.setContext(inputContext.getContext());
         final List<SMAVirtualMachine> virtualMachines = inputContext.getVirtualMachines();
-        statistics.setNumberOfVirtualMachines(virtualMachines.size());
-        statistics.setTotalVmCurrentCoupons(virtualMachines.stream().mapToDouble(v -> (double)v.getCurrentTemplate().getCoupons()).sum());
-        statistics.setTotalVmNaturalCoupons(virtualMachines.stream().mapToDouble(v -> (double)v.getNaturalTemplate().getCoupons()).sum());
         /*
          * Map from the group name to the virtual machine groups (auto scaling group)
          */
@@ -130,21 +109,15 @@ public class StableMarriagePerContext {
          *  List of templates; that is, providers
          */
         final List<SMATemplate> templates = inputContext.getTemplates();
-        statistics.setNumberOfTemplates(templates.size());
         /*
          * Precompute map from family name to list of SMATemplates
          */
         Map<String, List<SMATemplate>> familyNameToTemplates = computeFamilyToTemplateMap(templates);
-        statistics.setNumberOfFamilies(familyNameToTemplates.size());
         /*
          *  List of reserved instances.  There may be no RIs.
          */
         final List<SMAReservedInstance> reservedInstances = (inputContext.getReservedInstances() == null ?
             Collections.EMPTY_LIST : new ArrayList<>(inputContext.getReservedInstances()));
-        statistics.setNumberOfReservedInstances(reservedInstances.size());
-        statistics.setTotalRiCoupons(reservedInstances.stream().mapToDouble(r -> r.getCount() * r.getTemplate().getCoupons()).sum());
-        statistics.setIsZonalRIs(computeTypeOfRIs(reservedInstances));
-
         /*
          * If instance size flexible (ISF), move all RIs in a
          * family to the smallest instance type in that family.
@@ -153,31 +126,25 @@ public class StableMarriagePerContext {
          * We already scale the isf to the cheapest template. so we can safely compare template.
          */
         normalizeReservedInstances(reservedInstances, familyNameToTemplates);
-        statistics.setNumberOfNormalizedReservedInstances(reservedInstances.size());
         /*
-         * Sort RIs based on the maximum saving it can achieve. Use name to break ties.
-         * This is to minimize swaps and create consistency.
+         * Sort RIs based on OID. This is to create consistency.
          */
         Collections.sort(reservedInstances, new SortByRIOID());
         final SMAContext context = inputContext.getContext();
-
         /*
-         * Update RI Coverage for groups
+         * Update RI Coverage for groups.
          */
         for (SMAReservedInstance reservedInstance : reservedInstances) {
             for (SMAVirtualMachineGroup group : virtualMachineGroupMap.values()) {
                 reservedInstance.updateRICoveragePerGroup(group);
             }
         }
-
         /*
          * Queue that keeps track of all the RI's that are not engaged.
-         * freeRISet is the set version of the queue.
          */
         Deque<SMAReservedInstance> freeRIs = new LinkedList<>();
-
         /*
-         * Map that keeps track of all the unused coupons for used RIs.
+         * Map that keeps track of all the unused coupons for RIs.
          */
         Map<SMAReservedInstance, Float> remainingCoupons = new HashMap<>();
         for (SMAReservedInstance reservedInstance : reservedInstances) {
@@ -190,42 +157,32 @@ public class StableMarriagePerContext {
                 }
             }
         }
-
         /*
-         * build map from  to list of VMs that can move to that RI. the couponToBestVM
-         * attribute is updated for each RI.
+         * build map from  to list of VMs that can move to that RI.
+         * the discountableVMsPartitionedByCoupon attribute is updated for each RI.
         */
         createRIToVMsMap(virtualMachines,
                 remainingCoupons, virtualMachineGroupMap,
                 familyNameToTemplates,
-                statistics, inputContext.getSmaConfig().isReduceDependency());
+                inputContext.getSmaConfig().isReduceDependency());
 
         // map to keep track of the successful engagements so far.
         Map<SMAVirtualMachine, SMAMatch> currentEngagements = new HashMap<>();
 
-        final Stopwatch stopWatch_iteration = Stopwatch.createStarted();
         /*
-         * We run two rounds of iteration. In the first iteration we don't allow VMs to be partially
-         * covered. We then run another round of stable marriage. At this point all the RIs have
-         * just enough coupons to partially cover one more vm.
+         * This is the main function in SMA. This is where RIs get matched to VMs.
          */
         runIterations(freeRIs, remainingCoupons,
-                currentEngagements, virtualMachineGroupMap, statistics,
+                currentEngagements, virtualMachineGroupMap,
                 inputContext.getSmaConfig().isReduceDependency());
 
-        long timeInMilliseconds = stopWatch_iteration.elapsed(TimeUnit.MILLISECONDS);
-        logger.debug("SMA iterations took {} ms.", timeInMilliseconds);
-        statistics.setIterationTime(timeInMilliseconds);
-
-        final Stopwatch stopWatch_postprocessing = Stopwatch.createStarted();
         /*
          * For all VMs, compute a SMAMatch
          */
         List<SMAMatch> matches = new ArrayList<>();
         matches.addAll(currentEngagements.values());
+        // Add the SMAMatch for ASG group members.
         matches.addAll(addGroupMemberEngagement(virtualMachineGroupMap, currentEngagements));
-
-        statistics.setTotalDiscountedCoupons(matches.stream().mapToDouble(m -> (double)m.getDiscountedCoupons()).sum());
 
         // for all the VMs that does not have a matching move them to the natural template.
         Set<SMAVirtualMachine> set = matches.stream().map(a -> a.getVirtualMachine()).collect(Collectors.toSet());
@@ -235,22 +192,7 @@ public class StableMarriagePerContext {
                     null, 0));
         }
 
-        statistics.setTotalVmDesiredStateCoupons(computeDesiredStateCoupons(matches));
-        timeInMilliseconds = stopWatch_postprocessing.elapsed(TimeUnit.MILLISECONDS);
-        logger.debug("SMA post processing took {} ms.", timeInMilliseconds);
-        statistics.setPostProcessTime(timeInMilliseconds);
-        timeInMilliseconds = stopWatch.elapsed(TimeUnit.MILLISECONDS);
-        logger.debug("SMA took {} ms.", timeInMilliseconds);
-        statistics.setTime(timeInMilliseconds);
-
-        /*
-         * log the results
-         */
-        // compute the costs and savings
-        statistics.computeSavings(virtualMachines, matches);
-        // log the statistics
-        logger.debug(statistics.toString());
-
+        // generate the SMAOutputContext
         SMAOutputContext outputContext = new SMAOutputContext(context, matches);
         return outputContext;
     }
@@ -276,46 +218,11 @@ public class StableMarriagePerContext {
     }
 
     /**
-     * Determine if all the RIs in the list are zonal or regional or mixed.
-     * @param reservedInstances the list of reserved instances.
-     * @return the RIs in the list are zonal or regional or mixed.
-     */
-    private static TypeOfRIs computeTypeOfRIs(List<SMAReservedInstance> reservedInstances) {
-        int zonalRIs = 0;
-        int regionalRIs = 0;
-        for (SMAReservedInstance ri : reservedInstances) {
-            if (ri.getZoneId() != SMAUtils.NO_ZONE) {
-                zonalRIs++;
-            } else {
-                regionalRIs++;
-            }
-            if (zonalRIs > 0 && regionalRIs > 0) {
-                break;
-            }
-        }
-        if (zonalRIs == 0) {
-            return TypeOfRIs.REGIONAL;
-        } else if (regionalRIs == 0) {
-            return TypeOfRIs.ZONAL;
-        } else {
-            return TypeOfRIs.MIXED;
-        }
-    }
-
-    private static double computeDesiredStateCoupons(List<SMAMatch> matches) {
-        double coupons = 0;
-        for (SMAMatch match : matches) {
-            coupons += match.getTemplate().getCoupons();
-        }
-        return coupons;
-    }
-
-    /**
      * ISF RIs are first scaled down to the template in the family with the fewest coupons.
      * We combine RI's that are same (businessAccount, normalizedTemplate zone).
      * We pick a representative that will go to SMA for all.
      * The other RIs are captured in the representative's members field.
-     * The coupons are redistributed in the postprocessing step.
+     * Market component will take care of redistributing the coupons.
      *
      * @param reservedInstances the reserved instances to normalize. This is used to store output too.
      * @param familyNameToTemplates map from family name to the templates
@@ -442,11 +349,7 @@ public class StableMarriagePerContext {
                      Map<SMAReservedInstance, Float> remainingCoupons,
                      Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap,
                      Map<String, List<SMATemplate>> familyNameToTemplates,
-                     SMAStatistics statistics,
                      boolean reduceDependency) {
-
-        final Stopwatch stopWatch = Stopwatch.createStarted();
-
         // Multimap from template to the VMs that has the template as one of its provider.
         Map<SMATemplate, List<SMAVirtualMachine>> templateToVmsMap = new HashMap<>();
         for (SMAVirtualMachine vm : virtualMachines) {
@@ -492,15 +395,11 @@ public class StableMarriagePerContext {
             sortAndUpdateVMList(virtualMachineList, remainingCoupons.get(ri), ri, virtualMachineGroupMap, reduceDependency);
         }
 
-        long timeInMilliseconds = stopWatch.elapsed(TimeUnit.MILLISECONDS);
-        logger.debug("SMA sorting took {} ms.", timeInMilliseconds);
-        statistics.setSortTime(timeInMilliseconds);
-
     }
 
     /**
      * sort the virtual machines that can be discounted by a reserved instance.
-     * Update the RI's couponToBestVM and discountableVMs fields.
+     * Update the RI's discountableVMsPartitionedByCoupon.
      *
      * @param virtualMachineList     list of virtual machines
      * @param riCoupons              remaining coupons for each RI
@@ -574,18 +473,9 @@ public class StableMarriagePerContext {
 
 
     /**
-     * Given an VM and the VM's profile, determine which SMAMatch the VM prefers.
+     * Given an VM newEngagement with newRI and oldEngagement with oldRI determine which
+     * SMAMatch the VM prefers.
      * At this point we have made sure that both the SMAMatches have same coverage.
-     * So no cost saving is involved.
-     * Preferences
-     * 1) non-ISF preference: if newRI is non-ISF and oldRI is ISF, then true newRI
-     * 2) Minimize moves:
-     * a)  by profile: if profile(newRI) == consumptionProfile(VM) && profile(oldRI) != consumptionProfile(VM) then newRI
-     * b)  by family: if family(newRI) == consumptionFamily(VM) && family(oldRI) != consumptionFamily(VM) then newRI
-     * c)  by size: if abs(size(newRI) - size(allocated(VM)) < abs(size(oldRI) - size(allocated(VM)) then newRI
-     * 3) Account preference: account(VM) == account(newRI) && account(VM) != account(oldRI), then true newRI
-     * 4) Bill preference: prefer to stay on RI specified in the bill
-     * 5) Name of RI
      *
      * @param vm                     virtual machine considering for engagement
      * @param oldEngagement          engagement the VM is already engaged to
@@ -609,8 +499,8 @@ public class StableMarriagePerContext {
 
             float newRiCoverage = newRI.getRICoverage(vm);
             float oldRiCoverage = oldRI.getRICoverage(vm);
-            // if vm is already covered by one of the RI prefer that RI
 
+            // if vm is already covered by one of the RI prefer that RI
             if (newRiCoverage - oldRiCoverage > SMAUtils.EPSILON) {
                 return true;
             }
@@ -681,7 +571,6 @@ public class StableMarriagePerContext {
                     (oldEngagement == null ? "null" : newEngagement),
                     e.getMessage());
         }
-        logger.debug("preference() return false, no engagement is swapped");
         return false;
     }
 
@@ -780,17 +669,14 @@ public class StableMarriagePerContext {
      *                               populated and acts as a return parameter.
      * @param virtualMachineGroupMap map from group name to virtual machines in that group
      * @param reduceDependency  if true will reduce relinquishing
-     * @param statistics             datastructure used to maintain statistics
      */
 
     public static void runIterations(Deque<SMAReservedInstance> freeRIs,
                                      Map<SMAReservedInstance, Float> remainingCoupons,
                                      Map<SMAVirtualMachine, SMAMatch> currentEngagements,
                                      Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap,
-                                     SMAStatistics statistics,
                                      boolean reduceDependency) {
         while (!freeRIs.isEmpty()) {
-            statistics.incrementIterations();
             SMAReservedInstance currentRI = freeRIs.poll();
             float currentRICoupons = (currentRI == null) ? 0f : remainingCoupons.get(currentRI);
 
@@ -810,8 +696,6 @@ public class StableMarriagePerContext {
                 }
             }
             if (currentRICoupons > SMAUtils.EPSILON && !currentRI.isDisountableVMsEmpty()) {
-                logger.debug("SMA new RI={} remainingCoupons={}", currentRI.getName(),
-                        currentRICoupons);
                 SMAVirtualMachine currentVM = currentRI
                         .findBestDiscountableVM(currentRICoupons, virtualMachineGroupMap, reduceDependency);
                 if (currentVM == null) {
@@ -841,13 +725,12 @@ public class StableMarriagePerContext {
                             "destinationTemplate={} groupSize={} ", destinationTemplate, groupSize);
                     continue;
                 }
-
-                float discountedCoupons = Math.min(currentVMCouponRequest,
-                        currentRICoupons);
-                SMAMatch oldEngagement = currentEngagements.get(currentVM);
                 /* discounted coupons are the actual coupons used in this engagement.
                  * it will be the minimum of what is required and what is available.
                  */
+                float discountedCoupons = Math.min(currentVMCouponRequest,
+                        currentRICoupons);
+                SMAMatch oldEngagement = currentEngagements.get(currentVM);
                 if (!freeRIs.contains(currentRI)) {
                     freeRIs.addFirst(currentRI);
                 }
@@ -856,13 +739,8 @@ public class StableMarriagePerContext {
                         currentRI, discountedCoupons);
                 Boolean isCurrentRIBetter = isCurrentRIBetterThanOldRI(oldEngagement,
                         newEngagement, virtualMachineGroupMap);
-                statistics.incrementPreferenceCalls();
                 if (isCurrentRIBetter) {
                     if (oldEngagement == null) {
-                        statistics.incrementNewEngagements();
-                        logger.debug("SMA new engagement: " +
-                                        "VM={} pair(RI={}, coupons={})",
-                                currentVM.getName(), currentRI.getName(), discountedCoupons);
                         currentEngagements.put(currentVM, newEngagement);
                         currentRI.setLastDiscountedVM(currentVM);
                         // update remaining coupons
@@ -871,12 +749,7 @@ public class StableMarriagePerContext {
                     } else {
                         // engagement already exists. swap engagement
                         SMAReservedInstance oldRI = oldEngagement.getReservedInstance();
-                        statistics.incrementSwaps();
                         // break engagement;
-                        logger.debug("SMA swap: " +
-                                        "VM={} pair(RI={}, coupons={}) oldRI={}",
-                                currentVM.getName(), currentRI.getName(), discountedCoupons,
-                                oldRI.getName());
                         currentEngagements.remove(currentVM);
                         currentEngagements.put(currentVM, newEngagement);
                         // update remaining coupons of oldRI and currentRI
