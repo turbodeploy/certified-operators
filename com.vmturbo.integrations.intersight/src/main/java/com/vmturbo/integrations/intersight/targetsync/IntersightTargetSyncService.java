@@ -422,7 +422,7 @@ public class IntersightTargetSyncService implements Runnable {
                 return Collections.singleton(SDKProbeType.COMPELLENT);
             case HPE3PAR:
                 return Collections.singleton(SDKProbeType.HPE_3PAR);
-            case REDHATVIRTUALIZATIONMANAGER:
+            case REDHATENTERPRISEVIRTUALIZATION:
                 return Collections.singleton(SDKProbeType.RHV);
             case MICROSOFTSQLSERVER:
                 return Collections.singleton(SDKProbeType.MSSQL);
