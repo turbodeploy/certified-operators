@@ -10,7 +10,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.external.api.mapper.TopologyDataDefinitionMapper;
-import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.dto.topologydefinition.TopoDataDefContextBasedApiDTO;
 import com.vmturbo.api.dto.topologydefinition.TopologyDataDefinitionApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
@@ -212,24 +211,6 @@ public class TopologyDataDefinitionService implements ITopologyDefinitionService
         }
     }
 
-    @Override
-    public List<TopoDataDefContextBasedApiDTO> getAllContextBasedTopologyDefinitions() {
-        throw ApiUtils.notImplementedInXL();
-    }
-
-    @Override
-    public TopoDataDefContextBasedApiDTO getContextBasedTopologyDefinition(String s)
-            throws UnknownObjectException {
-        throw ApiUtils.notImplementedInXL();
-    }
-
-    @Override
-    public TopoDataDefContextBasedApiDTO createContextBasedTopologyDefinition(
-            TopoDataDefContextBasedApiDTO topoDataDefContextBasedApiDTO)
-            throws OperationFailedException, IllegalArgumentException {
-        throw ApiUtils.notImplementedInXL();
-    }
-
     /**
      * Transforms entry to API DTO.
      *
@@ -240,6 +221,23 @@ public class TopologyDataDefinitionService implements ITopologyDefinitionService
         checkId(entry);
         TopologyDataDefinitionApiDTO apiDTO
                 = topologyDataDefinitionMapper.convertTopologyDataDefinition(
+                entry.getDefinition()
+        );
+        apiDTO.setUuid(String.valueOf(entry.getId()));
+        return apiDTO;
+    }
+
+    /**
+     * Transforms entry to context-based API DTO.
+     *
+     * @param entry {@link TopologyDataDefinitionEntry}
+     * @return {@link TopoDataDefContextBasedApiDTO}
+     */
+    private TopoDataDefContextBasedApiDTO entryToContextBasedApiDTO(
+                                                TopologyDataDefinitionEntry entry) {
+        checkId(entry);
+        TopoDataDefContextBasedApiDTO apiDTO
+                = topologyDataDefinitionMapper.convertTopologyContextBasedDataDefinition(
                 entry.getDefinition()
         );
         apiDTO.setUuid(String.valueOf(entry.getId()));
@@ -275,5 +273,99 @@ public class TopologyDataDefinitionService implements ITopologyDefinitionService
             logger.error(e.getLocalizedMessage(), e);
             throw new UnknownObjectException(String.format("Cannot parse topology data definition ID: %s", id), e);
         }
+    }
+
+    /**
+     * Get all context-based topology definitions.
+     *
+     * @return list of context-based topology definitions API DTOs
+     */
+    @Override
+    public List<TopoDataDefContextBasedApiDTO> getAllContextBasedTopologyDefinitions() {
+        GetTopologyDataDefinitionsRequest request = GetTopologyDataDefinitionsRequest.getDefaultInstance();
+        Iterator<GetTopologyDataDefinitionResponse> responses
+                = topologyDataDefinitionServiceBlockingStub.getAllTopologyDataDefinitions(request);
+        List<TopoDataDefContextBasedApiDTO> definitions = new ArrayList<>();
+        while (responses.hasNext()) {
+            GetTopologyDataDefinitionResponse response = responses.next();
+            if (!response.hasTopologyDataDefinition() || !response.getTopologyDataDefinition().hasDefinition()) {
+                logger.warn("No topology definition found for response: {}", response.toString());
+                continue;
+            }
+            TopologyDataDefinitionEntry entry = response.getTopologyDataDefinition();
+            if (!isContextBasedDefinition(entry)) {
+                // Do not return non context based ATDs until they won't be implemented
+                continue;
+            }
+            checkId(entry);
+            try {
+                TopoDataDefContextBasedApiDTO dto =
+                    topologyDataDefinitionMapper.convertTopologyContextBasedDataDefinition(
+                        entry.getDefinition());
+                    dto.setUuid(String.valueOf(entry.getId()));
+                    dto.setContextBased(true);
+                    definitions.add(dto);
+            } catch (Exception e) {
+                logger.warn("Cannot convert topology definition to API DTO: {}",
+                        response.getTopologyDataDefinition().getDefinition().toString(), e);
+            }
+        }
+
+        return definitions;
+    }
+
+    /**
+     * Get context-based topology definition by ID.
+     *
+     * @param id id of context-based topology definition as a string
+     * @return context-based topology definition API DTO
+     * @throws UnknownObjectException exception if id is incorrect
+     */
+    @Override
+    public TopoDataDefContextBasedApiDTO getContextBasedTopologyDefinition(String id)
+            throws UnknownObjectException {
+        GetTopologyDataDefinitionResponse response =
+                topologyDataDefinitionServiceBlockingStub.getTopologyDataDefinition(TopologyDataDefinitionID.newBuilder()
+                        .setId(parseId(id)).build());
+        if (!response.hasTopologyDataDefinition() || !response.getTopologyDataDefinition().hasDefinition()) {
+            String errorText = String.format("Cannot find topology data definition by ID: %s", id);
+            logger.error(errorText);
+            throw new UnknownObjectException(errorText);
+        }
+        return entryToContextBasedApiDTO(response.getTopologyDataDefinition());
+    }
+
+    /**
+     * Create context-based topology definition.
+     *
+     * @param topologyDataDefinitionApiDTO context-based topology definition API DTO
+     * @return created context-based topology definition API DTO
+     * @throws OperationFailedException exception if operating is failed
+     * @throws IllegalArgumentException exception if context-based topology definition API DTO is
+     * inconsistent.
+     */
+    @Override
+    public TopoDataDefContextBasedApiDTO createContextBasedTopologyDefinition(
+                                         TopoDataDefContextBasedApiDTO topologyDataDefinitionApiDTO)
+            throws OperationFailedException {
+        CreateTopologyDataDefinitionResponse response = CreateTopologyDataDefinitionResponse.getDefaultInstance();
+        try {
+            response = topologyDataDefinitionServiceBlockingStub.createTopologyDataDefinition(
+                    CreateTopologyDataDefinitionRequest.newBuilder()
+                            .setTopologyDataDefinition(topologyDataDefinitionMapper
+                                    .convertTopologyDataDefinitionApiDTO(topologyDataDefinitionApiDTO))
+                            .build()
+            );
+        } catch (Exception e) {
+            logger.error(e);
+            throw new OperationFailedException("Create operation failed", e);
+        }
+        if (!response.hasTopologyDataDefinition() || !response.getTopologyDataDefinition().hasDefinition()) {
+            final String errorText = String.format("Cannot create topology data definition: %s",
+                    topologyDataDefinitionApiDTO.toString());
+            logger.error(errorText);
+            throw new OperationFailedException(errorText);
+        }
+        return entryToContextBasedApiDTO(response.getTopologyDataDefinition());
     }
 }

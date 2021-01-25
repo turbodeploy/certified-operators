@@ -31,6 +31,7 @@ import com.vmturbo.api.dto.topologydefinition.ManualDynamicConnections;
 import com.vmturbo.api.dto.topologydefinition.ManualEntityDefinitionData;
 import com.vmturbo.api.dto.topologydefinition.ManualGroupConnections;
 import com.vmturbo.api.dto.topologydefinition.ManualStaticConnections;
+import com.vmturbo.api.dto.topologydefinition.TopoDataDefContextBasedApiDTO;
 import com.vmturbo.api.dto.topologydefinition.TopologyDataDefinitionApiDTO;
 import com.vmturbo.api.enums.EntityType;
 import com.vmturbo.api.exceptions.ConversionException;
@@ -142,6 +143,20 @@ public class TopologyDataDefinitionMapper {
     }
 
     /**
+     * Convert XL-related context-based definition to API DTO.
+     *
+     * @param definition XL-related context-based definition
+     * @return API DTO
+     * @throws IllegalArgumentException error if XL context-based definition is incorrectly
+     * specified.
+     */
+    public TopoDataDefContextBasedApiDTO convertTopologyContextBasedDataDefinition(
+                                                @Nonnull final TopologyDataDefinition definition)
+            throws IllegalArgumentException {
+        return convertManualContextBasedDefinition(definition.getManualEntityDefinition());
+    }
+
+    /**
      * Converts {@link AutomatedEntityDefinition} to {@link TopologyDataDefinitionApiDTO}.
      *
      * @param definition XL-related model of automated entity definition
@@ -209,13 +224,14 @@ public class TopologyDataDefinitionMapper {
     }
 
     /**
-     * Converts {@link ManualEntityDefinition} to {@link TopologyDataDefinitionApiDTO}.
+     * Populates required values from {@link ManualEntityDefinition} to
+     * {@link TopologyDataDefinitionApiDTO}.
      *
+     * @param apiDefinition api model of manual entity definition
      * @param definition XL-related model of manual entity definition
-     * @return API-related {@link TopologyDataDefinitionApiDTO}
      */
-    private TopologyDataDefinitionApiDTO convertManualDefinition(@Nonnull final ManualEntityDefinition definition) {
-        TopologyDataDefinitionApiDTO dto = new TopologyDataDefinitionApiDTO();
+    private void populateTopologyDefinition(TopologyDataDefinitionApiDTO apiDefinition,
+                                                ManualEntityDefinition definition) {
         if (!definition.hasEntityName()) {
             processException(String.format("Manual topology definition doesn't have entity name: %s",
                     definition.toString()));
@@ -229,9 +245,34 @@ public class TopologyDataDefinitionMapper {
             processException(String.format("Manual topology definition has unsupported entity type: %s",
                     entityType.name()));
         }
-        dto.setEntityType(USER_DEFINED_ENTITY_TYPES_MAP.get(entityType));
-        dto.setEntityDefinitionData(getManualEntityDefinitionData(definition));
-        dto.setDisplayName(definition.getEntityName());
+        apiDefinition.setEntityType(USER_DEFINED_ENTITY_TYPES_MAP.get(entityType));
+        apiDefinition.setEntityDefinitionData(getManualEntityDefinitionData(definition));
+        apiDefinition.setDisplayName(definition.getEntityName());
+    }
+
+    /**
+     * Converts {@link ManualEntityDefinition} to {@link TopologyDataDefinitionApiDTO}.
+     *
+     * @param definition XL-related model of manual entity definition
+     * @return API-related {@link TopologyDataDefinitionApiDTO}
+     */
+    private TopologyDataDefinitionApiDTO convertManualDefinition(@Nonnull final ManualEntityDefinition definition) {
+        TopologyDataDefinitionApiDTO dto = new TopologyDataDefinitionApiDTO();
+        populateTopologyDefinition(dto, definition);
+        return dto;
+    }
+
+    /**
+     * Converts {@link ManualEntityDefinition} to {@link TopoDataDefContextBasedApiDTO}.
+     *
+     * @param definition XL-related model of manual context-based entity definition
+     * @return API-related {@link TopoDataDefContextBasedApiDTO}
+     */
+    private TopoDataDefContextBasedApiDTO convertManualContextBasedDefinition(
+            @Nonnull final ManualEntityDefinition definition) {
+        TopoDataDefContextBasedApiDTO dto = new TopoDataDefContextBasedApiDTO();
+        populateTopologyDefinition(dto, definition);
+        dto.setContextBased(definition.getContextBased());
         return dto;
     }
 
@@ -473,10 +514,12 @@ public class TopologyDataDefinitionMapper {
                 throw ex;
             }
         }
+        boolean isContextBased = definitionApiDTO instanceof TopoDataDefContextBasedApiDTO;
         return TopologyDataDefinition.newBuilder()
                 .setManualEntityDefinition(ManualEntityDefinition.newBuilder()
                         .setEntityType(entityType)
                         .setEntityName(definitionApiDTO.getDisplayName())
+                        .setContextBased(isContextBased)
                         .addAllAssociatedEntities(associatedEntities))
                 .build();
     }

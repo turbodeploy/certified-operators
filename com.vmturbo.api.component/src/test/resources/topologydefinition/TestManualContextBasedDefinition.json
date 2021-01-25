@@ -1,0 +1,36 @@
+{
+  "entityType": "BusinessApplication",
+  "displayName": "BA_Combined Context Based",
+  "contextBased": true,
+  "entityDefinitionData": {
+    "manualConnectionData": {
+      "Service": {
+        "staticConnections": [
+          "74412384495333",
+          "74412384495332"
+        ]
+      },
+      "Container": {
+        "connectedGroup": {"uuid":"123434550"}
+      },
+      "virtualmachine": {
+        "dynamicConnectionCriteria": [
+          {
+            "expVal": "*-vm",
+            "expType": "RXEQ",
+            "caseSensitive": false,
+            "filterType": "vmsByName",
+            "singleLine": false
+          },
+          {
+            "expVal": "vm-*",
+            "expType": "RXNEQ",
+            "filterType": "vmsByName",
+            "caseSensitive": true,
+            "singleLine": false
+          }
+        ]
+      }
+    }
+  }
+}
