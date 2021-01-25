@@ -1468,6 +1468,7 @@ public abstract class BasedbIO {
             if (clearOldDb) {
                 SchemaUtil.dropDb(dbName, rootConn);
             }
+
             // Create the database
             logger.info("Initializing database '" + dbName + "'...");
             SchemaUtil.createDb(dbName, rootConn);

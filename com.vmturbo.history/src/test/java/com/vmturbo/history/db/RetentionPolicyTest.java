@@ -67,14 +67,10 @@ public class RetentionPolicyTest {
      * Discard the test database.
      *
      * @throws VmtDbException if an error occurs
-     * @throws SQLException if an error occurs
      */
     @AfterClass
-    public static void afterClass() throws SQLException, VmtDbException {
-        try (Connection conn = historydbIO.getRootConnection()) {
-            SchemaUtil.dropDb(testDbName, conn);
-            SchemaUtil.dropUser(historydbIO.getUserName(), conn);
-        }
+    public static void afterClass() throws VmtDbException {
+        historydbIO.execute("DROP DATABASE " + testDbName);
     }
 
     /**

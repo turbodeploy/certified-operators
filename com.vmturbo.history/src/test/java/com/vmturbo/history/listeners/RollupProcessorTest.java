@@ -60,7 +60,6 @@ import com.vmturbo.components.common.utils.MultiStageTimer;
 import com.vmturbo.history.db.BasedbIO.Style;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.HistorydbIO;
-import com.vmturbo.history.db.SchemaUtil;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.db.bulk.BulkInserterConfig;
 import com.vmturbo.history.db.bulk.BulkLoader;
@@ -101,16 +100,16 @@ public class RollupProcessorTest {
      * Seed for random number generator.
      *
      * <p>There's considerable awkwardness in this test due to the fact that the database type of
-     * value- and capacity-related columns in the stats tables is DECIMAL(15,3), but we have a jOOQ
-     * conversion to Double configured for the component. This makes it difficult to compare values
-     * of internally computed averages to those computed in the database. We use approximate
+     * value- and capacity-related columns in the stats tables is DECIMAL(15,3), but we have a
+     * jOOQ conversion to Double configured for the component. This makes it difficult to compare
+     * values of internally computed averages to those computed in the database. We use approximate
      * equality tests to help address this, but even then, the test with different values could
      * suffer false failures. While there's value in creating a stream of values with internal
      * randomness (mostly in terms of conciseness of test specification), there's no value in having
-     * different random values from one execution to the next. So we fix the seed to a value that is
-     * known to work. If a change to this test class causes some tests to fail for no other likely
-     * reason, one thing to try is changing this seed value to find one that works with the other
-     * code changes.</p>
+     * different random values from one execution to the next. So we fix the seed to a value that
+     * is known to work. If a change to this test class causes some tests to fail for no other
+     * likely reason, one thing to try is changing this seed value to find one that works with the
+     * other code changes.</p>
      */
     private static final long RANDOM_SEED = 0L;
 
@@ -189,14 +188,10 @@ public class RollupProcessorTest {
      * Discard the test database.
      *
      * @throws VmtDbException if an error occurs
-     * @throws SQLException if an error occurs
      */
     @AfterClass
-    public static void afterClass() throws VmtDbException, SQLException {
-        try (Connection conn = historydbIO.getRootConnection()) {
-            SchemaUtil.dropDb(testDbName, conn);
-            SchemaUtil.dropUser(historydbIO.getUserName(), conn);
-        }
+    public static void afterClass() throws VmtDbException {
+        historydbIO.execute("DROP DATABASE " + testDbName);
     }
 
     /**
@@ -211,8 +206,8 @@ public class RollupProcessorTest {
     @Test
     public void testRollups() throws InterruptedException, VmtDbException, SQLException {
         PmStatsLatestRecord template1 =
-                createTemplateForStatsTimeSeries(Tables.PM_STATS_LATEST, "CPU",
-                        PropertySubType.Used.getApiParameterName(), null);
+                        createTemplateForStatsTimeSeries(Tables.PM_STATS_LATEST, "CPU",
+                                        PropertySubType.Used.getApiParameterName(), null);
         StatsTimeSeries<PmStatsLatestRecord> ts1 = new StatsTimeSeries<>(
                 Tables.PM_STATS_LATEST, template1, 100_000.0,
                 Instant.parse("2019-01-31T22:01:35Z"), TimeUnit.MINUTES.toMillis(10));
@@ -269,12 +264,12 @@ public class RollupProcessorTest {
     public void testPurgeVolumeAttachmentHistoryRecordsRemoval() throws VmtDbException {
         final long currentTime = System.currentTimeMillis();
         final long outsideRetentionPeriod = currentTime - TimeUnit.DAYS
-                .toMillis(VOL_ATTACHMENT_HISTORY_RETENTION_PERIOD + 1);
+            .toMillis(VOL_ATTACHMENT_HISTORY_RETENTION_PERIOD + 1);
         insertIntoVolumeAttachmentHistoryTable(VOLUME_OID, 0L, outsideRetentionPeriod,
-                outsideRetentionPeriod);
+            outsideRetentionPeriod);
         final VolumeAttachmentHistoryReader reader = new VolumeAttachmentHistoryReader(historydbIO);
         final List<Record3<Long, Long, Date>> records =
-                reader.getVolumeAttachmentHistory(Collections.singletonList(VOLUME_OID));
+            reader.getVolumeAttachmentHistory(Collections.singletonList(VOLUME_OID));
         Assert.assertFalse(records.isEmpty());
 
         final Logger logger = LogManager.getLogger();
@@ -282,7 +277,7 @@ public class RollupProcessorTest {
         rollupProcessor.performRetentionProcessing(timer, false);
 
         final List<Record3<Long, Long, Date>> recordsAfterPurge =
-                reader.getVolumeAttachmentHistory(Collections.singletonList(VOLUME_OID));
+            reader.getVolumeAttachmentHistory(Collections.singletonList(VOLUME_OID));
         Assert.assertTrue(recordsAfterPurge.isEmpty());
     }
 
@@ -296,13 +291,13 @@ public class RollupProcessorTest {
     public void testPurgeVolumeAttachmentHistoryRecordsNoRemovals() throws VmtDbException {
         final long currentTime = System.currentTimeMillis();
         final long withinRetentionPeriod = currentTime - TimeUnit.DAYS
-                .toMillis(VOL_ATTACHMENT_HISTORY_RETENTION_PERIOD);
+            .toMillis(VOL_ATTACHMENT_HISTORY_RETENTION_PERIOD);
         final long outsideRetentionPeriod =
-                currentTime - TimeUnit.DAYS.toMillis(VOL_ATTACHMENT_HISTORY_RETENTION_PERIOD + 1);
+            currentTime - TimeUnit.DAYS.toMillis(VOL_ATTACHMENT_HISTORY_RETENTION_PERIOD + 1);
         insertIntoVolumeAttachmentHistoryTable(VOLUME_OID, VM_OID, outsideRetentionPeriod,
-                outsideRetentionPeriod);
+            outsideRetentionPeriod);
         insertIntoVolumeAttachmentHistoryTable(VOLUME_OID, 0L, withinRetentionPeriod,
-                withinRetentionPeriod);
+            withinRetentionPeriod);
 
         final Logger logger = LogManager.getLogger();
         final MultiStageTimer timer = new MultiStageTimer(logger);
@@ -310,7 +305,7 @@ public class RollupProcessorTest {
 
         final VolumeAttachmentHistoryReader reader = new VolumeAttachmentHistoryReader(historydbIO);
         final List<Record3<Long, Long, Date>> recordsAfterPurge =
-                reader.getVolumeAttachmentHistory(Collections.singletonList(VOLUME_OID));
+            reader.getVolumeAttachmentHistory(Collections.singletonList(VOLUME_OID));
         final Record3<Long, Long, Date> record = recordsAfterPurge.iterator().next();
         Assert.assertEquals(VOLUME_OID, (long)record.component1());
         Assert.assertEquals(VM_OID, (long)record.component2());
@@ -318,8 +313,8 @@ public class RollupProcessorTest {
 
     /**
      * Test that retention processing removes records related to one volume but retains records
-     * related to another volume as the former has no entries within the retention period while the
-     * latter has one entry within the last retention period.
+     * related to another volume as the former has no entries within the retention period while
+     * the latter has one entry within the last retention period.
      *
      * @throws VmtDbException if error encountered during insertion.
      */
@@ -327,17 +322,17 @@ public class RollupProcessorTest {
     public void testPurgeVolumeAttachmentHistoryRecordsOneRemoval() throws VmtDbException {
         final long currentTime = System.currentTimeMillis();
         final long withinRetentionPeriod = currentTime - TimeUnit.DAYS
-                .toMillis(VOL_ATTACHMENT_HISTORY_RETENTION_PERIOD);
+            .toMillis(VOL_ATTACHMENT_HISTORY_RETENTION_PERIOD);
         final long outsideRetentionPeriod = currentTime - TimeUnit.DAYS
-                .toMillis(VOL_ATTACHMENT_HISTORY_RETENTION_PERIOD + 1);
+            .toMillis(VOL_ATTACHMENT_HISTORY_RETENTION_PERIOD + 1);
         insertIntoVolumeAttachmentHistoryTable(VOLUME_OID, VM_OID, outsideRetentionPeriod,
-                outsideRetentionPeriod);
+            outsideRetentionPeriod);
         insertIntoVolumeAttachmentHistoryTable(VOLUME_OID, 0L, withinRetentionPeriod,
-                withinRetentionPeriod);
+            withinRetentionPeriod);
         insertIntoVolumeAttachmentHistoryTable(VOLUME_OID_2, VM_OID_2, outsideRetentionPeriod,
-                outsideRetentionPeriod);
+            outsideRetentionPeriod);
         insertIntoVolumeAttachmentHistoryTable(VOLUME_OID_2, 0, outsideRetentionPeriod,
-                outsideRetentionPeriod);
+            outsideRetentionPeriod);
 
         final Logger logger = LogManager.getLogger();
         final MultiStageTimer timer = new MultiStageTimer(logger);
@@ -345,26 +340,26 @@ public class RollupProcessorTest {
 
         final VolumeAttachmentHistoryReader reader = new VolumeAttachmentHistoryReader(historydbIO);
         final List<Record3<Long, Long, Date>> recordsAfterPurge =
-                reader.getVolumeAttachmentHistory(Stream.of(VOLUME_OID, VOLUME_OID_2)
-                        .collect(Collectors.toList()));
+            reader.getVolumeAttachmentHistory(Stream.of(VOLUME_OID, VOLUME_OID_2)
+                .collect(Collectors.toList()));
         final Record3<Long, Long, Date> record = recordsAfterPurge.iterator().next();
         Assert.assertEquals(VOLUME_OID, (long)record.component1());
         Assert.assertEquals(VM_OID, (long)record.component2());
     }
 
     private void insertIntoVolumeAttachmentHistoryTable(final long volumeOid, final long vmOid,
-            final long lastAttachedTime,
-            final long lastDiscoveredTime)
-            throws VmtDbException {
+                                                        final long lastAttachedTime,
+                                                        final long lastDiscoveredTime)
+        throws VmtDbException {
         historydbIO.execute(Style.IMMEDIATE,
-                HistorydbIO.getJooqBuilder().insertInto(
-                        VolumeAttachmentHistory.VOLUME_ATTACHMENT_HISTORY,
-                        VolumeAttachmentHistory.VOLUME_ATTACHMENT_HISTORY.VOLUME_OID,
-                        VolumeAttachmentHistory.VOLUME_ATTACHMENT_HISTORY.VM_OID,
-                        VolumeAttachmentHistory.VOLUME_ATTACHMENT_HISTORY.LAST_ATTACHED_DATE,
-                        VolumeAttachmentHistory.VOLUME_ATTACHMENT_HISTORY.LAST_DISCOVERED_DATE)
-                        .values(volumeOid, vmOid, new Date(lastAttachedTime),
-                                new Date(lastDiscoveredTime)));
+            HistorydbIO.getJooqBuilder().insertInto(
+                VolumeAttachmentHistory.VOLUME_ATTACHMENT_HISTORY,
+                VolumeAttachmentHistory.VOLUME_ATTACHMENT_HISTORY.VOLUME_OID,
+                VolumeAttachmentHistory.VOLUME_ATTACHMENT_HISTORY.VM_OID,
+                VolumeAttachmentHistory.VOLUME_ATTACHMENT_HISTORY.LAST_ATTACHED_DATE,
+                VolumeAttachmentHistory.VOLUME_ATTACHMENT_HISTORY.LAST_DISCOVERED_DATE)
+                .values(volumeOid, vmOid, new Date(lastAttachedTime),
+                    new Date(lastDiscoveredTime)));
     }
 
     /**
@@ -379,8 +374,7 @@ public class RollupProcessorTest {
      * @param aggregator      aggregator for this time series for the period of this rollup record
      * @param table           underlying stats "latest" table
      * @param uuid            uuid for time-series, or null to not include uuid condition
-     * @param propertyType    property type for time-series, or null to omit property type
-     *                        condition
+     * @param propertyType    property type for time-series, or null to omit property type condition
      * @param propertySubtype property subtype for time-series, or null to omit subtype condition
      * @param <R>             underlying record type
      * @throws VmtDbException on db error
@@ -408,8 +402,7 @@ public class RollupProcessorTest {
     }
 
     /**
-     * Check whether a rollup field value matches the value of the same field in the template
-     * record.
+     * Check whether a rollup field value matches the value of the same field in the template record.
      *
      * @param template  template record
      * @param record    rollup record
@@ -587,8 +580,7 @@ public class RollupProcessorTest {
          *
          * @param table          "latest" stats table
          * @param templateRecord record providing ts identity values
-         * @param baseValue      base value for time series; actual values will be within 5% of
-         *                       this
+         * @param baseValue      base value for time series; actual values will be within 5% of this
          * @param baseSnapshot   snapshot_time of first generated record
          * @param cycleTimeMsec  duration in millis between snapshot_times in consecutive records
          */

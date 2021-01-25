@@ -152,10 +152,9 @@ public class HistorydbIOTest {
     @AfterClass
     public static void teardownDb() {
         DBConnectionPool.instance.getInternalPool().close();
-        try (Connection conn = historydbIO.getRootConnection()) {
-            SchemaUtil.dropDb(testDbName, conn);
-            SchemaUtil.dropUser(historydbIO.getUserName(), conn);
-        } catch (VmtDbException | SQLException e) {
+        try {
+            SchemaUtil.dropDb(testDbName);
+        } catch (VmtDbException e) {
             logger.error("Problem dropping db: " + testDbName, e);
         }
     }

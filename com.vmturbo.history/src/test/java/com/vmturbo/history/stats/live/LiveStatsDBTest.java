@@ -9,8 +9,6 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.when;
 
-import java.sql.Connection;
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -124,10 +122,10 @@ public class LiveStatsDBTest {
     @After
     public void after() {
         DBConnectionPool.instance.getInternalPool().close();
-        try (Connection conn = historydbIO.getRootConnection()) {
-            SchemaUtil.dropDb(testDbName, conn);
-            SchemaUtil.dropUser(historydbIO.getUserName(), conn);
-        } catch (VmtDbException | SQLException e) {
+        try {
+            SchemaUtil.dropDb(testDbName);
+            System.out.println("Dropped DB - " + testDbName);
+        } catch (VmtDbException e) {
             logger.error("Problem dropping db: " + testDbName, e);
         }
     }

@@ -48,7 +48,7 @@ public class PlanStatsAggregatorInfinityCapacityTest {
     @Autowired
     private DbTestConfig dbTestConfig;
     private static String testDbName;
-    private static HistorydbIO historydbIO;
+    private HistorydbIO historydbIO;
 
     private static final TopologyInfo TOPOLOGY_INFO = TopologyInfo.newBuilder()
         .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
@@ -97,10 +97,10 @@ public class PlanStatsAggregatorInfinityCapacityTest {
     @AfterClass
     public static void teardown() {
         DBConnectionPool.instance.getInternalPool().close();
-        try (Connection conn = historydbIO.getRootConnection()) {
+        try {
             SchemaUtil.dropDb(testDbName);
-            SchemaUtil.dropUser(historydbIO.getUserName(), conn);
-        } catch (VmtDbException | SQLException e) {
+            logger.info("Dropped DB - {}", testDbName);
+        } catch (VmtDbException e) {
             logger.error("Problem dropping db: " + testDbName, e);
         }
     }

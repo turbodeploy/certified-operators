@@ -52,7 +52,6 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import com.vmturbo.history.db.BasedbIO;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.RecordTransformer;
-import com.vmturbo.history.db.SchemaUtil;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.db.bulk.DbInserters.DbInserter;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory.RollupKeyTransfomer;
@@ -154,8 +153,7 @@ public class BulkInserterTest extends Assert {
     public static void afterClass() {
         threadPool.shutdownNow();
         try (Connection conn = historydbIO.connection()) {
-            SchemaUtil.dropDb(testDbName, conn);
-            SchemaUtil.dropUser(historydbIO.getUserName(), conn);
+            historydbIO.using(conn).execute("DROP DATABASE " + testDbName);
         } catch (VmtDbException | SQLException e) {
             e.printStackTrace();
         }
