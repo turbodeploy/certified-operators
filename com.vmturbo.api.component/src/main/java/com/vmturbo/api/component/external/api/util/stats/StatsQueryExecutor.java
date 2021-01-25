@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Table;
 
+import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import io.grpc.Status.Code;
@@ -269,7 +270,14 @@ public class StatsQueryExecutor {
                 UICommodityType commodityType = UICommodityType.fromType(commodity.getCommodityType().getType());
                 if (statsRequested.isEmpty() || statsRequested.contains(commodityType.apiStr())) {
                     StatApiDTO statApiDTO = new StatApiDTO();
-                    statApiDTO.setValue((float)commodity.getCapacity());
+                    float capacityValue = (float)commodity.getCapacity();
+                    final StatValueApiDTO capacity = new StatValueApiDTO();
+                    capacity.setAvg(capacityValue);
+                    capacity.setMax(capacityValue);
+                    capacity.setMin(capacityValue);
+                    capacity.setTotal(capacityValue);
+                    statApiDTO.setCapacity(capacity);
+                    statApiDTO.setValue(capacityValue);
                     statApiDTO.setName(commodityType.apiStr());
                     statApiDTOS.add(statApiDTO);
                 }
@@ -282,8 +290,15 @@ public class StatsQueryExecutor {
                     if (statsRequested.isEmpty() || statsRequested.contains(StringConstants.NUM_CORES)
                             && metric.equals(StringConstants.NUM_CORES)) {
                         StatApiDTO statApiDTO = new StatApiDTO();
-                        statApiDTO.setValue((float)topologyEntityDTO.getTypeSpecificInfo().getComputeTier()
-                                .getNumCores());
+                        float capacityValue = (float)topologyEntityDTO.getTypeSpecificInfo().getComputeTier()
+                                .getNumCores();
+                        final StatValueApiDTO capacity = new StatValueApiDTO();
+                        capacity.setAvg(capacityValue);
+                        capacity.setMax(capacityValue);
+                        capacity.setMin(capacityValue);
+                        capacity.setTotal(capacityValue);
+                        statApiDTO.setCapacity(capacity);
+                        statApiDTO.setValue(capacityValue);
                         statApiDTO.setName(StringConstants.NUM_CORES);
                         statApiDTOS.add(statApiDTO);
                     }

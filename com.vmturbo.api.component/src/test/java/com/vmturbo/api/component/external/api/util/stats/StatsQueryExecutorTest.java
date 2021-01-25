@@ -7,6 +7,7 @@ import static com.vmturbo.api.component.external.api.util.stats.StatsTestUtil.st
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
@@ -45,6 +46,7 @@ import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
+import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
@@ -86,6 +88,7 @@ public class StatsQueryExecutorTest {
 
     private static final long MILLIS = 1_000_000;
     private static final String COOLING = "Cooling";
+    private static final double ERROR = 1e-7;
 
     @Before
     public void setup() throws OperationFailedException {
@@ -542,6 +545,9 @@ public class StatsQueryExecutorTest {
                 .setEntityType(56)
                 .build();
 
+        final float commodityCapacity = 20.0f;
+        final int numCores = 8;
+
         // create mock topology entity dto
         // commodity type (CPU)
         TopologyDTO.CommodityType commodityType = TopologyDTO.CommodityType.newBuilder()
@@ -550,12 +556,12 @@ public class StatsQueryExecutorTest {
         // commodity sold
         TopologyDTO.CommoditySoldDTO commoditySoldDTO = TopologyDTO.CommoditySoldDTO.newBuilder()
                 .setCommodityType(commodityType)
-                .setCapacity(20)
+                .setCapacity(commodityCapacity)
                 .build();
         // compute tier info
         TopologyDTO.TypeSpecificInfo.ComputeTierInfo computeTierInfo = TopologyDTO.TypeSpecificInfo.ComputeTierInfo
                 .newBuilder()
-                .setNumCores(8)
+                .setNumCores(numCores)
                 .build();
         // type specific info
         TopologyDTO.TypeSpecificInfo typeSpecificInfo = TopologyDTO.TypeSpecificInfo.newBuilder()
@@ -580,14 +586,32 @@ public class StatsQueryExecutorTest {
         // ASSERT
         assertThat(results.size(), is(1));
         final StatSnapshotApiDTO resultSnapshot = results.get(0);
-        System.out.println(resultSnapshot);
         assertThat(resultSnapshot.getStatistics().size(), is(2));
         final StatApiDTO statApiDTO1 = resultSnapshot.getStatistics().get(0);
-        assertThat(statApiDTO1.getValue(), is(20F));
+        assertThat(statApiDTO1.getValue(), is(commodityCapacity));
         assertThat(statApiDTO1.getName(), is(UICommodityType.CPU.apiStr()));
         final StatApiDTO statApiDTO2 = resultSnapshot.getStatistics().get(1);
-        assertThat(statApiDTO2.getValue(), is(8F));
+        assertThat(statApiDTO2.getValue(), is((float)numCores));
         assertThat(statApiDTO2.getName(), is("numCores"));
+        compareCapacity(statApiDTO1.getCapacity(), createCapacityValue(commodityCapacity));
+        compareCapacity(statApiDTO2.getCapacity(), createCapacityValue(numCores));
+    }
+
+    private void compareCapacity(StatValueApiDTO expected, StatValueApiDTO actual) {
+        assertEquals(expected.getAvg(), actual.getAvg(), ERROR);
+        assertEquals(expected.getMax(), actual.getMax(), ERROR);
+        assertEquals(expected.getMin(), actual.getMin(), ERROR);
+        assertEquals(expected.getTotal(), actual.getTotal(), ERROR);
+
+    }
+
+    private StatValueApiDTO createCapacityValue(float capacityValue) {
+        final StatValueApiDTO capacity = new StatValueApiDTO();
+        capacity.setAvg(capacityValue);
+        capacity.setMax(capacityValue);
+        capacity.setMin(capacityValue);
+        capacity.setTotal(capacityValue);
+        return capacity;
     }
 
     /**
