@@ -2,7 +2,10 @@ package com.vmturbo.cost.component.pricing;
 
 import java.time.Clock;
 
+import javax.annotation.PostConstruct;
+
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
@@ -13,6 +16,7 @@ import com.vmturbo.cost.component.IdentityProviderConfig;
 import com.vmturbo.cost.component.identity.PriceTableKeyIdentityStore;
 import com.vmturbo.cost.component.pricing.PriceTableMerge.PriceTableMergeFactory;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceConfig;
+import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecCleanup;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecConfig;
 
 @Configuration
@@ -31,6 +35,9 @@ public class PricingConfig {
 
     @Autowired
     private IdentityProviderConfig identityProviderConfig;
+
+    @Value("${reservedInstanceSpec.enableCleanup:true}")
+    private boolean isReservedInstanceSpecCleanupEnabled;
 
     @Bean
     public PriceTableMergeFactory priceTableMergeFactory() {
@@ -73,11 +80,27 @@ public class PricingConfig {
         return new PricingRpcService(priceTableStore(), reservedInstanceSpecConfig
                 .reservedInstanceSpecStore(),
                 reservedInstanceConfig.reservedInstanceBoughtStore(),
-                businessAccountPriceTableKeyStore());
+                businessAccountPriceTableKeyStore(),
+                reservedInstanceSpecCleanup());
     }
 
     @Bean
     public PricingServiceController pricingServiceController() {
         return new PricingServiceController(pricingRpcService());
+    }
+
+    @Bean
+    public ReservedInstanceSpecCleanup reservedInstanceSpecCleanup() {
+        return new ReservedInstanceSpecCleanup(
+                reservedInstanceSpecConfig.reservedInstanceSpecStore(),
+                reservedInstanceConfig.reservedInstanceBoughtStore(),
+                priceTableStore(),
+                reservedInstanceConfig.buyReservedInstanceStore(),
+                isReservedInstanceSpecCleanupEnabled);
+    }
+
+    @PostConstruct
+    private void onInit() {
+        reservedInstanceSpecCleanup().cleanupUnreferencedRISpecs();
     }
 }

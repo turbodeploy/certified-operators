@@ -10,13 +10,17 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableSet;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
+import org.jooq.Record1;
 import org.jooq.Record3;
 import org.jooq.Record4;
 import org.jooq.Result;
@@ -179,6 +183,15 @@ public class BuyReservedInstanceStore implements BuyReservedInstanceCostStore,
         // to real time buy RIs). Then create the new buy RIs.
         deleteBuyReservedInstances(topologyContextId);
         createBuyReservedInstances(newRecommendations, topologyContextId);
+    }
+
+    @Nonnull
+    public Set<Long> getAllReferencedRISpecIds() {
+        return dsl.select(BUY_RESERVED_INSTANCE.RESERVED_INSTANCE_SPEC_ID)
+                .from(BUY_RESERVED_INSTANCE)
+                .stream()
+                .map(Record1::value1)
+                .collect(ImmutableSet.toImmutableSet());
     }
 
     /**

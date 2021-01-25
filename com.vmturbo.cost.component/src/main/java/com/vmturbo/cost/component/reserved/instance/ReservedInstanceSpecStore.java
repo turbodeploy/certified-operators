@@ -3,6 +3,7 @@ package com.vmturbo.cost.component.reserved.instance;
 import static com.vmturbo.cost.component.db.Tables.RESERVED_INSTANCE_SPEC;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -14,6 +15,7 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 
 import org.apache.logging.log4j.LogManager;
@@ -215,6 +217,20 @@ public class ReservedInstanceSpecStore implements
                         .fetch().stream()
                         .map(this::reservedInstancesToProto)
                         .collect(Collectors.toList());
+    }
+
+    /**
+     * Deletes the provided {@code ids}.
+     * @param ids RI spec IDs to delete.
+     */
+    public void deleteReservedInstanceSpecsById(@Nonnull Collection<Long> ids) {
+
+        logger.info("Deleting {} RI specs", ids.size());
+
+        Iterables.partition(ids, riBatchSize).forEach(idSet ->
+                dsl.deleteFrom(RESERVED_INSTANCE_SPEC)
+                        .where(RESERVED_INSTANCE_SPEC.ID.in(idSet))
+                        .execute());
     }
 
     private List<ReservedInstanceSpecRecord> internalGetAllReservedInstanceSpecs(

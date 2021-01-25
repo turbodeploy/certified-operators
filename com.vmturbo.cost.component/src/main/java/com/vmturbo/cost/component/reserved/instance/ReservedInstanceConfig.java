@@ -73,8 +73,6 @@ public class ReservedInstanceConfig {
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
 
-
-
     @Value("${ignoreReservedInstanceInventory:false}")
     private boolean ignoreReservedInstanceInventory;
 
@@ -364,5 +362,4 @@ public class ReservedInstanceConfig {
         return new ReservedInstanceCostCalculator(reservedInstanceSpecConfig
                 .reservedInstanceSpecStore());
     }
-
 }
