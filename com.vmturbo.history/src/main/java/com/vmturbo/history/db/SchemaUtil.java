@@ -15,7 +15,8 @@ import javax.sql.DataSource;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.MigrationVersion;
 import org.jooq.SQLDialect;
@@ -32,18 +33,18 @@ public class SchemaUtil {
     private SchemaUtil() {
     }
 
-    protected static final Logger logger = Logger.getLogger("com.vmturbo.history.db");
+    protected static final Logger logger = LogManager.getLogger("com.vmturbo.history.db");
 
     /**
      * The names of the SQL adapters we support.
      */
     public static final ImmutableMap<String, SQLDialect> SUPPORTED_ADAPTERS = ImmutableMap.of(
-        SQLDialect.MYSQL.getNameLC(), SQLDialect.MYSQL,
-        SQLDialect.MARIADB.getNameLC(), SQLDialect.MARIADB);
+            SQLDialect.MYSQL.getNameLC(), SQLDialect.MYSQL,
+            SQLDialect.MARIADB.getNameLC(), SQLDialect.MARIADB);
 
     /**
-     * Returns true if the dialect that this appliance is working against
-     * is a of the MySQL family of databases.
+     * Returns true if the dialect that this appliance is working against is a of the MySQL family
+     * of databases.
      *
      * @param adapter
      * @return
@@ -55,18 +56,20 @@ public class SchemaUtil {
 
     /**
      * Initializes the DB to a given version.
-     * @param version The version to use.
-     * @param clean Whether or not to clean the database first (drops all tables and data).
+     *
+     * @param version                   The version to use.
+     * @param clean                     Whether or not to clean the database first (drops all tables
+     *                                  and data).
      * @param migrationLocationOverride If set, contains a specific classpath location to look for
      *                                  migration files.
      * @return The number of successfully applied migrations.
      */
     public static int initDb(@Nullable final Double version,
-                             final boolean clean,
-                             final Optional<String> migrationLocationOverride) {
+            final boolean clean,
+            final Optional<String> migrationLocationOverride) {
         logger.info("Initializing vmtdb"
-            + ((version != null) ? " at version " + version : "")
-            + "...");
+                + ((version != null) ? " at version " + version : "")
+                + "...");
 
         Flyway fway = flyway(migrationLocationOverride);
         if (clean) {
@@ -83,11 +86,12 @@ public class SchemaUtil {
 
     /**
      * Default classpath locations for migrations.
+     *
      * @return
      */
     public static List<String> locations() {
         return Lists.newArrayList(
-            "db/migration");
+                "db/migration");
     }
 
     /**
@@ -101,8 +105,8 @@ public class SchemaUtil {
         fway.setDataSource(DBConnectionPool.instance.getInternalPool());
 
         List<String> locations = migrationLocationOverride
-            .map(Collections::singletonList)
-            .orElseGet(SchemaUtil::locations);
+                .map(Collections::singletonList)
+                .orElseGet(SchemaUtil::locations);
 
         fway.setLocations(locations.toArray(new String[]{}));
         fway.setCallbacks(
@@ -135,7 +139,9 @@ public class SchemaUtil {
 
     /**
      * Clears the DB.
-     * @param locationsOverride If set, overrides the location in the classpath to look for migrations.
+     *
+     * @param locationsOverride If set, overrides the location in the classpath to look for
+     *                          migrations.
      */
     public static void clearDb(Optional<String> locationsOverride) {
         Flyway flyAway = flyway(locationsOverride);
@@ -143,9 +149,10 @@ public class SchemaUtil {
     }
 
     /**
-     * Clears the DB.
-     * @throws SQLException
-     * @throws DataAccessException
+     * Drops a database.
+     *
+     * @param dbName name of database to drop
+     * @throws VmtDbException if there's a problem
      */
     public static void dropDb(String dbName) throws VmtDbException {
         Connection conn;
@@ -159,12 +166,37 @@ public class SchemaUtil {
     }
 
     /**
-     * Clears the DB.
-     * @throws SQLException
-     * @throws DataAccessException
+     * Drops a database.
+     *
+     * @param dbName name of databse to drop
+     * @param conn   db connection to use
+     * @throws VmtDbException if there's an issue
      */
     public static void dropDb(@Nonnull String dbName, @Nonnull Connection conn) throws VmtDbException {
         using(conn).execute("drop database if exists " + dbName + ";");
+        logger.info("Dropped DB {}", dbName);
+    }
+
+    /**
+     * Drop DB users with given user name.
+     *
+     * <p>All users with given user name and various host specs are dropped.</p>
+     *
+     * @param userName     user name to drop
+     * @param conn         DB connection to use
+     */
+    public static void dropUser(String userName, Connection conn) {
+        try {
+            final String sql = String.format("SELECT host FROM mysql.user WHERE user='%s'", userName);
+            final List<?> hosts = using(conn, SQLDialect.MARIADB).fetchValues(sql);
+            for (final Object host : hosts) {
+                conn.createStatement().execute(String.format("DROP USER '%s'@'%s'",
+                        userName, host));
+                logger.info("Dropped DB user '{}'@'{}'", userName, host);
+            }
+        } catch (SQLException e) {
+            logger.error("Failed to drop test user name {}", userName, e);
+        }
     }
 
     /**
@@ -172,9 +204,9 @@ public class SchemaUtil {
      * connection from DBConnectionPool.instance.getConnection().
      *
      * @param dbName The name to be given to the new Db.
-     * @param conn The given Connection.
+     * @param conn   The given Connection.
      * @throws VmtDbException Thrown if there is a problem connecting to the connection from
-     * DBConnectionPool
+     *                        DBConnectionPool
      */
     public static void createDb(String dbName, Connection conn) throws VmtDbException {
         if (conn == null) {
@@ -186,7 +218,7 @@ public class SchemaUtil {
             }
         }
         using(conn).execute("CREATE DATABASE IF NOT EXISTS `" + dbName +
-            "` DEFAULT CHARACTER SET = UTF8 DEFAULT COLLATE = utf8_unicode_ci;");
+                "` DEFAULT CHARACTER SET = UTF8 DEFAULT COLLATE = utf8_unicode_ci;");
     }
 
     /*

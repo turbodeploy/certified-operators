@@ -50,8 +50,9 @@ public class DbTestConfig {
         properties.setProperty("defaultBatchSize", "1000");
         properties.setProperty("maxBatchRetries", "10");
         properties.setProperty("maxBatchRetryTimeoutMsec", "60000");
-        // there is a USERNAME system variable in Windows
-        properties.setProperty("userName", "vmtplatform");
+        // note that in early versions of mysql, user names are limited to 16 chars, so we
+        // use 'h' instead of 'history, and permit at most 15 digits of time
+        properties.setProperty("historyDbUsername", "h" +(System.nanoTime() % 1_000_000_000_000_000L));
         properties.setProperty("executeTimeoutMsec.FORCED", "10000");
         properties.setProperty("executeTimeoutMsec.PATIENT", "50000");
         properties.setProperty("executeTimeoutMsec.IMMEDIATE", "1000");
