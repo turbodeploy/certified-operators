@@ -47,6 +47,7 @@ import com.vmturbo.common.protobuf.cost.Pricing.UploadPriceTablesResponse;
 import com.vmturbo.common.protobuf.cost.PricingServiceGrpc.PricingServiceImplBase;
 import com.vmturbo.cost.component.pricing.PriceTableStore.PriceTables;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;
+import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecCleanup;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecStore;
 import com.vmturbo.platform.sdk.common.PricingDTO.ReservedInstancePrice;
 
@@ -61,6 +62,7 @@ public class PricingRpcService extends PricingServiceImplBase {
     private final ReservedInstanceSpecStore reservedInstanceSpecStore;
     private final BusinessAccountPriceTableKeyStore businessAccountPriceTableKeyStore;
     private final ReservedInstanceBoughtStore reservedInstanceBoughtStore;
+    private final ReservedInstanceSpecCleanup reservedInstanceSpecCleanup;
     /**
      * Constructor.
      * @param priceTableStore price table store.
@@ -71,11 +73,13 @@ public class PricingRpcService extends PricingServiceImplBase {
     public PricingRpcService(@Nonnull final PriceTableStore priceTableStore,
                              @Nonnull final ReservedInstanceSpecStore riSpecStore,
                              @Nonnull final ReservedInstanceBoughtStore reservedInstanceBoughtStore,
-                             @Nonnull final BusinessAccountPriceTableKeyStore businessAccountPriceTableKeyStore) {
+                             @Nonnull final BusinessAccountPriceTableKeyStore businessAccountPriceTableKeyStore,
+                             @Nonnull final ReservedInstanceSpecCleanup reservedInstanceSpecCleanup) {
         this.priceTableStore = Objects.requireNonNull(priceTableStore);
         this.reservedInstanceSpecStore = Objects.requireNonNull(riSpecStore);
         this.reservedInstanceBoughtStore = Objects.requireNonNull(reservedInstanceBoughtStore);
         this.businessAccountPriceTableKeyStore = Objects.requireNonNull(businessAccountPriceTableKeyStore);
+        this.reservedInstanceSpecCleanup = Objects.requireNonNull(reservedInstanceSpecCleanup);
     }
 
     @Override
@@ -179,6 +183,9 @@ public class PricingRpcService extends PricingServiceImplBase {
                 priceTableStore.putProbePriceTables(tablesByProbeType);
                 responseObserver.onNext(UploadPriceTablesResponse.getDefaultInstance());
                 responseObserver.onCompleted();
+
+                // after the response has completed
+                reservedInstanceSpecCleanup.cleanupUnreferencedRISpecs();
             }
         };
     }

@@ -46,6 +46,7 @@ import com.vmturbo.common.protobuf.cost.PricingServiceGrpc.PricingServiceBlockin
 import com.vmturbo.common.protobuf.cost.PricingServiceGrpc.PricingServiceStub;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;
+import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecCleanup;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecStore;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType;
@@ -82,7 +83,14 @@ public class PricingRpcServiceTest {
 
     private ReservedInstanceBoughtStore reservedInstanceBoughtStore = mock(ReservedInstanceBoughtStore.class);
 
-    private PricingRpcService backend = new PricingRpcService(priceTableStore, riSpecStore, reservedInstanceBoughtStore, businessAccountPriceTableKeyStore);
+    private ReservedInstanceSpecCleanup reservedInstanceSpecCleanup = mock(ReservedInstanceSpecCleanup.class);
+
+    private PricingRpcService backend = new PricingRpcService(
+            priceTableStore,
+            riSpecStore,
+            reservedInstanceBoughtStore,
+            businessAccountPriceTableKeyStore,
+            reservedInstanceSpecCleanup);
 
     /**
      * Create a grpc instance of the pricing rpc service.
@@ -249,7 +257,7 @@ public class PricingRpcServiceTest {
         // generate the PriceTableStore
         PriceTableStore priceTableStore = Mockito.spy(PriceTableStore.class);
         PricingRpcService service = new PricingRpcService(priceTableStore, riSpecstore, reservedInstanceBoughtStore,
-                businessAccountPriceTableKeyStore);
+                businessAccountPriceTableKeyStore, reservedInstanceSpecCleanup);
         ReservedInstancePriceTable riPriceTable = service.updateRISpecsAndBuildRIPriceTable(specPriceList);
 
         // get the map from ReservedInstanceSpec OID to ReservedInstancePrice
