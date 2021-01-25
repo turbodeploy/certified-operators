@@ -102,7 +102,7 @@ public class ClusterStatsReaderTest {
 
     private static String testDbName;
 
-    private HistorydbIO historydbIO;
+    private static HistorydbIO historydbIO;
 
     private ClusterStatsReader clusterStatsReader;
 
@@ -172,9 +172,9 @@ public class ClusterStatsReaderTest {
     @AfterClass
     public static void afterClass() throws Throwable {
         DBConnectionPool.instance.getInternalPool().close();
-        try {
-            SchemaUtil.dropDb(testDbName);
-            System.out.println("Dropped DB - " + testDbName);
+        try (Connection conn = historydbIO.getRootConnection()) {
+            SchemaUtil.dropDb(testDbName, conn);
+            SchemaUtil.dropUser(historydbIO.getUserName(), conn);
         } catch (VmtDbException e) {
             System.out.println("Problem dropping db: " + testDbName);
         }

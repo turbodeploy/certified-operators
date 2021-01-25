@@ -51,7 +51,7 @@ public class DbTestConfig {
         properties.setProperty("maxBatchRetries", "10");
         properties.setProperty("maxBatchRetryTimeoutMsec", "60000");
         // there is a USERNAME system variable in Windows
-        properties.setProperty("userName", "vmtplatform");
+        properties.setProperty("historyDbUsername", "history" + System.nanoTime());
         properties.setProperty("executeTimeoutMsec.FORCED", "10000");
         properties.setProperty("executeTimeoutMsec.PATIENT", "50000");
         properties.setProperty("executeTimeoutMsec.IMMEDIATE", "1000");
