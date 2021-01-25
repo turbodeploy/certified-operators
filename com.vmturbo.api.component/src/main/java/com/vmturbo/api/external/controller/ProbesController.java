@@ -106,7 +106,7 @@ public class ProbesController {
             produces = { MediaType.APPLICATION_JSON_VALUE })
     @ResponseBody
     @PreAuthorize("hasAnyRole('ADMINISTRATOR', 'DEPLOYER', 'AUTOMATOR', 'ADVISOR')")
-    public List<TargetApiDTO> getProbes() throws Exception {
+    public List<TargetApiDTO> getAllProbes() throws Exception {
         return probesService.getProbes();
     }
 
