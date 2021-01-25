@@ -30,6 +30,7 @@ import org.junit.Test;
 import com.vmturbo.common.protobuf.topology.Stitching.JournalOptions;
 import com.vmturbo.common.protobuf.topology.Stitching.Verbosity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.identity.exceptions.IdentityServiceException;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -61,6 +62,7 @@ import com.vmturbo.topology.processor.stitching.StitchingTestUtils;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory.ConfigurableStitchingJournalFactory;
 import com.vmturbo.topology.processor.targets.Target;
+import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
 
 /**
@@ -106,52 +108,64 @@ public class UCSStitchingIntegrationTest extends StitchingIntegrationTest {
                         fabricMergeEntityMetadata), Sets.newHashSet(ProbeCategory.HYPERVISOR));
     }
 
-    private void testUCSStitching(List<StitchingOperation<?, ?>> fabricStitchingOperationsToTest)
-            throws Exception {
-        final Map<Long, EntityDTO> ucsEntities =
-                sdkDtosFromFile(getClass(), "protobuf/messages/cisco-ucs_data.json.zip",
-                        1L);
-        final Map<Long, EntityDTO> hypervisorEntities =
-                sdkDtosFromFile(getClass(), "protobuf/messages/cisco-vcenter_data.json.zip",
-                        ucsEntities.size() + 1L);
-        final Map<String, EntityDTO> hypervisorHostsBeforeStitch = hypervisorEntities.values().stream()
-            .filter(entityDTO -> entityDTO.getEntityType() == EntityType.PHYSICAL_MACHINE)
-            .collect(Collectors.toMap(EntityDTO::getId, Function.identity()));
-
+    private StitchingContext prepareStitchingContext(Map<Long, EntityDTO> ucsEntities,
+                    Map<Long, EntityDTO> hypervisorEntities,
+                    List<StitchingOperation<?, ?>> fabricStitchingOperationsToTest)
+                        throws TargetNotFoundException, IdentityServiceException  {
         addEntities(ucsEntities, ucsTargetId);
         addEntities(hypervisorEntities, vcTargetId);
 
         setOperationsForProbe(ucsProbeId, fabricStitchingOperationsToTest);
         setOperationsForProbe(vcProbeId, Collections.emptyList());
 
-        final StitchingManager stitchingManager = new StitchingManager(stitchingOperationStore,
-                preStitchingOperationLibrary, postStitchingOperationLibrary, probeStore, targetStore,
-                cpuCapacityStore);
         final Target ucsTarget = mock(Target.class);
         when(ucsTarget.getId()).thenReturn(ucsTargetId);
         final Target ucsVcenterTarget = mock(Target.class);
         when(ucsVcenterTarget.getId()).thenReturn(vcTargetId);
         when(targetStore.getProbeTargets(ucsProbeId))
-                .thenReturn(Collections.singletonList(ucsTarget));
+                        .thenReturn(Collections.singletonList(ucsTarget));
         when(targetStore.getProbeTargets(vcProbeId))
-                .thenReturn(Collections.singletonList(ucsVcenterTarget));
+                        .thenReturn(Collections.singletonList(ucsVcenterTarget));
         when(probeStore.getProbe(ucsProbeId)).thenReturn(Optional.empty());
         when(probeStore.getProbeIdsForCategory(ProbeCategory.FABRIC))
-                .thenReturn(Collections.singletonList(ucsProbeId));
+                        .thenReturn(Collections.singletonList(ucsProbeId));
         when(probeStore.getProbeIdsForCategory(ProbeCategory.HYPERVISOR))
-                .thenReturn(Collections.singletonList(vcProbeId));
+                        .thenReturn(Collections.singletonList(vcProbeId));
 
+        return entityStore.constructStitchingContext();
+    }
+
+    private IStitchingJournal<StitchingEntity> prepareJournal(StitchingContext stitchingContext) {
         final StringBuilder journalStringBuilder = new StringBuilder(2048);
-        final StitchingContext stitchingContext = entityStore.constructStitchingContext();
         final ConfigurableStitchingJournalFactory journalFactory = StitchingJournalFactory
-                .configurableStitchingJournalFactory(Clock.systemUTC())
-                .addRecorder(new StringBuilderRecorder(journalStringBuilder));
+                        .configurableStitchingJournalFactory(Clock.systemUTC())
+                        .addRecorder(new StringBuilderRecorder(journalStringBuilder));
         journalFactory.setJournalOptions(JournalOptions.newBuilder()
-                .setVerbosity(Verbosity.LOCAL_CONTEXT_VERBOSITY)
-                .build());
+                        .setVerbosity(Verbosity.LOCAL_CONTEXT_VERBOSITY)
+                        .build());
+        return journalFactory.stitchingJournal(stitchingContext);
+    }
 
-        final IStitchingJournal<StitchingEntity> journal = journalFactory.stitchingJournal(stitchingContext);
+    private void testUCSStitching(List<StitchingOperation<?, ?>> fabricStitchingOperationsToTest)
+            throws Exception {
+        final Map<Long, EntityDTO> ucsEntities = sdkDtosFromFile(
+                       getClass(), "protobuf/messages/cisco-ucs_data.json.zip", 1L);
+        final Map<Long, EntityDTO> hypervisorEntities = sdkDtosFromFile(
+                        getClass(), "protobuf/messages/cisco-vcenter_data.json.zip",
+                                ucsEntities.size() + 1L);
+        final Map<String, EntityDTO> hypervisorHostsBeforeStitch = hypervisorEntities.values().stream()
+                    .filter(entityDTO -> entityDTO.getEntityType() == EntityType.PHYSICAL_MACHINE)
+                    .collect(Collectors.toMap(EntityDTO::getId, Function.identity()));
+
+        final StitchingContext stitchingContext = prepareStitchingContext(ucsEntities,
+                        hypervisorEntities, fabricStitchingOperationsToTest);
+        final IStitchingJournal<StitchingEntity> journal = prepareJournal(stitchingContext);
+
+        final StitchingManager stitchingManager = new StitchingManager(stitchingOperationStore,
+                        preStitchingOperationLibrary, postStitchingOperationLibrary, probeStore, targetStore,
+                        cpuCapacityStore);
         stitchingManager.stitch(stitchingContext, journal);
+
         final Map<Long, TopologyEntityDTO.Builder> topology = stitchingContext.constructTopology();
 
         // These proxy PMs should have been replaced by real PMs from the hypervisor
@@ -243,6 +257,8 @@ public class UCSStitchingIntegrationTest extends StitchingIntegrationTest {
             });
         });
 
+        assertEquals(2, stitchingContext.getEntitiesOfType(EntityType.DATACENTER).count());
+
         final IStitchingJournal<TopologyEntity> postStitchingJournal = journal.childJournal(
                 new TopologyEntitySemanticDiffer(journal.getJournalOptions().getVerbosity()));
         stitchingManager.postStitch(new GraphWithSettings(TopologyEntityTopologyGraphCreator.newGraph(topology.values().stream()
@@ -279,4 +295,31 @@ public class UCSStitchingIntegrationTest extends StitchingIntegrationTest {
         CommoditySoldMetadata.newBuilder().setCommodityType(CommodityType.IO_THROUGHPUT).setIgnoreIfPresent(true).build(),
         CommoditySoldMetadata.newBuilder().setCommodityType(CommodityType.NET_THROUGHPUT).setIgnoreIfPresent(true).build()
     );
+
+    /**
+     * Test the situation when all UCS-DC consumers are stitched and it is left with no consumers in it.
+     * @throws Exception    passed from the used existing testing utils.
+     */
+    @Test
+    public void testRemovedUCSDC() throws Exception  {
+        final Map<Long, EntityDTO> ucsEntities = sdkDtosFromFile(
+                        getClass(), "protobuf/messages/cisco-ucs.small_data.json.zip", 1L);
+        final Map<Long, EntityDTO> hypervisorEntities = sdkDtosFromFile(
+                        getClass(), "protobuf/messages/cisco-vcenter_data.json.zip",
+                                ucsEntities.size() + 1L);
+
+        List<StitchingOperation<?, ?>> fabricStitchingOperationsToTest =
+                        ImmutableList.of(new FabricPMStitchingOperation());
+
+        final StitchingContext stitchingContext = prepareStitchingContext(ucsEntities,
+                        hypervisorEntities, fabricStitchingOperationsToTest);
+        final IStitchingJournal<StitchingEntity> journal = prepareJournal(stitchingContext);
+
+        final StitchingManager stitchingManager = new StitchingManager(stitchingOperationStore,
+                        preStitchingOperationLibrary, postStitchingOperationLibrary, probeStore, targetStore,
+                        cpuCapacityStore);
+        stitchingManager.stitch(stitchingContext, journal);
+
+        assertEquals(1, stitchingContext.getEntitiesOfType(EntityType.DATACENTER).count());
+    }
  }

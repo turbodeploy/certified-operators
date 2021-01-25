@@ -28,6 +28,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.components.api.tracing.Tracing;
 import com.vmturbo.components.api.tracing.Tracing.TracingScope;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.proactivesupport.DataMetricSummary;
@@ -217,12 +218,23 @@ public class StitchingManager {
         final StitchingResultBuilder resultBuilder =
             new StitchingResultBuilder(scopeFactory.getStitchingContext());
         scopeFactory.globalScope().entities()
-            .filter(StitchingEntity::removeIfUnstitched)
+            .filter(se -> se.removeIfUnstitched() || checkForEmptyDC(se))
             .forEach(stitchingEntity -> resultBuilder.queueEntityRemoval(stitchingEntity));
         TopologicalChangelog<StitchingEntity> results = resultBuilder.build();
         results.getChanges().forEach(change -> change.applyChange(stitchingJournal));
         stitchingJournal.recordMessage(
             "--------------- END: Cleanup of unstitched proxy entities ---------------");
+    }
+
+    private boolean checkForEmptyDC(StitchingEntity stitchingEntity)   {
+        boolean isEmptyDC = false;
+        if (stitchingEntity.getConsumers().isEmpty()
+                && stitchingEntity.getCommoditiesSold()
+                    .filter(c -> CommodityType.DATACENTER.equals(c.getCommodityType()))
+                    .count() > 0)   {
+            isEmptyDC = true;
+        }
+        return isEmptyDC;
     }
 
     /**
