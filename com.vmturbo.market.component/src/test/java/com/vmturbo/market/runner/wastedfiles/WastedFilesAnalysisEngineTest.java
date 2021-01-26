@@ -134,11 +134,12 @@ public class WastedFilesAnalysisEngineTest {
     }
 
     private static void addFilesToOnpremVolume(TopologyEntityDTO.Builder volume, String[] filePath,
-                                       long[] sizeKb) {
+                                       long[] sizeKb, long[] modificationTimeMs) {
         VirtualVolumeInfo.Builder volumeInfo = VirtualVolumeInfo.newBuilder();
         for (int i = 0; i < filePath.length; i++) {
             volumeInfo.addFiles(VirtualVolumeFileDescriptor.newBuilder().setPath(filePath[i])
-                .setSizeKb(sizeKb[i]));
+                .setSizeKb(sizeKb[i])
+                .setModificationTimeMs(modificationTimeMs[i]));
         }
         volume.setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setVirtualVolume(volumeInfo));
     }
@@ -163,12 +164,14 @@ public class WastedFilesAnalysisEngineTest {
         final String[] filePathsUsed = {"/foo/bar/used1", "/etc/turbo/used2.iso", "used3"};
         final long[] wastedSizesKb = {900, 1100, 2400000};
         final long[] usedSizesKb = {800, 1200, 2500000};
+        final long[] wastedModTimeMs = {25000, 35000, 45000};
+        final long[] usedModTimeMs = {125000, 135000, 145000};
         connectEntities(vm, connectedVolume);
         connectEntities(connectedVolume, storage);
         connectEntities(wastedFileVolume, storage);
         connectEntities(wastedFileVolume2, storage2);
-        addFilesToOnpremVolume(wastedFileVolume, filePathsWasted, wastedSizesKb);
-        addFilesToOnpremVolume(connectedVolume, filePathsUsed, usedSizesKb);
+        addFilesToOnpremVolume(wastedFileVolume, filePathsWasted, wastedSizesKb, wastedModTimeMs);
+        addFilesToOnpremVolume(connectedVolume, filePathsUsed, usedSizesKb, usedModTimeMs);
         return new ImmutableMap.Builder<Long, TopologyEntityDTO>()
             .put(vm.getOid(), vm.build())
             .put(storage.getOid(), storage.build())
@@ -243,6 +246,13 @@ public class WastedFilesAnalysisEngineTest {
                 .map(Action::getExplanation)
                 .map(Explanation::getDelete)
                 .map(DeleteExplanation::getSizeKb)
+                .collect(Collectors.toSet()));
+        // make sure action explanations have correct modification times
+        assertEquals(ImmutableSet.of(35000L, 45000L),
+            analysis.getActions().stream()
+                .map(Action::getExplanation)
+                .map(Explanation::getDelete)
+                .map(DeleteExplanation::getModificationTimeMs)
                 .collect(Collectors.toSet()));
         // make sure storage is the target of each action
         analysis.getActions().forEach(action -> {

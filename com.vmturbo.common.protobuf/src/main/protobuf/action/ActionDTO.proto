@@ -212,6 +212,9 @@ message Explanation {
     message DeleteExplanation {
         // The size of the file to delete (needed for ON_PREM only)
         optional int64 size_kb = 1;
+
+        // Modification time in UTC milliseconds since epoch (needed for ON_PREM only)
+        optional int64 modification_time_ms = 2;
     }
 
     // Reconfigure explanation contains the base type of the reconfigure commodity.

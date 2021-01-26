@@ -47,12 +47,12 @@ import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 import com.vmturbo.proactivesupport.DataMetricCounter;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
-
 /**
  * Performs wasted file analysis on topologies.
  *
  * <p/>See: {@link WastedFilesAnalysisEngine#analyzeWastedFiles(TopologyInfo, Map, TopologyCostCalculator, CloudTopology)}.
  */
+
 public class WastedFilesAnalysisEngine {
     private final Logger logger = LogManager.getLogger();
 
@@ -156,8 +156,12 @@ public class WastedFilesAnalysisEngine {
         return Streams.concat(connectedVolumes, consumedVolumes);
     }
 
-    private DeleteExplanation getOnPremWastedFilesDeleteExplanation(long sizeKb) {
-        return DeleteExplanation.newBuilder().setSizeKb(sizeKb).build();
+    private DeleteExplanation getOnPremWastedFilesDeleteExplanation(long sizeKb,
+                                                                    long modificationTimeMs) {
+        return DeleteExplanation.newBuilder()
+            .setSizeKb(sizeKb)
+            .setModificationTimeMs(modificationTimeMs)
+            .build();
     }
 
     /**
@@ -221,7 +225,8 @@ public class WastedFilesAnalysisEngine {
                 null, null, // TODO need to update source entity for on-perm in the future
                 fileDescr.getPath(), environmentType);
         action.setExplanation(Explanation.newBuilder()
-                .setDelete(getOnPremWastedFilesDeleteExplanation(fileDescr.getSizeKb())));
+                .setDelete(getOnPremWastedFilesDeleteExplanation(fileDescr.getSizeKb(),
+                    fileDescr.getModificationTimeMs())));
         return action;
     }
 

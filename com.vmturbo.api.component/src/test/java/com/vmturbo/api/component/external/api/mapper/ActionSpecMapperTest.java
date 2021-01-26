@@ -1703,13 +1703,16 @@ public class ActionSpecMapperTest {
         final long targetId = 1;
         final String fileName = "foobar";
         final String filePath = "/etc/local/" + fileName;
+        final long modificationTime = 25000L;
         final ActionInfo deleteInfo = ActionInfo.newBuilder()
             .setDelete(Delete.newBuilder().setTarget(ApiUtilsTest.createActionEntity(targetId))
                 .setFilePath(filePath)
                 .build())
             .build();
         Explanation delete = Explanation.newBuilder()
-            .setDelete(DeleteExplanation.newBuilder().setSizeKb(2048l).build()).build();
+            .setDelete(DeleteExplanation.newBuilder().setSizeKb(2048L)
+                .setModificationTimeMs(modificationTime)
+                .build()).build();
         final String entityToDelete = "EntityToDelete";
 
         final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReq(Lists.newArrayList(
@@ -1727,6 +1730,7 @@ public class ActionSpecMapperTest {
         assertEquals(ActionType.DELETE, actionApiDTO.getActionType());
         assertEquals(1, actionApiDTO.getVirtualDisks().size());
         assertEquals(filePath, actionApiDTO.getVirtualDisks().get(0).getDisplayName());
+        assertEquals(modificationTime, actionApiDTO.getVirtualDisks().get(0).getLastModified());
         assertEquals("2.0", actionApiDTO.getCurrentValue());
         assertEquals("MB", actionApiDTO.getValueUnits());
         assertNull(actionApiDTO.getRisk().getReasonCommodities());

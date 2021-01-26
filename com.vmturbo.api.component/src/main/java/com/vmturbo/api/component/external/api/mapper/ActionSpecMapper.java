@@ -1642,7 +1642,7 @@ public class ActionSpecMapper {
         actionApiDTO.setTarget(getServiceEntityDTO(context, targetEntity));
         actionApiDTO.setCurrentEntity(getServiceEntityDTO(context, targetEntity));
         actionApiDTO.setActionType(ActionType.DELETE);
-        long deletedSizeinKB = deleteExplanation.getSizeKb();
+        final long deletedSizeinKB = deleteExplanation.getSizeKb();
         if (deletedSizeinKB > 0) {
             final double deletedSizeInMB = deletedSizeinKB / (double)Units.NUM_OF_KB_IN_MB;
             actionApiDTO.setCurrentValue(String.format(FORMAT_FOR_ACTION_VALUES, deletedSizeInMB));
@@ -1651,8 +1651,9 @@ public class ActionSpecMapper {
         // set the virtualDisks field on ActionApiDTO, only one VirtualDiskApiDTO should be set,
         // since there is only one file (on-prem) or volume (cloud) associated with DELETE action
         if (delete.hasFilePath()) {
-            VirtualDiskApiDTO virtualDiskApiDTO = new VirtualDiskApiDTO();
+            final VirtualDiskApiDTO virtualDiskApiDTO = new VirtualDiskApiDTO();
             virtualDiskApiDTO.setDisplayName(delete.getFilePath());
+            virtualDiskApiDTO.setLastModified(deleteExplanation.getModificationTimeMs());
             actionApiDTO.setVirtualDisks(Collections.singletonList(virtualDiskApiDTO));
         }
     }
