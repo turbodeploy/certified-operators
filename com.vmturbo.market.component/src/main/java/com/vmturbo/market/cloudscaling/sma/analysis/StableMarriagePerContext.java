@@ -866,12 +866,12 @@ public class StableMarriagePerContext {
         @Override
         public int compare(SMAVirtualMachine vm1, SMAVirtualMachine vm2) {
 
-            // to reduce dependency do the cost comparison is done after current template comparison.
+            // to reduce dependency do the cost comparison is done after current coverage comparison.
             // this will prevent relinquishing.
             if (reduceDependency) {
-                int currentTemplateComparison = currentTemplateComparison(vm1, vm2, reservedInstance, virtualMachineGroupMap);
-                if (currentTemplateComparison != 0) {
-                    return currentTemplateComparison;
+                int currentCoverageComparison = currentCoverageComparison(vm1, vm2, reservedInstance);
+                if (currentCoverageComparison != 0) {
+                    return currentCoverageComparison;
                 }
             }
 
@@ -881,19 +881,15 @@ public class StableMarriagePerContext {
                 return costComparison;
             }
 
+            if (!reduceDependency) {
+                int currentCoverageComparison = currentCoverageComparison(vm1, vm2, reservedInstance);
+                if (currentCoverageComparison != 0) {
+                    return currentCoverageComparison;
+                }
+            }
+
+
             String riFamily = reservedInstance.getNormalizedTemplate().getFamily();
-            // pick VM with higher initial RI coverage.
-            float riCoverageVm1 = reservedInstance.getRICoverage(vm1);
-            float riCoverageVm2 = reservedInstance.getRICoverage(vm2);
-            // if vm is already covered by one of the RI prefer that RI
-
-            if ((riCoverageVm1 - riCoverageVm2) > SMAUtils.EPSILON) {
-                return -1;
-            }
-            if ((riCoverageVm2 - riCoverageVm1) > SMAUtils.EPSILON) {
-                return 1;
-            }
-
             // pick vm with lesser moves
             if (!reservedInstance.isIsf()) {
                 int vm1TemplateMoves = templateMoves(vm1, reservedInstance.getNormalizedTemplate(),
@@ -939,37 +935,23 @@ public class StableMarriagePerContext {
     }
 
     /**
-     * prefer the vm that has the same current template as RI to reduce dependency.
+     * prefer the vm that has the higher coverage from the RI to reduce dependency.
      * @param vm1 first vm
      * @param vm2 second vm
      * @param reservedInstance            reserved instance
-     * @param virtualMachineGroupMap map from group name to virtualMachine Group
-     * @return prefer the vm with lesser moves.
+     * @return prefer the vm with higher coverage.
      */
-    private static int currentTemplateComparison(SMAVirtualMachine vm1, SMAVirtualMachine vm2,
-                                                 SMAReservedInstance reservedInstance,
-                                                 Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap) {
-        String riFamily = reservedInstance.getNormalizedTemplate().getFamily();
-        // pick vm with lesser moves
-        if (!reservedInstance.isIsf()) {
-            int vm1TemplateMoves = templateMoves(vm1, reservedInstance.getNormalizedTemplate(),
-                    virtualMachineGroupMap);
-            int vm2TemplateMoves = templateMoves(vm2, reservedInstance.getNormalizedTemplate(),
-                    virtualMachineGroupMap);
-            if (vm1TemplateMoves < vm2TemplateMoves) {
-                return -1;
-            } else if (vm1TemplateMoves > vm2TemplateMoves) {
-                return 1;
-            }
-        } else {
-            // pick vm in the same family
-            int vm1FamilyMoves = familyMoves(vm1, riFamily, virtualMachineGroupMap);
-            int vm2FamilyMoves = familyMoves(vm2, riFamily, virtualMachineGroupMap);
-            if (vm1FamilyMoves < vm2FamilyMoves) {
-                return -1;
-            } else if (vm1FamilyMoves > vm2FamilyMoves) {
-                return 1;
-            }
+    private static int currentCoverageComparison(SMAVirtualMachine vm1, SMAVirtualMachine vm2,
+                                                 SMAReservedInstance reservedInstance) {
+        float riCoverageVm1 = reservedInstance.getRICoverage(vm1);
+        float riCoverageVm2 = reservedInstance.getRICoverage(vm2);
+        // if vm is already covered by one of the RI prefer that RI
+
+        if ((riCoverageVm1 - riCoverageVm2) > SMAUtils.EPSILON) {
+            return -1;
+        }
+        if ((riCoverageVm2 - riCoverageVm1) > SMAUtils.EPSILON) {
+            return 1;
         }
         return 0;
     }
