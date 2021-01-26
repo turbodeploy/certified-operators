@@ -19,6 +19,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableList;
 
 import org.junit.Before;
@@ -942,6 +944,23 @@ public class UserServiceTest {
         adGroupFromRequest.setDisplayName(AD_GROUP_NAME);
         // it should pass now.
         function.apply(adGroupFromRequest);
+    }
+
+    /**
+     * Verify "rolename" is in the response when request only provide "rolename". E.g.:
+     * "username":"test","password":"1","type":"DedicatedCustomer","loginProvider":"LOCAL","roleName":"site_admin"}
+     *
+     * @throws JsonProcessingException if JSON string doesn't match Java object.
+     */
+    @Test
+    public void testPopulateResultUserApiDTOFromInput() throws JsonProcessingException {
+        final ObjectMapper objectMapper = new ObjectMapper();
+        final String newUserJson =
+                "{\"username\":\"test\",\"password\":\"1\",\"type\":\"DedicatedCustomer\"," +
+                        "\"loginProvider\":\"LOCAL\",\"roleName\":\"site_admin\"}";
+        final UserApiDTO dto = objectMapper.readValue(newUserJson, UserApiDTO.class);
+        final UserApiDTO responseDto = usersService.populateResultUserApiDTOFromInput(dto);
+        assertEquals("site_admin", responseDto.getRoleName());
     }
 
     private void logout() {

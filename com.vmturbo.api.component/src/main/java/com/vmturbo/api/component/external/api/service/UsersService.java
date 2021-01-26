@@ -48,6 +48,7 @@ import com.vmturbo.api.dto.user.ActiveDirectoryApiDTO;
 import com.vmturbo.api.dto.user.ActiveDirectoryGroupApiDTO;
 import com.vmturbo.api.dto.user.ChangePasswordApiDTO;
 import com.vmturbo.api.dto.user.PropertyValueApiDTO;
+import com.vmturbo.api.dto.user.RoleApiDTO;
 import com.vmturbo.api.dto.user.SAMLIdpApiDTO;
 import com.vmturbo.api.dto.user.UserApiDTO;
 import com.vmturbo.api.exceptions.ConversionException;
@@ -403,10 +404,19 @@ public class UsersService implements IUsersService {
      * @param inputDto input data sent from the user to add or update a user
      * @return a UserApiDTO with basic fields populated from the inputDto
      */
-    private UserApiDTO populateResultUserApiDTOFromInput(@Nonnull UserApiDTO inputDto) {
-        UserApiDTO user = new UserApiDTO();
+    @VisibleForTesting
+    UserApiDTO populateResultUserApiDTOFromInput(@Nonnull UserApiDTO inputDto) {
+        final UserApiDTO user = new UserApiDTO();
         user.setUsername(inputDto.getUsername());
-        user.setRoles(ApiUtils.sortRoleByPrivileges(inputDto.getRoles()));
+
+        if (!CollectionUtils.isEmpty(inputDto.getRoles())) {
+            user.setRoles(ApiUtils.sortRoleByPrivileges(inputDto.getRoles()));
+        } else {
+            // if request only has rolename, populate it too.
+            final RoleApiDTO roleApiDTO = new RoleApiDTO();
+            roleApiDTO.setName(inputDto.getRoleName());
+            user.setRoles(Collections.singletonList(roleApiDTO));
+        }
         user.setScope(inputDto.getScope());
         user.setUuid(inputDto.getUuid());
         user.setLoginProvider(inputDto.getLoginProvider());
