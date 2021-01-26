@@ -410,8 +410,11 @@ message ChangeProvider {
     // New provider.
     optional ActionEntity destination = 2;
 
-    // Related resources participating in the move. For ex. volumes of a VirtualMachine
-    repeated ActionEntity resource = 3;
+    // Resource moving. For ex. volume of a VirtualMachine - deprecated, use repeated resource
+    optional ActionEntity __deprecated_resource = 3 [deprecated = true];
+
+    // Related resources participating in the move. For ex. volumes of a VirtualMachine.
+    repeated ActionEntity resource = 4;
 }
 
 message ActionEntity {
