@@ -14,6 +14,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import io.grpc.Status.Code;
+import io.grpc.stub.StreamObserver;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -30,6 +31,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
+import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionResponse;
 import com.vmturbo.common.protobuf.topology.ActionExecutionServiceGrpc;
 import com.vmturbo.common.protobuf.topology.ActionExecutionServiceGrpc.ActionExecutionServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -86,7 +88,12 @@ public class ActionExecutionRpcServiceTest {
                     targetStoreMock, probeStoreMock, policyRetrieverMock);
 
     private ActionExecutionRpcService actionExecutionBackend = new ActionExecutionRpcService(
-            operationManager, actionExecutionContextFactory);
+            operationManager, actionExecutionContextFactory, false);
+
+    private ActionExecutionRpcService actionExecServiceUsingStableId = new ActionExecutionRpcService(
+            operationManager, actionExecutionContextFactory, true);
+
+    private StreamObserver<ExecuteActionResponse> responseObserver = Mockito.mock(StreamObserver.class);
 
     @Captor
     private ArgumentCaptor<ActionExecutionDTO> actionExecutionCaptor;
@@ -871,6 +878,43 @@ public class ActionExecutionRpcServiceTest {
         expectedException.expect(GrpcRuntimeExceptionMatcher.hasCode(Code.INVALID_ARGUMENT)
                 .descriptionContains("entitydata for entity 2 could not be retrieved"));
         actionExecutionStub.executeAction(request);
+    }
+
+    @Test
+    public void testExecuteActionUsingStableId() throws Exception {
+        final long targetId = targetIdCounter.getAndIncrement();
+        final int entityId = 7;
+        final int stableId = 34;
+
+        final ActionDTO.Resize actionSpec = ActionDTO.Resize.newBuilder().setTarget(
+                ActionExecutionTestUtils.createActionEntity(1)).setCommodityType(
+                    CommodityType.newBuilder()
+                        .setType(CommodityDTO.CommodityType.MEM_VALUE)
+                        .setKey("key")).setOldCapacity(0).setNewCapacity(10).build();
+
+        final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
+                .setActionId(stableId)
+                .setTargetId(targetId)
+                .setActionSpec(ActionDTO.ActionSpec.newBuilder()
+                    .setRecommendationId(stableId)
+                    .setRecommendation(ActionDTO.Action.newBuilder().setId(stableId)
+                        .setDeprecatedImportance(0)
+                        .setExplanation(ActionDTO.Explanation.getDefaultInstance())
+                        .setInfo(ActionInfo.newBuilder().setResize(actionSpec)))
+                    .setActionState(ActionState.IN_PROGRESS).build())
+                .setActionType(ActionDTO.ActionType.RESIZE)
+                .build();
+
+        initializeTopology(targetId,
+                NewEntityRequest.virtualMachine(actionSpec.getTarget().getId(), entityId),
+                NewEntityRequest.physicalMachine(entityId));
+
+        actionExecServiceUsingStableId.executeAction(request, responseObserver);
+
+        Mockito.verify(operationManager).requestActions(actionExecutionCaptor.capture(),
+                Mockito.eq(targetId), Mockito.anyLong(), Mockito.eq(Collections.singleton(1L)));
+
+        assertEquals(stableId, actionExecutionCaptor.getValue().getActionOid());
     }
 
     private Map<Long, Entity> initializeTopology(final long targetId, NewEntityRequest... entities)

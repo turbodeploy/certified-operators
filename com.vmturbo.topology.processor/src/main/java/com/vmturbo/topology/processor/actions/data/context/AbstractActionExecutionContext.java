@@ -139,7 +139,17 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
                                              @Nonnull final ProbeStore probeStore,
                                              @Nonnull final PolicyRetriever policyRetriever) {
         Objects.requireNonNull(request);
-        this.actionId = request.getActionId();
+
+        logger.info("Action instance ID = {} and Action Stable ID = {}",
+                request.getActionId(), request.getActionSpec().getRecommendationId());
+        if (dataManager.isStableActionIdInUse()) {
+            this.actionId = request.getActionSpec().getRecommendationId();
+            logger.info("Stable action ID is in use");
+        } else {
+            this.actionId = request.getActionId();
+            logger.info("Stable action ID is not in use");
+        }
+
         this.targetId = request.getTargetId();
         this.workflow = request.hasWorkflowInfo() ? buildWorkflow(request.getWorkflowInfo()) : null;
         this.dataManager = Objects.requireNonNull(dataManager);

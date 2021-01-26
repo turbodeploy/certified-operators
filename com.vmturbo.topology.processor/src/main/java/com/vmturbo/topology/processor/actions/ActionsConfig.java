@@ -121,11 +121,19 @@ public class ActionsConfig {
     @Value("${serializeCachedTopology:true}")
     private boolean serializeCachedTopology;
 
+    /**
+     * Flag set to true when the action ID in use is the stable recommendation OID instead of the
+     * unstable action instance id.
+     */
+    @Value("${useStableActionIdAsUuid:false}")
+    private boolean useStableActionIdAsUuid;
+
     @Bean
     public ActionDataManager actionDataManager() {
         return new ActionDataManager(
                 SearchServiceGrpc.newBlockingStub(repositoryConfig.repositoryChannel()),
-                topologyToSdkEntityConverter());
+                topologyToSdkEntityConverter(),
+                useStableActionIdAsUuid);
     }
 
     @Bean
@@ -178,7 +186,8 @@ public class ActionsConfig {
     public ActionExecutionRpcService actionExecutionService() {
         return new ActionExecutionRpcService(
                 operationConfig.operationManager(),
-                actionExecutionContextFactory());
+                actionExecutionContextFactory(),
+                useStableActionIdAsUuid);
     }
 
     @Bean
