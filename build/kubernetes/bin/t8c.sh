@@ -168,7 +168,7 @@ else
 fi
 
 # Run ansible kubespray install
-/usr/bin/ansible-playbook --flush-cache -i inventory/turbocluster/hosts.yml -b --become-user=root cluster.yml
+/usr/local/bin/ansible-playbook --flush-cache -i inventory/turbocluster/hosts.yml -b --become-user=root cluster.yml
 # Check on ansible status and exit out if there are any failures.
 ansibleStatus=$?
 # Reset the kubespray yaml back to the original source
