@@ -246,7 +246,7 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
                     .stream()
                     .map(capacityEntry -> {
                         long entityOid = capacityEntry.getKey();
-                        int capacity = capacityEntry.getValue().intValue();
+                        double capacity = capacityEntry.getValue().doubleValue();
 
                         final Map<Long, Double> riCoverage =
                                 riCoverageByEntity.getOrDefault(entityOid, Collections.emptySet())

@@ -561,7 +561,7 @@ public class PlanProjectedRICoverageAndUtilStore implements MultiStoreDiagnosabl
         final Map<Long, EntityReservedInstanceCoverage> entityToRiCoverage = entityToRiToCoveredCoupons.entrySet().stream()
             .map(entityEntry -> EntityReservedInstanceCoverage.newBuilder()
                 .setEntityId(entityEntry.getKey())
-                .setEntityCouponCapacity(entityToTotalCoupons.getOrDefault(entityEntry.getKey(), 0D).intValue())
+                .setEntityCouponCapacity(entityToTotalCoupons.getOrDefault(entityEntry.getKey(), 0D).doubleValue())
                 .putAllCouponsCoveredByRi(entityEntry.getValue())
                 .build())
             .collect(Collectors.toMap(EntityReservedInstanceCoverage::getEntityId, Function.identity()));
