@@ -10,7 +10,6 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import com.vmturbo.api.conversion.action.ActionToApiConverter;
 import com.vmturbo.mediation.actionscript.ActionScriptProbeAccount;
 import com.vmturbo.mediation.actionscript.SshUtils;
 import com.vmturbo.mediation.actionscript.exception.RemoteExecutionException;
@@ -176,8 +175,7 @@ public class ActionScriptExecutor {
             // for the duration of the execution we'll report 50% cuz we don't yet have a way to know better
             progressTracker.updateActionProgress(ActionResponseState.IN_PROGRESS, "ActionScript execution in progress", 50);
             // start and run an SSH channel to execute the script, and capture its completionInfo information
-            this.completionInfo = SshUtils.runInSshSession(accountValues, actionExecution,
-                new SshScriptExecutor(this, new ActionToApiConverter()));
+            this.completionInfo = SshUtils.runInSshSession(accountValues, actionExecution, new SshScriptExecutor(this));
         } catch (Exception e) {
             // here if we weren't able to execute the script (or if we were sabotaged in a unit test)
             this.completionInfo = new CompletionInfo();

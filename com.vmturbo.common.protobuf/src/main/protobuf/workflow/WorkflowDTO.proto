@@ -52,9 +52,6 @@ message WorkflowInfo {
 
     // time limit for execution of this workflow; missing means default applies
     optional int64 time_limit_seconds = 11;
-
-    // Determines if the action is sent to the workflow target using public API message format
-    optional bool apiMessageFormatEnabled = 12[default = false];
 }
 
 // A descriptor for an input parameter to a workflow as specified by the workflow author.

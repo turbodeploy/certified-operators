@@ -9,9 +9,7 @@ import java.util.stream.IntStream;
 import javax.annotation.Nonnull;
 
 import com.google.common.base.Charsets;
-import com.google.gson.GsonBuilder;
-import com.google.protobuf.InvalidProtocolBufferException;
-import com.google.protobuf.util.JsonFormat;
+
 import org.apache.commons.io.IOUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -23,8 +21,6 @@ import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import com.vmturbo.api.conversion.action.ActionToApiConverter;
-import com.vmturbo.api.conversion.action.SdkActionInformationProvider;
 import com.vmturbo.mediation.actionscript.ActionScriptProbeAccount;
 import com.vmturbo.mediation.actionscript.ActionScriptTestBase;
 import com.vmturbo.mediation.actionscript.exception.KeyValidationException;
@@ -279,45 +275,16 @@ public class ActionScriptExecutorTest extends ActionScriptTestBase {
      * We echo the stdin to the stdout, so we can verify this by checking the stdout.
      *
      * @throws ExecutionException execution error
-     * @throws InvalidProtocolBufferException if something goes wrong.
      */
     @Test
-    public void testStdinReceived() throws ExecutionException, InvalidProtocolBufferException {
+    public void testStdinReceived() throws ExecutionException {
         ScriptRunner scriptRunner = makeScriptRunner("stdin.sh");
-        scriptRunner.populateActionExecutionDto();
-        String json = JsonFormat.printer().omittingInsignificantWhitespace()
-            .print(scriptRunner.getActionExecutionDTO());
         scriptRunner
             .run()
             .waitForCompletion()
             .checkExit(0, null, null)
             .checkStatus(ActionScriptExecutionStatus.COMPLETE)
-            .checkStdout(json)
-            .checkProgress(ActionResponseState.SUCCEEDED, null, 100);
-    }
-
-    /**
-     * Test that the ActionExecutionDTO json string passed to stdin is received by action script
-     * in the API message format. We echo the stdin to the stdout, so we can verify this by
-     * checking the stdout.
-     *
-     * @throws ExecutionException execution error
-     */
-    @Test
-    public void testStdinReceivedInApiFormat() throws ExecutionException {
-        ScriptRunner scriptRunner = makeScriptRunner("stdin.sh")
-            .withApiMessageFormatEnabled(true);
-        scriptRunner.populateActionExecutionDto();
-        String json = (new GsonBuilder()).create()
-            .toJson((new ActionToApiConverter()).convert(
-                new SdkActionInformationProvider(scriptRunner.getActionExecutionDTO()), false,
-                0L, false));
-        scriptRunner
-            .run()
-            .waitForCompletion()
-            .checkExit(0, null, null)
-            .checkStatus(ActionScriptExecutionStatus.COMPLETE)
-            .checkStdout(json)
+            .checkStdout(SshScriptExecutor.convertToCompactJson(scriptRunner.getActionExecutionDTO()))
             .checkProgress(ActionResponseState.SUCCEEDED, null, 100);
     }
 

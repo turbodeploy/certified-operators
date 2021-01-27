@@ -49,7 +49,6 @@ class ScriptRunner {
     private Integer maxOutputLines = null;
     private TestAccess testAccess = null;
     private ActionExecutionDTO actionExecutionDTO = null;
-    private boolean apiMessageFormatEnabled = false;
 
     ScriptRunner(final @Nonnull String scriptName, final @Nonnull ActionScriptProbeAccount accountValues) {
         this.accountValues = accountValues;
@@ -89,22 +88,10 @@ class ScriptRunner {
         return this;
     }
 
-    ScriptRunner withApiMessageFormatEnabled(final boolean apiMessageFormatEnabled) {
-        this.apiMessageFormatEnabled = apiMessageFormatEnabled;
-        return this;
-    }
-
-    void populateActionExecutionDto() {
-        this.actionExecutionDTO = createActionExecution(scriptPath, scriptName, timeoutSeconds,
-            apiMessageFormatEnabled);
-    }
-
     ScriptRunner run() {
         logger.info("Running script {}", scriptName);
         this.progressTracker = new TestProgressTracker();
-        if (actionExecutionDTO == null) {
-            populateActionExecutionDto();
-        }
+        this.actionExecutionDTO = createActionExecution(scriptPath, scriptName, timeoutSeconds);
         this.executor = new ActionScriptExecutor(accountValues, actionExecutionDTO, progressTracker);
         this.testAccess = executor.getTestAccess();
         // perform any customizations to the executor before running it
@@ -296,21 +283,16 @@ class ScriptRunner {
      * the script path, the display name, and the time limit.
      * <p>The instance is constructed so that it will set a value for the VMT_TARGET_NAME parameter,
      * which is checked by one of the unit tests.</p>
-     * @param scriptPath the path of script.
-     * @param displayName the display name.
-     * @param timeoutSeconds  the timeout.
-     * @param apiMessageFormatEnabled if we shoud sent the message in API format.
-     * @return the action execution DTO.
+     * @param scriptPath
+     * @param displayName
+     * @param timeoutSeconds
+     * @return
      */
-    private ActionExecutionDTO createActionExecution(final @Nonnull String scriptPath,
-             final @Nonnull String displayName,
-             final @Nullable Integer timeoutSeconds,
-             final boolean apiMessageFormatEnabled) {
+    private ActionExecutionDTO createActionExecution(final @Nonnull String scriptPath, final @Nonnull String displayName, final @Nullable Integer timeoutSeconds) {
         Workflow.Builder workFlowBuilder = Workflow.newBuilder()
             .setId("test")
             .setDisplayName(new File(scriptPath).getName())
             .setScriptPath(scriptPath)
-            .setApiMessageFormatEnabled(apiMessageFormatEnabled)
             .addParam(Parameter.newBuilder()
                 .setName("VMT_TARGET_NAME")
                 .setType("text")
@@ -322,7 +304,7 @@ class ScriptRunner {
         return ActionExecutionDTO.newBuilder()
             .setActionType(ActionType.MOVE)
             .addActionItem(ActionItemDTO.newBuilder()
-                .setUuid("112")
+                .setUuid("UnnecessaryMove321")
                 .setActionType(ActionType.MOVE)
                 .setTargetSE(EntityDTO.newBuilder()
                     .setEntityType(EntityType.VIRTUAL_MACHINE)
