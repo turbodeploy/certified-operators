@@ -7,6 +7,7 @@ import java.time.Clock;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.Executors;
 
 import com.google.common.collect.ImmutableList;
 
@@ -60,7 +61,7 @@ public class CommodityIdUpdaterTest {
     public void setup() {
         IdentityGenerator.initPrefix(0);
         commodityIdUpdater = new CommodityIdUpdater();
-        analysis = new Analysis(TopologyInfo.getDefaultInstance(), Collections.emptySet(), mock(GroupMemberRetriever.class),
+        analysis = new Analysis(Executors.newSingleThreadExecutor(), TopologyInfo.getDefaultInstance(), Collections.emptySet(), mock(GroupMemberRetriever.class),
             Clock.systemUTC(), AnalysisConfig.newBuilder(MarketAnalysisUtils.QUOTE_FACTOR,
             MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR, SuspensionsThrottlingConfig.DEFAULT, Collections.emptyMap(), false).build(),
             mock(TopologyEntityCloudTopologyFactory.class), mock(TopologyCostCalculatorFactory.class),

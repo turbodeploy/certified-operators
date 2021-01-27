@@ -56,12 +56,8 @@ public class StableMarriageAlgorithm {
             We will have to run postprocessing twice. On the 2nd round vm1 will
             be identified as a VM that lost coupons while staying in same template.
             */
-            boolean actionNegated = true;
-            int iterations = 0;
-            while (actionNegated && iterations < SMAUtils.MAX_ITERATIONS) {
-                actionNegated = postProcessing(outputContext);
-                iterations++;
-            }
+            postProcessing(outputContext);
+            postProcessing(outputContext);
             outputContexts.add(outputContext);
             for (SMAMatch match : outputContext.getMatches()) {
                 if ((match.getVirtualMachine().getCurrentTemplate().getOid() != match.getTemplate().getOid())
@@ -87,10 +83,8 @@ public class StableMarriageAlgorithm {
      * The net savings remain unchanged. All investment RI  optimisation are negated.
      *
      * @param outputContext the output context of interest.
-     * @return true is at-least 1 RI optimization was negated.
      */
-    public static boolean postProcessing(SMAOutputContext outputContext) {
-        boolean actionNegated = false;
+    public static void postProcessing(SMAOutputContext outputContext) {
         Map<Long, List<SMAMatch>> matchesWithOutgoingCoupons = new HashMap<>();
         Map<Long, List<SMAMatch>> matchesWithIncomingCoupons = new HashMap<>();
         for (SMAMatch smaMatch : outputContext.getMatches()) {
@@ -145,7 +139,6 @@ public class StableMarriageAlgorithm {
                                         .getCurrentRICoverage());
                     }
                     if (coupons_grabbed > SMAUtils.EPSILON) {
-                        actionNegated = true;
                         coupons_required = coupons_required - coupons_grabbed;
                         incomingCouponMatch.setDiscountedCoupons(incomingCouponMatch.getDiscountedCoupons()
                                 - coupons_grabbed);
@@ -161,18 +154,6 @@ public class StableMarriageAlgorithm {
             }
         }
 
-        moveUncoveredVMBackToNaturalTemplate(outputContext);
-
-        return actionNegated;
-
-    }
-
-    /**
-     * Move uncovered vm back to natural template after post processing.
-     *
-     * @param outputContext the output context of interest.
-     */
-    private static void moveUncoveredVMBackToNaturalTemplate(SMAOutputContext outputContext) {
         // get all the matches that involve RIs. Group together the ASG.
         Map<String, Set<SMAMatch>> matchByASG = new HashMap<>();
         Set<SMAMatch> nonASGMatch = new HashSet();
@@ -231,7 +212,10 @@ public class StableMarriageAlgorithm {
                 }
             }
         }
+
     }
+
+
 
     /**
      * determine if the virtual machine in the smaMatch lost coverage while staying in same template.
@@ -249,7 +233,7 @@ public class StableMarriageAlgorithm {
                 && (projectedRI == null // lost coverage. vm did not use up any other RI.
                 || ((sourceRI.getRiKeyOid() == projectedRI.getRiKeyOid())
                 && (virtualMachine.getCurrentRICoverage()
-                - smaMatch.getDiscountedCoupons() > SMAUtils.BIG_EPSILON)) //same RI lesser coupons
+                - smaMatch.getDiscountedCoupons() > SMAUtils.EPSILON)) //same RI lesser coupons
         ));
     }
 

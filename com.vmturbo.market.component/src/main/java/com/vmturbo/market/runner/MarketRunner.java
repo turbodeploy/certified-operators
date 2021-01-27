@@ -146,7 +146,7 @@ public class MarketRunner {
             logger.info("Received analysis {}: topology {}" +
                     " with {} topology DTOs from TopologyProcessor",
                     topologyContextId, topologyId, topologyDTOs.size());
-            analysis = analysisFactory.newAnalysis(
+            analysis = analysisFactory.newAnalysis(runnerThreadPool,
                     topologyInfo,
                     topologyDTOs,
                     configBuilder -> configBuilder

@@ -295,7 +295,7 @@ public class AnalysisDebuggingTest {
         doNothing().when(migratedWorkloadCloudCommitmentAnalysisService).startAnalysis(anyLong(), any(), anyList());
 
 
-        final Analysis analysis = new Analysis(analysisInput.getTopologyInfo(),
+        final Analysis analysis = new Analysis(Executors.newCachedThreadPool(), analysisInput.getTopologyInfo(),
             Sets.newHashSet(analysisInput.getEntitiesList()),
             new GroupMemberRetriever(GroupServiceGrpc.newBlockingStub(grpcTestServer.getChannel())),
             Clock.systemUTC(),

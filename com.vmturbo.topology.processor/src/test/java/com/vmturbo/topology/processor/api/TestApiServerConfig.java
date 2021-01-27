@@ -488,7 +488,7 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
      */
     @Bean
     public ActionDataManager actionDataManager() {
-        return new ActionDataManager(searchServiceBlockingStub(), topologyToSdkEntityConverter(), false);
+        return new ActionDataManager(searchServiceBlockingStub(), topologyToSdkEntityConverter());
     }
 
     @Bean
@@ -541,8 +541,7 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
     public ActionExecutionRpcService actionExecutionRpcService() {
         return new ActionExecutionRpcService(
                 operationManager(),
-                actionExecutionContextFactory(),
-                false);
+                actionExecutionContextFactory());
     }
 
 }

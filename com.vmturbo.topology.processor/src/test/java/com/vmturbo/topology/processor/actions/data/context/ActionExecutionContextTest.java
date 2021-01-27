@@ -90,12 +90,10 @@ public class ActionExecutionContextTest {
                 .build();
         final int targetId = 11;
         final int actionId = 32;
-        final int stableId = 1234;
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
                 .setActionId(actionId)
                 .setTargetId(targetId)
                 .setActionSpec(ActionDTO.ActionSpec.newBuilder()
-                    .setRecommendationId(stableId)
                     .setRecommendation(ActionDTO.Action.newBuilder().setId(actionId)
                         .setDeprecatedImportance(0)
                         .setExplanation(ActionDTO.Explanation.getDefaultInstance())
@@ -159,7 +157,6 @@ public class ActionExecutionContextTest {
 
         // Verify the expected call was made to retrieve context data
         Mockito.verify(actionDataManagerMock).getContextData(activate);
-        Mockito.verify(actionDataManagerMock).isStableActionIdInUse();
         Mockito.verifyNoMoreInteractions(actionDataManagerMock);
     }
 
@@ -232,7 +229,6 @@ public class ActionExecutionContextTest {
 
         // Verify the expected call was made to retrieve context data
         Mockito.verify(actionDataManagerMock).getContextData(deactivate);
-        Mockito.verify(actionDataManagerMock).isStableActionIdInUse();
         Mockito.verifyNoMoreInteractions(actionDataManagerMock);
     }
 
@@ -340,7 +336,6 @@ public class ActionExecutionContextTest {
 
         // Verify the expected call was made to retrieve context data
         Mockito.verify(actionDataManagerMock).getContextData(resize);
-        Mockito.verify(actionDataManagerMock).isStableActionIdInUse();
         Mockito.verifyNoMoreInteractions(actionDataManagerMock);
     }
 
@@ -425,7 +420,6 @@ public class ActionExecutionContextTest {
 
         // Verify the expected call was made to retrieve context data
         Mockito.verify(actionDataManagerMock).getContextData(provision);
-        Mockito.verify(actionDataManagerMock).isStableActionIdInUse();
         Mockito.verifyNoMoreInteractions(actionDataManagerMock);
     }
 

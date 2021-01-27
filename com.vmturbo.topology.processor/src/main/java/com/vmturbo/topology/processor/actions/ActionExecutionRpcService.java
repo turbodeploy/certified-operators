@@ -29,7 +29,7 @@ public class ActionExecutionRpcService extends ActionExecutionServiceImplBase {
     private static final Logger logger = LogManager.getLogger();
 
     /**
-     * Used to initiate actions.
+     * Used to initiate actions
      */
     private final IOperationManager operationManager;
 
@@ -40,45 +40,22 @@ public class ActionExecutionRpcService extends ActionExecutionServiceImplBase {
     private final ActionExecutionContextFactory actionExecutionContextFactory;
 
     /**
-     * Flag set to true when the action ID in use is the stable recommendation OID instead of the
-     * unstable action instance id.
-     */
-    private final boolean useStableActionIdAsUuid;
-
-    /**
-     * Construct an ActionExecutionRpcService to respond to execute action requests.
+     * Construct an ActionExecutionRpcService to respond to execute action requests
      *
-     * @param operationManager used to initiate actions.
+     * @param operationManager used to initiate actions
      * @param actionExecutionContextFactory builds an ActionExecutionContext, providing additional
-     *                                      data required for action execution.
-     * @param useStableActionIdAsUuid flag set to true when the stable action recommendation OID is used,
-     *         instead of the unstable action instance id.
+     *                                      data required for action execution
      */
     public ActionExecutionRpcService(@Nonnull final IOperationManager operationManager,
-                                     @Nonnull final ActionExecutionContextFactory actionExecutionContextFactory,
-                                     final boolean useStableActionIdAsUuid) {
+                                     @Nonnull final ActionExecutionContextFactory actionExecutionContextFactory) {
         this.operationManager = Objects.requireNonNull(operationManager);
         this.actionExecutionContextFactory = actionExecutionContextFactory;
-        this.useStableActionIdAsUuid = useStableActionIdAsUuid;
     }
 
     @Override
     public void executeAction(ExecuteActionRequest request,
                     StreamObserver<ExecuteActionResponse> responseObserver) {
-        long actionId;
-
-        final long id = request.getActionId();
-        final long recommendationId = request.getActionSpec().getRecommendationId();
-
-        logger.info("Action instance ID = {} ; Stable Action ID = {}", id, recommendationId);
-        if (useStableActionIdAsUuid) {
-            logger.debug("Stable action ID is used for the action execution");
-            actionId = recommendationId;
-        } else {
-            logger.debug("Action execution doesn't use the stable action ID");
-            actionId = id;
-        }
-
+        final long actionId = request.getActionId();
         logger.info("ExecuteActionRequest received. ActionId: {}", actionId);
         try {
             // Construct a context to pull in additional data for action execution
