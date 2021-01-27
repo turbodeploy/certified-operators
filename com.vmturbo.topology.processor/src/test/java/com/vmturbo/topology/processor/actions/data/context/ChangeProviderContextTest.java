@@ -1,5 +1,7 @@
 package com.vmturbo.topology.processor.actions.data.context;
 
+import static org.mockito.Mockito.verify;
+
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
@@ -166,6 +168,7 @@ public class ChangeProviderContextTest {
 
         // Verify the expected call was made to retrieve context data
         Mockito.verify(actionDataManagerMock).getContextData(move);
+        Mockito.verify(actionDataManagerMock).isStableActionIdInUse();
         Mockito.verifyNoMoreInteractions(actionDataManagerMock);
     }
 
@@ -242,6 +245,7 @@ public class ChangeProviderContextTest {
 
         // Verify the expected call was made to retrieve context data
         Mockito.verify(actionDataManagerMock).getContextData(move);
+        Mockito.verify(actionDataManagerMock).isStableActionIdInUse();
         Mockito.verifyNoMoreInteractions(actionDataManagerMock);
     }
 
@@ -365,6 +369,7 @@ public class ChangeProviderContextTest {
 
         // Verify the expected call was made to retrieve context data
         Mockito.verify(actionDataManagerMock, Mockito.atLeastOnce()).getContextData(move);
+        Mockito.verify(actionDataManagerMock).isStableActionIdInUse();
         Mockito.verifyNoMoreInteractions(actionDataManagerMock);
     }
 
@@ -864,6 +869,7 @@ public class ChangeProviderContextTest {
 
         // Verify the expected call was made to retrieve context data
         Mockito.verify(actionDataManagerMock).getContextData(scale);
+        Mockito.verify(actionDataManagerMock).isStableActionIdInUse();
         Mockito.verifyNoMoreInteractions(actionDataManagerMock);
     }
 

@@ -138,6 +138,7 @@ public class ActionStateUpdaterTest {
         when(entitySettingsCache.getResourceGroupForEntity(anyLong())).thenReturn(Optional.empty());
         when(actionStorehouse.getStore(eq(realtimeTopologyContextId))).thenReturn(Optional.of(actionStore));
         when(actionStore.getAction(eq(notFoundId))).thenReturn(Optional.empty());
+        when(actionStore.getActionByRecommendationId(eq(notFoundId))).thenReturn(Optional.empty());
         externalApprovalAction = makeTestAction(externalApprovalId, externalApprovalSpec);
         manualAction = makeTestAction(manualId, manualSpec);
         manualWithWorkflowsAction = makeTestAction(manualWithWorkflowsId, manualWithWorkflowsSpec);
@@ -152,6 +153,7 @@ public class ActionStateUpdaterTest {
         testAction.getActionTranslation().setPassthroughTranslationSuccess();
         testAction.refreshAction(entitySettingsCache);
         when(actionStore.getAction(eq(actionId))).thenReturn(Optional.of(testAction));
+        when(actionStore.getActionByRecommendationId(eq(actionId))).thenReturn(Optional.of(testAction));
         testAction.receive(new ManualAcceptanceEvent("99", 102));
         testAction.receive(new QueuedEvent());
         testAction.receive(new BeginExecutionEvent());

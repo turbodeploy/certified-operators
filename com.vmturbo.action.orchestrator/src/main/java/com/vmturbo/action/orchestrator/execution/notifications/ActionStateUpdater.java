@@ -142,7 +142,7 @@ public class ActionStateUpdater implements ActionExecutionListener {
     public void onActionProgress(@Nonnull final ActionProgress actionProgress) {
         final Optional<Action> storedAction = actionStorehouse
             .getStore(realtimeTopologyContextId)
-            .flatMap(store -> store.getAction(actionProgress.getActionId()));
+            .flatMap(store -> store.getActionByRecommendationId(actionProgress.getActionId()));
         if (storedAction.isPresent()) {
             Action action = storedAction.get();
             action.receive(new ProgressEvent(actionProgress.getProgressPercentage(),
@@ -171,7 +171,7 @@ public class ActionStateUpdater implements ActionExecutionListener {
     public void onActionSuccess(@Nonnull final ActionSuccess actionSuccess) {
         final Optional<Action> storedAction = actionStorehouse
             .getStore(realtimeTopologyContextId)
-            .flatMap(store -> store.getAction(actionSuccess.getActionId()));
+            .flatMap(store -> store.getActionByRecommendationId(actionSuccess.getActionId()));
         if (storedAction.isPresent()) {
             Action action = storedAction.get();
             // Notify the action of the successful completion, possibly triggering a transition
@@ -259,7 +259,7 @@ public class ActionStateUpdater implements ActionExecutionListener {
     public void onActionFailure(@Nonnull final ActionFailure actionFailure) {
         final Optional<Action> storedAction = actionStorehouse
             .getStore(realtimeTopologyContextId)
-            .flatMap(store -> store.getAction(actionFailure.getActionId()));
+            .flatMap(store -> store.getActionByRecommendationId(actionFailure.getActionId()));
         if (storedAction.isPresent()) {
             Action action = storedAction.get();
             failAction(action, actionFailure);
@@ -306,7 +306,7 @@ public class ActionStateUpdater implements ActionExecutionListener {
         }
 
         targetActions.forEach(actionView -> {
-            liveActionStore.getAction(actionView.getId())
+            liveActionStore.getActionByRecommendationId(actionView.getId())
                 .ifPresent(action -> failAction(action, ActionFailure.newBuilder()
                     .setErrorDescription("Topology Processor lost action state.")
                     .setActionId(actionView.getId())

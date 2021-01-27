@@ -149,6 +149,7 @@ public class DeleteContextTest {
 
         // Verify the expected call was made to retrieve context data
         verify(actionDataManagerMock).getContextData(delete);
+        verify(actionDataManagerMock).isStableActionIdInUse();
         verifyNoMoreInteractions(actionDataManagerMock);
     }
 

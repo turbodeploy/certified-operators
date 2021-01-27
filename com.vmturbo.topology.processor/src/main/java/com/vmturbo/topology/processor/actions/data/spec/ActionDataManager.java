@@ -18,6 +18,8 @@ import com.vmturbo.topology.processor.conversions.TopologyToSdkEntityConverter;
  */
 public class ActionDataManager {
 
+    private final boolean useStableActionIdAsUuid;
+
     /**
      * A list of {@link DataRequirementSpec} used to identify and inject data into actions
      * Each spec determines both if an action meets its criteria (meaning the additional data is
@@ -26,16 +28,20 @@ public class ActionDataManager {
     private final List<DataRequirementSpec> allDataRequirements = new ArrayList<>();
 
     /**
-     * Initialize the action data manager, and create the default list of data requirement specs
+     * Initialize the action data manager, and create the default list of data requirement specs.
      *
-     * @param searchServiceRpc an interface for making remote calls to the Search service
-     * @param topologyToSdkEntityConverter
+     * @param searchServiceRpc an interface for making remote calls to the Search service.
+     * @param topologyToSdkEntityConverter The input topology-to-sdk entity converter instance.
+     * @param useStableActionIdAsUuid Flag set to true if the stable action OID is in use, false otherwise.
      */
     public ActionDataManager(@Nonnull final SearchServiceBlockingStub searchServiceRpc,
-                             @Nonnull final TopologyToSdkEntityConverter topologyToSdkEntityConverter)
+                             @Nonnull final TopologyToSdkEntityConverter topologyToSdkEntityConverter,
+                             boolean useStableActionIdAsUuid)
     {
         Objects.requireNonNull(searchServiceRpc);
         Objects.requireNonNull(topologyToSdkEntityConverter);
+
+        this.useStableActionIdAsUuid = useStableActionIdAsUuid;
 
         // Create a spec for container resize
         ContainerResizeSpecFactory containerResizeSpecFactory =
@@ -76,6 +82,15 @@ public class ActionDataManager {
                 .map(dataRequirementSpec -> dataRequirementSpec.retrieveRequiredData(actionInfo))
                 .flatMap(List::stream)
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Returns true if the stable action ID is in use, false otherwise.
+     *
+     * @return useStableActionIdAsUuid which is true only if the stable action ID is in use.
+     */
+    public boolean isStableActionIdInUse() {
+        return this.useStableActionIdAsUuid;
     }
 
     // TODO: Look this up from the Group service. There is no current way to get this in XL.
