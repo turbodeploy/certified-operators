@@ -32,6 +32,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.TimeZone;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -52,6 +53,7 @@ import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoade
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper.DefaultSettingPolicyMapper;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper.DefaultSettingSpecMapper;
+import com.vmturbo.api.component.external.api.mapper.SettingsMapper.Feature;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingApiDTOPossibilities;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingPolicyMapper;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingSpecMapper;
@@ -199,7 +201,10 @@ public class SettingsMapperTest {
                 SettingPolicyServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 (new SettingsManagerMappingLoader("settingManagersTest.json")).getMapping(),
                 (new SettingSpecStyleMappingLoader("settingSpecStyleTest.json")).getMapping(),
-                ScheduleServiceGrpc.newBlockingStub(grpcServer.getChannel()), scheduleMapper, true);
+                ScheduleServiceGrpc.newBlockingStub(grpcServer.getChannel()), scheduleMapper,
+                ImmutableMap.of(
+                        Feature.CloudScaleEnhancement, true,
+                        Feature.ApplicationMinMaxReplicas, true));
 
         final Map<String, SettingsManagerApiDTO> mgrsByUuid = mapper.toManagerDtos(
                 Arrays.asList(settingSpec1, SETTING_SPEC_3, SETTING_SPEC_4), Optional.empty(), false).stream()
@@ -926,7 +931,7 @@ public class SettingsMapperTest {
 
         final SettingServiceBlockingStub settingServiceClient =
                SettingServiceGrpc.newBlockingStub(grpcServer.getChannel());
-        return new DefaultSettingPolicyMapper(mapper, settingServiceClient, true);
+        return new DefaultSettingPolicyMapper(mapper, settingServiceClient);
     }
 
     @Test
@@ -935,13 +940,14 @@ public class SettingsMapperTest {
         final SettingsManagerMapping mapping = mock(SettingsManagerMapping.class);
         final SettingsMapper mapper = mock(SettingsMapper.class);
         when(mapper.getManagerMapping()).thenReturn(mapping);
+        when(mapper.getDisabledSettings()).thenReturn(Collections.emptyMap());
+        when(mapper.getFeatureGates()).thenReturn(Collections.emptyMap());
         when(mapping.getManagerUuid(eq(settingSpec1.getName()))).thenReturn(Optional.of(MGR_ID_1));
         when(mapping.getManagerInfo(MGR_ID_1))
                 .thenReturn(Optional.of(mgr1Info));
-
         final DefaultSettingPolicyMapper policyMapper =
                 new DefaultSettingPolicyMapper(mapper,
-                        SettingServiceGrpc.newBlockingStub(grpcServer.getChannel()), true);
+                        SettingServiceGrpc.newBlockingStub(grpcServer.getChannel()));
 
         final long groupId = 7;
         final String groupName = "goat";
@@ -1208,7 +1214,7 @@ public class SettingsMapperTest {
         final SettingServiceBlockingStub settingServiceClient =
              SettingServiceGrpc.newBlockingStub(grpcServer.getChannel());
         final DefaultSettingPolicyMapper policyMapper =
-                new DefaultSettingPolicyMapper(mapper, settingServiceClient, true);
+                new DefaultSettingPolicyMapper(mapper, settingServiceClient);
 
         final String entityType = "testType";
         final Setting setting = Setting.newBuilder()
@@ -1741,5 +1747,29 @@ public class SettingsMapperTest {
         Assert.assertEquals(Optional.empty(), result.getGlobalSetting());
         Assert.assertEquals(Collections.emptyList(), result.getAll());
         Assert.assertEquals(Optional.empty(), result.getSettingForEntityType(UNKNOWN_SETTING_NAME));
+    }
+
+    /**
+     * Test settings disabled by feature gate.
+     *
+     * @throws IOException IOException
+     */
+    @Test
+    public void testDisabledSettings() throws IOException {
+        final SettingsMapper mapper = new SettingsMapper(
+                SettingServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                SettingPolicyServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                (new SettingsManagerMappingLoader("settingManagersTest.json")).getMapping(),
+                (new SettingSpecStyleMappingLoader("settingSpecStyleTest.json")).getMapping(),
+                ScheduleServiceGrpc.newBlockingStub(grpcServer.getChannel()), scheduleMapper,
+                ImmutableMap.of(
+                        Feature.CloudScaleEnhancement, true,
+                        Feature.ApplicationMinMaxReplicas, false));
+        final Map<String, Set<String>> disabledSettings = mapper.getDisabledSettings();
+        final Map<String, Set<String>> expected = SettingsMapper.featureToSettingsMap
+                .getOrDefault(Feature.ApplicationMinMaxReplicas, Collections.emptyMap());
+        Assert.assertEquals(1, disabledSettings.size());
+        Assert.assertEquals(expected, disabledSettings);
     }
 }

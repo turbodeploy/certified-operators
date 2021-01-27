@@ -92,6 +92,10 @@ public class SettingsService implements ISettingsService {
      */
     public static final String CONTROL_MANAGER = "controlmanager";
 
+    /**
+     * The name of the manager for market settings.
+     */
+    public static final String MARKETSETTINGS_MANAGER = "marketsettingsmanager";
 
     public SettingsService(@Nonnull final SettingServiceBlockingStub settingServiceBlockingStub,
                     @Nonnull final StatsHistoryServiceBlockingStub statsServiceClient,

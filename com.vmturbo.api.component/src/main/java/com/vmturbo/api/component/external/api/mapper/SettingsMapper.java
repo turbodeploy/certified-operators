@@ -11,6 +11,7 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -25,6 +26,7 @@ import javax.annotation.Nullable;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
@@ -109,6 +111,44 @@ import com.vmturbo.components.common.setting.SettingDTOUtil;
 public class SettingsMapper {
 
     private static final Logger logger = LogManager.getLogger();
+
+    /**
+     * An enum of features.
+     */
+    public enum Feature {
+        /**
+         * CloudScaleEnhancement feature.
+         */
+        CloudScaleEnhancement,
+        /**
+         * Application Min/Max Replicas feature.
+         */
+        ApplicationMinMaxReplicas
+    }
+
+    /**
+     * This is used to map a feature to its corresponding settings.
+     */
+    @VisibleForTesting
+    public static final Map<Feature, Map<String, Set<String>>> featureToSettingsMap =
+        ImmutableMap.of(
+            Feature.CloudScaleEnhancement,
+                ImmutableMap.of(
+                    SettingsService.AUTOMATION_MANAGER,
+                        ImmutableSet.of(
+                            ConfigurableActionSettings.CloudComputeScaleForSavings.getSettingName(),
+                            ConfigurableActionSettings.CloudComputeScaleForPerf.getSettingName()
+                        )
+                ),
+            Feature.ApplicationMinMaxReplicas,
+                ImmutableMap.of(
+                    SettingsService.MARKETSETTINGS_MANAGER,
+                        ImmutableSet.of(
+                            EntitySettingSpecs.MinReplicas.getSettingName(),
+                            EntitySettingSpecs.MaxReplicas.getSettingName()
+                        )
+                )
+        );
 
     /**
      * This is used to inject the value of the {@link SettingApiDTO} into the corresponding
@@ -205,7 +245,15 @@ public class SettingsMapper {
 
     private final ScheduleMapper scheduleMapper;
 
-    private Boolean enableCloudScaleEnhancement = false;
+    /**
+     * Feature gates.
+     */
+    private Map<Feature, Boolean> featureGates = Collections.emptyMap();
+
+    /**
+     * A cache of disabled settings for fast lookup.
+     */
+    private Map<String, Set<String>> disabledSettings = Collections.emptyMap();
 
     /**
      * (April 10 2017) In the UI, all settings - including global settings - are organized by
@@ -241,7 +289,7 @@ public class SettingsMapper {
                           @Nonnull final SettingSpecStyleMapping settingSpecStyleMapping,
                           @Nonnull final ScheduleServiceBlockingStub schedulesService,
                           @Nonnull final ScheduleMapper scheduleMapper,
-                          @Nonnull final Boolean enableCloudScaleEnhancement) {
+                          @Nonnull final Map<Feature, Boolean> featureGates) {
         this.managerMapping = settingsManagerMapping;
         this.settingSpecStyleMapping = settingSpecStyleMapping;
         this.schedulesService = schedulesService;
@@ -250,8 +298,15 @@ public class SettingsMapper {
         this.groupService = groupService;
         this.settingService = settingService;
         this.settingPolicyService = settingPolicyService;
-        this.settingPolicyMapper = new DefaultSettingPolicyMapper(this, settingService, enableCloudScaleEnhancement);
-        this.enableCloudScaleEnhancement = enableCloudScaleEnhancement;
+        this.featureGates = featureGates;
+        this.disabledSettings = featureGates.entrySet().stream()
+                .filter(e -> !e.getValue())
+                .map(e -> featureToSettingsMap.getOrDefault(e.getKey(), Collections.emptyMap()))
+                .flatMap(m -> m.entrySet().stream())
+                .collect(Collectors.toMap(Entry::getKey, Entry::getValue,
+                        (set1, set2) -> ImmutableSet.<String>builder()
+                                .addAll(set1).addAll(set2).build()));
+        this.settingPolicyMapper = new DefaultSettingPolicyMapper(this, settingService);
     }
 
     @VisibleForTesting
@@ -636,6 +691,26 @@ public class SettingsMapper {
     }
 
     /**
+     * Get settings disabled by feature gates.
+     *
+     * @return a map of settings disabled by feature gates
+     */
+    @VisibleForTesting
+    Map<String, Set<String>> getDisabledSettings() {
+        return disabledSettings;
+    }
+
+    /**
+     * Get feature gates.
+     *
+     * @return a mpa of feature gates
+     */
+    @VisibleForTesting
+    Map<Feature, Boolean> getFeatureGates() {
+        return featureGates;
+    }
+
+    /**
      * Create a {@link SettingsManagerApiDTO} containing information about settings, but not their
      * values. This will be a "thicker" manager than the one created by
      * {@link DefaultSettingPolicyMapper#createValMgrDto(String, SettingsManagerInfo, String, Collection)},
@@ -658,37 +733,18 @@ public class SettingsMapper {
                                                @Nonnull final SettingsManagerInfo info,
                                                @Nonnull final Collection<SettingSpec> specs,
                                                boolean isPlan) {
-        final SettingsManagerApiDTO mgrApiDto = info.newApiDTO(mgrId);
-        List<SettingSpec> sortedSpecs = info.sortSettingSpecs(specs, SettingSpec::getName);
-
         List<SettingApiDTO<String>> settings = new ArrayList<>();
-
-        sortedSpecs.stream()
-            .map(settingSpec -> settingSpecMapper.settingSpecToApi(Optional.of(settingSpec),
-                Optional.empty()))
-                .flatMap(settingPossibilities -> {
-                    if (entityType.isPresent()) {
-                        return settingPossibilities.getSettingForEntityType(entityType.get())
+        info.sortSettingSpecs(specs, SettingSpec::getName).stream()
+                .map(settingSpec -> settingSpecMapper.settingSpecToApi(Optional.of(settingSpec),
+                        Optional.empty()))
+                .flatMap(settingPossibilities -> entityType
+                        .map(s -> settingPossibilities.getSettingForEntityType(s)
                                 .map(Stream::of)
-                                .orElseGet(Stream::empty);
-                    } else {
-                        return settingPossibilities.getAll().stream();
-                    }
-                }).forEach( settingApiDTO -> {
-            if (!enableCloudScaleEnhancement) {
-                if (mgrId.equals(SettingsService.AUTOMATION_MANAGER)) {
-
-                    if (settingApiDTO.getUuid().equals(ConfigurableActionSettings.CloudComputeScaleForSavings.getSettingName())
-                            || settingApiDTO.getUuid().equals(ConfigurableActionSettings.CloudComputeScaleForPerf.getSettingName())) {
-                        return;
-                    }
-                    if (settingApiDTO.getUuid().equals(ConfigurableActionSettings.CloudComputeScale.getSettingName())) {
-                        settingApiDTO.setDisplayName("Cloud Compute Scale");
-                    }
-                }
-            }
-            settings.add(settingApiDTO);
-        });
+                                .orElseGet(Stream::empty))
+                        .orElseGet(() -> settingPossibilities.getAll().stream()))
+                .filter(settingApiDTO -> !isSettingDisabledByFeatureGates(mgrId, settingApiDTO))
+                .map(this::setCloudComputeScaleDisplayName)
+                .forEach(settings::add);
 
         // If it's a plan we also need to return a UI setting for resize. This setting internally
         // corresponds to the resizes for vcpu and vmem.
@@ -696,6 +752,7 @@ public class SettingsMapper {
             SettingApiDTO resizeSetting = createResizeSetting();
             settings.add(resizeSetting);
         }
+        final SettingsManagerApiDTO mgrApiDto = info.newApiDTO(mgrId);
         mgrApiDto.setSettings(settings);
 
         // configure UI presentation information
@@ -707,6 +764,38 @@ public class SettingsMapper {
         }
 
         return mgrApiDto;
+    }
+
+    /**
+     * Check if the setting is disabled by feature gates.
+     *
+     * @param mgrId the manager Id of the setting
+     * @param settingApiDTO the setting to check
+     * @return true if the input setting is disabled by feature gates, false otherwise
+     */
+    private boolean isSettingDisabledByFeatureGates(@Nonnull final String mgrId,
+                                                    @Nonnull final SettingApiDTO<String> settingApiDTO) {
+        return getDisabledSettings()
+                .getOrDefault(mgrId, Collections.emptySet())
+                .contains(settingApiDTO.getUuid());
+    }
+
+    /**
+     * Set the display name of the CloudComputeScale setting if needed.
+     *
+     * @param settingApiDTO the setting
+     * @return the setting
+     */
+    @Nonnull
+    private SettingApiDTO<String> setCloudComputeScaleDisplayName(
+            @Nonnull final SettingApiDTO<String> settingApiDTO) {
+        if (!getFeatureGates().getOrDefault(Feature.CloudScaleEnhancement, true)) {
+            if (settingApiDTO.getUuid()
+                    .equals(ConfigurableActionSettings.CloudComputeScale.getSettingName())) {
+                settingApiDTO.setDisplayName("Cloud Compute Scale");
+            }
+        }
+        return settingApiDTO;
     }
 
     /** Get all schedules used by the settings policies.
@@ -793,15 +882,12 @@ public class SettingsMapper {
 
         private final SettingsMapper mapper;
         private final SettingServiceBlockingStub settingServiceClient;
-        private Boolean enableCloudScaleEnhancement;
 
         DefaultSettingPolicyMapper(@Nonnull final SettingsMapper mapper,
-                                   @Nonnull final SettingServiceBlockingStub settingServiceClient,
-                                   @Nonnull final Boolean enableCloudScaleEnhancement) {
+                                   @Nonnull final SettingServiceBlockingStub settingServiceClient) {
 
             this.mapper = mapper;
             this.settingServiceClient = settingServiceClient;
-            this.enableCloudScaleEnhancement = enableCloudScaleEnhancement;
         }
 
         @Override
@@ -952,19 +1038,8 @@ public class SettingsMapper {
             mgrApiDto.setSettings(settings.stream()
                     .map(setting -> mapper.toSettingApiDto(setting).getSettingForEntityType(entityType))
                     .filter(Optional::isPresent).map(Optional::get)
-                    .filter(setting -> enableCloudScaleEnhancement ||
-                            !mgrId.equals(SettingsService.AUTOMATION_MANAGER) || (
-                            !setting.getUuid().equals(ConfigurableActionSettings.CloudComputeScaleForPerf.getSettingName()) &&
-                            !setting.getUuid().equals(ConfigurableActionSettings.CloudComputeScaleForSavings.getSettingName())
-                    ))
-                    .map(setting -> {
-                        if (!enableCloudScaleEnhancement &&
-                                mgrId.equals(SettingsService.AUTOMATION_MANAGER) &&
-                                setting.getUuid().equals(ConfigurableActionSettings.CloudComputeScale.getSettingName())) {
-                            setting.setDisplayName("Cloud Compute Scale");
-                        }
-                        return setting;
-                    })
+                    .filter(setting -> !mapper.isSettingDisabledByFeatureGates(mgrId, setting))
+                    .map(mapper::setCloudComputeScaleDisplayName)
                     .collect(Collectors.toList()));
             return mgrApiDto;
         }

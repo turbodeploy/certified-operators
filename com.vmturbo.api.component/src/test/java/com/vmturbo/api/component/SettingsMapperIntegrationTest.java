@@ -5,6 +5,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
@@ -24,6 +25,7 @@ import com.vmturbo.api.component.external.api.mapper.SettingSpecStyleMappingLoad
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
+import com.vmturbo.api.component.external.api.mapper.SettingsMapper.Feature;
 import com.vmturbo.api.component.external.api.service.SettingsPoliciesService;
 import com.vmturbo.api.component.external.api.service.SettingsService;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
@@ -99,7 +101,10 @@ public class SettingsMapperIntegrationTest {
                     GroupServiceGrpc.newBlockingStub(channel),
                     SettingPolicyServiceGrpc.newBlockingStub(channel),
                     settingsManagerMapping, settingSpecStyleMapping,
-                    ScheduleServiceGrpc.newBlockingStub(channel), new ScheduleMapper(), true);
+                    ScheduleServiceGrpc.newBlockingStub(channel), new ScheduleMapper(),
+                    ImmutableMap.of(
+                            Feature.CloudScaleEnhancement, true,
+                            Feature.ApplicationMinMaxReplicas, true));
         final SettingsService settingService =
                 new SettingsService(SettingServiceGrpc.newBlockingStub(channel),
                         StatsHistoryServiceGrpc.newBlockingStub(channel),

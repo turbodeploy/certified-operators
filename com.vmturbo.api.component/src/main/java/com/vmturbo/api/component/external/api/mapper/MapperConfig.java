@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,6 +14,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.api.component.communication.CommunicationConfig;
+import com.vmturbo.api.component.external.api.mapper.SettingsMapper.Feature;
 import com.vmturbo.api.component.external.api.mapper.aspect.BusinessUserAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.CloudAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.CloudCommitmentAspectMapper;
@@ -80,6 +82,12 @@ public class MapperConfig {
      */
     @Value("${entityDetailsEnabled:false}")
     private boolean entityDetailsEnabled;
+
+    /**
+     * Enable min/max replicas settings.
+     */
+    @Value("${enableApplicationMinMaxReplicas:false}")
+    private boolean enableApplicationMinMaxReplicas;
 
     @Autowired
     private CommunicationConfig communicationConfig;
@@ -296,7 +304,9 @@ public class MapperConfig {
                 settingSpecStyleMappingLoader().getMapping(),
                 communicationConfig.scheduleRpcService(),
                 scheduleMapper(),
-                enableCloudScaleEnhancement);
+                ImmutableMap.of(
+                        Feature.CloudScaleEnhancement, enableCloudScaleEnhancement,
+                        Feature.ApplicationMinMaxReplicas, enableApplicationMinMaxReplicas));
     }
 
     @Bean
