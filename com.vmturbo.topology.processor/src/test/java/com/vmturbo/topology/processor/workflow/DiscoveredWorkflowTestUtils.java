@@ -63,6 +63,7 @@ public class DiscoveredWorkflowTestUtils {
                         buildWorkflowParams("y-" + name, WORKFLOW_TYPE_GEN_TEXT_INPUT, true),
                         buildWorkflowParams("z-" + name, WORKFLOW_TYPE_GEN_TEXT_INPUT, false)
                 ))
+                .setApiMessageFormatEnabled(false)
                 .build();
     }
 

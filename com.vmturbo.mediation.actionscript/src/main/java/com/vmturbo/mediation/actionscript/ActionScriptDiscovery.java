@@ -256,6 +256,7 @@ public class ActionScriptDiscovery {
         if (script.getTimeLimitSeconds() != null) {
             workflowBuilder.setTimeLimitSeconds(script.getTimeLimitSeconds());
         }
+        workflowBuilder.setApiMessageFormatEnabled(script.isApiMessageFormatEnabled());
         // Include the standard variables that are available to all scripts
         Arrays.stream(ActionScriptParameterDefinition.values())
             .forEach(parameter -> workflowBuilder.addParam(generateParameter(parameter.name())));

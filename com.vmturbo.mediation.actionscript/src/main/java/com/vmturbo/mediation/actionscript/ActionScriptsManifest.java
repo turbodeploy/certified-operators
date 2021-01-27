@@ -51,6 +51,7 @@ public class ActionScriptsManifest {
         private ActionType actionType;
         private ActionScriptPhase actionPhase;
         private Long timeLimitSeconds;
+        private boolean apiMessageFormatEnabled = false;
 
         public String getName() {
             return name;
@@ -125,6 +126,24 @@ public class ActionScriptsManifest {
 
         public void setTimeLimitSeconds(final Long timeLimitSeconds) {
             this.timeLimitSeconds = timeLimitSeconds;
+        }
+
+        /**
+         * If set as true workflow sends the information about the action in API message format.
+         *
+         * @return should send the message in API message format.
+         */
+        public boolean isApiMessageFormatEnabled() {
+            return apiMessageFormatEnabled;
+        }
+
+        /**
+         * Sets if we should send the message to ActionScript in API message format.
+         *
+         * @param apiMessageFormatEnabled if we should sent the message in API message format.
+         */
+        public void setApiMessageFormatEnabled(Boolean apiMessageFormatEnabled) {
+            this.apiMessageFormatEnabled = apiMessageFormatEnabled;
         }
     }
 }

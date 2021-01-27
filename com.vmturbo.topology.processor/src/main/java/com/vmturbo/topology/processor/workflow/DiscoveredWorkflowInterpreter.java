@@ -74,6 +74,7 @@ public class DiscoveredWorkflowInterpreter {
                 if (workflow.hasTimeLimitSeconds()) {
                     wfBuilder.setTimeLimitSeconds(workflow.getTimeLimitSeconds());
                 }
+                wfBuilder.setApiMessageFormatEnabled(workflow.getApiMessageFormatEnabled());
                 return wfBuilder.build();
             }).collect(Collectors.toList());
     }
