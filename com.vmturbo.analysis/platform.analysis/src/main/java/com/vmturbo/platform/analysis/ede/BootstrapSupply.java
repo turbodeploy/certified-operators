@@ -19,6 +19,7 @@ import java.util.stream.Stream;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Lists;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -31,8 +32,10 @@ import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.actions.ProvisionByDemand;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
 import com.vmturbo.platform.analysis.actions.ReconfigureConsumer;
+import com.vmturbo.platform.analysis.actions.ReconfigureProviderAddition;
 import com.vmturbo.platform.analysis.actions.Utility;
 import com.vmturbo.platform.analysis.economy.Basket;
+import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.EconomyConstants;
@@ -40,6 +43,7 @@ import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
+import com.vmturbo.platform.analysis.economy.TraderWithSettings;
 import com.vmturbo.platform.analysis.utilities.ProvisionUtils;
 
 /*
@@ -114,6 +118,8 @@ public class BootstrapSupply {
                                                                         .get(idx),
                                                                       slsThatNeedProvBySupply));
         }
+        // Check if these SLs can be satisfied by reconfiguring a provider instead of cloning.
+        allActions.addAll(addSupplyByReconfigureStep(economy, slsThatNeedProvBySupply));
         // process shoppingLists in slsThatNeedProvBySupplyList and generate provisionBySupply
         allActions.addAll(processCachedShoptogetherSls(economy, slsThatNeedProvBySupply));
         return allActions;
@@ -748,9 +754,207 @@ public class BootstrapSupply {
                                                                              slsThatNeedProvBySupply));
             }
         }
+        // Check if these SLs can be satisfied by reconfiguring a provider instead of cloning.
+        allActions.addAll(addSupplyByReconfigureStep(economy, slsThatNeedProvBySupply));
         // process shoppingLists in slsThatNeedProvBySupplyList and generate provisionBySupply
         allActions.addAll(processSlsThatNeedProvBySupply(economy, slsThatNeedProvBySupply));
         return allActions;
+    }
+
+    /**
+     * Check if these SLs can be satisfied by reconfiguring a provider.
+     *
+     * @param economy - economy.
+     * @param slsThatNeedProvBySupply - the sls to try to place.
+     *
+     * @return List of actions related to the Reconfigure actions.
+     */
+    public static @NonNull List<@NonNull Action> addSupplyByReconfigureStep(Economy economy,
+        Map<ShoppingList, Long> slsThatNeedProvBySupply) {
+        List<Action> allActions = Lists.newArrayList();
+        try {
+            List<Trader> reconfiguredProviders = Lists.newArrayList();
+            List<ShoppingList> processedSLs = Lists.newArrayList();
+            Set<Integer> reconfigCommsBaseValue = economy.getSettings().getReconfigureableCommodities();
+            // Only attempt to Move / Reconfigure Provider for SLs that buy Reconfigurable commodities.
+            for (ShoppingList sl : slsThatNeedProvBySupply.keySet()) {
+                if (consumerBuysReconfigurableCommodity(economy, sl)) {
+                    // Check if the sl can place on existing providers and place it if it can.
+                    if (checkMinimizerQuoteFiniteAndPlace(economy, sl, allActions)) {
+                        processedSLs.add(sl);
+                        continue;
+                    }
+                    List<CommoditySpecification> nonReconfigurableBoughtComms = sl.getBasket().stream()
+                        .filter(commSpec ->  !reconfigCommsBaseValue.contains(commSpec.getBaseType()))
+                        .collect(Collectors.toList());
+                    // Clone the basket without reconfigurable commodities to find providers that
+                    // would satisfy the sl that don't currently have the reconfigurable commodities.
+                    Basket cloneBasket = new Basket(nonReconfigurableBoughtComms);
+                    List<CommoditySpecification> reconfigurableBoughtComms = sl.getBasket().stream()
+                            .filter(commSpec ->  reconfigCommsBaseValue.contains(commSpec.getBaseType()))
+                            .collect(Collectors.toList());
+                    List<Trader> currentProvidersBasket = economy
+                        .getSatisfyingSeller(sl.getBasket()).collect(Collectors.toList());
+                    // Sort in order to try to use model providers that haven't been reconfigured
+                    // as the model for the Reconfigure Addition actions before using the ones that
+                    // have been reconfigured in order to make results less confusing.
+                    sortListOfTradersBasedOnReconfigured(currentProvidersBasket, reconfiguredProviders);
+                    // List of candidate providers that we can reconfigure that don't already
+                    // have the commodities that the consumer sl needs.
+                    List<Integer> reconfigurableBoughtCommsTypes = reconfigurableBoughtComms.stream()
+                        .map(CommoditySpecification::getType).collect(Collectors.toList());
+                    List<Trader> potentialProvidersToReconfigure = economy
+                        .getSatisfyingSeller(cloneBasket)
+                            .filter(trader -> trader.getSettings().isReconfigurable())
+                            .filter(seller -> !seller.getBasketSold().stream()
+                            .map(CommoditySpecification::getType)
+                            .collect(Collectors.toList())
+                            .containsAll(reconfigurableBoughtCommsTypes))
+                            .collect(Collectors.toList());
+                    // If we have a model provider and a candidate provider, we can try to add
+                    // the necessary commodities from the model to the candidate in order to try
+                    // to place the sl.
+                    if (!currentProvidersBasket.isEmpty() && !potentialProvidersToReconfigure.isEmpty()) {
+                        tryAddSupplyByReconfigure(currentProvidersBasket, potentialProvidersToReconfigure,
+                            reconfigurableBoughtComms, sl, economy, processedSLs, allActions,
+                            reconfiguredProviders);
+                    }
+                }
+            }
+            // Remove SLs that we placed and are no longer getting an infinite quote from their provider.
+            for (ShoppingList processedSL : processedSLs) {
+                slsThatNeedProvBySupply.remove(processedSL);
+            }
+        } catch (Exception e) {
+            logger.error(EconomyConstants.EXCEPTION_MESSAGE, "bootstrapReconfigureAdditionAttempt",
+                    e.getMessage(), e);
+        }
+        return allActions;
+    }
+
+    /**
+     * Attempts to add a Reconfigurable commodity from Traders that have it to Traders that do not
+     * in order to satisfy demand of consumers that consume this Reconfigurable commodity.
+     *
+     * @param currentProvidersBasket - the providers that satisfy the consumer but are full.
+     * @param potentialProvidersToReconfigure - the potential providers to add the reconfigurable
+     *     commodity to.
+     * @param reconfigurableBoughtComms - the reconfigurable commodities that the consumer buys.
+     * @param sl - the consumer.
+     * @param economy - the economy.
+     * @param processedSLs - the SLs that have already been placed and processed during
+     *     AddSupplyByReconfigure step.
+     * @param allActions - the actions generated.
+     * @param reconfiguredProviders - list of providers that have been reconfigured during this
+     *     AddSupplyByReconfigure step.
+     */
+    private static void tryAddSupplyByReconfigure(List<Trader> currentProvidersBasket,
+        List<Trader> potentialProvidersToReconfigure, List<CommoditySpecification> reconfigurableBoughtComms,
+        ShoppingList sl, Economy economy, List<ShoppingList> processedSLs, List<Action> allActions,
+            List<Trader> reconfiguredProviders) {
+        Trader modelTrader = currentProvidersBasket.get(0);
+        // Try to add the reconfigurable commodities to a candidate provider and place the SL.
+        for (Trader newTrader : potentialProvidersToReconfigure) {
+            List<Action> newActions = Lists.newArrayList();
+            List<ReconfigureProviderAddition> additionActions = Lists.newArrayList();
+            reconfigurableBoughtComms.stream()
+            .filter(commSpec -> newTrader.getBasketSold().indexOf(commSpec) == -1)
+            .forEach(commBought -> {
+                CommoditySold modelCommSold = modelTrader.getCommoditySold(commBought);
+                CommoditySpecification modelCommSpecSold = modelTrader.getBasketSold()
+                        .get(modelTrader.getBasketSold().indexOf(commBought));
+                Map<CommoditySpecification, CommoditySold> comm = new HashMap<CommoditySpecification, CommoditySold>() {{
+                    put(modelCommSpecSold, modelCommSold);
+                }};
+                // Generate the ReconfigureProviderAddition actions.
+                ReconfigureProviderAddition commAddAction = new ReconfigureProviderAddition(economy,
+                    (TraderWithSettings)newTrader, (TraderWithSettings)modelTrader, comm).take();
+                newActions.add(commAddAction);
+                additionActions.add(commAddAction);
+            });
+
+            if (checkMinimizerQuoteFiniteAndPlace(economy, sl, newActions)) {
+                for (ReconfigureProviderAddition commAddAction : additionActions) {
+                    logger.info(commAddAction.getModelSeller().getDebugInfoNeverUseInCode() + " triggered "
+                        + "RECONFIGURE_PROVIDER_ADDITION of "
+                        + commAddAction.getActionTarget().getDebugInfoNeverUseInCode()
+                        + " for commodity " + commAddAction.getReconfiguredCommodities().keySet()
+                            .stream().map(CommoditySpecification::getDebugInfoNeverUseInCode)
+                            .collect(Collectors.toList())
+                        + " due to Bootstrap Supply SL : "
+                        + sl.getDebugInfoNeverUseInCode());
+                }
+                processedSLs.add(sl);
+                allActions.addAll(newActions);
+                reconfiguredProviders.add(newTrader);
+                break;
+            } else {
+                // Rollback the actions if addition the ReconfigureCommodities didn't help and the
+                // sl is still getting an infinite quote.
+                Lists.reverse(additionActions).forEach(axn -> axn.rollback());
+            }
+        }
+    }
+
+    /**
+     * Checks if minimizer returns a finite quote for a sl and it's not current provider that
+     * is best seller.
+     *
+     * @param economy - the economy.
+     * @param sl - the sl to check.
+     * @param actionsList - the list of actions to update.
+     *
+     * @return true if minimizer returns a finite quote for a sl and it's not current provider that
+     *     is best seller.
+     */
+    private static boolean checkMinimizerQuoteFiniteAndPlace(Economy economy, ShoppingList sl,
+        List<Action> actionsList) {
+        Market market = economy.getMarket(sl);
+        List<Trader> sellers = market.getActiveSellersAvailableForPlacement();
+        QuoteMinimizer minimizer = (sellers.size() < economy.getSettings().getMinSellersForParallelism()
+            ? sellers.stream() : sellers.parallelStream())
+                .collect(() -> new QuoteMinimizer(economy, sl),
+                    QuoteMinimizer::accept, QuoteMinimizer::combine);
+        if (Double.isFinite(minimizer.getTotalBestQuote())) {
+            if (minimizer.getBestSeller() != sl.getSupplier()) {
+                actionsList.addAll(new Move(economy, sl, minimizer.getBestSeller()).take()
+                    .setImportance(minimizer.getCurrentQuote().getQuoteValue()
+                        - minimizer.getBestQuote().getQuoteValue()).getAllActions());
+            }
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Returns whether the sl consumes a reconfigurable commodity.
+     *
+     * @param economy - the economy to check.
+     * @param sl - the sl to check.
+     *
+     * @return whether the sl consumes a reconfigurable commodity.
+     */
+    private static boolean consumerBuysReconfigurableCommodity(Economy economy, ShoppingList sl) {
+        return economy.getSettings().getReconfigureableCommodities().stream()
+            .anyMatch(reconfigComm -> sl.getBasket().indexOfBaseType(reconfigComm) > -1);
+    }
+
+    /**
+     * Sorts list based on already reconfigured traders being last.
+     *
+     * @param listToSort - the list to sort.
+     * @param reconfiguredList - the list of traders that have been reconfigured.
+     */
+    private static void sortListOfTradersBasedOnReconfigured(List<Trader> listToSort, List<Trader> reconfiguredList) {
+        listToSort.sort((t1, t2) -> {
+            if (reconfiguredList.contains(t1)) {
+                return 1;
+            } else if (reconfiguredList.contains(t2)) {
+                return -1;
+            } else {
+                return 0;
+            }
+        });
     }
 
     /**

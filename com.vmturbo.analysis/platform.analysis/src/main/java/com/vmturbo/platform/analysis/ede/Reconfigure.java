@@ -235,8 +235,11 @@ public class Reconfigure {
                     .map(CommoditySpecification::getType)
                     .collect(Collectors.toList())
                     .containsAll(commTypesToAdd)
-                && ledger.getTraderIncomeStatements().get(seller.getEconomyIndex()).getROI()
-                    < ledger.getTraderIncomeStatements().get(seller.getEconomyIndex()).getMinDesiredROI()) {
+                && ((ledger.getTraderIncomeStatements().get(seller.getEconomyIndex()).getROI()
+                    < ledger.getTraderIncomeStatements().get(seller.getEconomyIndex()).getMinDesiredROI())
+                    // If the ROI is 0 because the trader has no consumers on it, then we should still
+                    // consider it as a candidate to add Reconfigurable commodities to.
+                    || ledger.getTraderIncomeStatements().get(seller.getEconomyIndex()).getROI() == 0)) {
                 additionCandidatesHeap.offer(seller);
             }
         }

@@ -19,6 +19,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nullable;
 
@@ -1323,5 +1324,16 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
 
     public Set<Long> getExceptionTraders() {
         return exceptionTraders;
+    }
+
+    /**
+     * Return stream of sellers for a basket.
+     *
+     * @param basket - basket to check.
+     *
+     * @return stream of sellers for the basket.
+     */
+    public Stream<Trader> getSatisfyingSeller(Basket basket) {
+        return sellersInvertedIndex_.getSatisfyingSellers(basket);
     }
 } // end class Economy
