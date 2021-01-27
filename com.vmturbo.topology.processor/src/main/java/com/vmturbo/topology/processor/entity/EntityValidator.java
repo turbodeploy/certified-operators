@@ -59,22 +59,16 @@ public class EntityValidator {
                                      @Nonnull final CommoditySoldDTO.Builder original,
                                      @Nonnull final String property,
                                      final double illegalAmount) {
-        long s1 = 0, s2 = 0, e1 = 0, e2 = 0;
-        s1 = System.nanoTime();
-        s2 = System.nanoTime();
-        // This has to be at warning level so that the root causes of missing capacities can be investigated.
+        // This has to be at warning level so that the root causes of missing capacities can be
+        // investigated.
         logger.warn("Entity {} with name {} of type {} is selling {} commodity {} with illegal "
-                + property + " {}",
-                entityId,
-                entityName,
-                EntityType.forNumber(entityType),
-                original.getActive() ? "active" : "non-active",
-                CommodityType.forNumber(original.getCommodityType().getType()),
-                illegalAmount);
-        e2 = System.nanoTime();
-        e1 = System.nanoTime();
-        logger.info("All took: {}", e1-s1);
-        logger.info("Log took: {}", e2-s2);
+                + property + " {}.",
+            entityId,
+            entityName,
+            EntityType.forNumber(entityType),
+            original.getActive() ? "active" : "non-active",
+            CommodityType.forNumber(original.getCommodityType().getType()),
+            illegalAmount);
     }
 
     private void logCommodityBoughtReplacement(final long entityId, @Nonnull final String entityName,
@@ -83,9 +77,12 @@ public class EntityValidator {
                                                @Nonnull final String property,
                                                final double illegalAmount, final long providerId,
                                                final int providerType) {
-        // TODO changed from warn to trace to reduce logging load - does it need more visibility?
-        logger.warn("Entity {} with name {} of type {} is buying {} commodity {} with illegal " +
-                property + " {} from entity {} of type {}", entityId, entityName,
+        // This has to be at warning level so that the root causes of missing capacities can be
+        // investigated.
+        logger.warn("Entity {} with name {} of type {} is buying {} commodity {} with illegal "
+                + property + " {} from entity {} of type {}.",
+            entityId,
+            entityName,
             EntityType.forNumber(entityType),
             original.getActive() ? "active" : "non-active",
             CommodityType.forNumber(original.getCommodityType().getType()),
@@ -133,8 +130,8 @@ public class EntityValidator {
                                 commodityBought.getUsed(), providerId, providerType);
                             commodityBought.setUsed(0);
                         }
-                })
-        );
+                    })
+            );
 
         entity.getCommoditySoldListBuilderList().forEach(commoditySold -> {
             double used = commoditySold.getUsed();
@@ -182,19 +179,17 @@ public class EntityValidator {
                     logger.trace("The consumers of {}|{} for which controllable was set to false are - {}.",
                         id, name, controllableFalseEntities.toString());
                 } else {
-                    logger.warn("Setting capacity value for oid " + id
-                                    + ", commodity "
-                                    + commoditySold.getCommodityType()
-                                    + " to previous value "
-                                    + oldCapacity);
+                    logger.warn(
+                        "Setting capacity value for oid {}, commodity {} to previous value {}.",
+                        id, commoditySold.getCommodityType(), oldCapacity);
                     commoditySold.setCapacity(oldCapacity);
                 }
             }
             if (Double.isNaN(used)) {
                 commoditySold.setUsed(0);
-                logger.warn("Setting used value for " + EntityType.forNumber(type)
-                                + CommodityType.forNumber(commoditySold.getCommodityType().getType())
-                                + " from NaN to 0");
+                logger.warn("Setting used value for {}{} from NaN to 0.",
+                    EntityType.forNumber(type),
+                    CommodityType.forNumber(commoditySold.getCommodityType().getType()));
             }
             if (commoditySold.getPeak() < 0) {
                 // Negative peak values are illegal, but we sometimes get them.
@@ -364,7 +359,7 @@ public class EntityValidator {
                 final Optional<EntityValidationFailure> errorAfterReplacement =
                     validateSingleEntity(entity.getTopologyEntityDtoBuilder(), false);
                 if (errorAfterReplacement.isPresent()) {
-                    logger.error("Errors validating entity {}:\n{}", entity.getOid(),
+                    logger.error("Errors validating entity {}:\n{}.", entity.getOid(),
                         error.get().errorMessage);
                     validationFailures.add(error.get());
                 }
