@@ -25,7 +25,7 @@
         <ux.mt.branch.version>8.1.0-SNAPSHOT</ux.mt.branch.version>
 
         <!-- API Repository version, determines what version of the API definition to pull in -->
-        <com.vmturbo.api.version>3.1.80-SNAPSHOT</com.vmturbo.api.version>
+        <com.vmturbo.api.version>3.1.81-SNAPSHOT</com.vmturbo.api.version>
 
         <!--CPU Capacity Library Version-->
         <cpu.capacity.version>1.4.0</cpu.capacity.version>
@@ -396,6 +396,7 @@
         <profile>
             <id>all-separate-probes</id>
             <modules>
+                <module>../com.vmturbo.api.conversion</module>
                 <module>../com.vmturbo.mediation.actionscript</module>
                 <module>../com.vmturbo.mediation.actionscript.component</module>
                 <module>../com.vmturbo.mediation.aix.component</module>
@@ -897,6 +898,7 @@
         <profile>
             <id>mediation-actionscript</id>
             <modules>
+                <module>../com.vmturbo.api.conversion</module>
                 <module>../com.vmturbo.mediation.actionscript</module>
                 <module>../com.vmturbo.mediation.actionscript.component</module>
             </modules>
@@ -960,6 +962,7 @@
             <id>development</id>
             <modules>
                 <!-- The meat of the XL code, and the platform components. -->
+                <module>../com.vmturbo.api.conversion</module>
                 <module>../com.vmturbo.licensing</module>
                 <module>../com.vmturbo.auth.api</module>
                 <module>../com.vmturbo.auth.component</module>
@@ -1047,6 +1050,7 @@
             <id>platform</id>
             <modules>
                 <!-- The meat of the XL code, and the platform components. -->
+                <module>../com.vmturbo.api.conversion</module>
                 <module>../com.vmturbo.licensing</module>
                 <module>../com.vmturbo.auth.api</module>
                 <module>../com.vmturbo.auth.component</module>
@@ -1157,6 +1161,7 @@
                 <module>../grafana</module>
 
                 <!-- The meat of the XL code, and the platform components. -->
+                <module>../com.vmturbo.api.conversion</module>
                 <module>../com.vmturbo.licensing</module>
                 <module>../com.vmturbo.auth.api</module>
                 <module>../com.vmturbo.auth.component</module>

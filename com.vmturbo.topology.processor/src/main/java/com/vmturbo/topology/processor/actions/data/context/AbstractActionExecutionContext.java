@@ -716,6 +716,7 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
         if (workflowInfo.hasTimeLimitSeconds()) {
             wfBuilder.setTimeLimitSeconds(workflowInfo.getTimeLimitSeconds());
         }
+        wfBuilder.setApiMessageFormatEnabled(workflowInfo.getApiMessageFormatEnabled());
         return wfBuilder.build();
     }
 

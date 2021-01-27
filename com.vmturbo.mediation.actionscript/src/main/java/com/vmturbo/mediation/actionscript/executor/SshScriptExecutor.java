@@ -14,6 +14,8 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.google.protobuf.util.JsonFormat;
 
 import org.apache.sshd.client.channel.ClientChannelEvent;
@@ -22,6 +24,9 @@ import org.apache.sshd.common.session.ConnectionService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.vmturbo.api.conversion.action.ActionToApiConverter;
+import com.vmturbo.api.conversion.action.SdkActionInformationProvider;
+import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.mediation.actionscript.ActionScriptProbeAccount;
 import com.vmturbo.mediation.actionscript.SshUtils.RemoteCommand;
 import com.vmturbo.mediation.actionscript.executor.ActionScriptExecutor.CompletionInfo;
@@ -48,8 +53,13 @@ class SshScriptExecutor implements RemoteCommand<CompletionInfo> {
 
     private ActionScriptExecutor actionScriptExecutor;
 
-    SshScriptExecutor(final ActionScriptExecutor actionScriptExecutor) {
+    private final ActionToApiConverter converter;
+    private final Gson jsonConverter = (new GsonBuilder()).create();
+
+    SshScriptExecutor(final ActionScriptExecutor actionScriptExecutor,
+                      @Nonnull ActionToApiConverter converter) {
         this.actionScriptExecutor = actionScriptExecutor;
+        this.converter = converter;
     }
 
     private static final String ENV_VAR_FORMAT = "%s=%s";
@@ -291,9 +301,28 @@ class SshScriptExecutor implements RemoteCommand<CompletionInfo> {
      * @param actionExecutionDTO the ActionExecutionDTO to convert
      * @return compacted json string, or empty string if any error happens
      */
-    public static String convertToCompactJson(@Nonnull ActionExecutionDTO actionExecutionDTO) {
+    private String convertToCompactJson(@Nonnull ActionExecutionDTO actionExecutionDTO) {
         try {
-            return JsonFormat.printer().omittingInsignificantWhitespace().print(actionExecutionDTO);
+            final String converted;
+            if (actionExecutionDTO.getWorkflow().getApiMessageFormatEnabled()) {
+                logger.debug("Using API message format when sending action with ID \"{}\" to "
+                    + "workflow \"{}\".", actionExecutionDTO.getActionOid(),
+                    actionExecutionDTO.getWorkflow().getDisplayName());
+                final ActionApiDTO apiMessage = converter.convert(
+                    new SdkActionInformationProvider(actionExecutionDTO), false, 0L, false);
+                converted = jsonConverter.toJson(apiMessage);
+            } else {
+                logger.debug("Using SDK message format when sending action with ID \"{}\" to "
+                        + "workflow \"{}\".", actionExecutionDTO.getActionOid(),
+                    actionExecutionDTO.getWorkflow().getDisplayName());
+                converted = JsonFormat.printer().omittingInsignificantWhitespace()
+                    .print(actionExecutionDTO);
+            }
+            logger.trace("The converted message with ID \"{}\" to workflow \"{}\" is \"{}\"",
+                actionExecutionDTO.getActionOid(),
+                actionExecutionDTO.getWorkflow().getDisplayName(),
+                converted);
+            return converted;
         } catch (Exception e) {
             // if any error happens, return an empty string
             logger.error("Failed to convert ActionExecutionDTO to json: {}", actionExecutionDTO, e);
