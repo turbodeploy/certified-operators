@@ -2604,7 +2604,7 @@ public class TopologyConverter {
     private Double getProjectedPercentileValue(long supplierOid, ShoppingListInfo shoppingListInfo,
                                                CommodityType commType) {
         if (shoppingListInfo == null || shoppingListInfo.getSellerId() == null) {
-            logger.error("Shopping list info is null or sellerId is null. Unable to calculate projected percentile. Shopping list is {}",
+            logger.debug("Shopping list info is null or sellerId is null. Unable to calculate projected percentile. Shopping list is {}",
                          shoppingListInfo);
             return null;
         }
