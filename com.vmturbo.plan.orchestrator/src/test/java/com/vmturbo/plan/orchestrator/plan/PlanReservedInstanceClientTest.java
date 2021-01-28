@@ -17,7 +17,7 @@ import java.util.Set;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
-
+import com.google.common.collect.Lists;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -39,8 +39,8 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.Topolo
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyMigration.DestinationEntityType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyMigration.MigrationReference;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
-import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.repository.api.RepositoryClient;
 
@@ -202,5 +202,31 @@ public class PlanReservedInstanceClientTest {
 
         assertTrue(riBoughtByFilterRequestCaptor.getValue().hasRiFilter());
         assertEquals(riOidList, riBoughtByFilterRequestCaptor.getValue().getRiFilter().getRiIdList());
+    }
+
+    /**
+     * Test that if the user doesn't want to include any RI in the plan,
+     * we don't call the method to get RIs by filter and we don't save anything in the DB.
+     */
+    @Test
+    public void testDontSavePlanIncludedCoupons() {
+        List<Long> riOidList = Lists.newArrayList();
+        PlanInstance planInstance =
+                PlanInstance.newBuilder().setPlanId(1L).setStatus(PlanStatus.QUEUED)
+                        .setScenario(Scenario.newBuilder().setScenarioInfo(ScenarioInfo.newBuilder()
+                                .setType(StringConstants.OPTIMIZE_CLOUD_PLAN)
+                                .addChanges(ScenarioChange.newBuilder()
+                                        .setRiSetting(RISetting.newBuilder().build()))
+                                .addChanges(ScenarioChange.newBuilder()
+                                        .setPlanChanges(PlanChanges.newBuilder()
+                                                .setIncludedCoupons(IncludedCoupons.newBuilder()
+                                                        .addAllIncludedCouponOids(riOidList).build())))))
+                        .build();
+        RepositoryClient repositoryClient = mock(RepositoryClient.class);
+
+        planReservedInstanceClient.savePlanIncludedCoupons(planInstance, Collections.emptyList(), repositoryClient);
+
+        verify(testRiBoughtService, times(0)).getReservedInstanceBoughtByFilter(any());
+        verify(testPlanRIService, times(0)).insertPlanReservedInstanceBought(any());
     }
 }

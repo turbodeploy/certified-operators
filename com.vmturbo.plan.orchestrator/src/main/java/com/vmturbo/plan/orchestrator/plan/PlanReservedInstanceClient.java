@@ -9,10 +9,10 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Lists;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import com.google.common.annotations.VisibleForTesting;
 
 import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
 import com.vmturbo.common.protobuf.cost.Cost.AccountFilter.AccountFilterType;
@@ -130,12 +130,13 @@ public class PlanReservedInstanceClient {
                         });
             }
 
+            List<ReservedInstanceBought> riIncluded = Lists.newArrayList();
             if (!includedCouponOidList.isEmpty()) {
                 requestBuilder.setRiFilter(RiFilter.newBuilder().addAllRiId(includedCouponOidList));
+                riIncluded = riBoughtService
+                        .getReservedInstanceBoughtByFilter(requestBuilder.build())
+                        .getReservedInstanceBoughtsList();
             }
-            List<ReservedInstanceBought> riIncluded = riBoughtService
-                    .getReservedInstanceBoughtByFilter(requestBuilder.build())
-                    .getReservedInstanceBoughtsList();
 
             // If accounts were considered when filtering RIs, RIs bought by related accounts will
             // be return. However, if an RI is not bought by the destination account, and it is not
