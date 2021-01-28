@@ -2786,6 +2786,104 @@ public class GroupRpcServiceTest {
     }
 
     /**
+     * Tests getGroupAndImmediateMembers for heterogenous static groups returns all static members.
+     */
+    @Test
+    public void testGetGroupAndImmediateMembersForHeterogenousStaticGroup() {
+        //GIVEN
+        long groupId = 123L;
+        GetGroupAndImmediateMembersRequest getGroupAndImmediateMembersRequest =
+            GetGroupAndImmediateMembersRequest.newBuilder()
+                .setGroupId(groupId)
+                .build();
+        final StreamObserver<GetGroupAndImmediateMembersResponse> responseObserverMock =
+            Mockito.mock(StreamObserver.class);
+
+        List<Long> membersOfType2 = Arrays.asList(101L, 102L);
+        List<Long> membersOfType3 = Arrays.asList(103L, 104L);
+
+        Grouping grouping = Grouping.newBuilder().setId(123L)
+            .setDefinition(GroupDefinition.newBuilder()
+                .setType(GroupType.RESOURCE)
+                .setDisplayName("TestGroup")
+                .setStaticGroupMembers(StaticMembers
+                    .newBuilder()
+                    .addMembersByType(StaticMembersByType
+                        .newBuilder()
+                        .setType(MemberType
+                            .newBuilder()
+                            .setEntity(2)
+                        )
+                        .addAllMembers(membersOfType2)
+                    )
+                    .addMembersByType(StaticMembersByType
+                        .newBuilder()
+                        .setType(MemberType
+                            .newBuilder()
+                            .setEntity(3)
+                        )
+                        .addAllMembers(membersOfType3)
+                    )
+                )
+            )
+            .build();
+
+        doReturn(Optional.of(grouping)).when(temporaryGroupCache).getGrouping(groupId);
+
+        //WHEN
+        groupRpcService.getGroupAndImmediateMembers(getGroupAndImmediateMembersRequest, responseObserverMock);
+
+        //THEN
+        ArgumentCaptor<GetGroupAndImmediateMembersResponse> captor = ArgumentCaptor.forClass(GetGroupAndImmediateMembersResponse.class);
+        verify(responseObserverMock, Mockito.times(1)).onNext(captor.capture());
+        GetGroupAndImmediateMembersResponse response = captor.getValue();
+
+        assertEquals(response.getGroup(), grouping);
+        Set<Long> memberIds = new HashSet<>(membersOfType2);
+        memberIds.addAll(membersOfType3);
+
+        assertEquals(memberIds.size(), response.getImmediateMembersList().size());
+        for (Long memberId : response.getImmediateMembersList()) {
+            assertTrue(memberIds.contains(memberId));
+        }
+    }
+
+    /**
+     * Tests getGroupAndImmediateMembers for empty static groups returns no static members.
+     */
+    @Test
+    public void testGetGroupAndImmediateMembersForEmptyStaticGroup() {
+        //GIVEN
+        long groupId = 123L;
+        GetGroupAndImmediateMembersRequest getGroupAndImmediateMembersRequest =
+            GetGroupAndImmediateMembersRequest.newBuilder()
+                .setGroupId(groupId)
+                .build();
+        final StreamObserver<GetGroupAndImmediateMembersResponse> responseObserverMock =
+            Mockito.mock(StreamObserver.class);
+
+        // An empty group
+        Grouping grouping = Grouping.newBuilder().setId(123L)
+            .setDefinition(GroupDefinition.newBuilder()
+                .setType(GroupType.REGULAR)
+                .setDisplayName("TestGroup")
+                .setStaticGroupMembers(StaticMembers.newBuilder())
+            ).build();
+        doReturn(Optional.of(grouping)).when(temporaryGroupCache).getGrouping(groupId);
+
+        //WHEN
+        groupRpcService.getGroupAndImmediateMembers(getGroupAndImmediateMembersRequest, responseObserverMock);
+
+        //THEN
+        ArgumentCaptor<GetGroupAndImmediateMembersResponse> captor = ArgumentCaptor.forClass(GetGroupAndImmediateMembersResponse.class);
+        verify(responseObserverMock, Mockito.times(1)).onNext(captor.capture());
+        GetGroupAndImmediateMembersResponse response = captor.getValue();
+
+        assertEquals(response.getGroup(), grouping);
+        assertEquals(0, response.getImmediateMembersList().size());
+    }
+
+    /**
      * Tests getGroupAndImmediateMembers for dynamic temporary groups returns members.
      * @throws Exception Something went wrong
      */

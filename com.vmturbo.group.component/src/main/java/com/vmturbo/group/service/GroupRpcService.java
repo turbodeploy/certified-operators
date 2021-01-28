@@ -1102,13 +1102,13 @@ public class GroupRpcService extends GroupServiceImplBase {
                 //Get the group members
                 builder.setGroup(group.get());
                 if (group.get().getDefinition().hasStaticGroupMembers()) {
-                    //Static group members exist already exist on the groupDefinition
-                    List<Long> staticMemberIds = group.get()
-                                    .getDefinition()
-                                    .getStaticGroupMembers()
-                                    .getMembersByType(0)
-                                    .getMembersList();
-                    builder.addAllImmediateMembers(staticMemberIds);
+                    // Members that are groups exist on the groupDefinition so will not be included
+                    builder.addAllImmediateMembers(group.get()
+                        .getDefinition()
+                        .getStaticGroupMembers()
+                        .getMembersByTypeList().stream()
+                        .flatMap(membersByType -> membersByType.getMembersList().stream())
+                        .collect(Collectors.toList()));
                 } else {
                     //dynamic groups
                     GetMembersRequest getMembersRequest = GetMembersRequest.newBuilder()
