@@ -569,19 +569,17 @@ public class DiscoveredGroupUploader {
     /**
      * Checks if a Fabric target is present in the current {@link TargetStore} instance.
      *
-     * @return true if a UCS target is present.
+     * @return true if a Fabric target is present.
      */
     public boolean isFabricTargetPresent()  {
         for (Target target : targetStore.getAll())  {
             final ProbeInfo probeInfo = target.getProbeInfo();
             if (probeInfo.hasProbeCategory()
-                && probeInfo.getProbeCategory().equals(ProbeCategory.FABRIC.getCategory())) {
+                    && ProbeCategory.FABRIC.getCategory().equals(probeInfo.getProbeCategory())
+                    || probeInfo.hasProbeType()
+                    && SDKProbeType.INTERSIGHT_UCS.getProbeType().equals(probeInfo.getProbeType())) {
+                // UCS Intersight probe has Hyperconverged category but it should be processed as fabric target.
                 return true;
-            }
-            // UCS Intersight probe has Hyperconverged category but it should be processed as fabric target.
-            if (probeInfo.hasProbeType()) {
-                final String probeType = probeInfo.getProbeType();
-                return SDKProbeType.INTERSIGHT_UCS.getProbeType().equals(probeType);
             }
         }
         return false;

@@ -30,6 +30,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -69,11 +70,14 @@ import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
+import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
+import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.StitchingMergeInformation;
 import com.vmturbo.topology.processor.stitching.StitchingGroupFixer;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingGraph;
+import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.util.GroupTestUtils;
 
@@ -508,5 +512,43 @@ public class DiscoveredGroupUploaderTest {
     private String readResourceFileAsString(String fileName) throws IOException {
         File file = ResourcePath.getTestResource(getClass(), fileName).toFile();
         return Files.asCharSource(file, Charset.defaultCharset()).read();
+    }
+
+    /**
+     * Tests the work of the method that checks for the presence of Fabric targets.
+     */
+    @Test
+    public void testFabricTargetPresent()   {
+        String probeCategoryHV = ProbeCategory.HYPERVISOR.getCategory();
+        String probeTypeVC = SDKProbeType.VCENTER.getProbeType();
+        ProbeInfo probeInfoVC = ProbeInfo.newBuilder()
+                        .setProbeType(probeTypeVC)
+                        .setProbeCategory(probeCategoryHV).build();
+        Target targetVC = mock(Target.class);
+        when(targetVC.getProbeInfo()).thenReturn(probeInfoVC);
+
+        String probeTypeIntersightUCS = SDKProbeType.INTERSIGHT_UCS.getProbeType();
+        ProbeInfo probeInfoIntersightUCS = ProbeInfo.newBuilder()
+                        .setProbeType(probeTypeIntersightUCS)
+                        .setProbeCategory(probeCategoryHV).build();
+        Target targetIntersightUCS = mock(Target.class);
+        when(targetIntersightUCS.getProbeInfo()).thenReturn(probeInfoIntersightUCS);
+
+        List<Target> targetsList = Arrays.asList(targetVC, targetIntersightUCS);
+        when(targetStore.getAll()).thenReturn(targetsList);
+
+        assertTrue(recorderSpy.isFabricTargetPresent());
+
+        String probeCategoryFabric = ProbeCategory.FABRIC.getCategory();
+        String probeTypeUCS = SDKProbeType.UCS.getProbeType();
+        ProbeInfo probeInfoUCS = ProbeInfo.newBuilder()
+                        .setProbeType(probeTypeUCS)
+                        .setProbeCategory(probeCategoryFabric).build();
+        Target targetUCS = mock(Target.class);
+        when(targetUCS.getProbeInfo()).thenReturn(probeInfoUCS);
+        List<Target> targetsList2 = Arrays.asList(targetVC, targetUCS);
+        when(targetStore.getAll()).thenReturn(targetsList2);
+
+        assertTrue(recorderSpy.isFabricTargetPresent());
     }
 }

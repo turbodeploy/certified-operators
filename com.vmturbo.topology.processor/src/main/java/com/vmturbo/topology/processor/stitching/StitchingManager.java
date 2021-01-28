@@ -226,15 +226,11 @@ public class StitchingManager {
             "--------------- END: Cleanup of unstitched proxy entities ---------------");
     }
 
-    private boolean checkForEmptyDC(StitchingEntity stitchingEntity)   {
-        boolean isEmptyDC = false;
-        if (stitchingEntity.getConsumers().isEmpty()
-                && stitchingEntity.getCommoditiesSold()
+    private boolean checkForEmptyDC(@Nonnull StitchingEntity stitchingEntity)   {
+        return stitchingEntity.getConsumers().isEmpty()
+                && (stitchingEntity.getCommoditiesSold()
                     .filter(c -> CommodityType.DATACENTER.equals(c.getCommodityType()))
-                    .count() > 0)   {
-            isEmptyDC = true;
-        }
-        return isEmptyDC;
+                    .count() > 0);
     }
 
     /**
