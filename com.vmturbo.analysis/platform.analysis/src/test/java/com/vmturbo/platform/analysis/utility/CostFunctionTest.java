@@ -1,5 +1,6 @@
 package com.vmturbo.platform.analysis.utility;
 
+import static com.vmturbo.platform.analysis.testUtilities.TestUtils.setUpMultipleRegionsCostTuples;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -33,6 +34,7 @@ import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CbtpCostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeTierCostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeTierCostDTO.ComputeResourceDependency;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CostTuple;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.DatabaseTierCostDTO;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.utilities.CostFunction;
@@ -696,7 +698,7 @@ public class CostFunctionTest {
     @Test
     public void test_CostTable() {
         // Create a CostTable with multiple Accounts and Regions cost
-        List<CostTuple> tuples = TestUtils.setUpMultipleRegionsCostTuples();
+        List<CostTuple> tuples = setUpMultipleRegionsCostTuples();
         CostTable costTable = new CostTable(tuples);
 
         // Assert: Account 1, Linux license, cheapest Region
@@ -747,11 +749,36 @@ public class CostFunctionTest {
                 TestUtils.LICENSE_COMM_BASE_TYPE,
                 TestUtils.COUPON_COMM_BASE_TYPE,
                 TestUtils.NO_TYPE));
-        final MutableQuote quote = calculateCost(TestUtils.DC5_COMM_TYPE, cf);
-
+        final MutableQuote quote = calculateCost(TestUtils.DC5_COMM_TYPE, cf, true);
         assertFalse(quote.getContext().isPresent());
         // Assert: the quote contains an infinite cost
         assertTrue(quote.isInfinite());
+    }
+
+    /**
+     * Create a CostFunction with only License defined using a CostDTO with multiple Regions,
+     * We should get an infinite quote
+     */
+    @Test
+    public void testDatabaseTierComputeFunctionWithSameSupplierAndNoCost() {
+        DatabaseTierCostDTO dbTierCostBuilder = DatabaseTierCostDTO.newBuilder()
+                .setLicenseCommodityBaseType(TestUtils.LICENSE_COMM_BASE_TYPE)
+                .setCouponBaseType(TestUtils.COUPON_COMM_BASE_TYPE)
+                .setRegionCommodityBaseType(TestUtils.NO_TYPE)
+                .addCostTupleList(CostTuple.newBuilder()
+                        .setLicenseCommodityType(TestUtils.LICENSE_COMM_BASE_TYPE)
+                        .setBusinessAccountId(1L)
+                        //Not setting the cost in this tuple.
+                        .setRegionId(regionId)
+                        .build())
+                .build();
+        CostDTO costDTO = CostDTO.newBuilder()
+                .setDatabaseTierCost(dbTierCostBuilder)
+                .build();
+        final CostFunction cf = CostFunctionFactory.createCostFunction(costDTO);
+        final MutableQuote quote = calculateCost(TestUtils.DC5_COMM_TYPE, cf);
+        // Assert: the quote is 0.
+        assertEquals(0.0d, quote.getQuoteValue(), 0);
     }
 
     /**
@@ -799,14 +826,26 @@ public class CostFunctionTest {
      * Setup a DBS with Windows license and Account 1 and calculate cost.
      *
      * @param dcCommType region type.
-     * @param cf cost function
+     * @param cf         cost function
      * @return cost as mutable quote.
      */
     private static MutableQuote calculateCost(int dcCommType, CostFunction cf) {
+        return calculateCost(dcCommType, cf, false);
+    }
+
+    /**
+     * Setup a DBS with Windows license and Account 1 and calculate cost.
+     *
+     * @param dcCommType region type.
+     * @param cf cost function
+     * @param changeSupplier used when seller should not be buyer's supplier.
+     * @return cost as mutable quote.
+     */
+    private static MutableQuote calculateCost(int dcCommType, CostFunction cf, boolean changeSupplier) {
         final Economy economy = new Economy();
         final BalanceAccount ba = new BalanceAccount(100, 10000, 1, 0);
-        final Trader dbs1 = TestUtils.createDBS(economy);
-        dbs1.getSettings().setContext(new Context(dcCommType, zoneId, ba));
+        final Trader buyer = TestUtils.createDBS(economy);
+        buyer.getSettings().setContext(new Context(dcCommType, zoneId, ba));
         final CommoditySpecification winComm =
                 new CommoditySpecification(TestUtils.WINDOWS_COMM_TYPE, TestUtils.LICENSE_COMM_BASE_TYPE, false);
         final CommoditySpecification dcComm =
@@ -815,9 +854,11 @@ public class CostFunctionTest {
                 Arrays.asList(0L));
         trader.getSettings().setContext(new Context(dcCommType, zoneId, ba));
         trader.getCommoditiesSold().get(trader.getBasketSold().indexOf(winComm)).setCapacity(1000);
-        final ShoppingList buyer = TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(winComm, dcComm), dbs1,
+        final ShoppingList sl = TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(winComm, dcComm), buyer,
                 new double[]{1, 1}, new double[]{1, 1}, trader);
-
-        return cf.calculateCost(buyer, trader, false, economy);
+        if (changeSupplier) {
+            sl.move(buyer);
+        }
+        return cf.calculateCost(sl, trader, false, economy);
     }
 }
