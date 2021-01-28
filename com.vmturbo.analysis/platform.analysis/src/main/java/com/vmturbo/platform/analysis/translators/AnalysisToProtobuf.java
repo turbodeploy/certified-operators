@@ -615,9 +615,12 @@ public final class AnalysisToProtobuf {
      *
      */
     public static Trader replaceNewSupplier(ShoppingList buyer, UnmodifiableEconomy economy, Trader newSupplier) {
-        // If the Shopping list is not movable, then even if the supplier is a CBTP, do not replace
-        // it. Movable false shopping list should remain on the CBTP when going out of the market.
-        if (!buyer.isMovable()) {
+        // For individual VMs and for CSG leaders(group factor is greater than 0): If the Shopping
+        // list is not movable, then even if the supplier is a CBTP, do not replace it - because if
+        // we do, then we are effectively moving this VM even though movable is false.
+        // But for CSG followers (group factor is 0), movable will always be false.
+        // So, for these we need to make an exception and go through the replacement logic.
+        if (!buyer.isMovable() && buyer.getGroupFactor() > 0) {
             return null;
         }
         final Set<Entry<ShoppingList, Market>> shoppingListsInMarket =

@@ -347,6 +347,7 @@ public class CloudActionsIntegrationTest {
      * VM1 is placed on CBTP1.
      * Test that ReplaceNewSupplier returns TP1 when movable is true.
      * Test that ReplaceNewSupplier returns null when movable is false.
+     * Test that ReplaceNewSupplier returns TP1 when groupFactor is 0, even though movable is false.
      */
     @Test
     public void testReplaceNewSupplier() {
@@ -367,6 +368,10 @@ public class CloudActionsIntegrationTest {
         slVM1.setMovable(false);
         tp = AnalysisToProtobuf.replaceNewSupplier(slVM1, e, cbtp1);
         assertEquals(null, tp);
+
+        slVM1.setGroupFactor(0);
+        tp = AnalysisToProtobuf.replaceNewSupplier(slVM1, e, cbtp1);
+        assertEquals(sellers[0], tp);
     }
 
     @Test
