@@ -827,4 +827,30 @@ public class UuidMapperTest {
         statApiInputDTO.setFilters(Collections.singletonList(statFilterApiDTO));
         return Collections.singletonList(statApiInputDTO);
     }
+
+    /**
+     * Test that the {@link UuidMapper#fromUuid(String)} method does raise exceptions
+     * for non numeric Uuids.
+     *
+     * @throws OperationFailedException To satisfy the compiler.
+     * @throws IllegalArgumentException
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testfromUuid() throws OperationFailedException, IllegalArgumentException {
+        ApiId apiId = uuidMapper.fromUuid("123abc123");
+    }
+
+    /**
+     * Test that the {@link UuidMapper#fromUuid(String)} method does not raise exceptions
+     * for Market and numeric Uuids.
+     *
+     * @throws OperationFailedException To satisfy the compiler.
+     * @throws IllegalArgumentException
+     */
+    @Test(expected = Test.None.class)
+    public void testfromUuidNumericUuid() throws OperationFailedException, IllegalArgumentException {
+        uuidMapper.fromUuid("123123");
+        uuidMapper.fromUuid("Market");
+    }
+
 }

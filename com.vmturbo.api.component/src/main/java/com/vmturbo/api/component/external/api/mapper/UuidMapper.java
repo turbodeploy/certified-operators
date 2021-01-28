@@ -83,6 +83,8 @@ public class UuidMapper implements RepositoryListener {
      */
     public static final String UI_REAL_TIME_MARKET_STR = "Market";
 
+    private static final String ILLEGAL_UUID_MESSAGE = "%s is not a valid uuid format.";
+
     public static final Map<String, DefaultCloudGroup> CLOUD_GROUPS_BY_UUID =
         DefaultCloudGroupProducer.getDefaultCloudGroup().stream()
             .collect(Collectors.toMap(DefaultCloudGroup::getUuid, Function.identity()));
@@ -137,23 +139,27 @@ public class UuidMapper implements RepositoryListener {
      *         to an {@link ApiId} fails.
      */
     @Nonnull
-    public ApiId fromUuid(@Nonnull final String uuid) throws OperationFailedException {
+    public ApiId fromUuid(@Nonnull final String uuid) throws OperationFailedException, IllegalArgumentException {
 
         final String demystifiedUuid = magicScopeGateway.enter(uuid);
 
         final boolean isRealtime = demystifiedUuid.equals(UI_REAL_TIME_MARKET_STR) ||
             CLOUD_GROUPS_BY_UUID.containsKey(demystifiedUuid);
-        final long oid = isRealtime ? realtimeContextId : Long.valueOf(demystifiedUuid);
-        return cachedIds.compute(oid, (k, existing) -> {
-            if (existing == null) {
-                Metrics.CACHE_MISS_COUNT.increment();
-                return new ApiId(oid, realtimeContextId, apiIdResolver, repositoryApi, topologyProcessor,
-                        thinTargetCache, cloudTypeMapper);
-            } else {
-                Metrics.CACHE_HIT_COUNT.increment();
-                return existing;
-            }
-        });
+        try {
+            final long oid = isRealtime ? realtimeContextId : Long.valueOf(demystifiedUuid);
+            return cachedIds.compute(oid, (k, existing) -> {
+                if (existing == null) {
+                    Metrics.CACHE_MISS_COUNT.increment();
+                    return new ApiId(oid, realtimeContextId, apiIdResolver, repositoryApi, topologyProcessor,
+                            thinTargetCache, cloudTypeMapper);
+                } else {
+                    Metrics.CACHE_HIT_COUNT.increment();
+                    return existing;
+                }
+            });
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException(String.format(ILLEGAL_UUID_MESSAGE, uuid));
+        }
     }
 
     @Nonnull

@@ -145,7 +145,7 @@ public class EntitiesService implements IEntitiesService {
     private final static String REPLACEME = "#REPLACEME";
 
     private static final String ILLEGAL_UUID_MESSAGE = "%s is illegal argument. "
-            + "Should be a numeric entity id.";
+            + "It is an invalid uuid format.";
 
     private static final Logger logger = LogManager.getLogger();
 
