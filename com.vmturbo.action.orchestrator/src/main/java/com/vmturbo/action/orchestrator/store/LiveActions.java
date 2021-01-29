@@ -433,7 +433,6 @@ class LiveActions implements QueryableActionViews {
      */
     private void updateActionMetricsDescriptor(Action action) {
         ActionInfo ai = action.getRecommendation().getInfo();
-        String actionType = ai.getActionTypeCase().name();
         String actionSeverity  = action.getActionSeverity().name();
         String actionCategory  = action.getActionCategory().name();
         String actionState  = action.getState().name();
@@ -482,8 +481,8 @@ class LiveActions implements QueryableActionViews {
             env = actionTarget.getEnvironmentType().name();
             entityType = EntityType.forNumber(actionTarget.getType()).name();
         }
-        ACTION_COUNTS_GAUGE.labels(actionType, entityType, env, actionCategory, actionSeverity,
-            actionState).increment();
+        ACTION_COUNTS_GAUGE.labels(action.getTranslationResultOrOriginal().getInfo().getActionTypeCase().name(),
+            entityType, env, actionCategory, actionSeverity, actionState).increment();
     }
 
     private void updateStateForRejectedActions(@Nonnull final Collection<Action> marketActions) {
