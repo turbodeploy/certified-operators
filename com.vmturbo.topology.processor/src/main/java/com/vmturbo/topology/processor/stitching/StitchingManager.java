@@ -228,9 +228,7 @@ public class StitchingManager {
 
     private boolean checkForEmptyDC(@Nonnull StitchingEntity stitchingEntity)   {
         return stitchingEntity.getConsumers().isEmpty()
-                && (stitchingEntity.getCommoditiesSold()
-                    .filter(c -> CommodityType.DATACENTER.equals(c.getCommodityType()))
-                    .count() > 0);
+                && EntityType.DATACENTER.equals(stitchingEntity.getEntityType());
     }
 
     /**
