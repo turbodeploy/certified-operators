@@ -81,11 +81,22 @@ public class AggregatingDiscoveryQueueImpl implements AggregatingDiscoveryQueue 
             @Nonnull BiConsumer<Discovery, Exception> errorHandler,
             boolean runImmediately) throws ProbeException {
 
-        validateTransportsWithChannels(target);
         try {
             final IDiscoveryQueueElement element = new DiscoveryQueueElement(target, discoveryType,
                     prepareDiscoveryInformation, errorHandler, runImmediately);
-
+            try {
+                validateTransports(target);
+            } catch (ProbeException probeException) {
+                // If we have an issue with the probe, go ahead and create a discovery and set the
+                // exception to it so that it is properly logged and so that the UI is properly
+                // notified that there is an issue with the probe.
+                element.performDiscovery(bundle -> {
+                    bundle.setException(probeException);
+                    return bundle.getDiscovery();
+                }, () -> logger.info("Skipped discovery {} for target {}", discoveryType,
+                        target.getId()));
+                throw probeException;
+            }
             final Pair<String, String> lookupKey = new Pair<>(target.getProbeInfo().getProbeType(),
                     target.getSerializedIdentifyingFields());
             final ITransport<MediationServerMessage, MediationClientMessage> existingTransport =
@@ -144,13 +155,13 @@ public class AggregatingDiscoveryQueueImpl implements AggregatingDiscoveryQueue 
 
     /**
      * Validate that given a target with a channel, there is at least one transport with that
-     * channel. Otherwise, throw an exception. In addition, checks that there's a registered
+     * channel. Otherwise, throw an exception. In addition, checks that there's a connected
      * probe that can discover the target.
      *
      * @param target to check
      * @throws ProbeException if no transports for the target channel exist
      */
-    private void validateTransportsWithChannels(Target target) throws ProbeException {
+    private void validateTransports(Target target) throws ProbeException {
         if (target.getSpec().hasCommunicationBindingChannel()) {
             String channel = target.getSpec().getCommunicationBindingChannel();
             Optional<String> availableTransport =
@@ -161,8 +172,9 @@ public class AggregatingDiscoveryQueueImpl implements AggregatingDiscoveryQueue 
             }
         }
         long probeId = target.getProbeId();
-        probeStore.getProbe(probeId).orElseThrow(() -> new ProbeException(String.format(
-            "Probe %s is not registered", probeId)));
+        if (!probeStore.isProbeConnected(probeId)) {
+            throw new ProbeException(String.format("Probe %s is not connected", probeId));
+        }
     }
 
     private synchronized Optional<IDiscoveryQueueElement> pollNextQueuedDiscovery(
@@ -338,15 +350,44 @@ public class AggregatingDiscoveryQueueImpl implements AggregatingDiscoveryQueue 
         transportToChannel.put(transport, communicationChannel);
     }
 
+    private void flushQueue(@Nonnull DiscoveryQueue queue) {
+        if (!queue.isEmpty()) {
+            final long probeId = queue.peek().get().getTarget().getProbeId();
+            final ProbeException probeException =
+                    new ProbeException(String.format("Probe %s is not registered", probeId));
+            // To properly clean up the queue, call each queued discovery and force it to fail
+            // with a probe exception. This will ensure OperationManager does the proper cleanup.
+            while (!queue.isEmpty()) {
+                queue.remove().ifPresent(element -> element.performDiscovery(bundle -> {
+                    bundle.setException(probeException);
+                    return bundle.getDiscovery();
+                }, () -> logger.info("Purged discovery for target {}",
+                        element.getTarget().getId())));
+            }
+        }
+    }
+
     @Override
     public synchronized void handleTransportRemoval(
-            @Nonnull ITransport<MediationServerMessage, MediationClientMessage> transport) {
+            @Nonnull ITransport<MediationServerMessage, MediationClientMessage> transport,
+            @Nonnull Set<Long> probesSupported) {
         transportByTargetId.values().removeIf(transport::equals);
         discoveryQueueByTransport.getOrDefault(transport, Collections.emptyMap())
                 .entrySet()
                 .stream()
                 .forEach(entry -> reassignQueueContents(entry.getValue(), entry.getKey(), transport));
+
         transportToChannel.keySet().removeIf(transport::equals);
+
+        // for any probes that are no longer connected, flush the related queue and fail the
+        // discoveries in them.
+        probesSupported.stream()
+                .filter(probeId -> !probeStore.isProbeConnected(probeId))
+                .flatMap(probeId -> discoveryQueueByProbeId.values().stream()
+                        .map(map -> map.get(probeId)))
+                .filter(Objects::nonNull)
+                .forEach(this::flushQueue);
+
         notifyAll();
     }
 }

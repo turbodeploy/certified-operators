@@ -77,27 +77,43 @@ public class OperationTestUtilities {
     }
 
     /**
-     * Wait for an event to complete as determined by a predicate check function.
+     * Wait up to the specified number of seconds for the predicate to become true.
      *
-     * @param predicate The predicate to check.
-     * @param <T> The type of the argument to the predicate
-     * @throws Exception when something goes wrong
+     * @param predicate the predicate to test.
+     * @param timeout_seconds the number of seconds to wait before returning a result.
+     * @return true if the predicate becomes true within the timeout period; false otherwise.
+     * @throws Exception if the predicate throws one or if Thread.sleep is interrupted.
      */
-    public static <T> void waitForEvent(final @Nonnull Supplier<Boolean> predicate) throws Exception {
+    public static boolean waitForEventAndReturnResult(final @Nonnull Supplier<Boolean> predicate,
+            long timeout_seconds)
+        throws Exception {
         final long pollIntervalMillis = 10;
         long timePolled = 0;
-        final long pollTimeout = TimeUnit.MILLISECONDS.convert(DISCOVERY_PROCESSING_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        final long pollTimeout = TimeUnit.MILLISECONDS.convert(timeout_seconds, TimeUnit.SECONDS);
 
         // Poll until the results are processed or we time out
         while (timePolled < pollTimeout) {
             if (predicate.get()) {
-                return;
+                return true;
             }
             Thread.sleep(pollIntervalMillis);
             timePolled += pollIntervalMillis;
         }
 
-        fail();
+        return false;
+    }
+
+    /**
+     * Wait for an event to complete as determined by a predicate check function and fail if it
+     * doesn't complete within DISCOVERY_PROCESSING_TIMEOUT_SECONDS.
+     *
+     * @param predicate The predicate to check.
+     * @throws Exception when something goes wrong
+     */
+    public static void waitForEvent(final @Nonnull Supplier<Boolean> predicate) throws Exception {
+        if (!waitForEventAndReturnResult(predicate, DISCOVERY_PROCESSING_TIMEOUT_SECONDS)) {
+            fail();
+        }
     }
 
     /**

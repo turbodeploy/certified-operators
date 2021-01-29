@@ -222,10 +222,9 @@ public class OperationManagerWithQueue extends OperationManager {
                     discoveryType.toString()).startTimer();
             final LocalDateTime beforeQueueTime = LocalDateTime.now();
             element = discoveryQueue.offerDiscovery(target, discoveryType,
-                    (runAfter) -> handleDiscovery(runAfter, probeId, target,
-                            discoveryType, waitingTimer),
-                    (discovery, exception) -> onDiscoveryError(discovery, exception),
-                    runNow);
+                    (runAfter) -> handleDiscovery(runAfter, probeId, target, discoveryType,
+                            waitingTimer),
+                    (discovery, exception) -> onDiscoveryError(discovery, exception), runNow);
             // if there was already a queued discovery for this target, end the timer.
             if (element.getQueuedTime().isBefore(beforeQueueTime)) {
                 waitingTimer.close();

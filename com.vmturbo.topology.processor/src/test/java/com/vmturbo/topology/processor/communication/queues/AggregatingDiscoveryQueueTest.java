@@ -4,6 +4,9 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
@@ -18,7 +21,9 @@ import java.util.function.Function;
 import javax.annotation.Nonnull;
 
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
@@ -34,6 +39,7 @@ import com.vmturbo.topology.processor.TestProbeStore;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityProviderException;
+import com.vmturbo.topology.processor.operation.OperationTestUtilities;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.discovery.DiscoveryBundle;
 import com.vmturbo.topology.processor.probes.ProbeException;
@@ -100,6 +106,12 @@ public class AggregatingDiscoveryQueueTest {
     private AggregatingDiscoveryQueue queue;
 
     /**
+     * Expected exception.
+     */
+    @Rule
+    public ExpectedException expectedException = ExpectedException.none();
+
+    /**
      * Set up Mocks.
      *
      * @throws ProbeException if there's an error in registering the probes
@@ -130,7 +142,8 @@ public class AggregatingDiscoveryQueueTest {
         when(target2.getSpec()).thenReturn(defaultSpec);
         when(target3.getSpec()).thenReturn(defaultSpec);
         probeStore.registerNewProbe(probeInfo1, transportVc1);
-        probeStore.registerNewProbe(probeInfo2, transportVc2);
+        probeStore.registerNewProbe(probeInfo1, transportVc2);
+        probeStore.registerNewProbe(probeInfo2, transportHyperV1);
 
         queue = new AggregatingDiscoveryQueueImpl(probeStore);
     }
@@ -300,7 +313,7 @@ public class AggregatingDiscoveryQueueTest {
 
         // when transportVc1 is deleted, queued discovery should be re-assigned to probe ID queue
         // and transportVc2 should be able to get it now
-        queue.handleTransportRemoval(transportVc1);
+        queue.handleTransportRemoval(transportVc1, Collections.singleton(probeId1));
         Thread.sleep(100L);
         assertTrue(secondTransportGet.isDone());
         assertEquals(reAddTarget1, secondTransportGet.get().get());
@@ -359,7 +372,7 @@ public class AggregatingDiscoveryQueueTest {
         // and transportVc2 should be able to get it now
         addToQueueAndVerify(target1, DiscoveryType.FULL,
             discoveryMethodMock1, false);
-        queue.handleTransportRemoval(transportVc1);
+        queue.handleTransportRemoval(transportVc1, Collections.singleton(probeId1));
         Thread.sleep(100L);
         assertTrue(secondTransportGet.isDone());
     }
@@ -523,7 +536,7 @@ public class AggregatingDiscoveryQueueTest {
         assertFalse(secondTransportGet.isDone());
 
         // when transportVc1 is deleted, transportVc2 should still not get it
-        queue.handleTransportRemoval(transportVc1);
+        queue.handleTransportRemoval(transportVc1, Collections.singleton(probeId1));
         Thread.sleep(100L);
         assertFalse(secondTransportGet.isDone());
     }
@@ -537,5 +550,71 @@ public class AggregatingDiscoveryQueueTest {
         builder.setProbeType(probeType);
         builder.setProbeCategory(ProbeCategory.HYPERVISOR.getCategory());
         return builder.build();
+    }
+
+    /**
+     * Test that we throw a ProbeException when you try to queue a discovery for a probe that is
+     * not connected to the TP.
+     *
+     * @throws ProbeException when the probe associated with the target is not connected.
+     */
+    @Test
+    public void testDisconnectedProbe() throws ProbeException {
+        probeStore.removeTransport(transportVc1);
+        probeStore.removeTransport(transportVc2);
+        expectedException.expect(ProbeException.class);
+        expectedException.expectMessage(String.format("Probe %s is not connected", probeId1));
+        final DiscoveryBundle bundle = mock(DiscoveryBundle.class);
+        final Discovery discovery = mock(Discovery.class);
+        final ProbeException probeException = new ProbeException("Test exception");
+        when(discoveryMethodMock1.apply(any())).thenReturn(bundle);
+        when(bundle.getDiscovery()).thenReturn(discovery);
+        when(bundle.getException()).thenReturn(probeException);
+        addToQueueAndVerify(target1, DiscoveryType.FULL,
+                discoveryMethodMock1, false);
+        verify(errorHandler).accept(discovery, probeException);
+    }
+
+    /**
+     * Test that when the last transport for a probe type is unregistered, the queue for that probe
+     * type is flushed.
+     *
+     * @throws Exception when there is a ProbeStoreException or if we get an exception waiting.
+     */
+    @Test
+    public void testLastTransportRemovalForProbeTypeFlushesQueue() throws Exception {
+        // queue two VC discoveries for two different targets and one hyperV discovery
+        final IDiscoveryQueueElement addTarget1 = addToQueueAndVerify(target1, DiscoveryType.FULL,
+                discoveryMethodMock1, false);
+        final IDiscoveryQueueElement addTarget2 = addToQueueAndVerify(target2, DiscoveryType.FULL,
+                discoveryMethodMock2, false);
+        final IDiscoveryQueueElement addTarget3 = addToQueueAndVerify(target3, DiscoveryType.FULL,
+                discoveryMethodMock3, false);
+
+        // remove first VC transport from probe store
+        probeStore.removeTransport(transportVc1);
+        queue.handleTransportRemoval(transportVc1, Collections.singleton(probeId1));
+        // This should have no effect on queue contents as transportVc2 is still registered.
+        // If a target is already in the queue, we should get back the existing queue element when
+        // we try to add the target to the queue.
+        assertEquals(addTarget3, addToQueueAndVerify(target3, DiscoveryType.FULL,
+                discoveryMethodMock3, false));
+        assertEquals(addTarget1, addToQueueAndVerify(target1, DiscoveryType.FULL,
+                discoveryMethodMock1, false));
+        assertEquals(addTarget2, addToQueueAndVerify(target2, DiscoveryType.FULL,
+                discoveryMethodMock2, false));
+
+        // Now remove the only remaining VC transport.  This should drain the VC queue, but leave
+        // the HyperV queue alone.
+        probeStore.removeTransport(transportVc2);
+        queue.handleTransportRemoval(transportVc2, Collections.singleton(probeId1));
+        assertEquals(addTarget3, addToQueueAndVerify(target3, DiscoveryType.FULL,
+                discoveryMethodMock3, false));
+
+        // Try to get a VC discovery from the queue on a new thread. The call should never return.
+        final Future<Optional<IDiscoveryQueueElement>> firstGet = callTakeOnThread(transportVc1,
+                Collections.singletonList(probeId1), DiscoveryType.FULL);
+        assertFalse(OperationTestUtilities.waitForEventAndReturnResult(
+                () -> firstGet.isDone(), 5L));
     }
 }

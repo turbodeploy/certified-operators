@@ -148,7 +148,7 @@ public class RemoteMediationServerWithDiscoveryWorkersTest {
      * Argument captor for simulating returning a permit to the TransportWorker.
      */
     @Captor
-    private ArgumentCaptor<Runnable> runnableArgumentCaptor;
+    private ArgumentCaptor<Exception> exceptionArgumentCaptor;
 
     @Captor
     private ArgumentCaptor<MediationServerMessage> transportSendCaptor;
@@ -162,6 +162,7 @@ public class RemoteMediationServerWithDiscoveryWorkersTest {
         queue = spy(new AggregatingDiscoveryQueueImpl(probeStore));
         when(probeStore.getProbeIdForType(VC_PROBE_TYPE)).thenReturn(Optional.of(probeIdVc));
         when(probeStore.getProbe(probeIdVc)).thenReturn(Optional.of(probeInfoVc1));
+        when(probeStore.isProbeConnected(probeIdVc)).thenReturn(true);
         TargetSpec defaultSpec = TargetSpec.getDefaultInstance();
         when(target1.getProbeId()).thenReturn(probeIdVc);
         when(target1.getSpec()).thenReturn(defaultSpec);
@@ -325,7 +326,8 @@ public class RemoteMediationServerWithDiscoveryWorkersTest {
         // close the transport, which should also interrupt the worker thread
         remoteMediationServer.processContainerClose(transport1);
         // wait for queue to be notified of transport closure
-        verify(queue, timeout(verify_timeout_millis)).handleTransportRemoval(transport1);
+        verify(queue, timeout(verify_timeout_millis)).handleTransportRemoval(transport1,
+                Collections.singleton(probeIdVc));
 
         queue.offerDiscovery(target1, DiscoveryType.FULL, discoveryMethod1, errorHandler1, false);
         // Verify we didn't try to run the discovery. takeNextQueuedDiscovery should have only been
@@ -337,7 +339,7 @@ public class RemoteMediationServerWithDiscoveryWorkersTest {
 
     /**
      * Test that if a transport is closed while registration is being processed, the related
-     * transport worker is clsoed.
+     * transport worker is closed.
      *
      * @throws InterruptedException when Thread.sleep is interrupted.
      * @throws ProbeException if a problem occurs with the probe
@@ -377,6 +379,27 @@ public class RemoteMediationServerWithDiscoveryWorkersTest {
         assertTrue(takenDiscovery.getValue().get().isPresent());
         assertEquals(queuedDiscovery, takenDiscovery.getValue().get().get());
         executor.shutdownNow();
+    }
+
+    /**
+     * Test that if you close the last transport that services a probe type, any queued discoveries
+     * for that probe type fail with a ProbeException.
+     *
+     * @throws ProbeException when queue.offerDiscovery throws it.
+     */
+    @Test
+    public void testClosingLastTransportFailsDiscoveries() throws ProbeException {
+        remoteMediationServer.registerTransport(containerInfo, transport1);
+        queue.offerDiscovery(target1, DiscoveryType.FULL, discoveryMethod1, errorHandler1, false);
+        queue.offerDiscovery(target2, DiscoveryType.FULL, discoveryMethod2, errorHandler2, false);
+        when(probeStore.isProbeConnected(probeIdVc)).thenReturn(false);
+        final ProbeException probeException = new ProbeException("Probe type is not connected.");
+        when(discoveryBundle2.getException()).thenReturn(probeException);
+        remoteMediationServer.processContainerClose(transport1);
+        verify(discoveryBundle2, timeout(verify_timeout_millis))
+                .setException(exceptionArgumentCaptor.capture());
+        assertTrue(exceptionArgumentCaptor.getValue() instanceof ProbeException);
+        verify(errorHandler2, timeout(verify_timeout_millis)).accept(discovery2, probeException);
     }
 
     /**

@@ -2,6 +2,7 @@ package com.vmturbo.topology.processor.communication.queues;
 
 import java.util.Collection;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
@@ -109,7 +110,9 @@ public interface AggregatingDiscoveryQueue {
      * and their contents added to the appropriate ProbeType queues.
      *
      * @param transport ITransport that has been removed.
+     * @param probesSupported set of probeIds supported by this transport.
      */
     void handleTransportRemoval(
-            @Nonnull ITransport<MediationServerMessage, MediationClientMessage> transport);
+            @Nonnull ITransport<MediationServerMessage, MediationClientMessage> transport,
+            @Nonnull Set<Long> probesSupported);
 }

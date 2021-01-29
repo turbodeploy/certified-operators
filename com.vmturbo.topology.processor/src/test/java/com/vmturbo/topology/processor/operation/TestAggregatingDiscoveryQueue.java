@@ -131,7 +131,8 @@ public class TestAggregatingDiscoveryQueue implements AggregatingDiscoveryQueue 
 
     @Override
     public void handleTransportRemoval(
-            @Nonnull ITransport<MediationServerMessage, MediationClientMessage> transport) {
+            @Nonnull ITransport<MediationServerMessage, MediationClientMessage> transport,
+            @Nonnull Set<Long> probeIds) {
 
     }
 

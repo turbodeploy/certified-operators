@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.communication;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Optional;
@@ -141,17 +142,19 @@ public class RemoteMediationServerWithDiscoveryWorkers extends RemoteMediationSe
      */
     protected void processContainerClose(
                     ITransport<MediationServerMessage, MediationClientMessage> endpoint) {
-        discoveryQueue.handleTransportRemoval(endpoint);
+        super.processContainerClose(endpoint);
+        Set<Long> probesTypesForEndpoint = new HashSet<>();
         synchronized (transportToTransportWorker) {
             if (transportToTransportWorker.containsKey(endpoint)) {
                 transportToTransportWorker.remove(endpoint).values()
                         .forEach(transportDiscoveryWorker -> {
+                            probesTypesForEndpoint.addAll(transportDiscoveryWorker.probesSupported);
                             transportDiscoveryWorker.containerClose();
                             transportDiscoveryWorker.interrupt();
                         });
             }
         }
-        super.processContainerClose(endpoint);
+        discoveryQueue.handleTransportRemoval(endpoint, probesTypesForEndpoint);
     }
 
     private int sendMessageViaTransport(@Nonnull MediationServerMessage message,
@@ -406,8 +409,10 @@ public class RemoteMediationServerWithDiscoveryWorkers extends RemoteMediationSe
                     synchronized (numPermits) {
                         try {
                             // give back the permit we took in if statement
-                            numPermits.incrementAndGet();
-                            numPermits.wait();
+                            final int permits = numPermits.incrementAndGet();
+                            if (permits <= 0) {
+                                numPermits.wait();
+                            }
                         } catch (InterruptedException e) {
                             // interrupt() is called when transport has been closed
                             logger.warn("Interrupted while waiting for permit to be released. "
