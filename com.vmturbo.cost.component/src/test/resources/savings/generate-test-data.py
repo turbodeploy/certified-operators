@@ -18,17 +18,17 @@ Events that occur at the top of the hour occur after that hour's processing pass
 example, a VM create event at 3:00 will be processed at 4:00.  All timestamps are relative to the start of the
 scenario, as defined by any start command.
 
-The event are:
+The events are:
 
 - start - start the scenario.  This is optional.  If absent, the first event serves as the implicit start.  If a
-          date is provided, that serves at the real-time start of the generated data.  This time is rounded up to the
-          nearest hour.
+          date is provided, that serves at the real-time start of the generated data.  This time is rounded down
+          to the nearest hour.
 - create - a new entity was detected.  This is not required at this time.  Resize recommendations create the entities.
 - remove - an existing entity was removed
 - power - an entity changed power state
-- resize - an entity resize was detected
-- recommend - a resize action was generated
-- execute - an action was executed
+- change - an entity resize was detected via discovery
+- resize - a resize recommendation was generated
+- execute - an action was successfully executed
 - stop - stop the scenario.  If this is absent, the last event serves as the implicit end.
 
 It is assumed that the savings processor runs at the top of the hour.
@@ -88,6 +88,7 @@ TIER_TO_COST = {
 }
 
 args = None
+vm_to_uuid_map = {}
 sql_output = []
 base_timestamp = 0
 
@@ -118,7 +119,8 @@ class Event:
         'power': ['vm_name', 'state'],
         'resize': ['vm_name', 'source-tier', 'dest-tier'],
         'change': ['vm_name', 'source-tier', 'dest-tier'],
-        'execute': ['vm_name', 'source-tier', 'dest-tier']
+        'execute': ['vm_name', 'source-tier', 'dest-tier'],
+        'uuid': ['vm_name', 'uuid']
     }
 
     def __init__(self, event='nop'):
@@ -149,10 +151,10 @@ class Recommendation:
         self.delta = get_cost(self.dest_tier) - get_cost(self.source_tier)
 
     def get_savings(self):
-        return -min(0, self.delta)
+        return -min(0.0, self.delta)
 
     def get_investment(self):
-        return max(0, self.delta)
+        return max(0.0, self.delta)
 
 
 class EntityState:
@@ -176,8 +178,6 @@ class EntityState:
         self.current_recommendation = None
 
         # These are updated on SKU change or action execution
-
-        # BCTODO move these to two accumulators so that the realized/missed logic can be shared
 
         #
         # Realized
@@ -207,6 +207,8 @@ class EntityState:
         # are calculated based on the previous cumulative values and the current accumulator.
         self.cumulative_savings = 0.00
         self.cumulative_investment = 0.00
+        self.cumulative_missed_savings = 0.00
+        self.cumulative_missed_investment = 0.00
 
     def end_segment(self, timestamp):
         """Close out the current segment in preparation for a transition"""
@@ -222,6 +224,8 @@ class EntityState:
         self.end_segment(timestamp)
         self.cumulative_savings += self.periodic_savings
         self.cumulative_investment += self.periodic_investment
+        self.cumulative_missed_savings += self.periodic_missed_savings
+        self.cumulative_missed_investment += self.periodic_missed_investment
 
         # Output the savings record
         tstr = datetime.fromtimestamp(timestamp / 1000.0).strftime("%Y-%m-%d %H:%M:%S")
@@ -242,14 +246,16 @@ class EntityState:
         generate_entry(EntitySavingsStatsType.REALIZED_INVESTMENTS, self.periodic_investment)
         generate_entry(EntitySavingsStatsType.CUMULATIVE_REALIZED_INVESTMENTS, self.cumulative_investment)
         generate_entry(EntitySavingsStatsType.MISSED_SAVINGS, self.periodic_missed_savings)
-        generate_entry(EntitySavingsStatsType.CUMULATIVE_MISSED_SAVINGS, self.current_missed_savings)
+        generate_entry(EntitySavingsStatsType.CUMULATIVE_MISSED_SAVINGS, self.cumulative_missed_savings)
         generate_entry(EntitySavingsStatsType.MISSED_INVESTMENTS, self.periodic_missed_investment)
-        generate_entry(EntitySavingsStatsType.CUMULATIVE_MISSED_INVESTMENTS, self.current_missed_investment)
+        generate_entry(EntitySavingsStatsType.CUMULATIVE_MISSED_INVESTMENTS, self.cumulative_missed_investment)
 
         self.previous_savings = self.current_savings
         self.previous_investment = self.current_investment
         self.periodic_savings = 0.00
         self.periodic_investment = 0.00
+        self.periodic_missed_savings = 0.00
+        self.periodic_missed_investment = 0.00
 
     def shutdown(self, internal_state, timestamp):
         """Flag this entry for removal during next processing pass. Simulate a power off to stop accumulation
@@ -270,6 +276,8 @@ def get_uuid(vm_name):
     """
     if vm_name.isnumeric():
         return vm_name
+    elif vm_name in vm_to_uuid_map:
+        return vm_to_uuid_map[vm_name]
     else:
         return str(0x430000000000 + (id(vm_name) and 0xFFFFFFFFFF))
 
@@ -299,7 +307,7 @@ def parse_line(raw_line):
     if len(fields) == 0:
         # Empty line or line only contains a comment
         return event
-    if fields[-1] == 'start':
+    if fields[-1] == 'start' or fields[-1] == 'uuid':
         # Inject a dummy timestamp
         fields += ['0:00', '0']
     if len(fields) < 3:
@@ -374,25 +382,34 @@ def get_cost(compute_tier):
         return float(compute_tier)
 
 
-def parse_date(ts, round=False):
-    """Parse a date string.  If round=True, then round to the top of the current hour.
+def parse_date(ts, top_of_hour=False):
+    """Parse a date string.  If top_of_hour=True, then round to the top of the current hour.
     If the year is missing, the current year will be used."""
     date = None
     if ts.startswith('now '):
         date = datetime.now()
     else:
-        for format in ['%m-%d-%Y %H:%M', '%m-%d-%y %H:%M', '%m-%d %H:%M']:
+        for template in ['%m-%d-%Y %H:%M', '%m-%d-%y %H:%M', '%m-%d %H:%M']:
             try:
-                date = datetime.strptime(ts, format)
+                date = datetime.strptime(ts, template)
                 if date.year == 1900:
                     now = datetime.now()
                     date = date.replace(year=now.year)
                 break
             except ValueError:
                 pass
-    if date and round:
+    if date and top_of_hour:
         date = date.replace(minute=0, second=0, microsecond=0)
     return date
+
+
+def handle_uuid(event, _unused_internal_state):
+    """Establish a VM name to UUID mapping"""
+    vm_name = event.params['vm_name']
+    if vm_name in vm_to_uuid_map:
+        logging.warning('UUID mapping in script for "%s" was overridden on the command line - ignoring' % vm_name)
+        return
+    vm_to_uuid_map[vm_name] = event.params['uuid']
 
 
 def handle_start(event, _unused_internal_state):
@@ -404,7 +421,7 @@ def handle_start(event, _unused_internal_state):
     if not date:
         logging.error('Invalid timestamp: "%s". Format is "M-D[-[CC]YY]] HH:MM' % start_ts[:-7])
         return
-    base_timestamp = date.timestamp() * 1000
+    base_timestamp = int(date.timestamp() * 1000)
     event.timestamp = base_timestamp
 
 
@@ -517,7 +534,8 @@ handlers = {
     'power': handle_power,
     'resize': handle_resize_recommendation,
     'execute': handle_action_executed,
-    'change': handle_provider_change
+    'change': handle_provider_change,
+    'uuid': handle_uuid
 }
 
 
@@ -530,6 +548,7 @@ def process_events(timestamp, entity_state):
 def parse_arguments():
     parser = argparse.ArgumentParser(description='Generate test savings data from a scenario script')
     parser.add_argument('script', help='scenario script to use', type=str)
+    parser.add_argument('entity=uuid', help='Define entity to UUID mapping', type=str, nargs='*')
     # BCTODO Next phase will consult an appliance to map entity names to UUIDs.  For now, use a valid UUID in
     #  place of the entity name.
     # parser.add_argument('--server', help='address of appliance', type=str)
@@ -566,6 +585,9 @@ def main():
     global args
     args = parse_arguments()
     args.csv = args.csv or args.csv2  # csv2 implies csv
+    for mapping in args.__dict__['entity=uuid']:
+        f = mapping.split('=')
+        vm_to_uuid_map[f[0]] = f[1]
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
     # Emit headers
     if args.csv and args.verbose:
