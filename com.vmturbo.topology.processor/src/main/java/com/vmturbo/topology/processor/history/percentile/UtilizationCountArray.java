@@ -214,8 +214,8 @@ public class UtilizationCountArray {
             startTimestamp = timestamp;
         }
 
-        // remove the capacity changes that are no longer relevant
-        capacityList.removeOlderCapacities(timestamp);
+        // remove the capacity changes older than timestamp except the last one
+        capacityList.removeDeprecatedCapacities(timestamp);
 
         // find what is the bucket index that should be decremented
         final int bucketToDecrement = getBucketToDecrement(dailyRecordIndex, dailyRecordCapacity);
@@ -538,16 +538,21 @@ public class UtilizationCountArray {
             return sb.toString();
         }
 
-        public void removeOlderCapacities(long timestamp) {
+        /**
+         * capacity changes older than this timestamp but not the last one are deprecated and will be removed.
+         * We need to keep at least one capacity change for replaying.
+         * @param timestamp capacity changes older than this timestamp will be removed if they are not the only one left.
+         */
+        public void removeDeprecatedCapacities(long timestamp) {
             if (timestamps.size() < 1 || timestamps.getLong(0) >= timestamp) {
                 return;
             }
 
             int endIndex = 0;
-            while (endIndex < timestamps.size() && timestamps.getLong(endIndex) < timestamp) {
+            //Keep at least one capacity/timestamp for replaying.
+            while (endIndex < timestamps.size() - 1 && timestamps.getLong(endIndex) < timestamp) {
                 endIndex++;
             }
-
             timestamps.removeElements(0, endIndex);
             capacities.removeElements(0, endIndex);
         }

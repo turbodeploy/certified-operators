@@ -148,8 +148,10 @@ public class UtilizationCountArrayTest {
     public void testEmptyCapacity() throws HistoryCalculationException {
         UtilizationCountArray counts = new UtilizationCountArray(new PercentileBuckets());
         addCount(counts, 1, 2);
+        counts.addPoint(1, 110, "", timestamp - 2);
+        counts.addPoint(1, 120, "", timestamp - 1);
         counts.removePoint(1, 2, 50, timestamp + 1, "");
-        Assert.assertTrue(counts.isEmpty());
+        Assert.assertFalse(counts.isEmpty());
         addCount(counts, 1, 3);
         Assert.assertTrue(counts.isEmptyOrOutdated(timestamp + 7776000001L)); //90 days in milliseconds
     }
