@@ -687,7 +687,7 @@ public class SettingStoreTest {
      * @throws StoreOperationException if something goes wrong.
      */
     @Test
-    public void testRemovingSettingFromDefaultPolicyWithDefaultValue() throws StoreOperationException {
+    public void testRemovingSettingFromDefaultPolicyWithExistingDefaultValue() throws StoreOperationException {
         // ARRANGE
         final Map<String, Setting> defaultSettingPolicyMap = DefaultSettingPolicyCreator
             .defaultSettingPoliciesFromSpecs(settingSpecStore.getAllSettingSpecs())
@@ -734,6 +734,55 @@ public class SettingStoreTest {
         assertThat(retrievedPolicy.getInfo().getSettingsCount(), is(1));
         assertThat((double)retrievedPolicy.getInfo().getSettings(0).getNumericSettingValue().getValue(),
             closeTo(25f, 0.01f));
+    }
+
+    /**
+     * Tests when a user tries does not send a policy and don't sent a field that should always
+     * have value. However, somehow we don't have existing value for it. Therefore, we go with
+     * the default value.
+     *
+     * @throws StoreOperationException if something goes wrong.
+     */
+    @Test
+    public void testRemovingSettingFromDefaultPolicyWithoutExistingDefaultValue() throws StoreOperationException {
+        // ARRANGE
+        final Map<String, Setting> defaultSettingPolicyMap = DefaultSettingPolicyCreator
+            .defaultSettingPoliciesFromSpecs(settingSpecStore.getAllSettingSpecs())
+            .get(EntityType.VIRTUAL_MACHINE.getNumber()).getSettingsList().stream()
+            .collect(Collectors.toMap(Setting::getSettingSpecName, Functions.identity()));
+
+        defaultSettingPolicyMap.remove(EntitySettingSpecs.VmVmemIncrement.getSettingName());
+
+        SettingPolicy originalPolicy = SettingPolicy.newBuilder()
+            .setId(DEFAULT_POLICY_ID)
+            .setInfo(SettingPolicyInfo.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
+                .addAllSettings(defaultSettingPolicyMap.values()))
+            .setSettingPolicyType(Type.DEFAULT)
+            .build();
+        // we create the initial setting we want to update
+        settingStore.createSettingPolicies(dbConfig.getDslContext(),
+            Collections.singleton(originalPolicy));
+
+        final Map<String, Setting> updatedSettingPolicyMap = new HashMap<>(defaultSettingPolicyMap);
+        updatedSettingPolicyMap.remove(EntitySettingSpecs.VmVmemIncrement.getSettingName());
+        SettingPolicyInfo updatedPolicy = SettingPolicyInfo.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
+            .addAllSettings(updatedSettingPolicyMap.values())
+            .build();
+
+        // ACT
+        settingStore.updateSettingPolicy(DEFAULT_POLICY_ID, updatedPolicy);
+
+        // ASSERT
+        Collection<SettingPolicy> retrievedPolicies =
+            settingStore.getSettingPolicies(dbConfig.getDslContext(),
+                SettingPolicyFilter.newBuilder().withId(DEFAULT_POLICY_ID).build());
+        assertTrue(retrievedPolicies.iterator().hasNext());
+        SettingPolicy retrievedPolicy = retrievedPolicies.iterator().next();
+        assertThat(retrievedPolicy.getInfo().getSettingsCount(), is(1));
+        assertThat((double)retrievedPolicy.getInfo().getSettings(0).getNumericSettingValue().getValue(),
+            closeTo(11f, 0.01f));
     }
 
     /**
