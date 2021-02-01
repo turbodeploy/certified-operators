@@ -277,10 +277,6 @@ public class GroupScopeResolver {
         // retrieve all the scoped Topology Entity DTOs
         final List<TopologyEntityDTO> scopedTopologyEntityDTOs = retrieveScopedTopologyEntityDTOs(
                 scopeOids);
-        // retrieve related GuestLoad Topology Entity DTOs if the scoped entities are VMs
-        final EntityType scopedEntityType = customAcctDef.hasGroupScope()
-                ? customAcctDef.getGroupScope().getEntityType()
-                : customAcctDef.getEntityScope().getEntityType();
         logger.debug("Retrieved {} scoped entities "
                 +  "from repository service.", () -> scopedTopologyEntityDTOs.size());
 
@@ -304,7 +300,7 @@ public class GroupScopeResolver {
                     } else {
                         propList.addValue("");
                         if (nextPair.second) {
-                            logger.error("Mandatory property {} does not exist in entity."
+                            logger.warn("Mandatory property {} does not exist in entity."
                                             + " Skipping group scope property extraction for entity {}",
                                     nextPair.first.name(),
                                 entity.getTopologyEntityDTO().getDisplayName());
