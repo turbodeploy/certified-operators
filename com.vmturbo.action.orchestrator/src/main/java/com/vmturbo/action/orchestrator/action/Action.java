@@ -1356,7 +1356,7 @@ public class Action implements ActionView {
 
         public SerializationState(@Nonnull final Action action) {
             this.actionPlanId = action.actionPlanId;
-            this.recommendation = action.recommendation;
+            this.recommendation = action.getTranslationResultOrOriginal();
             this.recommendationTime = action.recommendationTime;
             this.actionDecision = action.decision.getDecision().orElse(null);
             this.executionStep = action.currentExecutableStep.map(ExecutableStep::getExecutionStep).orElse(null);
