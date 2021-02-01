@@ -26,11 +26,10 @@ import com.google.common.collect.ImmutableSet;
 import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierAllocationDatapoint;
 import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierDemand;
 import com.vmturbo.cloud.commitment.analysis.demand.EntityComputeTierAllocation;
+import com.vmturbo.cloud.commitment.analysis.demand.TimeFilter;
 import com.vmturbo.cloud.commitment.analysis.demand.store.EntityComputeTierAllocationFilter;
 import com.vmturbo.cloud.commitment.analysis.demand.ImmutableComputeTierAllocationDatapoint;
 import com.vmturbo.cloud.commitment.analysis.demand.ImmutableEntityComputeTierAllocation;
-import com.vmturbo.cloud.commitment.analysis.demand.store.ImmutableEntityComputeTierAllocationFilter;
-import com.vmturbo.cloud.commitment.analysis.demand.ImmutableTimeFilter;
 import com.vmturbo.cloud.commitment.analysis.demand.TimeFilter.TimeComparator;
 import com.vmturbo.cloud.common.data.TimeInterval;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -228,8 +227,8 @@ public class SQLComputeTierAllocationStoreTest {
 
 
         // Delete records where end_time = baseline topology creation time
-        final EntityComputeTierAllocationFilter filter = ImmutableEntityComputeTierAllocationFilter.builder()
-                .endTimeFilter(ImmutableTimeFilter.builder()
+        final EntityComputeTierAllocationFilter filter = EntityComputeTierAllocationFilter.builder()
+                .endTimeFilter(TimeFilter.builder()
                         .comparator(TimeComparator.EQUAL_TO)
                         .time(baselineCreationTime)
                         .build())
@@ -256,7 +255,7 @@ public class SQLComputeTierAllocationStoreTest {
     @Test
     public void testPlatformFilter() {
 
-        final EntityComputeTierAllocationFilter filter = ImmutableEntityComputeTierAllocationFilter.builder()
+        final EntityComputeTierAllocationFilter filter = EntityComputeTierAllocationFilter.builder()
                 .addPlatforms(OSType.WINDOWS)
                 .build();
 
@@ -277,7 +276,7 @@ public class SQLComputeTierAllocationStoreTest {
     @Test
     public void testTenancyFilter() {
 
-        final EntityComputeTierAllocationFilter filter = ImmutableEntityComputeTierAllocationFilter.builder()
+        final EntityComputeTierAllocationFilter filter = EntityComputeTierAllocationFilter.builder()
                 .addTenancies(Tenancy.DEFAULT)
                 .build();
 
@@ -298,7 +297,7 @@ public class SQLComputeTierAllocationStoreTest {
     @Test
     public void testComputeTierFilter() {
 
-        final EntityComputeTierAllocationFilter filter = ImmutableEntityComputeTierAllocationFilter.builder()
+        final EntityComputeTierAllocationFilter filter = EntityComputeTierAllocationFilter.builder()
                 .addComputeTierOids(12)
                 .build();
 

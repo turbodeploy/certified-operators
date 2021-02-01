@@ -1,19 +1,19 @@
-package com.vmturbo.cloud.commitment.analysis.demand;
+package com.vmturbo.cloud.common.data;
 
 import java.time.Duration;
 import java.time.temporal.TemporalUnit;
 
 import javax.annotation.Nonnull;
 
-import org.immutables.value.Value.Derived;
 import org.immutables.value.Value.Immutable;
-import org.immutables.value.Value.Style;
-import org.immutables.value.Value.Style.ImplementationVisibility;
+import org.immutables.value.Value.Lazy;
+
+import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
 
 /**
  * A duration/period instance, restricted to a single time unit.
  */
-@Style(visibility = ImplementationVisibility.PACKAGE, overshadowImplementation = true)
+@HiddenImmutableImplementation
 @Immutable
 public interface BoundedDuration {
 
@@ -31,10 +31,11 @@ public interface BoundedDuration {
     TemporalUnit unit();
 
     /**
-     * The duration, combining the {@link #amount()} and {@link #unit()}.
+     * The duration, combining the {@link #amount()} and {@link #unit()}. This is expected to through
+     * an exception if {@link #unit()} is not a supported {@link Duration} unit.
      * @return The duration.
      */
-    @Derived
+    @Lazy
     @Nonnull
     default Duration duration() {
         return Duration.of(amount(), unit());

@@ -16,7 +16,6 @@ import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 
 import com.vmturbo.cloud.commitment.analysis.TestUtils;
-import com.vmturbo.cloud.commitment.analysis.demand.BoundedDuration;
 import com.vmturbo.cloud.commitment.analysis.runtime.CloudCommitmentAnalysisContext;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.AggregateDemandCollector.AggregateDemandCollectorFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.DemandTransformationPipeline.DemandTransformationPipelineFactory;
@@ -25,6 +24,7 @@ import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.selec
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.selection.AnalysisSelector.AnalysisSelectorFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.selection.RecommendationSelector;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.selection.RecommendationSelector.RecommendationSelectorFactory;
+import com.vmturbo.cloud.common.data.BoundedDuration;
 import com.vmturbo.cloud.common.data.TimeInterval;
 import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.AllocatedDemandSelection;

@@ -1,4 +1,4 @@
-package com.vmturbo.cloud.commitment.analysis.runtime.data;
+package com.vmturbo.cloud.common.data.stats;
 
 import java.time.Duration;
 import java.util.LongSummaryStatistics;

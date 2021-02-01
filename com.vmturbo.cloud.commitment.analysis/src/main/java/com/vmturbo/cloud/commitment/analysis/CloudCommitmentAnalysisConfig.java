@@ -25,7 +25,6 @@ import com.vmturbo.cloud.commitment.analysis.config.PricingResolverConfig;
 import com.vmturbo.cloud.commitment.analysis.config.RecommendationAnalysisConfig;
 import com.vmturbo.cloud.commitment.analysis.config.ResultsPersistenceConfig;
 import com.vmturbo.cloud.commitment.analysis.config.SharedFactoriesConfig;
-import com.vmturbo.cloud.commitment.analysis.demand.BoundedDuration;
 import com.vmturbo.cloud.commitment.analysis.demand.store.ComputeTierAllocationStore;
 import com.vmturbo.cloud.commitment.analysis.inventory.CloudCommitmentBoughtResolver;
 import com.vmturbo.cloud.commitment.analysis.persistence.CloudCommitmentDemandReader;
@@ -48,6 +47,7 @@ import com.vmturbo.cloud.commitment.analysis.runtime.stages.retrieval.DemandRetr
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.DemandTransformationStage.DemandTransformationFactory;
 import com.vmturbo.cloud.commitment.analysis.spec.CloudCommitmentSpecMatcher.CloudCommitmentSpecMatcherFactory;
 import com.vmturbo.cloud.commitment.analysis.util.LogContextExecutorService;
+import com.vmturbo.cloud.common.data.BoundedDuration;
 import com.vmturbo.cloud.common.identity.IdentityProvider;
 import com.vmturbo.cloud.common.topology.BillingFamilyRetrieverFactory;
 import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver.ComputeTierFamilyResolverFactory;

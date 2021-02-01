@@ -6,8 +6,8 @@ import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.cloud.commitment.analysis.demand.BoundedDuration;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.DemandTransformationJournal.DemandTransformationResult;
+import com.vmturbo.cloud.common.data.BoundedDuration;
 import com.vmturbo.cloud.common.data.ImmutableTimeSeries;
 import com.vmturbo.cloud.common.data.TimeInterval;
 import com.vmturbo.cloud.common.data.TimeSeries;

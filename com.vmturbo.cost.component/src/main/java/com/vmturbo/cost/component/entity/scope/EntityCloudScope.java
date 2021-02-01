@@ -8,10 +8,13 @@ import javax.annotation.Nonnull;
 import org.immutables.value.Value;
 import org.immutables.value.Value.Immutable;
 
+import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
+
 /**
  * Entity cloud scope is the immutable attributes of a cloud entity that may be used in a request query
  * to aggregate entity statistics.
  */
+@HiddenImmutableImplementation
 @Immutable
 public interface EntityCloudScope {
 
@@ -55,4 +58,18 @@ public interface EntityCloudScope {
     @Value.Auxiliary
     @Nonnull
     Instant creationTime();
+
+    /**
+     * Constructs and returns a new {@link Builder} instance.
+     * @return The newly constructed {@link Builder} instance.
+     */
+    @Nonnull
+    static Builder builder() {
+        return new Builder();
+    }
+
+    /**
+     * A builder class for constructing {@link EntityCloudScope} instances.
+     */
+    class Builder extends ImmutableEntityCloudScope.Builder {}
 }

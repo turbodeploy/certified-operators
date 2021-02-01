@@ -14,7 +14,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.vmturbo.cloud.commitment.analysis.TestUtils;
-import com.vmturbo.cloud.commitment.analysis.demand.BoundedDuration;
 import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierDemand;
 import com.vmturbo.cloud.commitment.analysis.demand.ScopedCloudTierInfo;
 import com.vmturbo.cloud.commitment.analysis.inventory.CloudCommitmentBoughtResolver;
@@ -30,6 +29,7 @@ import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.Deman
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.DemandTransformationStatistics;
 import com.vmturbo.cloud.common.commitment.CloudCommitmentData;
 import com.vmturbo.cloud.common.commitment.ReservedInstanceData;
+import com.vmturbo.cloud.common.data.BoundedDuration;
 import com.vmturbo.cloud.common.data.TimeInterval;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.AllocatedDemandClassification;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisConfig;

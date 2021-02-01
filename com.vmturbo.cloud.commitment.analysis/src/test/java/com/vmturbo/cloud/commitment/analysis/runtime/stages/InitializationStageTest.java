@@ -13,11 +13,11 @@ import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 
 import com.vmturbo.cloud.commitment.analysis.TestUtils;
-import com.vmturbo.cloud.commitment.analysis.demand.BoundedDuration;
 import com.vmturbo.cloud.commitment.analysis.runtime.AnalysisStage;
 import com.vmturbo.cloud.commitment.analysis.runtime.AnalysisStage.StageResult;
 import com.vmturbo.cloud.commitment.analysis.runtime.CloudCommitmentAnalysisContext;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.InitializationStage.InitializationStageFactory;
+import com.vmturbo.cloud.common.data.BoundedDuration;
 import com.vmturbo.cloud.common.data.TimeInterval;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisConfig;
 

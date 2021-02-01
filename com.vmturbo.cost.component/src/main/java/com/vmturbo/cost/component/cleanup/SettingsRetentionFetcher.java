@@ -10,6 +10,7 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.cloud.common.data.BoundedDuration;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
@@ -49,7 +50,7 @@ public class SettingsRetentionFetcher implements RetentionDurationFetcher {
         this.retentionSpec = Objects.requireNonNull(retentionSpec);
         this.cachingDuration = Objects.requireNonNull(cachingDuration);
 
-        this.cachedRetention = ImmutableBoundedDuration.builder()
+        this.cachedRetention = BoundedDuration.builder()
                 .amount((long)retentionSpec.getNumericSettingValueType().getDefault())
                 .unit(retentionUnit)
                 .build();
@@ -70,7 +71,7 @@ public class SettingsRetentionFetcher implements RetentionDurationFetcher {
                     retentionSpec.getDisplayName());
 
             final int retentionDuration = fetchRetentionSetting();
-            cachedRetention = ImmutableBoundedDuration.builder()
+            cachedRetention = BoundedDuration.builder()
                     .amount(retentionDuration)
                     .unit(cachedRetention.unit())
                     .build();

@@ -7,6 +7,8 @@ import java.time.Duration;
 
 import org.junit.Test;
 
+import com.vmturbo.cloud.common.data.stats.DurationStatistics;
+
 public class DurationStatisticsTest {
 
     @Test
