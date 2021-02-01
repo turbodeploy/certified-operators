@@ -398,7 +398,7 @@ public class SettingStore implements DiagsRestorable<DSLContext> {
             // for those settings that should have a value but not sent from API, use existing value
             for (String unsentSettingName : unsentSettingNames) {
                 Setting existingSetting = existingPolicySettings.get(unsentSettingName);
-                if (existingPolicy != null) {
+                if (existingSetting != null) {
                     settingsToAdd.add(existingSetting);
                 } else {
                     settingsToAdd.add(defaultSettings.get(unsentSettingName));
