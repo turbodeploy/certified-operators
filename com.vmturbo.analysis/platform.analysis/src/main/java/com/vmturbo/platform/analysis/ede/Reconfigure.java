@@ -230,16 +230,19 @@ public class Reconfigure {
             return c1 > c2 ? 1 : c1 == c2 ? 0 : -1;
         });
         for (Trader seller : bucket) {
+            IncomeStatement incomeStatement = ledger.getTraderIncomeStatements().get(seller.getEconomyIndex());
             if (seller.getSettings().isReconfigurable()
                 && !seller.getBasketSold().stream()
                     .map(CommoditySpecification::getType)
                     .collect(Collectors.toList())
                     .containsAll(commTypesToAdd)
-                && ((ledger.getTraderIncomeStatements().get(seller.getEconomyIndex()).getROI()
-                    < ledger.getTraderIncomeStatements().get(seller.getEconomyIndex()).getMinDesiredROI())
+                    // If the ROI is less than the Desired ROI.
+                && ((incomeStatement.getROI()
+                        < ((incomeStatement.getMinDesiredROI() + incomeStatement.getMaxDesiredROI())
+                            / 2))
                     // If the ROI is 0 because the trader has no consumers on it, then we should still
                     // consider it as a candidate to add Reconfigurable commodities to.
-                    || ledger.getTraderIncomeStatements().get(seller.getEconomyIndex()).getROI() == 0)) {
+                    || incomeStatement.getROI() == 0)) {
                 additionCandidatesHeap.offer(seller);
             }
         }
