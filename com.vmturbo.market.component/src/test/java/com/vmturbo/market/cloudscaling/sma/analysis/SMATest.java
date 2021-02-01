@@ -130,10 +130,12 @@ public class SMATest {
         testExactResult("partialoverfullinefficient.json");
 
         /*
-         * 1 vm on a costlier template gets scaled down to a cheaper template. No RIs involved
+         * 3 vm on a costlier template gets scaled down to a cheaper template. 1 RI involved
          * 2 cheaper templates with same price, tie breaker applied.
+         * template1 eventhough has a penalty is chosen because of lower discount when scale to RI
+         * template1 is not picked for natural template because of penalty.
          */
-        testExactResult("1vm0ri2templatesTieBreaker.json");
+        testExactResult("3vm1ri2templatesTieBreaker.json");
 
         /*
          * 1 vm on a costlier template gets scaled down to a cheaper template. No RIs involved
@@ -147,6 +149,7 @@ public class SMATest {
          * 2 cheaper templates with same price,same penalty tie breaker applied  and current template picked
          */
         testExactResult("1vm0ri2templatesPenaltyTieBreakerChooseCurrent.json");
+
 
 
     }

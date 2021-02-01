@@ -108,6 +108,8 @@ public class SMAVirtualMachine {
      */
     private int groupSize;
 
+    private boolean scaleUp;
+
     /**
      *  Constructor for SMAVirtualMachine.
      *
@@ -122,6 +124,7 @@ public class SMAVirtualMachine {
      * @param currentRI current RI covering the VM.
      * @param osType  OS.
      * @param operatingSystemLicenseModel os license model.
+     * @param scaleUp true if the vm has a scaleup action
      */
     public SMAVirtualMachine(final long oid,
                              @Nonnull final String name,
@@ -133,7 +136,8 @@ public class SMAVirtualMachine {
                              final long zoneId,
                              final SMAReservedInstance currentRI,
                              final OSType osType,
-                             @Nullable final LicenseModel operatingSystemLicenseModel) {
+                             @Nullable final LicenseModel operatingSystemLicenseModel,
+                             boolean scaleUp) {
         this.oid = oid;
         this.name = Objects.requireNonNull(name, "name is null!");
         this.groupName = groupName;
@@ -150,11 +154,21 @@ public class SMAVirtualMachine {
         this.operatingSystemLicenseModel = operatingSystemLicenseModel == null
             ? LicenseModel.LICENSE_INCLUDED : operatingSystemLicenseModel;
         setProviders(providers);
+        this.scaleUp = scaleUp;
+    }
+
+    public boolean isScaleUp() {
+        return scaleUp;
+    }
+
+    public void setScaleUp(final boolean scaleUp) {
+        this.scaleUp = scaleUp;
     }
 
     public boolean isEmptyProviderList() {
         return (providers == null || providers.isEmpty());
     }
+
 
     /**
      * Sets naturalTemplate: the natural (least cost) template.
@@ -163,75 +177,86 @@ public class SMAVirtualMachine {
      */
     public void updateNaturalTemplateAndMinCostProviderPerFamily() {
         this.minCostProviderPerFamily = new HashMap<>();
-        Optional<SMATemplate> minCostProvider = Optional.empty();
-        float minCost = Float.MAX_VALUE;
-        HashMap<String, Float> minCostPerFamily = new HashMap<>();
+        Optional<SMATemplate> naturalOptional = Optional.empty();
         Collections.sort(groupProviders, new SortTemplateByOID());
-        for (SMATemplate template : groupProviders) {
-            minCostPerFamily.put(template.getFamily(), Float.MAX_VALUE);
-        }
+
+        /*
+        order for natural template:
+        ondemand cost
+        penalty
+        current template
+        lower oid
+
+        order for mincost provider in family:
+        ondemand cost
+        discounted cost
+        penalty
+        current template
+        lower oid
+         */
+
         for (SMATemplate template : groupProviders) {
             float onDemandTotalCost = template.getOnDemandTotalCost(getCostContext());
-            final float tierBreakerOnDemandTotalCost = onDemandTotalCost + template.getScalingPenalty();
-            float tierBreakerminProviderCost = minCost;
-            if (minCostProvider.isPresent()) {
-                tierBreakerminProviderCost += minCostProvider.get().getScalingPenalty();
-            }
-
-            if (onDemandTotalCost - minCost < (-1.0 * SMAUtils.EPSILON)) {
-                minCost = onDemandTotalCost;
-                minCostProvider = Optional.of(template);
+            float onDemandTotalCostWithPenalty = onDemandTotalCost + template.getScalingPenalty();
+            if (!naturalOptional.isPresent()) {
+                naturalOptional = Optional.of(template);
             } else {
-                // Template cost is equal, compare by factoring in scaling penalty if applicable
-                // on the new template and min cost provider.
-                if ((Math.abs(onDemandTotalCost - minCost) < SMAUtils.EPSILON) ) {
-                    // check if there is a winner when penalty is added,
-                    // or if there continues to be a tie breaker, check if template ooid matches the current template ooid.
-                    // in either case, template is selected for mon cost updates.
-                    final float tierBreakerPriceDiff = tierBreakerOnDemandTotalCost - tierBreakerminProviderCost;
-                    if (tierBreakerPriceDiff < (-1.0 * SMAUtils.EPSILON)
-                            || (tierBreakerPriceDiff < SMAUtils.EPSILON
-                            && getCurrentTemplate().getOid() == template.getOid())) {
-                        minCost = onDemandTotalCost;
-                        minCostProvider = Optional.of(template);
-                    }
+                float naturalOnDemandTotalCost = naturalOptional.get().getOnDemandTotalCost(getCostContext());
+                float naturalOnDemandTotalCostWithPenalty = naturalOnDemandTotalCost + naturalOptional.get().getScalingPenalty();
+                if (onDemandTotalCost - naturalOnDemandTotalCost < (-1 * SMAUtils.EPSILON)) {
+                    // ondemand cost breaks the tie
+                    naturalOptional = Optional.of(template);
+                } else if (Math.abs(onDemandTotalCost - naturalOnDemandTotalCost) < SMAUtils.EPSILON
+                    && onDemandTotalCostWithPenalty - naturalOnDemandTotalCostWithPenalty < (-1 * SMAUtils.EPSILON)) {
+                    // ondemand cost the same. penalty breaks the tie.
+                    naturalOptional = Optional.of(template);
+                } else if (Math.abs(onDemandTotalCost - naturalOnDemandTotalCost) < SMAUtils.EPSILON
+                        && Math.abs(onDemandTotalCostWithPenalty - naturalOnDemandTotalCostWithPenalty) < SMAUtils.EPSILON
+                        && (template.getOid() == getCurrentTemplate().getOid())) {
+                    // ondemand cost the same. penalty the same. current template breaks the tie.
+                    naturalOptional = Optional.of(template);
                 }
             }
-            if (onDemandTotalCost - minCostPerFamily.get(template.getFamily())
-                    < (-1.0 * SMAUtils.EPSILON)) {
-                minCostPerFamily.put(template.getFamily(),
-                    template.getOnDemandTotalCost(getCostContext()));
+            if (minCostProviderPerFamily.get(template.getFamily()) == null) {
                 minCostProviderPerFamily.put(template.getFamily(), template);
             } else {
-                // Template cost is equal, compare by factoring in scaling penalty if applicable
-                // on the new template and min cost provider.
-                if ((Math.abs(onDemandTotalCost - minCostPerFamily.get(template.getFamily()))
-                        < SMAUtils.EPSILON)) {
-                    // check if there is a winner when penalty is added,
-                    // or if there continues to be a tie breaker, check if template ooid matches the current template ooid.
-                    // in either case, template is selected for mon cost updates
-                    float penalty = 0F;
-                    if (minCostProviderPerFamily.containsKey(template.getFamily())) {
-                        // When the ondemand cost is not available for template and
-                        // this is the first template in the family, minCostProviderPerFamily will be empty.
-                        penalty = minCostProviderPerFamily.get(template.getFamily()).getScalingPenalty();
-                    }
-                    tierBreakerminProviderCost =  minCostPerFamily.get(template.getFamily()) +  penalty;
-                    final float tierBreakerPriceDiff = tierBreakerOnDemandTotalCost - tierBreakerminProviderCost;
-                    if (tierBreakerPriceDiff < (-1.0 * SMAUtils.EPSILON)
-                            || (tierBreakerPriceDiff < SMAUtils.EPSILON
-                                && getCurrentTemplate().getOid() == template.getOid())) {
-                        minCostPerFamily.put(template.getFamily(),
-                                template.getOnDemandTotalCost(getCostContext()));
-                        minCostProviderPerFamily.put(template.getFamily(), template);
-
-                    }
+                float discountedTotalCost = template.getDiscountedTotalCost(getCostContext());
+                float minCostProviderOnDemandTotalCost = minCostProviderPerFamily.get(template.getFamily())
+                        .getOnDemandTotalCost(getCostContext());
+                float minCostProviderDiscountedTotalCost = minCostProviderPerFamily.get(template.getFamily())
+                        .getDiscountedTotalCost(getCostContext());
+                float minCostProviderOnDemandTotalCostWithPenalty = minCostProviderOnDemandTotalCost
+                        + minCostProviderPerFamily.get(template.getFamily()).getScalingPenalty();
+                if (onDemandTotalCost - minCostProviderOnDemandTotalCost < (-1 * SMAUtils.EPSILON)) {
+                    // ondemand cost breaks the tie
+                    minCostProviderPerFamily.put(template.getFamily(), template);
+                } else if (Math.abs(onDemandTotalCost - minCostProviderOnDemandTotalCost) < SMAUtils.EPSILON
+                        && (discountedTotalCost - minCostProviderDiscountedTotalCost) < (-1 * SMAUtils.EPSILON)) {
+                    // ondemand cost the same. discounted cost breaks the tie.
+                    minCostProviderPerFamily.put(template.getFamily(), template);
+                } else if (Math.abs(discountedTotalCost - minCostProviderDiscountedTotalCost) < SMAUtils.EPSILON
+                        && Math.abs(onDemandTotalCost - minCostProviderOnDemandTotalCost) < SMAUtils.EPSILON
+                        && (onDemandTotalCostWithPenalty - minCostProviderOnDemandTotalCostWithPenalty) < (-1 * SMAUtils.EPSILON)) {
+                    // ondemand cost same. discounted cost the same. penality break the tie.
+                    minCostProviderPerFamily.put(template.getFamily(), template);
+                } else if (Math.abs(discountedTotalCost - minCostProviderDiscountedTotalCost) < SMAUtils.EPSILON
+                        && Math.abs(onDemandTotalCost - minCostProviderOnDemandTotalCost) < SMAUtils.EPSILON
+                        && Math.abs(onDemandTotalCostWithPenalty - minCostProviderOnDemandTotalCostWithPenalty) < SMAUtils.EPSILON
+                        && (template.getOid() == getCurrentTemplate().getOid())) {
+                    // discounted cost the same. ondemand cost the same. penalty the same. current template breaks the tie.
+                    minCostProviderPerFamily.put(template.getFamily(), template);
                 }
             }
         }
         // If no minimum  is found, then use the current as the natural one
-        naturalTemplate = minCostProvider.orElse(getCurrentTemplate());
+        naturalTemplate = naturalOptional.orElse(getCurrentTemplate());
     }
+
+
+
+
+
+
 
     public void setMinCostProviderPerFamily(final HashMap<String, SMATemplate> minCostProviderPerFamily) {
         this.minCostProviderPerFamily = minCostProviderPerFamily;

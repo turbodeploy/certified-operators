@@ -101,7 +101,8 @@ public class SMAInputContext {
                     oldVM.getZoneId(),
                     oldVM.getCurrentRI(),
                     oldVM.getOsType(),
-                    oldVM.getOsLicenseModel());
+                    oldVM.getOsLicenseModel(),
+                    oldVM.isScaleUp());
             newVirtualMachines.add(smaVirtualMachine);
         }
         this.virtualMachines = newVirtualMachines;
@@ -144,7 +145,8 @@ public class SMAInputContext {
                             SMAUtils.BOGUS_RI :
                             smaMatch.getReservedInstance(),
                     oldVM.getOsType(),
-                    oldVM.getOsLicenseModel());
+                    oldVM.getOsLicenseModel(),
+                    oldVM.isScaleUp());
             newVirtualMachines.add(smaVirtualMachine);
         }
         this.virtualMachines = newVirtualMachines;

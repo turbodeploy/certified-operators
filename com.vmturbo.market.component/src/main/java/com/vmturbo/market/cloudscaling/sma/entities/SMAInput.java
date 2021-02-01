@@ -397,7 +397,8 @@ public class SMAInput {
             zoneId,
             SMAUtils.BOGUS_RI,
             osType,
-            vmInfo.getLicenseModel());
+            vmInfo.getLicenseModel(),
+                false);
         logger.debug("processVM: new VM {}", vm);
 
         Set<SMAVirtualMachine> contextVMs = smaContextToVMs.getOrDefault(context, new HashSet<>());

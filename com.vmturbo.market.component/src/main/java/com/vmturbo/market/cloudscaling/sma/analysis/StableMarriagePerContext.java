@@ -41,6 +41,15 @@ public class StableMarriagePerContext {
      * @return the matching in the inputContext.
      */
     public static SMAOutputContext execute(final SMAInputContext inputContext) {
+        // Set the scaleUp boolean for virtual machines. This has to be done before we start
+        // iterations because the current template will be updated after that and it will
+        // mess up this calculation.
+
+        for (SMAVirtualMachine vm : inputContext.getVirtualMachines()) {
+            vm.setScaleUp(vm.getProviders() != null
+                    && !vm.getProviders().stream()
+                    .anyMatch(a -> a.getOid() == vm.getCurrentTemplate().getOid()));
+        }
         long mismatch = 1;
         int iterations = 0;
         SMAInputContext modifiableInputContext = new SMAInputContext(inputContext);
@@ -945,7 +954,19 @@ public class StableMarriagePerContext {
                                                  SMAReservedInstance reservedInstance) {
         float riCoverageVm1 = reservedInstance.getRICoverage(vm1);
         float riCoverageVm2 = reservedInstance.getRICoverage(vm2);
-        // if vm is already covered by one of the RI prefer that RI
+        // if vm is already covered by one of the RI prefer that RI.
+        // If both vms are covered by this RI then prefer the vm which is not scaling up.
+
+        if (riCoverageVm1 > SMAUtils.EPSILON && riCoverageVm2 > SMAUtils.EPSILON) {
+            if (vm2.isScaleUp() && !vm1.isScaleUp()) {
+                return -1;
+            }
+            if (!vm2.isScaleUp() && vm1.isScaleUp()) {
+                return 1;
+            }
+        }
+
+
 
         if ((riCoverageVm1 - riCoverageVm2) > SMAUtils.EPSILON) {
             return -1;
