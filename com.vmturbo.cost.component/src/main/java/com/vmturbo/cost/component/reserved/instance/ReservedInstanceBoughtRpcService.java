@@ -14,7 +14,6 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-
 import com.google.common.collect.Sets;
 
 import io.grpc.Status;
@@ -44,6 +43,7 @@ import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtForScopeRe
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtForScopeResponse;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.Builder;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.cost.Pricing;
@@ -378,17 +378,18 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
     private Collection<ReservedInstanceBought> stitchNumberOfUsedCoupons(
             @Nonnull final Collection<ReservedInstanceBought> reservedInstancesBought,
             @Nonnull final Map<Long, Double> reservedInstanceUsedCouponsMap) {
-        return reservedInstancesBought.stream().map(ReservedInstanceBought::toBuilder).peek(
-                riBuilder -> {
-                    riBuilder.getReservedInstanceBoughtInfoBuilder()
-                            .getReservedInstanceBoughtCouponsBuilder()
-                            .setNumberOfCouponsUsed(
-                                    reservedInstanceUsedCouponsMap.getOrDefault(riBuilder.getId(),
-                                            0D));
-                    logger.trace(
-                            "ReservedInstanceBought after stitching number of used coupons: {}",
-                            riBuilder);
-                }).map(Builder::build).collect(Collectors.toSet());
+        return reservedInstancesBought.stream().map(ReservedInstanceBought::toBuilder).peek(ri -> {
+            final ReservedInstanceBoughtCoupons.Builder coupons =
+                    ri.getReservedInstanceBoughtInfoBuilder()
+                            .getReservedInstanceBoughtCouponsBuilder();
+            coupons.setNumberOfCouponsUsed(
+                    reservedInstanceUsedCouponsMap.getOrDefault(ri.getId(), 0D));
+            if (coupons.getNumberOfCouponsUsed() > coupons.getNumberOfCoupons()) {
+                logger.warn("Number of coupons used {} exceeds capacity {} for RI {}.",
+                        coupons.getNumberOfCouponsUsed(), coupons.getNumberOfCoupons(), ri.getId());
+            }
+            logger.trace("ReservedInstanceBought after stitching number of used coupons: {}", ri);
+        }).map(Builder::build).collect(Collectors.toSet());
     }
 
     private Collection<ReservedInstanceBought> stitchOnDemandComputeTierCost(
