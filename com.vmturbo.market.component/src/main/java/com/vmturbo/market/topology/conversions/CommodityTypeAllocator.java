@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -12,7 +11,6 @@ import javax.annotation.Nullable;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -20,6 +18,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.commons.analysis.NumericIDAllocator;
+import com.vmturbo.components.common.utils.CommodityTypeAllocatorConstants;
 import com.vmturbo.market.topology.TopologyConversionConstants;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -76,11 +75,16 @@ public class CommodityTypeAllocator {
      */
     @Nonnull
     CommoditySpecificationTO commoditySpecificationBiClique(@Nonnull String bcKey) {
+        // Add biclique commodity into the commoditySpecMap to keep track of its mapping to specification.
+        int commodityType = idAllocator.allocate(
+                String.valueOf(CommodityDTO.CommodityType.BICLIQUE_VALUE)
+                        + TopologyConversionConstants.COMMODITY_TYPE_KEY_SEPARATOR_CHAR + bcKey,
+                CommodityTypeAllocatorConstants.ACCESS_COMM_TYPE_START_COUNT);
+        commoditySpecMap.put(commodityType, CommodityType.newBuilder().setType(
+                CommodityDTO.CommodityType.BICLIQUE_VALUE).setKey(bcKey).build());
         return CommoditySpecificationTO.newBuilder()
                 .setBaseType(CommodityDTO.CommodityType.BICLIQUE_VALUE)
-                .setType(idAllocator.allocate(
-                        String.valueOf(CommodityDTO.CommodityType.BICLIQUE_VALUE)
-                                + TopologyConversionConstants.COMMODITY_TYPE_KEY_SEPARATOR_CHAR + bcKey))
+                .setType(commodityType)
                 .setDebugInfoNeverUseInCode(CommodityDTO.CommodityType.BICLIQUE.toString() + " " + bcKey)
                 .build();
     }
@@ -105,7 +109,10 @@ public class CommodityTypeAllocator {
 
             final String commodityTypeString =
                     idKeyGenerator.commodityTypeToString(topologyCommodityType, i);
-            final int commodityType = idAllocator.allocate(commodityTypeString);
+            // Providing a baseline count number for access commodity to differentiate it
+            // from non-access commodities.
+            final int commodityType = idAllocator.allocate(commodityTypeString,
+                    topologyCommodityType.hasKey() ? CommodityTypeAllocatorConstants.ACCESS_COMM_TYPE_START_COUNT : 0);
             final CommoditySpecificationTO economyCommodity =
                     reusableCommoditySpecs.computeIfAbsent(commodityType, newType ->
                         CommoditySpecificationTO.newBuilder()
@@ -133,7 +140,8 @@ public class CommodityTypeAllocator {
      */
     public int topologyToMarketCommodityId(@Nonnull final CommodityType commType) {
         String commodityTypeString = defaultKeyGenerator.commodityTypeToString(commType, 0);
-        return idAllocator.allocate(commodityTypeString);
+        return idAllocator.allocate(commodityTypeString, commType.hasKey()
+                ? CommodityTypeAllocatorConstants.ACCESS_COMM_TYPE_START_COUNT : 0);
     }
 
     /**
@@ -172,7 +180,7 @@ public class CommodityTypeAllocator {
         // It's possible that type is equal to or greater than the size of idAllocator.
         // For example, the type of clone of certain commodity.
         int commodityType = marketCommodity.getType();
-        if (commodityType >= idAllocator.size()) {
+        if (commodityType >= idAllocator.size() + CommodityTypeAllocatorConstants.ACCESS_COMM_TYPE_START_COUNT) {
             return Optional.empty();
         }
 
@@ -180,7 +188,9 @@ public class CommodityTypeAllocator {
         if (topologyCommodity == null) {
             if (marketCommodity.getBaseType() != CommodityDTO.CommodityType.BICLIQUE_VALUE) {
                 // this is not a biclique commodity
-                final String name = idAllocator.getName(commodityType);
+                final String name = commodityType >= CommodityTypeAllocatorConstants.ACCESS_COMM_TYPE_START_COUNT
+                        ? idAllocator.getName(commodityType - CommodityTypeAllocatorConstants.ACCESS_COMM_TYPE_START_COUNT)
+                        : idAllocator.getName(commodityType);
                 logger.error("Market commodity {} (baseType={}) registered in idAllocator for name '{}' does not have an entry in commoditySpecMap.",
                     commodityType, marketCommodity.getBaseType(), name);
             }
@@ -232,7 +242,9 @@ public class CommodityTypeAllocator {
      * @return the name of the commodity
      */
     String getMarketCommodityName(int marketCommId) {
-        return idAllocator.getName(marketCommId);
+        return marketCommId >= CommodityTypeAllocatorConstants.ACCESS_COMM_TYPE_START_COUNT
+                ? idAllocator.getName(marketCommId - CommodityTypeAllocatorConstants.ACCESS_COMM_TYPE_START_COUNT)
+                : idAllocator.getName(marketCommId);
     }
 
     /**
