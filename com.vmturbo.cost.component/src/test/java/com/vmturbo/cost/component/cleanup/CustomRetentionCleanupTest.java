@@ -17,9 +17,9 @@ import org.jooq.DSLContext;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.vmturbo.cloud.common.data.BoundedDuration;
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.cost.component.cleanup.CostTableCleanup.TableInfo;
-import com.vmturbo.cost.component.cleanup.RetentionDurationFetcher.BoundedDuration;
 
 public class CustomRetentionCleanupTest {
 
@@ -57,7 +57,7 @@ public class CustomRetentionCleanupTest {
     @Test
     public void testTrimTimeMonthly() {
 
-        final BoundedDuration retentionDuration = ImmutableBoundedDuration.builder()
+        final BoundedDuration retentionDuration = BoundedDuration.builder()
                 .unit(ChronoUnit.MONTHS)
                 .amount(1)
                 .build();
@@ -72,7 +72,7 @@ public class CustomRetentionCleanupTest {
     @Test
     public void testTrimTimeDaily() {
 
-        final BoundedDuration retentionDuration = ImmutableBoundedDuration.builder()
+        final BoundedDuration retentionDuration = BoundedDuration.builder()
                 .unit(ChronoUnit.DAYS)
                 .amount(15)
                 .build();
@@ -89,7 +89,7 @@ public class CustomRetentionCleanupTest {
     @Test
     public void testTrimTimeHourly() {
 
-        final BoundedDuration retentionDuration = ImmutableBoundedDuration.builder()
+        final BoundedDuration retentionDuration = BoundedDuration.builder()
                 .unit(ChronoUnit.HOURS)
                 .amount(15)
                 .build();
@@ -107,7 +107,7 @@ public class CustomRetentionCleanupTest {
     @Test
     public void testTrimTimeMinutes() {
 
-        final BoundedDuration retentionDuration = ImmutableBoundedDuration.builder()
+        final BoundedDuration retentionDuration = BoundedDuration.builder()
                 .unit(ChronoUnit.MINUTES)
                 .amount(20)
                 .build();
@@ -125,7 +125,7 @@ public class CustomRetentionCleanupTest {
     @Test(expected = UnsupportedOperationException.class)
     public void testUnsupportedTrimTime() {
 
-        final BoundedDuration retentionDuration = ImmutableBoundedDuration.builder()
+        final BoundedDuration retentionDuration = BoundedDuration.builder()
                 .unit(ChronoUnit.DECADES)
                 .amount(20)
                 .build();

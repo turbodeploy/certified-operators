@@ -22,11 +22,10 @@ import org.mockito.ArgumentCaptor;
 
 import com.vmturbo.cloud.commitment.analysis.demand.EntityCloudTierMapping;
 import com.vmturbo.cloud.commitment.analysis.demand.EntityComputeTierAllocation;
-import com.vmturbo.cloud.commitment.analysis.demand.ImmutableTimeFilter;
+import com.vmturbo.cloud.commitment.analysis.demand.TimeFilter;
 import com.vmturbo.cloud.commitment.analysis.demand.TimeFilter.TimeComparator;
 import com.vmturbo.cloud.commitment.analysis.demand.store.ComputeTierAllocationStore;
 import com.vmturbo.cloud.commitment.analysis.demand.store.EntityComputeTierAllocationFilter;
-import com.vmturbo.cloud.commitment.analysis.demand.store.ImmutableEntityComputeTierAllocationFilter;
 import com.vmturbo.cloud.common.data.TimeInterval;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.DemandScope;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.DemandScope.ComputeTierDemandScope;
@@ -68,12 +67,12 @@ public class CloudCommitmentDemandReaderTest {
                 .build();
 
         // Setup expected invocation args for compute tier store
-        final EntityComputeTierAllocationFilter allocationFilter = ImmutableEntityComputeTierAllocationFilter.builder()
-                .startTimeFilter(ImmutableTimeFilter.builder()
+        final EntityComputeTierAllocationFilter allocationFilter = EntityComputeTierAllocationFilter.builder()
+                .startTimeFilter(TimeFilter.builder()
                         .time(endTime)
                         .comparator(TimeComparator.BEFORE_OR_EQUAL_TO)
                         .build())
-                .endTimeFilter(ImmutableTimeFilter.builder()
+                .endTimeFilter(TimeFilter.builder()
                         .time(startTime)
                         .comparator(TimeComparator.AFTER_OR_EQUAL_TO)
                         .build())

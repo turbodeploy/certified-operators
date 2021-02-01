@@ -13,8 +13,8 @@ import org.apache.commons.lang3.mutable.MutableLong;
 import org.stringtemplate.v4.ST;
 
 import com.vmturbo.cloud.commitment.analysis.runtime.data.AnalysisTopology;
-import com.vmturbo.cloud.commitment.analysis.runtime.data.DurationStatistics;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.coverage.CoverageCalculationTask.CoverageCalculationInfo;
+import com.vmturbo.cloud.common.data.stats.DurationStatistics;
 
 /**
  * Represents an execution summary for {@link CoverageCalculationStage}.

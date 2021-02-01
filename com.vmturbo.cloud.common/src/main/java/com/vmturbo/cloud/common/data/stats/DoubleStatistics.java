@@ -1,4 +1,4 @@
-package com.vmturbo.cloud.commitment.analysis.runtime.data;
+package com.vmturbo.cloud.common.data.stats;
 
 import java.util.DoubleSummaryStatistics;
 
@@ -7,13 +7,13 @@ import javax.annotation.Nonnull;
 import com.google.common.base.Preconditions;
 
 import org.immutables.value.Value.Immutable;
-import org.immutables.value.Value.Style;
-import org.immutables.value.Value.Style.ImplementationVisibility;
+
+import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
 
 /**
  * An immutable static summary of {@link DoubleSummaryStatistics}.
  */
-@Style(visibility = ImplementationVisibility.PACKAGE, overshadowImplementation = true)
+@HiddenImmutableImplementation
 @Immutable
 public interface DoubleStatistics {
 

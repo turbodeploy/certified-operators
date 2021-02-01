@@ -32,10 +32,9 @@ import com.google.common.collect.Lists;
 
 import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierAllocationDatapoint;
 import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierDemand;
+import com.vmturbo.cloud.commitment.analysis.demand.TimeFilter;
 import com.vmturbo.cloud.commitment.analysis.demand.store.EntityComputeTierAllocationFilter;
 import com.vmturbo.cloud.commitment.analysis.demand.ImmutableComputeTierAllocationDatapoint;
-import com.vmturbo.cloud.commitment.analysis.demand.store.ImmutableEntityComputeTierAllocationFilter;
-import com.vmturbo.cloud.commitment.analysis.demand.ImmutableTimeFilter;
 import com.vmturbo.cloud.commitment.analysis.demand.TimeFilter.TimeComparator;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.cost.component.cca.SQLComputeTierAllocationStore;
@@ -123,7 +122,7 @@ public class SQLCloudScopeStoreTest {
                 .collect(Collectors.toSet());
 
         // delete datapoint A
-        final EntityComputeTierAllocationFilter filter = ImmutableEntityComputeTierAllocationFilter.builder()
+        final EntityComputeTierAllocationFilter filter = EntityComputeTierAllocationFilter.builder()
                 .addEntityOids(1)
                 .build();
         computeTierAllocationStore.deleteAllocations(filter);
@@ -135,7 +134,7 @@ public class SQLCloudScopeStoreTest {
                 .collect(Collectors.toSet());
 
 
-        final EntityCloudScope entityCloudScopeA = ImmutableEntityCloudScope.builder()
+        final EntityCloudScope entityCloudScopeA = EntityCloudScope.builder()
                 .entityOid(datapointA.entityOid())
                 .accountOid(datapointA.accountOid())
                 .regionOid(datapointA.regionOid())
@@ -145,7 +144,7 @@ public class SQLCloudScopeStoreTest {
                 .creationTime(Instant.now())
                 .build();
 
-        final EntityCloudScope entityCloudScopeB = ImmutableEntityCloudScope.builder()
+        final EntityCloudScope entityCloudScopeB = EntityCloudScope.builder()
                 .entityOid(datapointB.entityOid())
                 .accountOid(datapointB.accountOid())
                 .regionOid(datapointB.regionOid())
@@ -230,11 +229,11 @@ public class SQLCloudScopeStoreTest {
         final List<ComputeTierAllocationDatapoint> datapointsToRemove = Lists.newArrayList(firstPassDatapoints);
         Collections.shuffle(datapointsToRemove);
 
-        final ImmutableEntityComputeTierAllocationFilter filter = ImmutableEntityComputeTierAllocationFilter.builder()
+        final EntityComputeTierAllocationFilter filter = EntityComputeTierAllocationFilter.builder()
                 .entityOids(datapointsToRemove.subList(0, numEntitiesToDelete).stream()
                         .map(ComputeTierAllocationDatapoint::entityOid)
                         .collect(Collectors.toSet()))
-                .endTimeFilter(ImmutableTimeFilter.builder()
+                .endTimeFilter(TimeFilter.builder()
                         .comparator(TimeComparator.EQUAL_TO)
                         .time(Instant.ofEpochMilli(topologyInfo.getCreationTime()))
                         .build())

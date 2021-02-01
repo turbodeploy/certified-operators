@@ -14,7 +14,7 @@ import com.google.common.collect.ImmutableMap;
 
 import org.jooq.DSLContext;
 
-import com.vmturbo.cost.component.cleanup.RetentionDurationFetcher.BoundedDuration;
+import com.vmturbo.cloud.common.data.BoundedDuration;
 
 /**
  * A cleanup task with a custom retention period defined through {@link RetentionDurationFetcher}.

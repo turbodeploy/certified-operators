@@ -9,7 +9,7 @@ import com.google.common.collect.ImmutableSet;
 import org.immutables.value.Value.Check;
 import org.immutables.value.Value.Immutable;
 
-import com.vmturbo.cloud.commitment.analysis.demand.BoundedDuration;
+import com.vmturbo.cloud.common.data.BoundedDuration;
 
 /**
  * A configuration for {@link CloudCommitmentAnalysis}, containing static attributes that do not

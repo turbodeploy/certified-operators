@@ -6,9 +6,12 @@ import javax.annotation.Nonnull;
 
 import org.immutables.value.Value.Immutable;
 
+import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
+
 /**
  * A filter for a time-based attribute.
  */
+@HiddenImmutableImplementation
 @Immutable
 public interface TimeFilter {
 
@@ -40,4 +43,18 @@ public interface TimeFilter {
      */
     @Nonnull
     Instant time();
+
+    /**
+     * Constructs and returns a new {@link Builder} instance.
+     * @return The newly constructed {@link Builder} instance.
+     */
+    @Nonnull
+    static Builder builder() {
+        return new Builder();
+    }
+
+    /**
+     * A builder class for constructing {@link TimeFilter} instances.
+     */
+    class Builder extends ImmutableTimeFilter.Builder {}
 }

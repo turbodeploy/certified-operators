@@ -139,7 +139,7 @@ public class SQLCloudScopeStore implements CloudScopeStore,
 
     private EntityCloudScope convertRecordToImmutable(@Nonnull EntityCloudScopeRecord record) {
 
-        return ImmutableEntityCloudScope.builder()
+        return EntityCloudScope.builder()
                 .entityOid(record.getEntityOid())
                 .accountOid(record.getAccountOid())
                 .regionOid(record.getRegionOid())

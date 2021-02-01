@@ -6,11 +6,10 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.cloud.commitment.analysis.demand.EntityCloudTierMapping;
-import com.vmturbo.cloud.commitment.analysis.demand.ImmutableTimeFilter;
+import com.vmturbo.cloud.commitment.analysis.demand.TimeFilter;
 import com.vmturbo.cloud.commitment.analysis.demand.TimeFilter.TimeComparator;
 import com.vmturbo.cloud.commitment.analysis.demand.store.ComputeTierAllocationStore;
 import com.vmturbo.cloud.commitment.analysis.demand.store.EntityComputeTierAllocationFilter;
-import com.vmturbo.cloud.commitment.analysis.demand.store.ImmutableEntityComputeTierAllocationFilter;
 import com.vmturbo.cloud.common.data.TimeInterval;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.DemandScope;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.HistoricalDemandSelection.CloudTierType;
@@ -40,8 +39,8 @@ public class CloudCommitmentDemandReaderImpl implements CloudCommitmentDemandRea
                                                               @Nonnull DemandScope demandScope,
                                                               @Nonnull TimeInterval selectionWindow) {
 
-        final EntityComputeTierAllocationFilter filter = ImmutableEntityComputeTierAllocationFilter.builder()
-                .startTimeFilter(ImmutableTimeFilter.builder()
+        final EntityComputeTierAllocationFilter filter = EntityComputeTierAllocationFilter.builder()
+                .startTimeFilter(TimeFilter.builder()
                         .time(selectionWindow.endTime())
                         .comparator(TimeComparator.BEFORE_OR_EQUAL_TO)
                         .build())
@@ -49,7 +48,7 @@ public class CloudCommitmentDemandReaderImpl implements CloudCommitmentDemandRea
                 // the target start time, but ended after. We'll later adjust the start time
                 // of any records that spread across the start time to the start time, effectively
                 // only selecting the demand from the target start time.
-                .endTimeFilter(ImmutableTimeFilter.builder()
+                .endTimeFilter(TimeFilter.builder()
                         .time(selectionWindow.startTime())
                         .comparator(TimeComparator.AFTER_OR_EQUAL_TO)
                         .build())

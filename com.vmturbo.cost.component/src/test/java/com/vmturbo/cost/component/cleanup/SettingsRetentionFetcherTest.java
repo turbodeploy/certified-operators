@@ -19,6 +19,7 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 
+import com.vmturbo.cloud.common.data.BoundedDuration;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GlobalSettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
@@ -28,7 +29,6 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
-import com.vmturbo.cost.component.cleanup.RetentionDurationFetcher.BoundedDuration;
 
 public class SettingsRetentionFetcherTest {
 
@@ -98,7 +98,7 @@ public class SettingsRetentionFetcherTest {
         when(settingServiceMole.getGlobalSetting(any())).thenReturn(globalSettingResponse);
 
         final BoundedDuration actualRetentionDuration = retentionFetcher.getRetentionDuration();
-        final BoundedDuration expectedRetentionDuration = ImmutableBoundedDuration.builder()
+        final BoundedDuration expectedRetentionDuration = BoundedDuration.builder()
                 .unit(retentionUnit)
                 .amount((long)settingResponseValue)
                 .build();

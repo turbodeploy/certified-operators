@@ -29,12 +29,12 @@ import org.immutables.value.Value.Immutable;
 import org.immutables.value.Value.Style;
 import org.immutables.value.Value.Style.ImplementationVisibility;
 
-import com.vmturbo.cloud.commitment.analysis.runtime.data.DoubleStatistics;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.ClassifiedEntityDemandAggregate;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.ClassifiedEntityDemandAggregate.DemandTimeSeries;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.DemandClassification;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.AggregateCloudTierDemand.EntityInfo;
 import com.vmturbo.cloud.common.data.TimeInterval;
+import com.vmturbo.cloud.common.data.stats.DoubleStatistics;
 
 /**
  * A journal for recording aggregated entity demand.
