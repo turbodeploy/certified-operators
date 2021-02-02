@@ -51,6 +51,7 @@ import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.StorageCompatibility;
+import com.vmturbo.api.enums.StorageUsageType;
 import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.common.api.mappers.EnvironmentTypeMapper;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
@@ -87,6 +88,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.StorageCompatibilityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.UsageType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.VirtualVolumeFileDescriptor;
 
 /**
@@ -1211,6 +1213,13 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
                     apiDto.setAttachedVMStorageCompatibility(StorageCompatibility.PREMIUM);
                 } else if (storageCompatibility == StorageCompatibilityType.STANDARD) {
                     apiDto.setAttachedVMStorageCompatibility(StorageCompatibility.STANDARD);
+                }
+            }
+            if (volumeInfo.hasUsageType()) {
+                if (volumeInfo.getUsageType() == UsageType.SITE_RECOVERY) {
+                    apiDto.setStorageUsageType(StorageUsageType.SITE_RECOVERY);
+                } else if (volumeInfo.getUsageType() == UsageType.BACKUP) {
+                    apiDto.setStorageUsageType(StorageUsageType.BACKUP);
                 }
             }
         }
