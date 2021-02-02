@@ -45,6 +45,9 @@ public class VirtualVolumeInfoMapper extends TypeSpecificInfoMapper {
         if (vvData.hasStorageCompatibilityForConsumer()) {
             vvInfo.setStorageCompatibilityForConsumer(vvData.getStorageCompatibilityForConsumer());
         }
+        if (vvData.hasUsageType()) {
+            vvInfo.setUsageType(vvData.getUsageType());
+        }
         vvInfo.addAllFiles(vvData.getFileList());
         retBuilder.setVirtualVolume(vvInfo.build());
         return retBuilder.build();

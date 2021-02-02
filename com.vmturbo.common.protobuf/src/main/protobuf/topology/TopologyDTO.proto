@@ -320,6 +320,9 @@ message TypeSpecificInfo {
         // Premium compatible, the volume can be Premium/Standard storage type. However,
         // if consumer is Standard only compatible, the volume can only stay on Standard type.
         optional .common_dto.EntityDTO.VirtualVolumeData.StorageCompatibilityType storage_compatibility_for_consumer = 13;
+
+        // Usage for the volume, i.e. what the volume is used for.
+        optional .common_dto.EntityDTO.VirtualVolumeData.UsageType usage_type = 14;
     }
 
     // specific data for a Storage entity

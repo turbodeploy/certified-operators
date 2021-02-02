@@ -46,6 +46,7 @@ import com.vmturbo.api.dto.entityaspect.VirtualDiskApiDTO;
 import com.vmturbo.api.dto.entityaspect.VirtualDisksAspectApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.enums.StorageCompatibility;
+import com.vmturbo.api.enums.StorageUsageType;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.CostMoles.CostServiceMole;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
@@ -78,6 +79,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.StorageCompatibilityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.UsageType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.VirtualVolumeFileDescriptor;
 
 /**
@@ -427,6 +429,7 @@ public class VirtualVolumeAspectMapperTest {
                 .setAttachmentState(AttachmentState.ATTACHED)
                 .setEncryption(true)
                 .setStorageCompatibilityForConsumer(StorageCompatibilityType.PREMIUM)
+                .setUsageType(UsageType.SITE_RECOVERY)
                 .build()))
         .addCommoditySoldList(CommoditySoldDTO.newBuilder()
             .setCommodityType(CommodityType.newBuilder()
@@ -679,6 +682,7 @@ public class VirtualVolumeAspectMapperTest {
         assertEquals("Enabled", volumeAspect.getEncryption());
         assertEquals(azureVolumeName, volumeAspect.getDisplayName());
         assertEquals(StorageCompatibility.PREMIUM, volumeAspect.getAttachedVMStorageCompatibility());
+        assertEquals(StorageUsageType.SITE_RECOVERY, volumeAspect.getStorageUsageType());
 
         assertEquals(String.valueOf(azureVmId), volumeAspect.getAttachedVirtualMachine().getUuid());
     }
