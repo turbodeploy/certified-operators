@@ -13,7 +13,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.commons.analysis.InvertedIndexBaseTranslator;
 import com.vmturbo.commons.analysis.NumericIDAllocator;
-import com.vmturbo.components.common.utils.CommodityTypeAllocatorConstants;
 import com.vmturbo.stitching.TopologyEntity;
 
 /**
@@ -24,7 +23,6 @@ public class TopologyInvertedIndexTranslator implements InvertedIndexBaseTransla
         TopologyEntityDTO.CommoditiesBoughtFromProvider, List<TopologyDTO.CommoditySoldDTO>>, Serializable {
 
     private final NumericIDAllocator commodityTypeAllocator = new NumericIDAllocator();
-
 
     /**
      * Create a new inverted index translator.
@@ -78,8 +76,7 @@ public class TopologyInvertedIndexTranslator implements InvertedIndexBaseTransla
      */
     @VisibleForTesting
     int toMarketCommodityId(@Nonnull final TopologyDTO.CommodityType commType) {
-        return commodityTypeAllocator.allocate(commodityTypeToString(commType), commType.hasKey()
-                ? CommodityTypeAllocatorConstants.ACCESS_COMM_TYPE_START_COUNT : 0);
+        return commodityTypeAllocator.allocate(commodityTypeToString(commType));
     }
 
     /**

@@ -733,21 +733,6 @@ public class EconomyCachesTest {
     }
 
     /**
-     * Test the try catch for updateAccessCommoditiesInHistoricalEconomyCache.
-     */
-    @Test
-    public void testWhenNPEInAccessCommUpdate() {
-        EconomyCaches economyCaches = new EconomyCaches();
-        EconomyCaches spy = Mockito.spy(economyCaches);
-
-        Mockito.doThrow(NullPointerException.class)
-                .when(spy)
-                .updateAccessCommoditiesInHistoricalEconomyCache(Mockito.any(), Mockito.any());
-        spy.updateRealtimeCachedEconomy(simpleEconomy(), commTypeToSpecMap, new HashMap(), new HashMap());
-        Mockito.verify(spy).updateHistoricalCachedEconomy(Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any());
-    }
-
-    /**
      * Created an economy with 4 pms. All of them are in the same merged cluster.
      *
      * @return an economy with merged clusters.

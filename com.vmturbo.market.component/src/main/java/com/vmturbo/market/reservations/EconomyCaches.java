@@ -274,15 +274,7 @@ public class EconomyCaches {
         logger.info(logPrefix + "Real time economy cache is ready now.");
         logger.info(logPrefix + "Real time reservation cache update time : " + realtimeCacheStartUpdateTime
                 .until(realtimeCacheEndUpdateTime, ChronoUnit.SECONDS) + " seconds");
-        try {
-            updateAccessCommoditiesInHistoricalEconomyCache(realtimeCachedEconomy,
-                    realtimeCachedCommTypeMap);
-        } catch (Exception e) {
-            logger.error(logPrefix + "Updating access commodity in historical economy cache encounter error {},"
-                    + " resetting historical economy to be the same as real time", e);
-            updateHistoricalCachedEconomy(realtimeCachedEconomy, realtimeCachedCommTypeMap,
-                    buyerOidToPlacement, existingReservations);
-        }
+        updateAccessCommoditiesInHistoricalEconomyCache(realtimeCachedEconomy, realtimeCachedCommTypeMap);
     }
 
     /**
@@ -291,8 +283,7 @@ public class EconomyCaches {
      * @param realtimeCachedEconomy real time economy.
      * @param realtimeCachedCommTypeMap the commodity type to commoditySpecification's type mapping.
      */
-    @VisibleForTesting
-    protected void updateAccessCommoditiesInHistoricalEconomyCache(
+    private void updateAccessCommoditiesInHistoricalEconomyCache(
             @Nonnull final Economy realtimeCachedEconomy,
             @Nonnull final BiMap<CommodityType, Integer> realtimeCachedCommTypeMap) {
         if (!getState().isHistoricalCacheReceived() || historicalCachedEconomy.getTopology().getTradersByOid().isEmpty()) {

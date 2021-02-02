@@ -88,7 +88,7 @@ public class MarketExceptionsTest {
     private ReversibilitySettingFetcher reversibilitySettingFetcher =
             mock(ReversibilitySettingFetcher.class);
 
-    private static final int ST_AMT_TYPE_ID = ID_ALLOCATOR.allocate("StorageAmount", 0);
+    private static final int ST_AMT_TYPE_ID = ID_ALLOCATOR.allocate("StorageAmount");
     private CloudTopology<TopologyEntityDTO> cloudTopology =
             mock(TopologyEntityCloudTopology.class);
 
