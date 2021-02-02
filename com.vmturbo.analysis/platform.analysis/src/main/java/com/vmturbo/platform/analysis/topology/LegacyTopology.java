@@ -75,9 +75,9 @@ public final class LegacyTopology {
     public @NonNull Trader addTrader(@NonNull String uuid, @NonNull String name, @NonNull String type,
             @NonNull TraderState state, @NonNull Collection<@NonNull String> commodityTypesSold) {
         @NonNull Basket basketSold = new Basket(commodityTypesSold.stream()
-            .map(typeSold -> new CommoditySpecification(commodityTypes_.allocate(typeSold)))
+            .map(typeSold -> new CommoditySpecification(commodityTypes_.allocate(typeSold, 0)))
             .collect(Collectors.toList()));
-        @NonNull Trader trader = economy_.addTrader(traderTypes_.allocate(type), state, basketSold);
+        @NonNull Trader trader = economy_.addTrader(traderTypes_.allocate(type, 0), state, basketSold);
         uuids_.put(trader, uuid);
         names_.put(trader, name);
 
@@ -97,7 +97,7 @@ public final class LegacyTopology {
     public @NonNull ShoppingList addBasketBought(@NonNull Trader buyer,
                                        @NonNull Collection<@NonNull String> commodityTypesBought) {
         return economy_.addBasketBought(buyer, new Basket(commodityTypesBought.stream()
-            .map(typeBought -> new CommoditySpecification(commodityTypes_.allocate(typeBought)))
+            .map(typeBought -> new CommoditySpecification(commodityTypes_.allocate(typeBought, 0)))
             .collect(Collectors.toList())));
     }
 

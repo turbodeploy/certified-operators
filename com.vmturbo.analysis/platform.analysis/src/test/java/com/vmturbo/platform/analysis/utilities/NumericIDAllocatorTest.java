@@ -37,24 +37,24 @@ public class NumericIDAllocatorTest {
     @Parameters
     @TestCaseName("Test #{index}: {0}.allocate({1}) == {2}")
     public final void testAllocate(@NonNull NumericIDAllocator allocator, @NonNull String name, int id) {
-        assertEquals(id, allocator.allocate(name));
+        assertEquals(id, allocator.allocate(name, 0));
     }
 
     @SuppressWarnings("unused") // it is used reflectively
     private static Object[] parametersForTestAllocate() {
         @NonNull NumericIDAllocator a1 = new NumericIDAllocator();
-        a1.allocate("a");
+        a1.allocate("a", 0);
         @NonNull NumericIDAllocator a2 = new NumericIDAllocator();
-        a2.allocate("a");
+        a2.allocate("a", 0);
         @NonNull NumericIDAllocator a3 = new NumericIDAllocator();
-        a3.allocate("a");
-        a3.allocate("b");
+        a3.allocate("a", 0);
+        a3.allocate("b", 0);
         @NonNull NumericIDAllocator a4 = new NumericIDAllocator();
-        a4.allocate("a");
-        a4.allocate("b");
+        a4.allocate("a", 0);
+        a4.allocate("b", 0);
         @NonNull NumericIDAllocator a5 = new NumericIDAllocator();
-        a5.allocate("a");
-        a5.allocate("b");
+        a5.allocate("a", 0);
+        a5.allocate("b", 0);
 
         return new Object[][] {
             {new NumericIDAllocator(), "foo", 0},
@@ -77,10 +77,10 @@ public class NumericIDAllocatorTest {
     @SuppressWarnings("unused") // it is used reflectively
     private static Object[] parametersForTestGetId_NormalInput() {
         @NonNull NumericIDAllocator a1 = new NumericIDAllocator();
-        a1.allocate("a");
+        a1.allocate("a", 0);
         @NonNull NumericIDAllocator a2 = new NumericIDAllocator();
-        a2.allocate("a");
-        a2.allocate("b");
+        a2.allocate("a", 0);
+        a2.allocate("b", 0);
 
         return new Object[][] {
             {a1, "a", 0},
@@ -99,10 +99,10 @@ public class NumericIDAllocatorTest {
     @SuppressWarnings("unused") // it is used reflectively
     private static Object[] parametersForTestGetId_InvalidInput() {
         @NonNull NumericIDAllocator a1 = new NumericIDAllocator();
-        a1.allocate("a");
+        a1.allocate("a", 0);
         @NonNull NumericIDAllocator a2 = new NumericIDAllocator();
-        a2.allocate("a");
-        a2.allocate("b");
+        a2.allocate("a", 0);
+        a2.allocate("b", 0);
 
         return new Object[][] {
             {new NumericIDAllocator(), "foo"},
@@ -121,10 +121,10 @@ public class NumericIDAllocatorTest {
     @SuppressWarnings("unused") // it is used reflectively
     private static Object[] parametersForTestGetName_NormalInput() {
         @NonNull NumericIDAllocator a1 = new NumericIDAllocator();
-        a1.allocate("a");
+        a1.allocate("a", 0);
         @NonNull NumericIDAllocator a2 = new NumericIDAllocator();
-        a2.allocate("a");
-        a2.allocate("b");
+        a2.allocate("a", 0);
+        a2.allocate("b", 0);
 
         return new Object[][] {
             {a1, 0, "a"},
@@ -143,10 +143,10 @@ public class NumericIDAllocatorTest {
     @SuppressWarnings("unused") // it is used reflectively
     private static Object[] parametersForTestGetName_InvalidInput() {
         @NonNull NumericIDAllocator a1 = new NumericIDAllocator();
-        a1.allocate("a");
+        a1.allocate("a", 0);
         @NonNull NumericIDAllocator a2 = new NumericIDAllocator();
-        a2.allocate("a");
-        a2.allocate("b");
+        a2.allocate("a", 0);
+        a2.allocate("b", 0);
 
         return new Object[][] {
             {new NumericIDAllocator(), 0},
@@ -168,10 +168,10 @@ public class NumericIDAllocatorTest {
     @SuppressWarnings("unused") // it is used reflectively
     private static Object[] parametersForTestSizeAndIsEmpty() {
         @NonNull NumericIDAllocator a1 = new NumericIDAllocator();
-        a1.allocate("a");
+        a1.allocate("a", 0);
         @NonNull NumericIDAllocator a2 = new NumericIDAllocator();
-        a2.allocate("a");
-        a2.allocate("b");
+        a2.allocate("a", 0);
+        a2.allocate("b", 0);
 
         return new Object[][] {
             {new NumericIDAllocator(), 0, true},
