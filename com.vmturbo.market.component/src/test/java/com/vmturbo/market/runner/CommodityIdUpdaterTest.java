@@ -17,6 +17,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.analysis.NumericIDAllocator;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.components.common.utils.CommodityTypeAllocatorConstants;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCostCalculatorFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.group.api.GroupMemberRetriever;
@@ -132,18 +133,21 @@ public class CommodityIdUpdaterTest {
         // Check if new reply actions are correct
         assertEquals(1, newReplayActions.getReduceSupplyActions().size());
         final Deactivate newDeactivate = (Deactivate)newReplayActions.getReduceSupplyActions().get(0);
-        assertEquals(new Basket(new CommoditySpecification(5, 0), new CommoditySpecification(4, 1)),
+        assertEquals(new Basket(new CommoditySpecification(5, 0),
+                new CommoditySpecification(4 + CommodityTypeAllocatorConstants.ACCESS_COMM_TYPE_START_COUNT, 1)),
             newDeactivate.getTriggeringBasket());
 
         // provisionBySupplyWontReplay will not be replayed because the commodity type doesn't exist.
         assertEquals(2, newReplayActions.getActions().size());
         final Activate newActivate = (Activate)newReplayActions.getActions().get(0);
-        assertEquals(new Basket(new CommoditySpecification(3, 2), new CommoditySpecification(2, 3)),
+        assertEquals(new Basket(new CommoditySpecification(3, 2),
+                new CommoditySpecification(2 + CommodityTypeAllocatorConstants.ACCESS_COMM_TYPE_START_COUNT, 3)),
             newActivate.getTriggeringBasket());
         assertEquals(new CommoditySpecification(1, 4), newActivate.getReason());
 
         final ProvisionBySupply newProvisionBySupply = (ProvisionBySupply)newReplayActions.getActions().get(1);
-        assertEquals(new CommoditySpecification(0, 5), newProvisionBySupply.getReason());
+        assertEquals(new CommoditySpecification(0 + CommodityTypeAllocatorConstants.ACCESS_COMM_TYPE_START_COUNT, 5),
+                newProvisionBySupply.getReason());
 
         assertEquals(oldSize, newCommodityTypeAllocator.size());
     }
