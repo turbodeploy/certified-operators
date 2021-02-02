@@ -693,10 +693,11 @@ public class TopologyConverterFromMarketTest {
         entityOidToDto.set(converter, map);
 
         // Act
-        Map<CommoditiesBoughtFromProvider, Pair<ShoppingListTO, Set<Long>>> commBought2shoppingListAndResourceId =
+        long slOid = 222;
+        Map<CommoditiesBoughtFromProvider, Pair<ShoppingListTO, ShoppingListInfo>> commBought2shoppingList =
                         new HashMap<>();
-        commBought2shoppingListAndResourceId.put(commBought, Pair.create(ShoppingListTO.newBuilder()
-                .setOid(222)
+        commBought2shoppingList.put(commBought, Pair.create(ShoppingListTO.newBuilder()
+                .setOid(slOid)
                 .addCommoditiesBought(CommodityBoughtTO.newBuilder()
                         .setSpecification(CommoditySpecificationTO.newBuilder()
                                 .setType(1)
@@ -707,7 +708,10 @@ public class TopologyConverterFromMarketTest {
                                 .setType(2)
                                 .setBaseType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE))
                         .setAssignedCapacityForBuyer(20))
-                .build(), Collections.singleton(volumeOid)));
+                .build(),
+            new ShoppingListInfo(slOid, vmOid, null,
+                            Collections.singleton(volumeOid), null,
+                            EntityType.STORAGE_TIER_VALUE, Collections.emptyList())));
         TopologyDTO.TopologyEntityDTO.Builder vm = TopologyDTO.TopologyEntityDTO.newBuilder()
                         .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE).setOid(vmOid)
                         .addCommoditiesBoughtFromProviders(commBought)
@@ -715,7 +719,7 @@ public class TopologyConverterFromMarketTest {
                                         ConnectedEntity.newBuilder().setConnectedEntityId(azOid)
                                                         .setConnectedEntityType(az.getEntityType())
                                                         .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION));
-        Set<TopologyEntityDTO> resources = converter.createResources(vm, commBought2shoppingListAndResourceId);
+        Set<TopologyEntityDTO> resources = converter.createResources(vm, commBought2shoppingList);
         // Assert that the projected volume is connected to the storage and AZ which the VM is
         // connected to
         assertEquals(1, resources.size());
