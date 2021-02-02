@@ -55,7 +55,7 @@ public class ActionExecutionConfig {
     @Value("${actionExecution.timeoutMins:360}")
     private int actionExecutionTimeoutMins;
 
-    @Value("${failedActionPatterns:The cluster where the VM/Availability Set is allocated is currently out of capacity\ncom\\.microsoft\\.azure\\.CloudException: failed with provisioning state: Failed: Allocation failed}")
+    @Value("${failedActionPatterns:The cluster where the VM/Availability Set is allocated is currently out of capacity\ncom\\.microsoft\\.azure\\.CloudException: Async operation failed with provisioning state: Failed: Allocation failed}")
     private String failedActionPatterns;
 
     @Bean
