@@ -87,6 +87,7 @@ import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.analysis.NumericIDAllocator;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
+import com.vmturbo.components.common.utils.CommodityTypeAllocatorConstants;
 import com.vmturbo.cost.calculation.DiscountApplicator;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
@@ -183,10 +184,12 @@ public class TopologyConverterFromMarketTest {
             mock(ReversibilitySettingFetcher.class);
     private AnalysisConfig analysisConfig = mock(AnalysisConfig.class);
 
-    private static final int BICLIQUE_TYPE_ID = ID_ALLOCATOR.allocate("BICLIQUE");
-    private static final int CPU_TYPE_ID = ID_ALLOCATOR.allocate("CPU");
-    private static final int ST_AMT_TYPE_ID = ID_ALLOCATOR.allocate("StorageAmount");
-    private static final int DSPM_TYPE_ID = ID_ALLOCATOR.allocate("DSPM");
+    private static final int BICLIQUE_TYPE_ID = ID_ALLOCATOR.allocate("BICLIQUE",
+            CommodityTypeAllocatorConstants.ACCESS_COMM_TYPE_START_COUNT);
+    private static final int CPU_TYPE_ID = ID_ALLOCATOR.allocate("CPU", 0);
+    private static final int ST_AMT_TYPE_ID = ID_ALLOCATOR.allocate("StorageAmount", 0);
+    private static final int DSPM_TYPE_ID = ID_ALLOCATOR.allocate("DSPM",
+            CommodityTypeAllocatorConstants.ACCESS_COMM_TYPE_START_COUNT);
     private CloudTopology<TopologyEntityDTO> cloudTopology =
             mock(TopologyEntityCloudTopology.class);
 

@@ -58,6 +58,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.components.common.utils.CommodityTypeAllocatorConstants;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.journal.CostJournal;
@@ -206,7 +207,7 @@ public class InterpretActionTest {
                 consistentScalingHelperFactory, reversibilitySettingFetcher);
         CommodityDTOs.CommoditySpecificationTO cs = converter.getCommodityConverter().commoditySpecification(CommodityType.newBuilder()
                 .setKey("Seg")
-                .setType(11).build());
+                .setType(11 + CommodityTypeAllocatorConstants.ACCESS_COMM_TYPE_START_COUNT).build());
         final ActionTO executableActionTO = ActionTO.newBuilder()
                 .setImportance(0.)
                 .setIsNotExecutable(false)
@@ -216,7 +217,7 @@ public class InterpretActionTest {
                         .setProvisionedSeller(-1)
                         .setModelSeller(modelSeller)
                         .setMostExpensiveCommodity(CommodityDTOs.CommoditySpecificationTO.newBuilder()
-                                .setType(0).setBaseType(cs.getBaseType()).build())
+                                .setType(0 + CommodityTypeAllocatorConstants.ACCESS_COMM_TYPE_START_COUNT).setBaseType(cs.getBaseType()).build())
                         .build())
                 .build();
 
@@ -666,7 +667,7 @@ public class InterpretActionTest {
         CommodityDTOs.CommoditySpecificationTO cs = converter.getCommodityConverter()
                 .commoditySpecification(CommodityType.newBuilder()
                     .setKey("Seg")
-                    .setType(11).build());
+                    .setType(11 + CommodityTypeAllocatorConstants.ACCESS_COMM_TYPE_START_COUNT).build());
         ActionInfo actionInfo = converter.interpretAction(
                 ActionTO.newBuilder()
                     .setImportance(0.)
@@ -675,7 +676,7 @@ public class InterpretActionTest {
                         .setProvisionedSeller(-1)
                         .setModelSeller(modelSeller)
                         .setMostExpensiveCommodity(CommodityDTOs.CommoditySpecificationTO.newBuilder()
-                                .setType(0).setBaseType(cs.getBaseType()).build()))
+                                .setType(0 + CommodityTypeAllocatorConstants.ACCESS_COMM_TYPE_START_COUNT).setBaseType(cs.getBaseType()).build()))
                     .build(), projectedTopology, null, null, null).get(0).getInfo();
 
         assertThat(actionInfo.getActionTypeCase(), is(ActionTypeCase.PROVISION));
