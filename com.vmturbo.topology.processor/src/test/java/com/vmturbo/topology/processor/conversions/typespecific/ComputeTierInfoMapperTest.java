@@ -54,7 +54,7 @@ public class ComputeTierInfoMapperTest {
                         .setBurstableCPU(false)
                         .setScalePenalty(ScalingPenalty.newBuilder()
                                 .setPenalty(0)
-                                .setReason(ScalingPenaltyReason.CORE_CONSTRAINED_TIER).build())
+                                .addReason(ScalingPenaltyReason.CORE_CONSTRAINED_TIER).build())
                         .build())
                 .build();
         final ComputeTierInfoMapper testBuilder = new ComputeTierInfoMapper();
@@ -101,7 +101,7 @@ public class ComputeTierInfoMapperTest {
                 .setInstanceDiskType(INSTANCE_DISK_TYPE)
                 .setInstanceDiskSizeGb(INSTANCE_DISK_SIZE)
                 .setScalePenalty(ComputeTierData.ScalingPenalty.newBuilder()
-                        .setReason(EntityDTO.ScalingPenaltyReason.CORE_CONSTRAINED_TIER).build())
+                        .addReason(EntityDTO.ScalingPenaltyReason.CORE_CONSTRAINED_TIER).build())
                 .build());
     }
 }
