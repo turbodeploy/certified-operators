@@ -40,6 +40,11 @@ public class ShoppingListInfo {
     private final Set<Long> resourceIds;
 
     /**
+     * Merged display name of multiple resources when they migrate to one.
+     */
+    private final String resourceDisplayName;
+
+    /**
      *  The collapsed buyer id. For eg. cloud volume id.
      *  TODO this thing and the above resourceId thing are semantically identical
      *  and used in parallel! we only need one of the two
@@ -83,10 +88,33 @@ public class ShoppingListInfo {
                     @Nonnull Set<Long> resourceIds, @Nullable final Long collapsedBuyerId,
                     @Nullable final Integer sellerEntityType,
                     @Nonnull final List<CommodityBoughtDTO> commodities) {
+        this(id, buyerId, sellerId, resourceIds, null, collapsedBuyerId,
+                        sellerEntityType, commodities);
+    }
+
+    /**
+     * Construct the SL related information to retain across analysis invocation.
+     *
+     * @param id SL identity
+     * @param buyerId buyer identity
+     * @param sellerId seller identity
+     * @param resourceIds associated resources (e.g. volume ids), can be empty
+     * @param resourceDisplayName when multiple related resources migrate to one, combined display name for the projection
+     * @param collapsedBuyerId collapsed buyer identity, can be unset
+     * @param sellerEntityType entity type of a seller
+     * @param commodities commodities in the SL
+     */
+    public ShoppingListInfo(final long id, final long buyerId, @Nullable final Long sellerId,
+                    @Nonnull Set<Long> resourceIds,
+                    @Nullable String resourceDisplayName,
+                    @Nullable final Long collapsedBuyerId,
+                    @Nullable final Integer sellerEntityType,
+                    @Nonnull final List<CommodityBoughtDTO> commodities) {
         this.id = id;
         this.buyerId = buyerId;
         this.sellerId = sellerId;
         this.resourceIds = resourceIds;
+        this.resourceDisplayName = resourceDisplayName;
         this.collapsedBuyerId = collapsedBuyerId;
         this.sellerEntityType = sellerEntityType;
         this.commodities = commodities;
@@ -151,6 +179,10 @@ public class ShoppingListInfo {
         return commodities;
     }
 
+    public String getResourceDisplayName() {
+        return resourceDisplayName;
+    }
+
     @Override
     public int hashCode() {
         return Objects.hash(id);
@@ -174,4 +206,5 @@ public class ShoppingListInfo {
                         + ", resourceIds=" + resourceIds + ", collapsedBuyerId=" + collapsedBuyerId
                         + ", sellerEntityType=" + sellerEntityType + '}';
     }
+
 }

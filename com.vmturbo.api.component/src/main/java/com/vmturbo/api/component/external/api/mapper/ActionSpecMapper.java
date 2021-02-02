@@ -871,6 +871,12 @@ public class ActionSpecMapper {
                     .filter(filter)
                     .collect(Collectors.toList());
             actionApiDTO.setVirtualDisks(virtualDisks);
+
+            // update target display name from projection if moving multiple volumes into one (migrate to cloud)
+            if (ApiEntityType.VIRTUAL_VOLUME.apiStr().equals(targetEntity.getClassName())
+                            && virtualDisks.size() == 1 && actionTypeCase == ActionTypeCase.MOVE) {
+                actionApiDTO.getTarget().setDisplayName(virtualDisks.get(0).getDisplayName());
+            }
         }
     }
 
@@ -1176,11 +1182,16 @@ public class ActionSpecMapper {
             String resource = "";
             if (change.getResourceCount() > 0) {
                 // only applies to compound moves
-                final long resourceId = change.getResource(0).getId();
-                final Optional<ServiceEntityApiDTO> resourceEntity =
-                    context.getEntity(resourceId);
-                if (resourceEntity.isPresent() && resourceId != targetId) {
-                    resource = readableEntityTypeAndName(resourceEntity.get()) + " of ";
+                List<String> resources = change.getResourceList().stream()
+                                .map(ActionEntity::getId)
+                                .filter(id -> id != targetId)
+                                .map(id -> context.getEntity(id))
+                                .filter(Optional::isPresent)
+                                .map(Optional::get)
+                                .map(ServiceEntityApiDTO::getDisplayName)
+                                .collect(Collectors.toList());
+                if (!resources.isEmpty()) {
+                    resource = resources.stream().sorted().collect(Collectors.joining(", "));
                 }
             }
             return MessageFormat.format("{0} {1}{2} from {3} to {4}", verb, resource,
