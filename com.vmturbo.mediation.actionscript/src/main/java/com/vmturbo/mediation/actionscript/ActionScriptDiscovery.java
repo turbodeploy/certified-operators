@@ -144,7 +144,7 @@ public class ActionScriptDiscovery {
                     response.addErrorDTO(createAndLogErrorDTO(generateWorkflowID(script),
                             "Failed to validate action script " + script.getName() + "("
                                     + script.getScriptPath() + ")" + ": " + e.getLocalizedMessage(),
-                            e));
+                            null));
                 }
             }
         } else {
