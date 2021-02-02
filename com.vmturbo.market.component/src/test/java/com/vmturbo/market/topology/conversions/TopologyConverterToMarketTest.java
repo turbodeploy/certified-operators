@@ -78,6 +78,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Virtual
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.common.utils.CommodityTypeAllocatorConstants;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.pricing.CloudRateExtractor;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
@@ -173,11 +174,11 @@ public class TopologyConverterToMarketTest {
                         .setKey("blahblah")
                         .build();
         economyCommodity1 = CommoditySpecificationTO.newBuilder()
-                        .setType(0)
+                        .setType(0 + CommodityTypeAllocatorConstants.ACCESS_COMM_TYPE_START_COUNT)
                         .setBaseType(1)
                         .build();
         economyCommodity2 = CommoditySpecificationTO.newBuilder()
-                        .setType(1)
+                        .setType(1 + CommodityTypeAllocatorConstants.ACCESS_COMM_TYPE_START_COUNT)
                         .setBaseType(2)
                         .build();
         when(tierExcluderFactory.newExcluder(any(), any(), any())).thenReturn(mock(TierExcluder.class));
@@ -254,7 +255,8 @@ public class TopologyConverterToMarketTest {
         assertEquals(100000.0, commSold.getCapacity(), epsilon);
         assertTrue(commSold.getThin());
         CommoditySpecificationTO commSoldSpec = commSold.getSpecification();
-        assertEquals(0, commSoldSpec.getType()); // zero because it is the first assigned type
+        // zero because it is the first assigned type, plus the start count of access commodity
+        assertEquals(CommodityTypeAllocatorConstants.ACCESS_COMM_TYPE_START_COUNT + 0, commSoldSpec.getType());
         assertEquals(CommodityDTO.CommodityType.MEM_ALLOCATION_VALUE, commSoldSpec.getBaseType());
         assertEquals("MEM_ALLOCATION|P1", commSoldSpec.getDebugInfoNeverUseInCode());
         CommoditySoldSettingsTO commSoldSettings = commSold.getSettings();
