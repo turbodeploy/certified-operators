@@ -449,7 +449,7 @@ public class ActionQueryRpcTest {
         action1.setDescription("Move VM1 from Host1 to Host2");
         action2.setDescription("Move VM2 from Host1 to Host2");
         doReturn(ActionMode.DISABLED).when(action2).getMode();
-        doReturn(ActionMode.AUTOMATIC).when(action1).getMode();
+        doReturn(ActionMode.RECOMMEND).when(action1).getMode();
         doReturn(ActionCategory.COMPLIANCE).when(action1).getActionCategory();
         doReturn(ActionCategory.EFFICIENCY_IMPROVEMENT).when(action2).getActionCategory();
         doReturn(Severity.CRITICAL).when(action1).getActionSeverity();

@@ -353,16 +353,20 @@ public class ActionTranslator {
     }
 
     /**
-     * Returns {@code true} if the current user is able to apply actions.
+     * Returns {@code true} if the current user is able to apply actions. It checks the spring
+     * or GRPC context to find the role of the user making the request. If no user found, return
+     * true for now, since it must be from a component other than api (since api always pass a JWT),
+     * which we want original action mode.
+     * Todo: this logic need to change when we finish the jwt token on all components.
      *
-     * @return {@code true} if the current user is able to apply actions
+     * @return {@code true} if the current user is able to apply actions.
      */
     private static boolean isUserAbleToApplyActions() {
         return UserContextUtils.getCurrentUserRoles()
                 .map(roles -> roles.stream()
                         .map(String::toUpperCase)
                         .anyMatch(ROLES_WITH_ABILITY_TO_APPLY_ACTIONS::contains))
-                .orElse(false);
+                .orElse(true);
     }
 
     /**
