@@ -493,14 +493,20 @@ public class TopologyTestUtil {
     public static List<CommoditySoldDTO> soldCommodities(
             Quartet<CommodityDTO.CommodityType, String, Double, Double>... commodities) {
         return Arrays.stream(commodities)
-                .map(t -> CommoditySoldDTO.newBuilder()
-                        .setCommodityType(CommodityType.newBuilder()
-                                .setType(t.getValue0().getNumber())
-                                .setKey(ObjectUtils.firstNonNull(t.getValue1(), ""))
-                                .build())
-                        .setUsed(t.getValue2())
-                        .setCapacity(t.getValue3())
-                        .build())
+                .map(t -> {
+                    CommoditySoldDTO.Builder builder = CommoditySoldDTO.newBuilder()
+                                    .setCommodityType(CommodityType.newBuilder()
+                                                                      .setType(t.getValue0().getNumber())
+                                                                      .setKey(ObjectUtils.firstNonNull(t.getValue1(), ""))
+                                                                      .build());
+                    if (t.getValue2() != null) {
+                        builder.setUsed(t.getValue2());
+                    }
+                    if (t.getValue3() != null) {
+                        builder.setCapacity(t.getValue3());
+                    }
+                    return builder.build();
+                })
                 .collect(Collectors.toList());
     }
 
@@ -561,12 +567,17 @@ public class TopologyTestUtil {
                 .setProviderId(provider.getOid())
                 .setProviderEntityType(provider.getEntityType());
         Arrays.stream(commodities)
-                .map(comm -> CommodityBoughtDTO.newBuilder()
-                        .setCommodityType(CommodityType.newBuilder()
-                                .setType(comm.getValue0().getNumber())
-                                .setKey(ObjectUtils.firstNonNull(comm.getValue1(), "")))
-                        .setUsed(comm.getValue2())
-                        .build())
+                .map(comm ->  {
+                    CommodityBoughtDTO.Builder commbuilder = CommodityBoughtDTO.newBuilder()
+                                    .setCommodityType(CommodityType.newBuilder()
+                                                          .setType(comm.getValue0().getNumber())
+                                                          .setKey(ObjectUtils.firstNonNull(comm.getValue1(), "")));
+
+                    if (comm.getValue2() != null) {
+                        commbuilder.setUsed(comm.getValue2());
+                    }
+                    return commbuilder.build();
+                })
                 .forEach(builder::addCommodityBought);
         return builder.build();
     }

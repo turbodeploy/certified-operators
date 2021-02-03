@@ -22,13 +22,18 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalDouble;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
+import java.util.function.DoubleBinaryOperator;
+import java.util.function.Predicate;
+import java.util.function.ToDoubleFunction;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
@@ -258,7 +263,7 @@ public class EntityMetricWriter extends TopologyWriterBase {
         // sum across commodity keys in case same commodity type appears with multiple keys
         // and same provider
         final String type = CommodityType.forNumber(typeNo).name();
-        final Double sumUsed = boughtCommodities.stream().mapToDouble(CommodityBoughtDTO::getUsed).sum();
+        final Double sumUsed = reduceCommodityCollection(boughtCommodities, CommodityBoughtDTO::hasUsed, CommodityBoughtDTO::getUsed, Double::sum);
         metricRecords.add(getBoughtCommodityRecord(oid, type, null, sumUsed, producer));
     }
 
@@ -279,8 +284,11 @@ public class EntityMetricWriter extends TopologyWriterBase {
         // record individual records for this bought commodity
         final String type = CommodityType.forNumber(typeNo).name();
         boughtCommodities.stream()
-                .map(cb -> getBoughtCommodityRecord(oid, type, cb.getCommodityType().getKey(),
-                        cb.getUsed(), producer))
+                .map(cb -> getBoughtCommodityRecord(oid,
+                                                    type,
+                                                    cb.getCommodityType().getKey(),
+                                                    cb.hasUsed() ? cb.getUsed() : null,
+                                                    producer))
                 .forEach(metricRecords::add);
     }
 
@@ -295,7 +303,7 @@ public class EntityMetricWriter extends TopologyWriterBase {
      * @return new metric record
      */
     private Record getBoughtCommodityRecord(final long oid, final String type, String key,
-            final Double used, final long producer) {
+                                            @Nullable final Double used, final long producer) {
         Record r = new Record(ModelDefinitions.METRIC_TABLE);
         r.set(ModelDefinitions.ENTITY_OID, oid);
         if (QX_VCPU_PATTERN.matcher(type).matches()) {
@@ -307,7 +315,8 @@ public class EntityMetricWriter extends TopologyWriterBase {
             r.set(ModelDefinitions.COMMODITY_KEY, key);
             r.set(ModelDefinitions.COMMODITY_CAPACITY, QX_VCPU_BASE_COEFFICIENT);
             r.set(ModelDefinitions.COMMODITY_CURRENT, used);
-            r.set(ModelDefinitions.COMMODITY_UTILIZATION, used / QX_VCPU_BASE_COEFFICIENT);
+            r.set(ModelDefinitions.COMMODITY_UTILIZATION,
+                  used == null ? null : used / QX_VCPU_BASE_COEFFICIENT);
         } else {
             r.set(ModelDefinitions.COMMODITY_TYPE, MetricType.valueOf(type));
             r.set(ModelDefinitions.COMMODITY_KEY, key);
@@ -330,10 +339,31 @@ public class EntityMetricWriter extends TopologyWriterBase {
     private void recordAggregatedSoldCommodity(final long oid, final MetricType type,
             final List<CommoditySoldDTO> soldCommodities, final List<Record> metricRecords) {
         // sum across commodity keys in case same commodity type appears with multiple keys
-        final double sumUsed = soldCommodities.stream().mapToDouble(CommoditySoldDTO::getUsed).sum();
-        final double sumCap = soldCommodities.stream().mapToDouble(CommoditySoldDTO::getCapacity).sum();
-
+        final Double sumUsed = reduceCommodityCollection(soldCommodities, CommoditySoldDTO::hasUsed, CommoditySoldDTO::getUsed, Double::sum);
+        final Double sumCap = reduceCommodityCollection(soldCommodities, CommoditySoldDTO::hasCapacity, CommoditySoldDTO::getCapacity, Double::sum);
         metricRecords.add(getSoldCommodityRecord(oid, type.name(), null, sumUsed, sumCap));
+    }
+
+    /**
+     * Helper method to reduce commodity list when values available.
+     * @param commodities collection of commodities
+     * @param filter filter to determine if value is present on T
+     * @param mapper maps T to value of interest
+     * @param reducingFunction reducing operation applied to mapped T values
+     * @param <T> type of object
+     * @return reduced value from collection, null if no values present
+     */
+    @Nullable
+    private static <T> Double reduceCommodityCollection(@Nonnull List<T> commodities,
+                                                        @Nonnull Predicate<T> filter,
+                                                        @Nonnull ToDoubleFunction<T> mapper,
+                                                        @Nonnull DoubleBinaryOperator reducingFunction) {
+        OptionalDouble value = commodities.stream()
+                    .filter(filter)
+                    .mapToDouble(mapper)
+                    .reduce(reducingFunction);
+
+        return value.isPresent() ? value.getAsDouble() : null;
     }
 
     /**
@@ -348,8 +378,11 @@ public class EntityMetricWriter extends TopologyWriterBase {
             final List<CommoditySoldDTO> soldCommodities, final List<Record> metricRecords) {
         // sum across commodity keys in case same commodity type appears with multiple keys
         soldCommodities.stream()
-                .map(cs -> getSoldCommodityRecord(oid, type.name(), cs.getCommodityType().getKey(),
-                        cs.getUsed(), cs.getCapacity()))
+                .map(cs -> getSoldCommodityRecord(oid,
+                                type.name(),
+                                cs.getCommodityType().getKey(),
+                                cs.hasUsed() ? cs.getUsed() : null,
+                                cs.hasCapacity() ? cs.getCapacity() : null))
                 .forEach(metricRecords::add);
     }
 
@@ -364,14 +397,16 @@ public class EntityMetricWriter extends TopologyWriterBase {
      * @return new record
      */
     private Record getSoldCommodityRecord(final long oid, final String type, String key,
-            final double used, final double capacity) {
+            final Double used, final Double capacity) {
         Record r = new Record(ModelDefinitions.METRIC_TABLE);
         r.set(ModelDefinitions.ENTITY_OID, oid);
         r.set(ModelDefinitions.COMMODITY_TYPE, MetricType.valueOf(type));
         r.set(ModelDefinitions.COMMODITY_KEY, key);
         r.set(ModelDefinitions.COMMODITY_CAPACITY, capacity);
         r.set(ModelDefinitions.COMMODITY_CURRENT, used);
-        r.set(ModelDefinitions.COMMODITY_UTILIZATION, capacity == 0 ? 0 : used / capacity);
+        if (capacity != null && used != null) {
+            r.set(ModelDefinitions.COMMODITY_UTILIZATION, capacity == 0 ? 0 : used / capacity);
+        }
         return r;
     }
 

@@ -257,6 +257,46 @@ public class EntityMetricWriterTest {
                 TIME.getName(), ENTITY_HASH.getName()));
     }
 
+
+    /**
+     * Check that bought commodities result in correct metric records when values null.
+     *
+     * @throws UnsupportedDialectException if endpoint is misconfigured
+     * @throws InterruptedException        if interrupted
+     * @throws SQLException                if there's a db problem
+     * @throws IOException                 if an IO error
+     */
+    @Test
+    public void testBoughtCommodityMetricsWithNoValues()
+                    throws UnsupportedDialectException, InterruptedException, SQLException, IOException {
+        // set up for CPU and MEM, with the latter unaggregated when sold by a PM
+        setupWriterAndSinks(ImmutableList.of(CPU_VALUE, MEM_VALUE),
+                            Collections.singletonMap(MEM, PHYSICAL_MACHINE));
+
+        // process a vm buying CPU and MEM from a pm, each with multiple commodity keys
+        final TopologyEntityDTO pm = mkEntity(PHYSICAL_MACHINE);
+        final TopologyEntityDTO vm = mkEntity(VIRTUAL_MACHINE).toBuilder()
+                        .addCommoditiesBoughtFromProviders(boughtCommoditiesFromProvider(pm,
+                                 Triplet.with(CPU, "a", null), Triplet.with(CPU, "b", null),
+                                 Triplet.with(MEM, "a", null), Triplet.with(MEM, "b", null)
+                        )).build();
+        int n = EntitiesProcessor.of(writer, info, config).process(vm).finish(dataProvider);
+        // processed one entity
+        assertThat(n, is(1));
+        // we should have a single aggregated CPU metric, and two MEM metrics
+        assertThat(metricInsertCapture.size(), is(3));
+        Iterator<Record> records = metricInsertCapture.iterator();
+        assertThat(records.next().asMap(), mapMatchesLaxly(
+                        createMetricRecordMap(null, vm.getOid(), null, MetricType.CPU, null, null, null, null, null, pm.getOid()),
+                        TIME.getName(), ENTITY_HASH.getName()));
+        assertThat(records.next().asMap(), mapMatchesLaxly(
+                        createMetricRecordMap(null, vm.getOid(), null, MetricType.MEM, "a", null, null, null, null, pm.getOid()),
+                        TIME.getName(), ENTITY_HASH.getName()));
+        assertThat(records.next().asMap(), mapMatchesLaxly(
+                        createMetricRecordMap(null, vm.getOid(), null, MetricType.MEM, "b", null, null, null, null, pm.getOid()),
+                        TIME.getName(), ENTITY_HASH.getName()));
+    }
+
     /**
      * Check that sold commodities result in correct metric records.
      *
@@ -293,6 +333,86 @@ public class EntityMetricWriterTest {
         assertThat(records.next().asMap(), mapMatchesLaxly(
                 createMetricRecordMap(null, pm.getOid(), null, MetricType.MEM, "b", 2.0, 20.0, 0.1, null, null),
                 TIME.getName(), ENTITY_HASH.getName()));
+    }
+
+    /**
+     * Check that sold commodities result in correct metric records when values not present.
+     *
+     * @throws UnsupportedDialectException if endpoint is misconfigured
+     * @throws InterruptedException        if interrupted
+     * @throws SQLException                if there's a db problem
+     * @throws IOException                 if an IO error
+     */
+    @Test
+    public void testSoldCommodityMetricsWithNoValues()
+                    throws UnsupportedDialectException, InterruptedException, SQLException, IOException {
+        // set up for CPU and MEM, with the latter unaggregated when sold by a PM
+        setupWriterAndSinks(ImmutableList.of(CPU_VALUE, MEM_VALUE),
+                            Collections.singletonMap(MEM, PHYSICAL_MACHINE));
+
+        // process a pm selling CPU and MEM, each with multiple commodity keys
+        final TopologyEntityDTO pm = mkEntity(PHYSICAL_MACHINE).toBuilder()
+                        .addAllCommoditySoldList(soldCommodities(
+                                        Quartet.with(CPU, "a", null, null), Quartet.with(CPU, "b", null, null),
+                                        Quartet.with(MEM, "a", null, null), Quartet.with(MEM, "b", null, null)
+                        )).build();
+        int n = EntitiesProcessor.of(writer, info, config).process(pm).finish(dataProvider);
+        // processed one entity
+        assertThat(n, is(1));
+        // we should have a single aggregated CPU metric, and two MEM metrics
+        assertThat(metricInsertCapture.size(), is(3));
+        Iterator<Record> records = metricInsertCapture.iterator();
+        assertThat(records.next().asMap(), mapMatchesLaxly(
+                        createMetricRecordMap(null, pm.getOid(), null, MetricType.CPU, null, null, null, null, null, null),
+                        TIME.getName(), ENTITY_HASH.getName()));
+        assertThat(records.next().asMap(), mapMatchesLaxly(
+                        createMetricRecordMap(null, pm.getOid(), null, MetricType.MEM, "a", null, null, null, null, null),
+                        TIME.getName(), ENTITY_HASH.getName()));
+        assertThat(records.next().asMap(), mapMatchesLaxly(
+                        createMetricRecordMap(null, pm.getOid(), null, MetricType.MEM, "b", null, null, null, null, null),
+                        TIME.getName(), ENTITY_HASH.getName()));
+    }
+
+    /**
+     * Check that aggregated sold commodities result in correct metric records when not all present .
+     *
+     * @throws UnsupportedDialectException if endpoint is misconfigured
+     * @throws InterruptedException        if interrupted
+     * @throws SQLException                if there's a db problem
+     * @throws IOException                 if an IO error
+     */
+    @Test
+    public void testSoldCommodityMetricsAggregationWithSomeValuesMissing()
+                    throws UnsupportedDialectException, InterruptedException, SQLException, IOException {
+        // set up for CPU and MEM, with the latter unaggregated when sold by a PM
+        setupWriterAndSinks(ImmutableList.of(CPU_VALUE, MEM_VALUE),
+                            Collections.singletonMap(MEM, PHYSICAL_MACHINE));
+
+        // process a pm selling CPU and MEM, each with multiple commodity keys
+        final TopologyEntityDTO pm = mkEntity(PHYSICAL_MACHINE).toBuilder()
+                        .addAllCommoditySoldList(soldCommodities(
+                                        Quartet.with(CPU, "a", 2.0, 4.0), Quartet.with(CPU, "b", null, null),
+                                        Quartet.with(MEM, "a", 3.0, null), Quartet.with(MEM, "b", null, null),
+                                        Quartet.with(MEM, "c", null, 3.0)
+                        )).build();
+        int n = EntitiesProcessor.of(writer, info, config).process(pm).finish(dataProvider);
+        // processed one entity
+        assertThat(n, is(1));
+        // we should have a single aggregated CPU metric, and two MEM metrics
+        assertThat(metricInsertCapture.size(), is(4));
+        Iterator<Record> records = metricInsertCapture.iterator();
+        assertThat(records.next().asMap(), mapMatchesLaxly(
+                        createMetricRecordMap(null, pm.getOid(), null, MetricType.CPU, null, 2.0, 4.0, 0.5, null, null),
+                        TIME.getName(), ENTITY_HASH.getName()));
+        assertThat(records.next().asMap(), mapMatchesLaxly(
+                        createMetricRecordMap(null, pm.getOid(), null, MetricType.MEM, "a", 3.0, null, null, null, null),
+                        TIME.getName(), ENTITY_HASH.getName()));
+        assertThat(records.next().asMap(), mapMatchesLaxly(
+                        createMetricRecordMap(null, pm.getOid(), null, MetricType.MEM, "b", null, null, null, null, null),
+                        TIME.getName(), ENTITY_HASH.getName()));
+        assertThat(records.next().asMap(), mapMatchesLaxly(
+                        createMetricRecordMap(null, pm.getOid(), null, MetricType.MEM, "c", null, 3.0, null, null, null),
+                        TIME.getName(), ENTITY_HASH.getName()));
     }
 
     /**
