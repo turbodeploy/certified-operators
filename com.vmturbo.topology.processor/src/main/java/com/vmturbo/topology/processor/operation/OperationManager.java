@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -32,6 +33,8 @@ import org.jooq.exception.DataAccessException;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
@@ -136,6 +139,12 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
     // Control number of concurrent target discoveries per probe per discovery type.
     // Mapping from ProbeId -> Semaphore
     private final ConcurrentMap<Long, Map<DiscoveryType, Semaphore>> probeOperationPermits = new ConcurrentHashMap<>();
+
+    // Sometimes we load discoveries from disk before the probe connects and they get started
+    // without taking a permit. We keep a map of these per probe type so that when those discoveries
+    // complete, we do not return a permit that we never checked out.
+    private final ConcurrentMap<Long, Map<DiscoveryType, Set<Long>>> discoveriesStartedWithoutPermits
+            = new ConcurrentHashMap<>();
 
     protected final TargetStore targetStore;
 
@@ -604,6 +613,10 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                                 targetId,
                                 discoveryType);
                 }
+            } else {
+                discoveriesStartedWithoutPermits.computeIfAbsent(target.getProbeId(),
+                        key -> new HashMap<>()).computeIfAbsent(discoveryType,
+                        type -> new HashSet<>()).add(targetId);
             }
             logger.info("Number of permits after acquire: {}, queueLength: {} by target: {}({}) ({}). Took {} seconds.",
                         () -> semaphore.map(Semaphore::availablePermits).orElse(-1),
@@ -622,7 +635,12 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                 if (currentDiscovery.isPresent()) {
                     logger.info("Discovery is in progress. Returning existing discovery for target: {} ({})",
                         targetId, discoveryType);
-                    semaphore.ifPresent(Semaphore::release);
+                    if (semaphore.isPresent()) {
+                        semaphore.get().release();
+                    } else {
+                        discoveriesStartedWithoutPermits.get(target.getProbeId()).get(discoveryType)
+                                .remove(targetId);
+                    }
                     logger.info("Number of permits after release: {}, queueLength: {} by target: {}({}) ({})",
                             () -> semaphore.map(Semaphore::availablePermits).orElse(-1),
                             () -> semaphore.map(Semaphore::getQueueLength).orElse(-1),
@@ -991,7 +1009,16 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                 () -> targetId,
                 () -> discoveryType);
 
-        semaphore.ifPresent(Semaphore::release);
+        boolean hadPermit = !discoveriesStartedWithoutPermits.computeIfAbsent(probeId,
+                key -> Maps.newHashMap()).computeIfAbsent(discoveryType, type -> Sets.newHashSet())
+                .remove(targetId);
+
+        if (hadPermit) {
+            semaphore.ifPresent(Semaphore::release);
+        } else {
+            logger.debug("No permits were released by this discovery as none were "
+                    + "taken to start it.");
+        }
 
         logger.info("Number of permits after release: {}, queueLength: {} by targetId: {} ({})",
                 () -> semaphore.map(Semaphore::availablePermits).orElse(-1),
