@@ -649,12 +649,6 @@ public class StableMarriagePerContext {
                 (oldEngagement == null) ?
                         virtualMachine.getNaturalTemplate() : oldEngagement.getTemplate());
         costImprovement = SMAUtils.round(costImprovement);
-        if (oldEngagement == null && costImprovement <
-                (SMAUtils.BIG_EPSILON * virtualMachine.getGroupSize()
-                        * virtualMachine.getNaturalTemplate()
-                        .getOnDemandTotalCost(virtualMachine.getCostContext()))) {
-            return false;
-        }
         if (costImprovement < -1.0 * SMAUtils.EPSILON) {
             return false;
         } else if (costImprovement > SMAUtils.EPSILON) {
