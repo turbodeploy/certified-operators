@@ -365,6 +365,20 @@ then
     echo ""
     exit 0
   fi
+  # Set up Auth encryption keys before bringing up XL components (if so configured)
+  # Check to see if kubernetes auth secrets are being used.  If so, pre-generate the keys and
+  # load them into secrets.
+  # This must be done after installing Kubernetes, but before running the operator.
+  egrep "enableExternalSecrets" ${chartsFile}
+  enableExternalSecrets=$(echo $?)
+
+  if [ X${enableExternalSecrets} = X0 ]
+  then
+    echo "Auth is configured to access Kubernetes secrets, configuring..."
+    /opt/local/bin/configure_auth_secrets.sh
+  else
+    echo "Auth is configured to run with persistent volumes, skipping secrets configuration."
+  fi
   echo "######################################################################"
   echo "                   Operator Installation                              "
   echo "######################################################################"

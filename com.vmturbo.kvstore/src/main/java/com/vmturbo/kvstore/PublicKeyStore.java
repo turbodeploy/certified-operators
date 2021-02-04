@@ -1,5 +1,6 @@
 package com.vmturbo.kvstore;
 
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
@@ -15,7 +16,7 @@ public class PublicKeyStore implements IPublicKeyStore {
     private static final Logger logger = LogManager.getLogger();
     public static final String PUBLIC_KEY = "public_key";
     private final String namespace;
-    private final ConsulKeyValueStore consulKeyValueStore;
+    private final KeyValueStore keyValueStore;
 
     /**
      * Create a new {@link PublicKeyStore}.
@@ -35,12 +36,25 @@ public class PublicKeyStore implements IPublicKeyStore {
                           final long kvStoreTimeoutSeconds,
                           final TimeUnit seconds) {
         this.namespace = namespace;
-        this.consulKeyValueStore = new ConsulKeyValueStore(consulNamespacePrefix,
+        this.keyValueStore = new ConsulKeyValueStore(consulNamespacePrefix,
                 PUBLIC_KEY,
                 consulHost,
                 consulPort,
                 kvStoreTimeoutSeconds,
                 seconds);
+    }
+
+    /**
+     * Create a new {@link PublicKeyStore} based on an existing KeyValueStore.
+     *
+     * @param keyValueStore         Given KeyValueStore to use for storing/retrieving public keys
+     *                              namespace to construct consul keys.
+     * @param namespace             Given Namespace to construct consul keys.
+     */
+    public PublicKeyStore(@Nonnull final KeyValueStore keyValueStore,
+                          @Nonnull final String namespace) {
+        this.namespace = Objects.requireNonNull(namespace);
+        this.keyValueStore = Objects.requireNonNull(keyValueStore);
     }
 
     /**
@@ -56,7 +70,7 @@ public class PublicKeyStore implements IPublicKeyStore {
      */
     @Override
     public void putPublicKey(@Nonnull final String value) {
-        consulKeyValueStore.put(namespace, value);
+        keyValueStore.put(namespace, value);
     }
 
     /**
@@ -64,7 +78,7 @@ public class PublicKeyStore implements IPublicKeyStore {
      */
     @Override
     public Optional<String> getPublicKey(@Nonnull final String namespace) {
-        return consulKeyValueStore.get(namespace);
+        return keyValueStore.get(namespace);
     }
 
     /**
@@ -72,7 +86,7 @@ public class PublicKeyStore implements IPublicKeyStore {
      */
     public void removePublicKey() {
         logger.warn("Removing public key at namespace {}", namespace);
-        consulKeyValueStore.removeKey(namespace);
+        keyValueStore.removeKey(namespace);
     }
 
 }

@@ -57,6 +57,9 @@ import com.vmturbo.auth.api.AuthClientConfig;
 import com.vmturbo.auth.api.SpringSecurityConfig;
 import com.vmturbo.auth.api.authorization.UserSessionConfig;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
+import com.vmturbo.auth.api.authorization.keyprovider.KVKeyProvider;
+import com.vmturbo.auth.api.authorization.keyprovider.KeyProvider;
+import com.vmturbo.auth.api.authorization.keyprovider.PersistentVolumeKeyProvider;
 import com.vmturbo.auth.api.authorization.kvstore.ComponentJwtStore;
 import com.vmturbo.auth.api.licensing.LicenseCheckClientConfig;
 import com.vmturbo.common.protobuf.search.SearchFilterResolver;
@@ -130,6 +133,13 @@ public class ServiceConfig {
 
     @Value("${com.vmturbo.kvdir:/home/turbonomic/data/kv}")
     private String keyDir;
+
+    /**
+     * If true, use Kubernetes secrets to read in the sensitive Auth data (like encryption keys and
+     * private/public key pairs). If false, this data will be read from (legacy) persistent volumes.
+     */
+    @Value("${enableExternalSecrets:false}")
+    private boolean enableExternalSecrets;
 
     @Value("${identityGeneratorPrefix}")
     private long identityGeneratorPrefix;
@@ -751,11 +761,28 @@ public class ServiceConfig {
         return new ClassicMigrationService(targetService());
     }
 
+    /**
+     * Create a provider for private/public key pairs.
+     *
+     * @return the key provider
+     */
+    @Bean
+    public KeyProvider keyProvider() {
+        // Feature flag
+        if (enableExternalSecrets) {
+            return new KVKeyProvider(
+                publicKeyStoreConfig.publicKeyStore(),
+                keyValueStoreConfig.keyValueStore());
+        }
+        // Legacy behavior
+        return new PersistentVolumeKeyProvider(publicKeyStoreConfig.publicKeyStore(), keyDir);
+    }
+
     @Bean
     public ComponentJwtStore targetStore() {
         return new ComponentJwtStore(publicKeyStoreConfig.publicKeyStore(),
             identityGeneratorPrefix,
-            keyDir);
+            keyProvider());
     }
 
     @Bean

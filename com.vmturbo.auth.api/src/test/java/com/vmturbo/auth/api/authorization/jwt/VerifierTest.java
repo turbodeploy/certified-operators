@@ -72,7 +72,7 @@ public class VerifierTest {
         dt = c.getTime();
 
         KeyPair keyPair = EllipticCurveProvider.generateKeyPair(SignatureAlgorithm.ES256);
-        String privateKeyEncoded = JWTKeyCodec.encodePrivateKey(keyPair);
+        String privateKeyEncoded = JWTKeyCodec.encodePrivateKey(keyPair.getPrivate());
         PrivateKey signingKey = JWTKeyCodec.decodePrivateKey(privateKeyEncoded);
 
         String compact = Jwts.builder()
@@ -84,7 +84,7 @@ public class VerifierTest {
                              .compact();
 
         // Encode the public key.
-        String pubKeyStr = JWTKeyCodec.encodePublicKey(keyPair);
+        String pubKeyStr = JWTKeyCodec.encodePublicKey(keyPair.getPublic());
         JWTAuthorizationToken token = new JWTAuthorizationToken(compact);
         JWTAuthorizationVerifier verifier =
                 new JWTAuthorizationVerifier(JWTKeyCodec.decodePublicKey(pubKeyStr));
@@ -107,7 +107,7 @@ public class VerifierTest {
         dt = c.getTime();
 
         KeyPair keyPair = EllipticCurveProvider.generateKeyPair(SignatureAlgorithm.ES256);
-        String privateKeyEncoded = JWTKeyCodec.encodePrivateKey(keyPair);
+        String privateKeyEncoded = JWTKeyCodec.encodePrivateKey(keyPair.getPrivate());
         PrivateKey signingKey = JWTKeyCodec.decodePrivateKey(privateKeyEncoded);
 
         String compact = Jwts.builder().setSubject("subject")
@@ -124,7 +124,7 @@ public class VerifierTest {
         compact = new String(chars);
 
         // Encode the public key.
-        String pubKeyStr = JWTKeyCodec.encodePublicKey(keyPair);
+        String pubKeyStr = JWTKeyCodec.encodePublicKey(keyPair.getPublic());
         JWTAuthorizationToken token = new JWTAuthorizationToken(compact);
         JWTAuthorizationVerifier verifier =
                 new JWTAuthorizationVerifier(JWTKeyCodec.decodePublicKey(pubKeyStr));
@@ -148,7 +148,7 @@ public class VerifierTest {
         dt = c.getTime();
 
         KeyPair keyPair = EllipticCurveProvider.generateKeyPair(SignatureAlgorithm.ES256);
-        String privateKeyEncoded = JWTKeyCodec.encodePrivateKey(keyPair);
+        String privateKeyEncoded = JWTKeyCodec.encodePrivateKey(keyPair.getPrivate());
         PrivateKey signingKey = JWTKeyCodec.decodePrivateKey(privateKeyEncoded);
         PublicKey publicKey = keyPair.getPublic();
 
@@ -161,7 +161,7 @@ public class VerifierTest {
                 .compact();
 
         // Encode the public key.
-        String pubKeyStr = JWTKeyCodec.encodePublicKey(keyPair);
+        String pubKeyStr = JWTKeyCodec.encodePublicKey(keyPair.getPublic());
         JWTAuthorizationToken token = new JWTAuthorizationToken(compact);
         JWTAuthorizationVerifier verifier =
                 new JWTAuthorizationVerifier(JWTKeyCodec.decodePublicKey(pubKeyStr));
@@ -191,7 +191,7 @@ public class VerifierTest {
         dt = c.getTime();
 
         KeyPair keyPair = EllipticCurveProvider.generateKeyPair(SignatureAlgorithm.ES256);
-        String privateKeyEncoded = JWTKeyCodec.encodePrivateKey(keyPair);
+        String privateKeyEncoded = JWTKeyCodec.encodePrivateKey(keyPair.getPrivate());
         PrivateKey signingKey = JWTKeyCodec.decodePrivateKey(privateKeyEncoded);
         PublicKey publicKey = keyPair.getPublic();
 
@@ -207,7 +207,7 @@ public class VerifierTest {
         IAuthStore authStore = Mockito.mock(AuthStore.class);
 
         // Encode the public key.
-        String pubKeyStr = JWTKeyCodec.encodePublicKey(keyPair);
+        String pubKeyStr = JWTKeyCodec.encodePublicKey(keyPair.getPublic());
 
         Mockito.when(authStore.retrievePublicKey(Mockito.anyString())).thenReturn(Optional.of(pubKeyStr));
         JWTAuthorizationToken token = new JWTAuthorizationToken(compact);
@@ -257,7 +257,7 @@ public class VerifierTest {
         IAuthStore authStore = Mockito.mock(AuthStore.class);
 
         // Encode the public key.
-        String pubKeyStr = JWTKeyCodec.encodePublicKey(keyPair);
+        String pubKeyStr = JWTKeyCodec.encodePublicKey(keyPair.getPublic());
 
         // try to verify original public key
         Mockito.when(authStore.retrievePublicKey(Mockito.anyString())).thenReturn(Optional.of(pubKeyStr));
@@ -286,7 +286,7 @@ public class VerifierTest {
         dt = c.getTime();
 
         KeyPair keyPair = EllipticCurveProvider.generateKeyPair(SignatureAlgorithm.ES256);
-        String privateKeyEncoded = JWTKeyCodec.encodePrivateKey(keyPair);
+        String privateKeyEncoded = JWTKeyCodec.encodePrivateKey(keyPair.getPrivate());
         PrivateKey signingKey = JWTKeyCodec.decodePrivateKey(privateKeyEncoded);
 
         String compact = Jwts.builder().setSubject("subject")
@@ -297,7 +297,7 @@ public class VerifierTest {
                              .compact();
 
         // Encode the public key.
-        String pubKeyStr = JWTKeyCodec.encodePublicKey(keyPair);
+        String pubKeyStr = JWTKeyCodec.encodePublicKey(keyPair.getPublic());
         JWTAuthorizationToken token = new JWTAuthorizationToken(compact);
         JWTAuthorizationVerifier verifier =
                 new JWTAuthorizationVerifier(JWTKeyCodec.decodePublicKey(pubKeyStr));
@@ -323,7 +323,7 @@ public class VerifierTest {
         dt = c.getTime();
 
         KeyPair keyPair = EllipticCurveProvider.generateKeyPair(SignatureAlgorithm.ES256);
-        String privateKeyEncoded = JWTKeyCodec.encodePrivateKey(keyPair);
+        String privateKeyEncoded = JWTKeyCodec.encodePrivateKey(keyPair.getPrivate());
         PrivateKey signingKey = JWTKeyCodec.decodePrivateKey(privateKeyEncoded);
 
         String compact = Jwts.builder().setSubject("subject")
@@ -334,7 +334,7 @@ public class VerifierTest {
                              .compact();
 
         // Encode the public key.
-        String pubKeyStr = JWTKeyCodec.encodePublicKey(keyPair);
+        String pubKeyStr = JWTKeyCodec.encodePublicKey(keyPair.getPublic());
         JWTAuthorizationToken token = new JWTAuthorizationToken(compact);
         JWTAuthorizationVerifier verifier =
                 new JWTAuthorizationVerifier(JWTKeyCodec.decodePublicKey(pubKeyStr));
@@ -359,7 +359,7 @@ public class VerifierTest {
         dt = c.getTime();
 
         KeyPair keyPair = EllipticCurveProvider.generateKeyPair(SignatureAlgorithm.ES256);
-        String privateKeyEncoded = JWTKeyCodec.encodePrivateKey(keyPair);
+        String privateKeyEncoded = JWTKeyCodec.encodePrivateKey(keyPair.getPrivate());
         PrivateKey signingKey = JWTKeyCodec.decodePrivateKey(privateKeyEncoded);
 
         String compact = Jwts.builder().setSubject("subject")
@@ -370,7 +370,7 @@ public class VerifierTest {
                              .compact();
 
         // Encode the public key.
-        String pubKeyStr = JWTKeyCodec.encodePublicKey(keyPair);
+        String pubKeyStr = JWTKeyCodec.encodePublicKey(keyPair.getPublic());
         JWTAuthorizationToken token = new JWTAuthorizationToken(compact);
         JWTAuthorizationVerifier verifier =
                 new JWTAuthorizationVerifier(JWTKeyCodec.decodePublicKey(pubKeyStr));
@@ -395,7 +395,7 @@ public class VerifierTest {
         Date dt = new Date(System.currentTimeMillis() - 120000L);
 
         KeyPair keyPair = EllipticCurveProvider.generateKeyPair(SignatureAlgorithm.ES256);
-        String privateKeyEncoded = JWTKeyCodec.encodePrivateKey(keyPair);
+        String privateKeyEncoded = JWTKeyCodec.encodePrivateKey(keyPair.getPrivate());
         PrivateKey signingKey = JWTKeyCodec.decodePrivateKey(privateKeyEncoded);
 
         String compact = Jwts.builder().setSubject("subject")
@@ -406,7 +406,7 @@ public class VerifierTest {
                              .compact();
 
         // Encode the public key.
-        String pubKeyStr = JWTKeyCodec.encodePublicKey(keyPair);
+        String pubKeyStr = JWTKeyCodec.encodePublicKey(keyPair.getPublic());
 
         JWTAuthorizationToken token = new JWTAuthorizationToken(compact);
         JWTAuthorizationVerifier verifier =
@@ -428,7 +428,7 @@ public class VerifierTest {
         Date dt = new Date(past);
 
         KeyPair keyPair = EllipticCurveProvider.generateKeyPair(SignatureAlgorithm.ES256);
-        String privateKeyEncoded = JWTKeyCodec.encodePrivateKey(keyPair);
+        String privateKeyEncoded = JWTKeyCodec.encodePrivateKey(keyPair.getPrivate());
         PrivateKey signingKey = JWTKeyCodec.decodePrivateKey(privateKeyEncoded);
 
         String compact = Jwts.builder().setSubject("subject")
@@ -439,7 +439,7 @@ public class VerifierTest {
                              .compact();
 
         // Encode the public key.
-        String pubKeyStr = JWTKeyCodec.encodePublicKey(keyPair);
+        String pubKeyStr = JWTKeyCodec.encodePublicKey(keyPair.getPublic());
 
         JWTAuthorizationToken token = new JWTAuthorizationToken(compact);
         JWTAuthorizationVerifier verifier =
@@ -480,7 +480,7 @@ public class VerifierTest {
 
         public KeyGenerator invoke() {
             keyPair = EllipticCurveProvider.generateKeyPair(SignatureAlgorithm.ES256);
-            String privateKeyEncoded = JWTKeyCodec.encodePrivateKey(keyPair);
+            String privateKeyEncoded = JWTKeyCodec.encodePrivateKey(keyPair.getPrivate());
             signingKey = JWTKeyCodec.decodePrivateKey(privateKeyEncoded);
             publicKey = keyPair.getPublic();
             return this;

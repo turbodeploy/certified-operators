@@ -142,7 +142,7 @@ public class RestTest {
     static {
         authStore = new AuthProvider(kvStore, null,
                 () -> System.getProperty("com.vmturbo.kvdir"), null, new UserPolicy(LoginPolicy.ALL,
-                new ReportPolicy(1)), ssoUtil, false);
+                new ReportPolicy(1)), ssoUtil, false, false);
     }
 
     /**

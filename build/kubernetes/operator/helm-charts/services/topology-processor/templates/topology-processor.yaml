@@ -106,6 +106,14 @@ spec:
         volumeMounts:
         - mountPath: /home/turbonomic/data
           name: topology-processor
+{{- if .Values.global }}
+  {{ if .Values.global.enableExternalSecrets }}
+    {{/* Kubernetes secrets are enabled for encryption keys. */}}
+        - mountPath: /home/turbonomic/data/helper_dir
+          name: topology-processor-secret
+          readOnly: true
+  {{- end }}
+{{- end }}
         - mountPath: /etc/turbonomic
           name: turbo-volume
           readOnly: true
@@ -157,6 +165,13 @@ spec:
       - name: topology-processor-tmpfs0
         emptyDir: {}
 {{- if .Values.global }}
+  {{ if .Values.global.enableExternalSecrets }}
+    {{/* Kubernetes secrets are enabled for auth. Attach one secret for the directory of secret files. */}}
+      - name: topology-processor-secret
+        secret:
+            secretName: topology-processor-secret
+            optional: true
+  {{- end }}
   {{- if or .Values.dbSecretName .Values.global.dbSecretName }}
       - name: db-creds
         secret:

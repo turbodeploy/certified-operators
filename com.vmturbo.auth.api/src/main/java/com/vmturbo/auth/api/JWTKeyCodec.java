@@ -2,18 +2,19 @@ package com.vmturbo.auth.api;
 
 import java.math.BigInteger;
 import java.security.KeyFactory;
-import java.security.KeyPair;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.PrivateKey;
-import java.security.Provider;
 import java.security.PublicKey;
 import java.security.Security;
 import java.security.spec.InvalidKeySpecException;
+
 import javax.annotation.Nonnull;
 
 import com.google.common.base.Strings;
+
 import io.jsonwebtoken.impl.Base64Codec;
+
 import org.bouncycastle.jcajce.provider.asymmetric.ec.BCECPrivateKey;
 import org.bouncycastle.jcajce.provider.asymmetric.ec.BCECPublicKey;
 import org.bouncycastle.jce.ECNamedCurveTable;
@@ -42,15 +43,15 @@ public class JWTKeyCodec {
     /**
      * Encodes the public key.
      *
-     * @param keyPair The key pair.
+     * @param publicKey the public key to encode
      * @return The encoded public key
      */
-    public static @Nonnull String encodePublicKey(KeyPair keyPair) {
+    public static @Nonnull String encodePublicKey(final PublicKey publicKey) {
         // Encode the public key.
         StringBuilder sb = new StringBuilder();
         Base64Codec codec = new Base64Codec();
 
-        BCECPublicKey pubKey = (BCECPublicKey)keyPair.getPublic();
+        BCECPublicKey pubKey = (BCECPublicKey)publicKey;
         sb.append(codec.encode(pubKey.getQ().getEncoded(true)));
 
         // EC Parameters Spec.
@@ -88,19 +89,19 @@ public class JWTKeyCodec {
     /**
      * Encodes the private key.
      *
-     * @param keyPair The key pair.
+     * @param privateKey the private key to encode
      * @return The encoded private key
      */
-    public static @Nonnull String encodePrivateKey(KeyPair keyPair) {
+    public static @Nonnull String encodePrivateKey(final PrivateKey privateKey) {
         // Encode the private key.
         StringBuilder sb = new StringBuilder();
         Base64Codec codec = new Base64Codec();
 
-        BCECPrivateKey privateKey = (BCECPrivateKey)keyPair.getPrivate();
-        sb.append(codec.encode(privateKey.getD().toByteArray()));
+        BCECPrivateKey privKey = (BCECPrivateKey)privateKey;
+        sb.append(codec.encode(privKey.getD().toByteArray()));
 
         // EC Parameters Spec.
-        ECNamedCurveSpec ecParamSpec = (ECNamedCurveSpec)privateKey.getParams();
+        ECNamedCurveSpec ecParamSpec = (ECNamedCurveSpec)privKey.getParams();
         String curveName = ecParamSpec.getName();
         sb.append('|');
         sb.append(curveName);
