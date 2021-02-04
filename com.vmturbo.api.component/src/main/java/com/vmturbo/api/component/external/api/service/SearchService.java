@@ -827,38 +827,37 @@ public class SearchService implements ISearchService {
      * @param stringToMatch the potential string to match. Can be blank or null.
      * @param originalFilters the existing filters
      * @param filterTypeToUse the filter type to use when optionally creating the filter.
-     * @param queryType the pattern matching strategy to be used for stringToMatch.
+     * @param queryType the pattern matching strategy to be used for stringToMatch. Default:
+     *         Contains
      * @return the list of filters + an additional one for the "string to match"
      */
     @VisibleForTesting
     protected List<FilterApiDTO> addNameMatcher(String stringToMatch,
                                               List<FilterApiDTO> originalFilters,
-                                              String filterTypeToUse,
-                                              QueryType queryType) {
+                                              String filterTypeToUse, QueryType queryType) {
+        // if a queryType is not provided a simple string contains strategy is used
+        QueryType qType = Objects.isNull(queryType) ? QueryType.CONTAINS : queryType;
+
         if (StringUtils.isEmpty(stringToMatch)) {
             return originalFilters;
         }
         // create a name filter for the 'query' and add it to the filters list.
         FilterApiDTO nameFilter = new FilterApiDTO();
-        if ( queryType != null ) {
-            switch ( queryType ) {
-                case CONTAINS:
-                    nameFilter.setExpVal(escapeAndEncloseInDotAsterisk(stringToMatch));
-                    nameFilter.setExpType(EntityFilterMapper.REGEX_MATCH);
-                    break;
-                case REGEX:
-                    nameFilter.setExpVal(stringToMatch);
-                    nameFilter.setExpType(EntityFilterMapper.REGEX_MATCH);
-                    break;
-                case EXACT:
-                    nameFilter.setExpVal(escapeSpecialCharactersInSearchQueryPattern(stringToMatch));
-                    nameFilter.setExpType(EntityFilterMapper.EQUAL);
-                default: break;
-            }
-        } else {
-            // Pre-existing implementation is followed when queryType is not provided
-            nameFilter.setExpVal(".*" + stringToMatch + ".*"); // turn it into a wildcard regex
-            nameFilter.setExpType(EntityFilterMapper.REGEX_MATCH);
+
+        switch (qType) {
+            case CONTAINS:
+                nameFilter.setExpVal(escapeAndEncloseInDotAsterisk(stringToMatch));
+                nameFilter.setExpType(EntityFilterMapper.REGEX_MATCH);
+                break;
+            case REGEX:
+                nameFilter.setExpVal(stringToMatch);
+                nameFilter.setExpType(EntityFilterMapper.REGEX_MATCH);
+                break;
+            case EXACT:
+                nameFilter.setExpVal(escapeSpecialCharactersInSearchQueryPattern(stringToMatch));
+                nameFilter.setExpType(EntityFilterMapper.EQUAL);
+            default:
+                break;
         }
         nameFilter.setCaseSensitive(false);
         nameFilter.setFilterType(filterTypeToUse);
