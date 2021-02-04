@@ -17,6 +17,8 @@ public class DatabaseAspectMapper extends AbstractAspectMapper {
     private static final String MAX_CONCURRENT_WORKER = "max_concurrent_worker";
     private static final String PRICING_MODEL = "pricing_model";
     private static final String STORAGE_AMOUNT = "storage_amount";
+    private static final String STORAGE_TIER = "storage_tier";
+
 
     @Nullable
     @Override
@@ -54,6 +56,11 @@ public class DatabaseAspectMapper extends AbstractAspectMapper {
         String pricingModel = entity.getEntityPropertyMapOrDefault(PRICING_MODEL, null);
         if (pricingModel != null) {
             aspect.setPricingModel(pricingModel);
+        }
+
+        String storageTier = entity.getEntityPropertyMapOrDefault(STORAGE_TIER, null);
+        if (storageTier != null) {
+            aspect.setStorageTier(storageTier);
         }
 
         return aspect;
