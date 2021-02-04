@@ -22,8 +22,8 @@ public class DatabaseAspectMapperTest extends BaseAspectMapperTest {
     private static final DeploymentType TEST_DEPLOYMENT_TYPE = DeploymentType.MULTI_AZ;
     private static final LicenseModel TEST_LICENSE_MODEL = LicenseModel.BRING_YOUR_OWN_LICENSE;
     private static final String TEST_DATABASE_VERSION = "666";
-    private static final int MAX_CONCURRENT_SESSION = 400;
-    private static final int MAX_CONCURRENT_WORKER = 10;
+    private static final Integer MAX_CONCURRENT_SESSION = 400;
+    private static final Integer MAX_CONCURRENT_WORKER = 10;
     private static final String PRICING_MODEL = "DTU";
     private static final String STORAGE_AMOUNT = "2";
 
