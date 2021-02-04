@@ -38,6 +38,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -1370,7 +1371,7 @@ public class SearchServiceTest {
         verify(businessAccountRetriever).getBusinessAccountsInScope(eq(null), resultCaptor.capture());
         FilterApiDTO filterApiDTOCaptured = resultCaptor.getValue().get(0);
         assertEquals(filterApiDTOCaptured.getExpType(), EntityFilterMapper.REGEX_MATCH);
-        assertEquals(filterApiDTOCaptured.getExpVal(), ".*test.*" );
+        assertEquals(filterApiDTOCaptured.getExpVal(), ".*" + Pattern.quote("test") + ".*" );
         assertEquals(filterApiDTOCaptured.getFilterType(), "businessAccountByName");
     }
 
