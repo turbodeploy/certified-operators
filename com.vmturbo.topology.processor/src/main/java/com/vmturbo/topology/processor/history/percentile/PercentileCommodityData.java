@@ -122,7 +122,7 @@ public class PercentileCommodityData
             if (hasEnoughData) {
                 // calculate and store the utilization into commodity's history value
                 float aggressiveness = config.getAggressiveness(context, field.getEntityOid());
-                final Integer percentile = utilizationCounts.getPercentile(aggressiveness);
+                final Integer percentile = utilizationCounts.getPercentile(aggressiveness, field);
                 if (percentile != null) {
                     if (logger.isTraceEnabled()) {
                         logger.trace("Calculated percentile score for {} for rank {}: {}",

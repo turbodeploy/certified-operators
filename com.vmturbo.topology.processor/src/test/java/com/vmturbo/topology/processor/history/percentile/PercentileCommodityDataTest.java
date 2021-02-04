@@ -89,10 +89,10 @@ public class PercentileCommodityDataTest extends BaseGraphRelatedTest {
 
         PercentileCommodityData pcd = new PercentileCommodityData();
         pcd.init(field, dbValue.build(), config, context);
-        final Integer percentile0 = pcd.getUtilizationCountStore().getPercentile(0);
+        final Integer percentile0 = pcd.getUtilizationCountStore().getPercentile(0, field);
         Assert.assertNotNull(percentile0);
         Assert.assertEquals(0, (int)percentile0);
-        final Integer percentile100 = pcd.getUtilizationCountStore().getPercentile(100);
+        final Integer percentile100 = pcd.getUtilizationCountStore().getPercentile(100, field);
         Assert.assertNotNull(percentile100);
         Assert.assertEquals(used, (int)percentile100);
         PercentileRecord record = pcd.getUtilizationCountStore().getLatestCountsRecord().build();
