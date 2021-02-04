@@ -15,6 +15,7 @@ import org.junit.runner.RunWith;
 
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig.Builder;
+import com.vmturbo.market.topology.conversions.MarketAnalysisUtils;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 
 /**
@@ -38,7 +39,7 @@ public class AnalysisFactoryTest {
         @TestCaseName("Test #{index}: (set|get)UseQuoteCacheDuringSNM({0})")
         public final void testGetSetUseQuoteCacheDuringSNM(boolean useQuoteCacheDuringSNM) {
             Builder builder = AnalysisConfig.newBuilder(0, 0,
-                SuspensionsThrottlingConfig.DEFAULT, new HashMap<>(), false);
+                SuspensionsThrottlingConfig.DEFAULT, new HashMap<>(), false, MarketAnalysisUtils.PRICE_WEIGHT_SCALE);
             assertSame(builder, builder.setUseQuoteCacheDuringSNM(useQuoteCacheDuringSNM));
             assertEquals(useQuoteCacheDuringSNM, builder.build().getUseQuoteCacheDuringSNM());
         }
@@ -53,7 +54,7 @@ public class AnalysisFactoryTest {
         public final void
                         testGetSetReplayProvisionsForRealTime(boolean replayProvisionsForRealTime) {
             Builder builder = AnalysisConfig.newBuilder(0, 0,
-                SuspensionsThrottlingConfig.DEFAULT, new HashMap<>(), false);
+                SuspensionsThrottlingConfig.DEFAULT, new HashMap<>(), false, MarketAnalysisUtils.PRICE_WEIGHT_SCALE);
             assertSame(builder,
                 builder.setReplayProvisionsForRealTime(replayProvisionsForRealTime));
             assertEquals(replayProvisionsForRealTime,

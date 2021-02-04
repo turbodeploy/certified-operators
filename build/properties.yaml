@@ -158,6 +158,8 @@ defaultProperties:
         liveMarketMoveCostFactor: 0.05
         # Quote for commodities is only based on price and not based on percentage consumption of provider by consumer.
         fullPriceForQuote: false
+        # Value to scale the price weight of commodities for every softwareLicenseCommodity sold by a provider.
+        licensePriceWeightScale: 3
     ml-datastore:
         influxdbHealthCheckIntervalSeconds: 60
         influxHost: influxdb

@@ -78,7 +78,8 @@ public class CommodityConverterTest {
         numConsumersOfSoldCommTable = mock(Table.class);
         consistentScalingHelper = new ConsistentScalingHelper(null);
         converterToTest = new CommodityConverter(commodityTypeAllocator, includeGuaranteedBuyer,  dsBasedBicliquer,
-                numConsumersOfSoldCommTable, new ConversionErrorCounts(), consistentScalingHelper);
+                numConsumersOfSoldCommTable, new ConversionErrorCounts(), consistentScalingHelper,
+                MarketAnalysisUtils.PRICE_WEIGHT_SCALE);
     }
 
     /**

@@ -52,8 +52,9 @@ public final class MarketAnalysisUtils {
     // default move cost factor used in market analysis
     public static final float LIVE_MARKET_MOVE_COST_FACTOR = 0.05f;
 
-    // value to scale the price weight by for every softwareLicenseCommodity sold by a provider.
-    public static final int PRICE_WEIGHT_SCALE = 10;
+    // Value to scale the price weight of commodities for every softwareLicenseCommodity sold by a
+    // provider.
+    public static final int PRICE_WEIGHT_SCALE = 3;
 
     private MarketAnalysisUtils() {}
 

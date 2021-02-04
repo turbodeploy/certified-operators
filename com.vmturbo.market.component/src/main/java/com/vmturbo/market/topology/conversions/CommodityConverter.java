@@ -64,6 +64,7 @@ public class CommodityConverter {
 
     private final Table<Long, CommodityType, Integer> numConsumersOfSoldCommTable;
     private final ConversionErrorCounts conversionErrorCounts;
+    private int licensePriceWeightScale = MarketAnalysisUtils.PRICE_WEIGHT_SCALE;
 
     // provider oid -> commodity type -> used value of all consumers to be removed of this provider
     private Map<Long, Map<CommodityType, UsedAndPeak>> providerUsedSubtractionMap = Collections.emptyMap();
@@ -73,13 +74,15 @@ public class CommodityConverter {
                        @Nonnull final BiCliquer dsBasedBicliquer,
                        @Nonnull final Table<Long, CommodityType, Integer> numConsumersOfSoldCommTable,
                        @Nonnull final ConversionErrorCounts conversionErrorCounts,
-                       @Nonnull final ConsistentScalingHelper consistentScalingHelper) {
+                       @Nonnull final ConsistentScalingHelper consistentScalingHelper,
+                       final int licensePriceWeightScale) {
         this.commodityTypeAllocator = new CommodityTypeAllocator(idAllocator);
 
         this.includeGuaranteedBuyer = includeGuaranteedBuyer;
         this.dsBasedBicliquer = dsBasedBicliquer;
         this.numConsumersOfSoldCommTable = numConsumersOfSoldCommTable;
         this.conversionErrorCounts = conversionErrorCounts;
+        this.licensePriceWeightScale = licensePriceWeightScale;
     }
 
     /**
@@ -114,7 +117,7 @@ public class CommodityConverter {
                         || !MarketAnalysisUtils.GUARANTEED_SELLER_TYPES.contains(topologyDTO.getEntityType())
                         || !MarketAnalysisUtils.VDC_COMMODITY_TYPES.contains(commSold.getCommodityType().getType()))
                 .map(commoditySoldDTO -> createCommonCommoditySoldTOList(commoditySoldDTO, topologyDTO,
-                        MarketAnalysisUtils.PRICE_WEIGHT_SCALE * numLicenses))
+                        licensePriceWeightScale * numLicenses))
                 .flatMap(List::stream)
                 .collect(Collectors.toList());
         return list;
