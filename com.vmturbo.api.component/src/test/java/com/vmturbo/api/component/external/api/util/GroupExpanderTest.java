@@ -32,6 +32,7 @@ import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupAndImmediateMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetOwnersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetOwnersResponse;
@@ -154,6 +155,18 @@ public class GroupExpanderTest {
     public void testGetGroupNotNumeric() {
         Optional<Grouping> ret = groupExpander.getGroup("foo");
         assertFalse(ret.isPresent());
+    }
+
+    /**
+     * Test that the getGroups method ignores non-numeric group ids and retrieves groups properly.
+     */
+    @Test
+    public void testGetGroups() {
+        when(groupServiceSpy.getGroups(GetGroupsRequest.newBuilder().addScopes(1234).build()))
+            .thenReturn(Collections.singletonList(Grouping.newBuilder().setId(1234).build()));
+        Set<Grouping> result = groupExpander.getGroups(Arrays.asList("1234", "abcd"));
+        assertEquals(1, result.size());
+        assertEquals(1234, result.iterator().next().getId());
     }
 
     /**
