@@ -61,6 +61,7 @@ public final class EconomySettings implements Serializable {
     private float discountedComputeCostFactor = -1f;
     private boolean fullPriceForQuote_ = false;
     private Set<Integer> reconfigureableCommodities_ = new HashSet<>();
+    private int licensePriceWeightScale_ = 3;
 
     // Constructors
     /**
@@ -316,5 +317,28 @@ public final class EconomySettings implements Serializable {
 
     public Set<Integer> getReconfigureableCommodities() {
         return reconfigureableCommodities_;
+    }
+
+    /**
+     * Get the value to scale the price weight of commodities for every softwareLicenseCommodity
+     * sold by a provider.
+     *
+     * @return the value.
+     */
+    @Pure
+    public int getLicensePriceWeightScale(@ReadOnly EconomySettings this) {
+        return licensePriceWeightScale_;
+    }
+
+    /**
+     * Set the value to scale the price weight of commodities for every softwareLicenseCommodity
+     * sold by a provider.
+     *
+     * @return {@code this}
+     */
+    @Deterministic
+    public EconomySettings setLicensePriceWeightScale(int licensePriceWeightScale) {
+        licensePriceWeightScale_ = licensePriceWeightScale;
+        return this;
     }
 } // end EconomySettings class
