@@ -22,12 +22,6 @@ import com.vmturbo.platform.analysis.economy.TraderWithSettings;
  */
 public abstract class ReconfigureProvider extends ReconfigureBase {
 
-    /**
-     * Price weight for price function of software license commodities that are currently the
-     * Reconfigurable commodities.
-     */
-    protected static final int PRICE_WEIGHT_SCALE = 10;
-
     protected @NonNull TraderWithSettings provider_;
     protected @NonNull Map<CommoditySpecification, CommoditySold> commodities_;
 
@@ -87,7 +81,8 @@ public abstract class ReconfigureProvider extends ReconfigureBase {
         provider_.getCommoditiesSold()
             .forEach(commSold -> commSold.getSettings().setPriceFunction(commSold.getSettings()
                 .getPriceFunction().updatePriceFunctionWithWeight(provider_
-                    .getReconfigureableCount(getEconomy()) * PRICE_WEIGHT_SCALE + 1)));
+                    .getReconfigureableCount(getEconomy()) * getEconomy().getSettings()
+                        .getLicensePriceWeightScale() + 1)));
     }
 
     protected void removeCommodities() {
@@ -107,6 +102,7 @@ public abstract class ReconfigureProvider extends ReconfigureBase {
         provider_.getCommoditiesSold()
             .forEach(commSold -> commSold.getSettings().setPriceFunction(commSold.getSettings()
                 .getPriceFunction().updatePriceFunctionWithWeight(provider_
-                    .getReconfigureableCount(getEconomy()) * PRICE_WEIGHT_SCALE + 1)));
+                    .getReconfigureableCount(getEconomy()) * getEconomy().getSettings()
+                        .getLicensePriceWeightScale() + 1)));
     }
 }
