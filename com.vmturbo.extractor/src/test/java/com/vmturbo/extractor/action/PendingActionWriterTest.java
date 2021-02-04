@@ -50,7 +50,6 @@ import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceImplBase;
 import com.vmturbo.common.protobuf.group.PolicyDTOMoles.PolicyServiceMole;
-import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.MutableFixedClock;
@@ -138,15 +137,14 @@ public class PendingActionWriterTest {
                 actionConverter, topologyGraph, ACTION_WRITING_INTERVAL_MS, TypeInfoCase.MARKET, new HashMap<>())))
                 .when(actionWriterFactory).getReportPendingActionWriter(any());
         doReturn(Optional.of(new DataExtractionPendingActionWriter(extractorKafkaSender,
-                dataExtractionFactory, dataProvider, clock, lastWrite, actionAttributeExtractor)))
-                .when(actionWriterFactory).getDataExtractionActionWriter();
+                dataExtractionFactory, dataProvider, clock, lastWrite, actionConverter)))
+                .when(actionWriterFactory).getDataExtractionPendingActionWriter();
 
         when(extractorFeatureFlags.isReportingActionIngestionEnabled()).thenReturn(true);
 
         actionWriter = spy(new PendingActionWriter(
                 ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 EntitySeverityServiceGrpc.newStub(grpcServer.getChannel()),
-                PolicyServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 dataProvider,
                 extractorFeatureFlags,
                 REALTIME_CONTEXT,

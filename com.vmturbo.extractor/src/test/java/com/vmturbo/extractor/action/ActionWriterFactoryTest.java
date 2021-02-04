@@ -15,6 +15,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,10 +23,12 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.TypeInfoCase;
+import com.vmturbo.common.protobuf.group.PolicyDTOMoles.PolicyServiceMole;
+import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
+import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.components.common.utils.MultiStageTimer;
 import com.vmturbo.extractor.ExtractorDbConfig;
-import com.vmturbo.extractor.RecordHashManager.SnapshotManager;
 import com.vmturbo.extractor.export.DataExtractionFactory;
 import com.vmturbo.extractor.export.ExtractorKafkaSender;
 import com.vmturbo.extractor.schema.ExtractorDbBaseConfig;
@@ -77,6 +80,14 @@ public class ActionWriterFactoryTest {
 
     ActionWriterFactory actionWriterFactory;
 
+    private PolicyServiceMole policyBackend = spy(PolicyServiceMole.class);
+
+    /**
+     * Test GRPC server.
+     */
+    @Rule
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(policyBackend);
+
     /**
      * Set up before each test.
      *
@@ -86,12 +97,12 @@ public class ActionWriterFactoryTest {
     public void setUp() throws Exception {
         final DbEndpoint endpoint = spy(dbConfig.ingesterEndpoint());
         doReturn(mock(DSLContext.class)).when(endpoint).dslContext();
-        SnapshotManager snapshotManager = mock(SnapshotManager.class);
         doReturn(mock(TopologyGraph.class)).when(dataProvider).getTopologyGraph();
         actionWriterFactory = new ActionWriterFactory(
-                clock, actionConverter, endpoint, ACTION_WRITING_INTERVAL_MS,
-                writerConfig, executorService, dataProvider, extractorKafkaSender,
-                dataExtractionFactory, ACTION_EXTRACTION_INTERVAL_MS, actionAttributeExtractor);
+                clock, actionConverter, endpoint, ACTION_WRITING_INTERVAL_MS, writerConfig,
+                executorService, dataProvider, extractorKafkaSender, dataExtractionFactory,
+                ACTION_EXTRACTION_INTERVAL_MS,
+                PolicyServiceGrpc.newBlockingStub(grpcServer.getChannel()));
     }
 
     /**
@@ -134,18 +145,18 @@ public class ActionWriterFactoryTest {
     @Test
     public void testSkipUpdateForActionExtraction() {
         // first write
-        Optional<DataExtractionPendingActionWriter> writer = actionWriterFactory.getDataExtractionActionWriter();
+        Optional<DataExtractionPendingActionWriter> writer = actionWriterFactory.getDataExtractionPendingActionWriter();
         assertThat(writer.isPresent(), is(true));
         writer.get().write(timer);
 
         // still within interval
         clock.addTime(ACTION_EXTRACTION_INTERVAL_MS - 1, ChronoUnit.MILLIS);
-        writer = actionWriterFactory.getDataExtractionActionWriter();
+        writer = actionWriterFactory.getDataExtractionPendingActionWriter();
         assertThat(writer.isPresent(), is(false));
 
         // interval satisfied, it should return a new instance
         clock.addTime(1, ChronoUnit.MILLIS);
-        writer = actionWriterFactory.getDataExtractionActionWriter();
+        writer = actionWriterFactory.getDataExtractionPendingActionWriter();
         assertThat(writer.isPresent(), is(true));
     }
 }

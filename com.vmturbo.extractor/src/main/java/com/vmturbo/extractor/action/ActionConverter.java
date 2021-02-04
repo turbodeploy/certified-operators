@@ -1,6 +1,8 @@
 package com.vmturbo.extractor.action;
 
 import java.sql.Timestamp;
+import java.util.Map;
+import java.util.Optional;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -13,12 +15,17 @@ import com.google.common.collect.ImmutableBiMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.CostProtoUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.action.RiskUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
+import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
+import com.vmturbo.extractor.export.ExportUtils;
+import com.vmturbo.extractor.export.RelatedEntitiesExtractor;
 import com.vmturbo.extractor.models.ActionModel;
 import com.vmturbo.extractor.models.ActionModel.CompletedAction;
 import com.vmturbo.extractor.models.Column.JsonString;
@@ -27,8 +34,11 @@ import com.vmturbo.extractor.schema.enums.ActionCategory;
 import com.vmturbo.extractor.schema.enums.ActionType;
 import com.vmturbo.extractor.schema.enums.Severity;
 import com.vmturbo.extractor.schema.enums.TerminalState;
+import com.vmturbo.extractor.schema.json.export.Action;
+import com.vmturbo.extractor.schema.json.export.ActionSavings;
 import com.vmturbo.extractor.schema.json.reporting.ActionAttributes;
 import com.vmturbo.extractor.topology.SupplyChainEntity;
+import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 import com.vmturbo.topology.graph.TopologyGraph;
 
 /**
@@ -226,5 +236,69 @@ public class ActionConverter {
             logger.error("Failed to convert action to JSON.", e);
             return null;
         }
+    }
+
+    /**
+     * Create action to be exported based on given action spec and topology info.
+     *
+     * @param actionSpec the action from AO
+     * @param topologyGraph the graph containing the topology
+     * @param policyById map of policies by id
+     * @param relatedEntitiesExtractor used to extract related entities
+     * @return {@link Action}
+     */
+    @Nonnull
+    public Action makeExportedAction(@Nonnull ActionSpec actionSpec,
+            @Nonnull TopologyGraph<SupplyChainEntity> topologyGraph,
+            @Nonnull Map<Long, Policy> policyById,
+            @Nonnull Optional<RelatedEntitiesExtractor> relatedEntitiesExtractor) {
+        final ActionDTO.Action recommendation = actionSpec.getRecommendation();
+        final Action action = new Action();
+        action.setOid(recommendation.getId());
+        action.setCreationTime(ExportUtils.getFormattedDate(actionSpec.getRecommendationTime()));
+        action.setState(actionSpec.getActionState().name());
+        action.setCategory(actionSpec.getCategory().name());
+        action.setMode(actionSpec.getActionMode().name());
+        action.setDescription(actionSpec.getDescription());
+        action.setSeverity(actionSpec.getSeverity().name());
+
+        // set risk description
+        try {
+            final String riskDescription = RiskUtil.createRiskDescription(actionSpec, policyById::get,
+                    entityId -> topologyGraph.getEntity(entityId)
+                            .map(SupplyChainEntity::getDisplayName)
+                            .orElse(null));
+            action.setExplanation(riskDescription);
+        } catch (UnsupportedActionException e) {
+            logger.error("Cannot calculate risk for unsupported action {}", actionSpec, e);
+        }
+
+        // set target and related
+        try {
+            ActionDTO.ActionEntity primaryEntity = ActionDTOUtil.getPrimaryEntity(recommendation, true);
+            action.setTarget(ActionAttributeExtractor.getActionEntityWithType(primaryEntity, topologyGraph));
+            relatedEntitiesExtractor.ifPresent(extractor ->
+                    action.setRelated(extractor.extractRelatedEntities(primaryEntity.getId())));
+        } catch (UnsupportedActionException e) {
+            // this should not happen
+            logger.error("Unable to get primary entity for unsupported action {}", actionSpec, e);
+        }
+
+        // set action savings if available
+        if (recommendation.hasSavingsPerHour()) {
+            CurrencyAmount savingsPerHour = recommendation.getSavingsPerHour();
+            ActionSavings actionSavings = new ActionSavings();
+            actionSavings.setUnit(CostProtoUtil.getCurrencyUnit(savingsPerHour));
+            actionSavings.setAmount(savingsPerHour.getAmount());
+            action.setSavings(actionSavings);
+        }
+
+        final ActionDTO.ActionType actionType = ActionDTOUtil.getActionInfoActionType(actionSpec.getRecommendation());
+        action.setType(actionType.name());
+
+        // Add type-specific attributes to the action.
+        actionAttributeExtractor.populateActionAttributes(actionSpec, topologyGraph, action);
+
+        return action;
     }
 }

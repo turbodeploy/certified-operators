@@ -15,9 +15,11 @@ import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Optional;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 
@@ -97,13 +99,13 @@ public class DataExtractionPendingActionWriterTest {
 
     private RelatedEntitiesExtractor relatedEntitiesExtractor = mock(RelatedEntitiesExtractor.class);
 
-    private ActionAttributeExtractor actionAttributeExtractor = mock(ActionAttributeExtractor.class);
-
     private DataProvider dataProvider = mock(DataProvider.class);
     private final SupplyChain supplyChain = mock(SupplyChain.class);
     private final TopologyGraph<SupplyChainEntity> topologyGraph = mock(TopologyGraph.class);
 
     private MutableLong lastWrite = new MutableLong(0);
+
+    private ActionConverter actionConverter;
 
     private DataExtractionPendingActionWriter writer;
 
@@ -129,7 +131,7 @@ public class DataExtractionPendingActionWriterTest {
         when(dataProvider.getTopologyGraph()).thenReturn(topologyGraph);
         when(dataProvider.getSupplyChain()).thenReturn(supplyChain);
 
-        doReturn(relatedEntitiesExtractor).when(dataExtractionFactory).newRelatedEntitiesExtractor(any(), any(), any());
+        doReturn(Optional.of(relatedEntitiesExtractor)).when(dataExtractionFactory).newRelatedEntitiesExtractor(any());
 
         RelatedEntity relatedEntity1 = new RelatedEntity();
         relatedEntity1.setOid(host1);
@@ -142,8 +144,10 @@ public class DataExtractionPendingActionWriterTest {
                 STORAGE.getLiteral(), Lists.newArrayList(relatedEntity2)
         )).when(relatedEntitiesExtractor).extractRelatedEntities(vm1);
 
+        actionConverter = spy(new ActionConverter(
+                new ActionAttributeExtractor(), mock(ObjectMapper.class)));
         writer = spy(new DataExtractionPendingActionWriter(extractorKafkaSender, dataExtractionFactory,
-                dataProvider, clock, lastWrite, actionAttributeExtractor));
+                dataProvider, clock, lastWrite, actionConverter));
     }
 
     /**
@@ -172,9 +176,8 @@ public class DataExtractionPendingActionWriterTest {
         assertThat(action.getRelated().get(PHYSICAL_MACHINE.getLiteral()).get(0).getOid(), is(host1));
         assertThat(action.getRelated().get(STORAGE.getLiteral()).get(0).getOid(), is(storage1));
 
-        // type specific info
-        verify(actionAttributeExtractor).populateActionAttributes(ACTION.getActionSpec(),
-                topologyGraph, action);
+        verify(actionConverter).makeExportedAction(ACTION.getActionSpec(), topologyGraph,
+                new HashMap<>(), Optional.of(relatedEntitiesExtractor));
     }
 
     /**

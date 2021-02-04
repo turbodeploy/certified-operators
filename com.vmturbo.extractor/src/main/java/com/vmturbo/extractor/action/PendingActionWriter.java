@@ -1,7 +1,6 @@
 package com.vmturbo.extractor.action;
 
 import java.sql.SQLException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -29,7 +28,7 @@ import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlock
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceStub;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
-import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
+import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.severity.SeverityMap;
 import com.vmturbo.common.protobuf.severity.SeverityUtil;
 import com.vmturbo.components.api.FormattedString;
@@ -56,8 +55,6 @@ public class PendingActionWriter implements ActionsListener {
 
     private final EntitySeverityServiceStub severityService;
 
-    private final PolicyServiceBlockingStub policyService;
-
     private final DataProvider dataProvider;
 
     private final long realtimeContextId;
@@ -68,14 +65,12 @@ public class PendingActionWriter implements ActionsListener {
 
     PendingActionWriter(@Nonnull final ActionsServiceBlockingStub actionService,
                         @Nonnull final EntitySeverityServiceStub severityService,
-                        @Nonnull final PolicyServiceBlockingStub policyService,
                         @Nonnull final DataProvider dataProvider,
                         @Nonnull final ExtractorFeatureFlags extractorFeatureFlags,
                         final long realtimeContextId,
                         @Nonnull final ActionWriterFactory actionWriterFactory) {
         this.actionService = actionService;
         this.severityService = severityService;
-        this.policyService = policyService;
         this.realtimeContextId = realtimeContextId;
         this.extractorFeatureFlags = extractorFeatureFlags;
         this.dataProvider = dataProvider;
@@ -181,7 +176,7 @@ public class PendingActionWriter implements ActionsListener {
         }
 
         if (extractorFeatureFlags.isExtractionEnabled()) {
-            actionWriterFactory.getDataExtractionActionWriter().ifPresent(builder::add);
+            actionWriterFactory.getDataExtractionPendingActionWriter().ifPresent(builder::add);
         }
         return builder.build();
     }
@@ -245,15 +240,8 @@ public class PendingActionWriter implements ActionsListener {
      * @param policyConsumers consumers of the policies
      */
     void fetchPolicies(List<IActionWriter> policyConsumers) {
-        try {
-            final Map<Long, PolicyDTO.Policy> policyById = new HashMap<>();
-            policyService.getPolicies(PolicyDTO.PolicyRequest.newBuilder().build()).forEachRemaining(
-                    response -> policyById.put(response.getPolicy().getId(), response.getPolicy()));
-            logger.info("Retrieved {} policies from group component", policyById.size());
-            policyConsumers.forEach(consumer -> consumer.acceptPolicy(policyById));
-        } catch (StatusRuntimeException e) {
-            logger.error("Failed to fetch policies", e);
-        }
+        Map<Long, Policy> policyById = actionWriterFactory.getOrFetchPolicies();
+        policyConsumers.forEach(consumer -> consumer.acceptPolicy(policyById));
     }
 
     /**

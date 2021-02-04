@@ -1,17 +1,27 @@
 package com.vmturbo.extractor.action;
 
+import static com.vmturbo.extractor.schema.enums.EntityType.PHYSICAL_MACHINE;
+import static com.vmturbo.extractor.schema.enums.EntityType.STORAGE;
+import static com.vmturbo.extractor.schema.enums.EntityType.VIRTUAL_MACHINE;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.sql.Timestamp;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Optional;
 import java.util.Set;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
 
+import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
@@ -30,6 +40,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderEx
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Compliance;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
+import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.extractor.export.RelatedEntitiesExtractor;
 import com.vmturbo.extractor.models.ActionModel;
 import com.vmturbo.extractor.models.ActionModel.CompletedAction;
 import com.vmturbo.extractor.models.ActionModel.PendingAction;
@@ -38,6 +50,7 @@ import com.vmturbo.extractor.schema.enums.ActionCategory;
 import com.vmturbo.extractor.schema.enums.ActionType;
 import com.vmturbo.extractor.schema.enums.Severity;
 import com.vmturbo.extractor.schema.enums.TerminalState;
+import com.vmturbo.extractor.schema.json.export.RelatedEntity;
 import com.vmturbo.extractor.schema.json.reporting.ActionAttributes;
 import com.vmturbo.extractor.topology.SupplyChainEntity;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -111,6 +124,29 @@ public class ActionConverterTest {
 
     private ActionConverter actionConverter = new ActionConverter(actionAttributeExtractor, objectMapper);
 
+    private RelatedEntitiesExtractor relatedEntitiesExtractor = mock(RelatedEntitiesExtractor.class);
+
+    /**
+     * Setup before each test.
+     */
+    @Before
+    public void setup() {
+        mockEntity(123, EntityType.VIRTUAL_MACHINE_VALUE);
+        mockEntity(234, EntityType.PHYSICAL_MACHINE_VALUE);
+        mockEntity(345, EntityType.PHYSICAL_MACHINE_VALUE);
+
+        RelatedEntity relatedEntity1 = new RelatedEntity();
+        relatedEntity1.setOid(234L);
+        relatedEntity1.setName(String.valueOf(234L));
+        RelatedEntity relatedEntity2 = new RelatedEntity();
+        relatedEntity2.setOid(456L);
+        relatedEntity2.setName(String.valueOf(456L));
+        doReturn(ImmutableMap.of(
+                PHYSICAL_MACHINE.getLiteral(), Lists.newArrayList(relatedEntity1),
+                STORAGE.getLiteral(), Lists.newArrayList(relatedEntity2)
+        )).when(relatedEntitiesExtractor).extractRelatedEntities(123);
+    }
+
     /**
      * Test converting an {@link ActionSpec} for a pending actionto a database record.
      *
@@ -180,5 +216,46 @@ public class ActionConverterTest {
         Record record = actionConverter.makeExecutedActionSpec(failedActionSpec, "FAILURE!", topologyGraph);
         assertThat(record.get(CompletedAction.FINAL_STATE), is(TerminalState.FAILED));
         assertThat(record.get(CompletedAction.FINAL_MESSAGE), is("FAILURE!"));
+    }
+
+    /**
+     * Test converting action spec to an exported action.
+     */
+    @Test
+    public void testMakeExportedAction() {
+        com.vmturbo.extractor.schema.json.export.Action action =
+                actionConverter.makeExportedAction(actionSpec, topologyGraph, new HashMap<>(),
+                        Optional.of(relatedEntitiesExtractor));
+        // common fields
+        Assert.assertThat(action.getOid(), is(actionSpec.getRecommendation().getId()));
+        Assert.assertThat(action.getState(), is(actionSpec.getActionState().name()));
+        Assert.assertThat(action.getCategory(), is(actionSpec.getCategory().name()));
+        Assert.assertThat(action.getMode(), is(actionSpec.getActionMode().name()));
+        Assert.assertThat(action.getSeverity(), is(actionSpec.getSeverity().name()));
+        Assert.assertThat(action.getDescription(), is(actionSpec.getDescription()));
+        Assert.assertThat(action.getType(), is(
+                ActionDTOUtil.getActionInfoActionType(actionSpec.getRecommendation()).name()));
+        // target
+        Assert.assertThat(action.getTarget().getOid(), is(123L));
+        Assert.assertThat(action.getTarget().getName(), is(String.valueOf(123)));
+        Assert.assertThat(action.getTarget().getType(), is(VIRTUAL_MACHINE.getLiteral()));
+        // related
+        Assert.assertThat(action.getRelated().size(), is(2));
+        Assert.assertThat(action.getRelated().get(PHYSICAL_MACHINE.getLiteral()).get(0).getOid(), is(234L));
+        Assert.assertThat(action.getRelated().get(STORAGE.getLiteral()).get(0).getOid(), is(456L));
+    }
+
+    /**
+     * Mock a {@link SupplyChainEntity}.
+     *
+     * @param entityId   Given entity ID.
+     * @param entityType Given entity Type.
+     */
+    private void mockEntity(long entityId, int entityType) {
+        SupplyChainEntity entity = mock(SupplyChainEntity.class);
+        when(entity.getOid()).thenReturn(entityId);
+        when(entity.getEntityType()).thenReturn(entityType);
+        when(entity.getDisplayName()).thenReturn(String.valueOf(entityId));
+        doReturn(Optional.of(entity)).when(topologyGraph).getEntity(entityId);
     }
 }
