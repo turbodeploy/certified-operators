@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.topology;
 
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.BUSINESS_ACCOUNT_VALUE;
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.CONTAINER_VALUE;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.PHYSICAL_MACHINE_VALUE;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.STORAGE_VALUE;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE_VALUE;
@@ -570,6 +571,11 @@ public class PlanTopologyScopeEditor {
                 // VMs to pull in the Storages. But we still need to pull in Storages even if
                 // there are no VMs. Hence, Storages are pulled in using accesses relation.
                 associatedEntities.addAll(getAccessesForTopLevelBuyer(buyer, topology, topLevelBuyers));
+            } else if (buyer.getEntityType() == CONTAINER_VALUE) {
+                // Because container history is actually stored on ContainerSpec entities, we need to ensure
+                // that we pull in the related ContainerSpecs even though they don't have any buy/sell
+                // relations to the entities in plan scope. ContainerSpecs are aggregators for Containers.
+                associatedEntities.addAll(buyer.getAggregators());
             }
 
             associatedEntities.forEach(seller -> {
