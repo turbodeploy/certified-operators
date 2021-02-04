@@ -1076,6 +1076,20 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
         float storageAmountUsed = 0.0f;
         float storageAccessUsed = 0.0f;
         float ioThroughputUsed = 0.0f;
+
+        // If volumes have commodities and provide their own stats,
+        // then use the get the stats directly from the commodities sold by the volumes
+        for (CommoditySoldDTO cs : volume.getCommoditySoldListList()) {
+            final int commodityType = cs.getCommodityType().getType();
+            if (commodityType == CommodityType.STORAGE_AMOUNT_VALUE) {
+                storageAmountUsed = (float)cs.getUsed();
+            } else if (commodityType == CommodityType.STORAGE_ACCESS_VALUE) {
+                storageAccessUsed = (float)cs.getUsed();
+            } else if (commodityType == CommodityType.IO_THROUGHPUT_VALUE) {
+                ioThroughputUsed = (float)cs.getUsed();
+            }
+        }
+
         // if vmDTO is not null, it means attached volume; if null, then it is unattached volume, used is 0
         if (vmDTO != null) {
             // set attached vm
@@ -1084,21 +1098,24 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
             vm.setDisplayName(vmDTO.getDisplayName());
             virtualDiskApiDTO.setAttachedVirtualMachine(
                     ServiceEntityMapper.toBaseServiceEntityApiDTO(vmDTO));
-            final Collection<Long> vvCommoditiesProviderIds = Stream.concat(Stream.of(volumeId),
-                            volume.getConnectedEntityListList().stream()
-                                            .filter(e -> e.getConnectedEntityType()
-                                                            == EntityType.STORAGE_VALUE)
-                                            .map(ConnectedEntity::getConnectedEntityId))
-                            .collect(Collectors.toSet());
-            for (CommoditiesBoughtFromProvider cbfp : vmDTO.getCommoditiesBoughtFromProvidersList()) {
-                if (vvCommoditiesProviderIds.contains(cbfp.getProviderId())) {
-                    for (CommodityBoughtDTO cb : cbfp.getCommodityBoughtList()) {
-                        if (cb.getCommodityType().getType() == CommodityType.STORAGE_AMOUNT_VALUE) {
-                            storageAmountUsed = (float)cb.getUsed();
-                        } else if (cb.getCommodityType().getType() == CommodityType.STORAGE_ACCESS_VALUE) {
-                            storageAccessUsed = (float)cb.getUsed();
-                        } else if (cb.getCommodityType().getType() == CommodityType.IO_THROUGHPUT_VALUE) {
-                            ioThroughputUsed = (float)cb.getUsed();
+
+            if (volume.getCommoditySoldListList().size() == 0) {
+                final Collection<Long> vvCommoditiesProviderIds = Stream.concat(Stream.of(volumeId),
+                        volume.getConnectedEntityListList().stream()
+                                .filter(e -> e.getConnectedEntityType()
+                                        == EntityType.STORAGE_VALUE)
+                                .map(ConnectedEntity::getConnectedEntityId))
+                        .collect(Collectors.toSet());
+                for (CommoditiesBoughtFromProvider cbfp : vmDTO.getCommoditiesBoughtFromProvidersList()) {
+                    if (vvCommoditiesProviderIds.contains(cbfp.getProviderId())) {
+                        for (CommodityBoughtDTO cb : cbfp.getCommodityBoughtList()) {
+                            if (cb.getCommodityType().getType() == CommodityType.STORAGE_AMOUNT_VALUE) {
+                                storageAmountUsed = (float)cb.getUsed();
+                            } else if (cb.getCommodityType().getType() == CommodityType.STORAGE_ACCESS_VALUE) {
+                                storageAccessUsed = (float)cb.getUsed();
+                            } else if (cb.getCommodityType().getType() == CommodityType.IO_THROUGHPUT_VALUE) {
+                                ioThroughputUsed = (float)cb.getUsed();
+                            }
                         }
                     }
                 }

@@ -115,6 +115,12 @@ public class VirtualVolumeAspectMapperTest {
     private static final Long volumeId4 = 24L;
     private static final String volumeName4 = "volume4";
     private static final Long wastedVolumeId1 = 25L;
+
+    // Kubernetes
+    private final Long kubeVmId = 16L;
+    private final Long kubeVolumeId = 26L;
+    private final String kubeVolumeName = "kubeVolume";
+
     // wastedVolume oid for wasted storage attached to storage that is set to have
     // wasted files ignored
     private static final Long wastedVolumeId2 = 26L;
@@ -186,12 +192,14 @@ public class VirtualVolumeAspectMapperTest {
                         .setType(CommodityDTO.CommodityType.STORAGE_AMOUNT.getNumber())
                         .build())
                 .setCapacity(1000)
+                .setUsed(105)
                 .build())
         .addCommoditySoldList(CommoditySoldDTO.newBuilder()
                 .setCommodityType(CommodityType.newBuilder()
                         .setType(CommodityDTO.CommodityType.STORAGE_ACCESS.getNumber())
                         .build())
                 .setCapacity(100)
+                .setUsed(55)
                 .build())
         .build();
 
@@ -294,12 +302,14 @@ public class VirtualVolumeAspectMapperTest {
                         .setType(CommodityDTO.CommodityType.STORAGE_AMOUNT.getNumber())
                         .build())
                 .setCapacity(3000)
+                .setUsed(500)
                 .build())
         .addCommoditySoldList(CommoditySoldDTO.newBuilder()
                 .setCommodityType(CommodityType.newBuilder()
                         .setType(CommodityDTO.CommodityType.STORAGE_ACCESS.getNumber())
                         .build())
                 .setCapacity(300)
+                .setUsed(150)
                 .build())
         .addCommoditySoldList(CommoditySoldDTO.newBuilder()
                 .setCommodityType(CommodityType.newBuilder()
@@ -451,6 +461,25 @@ public class VirtualVolumeAspectMapperTest {
             .build())
         .build();
 
+    private final Supplier<TopologyEntityDTO> getKubeVirtualVolume = () -> TopologyEntityDTO.newBuilder()
+            .setOid(kubeVolumeId)
+            .setDisplayName(kubeVolumeName)
+            .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+            .setEnvironmentType(EnvironmentType.HYBRID)
+            .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                    .setCommodityType(CommodityType.newBuilder()
+                            .setType(CommodityDTO.CommodityType.STORAGE_AMOUNT.getNumber())
+                            .build())
+                    .setCapacity(storageAmountCapacityInMB)
+                    .setUsed(storageAmountCapacityInMB/2)
+                    .build())
+            .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                    .setCommodityType(CommodityType.newBuilder()
+                            .setType(CommodityDTO.CommodityType.STORAGE_ACCESS.getNumber())
+                            .build())
+                    .setCapacity(storageAccessCapacity)
+                    .build())
+            .build();
     /**
      * Test mapVirtualVolume for multiple volume with same storage tier.
      * Two volumes, connected to the same VM, same storage tier.  Each of them should have all the
@@ -895,11 +924,11 @@ public class VirtualVolumeAspectMapperTest {
         assertEquals(3, volumeAspect1.getStats().size());
         volumeAspect1.getStats().forEach(statApiDTO -> {
             if (statApiDTO.getName().equals(CommodityTypeUnits.STORAGE_ACCESS.getMixedCase())) {
-                assertEquals(50, statApiDTO.getValue(), 0);
+                assertEquals(55, statApiDTO.getValue(), 0);
                 assertEquals(100, statApiDTO.getCapacity().getTotal(), 0);
                 assertEquals(String.valueOf(storageTierId1), statApiDTO.getRelatedEntity().getUuid());
             } else if (statApiDTO.getName().equals(CommodityTypeUnits.STORAGE_AMOUNT.getMixedCase())) {
-                assertEquals(100, statApiDTO.getValue(), 0);
+                assertEquals(105, statApiDTO.getValue(), 0);
                 assertEquals(1000, statApiDTO.getCapacity().getTotal(), 0);
                 assertEquals(String.valueOf(storageTierId1), statApiDTO.getRelatedEntity().getUuid());
             } else if (statApiDTO.getName().equals(CommodityTypeUnits.IO_THROUGHPUT.getMixedCase())) {
@@ -1278,4 +1307,57 @@ public class VirtualVolumeAspectMapperTest {
                 .setVirtualVolume(vviBuilder.build()))
             .build();
     }
+
+    /**
+     * Test Kubernetes Volume Mapping.
+     *
+     * @throws Exception on exceptions occurred
+     */
+    @Test
+    public void testMapVolumeKubernetes() throws Exception {
+
+        doAnswer(invocation -> {
+            SearchParameters param = invocation.getArgumentAt(0, SearchParameters.class);
+            if (param.equals(SearchProtoUtil.neighborsOfType(kubeVolumeId, TraversalDirection.CONNECTED_FROM, ApiEntityType.VIRTUAL_MACHINE))) {
+                return ApiTestUtils.mockSearchFullReq(Lists.newArrayList());
+            } else if (param.equals(SearchProtoUtil.neighborsOfType(kubeVolumeId, TraversalDirection.PRODUCES, ApiEntityType.VIRTUAL_MACHINE))) {
+                return ApiTestUtils.mockSearchFullReq(Lists.newArrayList());
+            } else if (param.equals(SearchProtoUtil.neighborsOfType(kubeVolumeId, TraversalDirection.OWNED_BY, ApiEntityType.BUSINESS_ACCOUNT))) {
+                return ApiTestUtils.mockSearchSEReq(Lists.newArrayList());
+            } else if (param.equals(SearchParameters.newBuilder().setStartingFilter(SearchProtoUtil.entityTypeFilter(ApiEntityType.REGION.apiStr())).build())) {
+                return ApiTestUtils.mockSearchReq(Lists.newArrayList());
+            } else {
+                throw new IllegalArgumentException(param.toString());
+            }
+        }).when(repositoryApi).newSearchRequest(any(SearchParameters.class));
+
+        final List<MinimalEntity> storageTierMinEntities = ImmutableList.of();
+        MultiEntityRequest req = ApiTestUtils.mockMultiMinEntityReq(storageTierMinEntities);
+        when(repositoryApi.entitiesRequest(eq(Sets.newHashSet()))).thenReturn(req);
+
+        VirtualDisksAspectApiDTO aspect = (VirtualDisksAspectApiDTO)volumeAspectMapper.mapEntitiesToAspect(
+                Lists.newArrayList(getKubeVirtualVolume.get()));
+
+        assertEquals(1, aspect.getVirtualDisks().size());
+
+        // check the virtual disks for each file on the wasted storage
+        VirtualDiskApiDTO volumeAspect = null;
+        for (VirtualDiskApiDTO virtualDiskApiDTO : aspect.getVirtualDisks()) {
+            if (virtualDiskApiDTO.getDisplayName().equals(kubeVolumeName)) {
+                volumeAspect = virtualDiskApiDTO;
+            }
+        }
+
+        assertNotNull(volumeAspect);
+        assertEquals(String.valueOf(kubeVolumeId), volumeAspect.getUuid());
+
+        // check stats for volume
+        List<StatApiDTO> stats = volumeAspect.getStats();
+        assertEquals(3, stats.size());
+
+        java.util.Optional<StatApiDTO> statApiDTOStorageAmount = stats.stream().filter(stat -> stat.getName() == "StorageAmount").findFirst();
+        assertEquals(storageAmountCapacityInMB, statApiDTOStorageAmount.get().getCapacity().getAvg().longValue(), 0.00001);
+        assertEquals(storageAmountCapacityInMB/2, statApiDTOStorageAmount.get().getValues().getAvg().longValue(), 0.00001);
+    }
+
 }
