@@ -14,6 +14,7 @@ import javax.annotation.Nonnull;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Maps;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import io.grpc.Channel;
 import io.grpc.StatusRuntimeException;
 
@@ -150,17 +151,21 @@ public class MarketCloudCostDataProvider implements CloudCostDataProvider {
 
             Map<Long, EntityReservedInstanceCoverage> coverageListMap = coverageResponse.getCoverageByEntityIdMap();
 
-            Map<Long, EntityReservedInstanceCoverage> scopedCoverageListMap = new HashMap<>();
-            for (long entityOid : coverageListMap.keySet()) {
-                cloudTopo.getEntity(entityOid).ifPresent(a -> {
-                    scopedCoverageListMap.put(a.getOid(), coverageListMap.get(a.getOid()));
+            if (TopologyDTO.TopologyType.PLAN == topoInfo.getTopologyType() ) {
+                Map<Long, EntityReservedInstanceCoverage> scopedCoverageListMap = new HashMap<>();
+                coverageListMap.forEach((oid, coverage) ->{
+                    if (cloudTopo.getEntity(oid).isPresent()) {
+                        scopedCoverageListMap.put(oid, coverage);
+                    }
                 });
+                coverageListMap = scopedCoverageListMap;
             }
 
+            //We still use the unfiltered entity coverage map here to find the filteredCoverageMap as MCP needs this so that we can calculate the usage of RIs correctly.
             final Map<Long, EntityReservedInstanceCoverage> filteredCoverageMap =
-                filterCouponsCoveredByRi(scopedCoverageListMap, riBoughtById.keySet());
+                filterCouponsCoveredByRi(coverageResponse.getCoverageByEntityIdMap(), riBoughtById.keySet());
 
-            return new CloudCostData<>(scopedCoverageListMap,
+            return new CloudCostData<>(coverageListMap,
                     filteredCoverageMap,
                     riBoughtById,
                     riSpecsById,
