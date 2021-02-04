@@ -1,6 +1,6 @@
 # When updating grafana versions, copy the "defaults.ini" of the new version into the
 # docker/defaults.ini file, and port the appropriate changes (changed lines start with "TURBO").
-ARG grafana_version=7.1.1
+ARG grafana_version=7.3.4
 
 FROM registry.access.redhat.com/ubi8 AS builder
 MAINTAINER Billy O'Connell <billy.oconnell@turbonomic.com>

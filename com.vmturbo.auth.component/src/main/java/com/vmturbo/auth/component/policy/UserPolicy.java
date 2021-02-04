@@ -69,9 +69,9 @@ public class UserPolicy {
                             && roleMatched(user, REPORT_EDITOR))
                     .count();
             if (userCount >= getAllowedMaximumEditor()) {
-                throw new IllegalArgumentException(String.format(
-                        "Reporting policy forbid assigning more Report Editor role to user: %s. The maximum allowed user is: %s.",
-                        userToCheck.getUser(), getAllowedMaximumEditor()));
+                throw new IllegalArgumentException(FormattedString.format(
+                    "Designating {} as Report Editor exceeds license limit of {} Editors.",
+                    userToCheck.getUser(), getAllowedMaximumEditor()));
             }
         }
     }
