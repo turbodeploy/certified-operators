@@ -754,6 +754,17 @@ services:
       instance_id: mediation-jvm-1
     restart: always
 
+  mediation-websphere-prod:
+    extends:
+      file: common-services.yml
+      service: prod-mediation-component
+    image: turbonomic/com.vmturbo.mediation.websphere.component
+    environment:
+      consul_host: consul
+      component_type: mediation-websphere
+      instance_id: mediation-websphere-1
+    restart: always
+
   mediation-actionscript-prod:
     extends:
       file: common-services.yml
