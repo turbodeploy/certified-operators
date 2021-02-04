@@ -67,9 +67,11 @@ public class ActionStreamKafkaProbeTest {
 
         final DiscoveryResponse response = actionStreamKafkaProbe.discoverTarget(account);
 
-        Assert.assertEquals(1, response.getWorkflowList().size());
+        Assert.assertEquals(2, response.getWorkflowList().size());
         Assert.assertEquals(ActionScriptPhase.ON_GENERATION,
-                response.getWorkflowList().get(0).getPhase());
+            response.getWorkflowList().get(0).getPhase());
+        Assert.assertEquals(ActionScriptPhase.AFTER_EXECUTION,
+            response.getWorkflowList().get(1).getPhase());
     }
 
     /**

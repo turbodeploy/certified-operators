@@ -38,9 +38,10 @@ import com.vmturbo.platform.sdk.probe.ProbeConfiguration;
  */
 public class ActionStreamKafkaProbe implements IDiscoveryProbe<ActionStreamKafkaProbeAccount>, IActionAudit<ActionStreamKafkaProbeAccount> {
 
-    private static final String KAFKA_ON_GEN_WORKFLOW_ID = "ActionStreamKafka";
-    private static final String KAFKA_ON_GEN_WORKFLOW_DISPLAY_NAME = "Action Stream Kafka";
-    private static final String KAFKA_ON_GEN_WORKFLOW_DESCRIPTION = "Send Turbonomic actions to Kafka";
+    private static final String KAFKA_ON_GEN_WORKFLOW_ID = "ActionStreamKafkaOnGen";
+    private static final String KAFKA_ON_GEN_WORKFLOW_DISPLAY_NAME = "Audit on action generation using Action Stream Kafka";
+    private static final String KAFKA_AFTER_EXEC_WORKFLOW_ID = "ActionStreamKafkaAfterExec";
+    private static final String KAFKA_AFTER_EXEC_WORKFLOW_DISPLAY_NAME = "Audit after action execution fails or completes using Action Stream Kafka";
 
     private IProbeContext probeContext;
     private ActionStreamKafkaProbeProperties probeConfiguration;
@@ -67,7 +68,6 @@ public class ActionStreamKafkaProbe implements IDiscoveryProbe<ActionStreamKafka
             kafkaMessageProducer.close();
         }
     }
-
 
     @Nonnull
     @Override
@@ -119,11 +119,15 @@ public class ActionStreamKafkaProbe implements IDiscoveryProbe<ActionStreamKafka
                 .addWorkflow(Workflow.newBuilder()
                     .setId(KAFKA_ON_GEN_WORKFLOW_ID)
                     .setDisplayName(KAFKA_ON_GEN_WORKFLOW_DISPLAY_NAME)
-                    .setDescription(KAFKA_ON_GEN_WORKFLOW_DESCRIPTION)
+                    .setDescription(KAFKA_ON_GEN_WORKFLOW_DISPLAY_NAME)
                     .setPhase(ActionScriptPhase.ON_GENERATION)
                     .build())
-                // TODO(OM-64830): Add additional workflows for handling the completion of the
-                //                 action below.
+                .addWorkflow(Workflow.newBuilder()
+                    .setId(KAFKA_AFTER_EXEC_WORKFLOW_ID)
+                    .setDisplayName(KAFKA_AFTER_EXEC_WORKFLOW_DISPLAY_NAME)
+                    .setDescription(KAFKA_AFTER_EXEC_WORKFLOW_DISPLAY_NAME)
+                    .setPhase(ActionScriptPhase.AFTER_EXECUTION)
+                    .build())
                 .build();
         } else {
             final List<String> errors = validationResponse.getErrorDTOList()
