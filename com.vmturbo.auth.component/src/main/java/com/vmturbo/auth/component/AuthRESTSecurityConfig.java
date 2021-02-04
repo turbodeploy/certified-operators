@@ -55,6 +55,13 @@ public class AuthRESTSecurityConfig extends WebSecurityConfigurerAdapter {
     private int allowedMaximumEditor;
 
     /**
+     * If true, use Kubernetes secrets to read in the sensitive Auth data (like encryption keys and
+     * private/public key pairs). If false, this data will be read from (legacy) persistent volumes.
+     */
+    @Value("${enableExternalSecrets:false}")
+    private boolean enableExternalSecrets;
+
+    /**
      * We allow autowiring between different configuration objects, but not for a bean.
      */
     @Autowired
@@ -165,7 +172,7 @@ public class AuthRESTSecurityConfig extends WebSecurityConfigurerAdapter {
     public AuthProvider targetStore() {
         return new AuthProvider(authKVConfig.authKeyValueStore(), groupRpcService(), () -> keyDir,
                 widgetsetConfig.widgetsetDbStore(), userPolicy(), new SsoUtil(),
-                enableMultiADGroupSupport);
+                enableMultiADGroupSupport, enableExternalSecrets);
     }
 
     /**

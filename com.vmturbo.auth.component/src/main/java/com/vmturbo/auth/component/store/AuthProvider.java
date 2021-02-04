@@ -21,6 +21,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -52,6 +53,10 @@ import com.vmturbo.auth.api.authentication.credentials.SAMLUserUtils;
 import com.vmturbo.auth.api.authorization.AuthorizationException;
 import com.vmturbo.auth.api.authorization.IAuthorizationVerifier;
 import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationToken;
+import com.vmturbo.auth.api.authorization.keyprovider.KVKeyProvider;
+import com.vmturbo.auth.api.authorization.keyprovider.KeyProvider;
+import com.vmturbo.auth.api.authorization.keyprovider.PersistentVolumeKeyProvider;
+import com.vmturbo.auth.api.authorization.kvstore.IAuthStore;
 import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.auth.api.usermgmt.ActiveDirectoryDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
@@ -69,6 +74,7 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingSt
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.kvstore.KeyValueStore;
+import com.vmturbo.kvstore.PublicKeyStore;
 
 /**
  * The consul-backed authentication store that holds the users information.
@@ -92,7 +98,7 @@ public class AuthProvider extends AuthProviderBase {
     private final UserPolicy userPolicy;
 
     /**
-     * The identity generator prefix
+     * The identity generator prefix.
      */
     @Value("${identityGeneratorPrefix}")
     private long identityGeneratorPrefix_;
@@ -106,7 +112,16 @@ public class AuthProvider extends AuthProviderBase {
      * Store for managing widgetsets belonging to a user.
      */
     private final WidgetsetDbStore widgetsetDbStore;
-    private boolean enableMultiADGroupSupport;
+
+    /**
+     * Enable multipe AD group support.
+     */
+    private final boolean enableMultiADGroupSupport;
+
+    /**
+     * For accessing the private key (to sign JWT tokens).
+     */
+    private final KeyProvider keyProvider;
 
     /**
      * Constructs the KV store.
@@ -117,13 +132,16 @@ public class AuthProvider extends AuthProviderBase {
      * @param userPolicy The system-wide user policy.
      * @param ssoUtil sso utility
      * @param enableMultiADGroupSupport enable multipe AD group support
+     * @param enableExternalSecrets whether to enable sourcing encryption keys through kubernetes secrets
      */
     public AuthProvider(@Nonnull final KeyValueStore keyValueStore, @Nullable final GroupServiceBlockingStub groupServiceClient,
             @Nonnull final Supplier<String> keyValueDir, @Nullable final WidgetsetDbStore widgetsetDbStore,
             @Nonnull UserPolicy userPolicy, @Nonnull final SsoUtil ssoUtil,
-            final boolean enableMultiADGroupSupport) {
+            final boolean enableMultiADGroupSupport, final boolean enableExternalSecrets) {
         super(keyValueStore);
-        authInitProvider = new AuthInitProvider(keyValueStore, keyValueDir);
+        logger_.info("EnableExternalSecrets: " + enableExternalSecrets);
+        this.keyProvider = constructKeyProvider(keyValueStore, keyValueDir.get(), enableExternalSecrets);
+        authInitProvider = new AuthInitProvider(keyValueStore, keyValueDir, enableExternalSecrets, keyProvider);
         this.ssoUtil = ssoUtil;
         IdentityGenerator.initPrefix(identityGeneratorPrefix_);
         this.groupServiceClient = Optional.ofNullable(groupServiceClient);
@@ -131,8 +149,8 @@ public class AuthProvider extends AuthProviderBase {
         this.userPolicy = userPolicy;
         this.enableMultiADGroupSupport = enableMultiADGroupSupport;
         if (enableMultiADGroupSupport) {
-            final String msg = "Enabled supporting multiple AD groups. Scopes from matched group" +
-                    " will be combined and least privilege role will be chosen";
+            final String msg = "Enabled supporting multiple AD groups. Scopes from matched group"
+                + " will be combined and least privilege role will be chosen";
             AuditLog.newEntry(SET_AD_MULTI_GROUP_AUTH,
                     msg, true)
                     .targetName("Login Policy")
@@ -140,6 +158,29 @@ public class AuthProvider extends AuthProviderBase {
 
             logger_.info(msg);
         }
+    }
+
+    /**
+     * Construct a KeyProvider for providing (generating, storing and retrieving) private/public key pairs.
+     *
+     * @param keyValueStore a place to store public keys and JWT tokens
+     * @param keyDir directory to store the admin JWT (when not using auth secrets)
+     * @param enableExternalSecrets whether to enable sourcing encryption keys through kubernetes secrets
+     * @return the key provider for providing (generating, storing and retrieving) private/public key pairs
+     */
+    private KeyProvider constructKeyProvider(@Nonnull final KeyValueStore keyValueStore,
+                                             @Nonnull final String keyDir,
+                                             boolean enableExternalSecrets) {
+        // We need a place to store public keys either way
+        final PublicKeyStore publicKeyStore = new PublicKeyStore(keyValueStore, IAuthStore.KV_KEY);
+        // Feature flag
+        if (enableExternalSecrets) {
+            return new KVKeyProvider(
+                publicKeyStore,
+                keyValueStore);
+        }
+        // Legacy behavior
+        return new PersistentVolumeKeyProvider(publicKeyStore, keyDir);
     }
 
     /**
@@ -159,7 +200,7 @@ public class AuthProvider extends AuthProviderBase {
                                                          final @Nullable List<Long> scopeGroups,
                                                          final @Nonnull String ipAddress,
                                                          final @Nonnull AuthUserDTO.PROVIDER provider) {
-        final PrivateKey privateKey = authInitProvider.getEncryptionKeyForVMTurboInstance();
+        final PrivateKey privateKey = keyProvider.getPrivateKey();
         JwtBuilder jwtBuilder = Jwts.builder()
                 .setSubject(userName)
                 .claim(IP_ADDRESS_CLAIM, ipAddress)
@@ -250,7 +291,7 @@ public class AuthProvider extends AuthProviderBase {
      * @return The {@code true} iff successful.
      * @throws SecurityException In case of an error initializing the admin user.
      */
-    public boolean initAdmin(final @Nonnull String userName,
+    public boolean  initAdmin(final @Nonnull String userName,
                              final @Nonnull String password)
             throws SecurityException {
         // Make sure we have initialized the site secret.

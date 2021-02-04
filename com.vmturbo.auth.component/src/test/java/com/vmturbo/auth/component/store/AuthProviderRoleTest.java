@@ -69,8 +69,6 @@ public class AuthProviderRoleTest {
 
     private KeyValueStore mockKeystore;
 
-    Supplier<String> keyValueDir;
-
     AuthProvider authProviderUnderTest;
 
 
@@ -80,10 +78,10 @@ public class AuthProviderRoleTest {
     @Before
     public void setup() {
         mockKeystore = mock(KeyValueStore.class);
-        keyValueDir = mock(Supplier.class);
+        Supplier<String> keyValueDir = () -> "/";
         authProviderUnderTest = new AuthProvider(mockKeystore, null, keyValueDir, null, new UserPolicy(LoginPolicy.ALL,
                 new ReportPolicy(1)),
-                new SsoUtil(), false);
+                new SsoUtil(), false, false);
     }
 
     /**
@@ -94,7 +92,6 @@ public class AuthProviderRoleTest {
     public void testAddAdminFromAdmin() {
         // arrange
         when(mockKeystore.get(anyString())).thenReturn(Optional.empty());
-        when(keyValueDir.get()).thenReturn("/");
         // act
         authProviderUnderTest.add(PROVIDER.LOCAL, "test-user", "test-password",
                 Lists.newArrayList("ADMINISTRATOR"), null);
@@ -116,7 +113,6 @@ public class AuthProviderRoleTest {
     public void testAddAdminFromSiteAdmin() {
         // arrange
         when(mockKeystore.get(anyString())).thenReturn(Optional.empty());
-        when(keyValueDir.get()).thenReturn("/");
         // act
         try {
             authProviderUnderTest.add(PROVIDER.LOCAL, "test-user", "test-password",
@@ -136,7 +132,6 @@ public class AuthProviderRoleTest {
     public void testListAdminFromAdmin() {
         // arrange
         when(mockKeystore.get(anyString())).thenReturn(Optional.empty());
-        when(keyValueDir.get()).thenReturn("/");
         // act
         authProviderUnderTest.list();
         // assert

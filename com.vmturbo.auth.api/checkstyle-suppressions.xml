@@ -11,7 +11,6 @@ The goal is for the module to become - and remain - clear of violations.
 <suppressions>
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]AuthClientConfig.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]Base64CodecUtils.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]JWTKeyCodec.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]Pair.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]SpringSecurityConfig.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]auditing[/\\]AuditAction.java" />

@@ -98,8 +98,6 @@ public class JwtContextUtil {
 
         // setup public/private key pair
         KeyPair keyPair = EllipticCurveProvider.generateKeyPair(SignatureAlgorithm.ES256);
-        String privateKeyEncoded = JWTKeyCodec.encodePrivateKey(keyPair);
-        PrivateKey signingKey = JWTKeyCodec.decodePrivateKey(privateKeyEncoded);
 
         // build JWT token
         String compact = Jwts.builder()
@@ -108,12 +106,12 @@ public class JwtContextUtil {
                 .claim(JWTAuthorizationVerifier.UUID_CLAIM, userOidString)
                 .claim(JWTAuthorizationVerifier.IP_ADDRESS_CLAIM, IP_ADDRESS) // add IP address
                 .setExpiration(getTestKeyExpiration())
-                .signWith(SignatureAlgorithm.ES256, signingKey)
+                .signWith(SignatureAlgorithm.ES256, keyPair.getPrivate())
                 .compressWith(CompressionCodecs.GZIP)
                 .compact();
 
         // Encode the public key.
-        pubKeyStr = JWTKeyCodec.encodePublicKey(keyPair);
+        pubKeyStr = JWTKeyCodec.encodePublicKey(keyPair.getPublic());
 
         // store JWT token for gRPC client
         token = new JWTAuthorizationToken(compact);

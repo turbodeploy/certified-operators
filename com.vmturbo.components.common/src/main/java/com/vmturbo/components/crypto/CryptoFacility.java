@@ -43,6 +43,11 @@ public class CryptoFacility {
     static final Integer DEFAULT_KEY_LENGTH_VERSION = 2;
 
     /**
+     * The name of the feature flag controlling whether externally-supplied secrets are used.
+     */
+    private static final String ENABLE_EXTERNAL_SECRETS = "enableExternalSecrets";
+
+    /**
      * The key location property.
      */
     private static final String VMT_ENCRYPTION_KEY_DIR_PARAM = "com.vmturbo.keydir";
@@ -113,19 +118,14 @@ public class CryptoFacility {
     /**
      * The logger.
      */
-    private static Logger logger = LogManager.getLogger(CryptoFacility.class);
+    private static final Logger logger = LogManager.getLogger(CryptoFacility.class);
 
     /**
-     * The secure random
+     * The secure random.
      */
     private static final SecureRandom random = new SecureRandom();
 
-    private static  Map<Integer, byte[]> encryptionKeyMap = new ConcurrentHashMap<>();
-
-    /**
-     * The magic cookie.
-     */
-    private static final String MAGIC_COOKIE_V1 = "$_1_$VMT$$";
+    private static final Map<Integer, byte[]> encryptionKeyMap = new ConcurrentHashMap<>();
 
     /**
      * Disable instantiation of the class.
@@ -201,7 +201,6 @@ public class CryptoFacility {
             throw new SecurityException("Null cipher data.");
         }
         try {
-            Cipher cipher = Cipher.getInstance(CIPHER_ALGORITHM);
             ByteBuffer buff = ByteBuffer.wrap(cipherdata);
             int version = buff.getInt();
             if (!AES_VERSION_KEY_CONFIG_MAP.containsKey(version)) {
@@ -215,6 +214,7 @@ public class CryptoFacility {
             byte[] salt = new byte[length];
             buff.get(salt);
 
+            Cipher cipher = Cipher.getInstance(CIPHER_ALGORITHM);
             length = buff.getInt();
             if (length != cipher.getBlockSize()) {
                 throw new SecurityException("Corrupted cipher data.");
@@ -229,8 +229,7 @@ public class CryptoFacility {
             SecretKey key = getDerivedKey(keySplitValue, salt, version);
             GCMParameterSpec spec = new GCMParameterSpec(GCM_TAG_LENGTH, nonce);
             cipher.init(Cipher.DECRYPT_MODE, key, spec);
-            byte[] decryptedData = cipher.doFinal(cipherBytes);
-            return decryptedData;
+            return cipher.doFinal(cipherBytes);
         } catch (Exception e) {
             throw new SecurityException("Unable to decrypt.", e);
         }
@@ -280,8 +279,9 @@ public class CryptoFacility {
                     AES_VERSION_KEY_CONFIG_MAP.get(version).keyLength);
             SecretKeyFactory kf = SecretKeyFactory.getInstance(PBKDF2_DERIVATION_ALGORITHM);
             return new SecretKeySpec(kf.generateSecret(specs).getEncoded(), KEYSPEC_ALGORITHM);
-        } catch (NoSuchAlgorithmException | InvalidKeySpecException |
-                UnsupportedEncodingException e) {
+        } catch (NoSuchAlgorithmException
+            | InvalidKeySpecException
+            | UnsupportedEncodingException e) {
             throw new SecurityException(e);
         }
     }
@@ -374,7 +374,8 @@ public class CryptoFacility {
     }
 
     /**
-     * This method gets the encryption key that is stored in the dedicated docker volume.
+     * This method gets the encryption key that is stored in the dedicated docker volume or
+     * kubernetes secret.
 
      * @param version The key length.
      * @return The encryption key that is stored in the dedicated docker volume.
@@ -386,6 +387,8 @@ public class CryptoFacility {
 
         final String location =
                 EnvironmentUtils.getOptionalEnvProperty(VMT_ENCRYPTION_KEY_DIR_PARAM).orElse(VMT_ENCRYPTION_KEY_DIR);
+        // The path to the encryption file.
+        // If Kubernetes secrets are activated, this file will be populated by a secret instead of a PV.
         Path encryptionFile = Paths.get(location + "/" + AES_VERSION_KEY_CONFIG_MAP.get(version).keyFileName);
         byte[] encryptionKeyForVMTurboInstance;
         try {
@@ -404,11 +407,25 @@ public class CryptoFacility {
             }
 
             // We don't have the file or it is of the wrong length.
-            Path outputDir = Paths.get(location);
-            if (!Files.exists(outputDir)) {
-                Path dir = Files.createDirectories(outputDir);
+            // If this happens with Kubernetes secrets in use, we'll just have to log an error
+            final boolean enableExternalSecrets =
+                EnvironmentUtils.getOptionalEnvProperty(ENABLE_EXTERNAL_SECRETS)
+                    .map(Boolean::valueOf)
+                    .orElse(false);
+            if (enableExternalSecrets) {
+                final String errorMessage = "Externally-supplied encryption key is not available "
+                + "although external secrets are enabled. Please check that the encryption key "
+                + "secret is populated.";
+                logger.error(errorMessage);
+                throw new SecurityException(errorMessage);
             }
 
+            Path outputDir = Paths.get(location);
+            if (!Files.exists(outputDir)) {
+                Files.createDirectories(outputDir);
+            }
+
+            logger.info("Initializing a new encryption key.");
             encryptionKeyForVMTurboInstance = getRandomBytes(numKeyBytes);
             encryptionKeyMap.put(version, encryptionKeyForVMTurboInstance);
             Files.write(encryptionFile, encryptionKeyForVMTurboInstance);

@@ -1,3 +1,6 @@
+{{ if .Values.global }}
+  {{ if not .Values.global.enableExternalSecrets }}
+    {{/* Kubernetes secrets for encryption keys are disabled, so use the PV legacy behavior instead */}}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -68,6 +71,8 @@ spec:
     requests:
       storage: 1Gi
 ---
+  {{- end }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -145,10 +150,23 @@ spec:
             drop:
             - ALL
         volumeMounts:
+{{ if .Values.global }}
+  {{ if not .Values.global.enableExternalSecrets }}
+    {{/* Kubernetes secrets for encryption keys are disabled, so use the PV legacy behavior instead */}}
         - mountPath: /home/turbonomic/data
           name: api
         - mountPath: /tmp/certs
           name: api-certs
+  {{- end }}
+{{- end }}
+{{- if .Values.global }}
+  {{ if .Values.global.enableExternalSecrets }}
+    {{/* Kubernetes secrets are enabled for encryption keys. */}}
+        - mountPath: /home/turbonomic/data/helper_dir
+          name: api-secret
+          readOnly: true
+  {{- end }}
+{{- end }}
         - mountPath: /etc/turbonomic
           name: turbo-volume
           readOnly: true
@@ -185,12 +203,26 @@ spec:
 {{- end }}
       restartPolicy: Always
       volumes:
+{{ if .Values.global }}
+  {{ if not .Values.global.enableExternalSecrets }}
+    {{/* Kubernetes secrets for encryption keys are disabled, so use the PV legacy behavior instead */}}
       - name: api
         persistentVolumeClaim:
           claimName: {{ .Chart.Name }}
       - name: api-certs
         persistentVolumeClaim:
           claimName: {{ .Chart.Name }}-certs
+  {{- end }}
+{{- end }}
+{{- if .Values.global }}
+  {{ if .Values.global.enableExternalSecrets }}
+    {{/* Kubernetes secrets are enabled for auth. Attach one secret for the directory of secret files. */}}
+      - name: api-secret
+        secret:
+            secretName: api-secret
+            optional: true
+  {{- end }}
+{{- end }}
       - name: turbo-volume
         configMap:
           name: global-properties-{{ .Release.Name }}

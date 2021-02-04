@@ -4,8 +4,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.security.KeyPair;
-import java.security.PrivateKey;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Supplier;
 
@@ -17,12 +16,12 @@ import io.jsonwebtoken.CompressionCodecs;
 import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
-import io.jsonwebtoken.impl.crypto.EllipticCurveProvider;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.auth.api.JWTKeyCodec;
+import com.vmturbo.auth.api.authorization.keyprovider.KeyProvider;
 import com.vmturbo.auth.api.authorization.kvstore.IAuthStore;
 import com.vmturbo.components.crypto.CryptoFacility;
 import com.vmturbo.kvstore.KeyValueStore;
@@ -31,10 +30,7 @@ import com.vmturbo.kvstore.KeyValueStore;
  * Auth component initialization.
  */
 public class AuthInitProvider {
-    /**
-     * The keystore data file name.
-     */
-    private static final String VMT_PRIVATE_KEY_FILE = "vmt_helper_kv.inout";
+
     /**
      * The init claim.
      */
@@ -50,67 +46,65 @@ public class AuthInitProvider {
      */
     private static final String INIT_SUBJECT = "admin";
     /**
-     * The admin initialization file name.
+     * The admin initialization JWT file name.
+     *
+     * <p>This is only relevant when auth secrets are disabled and the legacy logic (with PVs)
+     * is being used.</p>
      */
     private static final String VMT_INIT_KEY_FILE = "vmt_helper_init.inout";
+
+    /**
+     * The KV store (Consul) key for storing the JWT used to determine if the admin user has been created.
+     *
+     * <p>This is only relevant when auth secrets are enabled.</p>
+     */
+    private static final String KV_JWT_KEY = "public_key/jwt";
+
+    private final Logger logger_ = LogManager.getLogger();
+
     /**
      * The key/value store.
      */
     @GuardedBy("storeLock")
-    final @Nonnull
-    KeyValueStore keyValueStore_;
-    final Supplier<String> keyValueDir;
-    private final Logger logger_ = LogManager.getLogger();
-    /**
-     * The private key. It is protected by synchronization on the instance.
-     */
-    PrivateKey privateKey_ = null;
+    private final KeyValueStore keyValueStore_;
 
-    public AuthInitProvider(KeyValueStore keyValueStore, Supplier<String> keyValueDir) {
-        this.keyValueStore_ = keyValueStore;
-        this.keyValueDir = keyValueDir;
+    /**
+     * Directory to store the admin JWT (when not using auth secrets).
+     */
+    private final Supplier<String> keyValueDir;
+
+    /**
+     * For providing (generating, storing and retrieving) private/public key pairs.
+     */
+    private final KeyProvider keyProvider;
+
+    /**
+     * If true, use Kubernetes secrets to read in the sensitive Auth data (like encryption keys and
+     * private/public key pairs). If false, this data will be read from (legacy) persistent volumes.
+     */
+    private final boolean enableExternalSecrets;
+
+    /**
+     * Create the AuthInitProvider.
+     *
+     * @param keyValueStore a place to store public keys and JWT tokens
+     * @param keyValueDir directory to store the admin JWT (when not using auth secrets)
+     * @param enableExternalSecrets whether to enable sourcing encryption keys through kubernetes secrets
+     * @param keyProvider for providing (generating, storing and retrieving) private/public key pairs
+     */
+    public AuthInitProvider(@Nonnull final KeyValueStore keyValueStore,
+                            @Nonnull final Supplier<String> keyValueDir,
+                            boolean enableExternalSecrets,
+                            @Nonnull final KeyProvider keyProvider) {
+        this.keyValueStore_ = Objects.requireNonNull(keyValueStore);
+        this.keyValueDir = Objects.requireNonNull(keyValueDir);
+        this.enableExternalSecrets = enableExternalSecrets;
+        this.keyProvider = Objects.requireNonNull(keyProvider);
     }
 
-    /**
-     * This method gets the private key that is stored in the dedicated docker volume.
-     *
-     * @return The private key that is stored in the dedicated docker volume.
-     */
-    synchronized @Nonnull PrivateKey getEncryptionKeyForVMTurboInstance() {
-        if (privateKey_ != null) {
-            return privateKey_;
-        }
-
-        final String location = keyValueDir.get();
-        Path encryptionFile = Paths.get(location + "/" + VMT_PRIVATE_KEY_FILE);
-        try {
-            if (Files.exists(encryptionFile)) {
-                byte[] keyBytes = Files.readAllBytes(encryptionFile);
-                String cipherText = new String(keyBytes, CHARSET_CRYPTO);
-                privateKey_ = JWTKeyCodec.decodePrivateKey(CryptoFacility.decrypt(cipherText));
-                return privateKey_;
-            }
-
-            // We don't have the file or it is of the wrong length.
-            Path outputDir = Paths.get(location);
-            if (!Files.exists(outputDir)) {
-                Files.createDirectories(outputDir);
-            }
-
-            KeyPair keyPair = EllipticCurveProvider.generateKeyPair(SignatureAlgorithm.ES256);
-            String privateKeyEncoded = JWTKeyCodec.encodePrivateKey(keyPair);
-            String publicKeyEncoded = JWTKeyCodec.encodePublicKey(keyPair);
-
-            // Persist
-            Files.write(encryptionFile,
-                    CryptoFacility.encrypt(privateKeyEncoded).getBytes(CHARSET_CRYPTO));
-            keyValueStore_.put(IAuthStore.KV_KEY, publicKeyEncoded);
-            privateKey_ = keyPair.getPrivate();
-        } catch (IOException e) {
-            throw new SecurityException(e);
-        }
-
-        return privateKey_;
+    private void initKeys() {
+        // Make sure we have initialized the site secret.
+        keyProvider.getPrivateKey();
     }
 
     /**
@@ -118,39 +112,34 @@ public class AuthInitProvider {
      * user defined in the XL. The first required step is to instantiate an admin user. This method
      * checks whether an admin user has been instantiated in XL.
      *
+     * <p>We indicate that the admin user has been created by creating a JWT, which provides a
+     * tamper-resistant record of the event. Currently, we store this JWT in Consul but in our
+     * older deployments we stored it on a persistent volume.</p>
+     *
      * @return {@code true} iff the admin user has been instantiated.
      * @throws SecurityException In case of an error performing the check.
      */
     public boolean checkAdminInit() throws SecurityException {
-        // Make sure we have initialized the site secret.
-        getEncryptionKeyForVMTurboInstance();
+        initKeys();
+
+        if (enableExternalSecrets) {
+            // Use K8s secrets
+            return checkAdminInitUsingSecrets();
+        }
+        // else, Legacy behavior
+
         // The file contains the flag that specifies whether admin user has been initialized.
         final String location = keyValueDir.get();
         Path encryptionFile = Paths.get(location + "/" + VMT_INIT_KEY_FILE);
         try {
             if (Files.exists(encryptionFile)) {
+                //TODO: We need to write the public key to consul using our special format
+                // Call JWTKeyCodec.encodePublicKey(keyPair) to do this
+                // It may be easier to generate the public key rather than read it from a secret!
                 byte[] keyBytes = Files.readAllBytes(encryptionFile);
                 String cipherText = new String(keyBytes, CHARSET_CRYPTO);
                 String token = CryptoFacility.decrypt(cipherText);
-                Optional<String> key = keyValueStore_.get(IAuthStore.KV_KEY);
-                if (!key.isPresent()) {
-                    throw new SecurityException("The public key is unavailable");
-                }
-                final Jws<Claims> claims = Jwts.parser()
-                        .setSigningKey(JWTKeyCodec.decodePublicKey(key.get()))
-                        .parseClaimsJws(token);
-                final String status = (String)claims.getBody().get(CLAIM);
-                // Check subject.
-                if (!INIT_SUBJECT.equals(claims.getBody().getSubject())) {
-                    throw new SecurityException(
-                            "The admin instantiation status has been tampered with.");
-                }
-                // Check status validity
-                if (!"true".equals(status) && !"false".equals(status)) {
-                    throw new SecurityException(
-                            "The admin instantiation status has been tampered with.");
-                }
-                return Boolean.parseBoolean(status);
+                return parseAdminJwt(token);
             } else {
                 logger_.info("The admin user hasn't been initialized yet.");
             }
@@ -175,7 +164,14 @@ public class AuthInitProvider {
     public boolean initAdmin(final @Nonnull String userName, final @Nonnull String password)
             throws SecurityException {
         // Make sure we have initialized the site secret.
-        getEncryptionKeyForVMTurboInstance();
+        initKeys();
+
+        if (enableExternalSecrets) {
+            // Use K8s secrets
+            return initAdminUsingSecrets();
+        }
+        // else, Legacy behavior
+
         final String location = keyValueDir.get();
         Path encryptionFile = Paths.get(location + "/" + VMT_INIT_KEY_FILE);
         try {
@@ -187,7 +183,7 @@ public class AuthInitProvider {
                     .setSubject(INIT_SUBJECT)
                     .claim(CLAIM, "true")
                     .compressWith(CompressionCodecs.GZIP)
-                    .signWith(SignatureAlgorithm.ES256, privateKey_)
+                    .signWith(SignatureAlgorithm.ES256, keyProvider.getPrivateKey())
                     .compact();
 
             // Persist the initialization status.
@@ -197,4 +193,92 @@ public class AuthInitProvider {
             throw new SecurityException(e);
         }
     }
+
+    /**
+     * Checks using secrets whether the admin user has been instantiated. When the XL first starts up,
+     * there is no user defined in the XL. The first required step is to instantiate an admin user.
+     * This method checks whether an admin user has been instantiated in XL.
+     *
+     * <p>We indicate that the admin user has been created by creating a JWT, which provides a
+     * tamper-resistant record of the event. When using auth secrets, we store this JWT in Consul.</p>
+     *
+     * @return {@code true} iff the admin user has been instantiated.
+     * @throws SecurityException In case of an error performing the check.
+     */
+    private boolean checkAdminInitUsingSecrets() throws SecurityException {
+        if (!enableExternalSecrets) {
+            throw new IllegalStateException("Cannot check admin init using secrets when auth secrets"
+                + " are not enabled!");
+        }
+
+        // The JWT stored in consul contains the flag that specifies whether admin user has been initialized.
+        return keyValueStore_.get(KV_JWT_KEY)
+            .map(CryptoFacility::decrypt)
+            .map(this::parseAdminJwt)
+            .orElseGet(() -> {
+            logger_.debug("The admin user hasn't been initialized yet.");
+            return false;
+        });
+    }
+
+    private boolean parseAdminJwt(final String token) {
+        //TODO: Consider caching the public key--why keep going to Consul?
+        Optional<String> key = keyValueStore_.get(IAuthStore.KV_KEY);
+        if (!key.isPresent()) {
+            throw new SecurityException("The public key is unavailable");
+        }
+        final Jws<Claims> claims = Jwts.parser()
+            .setSigningKey(JWTKeyCodec.decodePublicKey(key.get()))
+            .parseClaimsJws(token);
+        final String status = (String)claims.getBody().get(CLAIM);
+        // Check subject.
+        if (!INIT_SUBJECT.equals(claims.getBody().getSubject())) {
+            throw new SecurityException(
+                "The admin instantiation status has been tampered with.");
+        }
+        // Check status validity
+        if (!"true".equals(status) && !"false".equals(status)) {
+            throw new SecurityException(
+                "The admin instantiation status has been tampered with.");
+        }
+        return Boolean.parseBoolean(status);
+    }
+
+    /**
+     * Initializes an admin user using secrets and creates predefined external groups for all roles
+     * in XL. When XL first starts up, there is no user defined in the XL. The first required step is
+     * to instantiate an admin user and creates predefined external groups for all roles in XL. This
+     * should only be called once. If it is called more than once, this method will return {@code
+     * false}.
+     *
+     * @return The {@code true} iff successful.
+     * @throws SecurityException In case of an error initializing the admin user.
+     */
+    private boolean initAdminUsingSecrets()
+        throws SecurityException {
+        if (!enableExternalSecrets) {
+            throw new IllegalStateException("Cannot check admin init using secrets when auth secrets"
+                + " are not enabled!");
+        }
+
+        final Optional<String> possibleJwt = keyValueStore_.get(KV_JWT_KEY);
+        if (possibleJwt.isPresent()) {
+            logger_.debug("Cannot initialize the admin user once it has already been initialized!");
+            return false;
+        }
+
+        String compact = Jwts.builder()
+            .setSubject(INIT_SUBJECT)
+            .claim(CLAIM, "true")
+            .compressWith(CompressionCodecs.GZIP)
+            .signWith(SignatureAlgorithm.ES256, keyProvider.getPrivateKey())
+            .compact();
+        String encryptedCompact = CryptoFacility.encrypt(compact);
+
+        // Persist the initialization status.
+        keyValueStore_.put(KV_JWT_KEY, encryptedCompact);
+        logger_.debug("Admin user initialization has begun.");
+        return true;
+    }
+
 }

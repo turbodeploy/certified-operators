@@ -9,7 +9,7 @@ import org.springframework.context.annotation.Configuration;
 
 /**
  * Configuration for the {@link KeyValueStore} used by the XL components.
- * It's currently only used in API component.
+ * It's currently only used in API and Auth components.
  */
 @Configuration
 public class PublicKeyStoreConfig extends KeyValueStoreConfig {
