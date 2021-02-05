@@ -168,9 +168,25 @@ public class ScopeManager {
      * @param scopedOids iids of entities/groups/... to add to the seed entity's scope
      */
     public void addInCurrentScope(long seedOid, long... scopedOids) {
+        addInCurrentScope(seedOid, false, scopedOids);
+    }
+
+    /**
+     * Add one or more oids to the current scope of the given seed entity. If symmetric is true,
+     * the same scope is added to the scopedOids.
+     *
+     * @param seedOid    iid of entity whose scope is updated
+     * @param symmetric whether the scope need to be added to the scopedOids too
+     * @param scopedOids iids of entities/groups/... to add to the seed entity's scope
+     */
+    public void addInCurrentScope(long seedOid, boolean symmetric, long... scopedOids) {
         final int seedIid = entityIdManager.toIid(seedOid);
         for (final long scopedOid : scopedOids) {
-            addScope(currentScope, seedIid, entityIdManager.toIid(scopedOid));
+            final int scopedIid = entityIdManager.toIid(scopedOid);
+            addScope(currentScope, seedIid, scopedIid);
+            if (symmetric) {
+                addScope(currentScope, scopedIid, seedIid);
+            }
         }
     }
 

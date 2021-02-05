@@ -23,7 +23,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalDouble;
-import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 import java.util.function.DoubleBinaryOperator;
@@ -542,19 +541,21 @@ public class EntityMetricWriter extends TopologyWriterBase {
 
     private LongSet getRelatedEntitiesAndGroups(long oid, DataProvider dataProvider) {
         // first collect iids for entities related to this one via supply chain
-        final Set<Long> related = dataProvider.getRelatedEntities(oid);
-        // those all go into our result set
-        LongSet result = new LongOpenHashSet(related);
+        final LongSet entitiesInScope = dataProvider.getRelatedEntities(oid);
+        logger.debug("Adding entities to scope for entity {}:", () -> oid, () -> entitiesInScope);
+        scopeManager.addInCurrentScope(oid, entitiesInScope.toLongArray());
         // then we collect all the groups that any of our related entities belong to...
-        related.stream()
+        LongSet groupsInScope = entitiesInScope.stream()
                 .map(dataProvider::getGroupsForEntity)
                 .flatMap(Collection::stream)
                 .mapToLong(Grouping::getId)
                 .distinct()
-                // ... and add their iids to the result as well
-                .forEach(result::add);
-        logger.debug("Setting scope for entity {} to {}", () -> oid, () -> result);
-        scopeManager.addInCurrentScope(oid, result.toLongArray());
+                .collect(LongOpenHashSet::new, LongSet::add, LongSet::addAll);
+        logger.debug("Adding groups to scope for entity {}:", () -> oid, () -> groupsInScope);
+        // groups are added symmetrically to the entity scope
+        scopeManager.addInCurrentScope(oid, true, groupsInScope.toLongArray());
+        LongSet result = new LongOpenHashSet(entitiesInScope);
+        result.addAll(groupsInScope);
         return result;
     }
 
