@@ -23,7 +23,6 @@ import com.google.common.collect.Maps;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.springframework.util.StringUtils;
 
 import com.vmturbo.action.orchestrator.action.ActionEvent.AcceptanceEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.AcceptanceRemovalEvent;
@@ -611,8 +610,11 @@ public class Action implements ActionView {
         // step of this action's execution. This may be a PRE, REPLACE or POST workflow, depending
         // on the policies defined and the current state of the action.
         final Optional<SettingProto.Setting> workflowSettingOpt = getWorkflowSetting(actionState);
-        // An empty value indicates no workflow has been set
-        if (hasNonEmptyStringSetting(workflowSettingOpt)) {
+
+        // previously this logic considered empty string for workflow setting as workflow not being
+        // set. I removed that as the code as that result in silent failure of code which is hard to
+        // diagnose.
+        if (workflowSettingOpt.isPresent()) {
             final String workflowIdString = workflowSettingOpt.get().getStringSettingValue()
                 .getValue();
             try {
@@ -648,16 +650,7 @@ public class Action implements ActionView {
     }
 
     private boolean hasWorkflowForCurrentState() {
-        return hasNonEmptyStringSetting(getWorkflowSetting(stateMachine.getState()));
-    }
-
-    private boolean hasNonEmptyStringSetting(Optional<SettingProto.Setting> settingOpt) {
-        return settingOpt.map(this::hasNonEmptyStringValue).orElse(false);
-    }
-
-    private boolean hasNonEmptyStringValue(Setting setting) {
-        return setting.hasStringSettingValue()
-            && !StringUtils.isEmpty(setting.getStringSettingValue().getValue());
+        return getWorkflowSetting(stateMachine.getState()).isPresent();
     }
 
     /**
