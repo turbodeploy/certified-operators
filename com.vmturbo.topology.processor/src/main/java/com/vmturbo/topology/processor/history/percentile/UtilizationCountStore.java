@@ -69,12 +69,15 @@ public class UtilizationCountStore {
      * Calculate the percentile score for a given rank.
      *
      * @param rank must be between 0 and 100
+     * @param reference to the field for which percentile is going to be calculated.
      * @return percentile score of previously stored points, null if no points have been stored
      * @throws HistoryCalculationException when rank value is invalid
      */
     @Nullable
-    public synchronized Integer getPercentile(float rank) throws HistoryCalculationException {
-        return full.getPercentile(rank);
+    public synchronized Integer getPercentile(float rank,
+                    @Nonnull EntityCommodityFieldReference reference)
+                    throws HistoryCalculationException {
+        return full.getPercentile(rank, reference);
     }
 
     /**

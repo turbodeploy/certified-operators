@@ -10,6 +10,8 @@ import java.util.concurrent.TimeUnit;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import it.unimi.dsi.fastutil.floats.FloatArrayList;
 import it.unimi.dsi.fastutil.floats.FloatList;
 import it.unimi.dsi.fastutil.longs.LongArrayList;
@@ -48,8 +50,14 @@ public class UtilizationCountArray {
                     (EntitySettingSpecs.MaxObservationPeriodVirtualMachine.getDataStructure()))
                     .getMax()));
 
+    /**
+     * Intentionally done protected to significantly speedup tests for edge-cases, e.g. {@link
+     * ArrayIndexOutOfBoundsException}.
+     */
+    @VisibleForTesting
+    protected int[] counts;
+
     private final PercentileBuckets buckets;
-    private int[] counts;
     private long startTimestamp;
     private long endTimestamp;
     private CapacityChangeHistory capacityList;
@@ -66,7 +74,7 @@ public class UtilizationCountArray {
     }
 
     /**
-     * Construct a deep copy of <code>other</code> instance.
+     * Construct a deep copy of {@code other} instance.
      *
      * @param other instance to copy from
      * @implNote This constructor copies immutable fields by reference.
@@ -282,23 +290,43 @@ public class UtilizationCountArray {
      * Calculate the percentile score for a given rank.
      *
      * @param rank must be between 0 and 100
+     * @param reference to the field for which percentile is going to be calculated.
      * @return percentile score of previously stored points, null if no counts have been recorded
      * @throws HistoryCalculationException when rank value is invalid
      */
     @Nullable
-    public Integer getPercentile(float rank) throws HistoryCalculationException {
+    public Integer getPercentile(float rank, @Nonnull EntityCommodityFieldReference reference)
+                    throws HistoryCalculationException {
         if (rank < 0 || rank > 100) {
-            throw new HistoryCalculationException("Requested invalid percentile rank " + rank);
+            throw new HistoryCalculationException(
+                            String.format("Requested invalid percentile rank %s for %s", rank,
+                                            reference));
         }
         int total = Arrays.stream(counts).sum();
         if (total == 0) {
             return null;
         }
-        int rankIndex = (int)Math.ceil(total * rank / 100);
+        if (total < 0) {
+            logger.error("Total sum is {} negative for {} which should not happen for rank={}, counts={} ",
+                            total, reference, rank, counts);
+            return null;
+        }
+        final int rankIndex = (int)Math.ceil(total * rank / 100);
         int score = 0;
         int countToRankIndex = counts[score];
-        while (countToRankIndex < rankIndex) {
-            countToRankIndex += counts[++score];
+        while (countToRankIndex < rankIndex
+                        /*
+                          Added intentionally ot avoid ArrayIndexOutOfBoundException.
+                          Do not remove!
+                         */
+                        && ++score < counts.length
+        ) {
+            countToRankIndex += counts[score];
+        }
+        if (score == counts.length) {
+            logger.error("Percentile calculation for {} would lead to ArrayIndexOutOfBoundException: rank={}, counts={}",
+                            reference, rank, counts);
+            return null;
         }
         return (int)Math.ceil(buckets.average(score));
     }
