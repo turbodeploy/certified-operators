@@ -151,7 +151,7 @@ public class ActionExecutionSecureRpcTest {
     private final ActionTargetSelector actionTargetSelector = mock(ActionTargetSelector.class);
     private final ProbeCapabilityCache probeCapabilityCache = mock(ProbeCapabilityCache.class);
     private final ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory,
-            actionStoreLoader, Mockito.mock(ActionAutomationManager.class));
+            actionStoreLoader, Mockito.mock(ActionAutomationManager.class), false);
     private final ActionExecutionListener actionExecutionListener =
         Mockito.mock(ActionExecutionListener.class);
     private final ActionPaginatorFactory paginatorFactory = mock(ActionPaginatorFactory.class);
