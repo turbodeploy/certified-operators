@@ -1,7 +1,10 @@
 package com.vmturbo.topology.processor.history;
 
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -10,6 +13,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -38,6 +42,8 @@ public class HistoryAggregationContext {
     private final boolean isPlan;
     private final Map<Pair<Long, EntitySettingSpecs>, Number> oidSettingToValue =
                     new ConcurrentHashMap<>();
+    private Set<Long> oidsWithInsufficientData = Collections.synchronizedSet(new HashSet<>());
+
 
     /**
      * Construct the context.
@@ -145,6 +151,17 @@ public class HistoryAggregationContext {
     }
 
     /**
+     * Store oid of entity with insufficient data.
+     *
+     * @return true if this set did not already contain the specified element.
+     */
+    public boolean addTraderOidWithInsufficientData(Long val) {
+        synchronized(oidsWithInsufficientData) {
+            return oidsWithInsufficientData.add(val);
+        }
+    }
+
+    /**
      * Returns the oid of the live topology of input entity oid.
      *
      * @param entityOid the input entity oid.
@@ -156,5 +173,10 @@ public class HistoryAggregationContext {
                 .flatMap(graph::getEntity)
                 .flatMap(TopologyEntity::getClonedFromEntity)
                 .map(TopologyEntityDTO.Builder::getOid);
+    }
+
+    @Override
+    public String toString() {
+        return String.format(oidSettingToValue.size() + " entities with insufficient data were marked not scalable");
     }
 }

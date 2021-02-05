@@ -90,6 +90,7 @@ public class PercentileCommodityData
                             () -> config.getMinObservationPeriod(context, field.getEntityOid()),
                             () -> field);
             commodityFieldsAccessor.applyInsufficientHistoricalDataPolicy(field);
+            context.addTraderOidWithInsufficientData(field.getEntityOid());
         }
         Double capacity = commodityFieldsAccessor.getCapacity(field);
         if (capacity == null || capacity <= 0d) {
