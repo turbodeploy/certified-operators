@@ -4,7 +4,7 @@ import java.time.Clock;
 
 import javax.annotation.Nonnull;
 
-import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
+import it.unimi.dsi.fastutil.longs.LongSet;
 
 import com.vmturbo.components.api.tracing.Tracing;
 import com.vmturbo.components.api.tracing.Tracing.TracingScope;
@@ -17,7 +17,8 @@ import com.vmturbo.proactivesupport.DataMetricTimer;
  * source topology is available in the repository.
  */
 public class GroupInfoUpdatePipeline extends
-        Pipeline<GroupInfoUpdatePipelineInput, LongOpenHashSet, GroupInfoUpdatePipelineContext, GroupInfoUpdatePipelineSummary> {
+        Pipeline<GroupInfoUpdatePipelineInput, LongSet, GroupInfoUpdatePipelineContext,
+            GroupInfoUpdatePipelineSummary> {
 
     private static final String PIPELINE_STAGE_LABEL = "stage";
 
@@ -37,7 +38,8 @@ public class GroupInfoUpdatePipeline extends
                     .register();
 
     protected GroupInfoUpdatePipeline(
-            @Nonnull PipelineDefinition<GroupInfoUpdatePipelineInput, LongOpenHashSet, GroupInfoUpdatePipelineContext> stages) {
+            @Nonnull PipelineDefinition<GroupInfoUpdatePipelineInput, LongSet,
+                GroupInfoUpdatePipelineContext> stages) {
         super(stages, new GroupInfoUpdatePipelineSummary(Clock.systemUTC(), stages.getContext(),
                 stages.getStages()));
     }

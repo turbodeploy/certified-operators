@@ -445,9 +445,11 @@ public class GroupRpcServiceTest {
 
     /**
      * Test case when user have access to requested entity.
+     *
+     * @throws StoreOperationException if something goes wrong.
      */
     @Test
-    public void testGetGroupForEntityWhenUserHaveAccess() {
+    public void testGetGroupForEntityWhenUserHaveAccess() throws StoreOperationException {
         final long entityId = 1234L;
         final Set<Long> setOfGroups = Sets.newHashSet(2000L, 20003L);
         final GetGroupsForEntitiesRequest groupForEntityRequest =
@@ -457,8 +459,8 @@ public class GroupRpcServiceTest {
         final GetGroupsForEntitiesResponse entityResponse = GetGroupsForEntitiesResponse.newBuilder()
                 .putEntityGroup(entityId, Groupings.newBuilder().addAllGroupId(setOfGroups).build())
                 .build();
-        Mockito.when(groupStoreDAO.getStaticGroupsForEntities(Collections.singletonList(entityId),
-                Collections.emptyList()))
+        Mockito.when(groupMemberCalculatorSpy.getEntityGroups(groupStoreDAO,
+            Collections.singleton(entityId), Collections.emptySet()))
                 .thenReturn(Collections.singletonMap(entityId, setOfGroups));
         final EntityAccessScope accessScope =
                 new EntityAccessScope(null, null, new ArrayOidSet(Collections.singletonList(entityId)),

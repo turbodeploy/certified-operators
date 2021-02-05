@@ -15,9 +15,11 @@ import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
@@ -34,6 +36,7 @@ import com.vmturbo.group.group.GroupDAO;
 import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.group.service.CachingMemberCalculator.CachedGroupMembers;
 import com.vmturbo.group.service.CachingMemberCalculator.CachedGroupMembers.Type;
+import com.vmturbo.platform.common.dto.CommonDTO;
 
 /**
  * Unit tests for {@link CachingMemberCalculator}.
@@ -69,14 +72,14 @@ public class CachingMemberCalculatorTest {
     public void testRegrouping() throws Exception {
         // ARRANGE
         final CachingMemberCalculator memberCalculator = new CachingMemberCalculator(groupDAO,
-                internalCalculator, Type.SET, threadFactory);
+                internalCalculator, Type.SET, true, threadFactory);
 
         Grouping g1 = Grouping.newBuilder()
             .setId(1)
             .setDefinition(GroupDefinition.newBuilder()
                 .setDisplayName("foo"))
             .build();
-        Set<Long> g1Members = Sets.newHashSet(8L, 9L);
+        Set<Long> g1Members = Sets.newHashSet( 9L, 10L);
         Grouping g2 = Grouping.newBuilder()
             .setId(2)
             .setDefinition(GroupDefinition.newBuilder()
@@ -102,6 +105,13 @@ public class CachingMemberCalculatorTest {
         assertThat(memberCalculator.getGroupMembers(groupDAO, Collections.singleton(g2.getId()), false),
             is(g2Members));
 
+        // lets check if entities have correct parent
+        Map<Long, Set<Long>> entityParents = memberCalculator.getEntityGroups(
+            groupDAO, ImmutableSet.of(9L, 10L, 11L), Collections.emptySet());
+        assertThat(entityParents.get(9L), is(Collections.singleton(1L)));
+        assertThat(entityParents.get(10L), is(ImmutableSet.of(1L, 2L)));
+        assertThat(entityParents.get(11L), is(Collections.singleton(2L)));
+
         // The internal calculator shouldn't have gotten called anymore, since we cached the
         // members.
         verify(internalCalculator, times(2))
@@ -117,7 +127,7 @@ public class CachingMemberCalculatorTest {
     @Test
     public void testRecursiveGroupResolution() throws Exception {
         final CachingMemberCalculator memberCalculator = new CachingMemberCalculator(groupDAO,
-            internalCalculator, Type.SET, threadFactory);
+            internalCalculator, Type.SET, true, threadFactory);
 
         Grouping g1 = Grouping.newBuilder()
             .setId(1)
@@ -151,7 +161,7 @@ public class CachingMemberCalculatorTest {
     @Test
     public void testGetExpandedMembers() throws Exception {
         final CachingMemberCalculator memberCalculator = new CachingMemberCalculator(groupDAO,
-                internalCalculator, Type.SET, threadFactory);
+                internalCalculator, Type.SET, true, threadFactory);
 
         GroupDefinition parentGroupDefinition = GroupDefinition.newBuilder()
                 .setDisplayName("foo").build();
@@ -193,7 +203,7 @@ public class CachingMemberCalculatorTest {
     public void testUserGroupCreated() throws Exception {
         // Regrouping set to "true" because otherwise we don't eagerly cache created groups.
         CachingMemberCalculator memberCalculator = new CachingMemberCalculator(groupDAO,
-                internalCalculator, Type.SET, threadFactory);
+                internalCalculator, Type.SET, true, threadFactory);
         GroupDefinition groupDefinition = GroupDefinition.newBuilder()
                 .setDisplayName("foo")
                 .build();
@@ -204,6 +214,12 @@ public class CachingMemberCalculatorTest {
 
 
         memberCalculator.onUserGroupCreated(1L, groupDefinition);
+
+        // make sure the associated entries also added for entity to parent
+        Map<Long, Set<Long>> entityParents = memberCalculator.getEntityGroups(
+            groupDAO, ImmutableSet.of(9L, 10L), Collections.emptySet());
+        assertThat(entityParents.get(9L), is(Collections.singleton(1L)));
+        assertThat(entityParents.get(10L), is(Collections.singleton(1L)));
 
         verify(internalCalculator, times(1)).getGroupMembers(groupDAO, groupDefinition, false);
 
@@ -223,7 +239,7 @@ public class CachingMemberCalculatorTest {
     public void testUserGroupUpdated() throws Exception {
         // ARRANGE
         CachingMemberCalculator memberCalculator = new CachingMemberCalculator(groupDAO,
-                internalCalculator, Type.SET, threadFactory);
+                internalCalculator, Type.SET, true, threadFactory);
 
         Grouping g1 = Grouping.newBuilder()
                 .setId(1)
@@ -242,13 +258,16 @@ public class CachingMemberCalculatorTest {
         GroupDefinition updatedDef = GroupDefinition.newBuilder()
                 .setDisplayName("foo1")
                 .build();
-        Set<Long> updatedMembers = Sets.newHashSet(10L, 11L);
+        Set<Long> updatedMembers = Sets.newHashSet(9L, 10L, 11L);
 
         when(memberCalculator.getGroupMembers(groupDAO, updatedDef, false))
                 .thenReturn(updatedMembers);
 
         // Trigger group update.
         memberCalculator.onUserGroupUpdated(g1.getId(), updatedDef);
+
+        Map<Long, Set<Long>> entityParents = memberCalculator.getEntityGroups(
+            groupDAO, ImmutableSet.of(8L, 9L, 10L, 11L), Collections.emptySet());
 
         // ASSERT
         // Internal calculator should have been calculated once on the first regrouping,
@@ -258,6 +277,12 @@ public class CachingMemberCalculatorTest {
 
         assertThat(memberCalculator.getGroupMembers(groupDAO, Collections.singleton(g1.getId()), false),
                 is(updatedMembers));
+
+        // make sure the associated entries are correct for entity to parent cache
+        assertThat(entityParents.get(8L), is(Collections.emptySet()));
+        assertThat(entityParents.get(9L), is(Collections.singleton(1L)));
+        assertThat(entityParents.get(10L), is(Collections.singleton(1L)));
+        assertThat(entityParents.get(11L), is(Collections.singleton(1L)));
 
         // The internal calculator shouldn't have gotten called anymore, since we cached the
         // members.
@@ -273,7 +298,7 @@ public class CachingMemberCalculatorTest {
     @Test
     public void testUserGroupDeleted() throws Exception {
         CachingMemberCalculator memberCalculator = new CachingMemberCalculator(groupDAO,
-                internalCalculator, Type.SET, threadFactory);
+                internalCalculator, Type.SET, true, threadFactory);
 
         Grouping g1 = Grouping.newBuilder()
                 .setId(1)
@@ -296,6 +321,12 @@ public class CachingMemberCalculatorTest {
 
         // Trigger group update.
         memberCalculator.onUserGroupDeleted(g1.getId());
+        Map<Long, Set<Long>> entityParents = memberCalculator.getEntityGroups(
+            groupDAO, ImmutableSet.of(8L, 9L), Collections.emptySet());
+
+        // make sure that the relation to deleted group has been removed
+        assertThat(entityParents.get(8L), is(Collections.emptySet()));
+        assertThat(entityParents.get(9L), is(Collections.emptySet()));
 
         assertThat(memberCalculator.getGroupMembers(groupDAO,
                 Collections.singleton(g1.getId()), false), is(Collections.emptySet()));
@@ -310,7 +341,7 @@ public class CachingMemberCalculatorTest {
     public void testRegroupOnInitialize() throws Exception {
         final ArgumentCaptor<Runnable> initCaptor = ArgumentCaptor.forClass(Runnable.class);
         final CachingMemberCalculator memberCalculator = new CachingMemberCalculator(groupDAO,
-                internalCalculator, Type.SET, threadFactory);
+                internalCalculator, Type.SET, true, threadFactory);
         verify(threadFactory).apply(initCaptor.capture(), anyString());
 
         Grouping g1 = Grouping.newBuilder()
@@ -330,6 +361,50 @@ public class CachingMemberCalculatorTest {
 
         assertThat(memberCalculator.getGroupMembers(groupDAO,
                 Collections.singleton(g1.getId()), false), is(initialMembers));
+    }
+
+    /**
+     * Test the the case that we are getting groups with specific type for the entities.
+     *
+     * @throws StoreOperationException if something goes wrong.
+     */
+    @Test
+    public void getEntityGroupsWithType() throws StoreOperationException {
+        final CachingMemberCalculator memberCalculator = new CachingMemberCalculator(groupDAO,
+            internalCalculator, Type.SET, true, threadFactory);
+
+        Grouping g1 = Grouping.newBuilder()
+            .setId(1)
+            .setDefinition(GroupDefinition.newBuilder()
+                .setType(CommonDTO.GroupDTO.GroupType.COMPUTE_HOST_CLUSTER)
+                .setDisplayName("foo"))
+            .build();
+        Set<Long> g1Members = Sets.newHashSet( 9L, 10L);
+        Grouping g2 = Grouping.newBuilder()
+            .setId(2)
+            .setDefinition(GroupDefinition.newBuilder()
+                .setType(CommonDTO.GroupDTO.GroupType.REGULAR)
+                .setDisplayName("bar"))
+            .build();
+        Set<Long> g2Members = Sets.newHashSet(10L, 11L);
+
+        when(groupDAO.getGroups(any())).thenReturn(Arrays.asList(g1, g2));
+        when(internalCalculator.getGroupMembers(groupDAO, g1.getDefinition(), false))
+            .thenReturn(g1Members);
+        when(internalCalculator.getGroupMembers(groupDAO, g2.getDefinition(), false))
+            .thenReturn(g2Members);
+
+        memberCalculator.regroup();
+
+        // ACT
+        Map<Long, Set<Long>> entityParents = memberCalculator.getEntityGroups(
+            groupDAO, ImmutableSet.of(9L, 10L, 11L),
+                Collections.singleton(CommonDTO.GroupDTO.GroupType.COMPUTE_HOST_CLUSTER));
+
+        // ASSERT
+        assertThat(entityParents.get(9L), is(Collections.singleton(1L)));
+        assertThat(entityParents.get(10L), is(Collections.singleton(1L)));
+        assertThat(entityParents.get(11L), is(Collections.emptySet()));
     }
 
     /**
