@@ -1,8 +1,10 @@
-package com.vmturbo.cost.component.entity.scope;
+package com.vmturbo.cloud.common.entity.scope;
 
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+
+import com.vmturbo.common.protobuf.cost.EntityUptime.CloudScopeFilter;
 
 /**
  * A store for {@link EntityCloudScope} records. The store is used to consolidate scoping information
@@ -26,4 +28,11 @@ public interface CloudScopeStore {
      */
     @Nonnull
     Stream<EntityCloudScope> streamAll();
+
+    /**
+     * Streams all {@link EntityCloudScope} passing {@code filter}.
+     * @param filter The {@link CloudScopeFilter}.
+     * @return A {@link Stream} containing all {@link EntityCloudScope} records that pass the filter.
+     */
+    Stream<EntityCloudScope> streamByFilter(@Nonnull CloudScopeFilter filter);
 }

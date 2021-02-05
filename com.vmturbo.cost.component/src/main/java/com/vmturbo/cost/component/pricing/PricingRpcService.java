@@ -133,7 +133,7 @@ public class PricingRpcService extends PricingServiceImplBase {
                         checkSum = checkSumField.get().getCheckSum();
                     }
                     createdTime = header.getCreatedTime();
-                    logger.info("Updating pricetables created at {}.", createdTime);
+                    logger.info("Updating pricetables created at {} (key={}).", createdTime);
                 }
                 // this segment contains a probe price table and should also contain a checksum. Add it to the map.
                 if (probePriceTableSegment.hasProbePriceTable()) {

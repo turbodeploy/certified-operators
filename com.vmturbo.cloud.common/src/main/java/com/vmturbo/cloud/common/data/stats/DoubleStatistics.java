@@ -97,5 +97,4 @@ public interface DoubleStatistics {
      * A builder class for {@link DoubleStatistics}.
      */
     class Builder extends ImmutableDoubleStatistics.Builder {}
-
 }

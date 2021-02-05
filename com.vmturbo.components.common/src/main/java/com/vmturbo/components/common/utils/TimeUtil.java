@@ -1,6 +1,7 @@
 package com.vmturbo.components.common.utils;
 
 import java.time.Duration;
+import java.time.Instant;
 
 import javax.annotation.Nonnull;
 
@@ -21,5 +22,17 @@ public class TimeUtil {
             .substring(2)
             .replaceAll("(\\d[HMS])(?!$)", "$1 ")
             .toLowerCase();
+    }
+
+    public static Instant earliest(@Nonnull Instant a, @Nonnull Instant b) {
+        return a.isBefore(b)
+                ? a
+                : b;
+    }
+
+    public static Instant latest(@Nonnull Instant a, @Nonnull Instant b) {
+        return a.isAfter(b)
+                ? a
+                : b;
     }
 }

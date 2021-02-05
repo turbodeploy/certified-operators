@@ -1,5 +1,7 @@
 package com.vmturbo.cost.component.entity.scope;
 
+import com.vmturbo.cloud.common.entity.scope.CloudScopeStore;
+
 /**
  * Any store implementing this interface is dependent on the {@link CloudScopeStore}. If the implementing
  * store is backed by a SQL table, the expectation is that the associated table is foreign keyed to the

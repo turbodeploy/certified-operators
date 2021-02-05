@@ -29,6 +29,7 @@ import org.springframework.scheduling.TaskScheduler;
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
+import com.google.common.util.concurrent.MoreExecutors;
 
 import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierAllocationDatapoint;
 import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierDemand;
@@ -36,6 +37,7 @@ import com.vmturbo.cloud.commitment.analysis.demand.TimeFilter;
 import com.vmturbo.cloud.commitment.analysis.demand.store.EntityComputeTierAllocationFilter;
 import com.vmturbo.cloud.commitment.analysis.demand.ImmutableComputeTierAllocationDatapoint;
 import com.vmturbo.cloud.commitment.analysis.demand.TimeFilter.TimeComparator;
+import com.vmturbo.cloud.common.entity.scope.EntityCloudScope;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.cost.component.cca.SQLComputeTierAllocationStore;
 import com.vmturbo.cost.component.db.Cost;
@@ -66,12 +68,13 @@ public class SQLCloudScopeStoreTest {
 
 
     private final SQLCloudScopeStore cloudScopeStore = new SQLCloudScopeStore(
-            dsl, mock(TaskScheduler.class), Duration.ZERO, 100);
+            dsl, mock(TaskScheduler.class), Duration.ZERO, 100, 100);
 
     private final TopologyInfoTracker mockTopologyTracker = mock(TopologyInfoTracker.class);
 
     private final SQLComputeTierAllocationStore computeTierAllocationStore =
-            new SQLComputeTierAllocationStore(dsl, mockTopologyTracker, 1000, 1000);
+            new SQLComputeTierAllocationStore(dsl, mockTopologyTracker, MoreExecutors.newDirectExecutorService(),
+                    1000, 1000, 1000);
 
 
 

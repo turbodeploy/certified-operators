@@ -356,6 +356,7 @@
                 <module>../com.vmturbo.cost.component</module>
                 <module>../com.vmturbo.cost.component.api</module>
                 <module>../com.vmturbo.reserved.instance.coverage.allocator</module>
+                <module>../com.vmturbo.topology.event.library</module>
             </modules>
         </profile>
 
@@ -1003,6 +1004,7 @@
                 <module>../com.vmturbo.search.metadata</module>
                 <module>../com.vmturbo.integrations.intersight</module>
                 <module>../com.vmturbo.stitching</module>
+                <module>../com.vmturbo.topology.event.library</module>
                 <module>../com.vmturbo.topology.graph</module>
                 <module>../com.vmturbo.topology.processor.api</module>
                 <module>../com.vmturbo.topology.processor</module>
@@ -1206,6 +1208,7 @@
                 <module>../com.vmturbo.search.metadata</module>
                 <module>../com.vmturbo.integrations.intersight</module>
                 <module>../com.vmturbo.stitching</module>
+                <module>../com.vmturbo.topology.event.library</module>
                 <module>../com.vmturbo.topology.graph</module>
                 <module>../com.vmturbo.topology.processor.api</module>
                 <module>../com.vmturbo.topology.processor</module>
@@ -2206,6 +2209,12 @@
             <dependency>
                 <groupId>com.vmturbo</groupId>
                 <artifactId>trax</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>com.vmturbo.topology.event.library</artifactId>
                 <version>${project.version}</version>
             </dependency>
 

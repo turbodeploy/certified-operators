@@ -24,7 +24,6 @@ import com.vmturbo.cloud.commitment.analysis.TestUtils;
 import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierDemand;
 import com.vmturbo.cloud.commitment.analysis.demand.EntityCloudTierMapping;
 import com.vmturbo.cloud.commitment.analysis.demand.EntityComputeTierAllocation;
-import com.vmturbo.cloud.commitment.analysis.demand.ImmutableEntityComputeTierAllocation;
 import com.vmturbo.cloud.commitment.analysis.runtime.AnalysisStage;
 import com.vmturbo.cloud.commitment.analysis.runtime.AnalysisStage.StageResult;
 import com.vmturbo.cloud.commitment.analysis.runtime.CloudCommitmentAnalysisContext;
@@ -121,7 +120,7 @@ public class DemandClassificationStageTest {
     public void testClassification() throws Exception {
 
         // Create 4 entity allocation records (2 each for 2 entities)
-        final EntityComputeTierAllocation entityAllocationA1 = ImmutableEntityComputeTierAllocation.builder()
+        final EntityComputeTierAllocation entityAllocationA1 = EntityComputeTierAllocation.builder()
                 .entityOid(1L)
                 .accountOid(2L)
                 .regionOid(3L)
@@ -136,22 +135,22 @@ public class DemandClassificationStageTest {
                         .tenancy(Tenancy.DEFAULT)
                         .build())
                 .build();
-        final EntityComputeTierAllocation entityAllocationA2 =
-                ImmutableEntityComputeTierAllocation.copyOf(entityAllocationA1)
-                        .withTimeInterval(TimeInterval.builder()
-                                .startTime(Instant.now().minusSeconds(700))
-                                .endTime(Instant.now())
-                                .build());
+        final EntityComputeTierAllocation entityAllocationA2 = entityAllocationA1.toBuilder()
+                .timeInterval(TimeInterval.builder()
+                        .startTime(Instant.now().minusSeconds(700))
+                        .endTime(Instant.now())
+                        .build())
+                .build();
 
-        final EntityComputeTierAllocation entityAllocationB1 =
-                ImmutableEntityComputeTierAllocation.copyOf(entityAllocationA1)
-                        .withEntityOid(6L);
-        final EntityComputeTierAllocation entityAllocationB2 =
-                ImmutableEntityComputeTierAllocation.copyOf(entityAllocationB1)
-                        .withTimeInterval(TimeInterval.builder()
-                                .startTime(Instant.now().minusSeconds(700))
-                                .endTime(Instant.now())
-                                .build());
+        final EntityComputeTierAllocation entityAllocationB1 = entityAllocationA1.toBuilder()
+                .entityOid(6L)
+                .build();
+        final EntityComputeTierAllocation entityAllocationB2 = entityAllocationB1.toBuilder()
+                .timeInterval(TimeInterval.builder()
+                        .startTime(Instant.now().minusSeconds(700))
+                        .endTime(Instant.now())
+                        .build())
+                .build();
 
         // setup allocated demand classifier
         final DemandTimeSeries allocatedDemandA = DemandTimeSeries.builder()

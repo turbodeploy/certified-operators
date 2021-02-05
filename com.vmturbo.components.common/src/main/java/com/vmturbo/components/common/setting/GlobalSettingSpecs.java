@@ -112,7 +112,7 @@ public enum GlobalSettingSpecs {
     CloudCommitmentAllocationRetentionDays(
             "cca.allocation.retentionDays",
             "Cloud Commitment Allocation Retention [Days]",
-            numeric(1f, 90f, 30f),
+            numeric(1f, 90f, 35f),
             Lists.newArrayList(CategoryPathConstants.RI)),
 
     /**

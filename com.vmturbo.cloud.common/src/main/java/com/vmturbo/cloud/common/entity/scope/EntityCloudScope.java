@@ -1,4 +1,4 @@
-package com.vmturbo.cost.component.entity.scope;
+package com.vmturbo.cloud.common.entity.scope;
 
 import java.time.Instant;
 import java.util.Optional;

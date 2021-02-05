@@ -1,0 +1,55 @@
+syntax = "proto2";
+package cost;
+
+option java_package = "com.vmturbo.common.protobuf.cost";
+
+message CloudScopeFilter {
+
+    repeated int64 entity_oid = 1;
+    repeated int64 account_oid = 2;
+    repeated int64 region_oid = 3;
+    repeated int64 availability_zone_oid = 4;
+    repeated int64 service_provider_oid = 5;
+}
+
+
+message EntityUptimeDTO {
+
+    optional int64 uptime_duration_ms = 1;
+    optional int64 total_duration_ms = 2;
+    optional int64 creation_time_ms = 3;
+    optional double uptime_percentage = 4;
+}
+
+
+message GetEntityUptimeRequest {
+    optional int64 entity_oid  = 1;
+}
+
+message GetEntityUptimeResponse {
+    optional EntityUptimeDTO entity_uptime = 1;
+}
+
+message GetEntityUptimeByFilterRequest {
+    optional CloudScopeFilter filter = 1;
+}
+
+message GetEntityUptimeByFilterResponse {
+    map<int64, EntityUptimeDTO> entity_uptime_by_oid = 1;
+    optional EntityUptimeDTO default_uptime = 2;
+}
+
+message ForceFullUptimeCalculationRequest {
+
+}
+
+message ForceFullUptimeCalculationResponse {
+
+}
+
+service EntityUptimeService {
+
+    rpc GetEntityUptime(GetEntityUptimeRequest) returns (GetEntityUptimeResponse);
+    rpc GetEntityUptimeByFilter(GetEntityUptimeByFilterRequest) returns (GetEntityUptimeByFilterResponse);
+    rpc ForceFullUptimeCalculation(ForceFullUptimeCalculationRequest) returns (ForceFullUptimeCalculationResponse);
+}
