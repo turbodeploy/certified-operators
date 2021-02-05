@@ -508,7 +508,7 @@ public class TopologyEntitiesHandler {
 
     private static void setEconomySettings(@Nonnull EconomySettings economySettings,
                                            @Nonnull final AnalysisConfig analysisConfig) {
-
+        economySettings.setLicensePriceWeightScale(analysisConfig.getLicensePriceWeightScale());
         economySettings.setFullPriceForQuote(analysisConfig.isFullPriceForQuote());
         economySettings.getReconfigureableCommodities().add(CommodityDTO.CommodityType.SOFTWARE_LICENSE_COMMODITY_VALUE);
         economySettings.setEstimatesEnabled(false);

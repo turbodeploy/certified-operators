@@ -142,7 +142,8 @@ public class MarketExceptionsTest {
                 mockCCD,
                 commodityIndexFactory,
                 tierExcluderFactory,
-                consistentScalingHelperFactory, cloudTopology, reversibilitySettingFetcher));
+                consistentScalingHelperFactory, cloudTopology, reversibilitySettingFetcher,
+                MarketAnalysisUtils.PRICE_WEIGHT_SCALE));
     }
 
     /**

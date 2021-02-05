@@ -125,6 +125,10 @@ public class MarketRunnerConfig {
     @Value("${fullPriceForQuote:false}")
     private boolean fullPriceForQuote;
 
+    // Value to scale the price weight of commodities for every softwareLicenseCommodity sold by a provider.
+    @Value("${licensePriceWeightScale:3}")
+    private int licensePriceWeightScale;
+
     @Bean(destroyMethod = "shutdownNow")
     public ExecutorService marketRunnerThreadPool() {
         final ThreadFactory threadFactory =
@@ -194,7 +198,8 @@ public class MarketRunnerConfig {
                 reversibilitySettingFetcherFactory(),
                 migratedWorkloadCloudCommitmentAnalysisService(),
                 fullPriceForQuote,
-                commodityIdUpdater());
+                commodityIdUpdater(),
+                licensePriceWeightScale);
     }
 
     /**

@@ -131,6 +131,8 @@ public interface AnalysisFactory {
 
         private final CommodityIdUpdater commodityIdUpdater;
 
+        private final int licensePriceWeightScale;
+
         public DefaultAnalysisFactory(@Nonnull final GroupMemberRetriever groupMemberRetriever,
                                       @Nonnull final SettingServiceBlockingStub settingServiceClient,
                                       @Nonnull final MarketPriceTableFactory marketPriceTableFactory,
@@ -151,7 +153,8 @@ public interface AnalysisFactory {
                                       @Nonnull final ReversibilitySettingFetcherFactory reversibilitySettingFetcherFactory,
                                       @Nonnull MigratedWorkloadCloudCommitmentAnalysisService migratedWorkloadCloudCommitmentAnalysisService,
                                       final boolean fullPriceForQuote,
-                                      @Nonnull final CommodityIdUpdater commodityIdUpdater) {
+                                      @Nonnull final CommodityIdUpdater commodityIdUpdater,
+                                      final int licensePriceWeightScale) {
             Preconditions.checkArgument(alleviatePressureQuoteFactor >= 0f);
             Preconditions.checkArgument(alleviatePressureQuoteFactor <= 1.0f);
             Preconditions.checkArgument(standardQuoteFactor >= 0f);
@@ -179,6 +182,7 @@ public interface AnalysisFactory {
             this.reversibilitySettingFetcherFactory = reversibilitySettingFetcherFactory;
             this.migratedWorkloadCloudCommitmentAnalysisService = migratedWorkloadCloudCommitmentAnalysisService;
             this.commodityIdUpdater = Objects.requireNonNull(commodityIdUpdater);
+            this.licensePriceWeightScale = licensePriceWeightScale;
         }
 
         /**
@@ -194,7 +198,8 @@ public interface AnalysisFactory {
             final float quoteFactor = TopologyDTOUtil.isAlleviatePressurePlan(topologyInfo) ?
                     alleviatePressureQuoteFactor : standardQuoteFactor;
             final AnalysisConfig.Builder configBuilder = AnalysisConfig.newBuilderWithSMA(marketMode, quoteFactor,
-                liveMarketMoveCostFactor, this.suspensionsThrottlingConfig, globalSettings, fullPriceForQuote);
+                liveMarketMoveCostFactor, this.suspensionsThrottlingConfig, globalSettings, fullPriceForQuote,
+                licensePriceWeightScale);
             configCustomizer.customize(configBuilder);
             return new Analysis(topologyInfo, topologyEntities,
                 groupMemberRetriever, clock,
@@ -331,6 +336,13 @@ public interface AnalysisFactory {
         private final float discountedComputeCostFactor;
 
         private final boolean fullPriceForQuote;
+
+        /**
+         * Value to scale the price weight of commodities for every softwareLicenseCommodity sold by
+         * a provider.
+         */
+        private final int licensePriceWeightScale;
+
         /**
          * Use {@link AnalysisConfig#newBuilder(float, float, SuspensionsThrottlingConfig, Map)}.
          *
@@ -347,6 +359,8 @@ public interface AnalysisFactory {
          *                                    template to current template that is allowed for
          *                                    analysis engine to recommend resize up to utilize a RI.
          * @param fullPriceForQuote if quote should be the full price of the provider.
+         * @param licensePriceWeightScale value to scale the price weight of commodities for every
+         *                                softwareLicenseCommodity sold by a provider.
          */
         private AnalysisConfig(final MarketMode marketMode,
                               final float quoteFactor,
@@ -360,7 +374,8 @@ public interface AnalysisFactory {
                               final float rightsizeLowerWatermark,
                               final float rightsizeUpperWatermark,
                               final float discountedComputeCostFactor,
-                              final boolean fullPriceForQuote) {
+                              final boolean fullPriceForQuote,
+                              final int licensePriceWeightScale) {
             this.quoteFactor = quoteFactor;
             this.liveMarketMoveCostFactor = liveMarketMoveCostFactor;
             this.suspensionsThrottlingConfig = suspensionsThrottlingConfig;
@@ -374,6 +389,7 @@ public interface AnalysisFactory {
             this.marketMode = marketMode;
             this.discountedComputeCostFactor = discountedComputeCostFactor;
             this.fullPriceForQuote = fullPriceForQuote;
+            this.licensePriceWeightScale = licensePriceWeightScale;
         }
 
         public float getQuoteFactor() {
@@ -398,6 +414,10 @@ public interface AnalysisFactory {
 
         public boolean isFullPriceForQuote() {
             return fullPriceForQuote;
+        }
+
+        public int getLicensePriceWeightScale() {
+            return licensePriceWeightScale;
         }
 
         public MarketMode getMarketMode() {
@@ -494,13 +514,16 @@ public interface AnalysisFactory {
          * @param suspensionsThrottlingConfig See {@link AnalysisConfig#suspensionsThrottlingConfig}.
          * @param globalSettings See {@link AnalysisConfig#globalSettingsMap}
          * @param fullPriceForQuote if quote should be the full price of the provider.
+         * @param licensePriceWeightScale value to scale the price weight of commodities for every
+         *            softwareLicenseCommodity sold by a provider.
          * @return The builder, which can be further customized.
          */
         public static Builder newBuilder(final float quoteFactor, final float liveMarketMoveCostFactor,
                                          @Nonnull final SuspensionsThrottlingConfig suspensionsThrottlingConfig,
-                 @Nonnull final Map<String, Setting> globalSettings, final boolean fullPriceForQuote) {
+                 @Nonnull final Map<String, Setting> globalSettings, final boolean fullPriceForQuote,
+                 final int licensePriceWeightScale) {
             return newBuilderWithSMA(MarketMode.M2Only, quoteFactor, liveMarketMoveCostFactor,
-                suspensionsThrottlingConfig, globalSettings, fullPriceForQuote);
+                suspensionsThrottlingConfig, globalSettings, fullPriceForQuote, licensePriceWeightScale);
         }
 
         /**
@@ -516,14 +539,17 @@ public interface AnalysisFactory {
          * @param suspensionsThrottlingConfig See {@link AnalysisConfig#suspensionsThrottlingConfig}.
          * @param globalSettings See {@link AnalysisConfig#globalSettingsMap}
          * @param fullPriceForQuote if quote should be the full price of the provider.
+         * @param licensePriceWeightScale value to scale the price weight of commodities for every
+         *            softwareLicenseCommodity sold by a provider.
          * @return The builder, which can be further customized.
          */
         public static Builder newBuilderWithSMA(final MarketMode marketMode, final float quoteFactor, final float liveMarketMoveCostFactor,
                                                 @Nonnull final SuspensionsThrottlingConfig suspensionsThrottlingConfig,
                                                 @Nonnull final Map<String, Setting> globalSettings,
-                                                final boolean fullPriceForQuote) {
+                                                final boolean fullPriceForQuote,
+                                                final int licensePriceWeightScale) {
             return new Builder(marketMode, quoteFactor, liveMarketMoveCostFactor,
-                    suspensionsThrottlingConfig, globalSettings, fullPriceForQuote);
+                    suspensionsThrottlingConfig, globalSettings, fullPriceForQuote, licensePriceWeightScale);
         }
 
         public static class Builder {
@@ -553,18 +579,22 @@ public interface AnalysisFactory {
 
             private final boolean fullPriceForQuote;
 
+            final int licensePriceWeightScale;
+
             private Builder(final MarketMode marketMode,
                             final float quoteFactor,
                             final float liveMarketMoveCostFactor,
                             final SuspensionsThrottlingConfig suspensionsThrottlingConfig,
                             @Nonnull final Map<String, Setting> globalSettings,
-                            final boolean fullPriceForQuote) {
+                            final boolean fullPriceForQuote,
+                            final int licensePriceWeightScale) {
                 this.quoteFactor = quoteFactor;
                 this.liveMarketMoveCostFactor = liveMarketMoveCostFactor;
                 this.suspensionsThrottlingConfig = suspensionsThrottlingConfig;
                 this.globalSettings = globalSettings;
                 this.marketMode = marketMode;
                 this.fullPriceForQuote = fullPriceForQuote;
+                this.licensePriceWeightScale = licensePriceWeightScale;
             }
 
             /**
@@ -674,7 +704,8 @@ public interface AnalysisFactory {
                 return new AnalysisConfig(marketMode, quoteFactor, liveMarketMoveCostFactor,
                     suspensionsThrottlingConfig, globalSettings, includeVDC, maxPlacementsOverride,
                     useQuoteCacheDuringSNM, replayProvisionsForRealTime, rightsizeLowerWatermark,
-                    rightsizeUpperWatermark, discountedComputeCostFactor, fullPriceForQuote);
+                    rightsizeUpperWatermark, discountedComputeCostFactor, fullPriceForQuote,
+                    licensePriceWeightScale);
             }
         }
     }

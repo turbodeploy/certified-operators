@@ -386,6 +386,8 @@ public class TopologyConverter {
      * @param consistentScalingHelperFactory CSM helper factory
      * @param cloudTopology instance to look up topology relationships
      * @param reversibilitySettingFetcher fetcher for "Savings vs Reversibility" policy settings
+     * @param licensePriceWeightScale value to scale the price weight of commodities for every
+     *            softwareLicenseCommodity sold by a provider.
      */
     public TopologyConverter(@Nonnull final TopologyInfo topologyInfo,
                              final boolean includeGuaranteedBuyer,
@@ -399,7 +401,8 @@ public class TopologyConverter {
                              @Nonnull final TierExcluderFactory tierExcluderFactory,
                              @Nonnull final ConsistentScalingHelperFactory consistentScalingHelperFactory,
                              @Nonnull final CloudTopology<TopologyEntityDTO> cloudTopology,
-                             @Nonnull final ReversibilitySettingFetcher reversibilitySettingFetcher) {
+                             @Nonnull final ReversibilitySettingFetcher reversibilitySettingFetcher,
+                             final int licensePriceWeightScale) {
         this.topologyInfo = Objects.requireNonNull(topologyInfo);
         this.cloudTopology = cloudTopology;
         this.includeGuaranteedBuyer = includeGuaranteedBuyer;
@@ -411,7 +414,7 @@ public class TopologyConverter {
         this.commodityConverter = incomingCommodityConverter != null ?
                 incomingCommodityConverter : new CommodityConverter(new NumericIDAllocator(),
                 includeGuaranteedBuyer, dsBasedBicliquer, numConsumersOfSoldCommTable,
-                conversionErrorCounts, consistentScalingHelper);
+                conversionErrorCounts, consistentScalingHelper, licensePriceWeightScale);
         this.tierExcluder = tierExcluderFactory.newExcluder(topologyInfo, this.commodityConverter,
                 getShoppingListOidToInfos());
         this.cloudTc = new CloudTopologyConverter(unmodifiableEntityOidToDtoMap, topologyInfo,
@@ -461,7 +464,7 @@ public class TopologyConverter {
                 MarketMode.M2Only, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketCloudRateExtractor, null, cloudCostData,
                 commodityIndexFactory, tierExcluderFactory, consistentScalingHelperFactory,
-                null, reversibilitySettingFetcher);
+                null, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE);
     }
 
     /**
@@ -493,7 +496,7 @@ public class TopologyConverter {
                 analysisConfig.getMarketMode(), analysisConfig.getLiveMarketMoveCostFactor(),
                 marketCloudRateExtractor, incomingCommodityConverter, cloudCostData,
                 commodityIndexFactory, tierExcluderFactory, consistentScalingHelperFactory,
-                cloudTopology, reversibilitySettingFetcher);
+                cloudTopology, reversibilitySettingFetcher, analysisConfig.getLicensePriceWeightScale());
         this.unquotedCommoditiesEnabled = isUnquotedCommoditiesEnabled(analysisConfig);
     }
 
@@ -510,11 +513,12 @@ public class TopologyConverter {
                              @Nonnull final ConsistentScalingHelperFactory
                                      consistentScalingHelperFactory,
                              @Nonnull final ReversibilitySettingFetcher
-                                     reversibilitySettingFetcher) {
+                                     reversibilitySettingFetcher,
+                             final int licensePriceWeightScale) {
         this(topologyInfo, includeGuaranteedBuyer, quoteFactor, marketMode, liveMarketMoveCostFactor,
                 marketCloudRateExtractor, incomingCommodityConverter, null,
                 commodityIndexFactory, tierExcluderFactory, consistentScalingHelperFactory,
-                null, reversibilitySettingFetcher);
+                null, reversibilitySettingFetcher, licensePriceWeightScale);
     }
 
     /**
@@ -530,6 +534,8 @@ public class TopologyConverter {
      * @param tierExcluderFactory tier excluder factory
      * @param consistentScalingHelperFactory CSM helper factory
      * @param reversibilitySettingFetcher fetcher for "Savings vs Reversibility" policy settings
+     * @param licensePriceWeightScale value to scale the price weight of commodities for every
+     *            softwareLicenseCommodity sold by a provider.
      */
     @VisibleForTesting
     public TopologyConverter(@Nonnull final TopologyInfo topologyInfo,
@@ -543,10 +549,11 @@ public class TopologyConverter {
                              @Nonnull final ConsistentScalingHelperFactory
                                      consistentScalingHelperFactory,
                              @Nonnull final ReversibilitySettingFetcher
-                                     reversibilitySettingFetcher) {
+                                     reversibilitySettingFetcher,
+                             final int licensePriceWeightScale) {
         this(topologyInfo, includeGuaranteedBuyer, quoteFactor, MarketMode.M2Only, liveMarketMoveCostFactor,
             marketCloudRateExtractor, null, cloudCostData, commodityIndexFactory, tierExcluderFactory,
-            consistentScalingHelperFactory, null, reversibilitySettingFetcher);
+            consistentScalingHelperFactory, null, reversibilitySettingFetcher, licensePriceWeightScale);
     }
 
 

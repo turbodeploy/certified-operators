@@ -815,7 +815,7 @@ public class TopologyConverterFromMarketTest {
         TopologyConverter converter = Mockito.spy(new TopologyConverter(REALTIME_TOPOLOGY_INFO,
                 false, MarketAnalysisUtils.QUOTE_FACTOR, MarketMode.M2Only, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketCloudRateExtractor, mockCommodityConverter, indexFactory, tierExcluderFactory,
-                consistentScalingHelperFactory, reversibilitySettingFetcher));
+                consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE));
 
         // warning: introspection follows...
         Map<Long, ShoppingListInfo> shoppingListMap = new HashMap<>();
@@ -2725,7 +2725,7 @@ public class TopologyConverterFromMarketTest {
             false, MarketAnalysisUtils.QUOTE_FACTOR, MarketMode.M2Only,
             MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
             marketCloudRateExtractor, mockCommodityConverter, indexFactory, tierExcluderFactory,
-            consistentScalingHelperFactory, reversibilitySettingFetcher));
+            consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE));
 
         // Mock entityOidToDto field of TopologyConverter.
         final Map<Long, TopologyEntityDTO> entityOidToDtoMap =

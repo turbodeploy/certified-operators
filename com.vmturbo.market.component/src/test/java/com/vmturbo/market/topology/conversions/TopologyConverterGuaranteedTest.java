@@ -156,7 +156,7 @@ public class TopologyConverterGuaranteedTest {
             new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-                consistentScalingHelperFactory, reversibilitySettingFetcher);
+                consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE);
         Collection<TraderTO> traders = converter.convertToMarket(entities);
         assertEquals(6, traders.size());
         List<Long> guaranteedBuyers = traders.stream()

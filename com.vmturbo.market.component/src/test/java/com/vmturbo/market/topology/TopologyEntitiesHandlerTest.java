@@ -419,7 +419,7 @@ public class TopologyEntitiesHandlerTest {
         TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
                         MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                         marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-                        consistentScalingHelperFactory, reversibilitySettingFetcher);
+                        consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE);
         Collection<TraderTO> economyDTOs = converter.convertToMarket(topoDTOs);
         final TopologyInfo topologyInfo = TopologyInfo.newBuilder().setTopologyContextId(7L)
                         .setTopologyType(TopologyType.REALTIME).setTopologyId(1L).build();
@@ -432,7 +432,8 @@ public class TopologyEntitiesHandlerTest {
 
         final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(
                     MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                    SuspensionsThrottlingConfig.DEFAULT, Collections.emptyMap(), false)
+                    SuspensionsThrottlingConfig.DEFAULT, Collections.emptyMap(), false,
+                    MarketAnalysisUtils.PRICE_WEIGHT_SCALE)
                 .setRightsizeLowerWatermark(rightsizeLowerWatermark)
                 .setRightsizeUpperWatermark(rightsizeUpperWatermark)
                 .setMaxPlacementsOverride(maxPlacementIterations)
@@ -497,7 +498,7 @@ public class TopologyEntitiesHandlerTest {
         TopologyConverter topoConverter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
                         MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                         marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-                        consistentScalingHelperFactory, reversibilitySettingFetcher);
+                        consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE);
 
         Collection<TraderTO> traderDTOs = topoConverter.convertToMarket(topoDTOs.stream()
                         .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())));
@@ -681,7 +682,8 @@ public class TopologyEntitiesHandlerTest {
         final AnalysisConfig analysisConfig = AnalysisConfig
                 .newBuilder(MarketAnalysisUtils.QUOTE_FACTOR,
                         MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                        SuspensionsThrottlingConfig.DEFAULT, Collections.emptyMap(), false)
+                        SuspensionsThrottlingConfig.DEFAULT, Collections.emptyMap(), false,
+                        MarketAnalysisUtils.PRICE_WEIGHT_SCALE)
                 .build();
         final Topology topology = TopologyEntitiesHandler.createTopology(Collections.EMPTY_LIST, REALTIME_TOPOLOGY_INFO,
                 Collections.emptyList());
@@ -815,7 +817,8 @@ public class TopologyEntitiesHandlerTest {
         final AnalysisConfig analysisConfig = AnalysisConfig
                         .newBuilder(MarketAnalysisUtils.QUOTE_FACTOR,
                                         MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                                        SuspensionsThrottlingConfig.DEFAULT, Collections.emptyMap(), false)
+                                        SuspensionsThrottlingConfig.DEFAULT, Collections.emptyMap(), false,
+                                        MarketAnalysisUtils.PRICE_WEIGHT_SCALE)
                         .setRightsizeLowerWatermark(rightsizeLowerWatermark)
                         .setRightsizeUpperWatermark(rightsizeUpperWatermark)
                         .setMaxPlacementsOverride(maxPlacementIterations)
@@ -932,7 +935,7 @@ public class TopologyEntitiesHandlerTest {
                             .newBuilder(MarketAnalysisUtils.QUOTE_FACTOR,
                                             MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                                             SuspensionsThrottlingConfig.DEFAULT,
-                                            Collections.emptyMap(), false)
+                                            Collections.emptyMap(), false, MarketAnalysisUtils.PRICE_WEIGHT_SCALE)
                             .setRightsizeLowerWatermark(rightsizeLowerWatermark)
                             .setRightsizeUpperWatermark(rightsizeUpperWatermark)
                             .setMaxPlacementsOverride(maxPlacementIterations)
@@ -1049,7 +1052,7 @@ public class TopologyEntitiesHandlerTest {
         TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-                consistentScalingHelperFactory, reversibilitySettingFetcher);
+                consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE);
         Collection<TraderTO> economyDTOs = converter.convertToMarket(topoDTOs);
         return generateEnd2EndActions(analysis, economyDTOs, converter);
     }
@@ -1058,7 +1061,7 @@ public class TopologyEntitiesHandlerTest {
         TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-                consistentScalingHelperFactory, reversibilitySettingFetcher);
+                consistentScalingHelperFactory, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE);
         return generateEnd2EndActions(analysis, economyDTOs, converter);
     }
 
@@ -1072,7 +1075,7 @@ public class TopologyEntitiesHandlerTest {
                 .newBuilder(MarketAnalysisUtils.QUOTE_FACTOR,
                         MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                         SuspensionsThrottlingConfig.DEFAULT,
-                        Collections.emptyMap(), false)
+                        Collections.emptyMap(), false, MarketAnalysisUtils.PRICE_WEIGHT_SCALE)
                 .setRightsizeLowerWatermark(rightsizeLowerWatermark)
                 .setRightsizeUpperWatermark(rightsizeUpperWatermark)
                 .setMaxPlacementsOverride(maxPlacementIterations)
