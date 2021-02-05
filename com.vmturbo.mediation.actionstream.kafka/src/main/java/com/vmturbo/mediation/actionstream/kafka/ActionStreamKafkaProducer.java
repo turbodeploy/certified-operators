@@ -3,6 +3,7 @@ package com.vmturbo.mediation.actionstream.kafka;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Properties;
+import java.util.concurrent.Future;
 
 import javax.annotation.Nonnull;
 
@@ -11,6 +12,7 @@ import com.googlecode.protobuf.format.JsonFormat;
 
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -40,13 +42,15 @@ public class ActionStreamKafkaProducer {
      *
      * @param serverMsg message to send
      * @param topic topic name
+     * @return Future represents the result of an asynchronous audit of the action
      */
-    public void sendMessage(@Nonnull final AbstractMessage serverMsg, @Nonnull final String topic) {
+    public Future<RecordMetadata> sendMessage(@Nonnull final AbstractMessage serverMsg,
+            @Nonnull final String topic) {
         final Instant startTime = Instant.now();
         logger.debug("Sending message {} to topic {}.", serverMsg.getClass().getSimpleName(),
                 topic);
         final String message = jsonFormat.printToString(serverMsg);
-        producer.send(new ProducerRecord<>(topic, message), (metadata, exception) -> {
+        return producer.send(new ProducerRecord<>(topic, message), (metadata, exception) -> {
             double sentTimeMs = Duration.between(startTime, Instant.now()).toMillis();
             logger.debug("Message send took {} ms", sentTimeMs);
             if (exception != null) {

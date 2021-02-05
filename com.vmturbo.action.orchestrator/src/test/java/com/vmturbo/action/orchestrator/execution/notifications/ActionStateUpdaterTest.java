@@ -166,6 +166,12 @@ public class ActionStateUpdaterTest {
         return makeTestAction(actionId, actionSpec, 2244L);
     }
 
+    /**
+     * ActionStateUpdater should send updates to actionStateUpdatesSender (kafka) and notification
+     * sender.
+     *
+     * @throws Exception should not be thrown.
+     */
     @Test
     public void testOnActionProgress() throws Exception {
         ActionProgress progress = ActionProgress.newBuilder()
@@ -211,6 +217,11 @@ public class ActionStateUpdaterTest {
                 .build());
     }
 
+    /**
+     * ActionStateUpdater should never call notifyActionProgress when the action id is not found.
+     *
+     * @throws Exception should not be thrown.
+     */
     @Test
     public void testActionProgressNotFound() throws Exception {
         ActionProgress progress = ActionProgress.newBuilder()
@@ -460,6 +471,11 @@ public class ActionStateUpdaterTest {
         verify(acceptedActionsStore).deleteAcceptedAction(actionWithExecutionSchedule.getRecommendationOid());
     }
 
+    /**
+     * ActionStateUpdater should never call notifyActionSuccess when the action id is not found.
+     *
+     * @throws Exception should not be thrown.
+     */
     @Test
     public void testActionSuccessNotFound() throws Exception {
         ActionSuccess success = ActionSuccess.newBuilder()
@@ -646,6 +662,11 @@ public class ActionStateUpdaterTest {
         verifyZeroInteractions(actionHistoryDao);
     }
 
+    /**
+     * ActionStateUpdater should never call notifyActionFailure when the action id is not found.
+     *
+     * @throws Exception should not be thrown.
+     */
     @Test
     public void testActionFailureNotFound() throws Exception {
         ActionFailure failure = ActionFailure.newBuilder()

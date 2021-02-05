@@ -1,25 +1,26 @@
 package com.vmturbo.action.orchestrator.audit;
 
+import java.time.Clock;
 import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
-import com.google.common.collect.HashBasedTable;
-import com.google.common.collect.Table;
 import com.google.common.collect.Table.Cell;
 
 import org.apache.commons.lang3.mutable.MutableInt;
+import org.apache.commons.lang3.time.StopWatch;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.action.orchestrator.action.ActionView;
+import com.vmturbo.action.orchestrator.action.AuditedActionInfo;
+import com.vmturbo.action.orchestrator.action.AuditedActionsManager;
+import com.vmturbo.action.orchestrator.action.AuditedActionsManager.AuditedActionsUpdate;
 import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionEvent;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
@@ -45,18 +46,13 @@ public class ActionAuditSender {
     private final IMessageSender<ActionEvent> messageSender;
     private final Logger logger = LogManager.getLogger(getClass());
     private final ThinTargetCache thinTargetCache;
-    /**
-     * Persist actions which were already sent for audit (raw - actionOID, column - workflowId,
-     * value ActionView).
-     * Action can be send for audit to several targets (defines by discovered workflow).
-     * We also persist information about {@link ActionView}, because we need to know information
-     * about action when action won't be recommended by market but we need to send CLEARED
-     * event to external audit.
-     */
-    // TODO OM-64028: clean actions if target discovered workflow was removed
-    private final Table<Long, Long, ActionView> sentActionsToWorkflowCache =
-            HashBasedTable.create();
     private final ActionTranslator actionTranslator;
+
+    private final AuditedActionsManager auditedActionsManager;
+
+    private final long minsClearedActionsCriteria;
+
+    private final Clock clock;
 
 
     /**
@@ -66,15 +62,26 @@ public class ActionAuditSender {
      * @param messageSender notifications sender
      * @param thinTargetCache target cache
      * @param actionTranslator action translator
+     * @param auditedActionsManager object responsible for maintaining the book keeping.
+     * @param minsClearedActionsCriteria the amount of time that needs to pass before concluding an
+     *                                   action is cleared.
+     * @param clock the object used to get the current time.
      */
-    public ActionAuditSender(@Nonnull WorkflowStore workflowStore,
+    public ActionAuditSender(
+            @Nonnull WorkflowStore workflowStore,
             @Nonnull IMessageSender<ActionEvent> messageSender,
             @Nonnull ThinTargetCache thinTargetCache,
-            @Nonnull ActionTranslator actionTranslator) {
+            @Nonnull ActionTranslator actionTranslator,
+            @Nonnull AuditedActionsManager auditedActionsManager,
+            final long minsClearedActionsCriteria,
+            @Nonnull Clock clock) {
         this.workflowStore = Objects.requireNonNull(workflowStore);
         this.messageSender = Objects.requireNonNull(messageSender);
         this.thinTargetCache = Objects.requireNonNull(thinTargetCache);
         this.actionTranslator = Objects.requireNonNull(actionTranslator);
+        this.auditedActionsManager = Objects.requireNonNull(auditedActionsManager);
+        this.minsClearedActionsCriteria = minsClearedActionsCriteria;
+        this.clock = Objects.requireNonNull(clock);
     }
 
     /**
@@ -87,7 +94,10 @@ public class ActionAuditSender {
      */
     public void sendActionEvents(@Nonnull Collection<? extends ActionView> actions)
             throws CommunicationException, InterruptedException {
+        StopWatch stopWatch = new StopWatch();
+        stopWatch.start();
         final MutableInt auditedActions = new MutableInt(0);
+        final AuditedActionsUpdate auditedActionsUpdates = new AuditedActionsUpdate();
         for (ActionView action : actions) {
             Optional<WorkflowDTO.Workflow> workflowOptional;
             try {
@@ -98,21 +108,24 @@ public class ActionAuditSender {
                 workflowOptional = Optional.empty();
             }
             if (workflowOptional.isPresent()) {
-                processWorkflow(action, workflowOptional.get(), auditedActions);
+                processWorkflow(action, workflowOptional.get(), auditedActions, auditedActionsUpdates);
             } else {
                 logger.trace(
                         "Action {} does not have a currently associated workflow. Skip the audit",
                         action::getId);
             }
         }
-        processCanceledActions(actions);
-        if (auditedActions.getValue() > 0) {
-            logger.info("Sent {} of {} actions for external audit", auditedActions, actions.size());
-        }
+        processCanceledActions(actions, auditedActionsUpdates);
+        // persist all updates of audited actions
+        auditedActionsManager.persistAuditedActionsUpdates(auditedActionsUpdates);
+        stopWatch.stop();
+        logger.info("Took {} to send {} of {} actions for external audit",
+            stopWatch, auditedActions, actions.size());
     }
 
     private void processWorkflow(@Nonnull ActionView action, @Nonnull Workflow workflow,
-            @Nonnull MutableInt auditedActions)
+            @Nonnull MutableInt auditedActions,
+            @Nonnull AuditedActionsUpdate auditedActionsUpdates)
             throws CommunicationException, InterruptedException {
         final Optional<ThinTargetInfo> auditTarget = getAuditTarget(workflow);
         if (auditTarget.isPresent()) {
@@ -122,7 +135,7 @@ public class ActionAuditSender {
             if (auditTargetType.equals(SDKProbeType.SERVICENOW.getProbeType())) {
                 processServiceNowWorkflow(action, workflow, auditedActions);
             } else {
-                processAuditWorkflow(action, workflow, auditedActions);
+                processAuditWorkflow(action, workflow, auditedActions, auditedActionsUpdates);
             }
         } else {
             logger.error("Failed to get target discovered workflow {}. Audit was skipped.",
@@ -130,49 +143,69 @@ public class ActionAuditSender {
         }
     }
 
-    private void processCanceledActions(@Nonnull Collection<? extends ActionView> actions)
+    private void processCanceledActions(@Nonnull Collection<? extends ActionView> actions,
+            @Nonnull AuditedActionsUpdate auditedActionsUpdates)
             throws CommunicationException, InterruptedException {
         final Set<Long> currentActions =
                 actions.stream().map(ActionView::getRecommendationOid).collect(Collectors.toSet());
-        final Map<Long, Long> canceledActions = new HashMap<>();
-        for (Cell<Long, Long, ActionView> cell : sentActionsToWorkflowCache.cellSet()) {
+        final Collection<Cell<Long, Long, Optional<Long>>> alreadySentActions =
+                auditedActionsManager.getAlreadySentActions();
+        for (Cell<Long, Long, Optional<Long>> cell : alreadySentActions) {
             final Long actionOID = cell.getRowKey();
             final Long workflowId = cell.getColumnKey();
-            final ActionView actionView = cell.getValue();
-            if (!currentActions.contains(actionOID) && sendCanceledAction(actionView)) {
-                canceledActions.put(actionOID, workflowId);
+            final Optional<Long> clearedTimestamp = cell.getValue();
+            if (!currentActions.contains(actionOID)) {
+                final Long clearedTime;
+                if (!clearedTimestamp.isPresent()) {
+                    // persist timestamp when action first time was not recommended after sending
+                    // this action earlier for ON_GEN audit
+                    clearedTime = clock.millis();
+                    auditedActionsUpdates.addRecentlyClearedAction(
+                            new AuditedActionInfo(actionOID, workflowId, clearedTime));
+                } else {
+                    clearedTime = clearedTimestamp.get();
+                }
+                if (isClearedCriteriaMet(clearedTime)) {
+                    // if earlier audited action is not recommended during certain time and met
+                    // cleared criteria, then we send it as CLEARED
+                    sendCanceledAction(actionOID, workflowId);
+                    auditedActionsUpdates.addExpiredClearedAction(
+                            new AuditedActionInfo(actionOID, workflowId, null));
+                }
+            } else if (clearedTimestamp != null && clearedTimestamp.isPresent()) {
+                // reset cleared_timestamp, because action which wasn't recommended during certain time is came back
+                auditedActionsUpdates.addAuditedAction(
+                        new AuditedActionInfo(actionOID, workflowId, null));
             }
-        }
-        if (canceledActions.size() > 0) {
-            logger.info("Sent {} CANCELED actions for external audit", canceledActions.size());
-            // remove CANCELED actions from cache
-            canceledActions.forEach(sentActionsToWorkflowCache::remove);
         }
     }
 
-    private boolean sendCanceledAction(@Nullable ActionView action)
+    private boolean isClearedCriteriaMet(@Nonnull Long clearedTimestamp) {
+        final Long currentTime = clock.millis();
+        long clearedDurationMsec = currentTime - clearedTimestamp;
+        return clearedDurationMsec > TimeUnit.MINUTES.toMillis(minsClearedActionsCriteria);
+    }
+
+    private boolean sendCanceledAction(@Nonnull Long recommendationId, @Nonnull Long workflowId)
             throws CommunicationException, InterruptedException {
-        if (action != null) {
-            Optional<WorkflowDTO.Workflow> workflowOptional;
-            try {
-                // we need to check absence of workflow, because it can be missed in the
-                // environment for action which is not recommended in latest market cycle
-                workflowOptional = action.getWorkflow(workflowStore, ActionState.READY);
-            } catch (WorkflowStoreException e) {
-                logger.warn("Failed to fetch workflow for action {}. CANCELED event won't be send"
-                        + " for audit.", action.getId());
-                workflowOptional = Optional.empty();
-            }
-            if (workflowOptional.isPresent()) {
-                final Workflow workflow = workflowOptional.get();
-                final ActionEvent event =
-                        getActionEvent(action, workflow, ActionResponseState.PENDING_ACCEPT,
-                                ActionResponseState.CLEARED);
-                logger.debug("Sending CANCELED event for action {} to external audit",
-                        action.getRecommendationOid());
-                messageSender.sendMessage(event);
-                return true;
-            }
+        Optional<Workflow> workflowOptional;
+        try {
+            // we need to check absence of workflow, because it can be missed in the
+            // environment for action which is not recommended in latest market cycle
+            workflowOptional = workflowStore.fetchWorkflow(workflowId);
+        } catch (WorkflowStoreException e) {
+            logger.warn("Failed to fetch workflow with {} id  for action {}. CANCELED event won't "
+                    + "be send for audit.", workflowId, recommendationId);
+            workflowOptional = Optional.empty();
+        }
+        if (workflowOptional.isPresent()) {
+            final Workflow workflow = workflowOptional.get();
+            final ActionEvent event = getCanceledActionEvent(recommendationId, workflow,
+                    ActionResponseState.PENDING_ACCEPT, ActionResponseState.CLEARED);
+            logger.debug("Sending CANCELED event for action {} to external audit",
+                    recommendationId);
+            messageSender.sendMessage(event);
+            return true;
         }
         return false;
     }
@@ -213,7 +246,8 @@ public class ActionAuditSender {
     }
 
     private void processAuditWorkflow(@Nonnull ActionView action, @Nonnull Workflow workflow,
-            @Nonnull MutableInt auditedActions)
+            @Nonnull MutableInt auditedActions,
+            @Nonnull AuditedActionsUpdate auditedActionsUpdates)
             throws CommunicationException, InterruptedException {
         if (!isAlreadySent(action.getRecommendationOid(), workflow.getId())) {
             final ActionResponseState oldState;
@@ -237,8 +271,8 @@ public class ActionAuditSender {
             }
 
             final ActionEvent event = getActionEvent(action, workflow, oldState, newState);
-            sentActionsToWorkflowCache.put(action.getRecommendationOid(), workflow.getId(),
-                    action);
+            auditedActionsUpdates.addAuditedAction(
+                    new AuditedActionInfo(action.getRecommendationOid(), workflow.getId(), null));
             logger.debug("Sending action {} audit event to external audit", action.getId());
             messageSender.sendMessage(event);
             auditedActions.increment();
@@ -256,7 +290,21 @@ public class ActionAuditSender {
         return ActionEvent.newBuilder()
                 .setOldState(oldState)
                 .setNewState(newState)
-                .setTimestamp(System.currentTimeMillis())
+                .setTimestamp(clock.millis())
+                .setActionRequest(request)
+                .build();
+    }
+
+    private ActionEvent getCanceledActionEvent(@Nonnull Long recommendationId, @Nonnull Workflow workflow,
+            @Nonnull ActionResponseState oldState, @Nonnull ActionResponseState newState) {
+        final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
+                .setActionId(recommendationId)
+                .setTargetId(workflow.getWorkflowInfo().getTargetId())
+                .build();
+        return ActionEvent.newBuilder()
+                .setOldState(oldState)
+                .setNewState(newState)
+                .setTimestamp(clock.millis())
                 .setActionRequest(request)
                 .build();
     }
@@ -267,6 +315,6 @@ public class ActionAuditSender {
     }
 
     private boolean isAlreadySent(long actionOid, long workflowId) {
-        return sentActionsToWorkflowCache.contains(actionOid, workflowId);
+        return auditedActionsManager.isAlreadySent(actionOid, workflowId);
     }
 }

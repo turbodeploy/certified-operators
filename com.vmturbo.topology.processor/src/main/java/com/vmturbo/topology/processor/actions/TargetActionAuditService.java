@@ -22,9 +22,10 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionEvent;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
 import com.vmturbo.communication.CommunicationException;
-import com.vmturbo.platform.common.dto.ActionExecution.ActionErrorDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionEventDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionResponseState;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionErrorsResponse;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.topology.processor.actions.data.context.ActionExecutionContextFactory;
@@ -175,8 +176,20 @@ public class TargetActionAuditService {
 
     @Nonnull
     private ActionEventDTO convert(@Nonnull ActionEvent event) throws ContextCreationException {
-        final ActionExecutionDTO actionExecution = contextFactory.getActionExecutionContext(
-                event.getActionRequest()).buildActionExecutionDto();
+        final ExecuteActionRequest actionRequest = event.getActionRequest();
+        final ActionExecutionDTO actionExecution;
+        if (ActionResponseState.CLEARED != event.getNewState()) {
+            actionExecution = contextFactory.getActionExecutionContext(event.getActionRequest())
+                    .buildActionExecutionDto();
+        } else {
+            // when we are sending CLEARED action (we have only limited information about action
+            // that we persist in DB and in-memory cache for audited actions), so we can't
+            // initialize ExecuteActionRequest with detailed information about action
+            actionExecution = ActionExecutionDTO.newBuilder()
+                    .setActionOid(actionRequest.getActionId())
+                    .setActionType(ActionType.NONE)
+                    .build();
+        }
         final ActionEventDTO.Builder builder = ActionEventDTO.newBuilder()
                 .setAction(actionExecution)
                 .setOldState(event.getOldState())
@@ -201,18 +214,38 @@ public class TargetActionAuditService {
 
         @Override
         public void onSuccess(@Nonnull ActionErrorsResponse response) {
-            semaphore.release();
-            for (ActionErrorDTO error: response.getErrorsList()) {
-                // Errors reported by a probe, but we cannot do anything else. So we committing
-                // the messages after logging not to process them again.
-                logger.warn("Error reported auditing action {} event: {}", error.getActionOid(),
-                        error.getMessage());
+            try {
+                if (!response.getErrorsList().isEmpty()) {
+                    // If only one action failed from the batch we resend all of them. We intentionally
+                    // made this decision to to simplify the error handling code. Kafka commits only use
+                    // message offset unfortunately. Kafka doesn't implement a message by message
+                    // commit. It will take extra effort to track the messages individually before
+                    // committing back to Kafka. Additionally, if TP restarts, we'll still resend the
+                    // batch even though we go through the extra effort to handle it in memory because
+                    // kafka commits by offset.
+                    // If you plan improve this, you must also fix the ActionStreakKafka probe since it
+                    // fails fast and only sends the first oid that fails.
+                    response.getErrorsList().forEach(error -> {
+                        logger.warn("Error reported auditing action {} event: {}",
+                                error.getActionOid(), error.getMessage());
+                    });
+                    logger.info("Action audit failed. Action events for actions [{}] returned to "
+                            + "queue.", this::getActionOids);
+                    returnActionEventToQueue();
+                } else {
+                    logger.debug("Successfully finished auditing of actions [{}]", this::getActionOids);
+                    for (Pair<ActionEvent, Runnable> event : events) {
+                        event.getSecond().run();
+                    }
+                    logger.trace("Action audit events successfully committed");
+                }
+            } finally {
+                // Unexpected runtime exceptions might come from returnActionEventToQueue() or
+                // event.getSecond().run(), so ensure that we release the lock every time to
+                // prevent a deadlock.
+                semaphore.release();
             }
-            logger.debug("Successfully finished auditing of actions [{}]", this::getActionOids);
-            for (Pair<ActionEvent, Runnable> event: events) {
-                event.getSecond().run();
-            }
-            logger.trace("Action audit events successfully committed");
+
             // Send next batch of action events, if any
             runQueue();
         }
@@ -227,13 +260,17 @@ public class TargetActionAuditService {
                     "\"Action audit failed. Action events for actions [%s] returned to queue: %s\"",
                     getActionOids(), error);
             logger.info(message, exception);
-            final ListIterator<Pair<ActionEvent, Runnable>> iterator = events.listIterator(
-                    events.size());
+            returnActionEventToQueue();
+            semaphore.release();
+        }
+
+        private void returnActionEventToQueue() {
+            final ListIterator<Pair<ActionEvent, Runnable>> iterator =
+                    events.listIterator(events.size());
             while (iterator.hasPrevious()) {
                 final Pair<ActionEvent, Runnable> event = iterator.previous();
                 TargetActionAuditService.this.events.addFirst(event);
             }
-            semaphore.release();
         }
 
         @Nonnull
