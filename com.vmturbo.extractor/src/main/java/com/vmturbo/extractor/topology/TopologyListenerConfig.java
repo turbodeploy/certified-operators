@@ -1,15 +1,16 @@
 package com.vmturbo.extractor.topology;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
-import java.util.function.Supplier;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
@@ -32,6 +33,8 @@ import com.vmturbo.extractor.export.ExportUtils;
 import com.vmturbo.extractor.export.ExtractorKafkaSender;
 import com.vmturbo.extractor.models.Constants;
 import com.vmturbo.extractor.search.SearchEntityWriter;
+import com.vmturbo.extractor.topology.ITopologyWriter.TopologyWriterFactory;
+import com.vmturbo.extractor.topology.attributes.HistoricalAttributeWriterFactory;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.sql.utils.DbEndpoint;
@@ -109,18 +112,21 @@ public class TopologyListenerConfig {
     public boolean enableScopeTable;
 
     /**
+     * The interval at which we will force-write historical attributes to the database even if
+     * they have not changed.
+     */
+    @Value("${historicalAttributeMaxUpdateIntervalHrs:24}")
+    private long historicalAttributeMaxUpdateIntervalHrs;
+
+    /**
      * Create an instance of our topology listener.
      *
      * @return listener instance
      */
     @Bean
     public TopologyEntitiesListener topologyEntitiesListener() {
-        final ImmutableList<Supplier<? extends ITopologyWriter>> writerFactories =
-                ImmutableList.<Supplier<? extends ITopologyWriter>>builder()
-                        .addAll(writerFactories())
-                        .build();
         final TopologyEntitiesListener topologyEntitiesListener = new TopologyEntitiesListener(
-                writerFactories, writerConfig(), dataProvider());
+                writerFactories(), writerConfig(), dataProvider());
         topologyProcessor().addLiveTopologyListener(topologyEntitiesListener);
         return topologyEntitiesListener;
     }
@@ -197,21 +203,35 @@ public class TopologyListenerConfig {
      * @return writer factories
      */
     @Bean
-    public List<Supplier<ITopologyWriter>> writerFactories() {
+    public List<TopologyWriterFactory<?>> writerFactories() {
         final DbEndpoint dbEndpoint = dbConfig.ingesterEndpoint();
-        ImmutableList.Builder<Supplier<ITopologyWriter>> builder = ImmutableList.builder();
+        List<TopologyWriterFactory<?>> retFactories = new ArrayList<>();
         ExtractorFeatureFlags featureFlags = extractorGlobalConfig.featureFlags();
         if (featureFlags.isSearchEnabled()) {
-            builder.add(() -> new SearchEntityWriter(dbEndpoint, pool()));
+            retFactories.add(() -> new SearchEntityWriter(dbEndpoint, pool()));
         }
         if (featureFlags.isReportingEnabled()) {
-            builder.add(() -> new EntityMetricWriter(dbEndpoint, entityHashManager(),
+            retFactories.add(() -> new EntityMetricWriter(dbEndpoint, entityHashManager(),
                     scopeManager(), entityIdManager(), pool()));
+            retFactories.add(historicalAttributeWriterFactory());
         }
         if (featureFlags.isExtractionEnabled()) {
-            builder.add(() -> new DataExtractionWriter(extractorKafkaSender(), dataExtractionFactory()));
+            retFactories.add(() -> new DataExtractionWriter(extractorKafkaSender(), dataExtractionFactory()));
         }
-        return builder.build();
+        return Collections.unmodifiableList(retFactories);
+    }
+
+    /**
+     * Factory class for entity historical attributes.
+     *
+     * @return The {@link HistoricalAttributeWriterFactory}.
+     */
+    @Bean
+    public HistoricalAttributeWriterFactory historicalAttributeWriterFactory() {
+        return new HistoricalAttributeWriterFactory(dbConfig.ingesterEndpoint(),
+                pool(),
+                extractorGlobalConfig.clock(),
+                historicalAttributeMaxUpdateIntervalHrs, TimeUnit.HOURS);
     }
 
     /**

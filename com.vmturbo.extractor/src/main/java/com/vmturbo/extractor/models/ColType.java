@@ -22,6 +22,7 @@ import org.jooq.EnumType;
 import com.vmturbo.extractor.models.Column.JsonString;
 import com.vmturbo.extractor.schema.enums.ActionCategory;
 import com.vmturbo.extractor.schema.enums.ActionType;
+import com.vmturbo.extractor.schema.enums.AttrType;
 import com.vmturbo.extractor.schema.enums.EntityState;
 import com.vmturbo.extractor.schema.enums.EntityType;
 import com.vmturbo.extractor.schema.enums.EnvironmentType;
@@ -98,7 +99,10 @@ public enum ColType {
     /**
      * Action category column.
      */
-    ACTION_CATEGORY(ActionCategory.values()[0].getName());
+    ACTION_CATEGORY(ActionCategory.values()[0].getName()),
+
+    /** attr_type column of historical attributes. */
+    ATTR_TYPE(AttrType.values()[0].getName());
 
     static final byte[] NULL_BYTE_ARRAY = {0};
     static final byte[] TRUE_BYTE_ARRAY = {1};
@@ -225,6 +229,7 @@ public enum ColType {
             case ACTION_TYPE:
             case FINAL_STATE:
             case ACTION_CATEGORY:
+            case ATTR_TYPE:
                 return ((EnumType)value).getLiteral().getBytes(UTF_8);
             default:
                 throw new IllegalArgumentException("Unknown column type: " + colType.name());
@@ -353,6 +358,8 @@ public enum ColType {
                 return TerminalState.valueOf(new String(bytes, UTF_8));
             case ACTION_CATEGORY:
                 return ActionCategory.valueOf(new String(bytes, UTF_8));
+            case ATTR_TYPE:
+                return AttrType.valueOf(new String(bytes, UTF_8));
             default:
                 throw new IllegalArgumentException("Unknown column type: " + colType.name());
         }
@@ -447,6 +454,7 @@ public enum ColType {
             case FINAL_STATE:
             case ACTION_CATEGORY:
             case METRIC_TYPE:
+            case ATTR_TYPE:
                 return ((EnumType)value).getLiteral();
             default:
                 throw new IllegalArgumentException("Unknown column type: " + colType.name());

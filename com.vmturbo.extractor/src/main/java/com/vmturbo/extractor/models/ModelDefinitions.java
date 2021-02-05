@@ -4,6 +4,8 @@ import java.sql.Timestamp;
 import java.time.OffsetDateTime;
 
 import com.vmturbo.extractor.models.Column.JsonString;
+import com.vmturbo.extractor.schema.Tables;
+import com.vmturbo.extractor.schema.enums.AttrType;
 import com.vmturbo.extractor.schema.enums.EntityState;
 import com.vmturbo.extractor.schema.enums.EntityType;
 import com.vmturbo.extractor.schema.enums.EnvironmentType;
@@ -130,6 +132,68 @@ public class ModelDefinitions {
     public static final Model SEARCH_MODEL = Model.named("search")
             .withTables(SEARCH_ENTITY_TABLE)
             .build();
+
+    /**
+     * The historical attributes model.
+     */
+    public static class HistoricalAttributes {
+        /** TIME column. */
+        public static final Column<Timestamp> TIME = Column.timestampColumn(Tables.HISTORICAL_ENTITY_ATTRS.TIME);
+
+        /** ENTITY_OID column. */
+        public static final Column<Long> ENTITY_OID = Column.longColumn(Tables.HISTORICAL_ENTITY_ATTRS.ENTITY_OID);
+
+        /** TYPE column. */
+        public static final Column<AttrType> TYPE = Column.attrTypeColumn(Tables.HISTORICAL_ENTITY_ATTRS.TYPE);
+
+        /** BOOL_VALUE column. */
+        public static final Column<Boolean> BOOL_VALUE = Column.boolColumn(Tables.HISTORICAL_ENTITY_ATTRS.BOOL_VALUE);
+
+        /** INT_VALUE column. */
+        public static final Column<Integer> INT_VALUE = Column.intColumn(Tables.HISTORICAL_ENTITY_ATTRS.INT_VALUE);
+
+        /** LONG_VALUE column. */
+        public static final Column<Long> LONG_VALUE = Column.longColumn(Tables.HISTORICAL_ENTITY_ATTRS.LONG_VALUE);
+
+        /** DOUBLE_VALUE column. */
+        public static final Column<Double> DOUBLE_VALUE = Column.doubleColumn(Tables.HISTORICAL_ENTITY_ATTRS.DOUBLE_VALUE);
+
+        /** STRING_VALUE column. */
+        public static final Column<String> STRING_VALUE = Column.stringColumn(Tables.HISTORICAL_ENTITY_ATTRS.STRING_VALUE);
+
+        /** INT_ARR_VALUE column. */
+        public static final Column<Integer[]> INT_ARR_VALUE = Column.intArrayColumn(Tables.HISTORICAL_ENTITY_ATTRS.INT_ARR_VALUE);
+
+        /** LONG_ARR_VALUE column. */
+        public static final Column<Long[]> LONG_ARR_VALUE = Column.longArrayColumn(Tables.HISTORICAL_ENTITY_ATTRS.LONG_ARR_VALUE);
+
+        /** DOUBLE_ARR_VALUE column. */
+        public static final Column<Double[]> DOUBLE_ARR_VALUE = Column.doubleArrayColumn(Tables.HISTORICAL_ENTITY_ATTRS.DOUBLE_ARR_VALUE);
+
+        /** STRING_ARR_VALUE column. */
+        public static final Column<String[]> STRING_ARR_VALUE = Column.stringArrayColumn(Tables.HISTORICAL_ENTITY_ATTRS.STRING_ARR_VALUE);
+
+        /** JSON_VALUE column. */
+        public static final Column<JsonString> JSON_VALUE = Column.jsonColumn(Tables.HISTORICAL_ENTITY_ATTRS.JSON_VALUE);
+
+        /** TABLE containing all the columns. */
+        public static final Table TABLE = Table.named(Tables.HISTORICAL_ENTITY_ATTRS.getName())
+                .withColumns(TIME,
+                        ENTITY_OID,
+                        TYPE,
+                        BOOL_VALUE,
+                        INT_VALUE,
+                        LONG_VALUE,
+                        DOUBLE_VALUE,
+                        STRING_VALUE,
+                        INT_ARR_VALUE,
+                        LONG_ARR_VALUE,
+                        DOUBLE_ARR_VALUE,
+                        STRING_ARR_VALUE,
+                        JSON_VALUE)
+                .build();
+
+    }
 
 }
 
