@@ -99,8 +99,7 @@ public class ActionOrchestratorTest {
     @Test
     public void testNotifyActionsUpdated() throws Exception {
         orchestrator.processActions(liveActionPlan, startTime, endTime);
-        final ActionProcessingInfo result = liveActionPipelineFactory.actionPipeline(liveActionPlan).run(liveActionPlan);
-        verify(notificationSender).notifyActionsUpdated(eq(liveActionPlan), eq(result.getActionStoreSize()));
+        verify(notificationSender).notifyActionsUpdated(eq(liveActionPlan));
     }
 
     /**

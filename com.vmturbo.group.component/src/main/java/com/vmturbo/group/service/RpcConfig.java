@@ -107,12 +107,6 @@ public class RpcConfig {
     @Value("${memberCacheType:set}")
     private String memberCacheType;
 
-    /**
-     * Determines if we are caching parent groups for entities.
-     */
-    @Value("${cacheEntityParentGroups:false}")
-    private boolean cacheEntityParentGroups;
-
     @Bean
     public PolicyRpcService policyService() {
         return new PolicyRpcService(policyConfig.policyStore(), groupService(),
@@ -142,7 +136,7 @@ public class RpcConfig {
                 groupConfig.groupStore(),
                 new GroupMemberCalculatorImpl(targetSearchService(),
                         repositoryClientConfig.searchServiceClient()),
-                CachedGroupMembers.Type.fromString(memberCacheType), cacheEntityParentGroups);
+                CachedGroupMembers.Type.fromString(memberCacheType));
         groupConfig.groupStore().addUpdateListener(cachingCalc);
         transactionProvider().addGroupUpdateListener(cachingCalc);
         return cachingCalc;

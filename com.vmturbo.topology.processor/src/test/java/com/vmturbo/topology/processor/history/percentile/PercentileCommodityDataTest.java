@@ -36,8 +36,6 @@ import com.vmturbo.topology.processor.history.HistoryCalculationException;
 import com.vmturbo.topology.processor.history.ICommodityFieldAccessor;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts.PercentileRecord;
 
-import javax.validation.constraints.AssertTrue;
-
 /**
  * Unit tests for PercentileCommodityData.
  */
@@ -149,7 +147,6 @@ public class PercentileCommodityDataTest extends BaseGraphRelatedTest {
         final long nextCollectAfterMissing = Duration.ofMinutes(93).toMillis();
         Mockito.when(clock.instant()).thenReturn(Instant.ofEpochMilli(nextCollectAfterMissing));
         aggregate(false, nextCollectAfterMissing, pcd, 1);
-        Assert.assertFalse(context.addTraderOidWithInsufficientData(new Long(1)));
     }
 
     private void aggregate(boolean expectedResizable, long currentTime, PercentileCommodityData pcd,

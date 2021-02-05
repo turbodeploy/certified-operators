@@ -118,14 +118,13 @@ public class ActionOrchestratorApiIntegrationTest {
             .setInfo(actionPlanInfo)
             .addAction(ActionOrchestratorTestUtils.createMoveRecommendation(1L))
             .build();
-        notificationSender.notifyActionsUpdated(actionPlan, 1);
+        notificationSender.notifyActionsUpdated(actionPlan);
 
         Mockito.verify(listener, Mockito.timeout(TIMEOUT_MS).times(1)).onActionsUpdated(actionsUpdatedCaptor.capture());
 
         final ActionsUpdated actionsUpdated = actionsUpdatedCaptor.getValue();
         Assert.assertEquals(actionPlan.getId(), actionsUpdated.getActionPlanId());
         Assert.assertEquals(actionPlan.getInfo(), actionsUpdated.getActionPlanInfo());
-        Assert.assertEquals(1, actionsUpdated.getActionCount());
     }
 
     @Test

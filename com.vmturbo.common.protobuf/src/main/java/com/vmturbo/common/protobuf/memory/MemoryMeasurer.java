@@ -59,11 +59,7 @@ public class MemoryMeasurer {
         private final long totalSize;
 
         private MemoryMeasurement(@Nonnull final TotalSizesAndCountsVisitor visitor) {
-            this(visitor.totalSize());
-        }
-
-        private MemoryMeasurement(long totalSize) {
-            this.totalSize = totalSize;
+            this.totalSize = visitor.totalSize();
         }
 
         /**
@@ -78,19 +74,6 @@ public class MemoryMeasurer {
         @Override
         public String toString() {
             return StringUtil.getHumanReadableSize(getTotalSizeBytes());
-        }
-
-        /**
-         * Adds two memory measurements and return the sum of it.
-         *
-         * @param firstMemoryMeasurement the first memory measurement to add.
-         * @param secondMemoryMeasurement the second memory measurement to add.
-         * @return the result of adding.
-         */
-        public static MemoryMeasurement add(@Nonnull MemoryMeasurement firstMemoryMeasurement,
-                                            @Nonnull MemoryMeasurement secondMemoryMeasurement) {
-            return new MemoryMeasurement(firstMemoryMeasurement.totalSize
-                + secondMemoryMeasurement.totalSize);
         }
     }
 }

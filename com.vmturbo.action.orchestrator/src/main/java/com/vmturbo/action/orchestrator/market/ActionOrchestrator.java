@@ -66,7 +66,6 @@ public class ActionOrchestrator {
         Objects.requireNonNull(analysisStart);
         Objects.requireNonNull(analysisEnd);
 
-        int actionStoreSize = 0;
         try {
             // We don't store "transient" plan actions.
             // However, for transient plans we still want to send the actions update notification
@@ -77,21 +76,19 @@ public class ActionOrchestrator {
             } else {
                 final ActionPipeline<ActionPlan, ActionProcessingInfo> pipeline = buildPipeline(orderedActions);
                 final ActionProcessingInfo result = pipeline.run(orderedActions);
-                actionStoreSize = result.getActionStoreSize();
                 logger.info("Received {} actions in action plan {} (info: {})"
-                                + " (analysis start [{}] completion [{}])"
-                                + " (store population: {}).",
-                        orderedActions.getActionCount(),
-                        orderedActions.getId(),
-                        orderedActions.getInfo(),
-                        analysisStart,
-                        analysisEnd,
-                        actionStoreSize);
+                        + " (analysis start [{}] completion [{}])"
+                        + " (store population: {}).",
+                    orderedActions.getActionCount(),
+                    orderedActions.getId(),
+                    orderedActions.getInfo(),
+                    analysisStart,
+                    analysisEnd,
+                    result.getActionStoreSize());
             }
-
             // Notify listeners that actions are ready for retrieval.
             try {
-                notificationSender.notifyActionsUpdated(orderedActions, actionStoreSize);
+                notificationSender.notifyActionsUpdated(orderedActions);
             } catch (CommunicationException e) {
                 logger.error("Could not send actions recommended notification for "
                     + orderedActions.getId(), e);

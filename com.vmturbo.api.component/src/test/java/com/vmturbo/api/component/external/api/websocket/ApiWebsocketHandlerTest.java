@@ -84,22 +84,22 @@ public class ApiWebsocketHandlerTest {
     @Test
     public void testBroadcastActionNotification() throws Exception {
         websocketHandler.broadcastActionNotification(ActionNotification.newBuilder()
-                .setActionProgressNotification(ActionStatusNotification.newBuilder()
-                        .setActionId("1")
-                        .setStatus(ActionStatusNotification.Status.IN_PROGRESS)
-                        .setDescription("foo")
-                        .setProgressPercentage(42)
-                                .build())
-                .build());
+            .setActionId("1")
+            .setActionProgressNotification(ActionStatusNotification.newBuilder()
+                    .setStatus(ActionStatusNotification.Status.IN_PROGRESS)
+                    .setDescription("foo")
+                    .setProgressPercentage(42)
+                    .build()
+            ).build());
 
         verify(session).sendMessage(notificationCaptor.capture());
-        final ActionStatusNotification notification = Notification.parseFrom(
-            notificationCaptor.getValue().getPayload().array()).getActionNotification().getActionProgressNotification();
-        assertEquals("1", notification.getActionId());
+        final Notification notification = Notification.parseFrom(
+            notificationCaptor.getValue().getPayload().array());
+        assertEquals("1", notification.getActionNotification().getActionId());
         assertEquals("foo",
-            notification.getDescription());
+            notification.getActionNotification().getActionProgressNotification().getDescription());
         assertEquals(42,
-            notification.getProgressPercentage());
+            notification.getActionNotification().getActionProgressNotification().getProgressPercentage());
     }
 
     /**

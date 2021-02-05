@@ -620,9 +620,8 @@ public class GroupRpcService extends GroupServiceImplBase {
             @Nonnull StreamObserver<GetGroupsForEntitiesResponse> responseObserver)
             throws StoreOperationException {
         final Map<Long, Set<Long>> staticGroupsPerEntity =
-                memberCalculator.getEntityGroups(groupStore,
-                    new HashSet<>(request.getEntityIdList()),
-                    new HashSet<>(request.getGroupTypeList()));
+                groupStore.getStaticGroupsForEntities(request.getEntityIdList(),
+                        request.getGroupTypeList());
         final Map<Long, Set<Long>> filteredGroups;
         if (!userSessionContext.isUserScoped()) {
             filteredGroups = staticGroupsPerEntity;

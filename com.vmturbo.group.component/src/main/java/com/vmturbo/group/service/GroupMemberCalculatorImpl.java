@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
@@ -33,7 +32,6 @@ import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.group.group.GroupMembersPlain;
 import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.platform.common.dto.CommonDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
 /**
  * The basic implementation of the {@link GroupMemberCalculator}.
@@ -67,12 +65,6 @@ public class GroupMemberCalculatorImpl implements GroupMemberCalculator {
     @Override
     public Set<Long> getGroupMembers(@Nonnull final IGroupStore groupStore, @Nonnull final Collection<Long> groupIds, final boolean expandNestedGroups) throws StoreOperationException {
         return calculateGroupMembers(groupStore, groupIds, expandNestedGroups);
-    }
-
-    @Override
-    public Map<Long, Set<Long>> getEntityGroups(@Nonnull IGroupStore groupStore, Set<Long> entityIds,
-                                                Set<GroupType> groupTypes) throws StoreOperationException {
-        return groupStore.getStaticGroupsForEntities(entityIds, groupTypes);
     }
 
     @Nonnull

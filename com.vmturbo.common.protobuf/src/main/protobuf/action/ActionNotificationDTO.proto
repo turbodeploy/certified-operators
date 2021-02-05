@@ -49,16 +49,13 @@ message ActionsUpdated {
     // Information about the generated action plan.
     optional ActionPlanInfo action_plan_info = 2;
 
-    // Number of actions recorded in the action orchestrator when processing the plan.
-    optional int32 action_count = 3;
-
     // Deprecated in favour of the context ID inside ActionPlanInfo.
     //
     // The ID of the topology context. Used to differentiate, for example, between real and plan contexts.
     // If not set, it is an error.
-    optional int64 __deprecated__topology_context_id = 4 [deprecated = true];
+    optional int64 __deprecated__topology_context_id = 3 [deprecated = true];
 
-    optional UpdateFailure updateFailure = 5;
+    optional UpdateFailure updateFailure = 4;
 
     message UpdateFailure {
         optional string error_message = 1;

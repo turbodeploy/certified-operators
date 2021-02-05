@@ -2,7 +2,7 @@ package com.vmturbo.group.pipeline;
 
 import javax.annotation.Nonnull;
 
-import it.unimi.dsi.fastutil.longs.LongSet;
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -58,7 +58,7 @@ public class GroupInfoUpdatePipelineFactory {
         final GroupInfoUpdatePipelineContext context =
                 new GroupInfoUpdatePipelineContext(topologyId);
         return new GroupInfoUpdatePipeline(PipelineDefinition
-                .<GroupInfoUpdatePipelineInput, LongSet, GroupInfoUpdatePipelineContext>newBuilder(context)
+                .<GroupInfoUpdatePipelineInput, LongOpenHashSet, GroupInfoUpdatePipelineContext>newBuilder(context)
                 .addStage(new UpdateGroupMembershipCacheStage(memberCache))
                 .finalStage(new StoreSupplementaryGroupInfoStage(memberCache, searchServiceRpc,
                         groupEnvironmentTypeResolver, groupDAO)));

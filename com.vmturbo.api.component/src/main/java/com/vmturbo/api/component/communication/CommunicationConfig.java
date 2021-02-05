@@ -201,7 +201,7 @@ public class CommunicationConfig {
     public ApiComponentActionListener apiComponentActionListener()
         throws CommunicationException, InterruptedException, URISyntaxException {
         final ApiComponentActionListener actionsListener =
-            new ApiComponentActionListener(websocketConfig.websocketHandler(), getRealtimeTopologyContextId());
+            new ApiComponentActionListener(websocketConfig.websocketHandler());
         aoClientConfig.actionOrchestratorClient().addListener(actionsListener);
         return actionsListener;
     }

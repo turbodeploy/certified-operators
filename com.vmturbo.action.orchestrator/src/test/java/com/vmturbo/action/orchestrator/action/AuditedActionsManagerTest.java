@@ -16,7 +16,6 @@ import com.google.common.collect.Table.Cell;
 
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
@@ -106,7 +105,6 @@ public class AuditedActionsManagerTest {
      * @throws ActionStoreOperationException shouldn't happen
      */
     @Test
-    @Ignore
     public void testChangingCache() throws ActionStoreOperationException {
         final AuditedActionsUpdate update = new AuditedActionsUpdate();
         final AuditedActionInfo newAuditedAction = new AuditedActionInfo(1L, 1L, null);

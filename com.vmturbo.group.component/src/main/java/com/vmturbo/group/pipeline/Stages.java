@@ -16,8 +16,7 @@ import com.google.common.collect.Multimap;
 
 import io.grpc.StatusRuntimeException;
 
-import it.unimi.dsi.fastutil.longs.LongSet;
-import it.unimi.dsi.fastutil.longs.LongSets;
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -56,7 +55,7 @@ public class Stages {
      * the group, in order to benefit from the quick member retrieval.
      */
     public static class UpdateGroupMembershipCacheStage extends
-            Stage<GroupInfoUpdatePipelineInput, LongSet, GroupInfoUpdatePipelineContext> {
+            Stage<GroupInfoUpdatePipelineInput, LongOpenHashSet, GroupInfoUpdatePipelineContext> {
 
         private final CachingMemberCalculator memberCache;
 
@@ -71,11 +70,11 @@ public class Stages {
 
         @Nonnull
         @Override
-        public StageResult<LongSet> executeStage(GroupInfoUpdatePipelineInput input) {
+        public StageResult<LongOpenHashSet> executeStage(GroupInfoUpdatePipelineInput input) {
             // Update the group membership cache
             final RegroupingResult result = memberCache.regroup();
             if (!result.isSuccessfull()) {
-                return StageResult.withResult((LongSet)LongSets.EMPTY_SET)
+                return StageResult.withResult(new LongOpenHashSet())
                         .andStatus(Status.failed("Regrouping failed."));
             }
             return StageResult.withResult(result.getResolvedGroupsIds()).andStatus(Status.success(
@@ -94,7 +93,7 @@ public class Stages {
      * use it to efficiently calculate the various info that derive from members.
      */
     public static class StoreSupplementaryGroupInfoStage extends
-            PassthroughStage<LongSet, GroupInfoUpdatePipelineContext> {
+            PassthroughStage<LongOpenHashSet, GroupInfoUpdatePipelineContext> {
 
         private final CachingMemberCalculator memberCache;
 
@@ -124,7 +123,7 @@ public class Stages {
 
         @Nonnull
         @Override
-        public Status passthrough(LongSet input) {
+        public Status passthrough(LongOpenHashSet input) {
             final StopWatch stopWatch = new StopWatch("storeSupplementaryGroupInfo");
             // fetch entity info from repository
             Map<Long, EntityWithOnlyEnvironmentTypeAndTargets> entitiesWithEnvironmentMap =

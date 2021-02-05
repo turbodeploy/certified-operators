@@ -1,14 +1,12 @@
 package com.vmturbo.group.service;
 
 import java.util.Collection;
-import java.util.Map;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.group.group.IGroupStore;
-import com.vmturbo.platform.common.dto.CommonDTO;
 
 /**
  * Responsible for calculating members of a group to serve the {@link GroupRpcService}.
@@ -47,18 +45,5 @@ public interface GroupMemberCalculator {
     Set<Long> getGroupMembers(@Nonnull IGroupStore groupStore,
                               @Nonnull Collection<Long> groupIds,
                               boolean expandNestedGroups)
-        throws StoreOperationException;
-
-    /**
-     * Gets the id of parent groups with specific type for a set of entity entities.
-     *
-     * @param groupStore The {@link IGroupStore}.
-     * @param entityIds The ids of entities.
-     * @param groupTypes The type of groups to include. If empty include all types.
-     * @return The set of ids for parent group of input entities.
-     * @throws StoreOperationException If there is an error interacting with the {@link IGroupStore}.
-     */
-    Map<Long, Set<Long>> getEntityGroups(@Nonnull IGroupStore groupStore, Set<Long> entityIds,
-                                         Set<CommonDTO.GroupDTO.GroupType> groupTypes)
         throws StoreOperationException;
 }

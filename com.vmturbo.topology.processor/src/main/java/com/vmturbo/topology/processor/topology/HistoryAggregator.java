@@ -149,10 +149,11 @@ public class HistoryAggregator {
 
             forEachEditor(editorsToRun, editor -> editor.completeBroadcast(context), "completion",
                           "The time spent completing historical data broadcast preparation for {}");
-            logger.info("History aggregator commodities modified: {} in {} where {}.", editorsToRun.stream()
+
+            logger.info("History aggregator commodities modified: {} in {}", editorsToRun.stream()
                             .map(editor -> editor.getClass().getSimpleName() + ":" + context.getAccessor()
                                             .getUpdateCount(editor.getClass().getSimpleName()))
-                            .collect(Collectors.joining(" ")), stopwatch.stop(), context.toString());
+                            .collect(Collectors.joining(" ")), stopwatch.stop());
         } catch (PipelineStageException e) {
             // double handling - because pipeline runner swallows stack trace for non-mandatory stages
             logger.warn("History aggregation stage failed", e);
