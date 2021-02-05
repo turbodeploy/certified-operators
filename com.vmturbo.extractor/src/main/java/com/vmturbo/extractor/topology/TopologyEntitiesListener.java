@@ -12,7 +12,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 import javax.annotation.Nonnull;
 
@@ -35,6 +34,7 @@ import com.vmturbo.components.api.tracing.Tracing.TracingScope;
 import com.vmturbo.components.common.utils.MultiStageTimer;
 import com.vmturbo.components.common.utils.MultiStageTimer.AsyncTimer;
 import com.vmturbo.components.common.utils.MultiStageTimer.Detail;
+import com.vmturbo.extractor.topology.ITopologyWriter.TopologyWriterFactory;
 import com.vmturbo.extractor.topology.SupplyChainEntity.Builder;
 import com.vmturbo.proactivesupport.DataMetricCounter;
 import com.vmturbo.proactivesupport.DataMetricHistogram;
@@ -68,7 +68,7 @@ public class TopologyEntitiesListener implements EntitiesListener {
 
     private final Logger logger = LogManager.getLogger();
 
-    private final List<Supplier<? extends ITopologyWriter>> writerFactories;
+    private final List<TopologyWriterFactory<?>> writerFactories;
     private final WriterConfig config;
     private final AtomicBoolean busy = new AtomicBoolean(false);
     private final DataProvider dataProvider;
@@ -81,7 +81,7 @@ public class TopologyEntitiesListener implements EntitiesListener {
      * @param dataProvider    providing data for ingestion
      */
     public TopologyEntitiesListener(
-            @Nonnull final List<Supplier<? extends ITopologyWriter>> writerFactories,
+            @Nonnull final List<TopologyWriterFactory<?>> writerFactories,
             @Nonnull final WriterConfig writerConfig,
             @Nonnull final DataProvider dataProvider) {
         this.writerFactories = writerFactories;
@@ -158,7 +158,7 @@ public class TopologyEntitiesListener implements EntitiesListener {
         private long writeTopology() throws IOException, UnsupportedDialectException, SQLException, InterruptedException {
             List<ITopologyWriter> writers = new ArrayList<>();
             writerFactories.stream()
-                    .map(Supplier::get)
+                    .map(TopologyWriterFactory::newInstance)
                     .forEach(writers::add);
 
             final List<Pair<Consumer<TopologyEntityDTO>, ITopologyWriter>> entityConsumers = new ArrayList<>();

@@ -5,7 +5,9 @@ import java.time.OffsetDateTime;
 import java.util.Objects;
 
 import org.jooq.Field;
+import org.jooq.TableField;
 
+import com.vmturbo.extractor.schema.enums.AttrType;
 import com.vmturbo.extractor.schema.enums.EntityState;
 import com.vmturbo.extractor.schema.enums.EntityType;
 import com.vmturbo.extractor.schema.enums.EnvironmentType;
@@ -108,6 +110,16 @@ public class Column<T> {
     }
 
     /**
+     * Create a new int column.
+     *
+     * @param field column jooq field
+     * @return new column
+     */
+    public static Column<Integer> intColumn(final Field<Integer> field) {
+        return new Column<>(field, ColType.INT);
+    }
+
+    /**
      * Create a new short column.
      *
      * @param name name of column
@@ -145,6 +157,16 @@ public class Column<T> {
      */
     public static Column<Double> doubleColumn(final String name) {
         return new Column<>(name, ColType.DOUBLE);
+    }
+
+    /**
+     * Create a new double column.
+     *
+     * @param field column name
+     * @return new column
+     */
+    public static Column<Double> doubleColumn(Field<Double> field) {
+        return new Column<>(field, ColType.DOUBLE);
     }
 
     /**
@@ -188,6 +210,15 @@ public class Column<T> {
     }
 
     /**
+     * Create a new string array column.
+     * @param field column name
+     * @return new column
+     */
+    public static Column<String[]> stringArrayColumn(final Field<String[]> field) {
+        return new Column<>(field, ColType.STRING_ARRAY);
+    }
+
+    /**
      * Create a new boolean column.
      *
      * @param name column name
@@ -195,6 +226,16 @@ public class Column<T> {
      */
     public static Column<Boolean> boolColumn(final String name) {
         return new Column<>(name, ColType.BOOL);
+    }
+
+    /**
+     * Create a new boolean column.
+     *
+     * @param field column jooq field
+     * @return new column
+     */
+    public static Column<Boolean> boolColumn(final Field<Boolean> field) {
+        return new Column<>(field, ColType.BOOL);
     }
 
     /**
@@ -208,6 +249,16 @@ public class Column<T> {
     }
 
     /**
+     * Create a new Integer[] column.
+     *
+     * @param field column name
+     * @return new column
+     */
+    public static Column<Integer[]> intArrayColumn(final Field<Integer[]> field) {
+        return new Column<>(field, ColType.INT_ARRAY);
+    }
+
+    /**
      * Create a new Long[] column.
      *
      * @param name column name
@@ -216,6 +267,27 @@ public class Column<T> {
     public static Column<Long[]> longArrayColumn(final String name) {
         return new Column<>(name, ColType.LONG_ARRAY);
     }
+
+    /**
+     * Create a new Long[] column.
+     *
+     * @param field column name
+     * @return new column
+     */
+    public static Column<Long[]> longArrayColumn(final Field<Long[]> field) {
+        return new Column<>(field, ColType.LONG_ARRAY);
+    }
+
+    /**
+     * Create a new Double[] column.
+     *
+     * @param field field name
+     * @return new column
+     */
+    public static Column<Double[]> doubleArrayColumn(final Field<Double[]> field) {
+        return new Column<>(field, ColType.DOUBLE_ARRAY);
+    }
+
 
     /**
      * Create a new Long[] column column where hash value is independent of the order of
@@ -330,6 +402,16 @@ public class Column<T> {
     public static Column<EntityState> entityStateColumn(final String name) {
         return new Column<>(name, ColType.ENTITY_STATE);
     }
+
+    /**
+     * Create a new attr_type column builder.
+     * @param field The field
+     * @return The column.
+     */
+    public static Column<AttrType> attrTypeColumn(TableField<?, AttrType> field) {
+        return new Column<>(field, ColType.ATTR_TYPE);
+    }
+
 
     /**
      * Create a new severity column builder with standard functions.

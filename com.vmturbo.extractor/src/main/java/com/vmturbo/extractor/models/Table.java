@@ -232,7 +232,7 @@ public class Table {
                     // terminate! We'll produce a summary at close.
                     final Class<? extends Exception> eClass = e.getClass();
                     if (recordErrorCounts.put(
-                            eClass, recordErrorCounts.getOrDefault(eClass, 0) + 1) == 1) {
+                            eClass, recordErrorCounts.getOrDefault(eClass, 0) + 1) == null) {
                         // first time we've seen this error... do a full log with stack trace
                         logger.error("Failed to write record to record sink for {}",
                                 table.getName(), e);
@@ -258,6 +258,10 @@ public class Table {
                     logger.warn("Writer {} failed {} record insertions due to {}",
                             name, count, eClass.getName()));
             logger.info("Writer {} wrote {} records", name, recordsWritten);
+        }
+
+        public long getRecordsWritten() {
+            return recordsWritten;
         }
 
         public boolean isClosed() {

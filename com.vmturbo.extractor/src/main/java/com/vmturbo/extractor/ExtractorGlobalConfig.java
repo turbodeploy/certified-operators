@@ -1,5 +1,7 @@
 package com.vmturbo.extractor;
 
+import java.time.Clock;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -38,6 +40,16 @@ public class ExtractorGlobalConfig {
      */
     @Value("${enableDataExtraction:false}")
     private boolean enableDataExtraction;
+
+    /**
+     * Clock for the component.
+     *
+     * @return The clock.
+     */
+    @Bean
+    public Clock clock() {
+        return Clock.systemUTC();
+    }
 
     /**
      * The feature flags, which control which extractor features are enabled.

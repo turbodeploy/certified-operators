@@ -84,4 +84,13 @@ public interface ITopologyWriter {
     static String getFinishPhaseLabel(ITopologyWriter writer) {
         return writer.getClass().getSimpleName() + " " + FINISH_PHASE;
     }
+
+    /**
+     * Factory class for {@link ITopologyWriter}s.
+     *
+     * @param <T> The type of {@link ITopologyWriter} produced by the factory.
+     */
+    interface TopologyWriterFactory<T extends ITopologyWriter> {
+        T newInstance();
+    }
 }
