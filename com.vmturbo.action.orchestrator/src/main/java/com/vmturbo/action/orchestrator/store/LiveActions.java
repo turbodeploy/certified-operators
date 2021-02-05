@@ -144,17 +144,6 @@ class LiveActions implements QueryableActionViews {
 
     private final WorkflowStore workflowStore;
 
-    /**
-     * Specifies action related descriptions.
-     */
-    private static final DataMetricGauge ACTION_COUNTS_GAUGE = DataMetricGauge.builder()
-            .withName(StringConstants.METRICS_TURBO_PREFIX + "current_actions")
-            .withHelp("Number of actions in the action orchestrator live store.")
-            .withLabelNames("type", "entity_type", "environment", "category",
-                    "severity", "state")
-            .build()
-            .register();
-
     LiveActions(@Nonnull final ActionHistoryDao actionHistoryDao,
                 @Nonnull final AcceptedActionsDAO acceptedActionsStore,
                 @Nonnull final RejectedActionsDAO rejectedActionsStore,
@@ -363,12 +352,6 @@ class LiveActions implements QueryableActionViews {
                     actionTargetSelector);
 
             updateStateForRejectedActions(marketActions.values());
-
-            // Reset the values in the Gauge.
-            ACTION_COUNTS_GAUGE.getLabeledMetrics().forEach((key, val) -> {
-                val.setData(0.0);
-            });
-            marketActions.values().forEach(this::updateActionMetricsDescriptor);
         } finally {
             actionsLock.writeLock().unlock();
         }
@@ -417,72 +400,11 @@ class LiveActions implements QueryableActionViews {
             // refresh the action mode of all atomic actions and set action description.
             atomicActions.values().forEach(action -> refreshAction(action, newEntitiesSnapshot));
 
-            atomicActions.values().forEach(this::updateActionMetricsDescriptor);
-
             logger.info("Live action store has {} market actions, {} atomic actions",
                                     marketActions.size(), atomicActions.size());
         } finally {
             actionsLock.writeLock().unlock();
         }
-    }
-
-    /**
-     * Generate a descriptor string for the action and push to the metrics end point.
-     *
-     * @param action the action view.
-     */
-    private void updateActionMetricsDescriptor(Action action) {
-        ActionInfo ai = action.getRecommendation().getInfo();
-        String actionSeverity  = action.getActionSeverity().name();
-        String actionCategory  = action.getActionCategory().name();
-        String actionState  = action.getState().name();
-        ActionEntity actionTarget = null;
-        String entityType = null;
-        String env = null;
-        switch (ai.getActionTypeCase()) {
-            case MOVE:
-                actionTarget = ai.getMove().getTarget();
-                break;
-            case RECONFIGURE:
-                actionTarget = ai.getReconfigure().getTarget();
-                break;
-            case PROVISION:
-                actionTarget = ai.getProvision().getEntityToClone();
-                break;
-            case RESIZE:
-                actionTarget = ai.getResize().getTarget();
-                break;
-            case ACTIVATE:
-                actionTarget = ai.getActivate().getTarget();
-                break;
-            case DEACTIVATE:
-                actionTarget = ai.getDeactivate().getTarget();
-                break;
-            case DELETE:
-                actionTarget = ai.getDelete().getTarget();
-                break;
-            case BUYRI:
-                actionTarget = ai.getBuyRi().getComputeTier();
-                break;
-            case SCALE:
-                actionTarget = ai.getScale().getTarget();
-                break;
-            case ALLOCATE:
-                actionTarget = ai.getAllocate().getTarget();
-                break;
-            case ATOMICRESIZE:
-                actionTarget = ai.getAtomicResize().getExecutionTarget();
-                break;
-            default:
-                env = EnvironmentType.UNKNOWN_ENV.name();
-                entityType = EntityType.UNKNOWN.name();
-        }
-        if (actionTarget != null) {
-            env = actionTarget.getEnvironmentType().name();
-            entityType = EntityType.forNumber(actionTarget.getType()).name();
-        }
-        ACTION_COUNTS_GAUGE.labels(action.getTranslationResultOrOriginal().getInfo().getActionTypeCase().name(),
-            entityType, env, actionCategory, actionSeverity, actionState).increment();
     }
 
     private void updateStateForRejectedActions(@Nonnull final Collection<Action> marketActions) {
