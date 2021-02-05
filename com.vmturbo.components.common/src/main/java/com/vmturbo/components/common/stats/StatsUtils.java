@@ -137,6 +137,7 @@ public class StatsUtils {
                     .add(EntityType.LOAD_BALANCER.getNumber())
                     .add(EntityType.CONTAINER_SPEC.getNumber())
                     .add(EntityType.SERVICE_PROVIDER.getNumber())
+                    .add(EntityType.CLOUD_COMMITMENT.getNumber())
                     .build();
 
 
