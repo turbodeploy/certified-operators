@@ -1,8 +1,13 @@
 package com.vmturbo.mediation.actionstream.kafka;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 
+import org.apache.kafka.clients.producer.RecordMetadata;
+import org.apache.kafka.common.TopicPartition;
 import org.hamcrest.CoreMatchers;
 import org.junit.Assert;
 import org.junit.Before;
@@ -12,6 +17,7 @@ import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 import org.mockito.Spy;
 
+import com.vmturbo.platform.common.dto.ActionExecution.ActionErrorDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionEventDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
@@ -95,9 +101,12 @@ public class ActionStreamKafkaProbeTest {
 
     /**
      * Test sending audit events to external kafka.
+     *
+     * @throws InterruptedException if thread is interrupted
+     * @throws ExecutionException it shouldn't be thrown
      */
     @Test
-    public void testAudit() {
+    public void testAudit() throws InterruptedException, ExecutionException {
         Mockito.when(kafkaTopicChecker.isTopicAvailable(AUDIT_TOPIC)).thenReturn(true);
 
         final ActionEventDTO actionEvent = ActionEventDTO.newBuilder()
@@ -109,8 +118,45 @@ public class ActionStreamKafkaProbeTest {
                         .setActionType(ActionType.MOVE)
                         .build())
                 .build();
-        actionStreamKafkaProbe.auditActions(account, Collections.singletonList(actionEvent));
-        Mockito.verify(kafkaProducer, Mockito.times(1)).sendMessage(actionEvent, AUDIT_TOPIC);
+
+        final Future<RecordMetadata> auditActionFuture = Mockito.mock(Future.class);
+        final RecordMetadata fakeRecordMetadata =
+                new RecordMetadata(new TopicPartition(AUDIT_TOPIC, 1), 1, 1, 1, 1L, 1, 1);
+        Mockito.when(auditActionFuture.get()).thenReturn(fakeRecordMetadata);
+        Mockito.when(kafkaProducer.sendMessage(actionEvent, AUDIT_TOPIC)).thenReturn(auditActionFuture);
+        final Collection<ActionErrorDTO> actionErrorDTOS = actionStreamKafkaProbe.auditActions(account,
+                Collections.singletonList(actionEvent));
+        Assert.assertEquals(0, actionErrorDTOS.size());
+    }
+
+    /**
+     * Test failed audit when audited action wasn't receive by external kafka.
+     *
+     * @throws InterruptedException if thread is interrupted
+     * @throws ExecutionException it shouldn't be thrown
+     */
+    @Test
+    public void testFailedAudit() throws InterruptedException, ExecutionException {
+        Mockito.when(kafkaTopicChecker.isTopicAvailable(AUDIT_TOPIC)).thenReturn(true);
+
+        final ActionEventDTO actionEvent = ActionEventDTO.newBuilder()
+                .setNewState(ActionResponseState.PENDING_ACCEPT)
+                .setOldState(ActionResponseState.PENDING_ACCEPT)
+                .setTimestamp(Instant.now().getEpochSecond())
+                .setAction(ActionExecutionDTO.newBuilder()
+                        .setActionOid(1L)
+                        .setActionType(ActionType.MOVE)
+                        .build())
+                .build();
+        final Future<RecordMetadata> auditActionFuture = Mockito.mock(Future.class);
+        Mockito.when(auditActionFuture.get())
+                .thenThrow(new ExecutionException(new RuntimeException()));
+        Mockito.when(kafkaProducer.sendMessage(actionEvent, AUDIT_TOPIC)).thenReturn(auditActionFuture);
+        final Collection<ActionErrorDTO> actionErrorDTOS = actionStreamKafkaProbe.auditActions(account,
+                Collections.singletonList(actionEvent));
+        Assert.assertEquals(1, actionErrorDTOS.size());
+        final ActionErrorDTO actionErrorDTO = actionErrorDTOS.iterator().next();
+        Assert.assertEquals("Failed to send action to external kafka.", actionErrorDTO.getMessage());
     }
 
     /**

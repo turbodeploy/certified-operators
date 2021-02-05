@@ -1,17 +1,22 @@
 package com.vmturbo.mediation.actionstream.kafka;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Properties;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.Immutable;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.apache.logging.log4j.LogManager;
@@ -151,15 +156,38 @@ public class ActionStreamKafkaProbe implements IDiscoveryProbe<ActionStreamKafka
     @Override
     public Collection<ActionErrorDTO> auditActions(
             @Nonnull final ActionStreamKafkaProbeAccount actionStreamKafkaProbeAccount,
-            @Nonnull final Collection<ActionEventDTO> actionEvents) {
+            @Nonnull final Collection<ActionEventDTO> actionEvents) throws InterruptedException {
+        final List<ActionAuditFuture> auditActionsFutures = new ArrayList<>();
         for (ActionEventDTO actionEventDTO : actionEvents) {
             final ActionResponseState newState = actionEventDTO.getNewState();
             final ActionResponseState oldState = actionEventDTO.getOldState();
             long actionOid = actionEventDTO.getAction().getActionOid();
             logger.info("Send action {} with states transition {} -> {} for audit.", actionOid,
                     oldState, newState);
-            getKafkaProducer(actionStreamKafkaProbeAccount).sendMessage(actionEventDTO,
-                    actionStreamKafkaProbeAccount.getTopic());
+            final Future<RecordMetadata> auditActionFuture =
+                    getKafkaProducer(actionStreamKafkaProbeAccount).sendMessage(actionEventDTO,
+                            actionStreamKafkaProbeAccount.getTopic());
+            auditActionsFutures.add(new ActionAuditFuture(auditActionFuture, actionOid));
+        }
+        return waitActionsDeliveryAndCreateResponse(auditActionsFutures);
+    }
+
+    @Nonnull
+    private List<ActionErrorDTO> waitActionsDeliveryAndCreateResponse(
+            @Nonnull List<ActionAuditFuture> auditActionsFutures) throws InterruptedException {
+        // Wait in order to be sure that all actions were received by external kafka. Otherwise
+        // we need to send response with error and actions will be resend.
+        for (ActionAuditFuture auditActionFuture : auditActionsFutures) {
+            try {
+                auditActionFuture.getFuture().get();
+            } catch (ExecutionException e) {
+                logger.error("Failed to send one of the actions from batch for audit to external "
+                        + "kafka. All actions will be resend.", e);
+                return Collections.singletonList(ActionErrorDTO.newBuilder()
+                        .setMessage("Failed to send action to external kafka.")
+                        .setActionOid(auditActionFuture.getActionOid())
+                        .build());
+            }
         }
         return Collections.emptyList();
     }
@@ -207,5 +235,36 @@ public class ActionStreamKafkaProbe implements IDiscoveryProbe<ActionStreamKafka
         final String kafkaAddress = accountValues.getNameOrAddress();
         final String kafkaPort = accountValues.getPort();
         return kafkaAddress.concat(":").concat(kafkaPort);
+    }
+
+    /**
+     * Inner class contains information about action that we send for audit and Future represents
+     * the result of an asynchronous audit of the action.
+     */
+    @Immutable
+    private class ActionAuditFuture {
+        // represents the result of an asynchronous audit of the action
+        private final Future<RecordMetadata> future;
+        private final long actionOid;
+
+        /**
+         * Constructor of {@link ActionAuditFuture}.
+         *
+         * @param actionAuditFuture Future for tracking audit operation
+         * @param actionOid action identifier
+         */
+        private ActionAuditFuture(@Nonnull Future<RecordMetadata> actionAuditFuture, long actionOid) {
+            this.future = actionAuditFuture;
+            this.actionOid = actionOid;
+        }
+
+        @Nonnull
+        public Future<RecordMetadata> getFuture() {
+            return future;
+        }
+
+        public long getActionOid() {
+            return actionOid;
+        }
     }
 }

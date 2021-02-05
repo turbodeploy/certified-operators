@@ -276,7 +276,6 @@ public class ActionAuditServiceTest {
         threadPool.executeScheduledTasks();
         Mockito.verify(operationManager, Mockito.times(3)).sendActionAuditEvents(
                 Mockito.eq(AUDIT_TARGET), sdkEventsCaptor.capture(), operationCaptor.capture());
-        Mockito.verifyZeroInteractions(commit);
         Assert.assertEquals(Collections.singletonList(ACTION1), sdkEventsCaptor.getAllValues()
                 .get(0)
                 .stream()
@@ -300,7 +299,10 @@ public class ActionAuditServiceTest {
                         .setActionOid(ACTION1)
                         .setMessage("Something failed"))
                 .build());
-        Mockito.verify(commit).run();
+        // if we don't receive response for audit operation from probe due to any exceptions or
+        // received response with errors then we don't commit message
+        // and actions will be resend for audit again
+        Mockito.verifyZeroInteractions(commit);
     }
 
     /**
