@@ -151,6 +151,13 @@ public class ActionStoreConfig {
     private int queryTimeWindowForLastExecutedActionsMins;
 
     /**
+     * Flag set to true when the action ID in use is the stable recommendation OID instead of the
+     * unstable action instance id.
+     */
+    @Value("${useStableActionIdAsUuid:false}")
+    private boolean useStableActionIdAsUuid;
+
+    /**
      * If true, we will expect that the topology ID of the incoming live action plan strictly
      * matches the topology ID of the per-entity setting breakdown that the topology processor
      * uploads to the group component. This is slightly safer because we will know the market
@@ -372,7 +379,7 @@ public class ActionStoreConfig {
     @Bean
     public ActionStorehouse actionStorehouse() {
         ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory(),
-                actionStoreLoader(), automationManager());
+                actionStoreLoader(), automationManager(), useStableActionIdAsUuid);
         return actionStorehouse;
     }
 

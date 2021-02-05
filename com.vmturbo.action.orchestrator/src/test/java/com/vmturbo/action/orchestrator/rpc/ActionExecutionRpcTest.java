@@ -131,7 +131,7 @@ public class ActionExecutionRpcTest {
     private final ProbeCapabilityCache probeCapabilityCache = mock(ProbeCapabilityCache.class);
     private final ActionTargetSelector actionTargetSelector = mock(ActionTargetSelector.class);
     private final ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory,
-            actionStoreLoader, mock(ActionAutomationManager.class));
+            actionStoreLoader, mock(ActionAutomationManager.class), false);
     private final ActionPaginatorFactory paginatorFactory = mock(ActionPaginatorFactory.class);
 
     private final HistoricalActionStatReader statReader = mock(HistoricalActionStatReader.class);
@@ -562,7 +562,7 @@ public class ActionExecutionRpcTest {
         final AtomicActionFactory atomicActionFactory = Mockito.spy(new AtomicActionFactory(atomicActionSpecsCache));
         final ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
         final ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory,
-                actionStoreLoader, Mockito.mock(ActionAutomationManager.class));
+                actionStoreLoader, Mockito.mock(ActionAutomationManager.class), false);
         // We use actionTranslator which can successfully translate action in order to calculate
         // appropriate action mode (>= MANUAL). As a result action can be available for acceptance
         // and possible execution.

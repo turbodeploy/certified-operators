@@ -141,24 +141,30 @@ public class ActionStateUpdater implements ActionExecutionListener {
      */
     @Override
     public void onActionProgress(@Nonnull final ActionProgress actionProgress) {
-        final Optional<Action> storedAction = actionStorehouse
-            .getStore(realtimeTopologyContextId)
-            .flatMap(store -> store.getActionByRecommendationId(actionProgress.getActionId()));
-        if (storedAction.isPresent()) {
-            Action action = storedAction.get();
-            action.receive(new ProgressEvent(actionProgress.getProgressPercentage(),
-                    actionProgress.getDescription()));
-            try {
-                notificationSender.notifyActionProgress(actionProgress);
-                sendStateUpdateIfNeeded(action,
-                        getActionStateUpdateDescription(actionProgress.getDescription(),
-                                "in progress", action.getRecommendationOid()),
-                        actionProgress.getProgressPercentage());
-            } catch (CommunicationException | InterruptedException e) {
-                logger.error("Unable to send notification for progress of " + actionProgress, e);
+        Optional<ActionStore> storeOptional = actionStorehouse.getStore(realtimeTopologyContextId);
+        if (storeOptional.isPresent()) {
+            ActionStore actionStore = storeOptional.get();
+            Optional<Action> storedAction = actionStorehouse.isStableActionIdInUse()
+                    ?
+                    actionStore.getActionByRecommendationId(actionProgress.getActionId())
+                    :
+                    actionStore.getAction(actionProgress.getActionId());
+            if (storedAction.isPresent()) {
+                Action action = storedAction.get();
+                action.receive(new ProgressEvent(actionProgress.getProgressPercentage(),
+                        actionProgress.getDescription()));
+                try {
+                    notificationSender.notifyActionProgress(actionProgress);
+                    sendStateUpdateIfNeeded(action,
+                            getActionStateUpdateDescription(actionProgress.getDescription(),
+                                    "in progress", action.getRecommendationOid()),
+                            actionProgress.getProgressPercentage());
+                } catch (CommunicationException | InterruptedException e) {
+                    logger.error("Unable to send notification for progress of " + actionProgress, e);
+                }
+            } else {
+                logger.error("Unable to update progress for " + actionProgress);
             }
-        } else {
-            logger.error("Unable to update progress for " + actionProgress);
         }
     }
 
@@ -170,54 +176,60 @@ public class ActionStateUpdater implements ActionExecutionListener {
      */
     @Override
     public void onActionSuccess(@Nonnull final ActionSuccess actionSuccess) {
-        final Optional<Action> storedAction = actionStorehouse
-            .getStore(realtimeTopologyContextId)
-            .flatMap(store -> store.getActionByRecommendationId(actionSuccess.getActionId()));
-        if (storedAction.isPresent()) {
-            Action action = storedAction.get();
-            // Notify the action of the successful completion, possibly triggering a transition
-            // within the action's state machine.
-            final TransitionResult<ActionState> transitionResult = action.receive(new SuccessEvent());
+        Optional<ActionStore> storeOptional = actionStorehouse.getStore(realtimeTopologyContextId);
+        if (storeOptional.isPresent()) {
+            ActionStore actionStore = storeOptional.get();
+            Optional<Action> storedAction = actionStorehouse.isStableActionIdInUse()
+                    ?
+                    actionStore.getActionByRecommendationId(actionSuccess.getActionId())
+                    :
+                    actionStore.getAction(actionSuccess.getActionId());
+            if (storedAction.isPresent()) {
+                Action action = storedAction.get();
+                // Notify the action of the successful completion, possibly triggering a transition
+                // within the action's state machine.
+                final TransitionResult<ActionState> transitionResult = action.receive(new SuccessEvent());
 
-            failedCloudVMGroupProcessor.handleActionSuccess(action);
-            writeSuccessActionToAudit(action);
-            processActionState(action, transitionResult, true);
+                failedCloudVMGroupProcessor.handleActionSuccess(action);
+                writeSuccessActionToAudit(action);
+                processActionState(action, transitionResult, true);
 
-            // Multiple SuccessEvents can also be triggered for a single action that has PRE
-            // and POST states. If the action does not transition to the succeeded state, then
-            // this is a partial completion, which does not indicate that the overall action has
-            // completed yet.
-            final ActionState actionStateAfterTransition = transitionResult.getAfterState();
-            if (actionStateAfterTransition == ActionState.SUCCEEDED) {
-                // If the action transitions to the SUCCEEDED state, notify the rest of the system
-                logger.info("Action executed successfully: {}", action);
-                removeAcceptanceForSuccessfullyExecutedAction(action);
-                notifySystemAboutSuccessfulActionExecution(actionSuccess, action);
-            } else if (actionStateAfterTransition == ActionState.FAILED) {
-                // This can happen if a POST-script for a failed action succeeds. We want to send
-                // a failure notification about the action, not a success notification about the
-                // POST-script.
-                logger.info("Action execution failed: {}", action);
-                // Look up the executable step pertaining to the main action.
-                final ExecutableStep mainStep = action.getExecutableSteps().get(ActionState.IN_PROGRESS);
-                final String errorDescription;
-                if (mainStep == null) {
-                    // This is a fallback. We should always have an executable step for the
-                    // IN_PROGRESS state.
-                    logger.error("Main step of action {} (id: {}) is unexpectedly null.",
-                            action.getDescription(), action.getRecommendationOid());
-                    errorDescription = "Action execution is FAILED due to failed main execution step";
-                } else {
-                    errorDescription = String.join(",", mainStep.getErrors());
+                // Multiple SuccessEvents can also be triggered for a single action that has PRE
+                // and POST states. If the action does not transition to the succeeded state, then
+                // this is a partial completion, which does not indicate that the overall action has
+                // completed yet.
+                final ActionState actionStateAfterTransition = transitionResult.getAfterState();
+                if (actionStateAfterTransition == ActionState.SUCCEEDED) {
+                    // If the action transitions to the SUCCEEDED state, notify the rest of the system
+                    logger.info("Action executed successfully: {}", action);
+                    removeAcceptanceForSuccessfullyExecutedAction(action);
+                    notifySystemAboutSuccessfulActionExecution(actionSuccess, action);
+                } else if (actionStateAfterTransition == ActionState.FAILED) {
+                    // This can happen if a POST-script for a failed action succeeds. We want to send
+                    // a failure notification about the action, not a success notification about the
+                    // POST-script.
+                    logger.info("Action execution failed: {}", action);
+                    // Look up the executable step pertaining to the main action.
+                    final ExecutableStep mainStep = action.getExecutableSteps().get(ActionState.IN_PROGRESS);
+                    final String errorDescription;
+                    if (mainStep == null) {
+                        // This is a fallback. We should always have an executable step for the
+                        // IN_PROGRESS state.
+                        logger.error("Main step of action {} (id: {}) is unexpectedly null.",
+                                action.getDescription(), action.getRecommendationOid());
+                        errorDescription = "Action execution is FAILED due to failed main execution step";
+                    } else {
+                        errorDescription = String.join(",", mainStep.getErrors());
+                    }
+                    final ActionFailure actionFailure = ActionFailure.newBuilder()
+                            .setActionId(action.getId())
+                            .setErrorDescription(errorDescription)
+                            .build();
+                    notifySystemAboutFailedActionExecution(action, actionFailure, errorDescription);
                 }
-                final ActionFailure actionFailure = ActionFailure.newBuilder()
-                        .setActionId(action.getId())
-                        .setErrorDescription(errorDescription)
-                        .build();
-                notifySystemAboutFailedActionExecution(action, actionFailure, errorDescription);
+            } else {
+                logger.error("Unable to mark success for " + actionSuccess);
             }
-        } else {
-            logger.error("Unable to mark success for " + actionSuccess);
         }
     }
 
@@ -258,14 +270,20 @@ public class ActionStateUpdater implements ActionExecutionListener {
      */
     @Override
     public void onActionFailure(@Nonnull final ActionFailure actionFailure) {
-        final Optional<Action> storedAction = actionStorehouse
-            .getStore(realtimeTopologyContextId)
-            .flatMap(store -> store.getActionByRecommendationId(actionFailure.getActionId()));
-        if (storedAction.isPresent()) {
-            Action action = storedAction.get();
-            failAction(action, actionFailure);
-        } else {
-            logger.error("Unable to mark failure for " + actionFailure);
+        Optional<ActionStore> storeOptional = actionStorehouse.getStore(realtimeTopologyContextId);
+        if (storeOptional.isPresent()) {
+            ActionStore actionStore = storeOptional.get();
+            Optional<Action> storedAction = actionStorehouse.isStableActionIdInUse()
+                    ?
+                    actionStore.getActionByRecommendationId(actionFailure.getActionId())
+                    :
+                    actionStore.getAction(actionFailure.getActionId());
+            if (storedAction.isPresent()) {
+                Action action = storedAction.get();
+                failAction(action, actionFailure);
+            } else {
+                logger.error("Unable to mark failure for " + actionFailure);
+            }
         }
     }
 
@@ -307,11 +325,16 @@ public class ActionStateUpdater implements ActionExecutionListener {
         }
 
         targetActions.forEach(actionView -> {
-            liveActionStore.getActionByRecommendationId(actionView.getId())
+            Optional<Action> storedAction = actionStorehouse.isStableActionIdInUse()
+                ?
+                liveActionStore.getActionByRecommendationId(actionView.getId())
+                :
+                liveActionStore.getAction(actionView.getId());
+            storedAction
                 .ifPresent(action -> failAction(action, ActionFailure.newBuilder()
-                    .setErrorDescription("Topology Processor lost action state.")
-                    .setActionId(actionView.getId())
-                    .build()));
+                .setErrorDescription("Topology Processor lost action state.")
+                .setActionId(actionView.getId())
+                .build()));
         });
     }
 
