@@ -510,7 +510,7 @@ public class TopologyEntitiesHandler {
                                            @Nonnull final AnalysisConfig analysisConfig) {
         economySettings.setLicensePriceWeightScale(analysisConfig.getLicensePriceWeightScale());
         economySettings.setFullPriceForQuote(analysisConfig.isFullPriceForQuote());
-        economySettings.getReconfigureableCommodities().add(CommodityDTO.CommodityType.SOFTWARE_LICENSE_COMMODITY_VALUE);
+        economySettings.getReconfigureableCommodities().addAll(MarketAnalysisUtils.RECONFIGURABLE_COMMODITY_TYPES);
         economySettings.setEstimatesEnabled(false);
         economySettings.setUseQuoteCacheDuringSNM(analysisConfig.getUseQuoteCacheDuringSNM());
         economySettings.setRightSizeLower(analysisConfig.getRightsizeLowerWatermark());

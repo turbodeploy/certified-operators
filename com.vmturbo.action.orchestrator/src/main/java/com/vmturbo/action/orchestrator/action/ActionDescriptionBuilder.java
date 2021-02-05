@@ -35,6 +35,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeactivateExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation.CommodityNewCapacityEntry;
@@ -93,8 +94,11 @@ public class ActionDescriptionBuilder {
     private enum ActionMessageFormat {
         ACTION_DESCRIPTION_PROVISION_BY_SUPPLY("Provision {0}{1}"),
         ACTION_DESCRIPTION_PROVISION_BY_DEMAND("Provision {0} similar to {1} with scaled up {2} due to {3}"),
+        ACTION_DESCRIPTION_LICENSED_PROVISION_BY_SUPPLY("Provision Licensed {0}{1}"),
+        ACTION_DESCRIPTION_LICENSED_PROVISION_BY_DEMAND("Provision Licensed {0} similar to {1} with scaled up {2} due to {3}"),
         ACTION_DESCRIPTION_ACTIVATE("Start {0} due to increased demand for resources"),
         ACTION_DESCRIPTION_DEACTIVATE("{0} {1}"),
+        ACTION_DESCRIPTION_LICENSED_DEACTIVATE("{0} Licensed {1}"),
         ACTION_DESCRIPTION_DELETE("Delete wasted file ''{0}'' from {1} to free up {2}"),
         ACTION_DESCRIPTION_DELETE_CLOUD_NO_ACCOUNT("Delete Unattached {0} Volume {1}"),
         ACTION_DESCRIPTION_DELETE_CLOUD("Delete Unattached {0} Volume {1} from {2}"),
@@ -709,15 +713,19 @@ public class ActionDescriptionBuilder {
                  .append(ApiEntityType.fromType(entityDTO.getEntityType()).displayName())
                  .append(" similar to ").append(entityDTO.getDisplayName())
                  .toString();
-            return ActionMessageFormat.ACTION_DESCRIPTION_PROVISION_BY_SUPPLY
-                .format(provisionedEntity, getProvisionedForVSANSuffix(
+            ActionMessageFormat messageFormat = hasLicense(explanation.getReconfigCommTypesList())
+                ? ActionMessageFormat.ACTION_DESCRIPTION_LICENSED_PROVISION_BY_SUPPLY
+                : ActionMessageFormat.ACTION_DESCRIPTION_PROVISION_BY_SUPPLY;
+            return messageFormat.format(provisionedEntity, getProvisionedForVSANSuffix(
                     entityDTO, explanation.getProvisionBySupplyExplanation(), entitiesSnapshot));
         } else {
             final ProvisionByDemandExplanation provisionByDemandExplanation =
                 explanation.getProvisionByDemandExplanation();
-            return ActionMessageFormat.ACTION_DESCRIPTION_PROVISION_BY_DEMAND.format(
-                StringUtil.beautifyString(EntityType.forNumber(entityDTO.getEntityType()).name()),
-                entityDTO.getDisplayName(),
+            ActionMessageFormat messageFormat = hasLicense(explanation.getReconfigCommTypesList())
+                    ? ActionMessageFormat.ACTION_DESCRIPTION_LICENSED_PROVISION_BY_DEMAND
+                    : ActionMessageFormat.ACTION_DESCRIPTION_PROVISION_BY_DEMAND;
+            return messageFormat.format(StringUtil.beautifyString(EntityType.forNumber(
+                entityDTO.getEntityType()).name()), entityDTO.getDisplayName(),
                 // Beautify all reason commodities.
                 beautifyCommodityTypes(provisionByDemandExplanation.getCommodityNewCapacityEntryList()
                     .stream().map(CommodityNewCapacityEntry::getCommodityBaseType)
@@ -874,10 +882,12 @@ public class ActionDescriptionBuilder {
             logger.warn(ENTITY_NOT_FOUND_WARN_MSG, "getDeactivateActionDescription", "entityId", entityId);
             return "";
         }
-        return ActionMessageFormat.ACTION_DESCRIPTION_DEACTIVATE.format(
-            StringUtil.beautifyString(ActionDTO.ActionType.SUSPEND.name()),
-            beautifyEntityTypeAndName(entitiesSnapshot.getEntityFromOid(
-                entityId).get()));
+        DeactivateExplanation explanation = recommendation.getExplanation().getDeactivate();
+        ActionMessageFormat messageFormat = hasLicense(explanation.getReconfigCommTypesList())
+            ? ActionMessageFormat.ACTION_DESCRIPTION_LICENSED_DEACTIVATE
+            : ActionMessageFormat.ACTION_DESCRIPTION_DEACTIVATE;
+        return messageFormat.format(StringUtil.beautifyString(ActionDTO.ActionType.SUSPEND.name()),
+            beautifyEntityTypeAndName(entitiesSnapshot.getEntityFromOid(entityId).get()));
     }
 
     /**
@@ -907,6 +917,19 @@ public class ActionDescriptionBuilder {
         } else {
             return ActionMessageFormat.SIMPLE.format(capacity);
         }
+    }
+
+    /**
+     * Checks if the List of commodity types includes a license commodity.
+     *
+     * @param commodities List of commodities to check.
+     *
+     * @return true if the list contains a license commodity. False if it doesn't.
+     */
+    private static boolean hasLicense(List<TopologyDTO.CommodityType> commodities) {
+        return commodities.stream()
+            .map(TopologyDTO.CommodityType::getType)
+            .anyMatch(type -> type == CommodityType.SOFTWARE_LICENSE_COMMODITY_VALUE);
     }
 
 }

@@ -28,6 +28,7 @@ import javax.annotation.concurrent.Immutable;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.protobuf.AbstractMessage;
@@ -47,6 +48,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderEx
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Compliance;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Congestion;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Efficiency;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeactivateExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation;
@@ -1192,7 +1194,7 @@ public class ActionInterpreter {
                 break;
             case DEACTIVATE:
                 expBuilder.setDeactivate(
-                        ActionDTO.Explanation.DeactivateExplanation.getDefaultInstance());
+                        interpretDeactivateExplanation(actionTO.getDeactivate()));
                 break;
             case COMPOUND_MOVE:
                 // TODO(COMPOUND): different moves in a compound move may have different explanations
@@ -1277,6 +1279,20 @@ public class ActionInterpreter {
         return reconfigureExplanation.build();
     }
 
+    /**
+     * Generate explanation for Deactivate action.
+     *
+     * @param deactivateTO - deactivate actionTO
+     *
+     * @return the explanation.
+     */
+    private DeactivateExplanation interpretDeactivateExplanation(DeactivateTO deactivateTO) {
+        List<CommodityType> reconfigCommTypes = getReconfigurableCommodities(deactivateTO.getTraderToDeactivate(), true);
+        return reconfigCommTypes.isEmpty()
+            ? DeactivateExplanation.getDefaultInstance()
+            : DeactivateExplanation.newBuilder().addAllReconfigCommTypes(reconfigCommTypes).build();
+    }
+
     private ProvisionExplanation
     interpretProvisionExplanation(ProvisionByDemandTO provisionByDemandTO) {
         final ShoppingListInfo shoppingList =
@@ -1306,7 +1322,9 @@ public class ActionInterpreter {
             return expBuilder.setProvisionByDemandExplanation(ProvisionByDemandExplanation
                     .newBuilder().setBuyerId(shoppingList.getBuyerId())
                     .addAllCommodityNewCapacityEntry(capacityPerType)
-                    .addAllCommodityMaxAmountAvailable(maxAmountPerType).build()).build();
+                    .addAllCommodityMaxAmountAvailable(maxAmountPerType).build())
+                    .addAllReconfigCommTypes(getReconfigurableCommodities(provisionByDemandTO.getProvisionedSeller(), false))
+                    .build();
         }
     }
 
@@ -1322,6 +1340,7 @@ public class ActionInterpreter {
                     .setMostExpensiveCommodityInfo(
                         ReasonCommodity.newBuilder().setCommodityType(commType).build())
                     .build())
+                .addAllReconfigCommTypes(getReconfigurableCommodities(provisionBySupply.getProvisionedSeller(), false))
                 .build();
     }
 
@@ -2080,6 +2099,38 @@ public class ActionInterpreter {
         @Override
         public boolean hasSavings() {
             return false;
+        }
+    }
+
+    /**
+     * Collects the reconfigurable commodity types of the trader.
+     *
+     * @param oid - the oid of the trader.
+     * @param forSuspension - true for suspension and false for provision.
+     *
+     * @return List of the reconfigurable commodity types.
+     */
+    private List<CommodityType> getReconfigurableCommodities(long oid, boolean forSuspension) {
+        TopologyEntityDTO originalTrader = originalTopology.get(oid);
+        EconomyDTOs.TraderTO projectedTrader = oidToProjectedTraderTOMap.get(oid);
+        if (forSuspension && originalTrader != null) {
+            return originalTrader.getCommoditySoldListList().stream()
+                .filter(commSold -> MarketAnalysisUtils.RECONFIGURABLE_COMMODITY_TYPES
+                    .contains(commSold.getCommodityType().getType()))
+                .map(CommoditySoldDTO::getCommodityType)
+                .collect(Collectors.toList());
+        } else if (!forSuspension && projectedTrader != null) {
+            return projectedTrader.getCommoditiesSoldList().stream()
+                .filter(commSold ->  MarketAnalysisUtils.RECONFIGURABLE_COMMODITY_TYPES
+                    .contains(commSold.getSpecification().getBaseType()))
+                .map(commSold -> {
+                    return commodityConverter.marketToTopologyCommodity(commSold.getSpecification())
+                        .orElseGet(null);
+                })
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+        } else {
+            return Lists.newArrayList();
         }
     }
 }
