@@ -5,6 +5,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -96,6 +97,26 @@ public class GroupExpander {
             return response.hasGroup() ? Optional.of(response.getGroup()) : Optional.empty();
         } else {
             return Optional.empty();
+        }
+    }
+
+    /**
+     * Get the groups associated with a list of numeric UUIDs.
+     *
+     * @param uuids The list of string UUIDs. These are expected to be numeric.
+     * @return The {@link Grouping}s associated with the UUIDs, if any.
+     */
+    public Set<Grouping> getGroups(@Nonnull final List<String> uuids) {
+        final List<Long> numericUuids = uuids.stream()
+            .filter(StringUtils::isNumeric)
+            .map(Long::parseLong)
+            .collect(Collectors.toList());
+        if (!numericUuids.isEmpty()) {
+            final Iterator<Grouping> responseIterator = groupServiceGrpc.getGroups(
+                GetGroupsRequest.newBuilder().addAllScopes(numericUuids).build());
+            return Sets.newHashSet(responseIterator);
+        } else {
+            return Collections.emptySet();
         }
     }
 

@@ -92,6 +92,7 @@ import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeveri
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.CloudType;
 import com.vmturbo.common.protobuf.search.Search;
@@ -637,12 +638,14 @@ public class SearchService implements ISearchService {
             // This means there is an invalid scope.
             if (!isGlobalScope && scopeServiceEntityIds.isEmpty()) {
                 // checking if the scope is valid
-                Stream<ApiPartialEntity> scopeEntities = repositoryApi.entitiesRequest(scopes.stream()
-                                                                                                       .map(Long::parseLong).collect(Collectors.toSet()))
-                                .getEntities();
-                if (scopeEntities == null || scopeEntities.count() == 0) {
-                    throw new IllegalArgumentException("Invalid scope specified. There are no entities"
-                                                       + " related to the scope.");
+                final Set<Grouping> scopeGroups = groupExpander.getGroups(scopes);
+                final Stream<ApiPartialEntity> scopeEntities =
+                    repositoryApi.entitiesRequest(
+                            scopes.stream().map(Long::parseLong).collect(Collectors.toSet()))
+                        .getEntities();
+                if (scopeGroups.isEmpty() && scopeEntities.count() == 0) {
+                    throw new IllegalArgumentException("Invalid scope specified. There are no " +
+                        "entities or groups related to the scope.");
                 }
                 // returning an empty response
                 return paginationRequest.allResultsResponse(Collections.emptyList());
@@ -722,12 +725,13 @@ public class SearchService implements ISearchService {
             }
 
             // checking if the scope is valid
+            final Set<Grouping> scopeGroups = groupExpander.getGroups(scopes);
             Stream<ApiPartialEntity> scopeEntities = repositoryApi.entitiesRequest(scopes.stream()
                 .map(Long::parseLong).collect(Collectors.toSet()))
                 .getEntities();
-            if (scopeEntities == null || scopeEntities.count() == 0) {
-                throw new IllegalArgumentException("Invalid scope specified. There are no entities"
-                    + " related to the scope.");
+            if (scopeGroups.isEmpty() && scopeEntities.count() == 0) {
+                throw new IllegalArgumentException("Invalid scope specified. There are no " +
+                    "entities or groups related to the scope.");
             }
             // returning an empty response
             return paginationRequest.allResultsResponse(Collections.emptyList());
