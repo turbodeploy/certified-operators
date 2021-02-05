@@ -275,8 +275,15 @@ public class EconomyCaches {
         logger.info(logPrefix + "Real time reservation cache update time : " + realtimeCacheStartUpdateTime
                 .until(realtimeCacheEndUpdateTime, ChronoUnit.SECONDS) + " seconds");
         try {
-            updateAccessCommoditiesInHistoricalEconomyCache(realtimeCachedEconomy,
-                    realtimeCachedCommTypeMap);
+            if (!getState().isHistoricalCacheReceived() || historicalCachedEconomy.getTopology().getTradersByOid().isEmpty()) {
+                logger.warn(logPrefix + "Historical economy cache is not ready to be updated with commodities.");
+                return;
+            }
+            updateAccessCommoditiesInHistoricalEconomyCache(realtimeCachedEconomy, realtimeCachedCommTypeMap);
+            // Clone a new historical economy with new InvertedIndex object constructed based on updated traders(all new commodities
+            // will be included in the InvertedIndex look up table).
+            Economy newHistEconomy = InitialPlacementUtils.cloneEconomy(historicalCachedEconomy, false);
+            historicalCachedEconomy = newHistEconomy;
         } catch (Exception e) {
             logger.error(logPrefix + "Updating access commodity in historical economy cache encounter error {},"
                     + " resetting historical economy to be the same as real time", e);
@@ -295,10 +302,6 @@ public class EconomyCaches {
     protected void updateAccessCommoditiesInHistoricalEconomyCache(
             @Nonnull final Economy realtimeCachedEconomy,
             @Nonnull final BiMap<CommodityType, Integer> realtimeCachedCommTypeMap) {
-        if (!getState().isHistoricalCacheReceived() || historicalCachedEconomy.getTopology().getTradersByOid().isEmpty()) {
-            logger.warn(logPrefix + "Historical economy cache is not ready to be updated with commodities.");
-            return;
-        }
         InitialPlacementUtils.updateAccessCommodities(realtimeCachedEconomy, realtimeCachedCommTypeMap,
                 historicalCachedEconomy, historicalCachedCommTypeMap);
     }
