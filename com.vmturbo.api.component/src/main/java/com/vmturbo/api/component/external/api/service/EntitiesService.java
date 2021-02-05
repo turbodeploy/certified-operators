@@ -39,6 +39,7 @@ import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.SingleEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.ExceptionMapper;
+import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.PriceIndexPopulator;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
@@ -677,13 +678,21 @@ public class EntitiesService implements IEntitiesService {
     @Override
     public List<BaseApiDTO> getGroupsByUuid(String uuid,
                                             Boolean path) throws Exception {
-        if (!path) {
-            // TODO: Get all groups which the service entity is member of
-            throw ApiUtils.notImplementedInXL();
-        }
-
         // Get the input entity
         long entityOid = uuidMapper.fromUuid(uuid).oid();
+
+        if (!path) {
+            return groupServiceClient.getGroupsForEntities(GetGroupsForEntitiesRequest.newBuilder()
+                .addEntityId(entityOid)
+                .setLoadGroupObjects(true)
+                .build())
+            .getGroupsList()
+            .stream()
+            .map(GroupMapper::toBaseApiDTO)
+            .collect(Collectors.toList());
+        }
+
+
         Optional<ServiceEntityApiDTO> entityApiDTO =
                 repositoryApi.entityRequest(entityOid).getSE();
 

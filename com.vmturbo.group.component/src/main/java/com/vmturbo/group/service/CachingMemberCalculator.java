@@ -1,7 +1,10 @@
 package com.vmturbo.group.service;
 
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -10,6 +13,7 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.GuardedBy;
@@ -20,6 +24,7 @@ import io.opentracing.Tracer;
 
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.longs.Long2ShortOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongConsumer;
 import it.unimi.dsi.fastutil.longs.LongIterator;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
@@ -42,6 +47,7 @@ import com.vmturbo.components.common.identity.RoaringBitmapOidSet;
 import com.vmturbo.group.group.GroupDAO;
 import com.vmturbo.group.group.GroupUpdateListener;
 import com.vmturbo.group.group.IGroupStore;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 
@@ -78,27 +84,36 @@ public class CachingMemberCalculator implements GroupMemberCalculator, GroupUpda
     @GuardedBy("lock")
     private final Long2ObjectMap<CachedGroupMembers> cachedMembers = new Long2ObjectOpenHashMap<>();
 
+    @GuardedBy("lock")
+    private final Long2ObjectOpenHashMap<LongOpenHashSet> memberParents =
+        new Long2ObjectOpenHashMap<>();
+
+    private final boolean cacheEntityParentGroups;
+
     /**
      * A set of all currently known group IDs.
      */
     @GuardedBy("lock")
-    private final LongOpenHashSet allGroupIds = new LongOpenHashSet();
+    private final Long2ShortOpenHashMap groupToType = new Long2ShortOpenHashMap();
 
     private final Supplier<CachedGroupMembers> cachedMemberFactory;
 
     CachingMemberCalculator(@Nonnull final GroupDAO groupDAO,
             @Nonnull final GroupMemberCalculator internalCalculator,
-            @Nonnull final CachedGroupMembers.Type memberCacheType) {
-        this(groupDAO, internalCalculator, memberCacheType, Thread::new);
+            @Nonnull final CachedGroupMembers.Type memberCacheType,
+            boolean cacheEntityParentGroups) {
+        this(groupDAO, internalCalculator, memberCacheType, cacheEntityParentGroups, Thread::new);
     }
 
     @VisibleForTesting
     CachingMemberCalculator(@Nonnull final GroupDAO groupDAO,
             @Nonnull final GroupMemberCalculator internalCalculator,
             @Nonnull final CachedGroupMembers.Type memberCacheType,
+            final boolean cacheEntityParentGroups,
             BiFunction<Runnable, String, Thread> threadFactory) {
         this.groupDAO = groupDAO;
         this.internalCalculator = internalCalculator;
+        this.cacheEntityParentGroups = cacheEntityParentGroups;
         this.cachedMemberFactory = memberCacheType.getFactory();
 
         // When the group component comes up, we try to do regrouping to initialize the cache.
@@ -145,6 +160,7 @@ public class CachingMemberCalculator implements GroupMemberCalculator, GroupUpda
                 lock.writeLock().lock();
                 try {
                     cachedMembers.clear();
+                    memberParents.clear();
                 } finally {
                     lock.writeLock().unlock();
                 }
@@ -153,9 +169,10 @@ public class CachingMemberCalculator implements GroupMemberCalculator, GroupUpda
             // Record all the group IDs.
             lock.writeLock().lock();
             try {
-                allGroupIds.clear();
-                groups.forEach(g -> allGroupIds.add(g.getId()));
-                allGroupIds.trim();
+                groupToType.clear();
+                groups.forEach(g -> groupToType.put(g.getId(),
+                    (short)g.getDefinition().getType().getNumber()));
+                groupToType.trim();
             } finally {
                 lock.writeLock().unlock();
             }
@@ -163,7 +180,7 @@ public class CachingMemberCalculator implements GroupMemberCalculator, GroupUpda
             for (final Grouping group : groups) {
                 // Before resolving the group, check to make sure it's not already cached.
                 // A concurrent request may have triggered the computation + caching of the
-                // group's members.
+                // group's members and member parents.
                 lock.readLock().lock();
                 try {
                     if (cachedMembers.containsKey(group.getId())) {
@@ -176,8 +193,10 @@ public class CachingMemberCalculator implements GroupMemberCalculator, GroupUpda
                 // Do not expand nested groups - we only put the direct members into the
                 // cache, and resolve nested groups recursively at query-time.
                 try {
-                    final CachedGroupMembers m = cachedMemberFactory.get();
-                    m.set(getGroupMembers(groupDAO, group.getDefinition(), false));
+                    final CachedGroupMembers cachedGroupMembers = cachedMemberFactory.get();
+                    final Set<Long> groupMembers =
+                        getGroupMembers(groupDAO, group.getDefinition(), false);
+                    cachedGroupMembers.set(groupMembers);
                     lock.writeLock().lock();
                     try {
                         // There are two ways the group may find itself in the cache:
@@ -186,30 +205,54 @@ public class CachingMemberCalculator implements GroupMemberCalculator, GroupUpda
                         // 2) There was a concurrent update to an existing group, and the
                         //    new members were eagerly cached. In this case it would be wrong to
                         //    overwrite.
-                        this.cachedMembers.putIfAbsent(group.getId(), m);
+                        CachedGroupMembers currentValue =
+                            this.cachedMembers.putIfAbsent(group.getId(), cachedGroupMembers);
+                        // if the group does not already exists in the map, add entity to parent
+                        // relationship to the map
+                        if (cacheEntityParentGroups && currentValue == null) {
+                            for (long memberId : groupMembers) {
+                                memberParents.computeIfAbsent(memberId, v -> new LongOpenHashSet())
+                                    .add(group.getId());
+                            }
+                        }
+
                     } finally {
                         lock.writeLock().unlock();
                     }
 
-                    m.get(distinctMembers::add);
-                    totalMemberCnt += m.size();
+                    cachedGroupMembers.get(distinctMembers::add);
+                    totalMemberCnt += cachedGroupMembers.size();
                 } catch (StoreOperationException e) {
                     logger.error("Failed to do regrouping. Error: ", e);
                 }
             }
 
-            final MemoryMeasurement memory;
+            if (cacheEntityParentGroups) {
+                lock.writeLock().lock();
+                try {
+                    // try to trim the members to reduce memory footprint
+                    this.memberParents.trim();
+                    this.memberParents.values().forEach(LongOpenHashSet::trim);
+                } finally {
+                    lock.writeLock().unlock();
+                }
+            }
+
             lock.readLock().lock();
             try {
-                memory = MemoryMeasurer.measure(cachedMembers);
-                Metrics.REGROUPING_SIZE_SUMMARY.observe((double)memory.getTotalSizeBytes());
+                final MemoryMeasurement memory = MemoryMeasurer.measure(cachedMembers);
+                final MemoryMeasurement entityParentMemory = MemoryMeasurer.measure(memberParents);
+                final MemoryMeasurement totalMemory = MemoryMeasurement.add(memory,
+                    entityParentMemory);
+                Metrics.REGROUPING_SIZE_SUMMARY.observe((double)totalMemory.getTotalSizeBytes());
                 Metrics.REGROUPING_CNT_SUMMARY.observe((double)totalMemberCnt);
                 Metrics.REGROUPING_DISTINCT_CNT_SUMMARY.observe((double)distinctMembers.size());
                 logger.info("Completed regrouping in {} seconds. {} members ({} distinct entities)"
-                                + " in {} groups. Cached members memory: {}", timer.getTimeElapsedSecs(),
-                        totalMemberCnt, distinctMembers.size(), groups.size(), memory);
-                return new RegroupingResult(true, allGroupIds, totalMemberCnt,
-                        distinctMembers.size(), memory);
+                    + " in {} groups. Cached members memory: {} Cached parents memory: {}",
+                    timer.getTimeElapsedSecs(), totalMemberCnt, distinctMembers.size(),
+                    groups.size(), memory, entityParentMemory);
+                return new RegroupingResult(true, groupToType.keySet(), totalMemberCnt,
+                        distinctMembers.size(), totalMemory);
             } finally {
                 lock.readLock().unlock();
             }
@@ -240,7 +283,7 @@ public class CachingMemberCalculator implements GroupMemberCalculator, GroupUpda
             // If a direct member is a group AND we want to expand nested groups,
             // record that member id separately for the next round of expansion.
             final LongConsumer memberIdConsumer = (directMemberId) -> {
-                if (expandNestedGroups && allGroupIds.contains(directMemberId) && !visitedGroups.contains(directMemberId)) {
+                if (expandNestedGroups && groupToType.containsKey(directMemberId) && !visitedGroups.contains(directMemberId)) {
                     nextGroupsToExpand.add(directMemberId);
                     visitedGroups.add(directMemberId);
                 } else {
@@ -307,13 +350,64 @@ public class CachingMemberCalculator implements GroupMemberCalculator, GroupUpda
         cacheGroupMembers(createdGroup, groupDefinition);
     }
 
+    @Override
+    @Nonnull
+    public Map<Long, Set<Long>> getEntityGroups(@Nonnull IGroupStore groupStore,
+                    @Nonnull Set<Long> entityIds,
+                    @Nonnull Set<GroupType> groupTypes) throws StoreOperationException {
+        if (cacheEntityParentGroups) {
+            final Set<Short> types = groupTypes
+                .stream()
+                .map(GroupType::getNumber)
+                .map(Integer::shortValue)
+                .collect(Collectors.toSet());
+
+            final Map<Long, Set<Long>> result = new HashMap<>();
+
+            for (long entityId : entityIds) {
+                final LongOpenHashSet groups = memberParents.get(entityId);
+                if (groups != null) {
+                    final Set<Long> filteredGroup = groups.stream()
+                        .filter(e -> types.isEmpty() || types.contains(groupToType.get((long)e)))
+                        .collect(Collectors.toSet());
+                    result.put(entityId, filteredGroup);
+                } else {
+                    result.put(entityId, Collections.emptySet());
+                }
+            }
+            return result;
+        } else {
+            return internalCalculator.getEntityGroups(groupStore, entityIds, groupTypes);
+        }
+    }
+
     private void cacheGroupMembers(final long groupId, @Nonnull final GroupDefinition groupDefinition) {
         lock.writeLock().lock();
         try {
             // Ensure the group ID is known.
-            allGroupIds.add(groupId);
+            groupToType.put(groupId, (short)groupDefinition.getType().getNumber());
             CachedGroupMembers m = cachedMembers.computeIfAbsent(groupId, k -> cachedMemberFactory.get());
-            m.set(internalCalculator.getGroupMembers(groupDAO, groupDefinition, false));
+            final Set<Long> groupMembers = internalCalculator
+                .getGroupMembers(groupDAO, groupDefinition, false);
+            // updating entity parents logic
+            if (cacheEntityParentGroups) {
+                final Set<Long> newMembers = new HashSet<>(groupMembers);
+                final Set<Long> removedMembers = new HashSet<>();
+                m.get(removedMembers::add);
+                // new members are those members are in not in current set of members
+                newMembers.removeAll(removedMembers);
+                // removed members are those that are in old groups members and not in the new
+                // members
+                removedMembers.removeAll(groupMembers);
+                // add new members
+                for (long memberId : newMembers) {
+                    memberParents.computeIfAbsent(memberId, v -> new LongOpenHashSet()).add(groupId);
+                }
+                // remove members
+                removedMembers.forEach(memberId -> removeParentRelationship(groupId, memberId));
+            }
+            m.set(groupMembers);
+
         } catch (StoreOperationException e) {
             logger.error("Failed to eagerly populate members of group {} (id: {})",
                 groupDefinition.getDisplayName(), groupId, e);
@@ -325,10 +419,27 @@ public class CachingMemberCalculator implements GroupMemberCalculator, GroupUpda
     private void remove(final long groupId) {
         lock.writeLock().lock();
         try {
-            allGroupIds.remove(groupId);
+            if (cacheEntityParentGroups) {
+                final CachedGroupMembers m = cachedMembers.get(groupId);
+                if (m != null) {
+                    m.get(memberId -> removeParentRelationship(groupId, memberId));
+                }
+            }
+            groupToType.remove(groupId);
             cachedMembers.remove(groupId);
         } finally {
             lock.writeLock().unlock();
+        }
+    }
+
+    private void removeParentRelationship(long groupId, long removedMemberId) {
+        LongOpenHashSet groups = memberParents.get(removedMemberId);
+        if (groups != null) {
+            groups.remove(groupId);
+            // if there no more parent just remove the entry
+            if (groups.isEmpty()) {
+                memberParents.remove(removedMemberId);
+            }
         }
     }
 
@@ -347,7 +458,7 @@ public class CachingMemberCalculator implements GroupMemberCalculator, GroupUpda
      */
     public class RegroupingResult {
         private final boolean success;
-        private final LongOpenHashSet resolvedGroupsIds;
+        private final LongSet resolvedGroupsIds;
         private final long totalMemberCount;
         private final int distinctEntitiesCount;
         private final MemoryMeasurement memory;
@@ -362,7 +473,7 @@ public class CachingMemberCalculator implements GroupMemberCalculator, GroupUpda
          *                              group.
          * @param memory measures the size of the cache.
          */
-        public RegroupingResult(final boolean success, final LongOpenHashSet resolvedGroupsIds,
+        public RegroupingResult(final boolean success, final LongSet resolvedGroupsIds,
                 final long totalMemberCount, final int distinctEntitiesCount,
                 final MemoryMeasurement memory) {
             this.success = success;
@@ -376,7 +487,7 @@ public class CachingMemberCalculator implements GroupMemberCalculator, GroupUpda
             return success;
         }
 
-        public LongOpenHashSet getResolvedGroupsIds() {
+        public LongSet getResolvedGroupsIds() {
             return resolvedGroupsIds;
         }
 

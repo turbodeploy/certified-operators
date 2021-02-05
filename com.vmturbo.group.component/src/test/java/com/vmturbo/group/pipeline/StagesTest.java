@@ -16,6 +16,7 @@ import java.util.Set;
 import com.google.common.collect.ArrayListMultimap;
 
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
+import it.unimi.dsi.fastutil.longs.LongSet;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -95,7 +96,7 @@ public class StagesTest {
         when(regroupingResult.getMemory()).thenReturn(MemoryMeasurer.measure(new Object()));
         when(memberCache.regroup()).thenReturn(regroupingResult);
         // WHEN
-        StageResult<LongOpenHashSet> stageResult = stage.executeStage(null);
+        StageResult<LongSet> stageResult = stage.executeStage(null);
         // THEN
         verify(memberCache, times(1)).regroup();
         Assert.assertEquals(Status.Type.SUCCEEDED, stageResult.getStatus().getType());
