@@ -10,6 +10,7 @@ import io.grpc.stub.StreamObserver;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.components.common.utils.ThrowingConsumer;
+import com.vmturbo.components.common.utils.ThrowingFunction;
 import com.vmturbo.group.service.TransactionProvider.Stores;
 
 /**
@@ -55,6 +56,33 @@ public class GrpcTransactionUtil {
             logger.error("Thread interrupted while executing operation", e);
             responseObserver.onError(
                     Status.CANCELLED.withDescription("Thread interrupted").asException());
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    /**
+     * Executes gRPC request with stores in transaction.
+     *
+     * @param <T> return type of the storeOperation
+     *
+     * @param responseObserver response observer to report errors to
+     * @param storeOperation operation to execute within transaction
+     */
+    public <T> void executeOperationAndReturn(@Nonnull StreamObserver<T> responseObserver,
+            @Nonnull ThrowingFunction<Stores, T, StoreOperationException> storeOperation) {
+        try {
+            final T response = transactionProvider.transaction(storeOperation::apply);
+            responseObserver.onNext(response);
+            responseObserver.onCompleted();
+        } catch (StoreOperationException e) {
+            logger.error("Failed to perform operation", e);
+            responseObserver.onError(
+                    e.getStatus().withDescription(e.getTruncatedMessage()).asException());
+        } catch (InterruptedException e) {
+            logger.error("Thread interrupted while executing operation", e);
+            responseObserver.onError(
+                    Status.CANCELLED.withDescription("Thread interrupted").asException());
+            Thread.currentThread().interrupt();
         }
     }
 }
