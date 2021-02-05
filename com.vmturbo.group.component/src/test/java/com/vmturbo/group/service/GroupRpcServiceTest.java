@@ -2056,12 +2056,12 @@ public class GroupRpcServiceTest {
         groupRpcService.createGroup(groupRequest, mockObserver);
 
         //Verify we send the error response
-        final ArgumentCaptor<StatusRuntimeException> exceptionCaptor =
-                        ArgumentCaptor.forClass(StatusRuntimeException.class);
+        final ArgumentCaptor<StatusException> exceptionCaptor =
+                        ArgumentCaptor.forClass(StatusException.class);
         verify(mockObserver).onError(exceptionCaptor.capture());
 
-        final StatusRuntimeException exception = exceptionCaptor.getValue();
-        assertThat(exception, GrpcRuntimeExceptionMatcher.hasCode(Code.ABORTED)
+        final StatusException exception = exceptionCaptor.getValue();
+        assertThat(exception, GrpcExceptionMatcher.hasCode(Code.ABORTED)
                 .descriptionContains("ERR1"));
     }
 

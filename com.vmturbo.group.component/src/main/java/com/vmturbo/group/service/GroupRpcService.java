@@ -760,20 +760,17 @@ public class GroupRpcService extends GroupServiceImplBase {
     @Override
     public void createGroup(@Nonnull CreateGroupRequest request,
             @Nonnull StreamObserver<CreateGroupResponse> responseObserver) {
-        grpcTransactionUtil.executeOperation(responseObserver,
-                stores -> createGroup(stores.getGroupStore(), request, responseObserver));
+        grpcTransactionUtil.executeOperationAndReturn(responseObserver,
+                stores -> createGroup(stores.getGroupStore(), request));
     }
 
-    private void createGroup(@Nonnull IGroupStore groupStore, @Nonnull CreateGroupRequest request,
-            @Nonnull StreamObserver<CreateGroupResponse> responseObserver)
+    private CreateGroupResponse createGroup(@Nonnull IGroupStore groupStore, @Nonnull CreateGroupRequest request)
             throws StoreOperationException {
         try {
             validateCreateGroupRequest(groupStore, request);
         } catch (InvalidGroupDefinitionException e) {
-            logger.error("Group {} is not valid.", request.getGroupDefinition(), e);
-            responseObserver.onError(
-                            Status.INVALID_ARGUMENT.withDescription(e.getMessage()).asException());
-            return;
+            logger.error("Group {} is not valid", request.getGroupDefinition(), e);
+            throw new StoreOperationException(Status.INVALID_ARGUMENT, e.getMessage(), e);
         }
 
         logger.info("Creating group {}", request.getGroupDefinition().getDisplayName());
@@ -797,9 +794,7 @@ public class GroupRpcService extends GroupServiceImplBase {
                 final String errorMsg = String.format("Failed to create group: %s as it is invalid. exception: %s.",
                                 groupDef, e.getLocalizedMessage());
                 logger.error(errorMsg, e);
-                responseObserver.onError(Status.ABORTED.withDescription(errorMsg)
-                        .asRuntimeException());
-                return;
+                throw new StoreOperationException(Status.ABORTED, errorMsg, e);
             }
         } else {
             final boolean supportsMemberReverseLookup =
@@ -826,14 +821,11 @@ public class GroupRpcService extends GroupServiceImplBase {
                 .setSupportsMemberReverseLookup(supportsMemberReverseLookup)
                 .build();
                 postValidateNewGroup(groupStore, createdGroup);
-
         }
 
-        responseObserver.onNext(CreateGroupResponse.newBuilder()
-                            .setGroup(createdGroup)
-                            .build());
-        responseObserver.onCompleted();
-
+        return CreateGroupResponse.newBuilder()
+                .setGroup(createdGroup)
+                .build();
     }
 
     /**
