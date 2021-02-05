@@ -244,8 +244,10 @@ public class StableMarriageAlgorithm {
         SMAReservedInstance sourceRI = smaMatch.getVirtualMachine().getCurrentRI();
         SMAVirtualMachine virtualMachine = smaMatch.getVirtualMachine();
         return (sourceRI != null
-                && virtualMachine.getCurrentTemplate().getOid()
-                == smaMatch.getTemplate().getOid() // same template.
+                && ((!sourceRI.isIsf() && virtualMachine.getCurrentTemplate().getOid()
+                == smaMatch.getTemplate().getOid()) // same template for non ISF
+                || (sourceRI.isIsf() && virtualMachine.getCurrentTemplate().getFamily()
+                .equals(smaMatch.getTemplate().getFamily()))) // same family for ISF.
                 && (projectedRI == null // lost coverage. vm did not use up any other RI.
                 || ((sourceRI.getRiKeyOid() == projectedRI.getRiKeyOid())
                 && (virtualMachine.getCurrentRICoverage()
