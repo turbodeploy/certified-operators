@@ -87,4 +87,14 @@ public class EntitySavingsConfig {
         return new SqlEntitySavingsStore(databaseConfig.dsl(), Clock.systemUTC(),
                 persistEntityCostChunkSize);
     }
+
+    /**
+     * Gets access to events store.
+     *
+     * @return Events store.
+     */
+    @Bean
+    public EntityEventsJournal entityEventsJournal() {
+        return new InMemoryEntityEventsJournal();
+    }
 }
