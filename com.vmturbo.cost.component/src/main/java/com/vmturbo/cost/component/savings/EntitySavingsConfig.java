@@ -68,6 +68,16 @@ public class EntitySavingsConfig {
     }
 
     /**
+     * Gets a reference to entity state cache.
+     *
+     * @return EntityState cache to keep track of per entity state in memory.
+     */
+    @Bean
+    public EntityStateCache entityStateCache() {
+        return new InMemoryEntityStateCache();
+    }
+
+    /**
      * Create and return an entity savings tracker.
      *
      * @return the entity savings tracker.
