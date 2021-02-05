@@ -31,6 +31,8 @@ public class MockScheduledService implements ScheduledExecutorService {
 
     private final ExecutorService threadPool = Executors.newCachedThreadPool();
     private final Collection<Runnable> scheduledTasks = new CopyOnWriteArrayList<>();
+    private final Collection<Runnable> runnableTasks = new CopyOnWriteArrayList<>();
+    private final Collection<Callable> callableTasks = new CopyOnWriteArrayList<>();
 
     @Override
     public ScheduledFuture<?> schedule(Runnable command, long delay, TimeUnit unit) {
@@ -91,17 +93,20 @@ public class MockScheduledService implements ScheduledExecutorService {
 
     @Override
     public <T> Future<T> submit(Callable<T> task) {
-        return threadPool.submit(task);
+        callableTasks.add(task);
+        return new FakeFuture();
     }
 
     @Override
     public <T> Future<T> submit(Runnable task, T result) {
-        return threadPool.submit(task, result);
+        runnableTasks.add(task);
+        return new FakeFuture();
     }
 
     @Override
     public Future<?> submit(Runnable task) {
-        return threadPool.submit(task);
+        runnableTasks.add(task);
+        return new FakeFuture();
     }
 
     @Override
@@ -130,7 +135,7 @@ public class MockScheduledService implements ScheduledExecutorService {
 
     @Override
     public void execute(Runnable command) {
-        threadPool.execute(command);
+        runnableTasks.add(command);
     }
 
     /**
@@ -148,6 +153,36 @@ public class MockScheduledService implements ScheduledExecutorService {
     }
 
     /**
+     * Execute all submitted runnable and callable tasks. All tasks will be executed one-by-one
+     * for each call of this method.
+     */
+    public void executeTasks() {
+        runnableTasks.forEach(task -> {
+            try {
+                task.run();
+            } catch (Exception ex) {
+                logger.info("Runnable task failed with exception");
+            }
+        });
+        callableTasks.forEach(el -> {
+            try {
+                el.call();
+            } catch (Exception ex) {
+                logger.info("Callable task failed with exception");
+            }
+        });
+    }
+
+    /**
+     * Remove all tasks which were submitted or schedule earlier.
+     */
+    public void removeAllTasks() {
+        runnableTasks.clear();
+        callableTasks.clear();
+        scheduledTasks.clear();
+    }
+
+    /**
      * Fake scheduled future.
      *
      * @param <T> type of a future result
@@ -162,6 +197,42 @@ public class MockScheduledService implements ScheduledExecutorService {
         @Override
         public int compareTo(@Nonnull Delayed o) {
             return 0;
+        }
+    }
+
+    /**
+     * Fake future.
+     *
+     * @param <T> type of a future result
+     */
+    private static class FakeFuture<T> implements Future<T> {
+        private FakeFuture() {
+        }
+
+        @Override
+        public boolean cancel(boolean mayInterruptIfRunning) {
+            return false;
+        }
+
+        @Override
+        public boolean isCancelled() {
+            return false;
+        }
+
+        @Override
+        public boolean isDone() {
+            return false;
+        }
+
+        @Override
+        public T get() throws InterruptedException, ExecutionException {
+            return null;
+        }
+
+        @Override
+        public T get(long timeout, @Nonnull TimeUnit unit)
+                throws InterruptedException, ExecutionException, TimeoutException {
+            return null;
         }
     }
 }

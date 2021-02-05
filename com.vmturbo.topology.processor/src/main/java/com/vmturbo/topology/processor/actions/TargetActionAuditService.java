@@ -5,6 +5,7 @@ import java.util.Deque;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
@@ -16,6 +17,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.apache.commons.lang3.time.StopWatch;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -28,8 +30,11 @@ import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionResponseState;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionErrorsResponse;
 import com.vmturbo.platform.sdk.common.util.Pair;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.actions.data.context.ActionExecutionContextFactory;
 import com.vmturbo.topology.processor.actions.data.context.ContextCreationException;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 import com.vmturbo.topology.processor.operation.IOperationManager;
 import com.vmturbo.topology.processor.operation.IOperationManager.OperationCallback;
 import com.vmturbo.topology.processor.operation.actionaudit.ActionAudit;
@@ -51,6 +56,7 @@ public class TargetActionAuditService {
     private final Semaphore semaphore = new Semaphore(1);
     private volatile ActionAudit runningOperation = null;
     private final ExecutorService threadPool;
+    private final boolean isServiceNowTarget;
 
     /**
      * Constructs service.
@@ -64,12 +70,15 @@ public class TargetActionAuditService {
      * @param sendIntervalSec interval to send the events to SDK probe
      * @param initialized whether this service is initialized. Only start processing events
      *         after this value is true. The only expected transition here is false -> true
+     * @param thinTargetCache cache for simple target information
      */
     protected TargetActionAuditService(long targetId, @Nonnull IOperationManager operationManager,
             @Nonnull ActionExecutionContextFactory contextFactory,
             @Nonnull ScheduledExecutorService scheduler, long sendIntervalSec, int batchSize,
-            @Nonnull AtomicBoolean initialized) {
+            @Nonnull AtomicBoolean initialized, @Nonnull final ThinTargetCache thinTargetCache) {
         this.targetId = targetId;
+        this.isServiceNowTarget =
+                isServiceNowTarget(Objects.requireNonNull(thinTargetCache), targetId);
         this.operationManager = Objects.requireNonNull(operationManager);
         this.contextFactory = Objects.requireNonNull(contextFactory);
         if (batchSize <= 0) {
@@ -80,6 +89,22 @@ public class TargetActionAuditService {
         this.initialized = Objects.requireNonNull(initialized);
         scheduler.scheduleWithFixedDelay(this::runQueue, sendIntervalSec, sendIntervalSec,
                 TimeUnit.SECONDS);
+    }
+
+    private boolean isServiceNowTarget(@Nonnull ThinTargetCache thinTargetCache,
+            long auditTargetId) {
+        final Optional<ThinTargetInfo> auditTargetInfo =
+                thinTargetCache.getTargetInfo(auditTargetId);
+        if (auditTargetInfo.isPresent()) {
+            final String auditTargetType = auditTargetInfo.get().probeInfo().type();
+            return auditTargetType.equals(SDKProbeType.SERVICENOW.getProbeType());
+        } else {
+            // if there is no info for audit target then we couldn't do audit operation
+            // because we have different logic depends of target type
+            throw new UnsupportedOperationException(
+                    "Failed to get target info and define type of audit target " + auditTargetId
+                            + ". Audit operation is impossible");
+        }
     }
 
     /**
@@ -137,7 +162,7 @@ public class TargetActionAuditService {
     private void runQueueInternal() {
         final List<Pair<ActionEvent, Runnable>> eventsRequested = new ArrayList<>(
                 Math.max(events.size(), batchSize));
-        final List<ActionEventDTO> actionsToSend = new ArrayList<>(eventsRequested.size());
+        final List<ActionEventDTO> actionsToSend = new ArrayList<>();
         while (actionsToSend.size() < batchSize && !events.isEmpty()) {
             // There is no race condition here as this thread is the only consumer of events
             // in this queue. Others can only add events.
@@ -150,7 +175,7 @@ public class TargetActionAuditService {
                         + " event will be skipped as could not be converted", e);
             }
         }
-        final ActionAuditCallback callback = new ActionAuditCallback(eventsRequested);
+        final ActionAuditCallback callback = new ActionAuditCallback(eventsRequested, StopWatch.createStarted());
         if (actionsToSend.isEmpty()) {
             logger.debug("No actions available for audit.");
             semaphore.release();
@@ -206,10 +231,12 @@ public class TargetActionAuditService {
      */
     private class ActionAuditCallback implements OperationCallback<ActionErrorsResponse> {
 
-        private final List<Pair<ActionEvent, Runnable>> events;
+        private final List<Pair<ActionEvent, Runnable>> auditEvents;
+        private final StopWatch stopWatch;
 
-        ActionAuditCallback(@Nonnull List<Pair<ActionEvent, Runnable>> events) {
-            this.events = Objects.requireNonNull(events);
+        ActionAuditCallback(@Nonnull List<Pair<ActionEvent, Runnable>> events, @Nonnull StopWatch started) {
+            this.auditEvents = Objects.requireNonNull(events);
+            this.stopWatch = Objects.requireNonNull(started);
         }
 
         @Override
@@ -225,16 +252,28 @@ public class TargetActionAuditService {
                     // kafka commits by offset.
                     // If you plan improve this, you must also fix the ActionStreakKafka probe since it
                     // fails fast and only sends the first oid that fails.
-                    response.getErrorsList().forEach(error -> {
-                        logger.warn("Error reported auditing action {} event: {}",
-                                error.getActionOid(), error.getMessage());
-                    });
+                    response.getErrorsList()
+                            .forEach(error -> logger.warn(
+                                    "Error reported auditing action {} event: {}",
+                                    error.getActionOid(), error.getMessage()));
                     logger.info("Action audit failed. Action events for actions [{}] returned to "
                             + "queue.", this::getActionOids);
-                    returnActionEventToQueue();
+                    // TODO OM-64606 remove this ServiceNow specific logic after changing the ServiceNow app
+                    //  and having generic audit logic for orchestration targets.
+                    //  Now we need to have this ServiceNow-specific logic, because for ServiceNow we send all
+                    //  actions for audit every market cycle and we don't need to return them to
+                    //  the queue. For other orchestration targets (e.g. ActionStreamKafka) we
+                    //  need to send audit event once without repetitions, so if actions is not
+                    //  delivered to external system then we need to return them to queue and
+                    //  resend later.
+                    if (!isServiceNowTarget) {
+                        returnActionEventToQueue();
+                    }
                 } else {
-                    logger.debug("Successfully finished auditing of actions [{}]", this::getActionOids);
-                    for (Pair<ActionEvent, Runnable> event : events) {
+                    logger.debug("Successfully finished auditing batch with {} actions [{}] in {}"
+                                    + " seconds.", auditEvents::size, this::getActionOids,
+                            () -> stopWatch.getTime(TimeUnit.SECONDS));
+                    for (Pair<ActionEvent, Runnable> event : auditEvents) {
                         event.getSecond().run();
                     }
                     logger.trace("Action audit events successfully committed");
@@ -257,25 +296,32 @@ public class TargetActionAuditService {
 
         public void onFailure(@Nonnull String error, @Nullable Throwable exception) {
             final String message = String.format(
-                    "\"Action audit failed. Action events for actions [%s] returned to queue: %s\"",
-                    getActionOids(), error);
+                    "\"Action audit failed in %ss. Action events for actions [%s] returned to "
+                            + "queue: %s\"", stopWatch.getTime(TimeUnit.SECONDS), getActionOids(),
+                    error);
             logger.info(message, exception);
             returnActionEventToQueue();
             semaphore.release();
         }
 
+        /**
+         * Returns failed sent action events to the front of the queue in order to resend them
+         * again in order which they were initially added to the queue. We need to observe order
+         * of sending action audit events, because otherwise we can send e.g. CLEARED event
+         * earlier then ON_GEN which is wrong.
+         */
         private void returnActionEventToQueue() {
             final ListIterator<Pair<ActionEvent, Runnable>> iterator =
-                    events.listIterator(events.size());
+                    auditEvents.listIterator(auditEvents.size());
             while (iterator.hasPrevious()) {
                 final Pair<ActionEvent, Runnable> event = iterator.previous();
-                TargetActionAuditService.this.events.addFirst(event);
+                events.addFirst(event);
             }
         }
 
         @Nonnull
         private String getActionOids() {
-            return events.stream()
+            return auditEvents.stream()
                     .map(Pair::getFirst)
                     .map(ActionEvent::getActionRequest)
                     .map(ExecuteActionRequest::getActionId)

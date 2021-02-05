@@ -45,10 +45,15 @@ import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionAuditFeature;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionErrorsResponse;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
+import com.vmturbo.platform.sdk.common.util.ProbeCategory;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
 import com.vmturbo.topology.processor.actions.data.PolicyRetriever;
 import com.vmturbo.topology.processor.actions.data.context.ActionExecutionContextFactory;
 import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
+import com.vmturbo.topology.processor.api.util.ImmutableThinProbeInfo;
+import com.vmturbo.topology.processor.api.util.ImmutableThinTargetInfo;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 import com.vmturbo.topology.processor.conversions.TopologyToSdkEntityConverter;
 import com.vmturbo.topology.processor.entity.Entity;
 import com.vmturbo.topology.processor.entity.EntityStore;
@@ -78,6 +83,8 @@ public class ActionAuditServiceTest {
 
     @Mock
     private IMessageReceiver<ActionEvent> eventsReceiver;
+    @Mock
+    private ThinTargetCache thinTargetCache;
     @Captor
     private ArgumentCaptor<TriConsumer<ActionEvent, Runnable, SpanContext>> eventCaptor;
     @Captor
@@ -163,9 +170,20 @@ public class ActionAuditServiceTest {
         Mockito.when(operationManager.sendActionAuditEvents(Mockito.anyLong(), Mockito.any(),
                 Mockito.any())).thenAnswer(
                 invocation -> new ActionAudit(AUDIT_PROBE, AUDIT_TARGET, identityProvider));
-
+        Mockito.when(thinTargetCache.getTargetInfo(AUDIT_TARGET))
+                .thenReturn(Optional.of(ImmutableThinTargetInfo.builder()
+                        .oid(AUDIT_TARGET)
+                        .displayName("ServiceNow")
+                        .isHidden(false)
+                        .probeInfo(ImmutableThinProbeInfo.builder()
+                                .type(SDKProbeType.SERVICENOW.getProbeType())
+                                .oid(AUDIT_TARGET)
+                                .category(ProbeCategory.ORCHESTRATOR.getCategory())
+                                .uiCategory(ProbeCategory.ORCHESTRATOR.getCategory())
+                                .build())
+                        .build()));
         actionAuditService = new ActionAuditService(eventsReceiver, operationManager,
-                contextFactory, threadPool, 10, 2, 0);
+                contextFactory, threadPool, 10, 2, 0, thinTargetCache);
         Mockito.verify(eventsReceiver).addListener(eventCaptor.capture());
         messageConsumer = eventCaptor.getValue();
     }
@@ -196,6 +214,7 @@ public class ActionAuditServiceTest {
         Mockito.verifyZeroInteractions(operationManager);
         messageConsumer.accept(event2, commit2, spanContext);
         messageConsumer.accept(event3, commit3, spanContext);
+        threadPool.executeTasks();
         Mockito.verify(operationManager, Mockito.timeout(TIMEOUT_SEC * 1000)).sendActionAuditEvents(
                 Mockito.eq(AUDIT_TARGET), sdkEventsCaptor.capture(), operationCaptor.capture());
         Assert.assertEquals(Arrays.asList(ACTION1, ACTION2), sdkEventsCaptor.getValue()
@@ -235,7 +254,7 @@ public class ActionAuditServiceTest {
      * @throws Exception on exception occurred.
      */
     @Test
-    public void testNotActingUntillInitialized() throws Exception {
+    public void testNotActingUntilInitialized() throws Exception {
         final Runnable commit1 = Mockito.mock(Runnable.class);
         final Runnable commit2 = Mockito.mock(Runnable.class);
         final Runnable commit3 = Mockito.mock(Runnable.class);
@@ -334,7 +353,7 @@ public class ActionAuditServiceTest {
         expectedException.expect(IllegalArgumentException.class);
         expectedException.expectMessage("batchSize must be a positive value");
         new ActionAuditService(eventsReceiver, operationManager, contextFactory, threadPool, 10, 0,
-                0);
+                0, thinTargetCache);
     }
 
     @Nonnull

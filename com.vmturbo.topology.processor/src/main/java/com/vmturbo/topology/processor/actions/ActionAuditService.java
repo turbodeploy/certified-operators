@@ -18,6 +18,7 @@ import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionEvent;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.common.RequiresDataInitialization;
 import com.vmturbo.topology.processor.actions.data.context.ActionExecutionContextFactory;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 import com.vmturbo.topology.processor.operation.IOperationManager;
 
 /**
@@ -39,6 +40,7 @@ public class ActionAuditService implements RequiresDataInitialization {
     private final long sendIntervalSec;
     private final int initializationPriority;
     private final AtomicBoolean initialized = new AtomicBoolean(false);
+    private final ThinTargetCache thinTargetCache;
 
     /**
      * Constructs service.
@@ -50,6 +52,7 @@ public class ActionAuditService implements RequiresDataInitialization {
      * @param scheduler scheduled thread pool for periodical execution of sending operations
      * @param batchSize maximum batch size of events to send to SDK probe
      * @param sendIntervalSec interval to send the events to SDK probe
+     * @param thinTargetCache cache for simple target information
      * @param initializationPriority initialization priority. Action events auditing will be
      *         only started after {@link #initialize()} is called
      * @see RequiresDataInitialization#priority()
@@ -58,7 +61,7 @@ public class ActionAuditService implements RequiresDataInitialization {
             @Nonnull IOperationManager operationManager,
             @Nonnull ActionExecutionContextFactory contextFactory,
             @Nonnull ScheduledExecutorService scheduler, long sendIntervalSec, int batchSize,
-            int initializationPriority) {
+            int initializationPriority, @Nonnull ThinTargetCache thinTargetCache) {
         this.operationManager = Objects.requireNonNull(operationManager);
         this.contextFactory = Objects.requireNonNull(contextFactory);
         this.batchSize = validateValue(batchSize, value -> value > 0,
@@ -67,6 +70,7 @@ public class ActionAuditService implements RequiresDataInitialization {
                 "sendIntervalSec must be a positive value, found: ");
         this.threadPool = scheduler;
         this.initializationPriority = initializationPriority;
+        this.thinTargetCache = Objects.requireNonNull(thinTargetCache);
         eventsReceiver.addListener(this::onNewEvent);
         logger.info("Constructed action audit service with batchSize {} and sendInterval {}sec",
                 batchSize, sendIntervalSec);
@@ -91,7 +95,7 @@ public class ActionAuditService implements RequiresDataInitialization {
         final long targetId = event.getActionRequest().getTargetId();
         final TargetActionAuditService targetSvc = targetSenders.computeIfAbsent(targetId,
                 key -> new TargetActionAuditService(targetId, operationManager, contextFactory,
-                        threadPool, sendIntervalSec, batchSize, initialized));
+                        threadPool, sendIntervalSec, batchSize, initialized, thinTargetCache));
         targetSvc.onNewEvent(event, commit);
     }
 
