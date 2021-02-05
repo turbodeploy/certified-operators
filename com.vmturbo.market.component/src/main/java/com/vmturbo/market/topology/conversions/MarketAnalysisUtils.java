@@ -314,6 +314,12 @@ public final class MarketAnalysisUtils {
                             .build(), 1.0F)));
 
     /**
+     * Set of commodity types that are reconfigurable for providers in the Analysis.
+     */
+    public static final Set<Integer> RECONFIGURABLE_COMMODITY_TYPES =
+        ImmutableSet.of(CommodityDTO.CommodityType.SOFTWARE_LICENSE_COMMODITY_VALUE);
+
+    /**
      * Create the instance of standard distribution {@link UpdatingFunctionTO}.
      */
     public static final UpdatingFunctionTO STANDARD_DISTRIBUTION_FUNCTION =

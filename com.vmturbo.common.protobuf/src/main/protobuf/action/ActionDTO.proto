@@ -206,7 +206,10 @@ message Explanation {
     }
 
     // Deactivate explanation will always be improve overall efficiency.
-    message DeactivateExplanation {}
+    message DeactivateExplanation {
+        // Reconfigurable commodities of entity that is Deactivated.
+        repeated topology.CommodityType reconfig_comm_types = 1;
+    }
 
     // Delete - right now used for wasted files only
     message DeleteExplanation {
@@ -236,6 +239,10 @@ message Explanation {
             ProvisionBySupplyExplanation provision_by_supply_explanation = 1;
             ProvisionByDemandExplanation provision_by_demand_explanation = 2;
         }
+
+        // Reconfigurable commodities of entity that is Provisioned.
+        repeated topology.CommodityType reconfig_comm_types = 3;
+
         // Provision by supply explanation contains the base type of the most expensive commodity.
         message ProvisionBySupplyExplanation {
             optional int32 most_expensive_commodity = 1 [deprecated=true];
