@@ -22,6 +22,7 @@ import org.junit.Rule;
 import org.junit.Test;
 
 import com.google.common.collect.ImmutableSet;
+import com.google.common.util.concurrent.MoreExecutors;
 
 import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierAllocationDatapoint;
 import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierDemand;
@@ -29,7 +30,6 @@ import com.vmturbo.cloud.commitment.analysis.demand.EntityComputeTierAllocation;
 import com.vmturbo.cloud.commitment.analysis.demand.TimeFilter;
 import com.vmturbo.cloud.commitment.analysis.demand.store.EntityComputeTierAllocationFilter;
 import com.vmturbo.cloud.commitment.analysis.demand.ImmutableComputeTierAllocationDatapoint;
-import com.vmturbo.cloud.commitment.analysis.demand.ImmutableEntityComputeTierAllocation;
 import com.vmturbo.cloud.commitment.analysis.demand.TimeFilter.TimeComparator;
 import com.vmturbo.cloud.common.data.TimeInterval;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -59,7 +59,8 @@ public class SQLComputeTierAllocationStoreTest {
     private final TopologyInfoTracker mockTopologyTracker = mock(TopologyInfoTracker.class);
 
     private final SQLComputeTierAllocationStore computeTierAllocationStore =
-            new SQLComputeTierAllocationStore(dsl, mockTopologyTracker, 1000, 1000);
+            new SQLComputeTierAllocationStore(dsl,mockTopologyTracker, MoreExecutors.newDirectExecutorService(),
+                    1000, 1000, 1000);
 
 
     /*
@@ -327,7 +328,7 @@ public class SQLComputeTierAllocationStoreTest {
             @Nonnull Instant startTime,
             @Nonnull Instant endTime) {
 
-        return ImmutableEntityComputeTierAllocation.builder()
+        return EntityComputeTierAllocation.builder()
                 .entityOid(allocationDatapoint.entityOid())
                 .accountOid(allocationDatapoint.accountOid())
                 .regionOid(allocationDatapoint.regionOid())

@@ -1,12 +1,18 @@
 package com.vmturbo.cloud.commitment.analysis.demand.store;
 
 import java.util.Collection;
+import java.util.Optional;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.SetMultimap;
+
+import org.immutables.value.Value.Immutable;
+
 import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierAllocationDatapoint;
 import com.vmturbo.cloud.commitment.analysis.demand.EntityComputeTierAllocation;
+import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 
 /**
@@ -16,7 +22,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
  *
  */
 public interface ComputeTierAllocationStore {
-
 
     /**
      * Persists the allocation datapoints. The datapoints represent the allocated demand for a single
@@ -48,6 +53,17 @@ public interface ComputeTierAllocationStore {
     @Nonnull
     Stream<EntityComputeTierAllocation> streamAllocations(@Nonnull EntityComputeTierAllocationFilter filter);
 
+    /**
+     * Retrieves a set of {@link EntityComputeTierAllocation} instances that match {@code filter}. The
+     * query will block and therefore guarantees the records contain only completely processed topology
+     * data.
+     * @param filter The {@link EntityComputeTierAllocationFilter}.
+     * @return The {@link EntityComputeTierAllocationSet}, containing all allocation records and the
+     * latest processed {@link TopologyInfo}.
+     */
+    @Nonnull
+    EntityComputeTierAllocationSet getAllocations(@Nonnull EntityComputeTierAllocationFilter filter);
+
 
     /**
      * Removes any {@link EntityComputeTierAllocation} that meet the {@code filter} criteria.
@@ -57,4 +73,62 @@ public interface ComputeTierAllocationStore {
      *
      */
     int deleteAllocations(@Nonnull EntityComputeTierAllocationFilter filter);
+
+    /**
+     * Registers an update listener. The listener will be invoked after a new set of allocations
+     * have been persisted.
+     * @param listener The {@link ComputeTierAllocationUpdateListener}.
+     */
+    void registerUpdateListener(@Nonnull ComputeTierAllocationUpdateListener listener);
+
+    /**
+     * A listener for updates to the set of stored allocations.
+     */
+    interface ComputeTierAllocationUpdateListener {
+
+        /**
+         * A callback method, invoked once a set of allocation records have been persisted.
+         * @param topologyInfo The {@link TopologyInfo} associated with the latest set
+         *                     of stored allocation records.
+         */
+        void onAllocationUpdate(@Nonnull TopologyInfo topologyInfo);
+    }
+
+    /**
+     * A set of {@link EntityComputeTierAllocation} records, along with the latest stored
+     * topology info.
+     */
+    @HiddenImmutableImplementation
+    @Immutable
+    interface EntityComputeTierAllocationSet {
+
+        /**
+         * The set of {@link EntityComputeTierAllocation} by entity OID.
+         * @return An immutable set of {@link EntityComputeTierAllocation} by entity OID.
+         */
+        @Nonnull
+        SetMultimap<Long, EntityComputeTierAllocation> allocations();
+
+        /**
+         * The latest processed/stored {@link TopologyInfo}. This will be empty in the case where
+         * the store has not persisted allocation data since startup.
+         * @return The latest processed/stored {@link TopologyInfo}.
+         */
+        @Nonnull
+        Optional<TopologyInfo> latestTopologyInfo();
+
+        /**
+         * Constructs and returns a new {@link Builder} instance.
+         * @return The newly constructed {@link Builder} instance.
+         */
+        @Nonnull
+        static Builder builder() {
+            return new Builder();
+        }
+
+        /**
+         * A builder class for constructing {@link EntityComputeTierAllocationSet} instances.
+         */
+        class Builder extends ImmutableEntityComputeTierAllocationSet.Builder {}
+    }
 }

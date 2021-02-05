@@ -1,10 +1,7 @@
 package com.vmturbo.cloud.commitment.analysis.demand;
 
-import javax.annotation.Nonnull;
-
 import org.immutables.value.Value.Immutable;
 
-import com.vmturbo.cloud.common.data.TimeInterval;
 import com.vmturbo.cloud.common.data.TimeSeriesData;
 
 /**
@@ -13,13 +10,6 @@ import com.vmturbo.cloud.common.data.TimeSeriesData;
  */
 @Immutable
 public interface EntityCloudTierMapping extends TimeSeriesData, ScopedCloudTierInfo {
-
-    /**
-     * The time interval (recorded in UTC) of the mapping between the entity and cloud tier.
-     * @return The time interval of this mapping.
-     */
-    @Nonnull
-    TimeInterval timeInterval();
 
     /**
      * The entity OID of the mapping.

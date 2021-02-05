@@ -270,6 +270,14 @@
             <groupId>com.vmturbo</groupId>
             <artifactId>reserved-instance-coverage-allocator</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>reserved-instance-coverage-allocator</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.topology.event.library</artifactId>
+        </dependency>
 
         <dependency>
             <groupId>org.apache.commons</groupId>

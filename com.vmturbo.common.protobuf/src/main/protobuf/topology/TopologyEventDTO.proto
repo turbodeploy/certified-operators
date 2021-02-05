@@ -1,0 +1,70 @@
+syntax = "proto2";
+package topology;
+
+option java_package = "com.vmturbo.common.protobuf.topology";
+
+import "topology/TopologyDTO.proto";
+
+message EntityEvents {
+    optional int64 entity_oid = 1;
+    repeated TopologyEvent events = 2;
+
+    message TopologyEvent {
+        optional int64 event_timestamp = 1;
+        optional TopologyEventType type = 2;
+        optional TopologyEventInfo event_info = 3;
+
+        message TopologyEventInfo {
+
+            // For both Azure and AWS, there will be a mapping of a Turbo topology
+            // event to the underling cloud provider event, with an event ID. This ID
+            // could help in debugging discovery. However, if the vendor event ID attribute
+            // is supported, its collection should be off by default as this will be expensive
+            // to store
+            optional string vendor_event_id = 1;
+
+            // An event type can be derived from the details type
+            oneof type_specific_details {
+                ResourceCreationDetails resource_creation = 2;
+                EntityStateChangeDetails state_change = 3;
+                ProviderChangeDetails provider_change = 4;
+                ResourceDeletionDetails resource_deletion = 5;
+            }
+        }
+
+        // Marks the creation of the VM/DB/Volume. Depending on the behavior of the cloud provider (e.g. AWS powers on an instance
+        // when it is created), there may be both a resource creatione and a power state change event for the same entity
+        // at the same time
+        message ResourceCreationDetails {}
+
+        message EntityStateChangeDetails {
+            optional EntityState source_state = 1;
+            optional EntityState destination_state = 2;
+        }
+
+        // Note this message is not necessary for entity uptime. Potentially useful for realized
+        // savings calculations
+        message ProviderChangeDetails {
+            optional int32 provider_type = 1;
+            oneof source_provider {
+                int64 source_provider_oid = 2;
+                UnknownProvider unknown_source_provider = 3;
+            }
+            oneof destination_provider {
+                int64 destination_provider_oid = 4;
+                UnknownProvider unknown_destination_provider = 5;
+            }
+
+            message UnknownProvider {}
+        }
+
+        message ResourceDeletionDetails {}
+
+        enum TopologyEventType {
+            RESOURCE_CREATION = 1;
+            RESOURCE_DELETION = 2;
+            STATE_CHANGE = 3;
+            PROVIDER_CHANGE = 4;
+        }
+    }
+}

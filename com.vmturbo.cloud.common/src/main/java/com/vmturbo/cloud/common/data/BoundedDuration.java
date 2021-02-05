@@ -11,7 +11,7 @@ import org.immutables.value.Value.Lazy;
 import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
 
 /**
- * A duration/period instance, restricted to a single time unit.
+ * A duration limited to an amount of time to a single time unit.
  */
 @HiddenImmutableImplementation
 @Immutable

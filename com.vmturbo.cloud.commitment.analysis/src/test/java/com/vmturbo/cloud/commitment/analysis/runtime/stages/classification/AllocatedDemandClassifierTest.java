@@ -19,7 +19,6 @@ import org.junit.Test;
 import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierDemand;
 import com.vmturbo.cloud.commitment.analysis.demand.EntityCloudTierMapping;
 import com.vmturbo.cloud.commitment.analysis.demand.EntityComputeTierAllocation;
-import com.vmturbo.cloud.commitment.analysis.demand.ImmutableEntityComputeTierAllocation;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.AllocatedDemandClassifier.AllocatedDemandClassifierFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.ClassifiedEntityDemandAggregate.DemandTimeSeries;
 import com.vmturbo.cloud.common.data.ImmutableTimeSeries;
@@ -40,7 +39,7 @@ public class AllocatedDemandClassifierTest {
     @Test
     public void testClassifications() {
 
-        final EntityComputeTierAllocation allocatedMapping = ImmutableEntityComputeTierAllocation.builder()
+        final EntityComputeTierAllocation allocatedMapping = EntityComputeTierAllocation.builder()
                 .entityOid(1L)
                 .accountOid(2L)
                 .regionOid(3L)
@@ -57,58 +56,64 @@ public class AllocatedDemandClassifierTest {
                 .build();
 
         // This demand should be classified as ephemeral
-        final EntityComputeTierAllocation ephemeralMapping = ImmutableEntityComputeTierAllocation.copyOf(allocatedMapping)
-                .withTimeInterval(TimeInterval.builder()
+        final EntityComputeTierAllocation ephemeralMapping = allocatedMapping.toBuilder()
+                .timeInterval(TimeInterval.builder()
                         // Have a gap between allocatedMapping and this one. Duration will be less
                         // than the target minimum
                         .startTime(allocatedMapping.timeInterval().startTime().minusSeconds(20))
                         .endTime(allocatedMapping.timeInterval().startTime().minusSeconds(10))
-                        .build());
+                        .build())
+                .build();
 
         // Coming prior to an ephemeral demand and allocated demand, this demand should be classified as
         // allocated
-        final EntityComputeTierAllocation priorAllocation = ImmutableEntityComputeTierAllocation.copyOf((allocatedMapping))
-                .withTimeInterval(TimeInterval.builder()
+        final EntityComputeTierAllocation priorAllocation = allocatedMapping.toBuilder()
+                .timeInterval(TimeInterval.builder()
                         .startTime(ephemeralMapping.timeInterval().startTime().minusSeconds(300))
                         .endTime(ephemeralMapping.timeInterval().startTime().minusSeconds(100))
-                        .build());
+                        .build())
+                .build();
 
 
-        final EntityComputeTierAllocation flexiblyAllocatedA = ImmutableEntityComputeTierAllocation.copyOf((allocatedMapping))
-                .withTimeInterval(TimeInterval.builder()
+        final EntityComputeTierAllocation flexiblyAllocatedA = allocatedMapping.toBuilder()
+                .timeInterval(TimeInterval.builder()
                         .startTime(priorAllocation.timeInterval().startTime().minusSeconds(300))
                         .endTime(priorAllocation.timeInterval().startTime().minusSeconds(100))
                         .build())
-                .withCloudTierDemand(ComputeTierDemand.builder().from(allocatedMapping.cloudTierDemand())
+                .cloudTierDemand(ComputeTierDemand.builder().from(allocatedMapping.cloudTierDemand())
                         .cloudTierOid(allocatedMapping.cloudTierDemand().cloudTierOid() + 1)
-                        .build());
+                        .build())
+                .build();
 
-        final EntityComputeTierAllocation flexiblyAllocatedB = ImmutableEntityComputeTierAllocation.copyOf((allocatedMapping))
-                .withTimeInterval(TimeInterval.builder()
+        final EntityComputeTierAllocation flexiblyAllocatedB = allocatedMapping.toBuilder()
+                .timeInterval(TimeInterval.builder()
                         .startTime(flexiblyAllocatedA.timeInterval().startTime().minusSeconds(300))
                         .endTime(flexiblyAllocatedA.timeInterval().startTime().minusSeconds(100))
                         .build())
-                .withCloudTierDemand(ComputeTierDemand.builder().from(flexiblyAllocatedA.cloudTierDemand())
+                .cloudTierDemand(ComputeTierDemand.builder().from(flexiblyAllocatedA.cloudTierDemand())
                         .cloudTierOid(flexiblyAllocatedA.cloudTierDemand().cloudTierOid() + 1)
-                        .build());
+                        .build())
+                .build();
 
-        final EntityComputeTierAllocation staleAllocated = ImmutableEntityComputeTierAllocation.copyOf((allocatedMapping))
-                .withTimeInterval(TimeInterval.builder()
+        final EntityComputeTierAllocation staleAllocated = allocatedMapping.toBuilder()
+                .timeInterval(TimeInterval.builder()
                         .startTime(flexiblyAllocatedB.timeInterval().startTime().minusSeconds(300))
                         .endTime(flexiblyAllocatedB.timeInterval().startTime().minusSeconds(100))
                         .build())
-                .withCloudTierDemand(ComputeTierDemand.builder()
+                .cloudTierDemand(ComputeTierDemand.builder()
                         .from(allocatedMapping.cloudTierDemand())
                         .cloudTierOid(flexiblyAllocatedB.cloudTierDemand().cloudTierOid() + 1)
-                        .build());
+                        .build())
+                .build();
 
         // This demand matches allocated, but it comes prior to a stale classification and should be
         // classified as stale.
-        final EntityComputeTierAllocation oldAllocation = ImmutableEntityComputeTierAllocation.copyOf((allocatedMapping))
-                .withTimeInterval(TimeInterval.builder()
+        final EntityComputeTierAllocation oldAllocation = allocatedMapping.toBuilder()
+                .timeInterval(TimeInterval.builder()
                         .startTime(staleAllocated.timeInterval().startTime().minusSeconds(300))
                         .endTime(staleAllocated.timeInterval().startTime().minusSeconds(100))
-                        .build());
+                        .build())
+                .build();
 
 
         // setup the cloud tier family matcher

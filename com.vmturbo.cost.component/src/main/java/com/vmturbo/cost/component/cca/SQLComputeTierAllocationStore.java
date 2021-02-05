@@ -6,14 +6,19 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -40,11 +45,11 @@ import org.jooq.impl.TableImpl;
 import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierAllocationDatapoint;
 import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierDemand;
 import com.vmturbo.cloud.commitment.analysis.demand.EntityComputeTierAllocation;
-import com.vmturbo.cloud.commitment.analysis.demand.ImmutableEntityComputeTierAllocation;
 import com.vmturbo.cloud.commitment.analysis.demand.TimeFilter;
 import com.vmturbo.cloud.commitment.analysis.demand.store.ComputeTierAllocationStore;
 import com.vmturbo.cloud.commitment.analysis.demand.store.EntityComputeTierAllocationFilter;
 import com.vmturbo.cloud.common.data.TimeInterval;
+import com.vmturbo.cloud.common.entity.scope.EntityCloudScope;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.cost.component.TableDiagsRestorable;
 import com.vmturbo.cost.component.db.Tables;
@@ -59,7 +64,7 @@ import com.vmturbo.proactivesupport.DataMetricTimer;
 
 /**
  * A SQL implementation of {@link ComputeTierAllocationStore}. This store uses cloud scope consolidation,
- * storing the attributes of {@link com.vmturbo.cost.component.entity.scope.EntityCloudScope} within
+ * storing the attributes of {@link EntityCloudScope} within
  * {@link Tables#ENTITY_CLOUD_SCOPE}. An assumption is made the {@link Tables#ENTITY_COMPUTE_TIER_ALLOCATION}
  * has a foreign key relationship with the {@link Tables#ENTITY_CLOUD_SCOPE} table.
  */
@@ -125,11 +130,21 @@ public class SQLComputeTierAllocationStore extends SQLCloudScopedStore implement
 
     private final TopologyInfoTracker topologyInfoTracker;
 
+    private final ExecutorService listenerPool;
+
     private final int batchExtensionSize;
 
     private final int batchInsertionSize;
 
+    private final int batchStreamSize;
+
     private final AtomicBoolean initialized = new AtomicBoolean(false);
+
+    private final List<ComputeTierAllocationUpdateListener> updateListeners = new ArrayList<>();
+
+    private final ReadWriteLock persistenceLock = new ReentrantReadWriteLock();
+
+    private TopologyInfo latestProcessedTopologyInfo = null;
 
 
     /**
@@ -137,19 +152,25 @@ public class SQLComputeTierAllocationStore extends SQLCloudScopedStore implement
      * @param dslContext The {@link DSLContext} to use for all queries.
      * @param topologyInfoTracker The {@link TopologyInfoTracker}, use to link allocations from
      *                            consecutive topologies.
+     * @param listenerPool A executor service representing a thread pool for listeners.
      * @param batchUpdateSize The number of records to update in a single query.
      * @param batchInsertSize The number of new records to create in a single query.
+     * @param batchStreamSize The batch size for streaming records.
      */
     public SQLComputeTierAllocationStore(@Nonnull DSLContext dslContext,
                                          @Nonnull TopologyInfoTracker topologyInfoTracker,
+                                         @Nonnull ExecutorService listenerPool,
                                          int batchUpdateSize,
-                                         int batchInsertSize) {
+                                         int batchInsertSize,
+                                         int batchStreamSize) {
 
         super(dslContext);
 
         this.topologyInfoTracker = Objects.requireNonNull(topologyInfoTracker);
+        this.listenerPool = Objects.requireNonNull(listenerPool);
         this.batchExtensionSize = batchUpdateSize;
         this.batchInsertionSize = batchInsertSize;
+        this.batchStreamSize = batchStreamSize;
     }
 
     /**
@@ -170,6 +191,106 @@ public class SQLComputeTierAllocationStore extends SQLCloudScopedStore implement
     public void persistAllocations(@Nonnull final TopologyInfo topologyInfo,
                                    @Nonnull Collection<ComputeTierAllocationDatapoint> allocationDatapoints) {
 
+        persistenceLock.writeLock().lock();
+        try {
+            if (latestProcessedTopologyInfo == null
+                    || latestProcessedTopologyInfo.getCreationTime() < topologyInfo.getCreationTime()) {
+
+                persistAllocationsInternal(topologyInfo, allocationDatapoints);
+                latestProcessedTopologyInfo = topologyInfo;
+
+                updateListeners.forEach(listener ->
+                        listenerPool.execute(() -> listener.onAllocationUpdate(topologyInfo)));
+            } else {
+                logger.debug("Skipping persistence of allocations for topology (Context ID={}, ID={})",
+                        topologyInfo.getTopologyContextId(), topologyInfo.getTopologyId());
+            }
+        } finally {
+            persistenceLock.writeLock().unlock();
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * @param filter The filter for returned {@link EntityComputeTierAllocation} records.
+     * @return A {@link Stream} containing all {@link EntityComputeTierAllocation} records matching
+     * the {@code filter}.
+     */
+    @Override
+    public Stream<EntityComputeTierAllocation> streamAllocations(@Nonnull final EntityComputeTierAllocationFilter filter) {
+
+        // Streaming allocations does not guarantee a lack of updates during the stream
+        return dslContext.select(DSL.asterisk())
+                .from(Tables.ENTITY_COMPUTE_TIER_ALLOCATION)
+                .join(Tables.ENTITY_CLOUD_SCOPE)
+                .onKey()
+                .where(generateConditionsFromFilter(filter))
+                .fetchSize(batchStreamSize)
+                .stream()
+                .map(this::createAllocationFromRecord);
+    }
+
+    @Nonnull
+    @Override
+    public EntityComputeTierAllocationSet getAllocations(@Nonnull final EntityComputeTierAllocationFilter filter) {
+
+        persistenceLock.readLock().lock();
+        try {
+            final EntityComputeTierAllocationSet.Builder allocationSet = EntityComputeTierAllocationSet.builder()
+                    .latestTopologyInfo(Optional.ofNullable(latestProcessedTopologyInfo));
+
+            streamAllocations(filter).forEach(allocation ->
+                    allocationSet.putAllocation(allocation.entityOid(), allocation));
+
+            return allocationSet.build();
+        } finally {
+            persistenceLock.readLock().unlock();
+        }
+    }
+
+    /**
+     * Deletes records matching {@code filter}. The {@link Tables#ENTITY_CLOUD_SCOPE} records will not be
+     * deleted as this is an expensive operation requiring checks for other foreign key references. While
+     * MySQL has the IGNORE modifier to allow for a delete query in which constraint violations are ignored,
+     * this is not part of the SQL standard. Therefore, any delete query must contain only unreferenced
+     * rows within {@link Tables#ENTITY_CLOUD_SCOPE}.
+     *
+     * @param filter The filter used to scope the {@link EntityComputeTierAllocation} records to delete.
+     * @return The number of {@link Tables#ENTITY_COMPUTE_TIER_ALLOCATION} rows deleted.
+     */
+    @Override
+    public int deleteAllocations(@Nonnull final EntityComputeTierAllocationFilter filter) {
+
+
+        // jOOQ currently does not support a delete from a single table with a join from another.
+        // Therefore, we first query with a join on the cloud scope store to correctly filter the
+        // records. See https://github.com/jOOQ/jOOQ/issues/3266 for support in jOOQ.
+        final Result<Record2<Long, LocalDateTime>> recordsToDelete =
+                dslContext.select(Tables.ENTITY_COMPUTE_TIER_ALLOCATION.ENTITY_OID, Tables.ENTITY_COMPUTE_TIER_ALLOCATION.START_TIME)
+                        .from(Tables.ENTITY_COMPUTE_TIER_ALLOCATION)
+                        .leftJoin(Tables.ENTITY_CLOUD_SCOPE)
+                        .onKey()
+                        .where(generateConditionsFromFilter(filter))
+                        .fetch();
+
+        dslContext.delete(Tables.ENTITY_COMPUTE_TIER_ALLOCATION)
+                .where(DSL.row(Tables.ENTITY_COMPUTE_TIER_ALLOCATION.ENTITY_OID, Tables.ENTITY_COMPUTE_TIER_ALLOCATION.START_TIME)
+                        .in(recordsToDelete))
+                .execute();
+
+        return recordsToDelete.size();
+
+    }
+
+    @Override
+    public void registerUpdateListener(@Nonnull final ComputeTierAllocationUpdateListener listener) {
+        logger.info("Registering listener (this={}, listener={})", this, listener);
+        updateListeners.add(listener);
+    }
+
+    private void persistAllocationsInternal(@Nonnull final TopologyInfo topologyInfo,
+                                            @Nonnull Collection<ComputeTierAllocationDatapoint> allocationDatapoints) {
 
         try (DataMetricTimer persistenceDurationTimer = TOTAL_PERSISTENCE_DURATION_SUMMARY_METRIC.startTimer()) {
 
@@ -208,6 +329,8 @@ public class SQLComputeTierAllocationStore extends SQLCloudScopedStore implement
                 insertAllocations(batchAllocations, newRecordTimestamp);
             });
 
+            // mark the topology
+
             // Record the number of records extended and inserted.
             EXTENSION_COUNT_SUMMARY_METRIC.observe((double)extendedEntityRecords.size());
             NEW_ALLOCATION_COUNT_SUMMARY_METRIC.observe((double)newAllocationEntityOids.size());
@@ -215,59 +338,6 @@ public class SQLComputeTierAllocationStore extends SQLCloudScopedStore implement
             logger.info("Finished persisting {} data points in {}", allocationDatapoints.size(),
                     Duration.ofSeconds((long)persistenceDurationTimer.getTimeElapsedSecs()));
         }
-
-    }
-
-    /**
-     * {@inheritDoc}
-     *
-     * @param filter The filter for returned {@link EntityComputeTierAllocation} records.
-     * @return A {@link Stream} containing all {@link EntityComputeTierAllocation} records matching
-     * the {@code filter}.
-     */
-    @Override
-    public Stream<EntityComputeTierAllocation> streamAllocations(@Nonnull final EntityComputeTierAllocationFilter filter) {
-        return dslContext.select(DSL.asterisk())
-                .from(Tables.ENTITY_COMPUTE_TIER_ALLOCATION)
-                .join(Tables.ENTITY_CLOUD_SCOPE)
-                .onKey()
-                .where(generateConditionsFromFilter(filter))
-                .stream()
-                .map(this::createAllocationFromRecord);
-    }
-
-    /**
-     * Deletes records matching {@code filter}. The {@link Tables#ENTITY_CLOUD_SCOPE} records will not be
-     * deleted as this is an expensive operation requiring checks for other foreign key references. While
-     * MySQL has the IGNORE modifier to allow for a delete query in which constraint violations are ignored,
-     * this is not part of the SQL standard. Therefore, any delete query must contain only unreferenced
-     * rows within {@link Tables#ENTITY_CLOUD_SCOPE}.
-     *
-     * @param filter The filter used to scope the {@link EntityComputeTierAllocation} records to delete.
-     * @return The number of {@link Tables#ENTITY_COMPUTE_TIER_ALLOCATION} rows deleted.
-     */
-    @Override
-    public int deleteAllocations(@Nonnull final EntityComputeTierAllocationFilter filter) {
-
-
-        // jOOQ currently does not support a delete from a single table with a join from another.
-        // Therefore, we first query with a join on the cloud scope store to correctly filter the
-        // records. See https://github.com/jOOQ/jOOQ/issues/3266 for support in jOOQ.
-        final Result<Record2<Long, LocalDateTime>> recordsToDelete =
-                dslContext.select(Tables.ENTITY_COMPUTE_TIER_ALLOCATION.ENTITY_OID, Tables.ENTITY_COMPUTE_TIER_ALLOCATION.START_TIME)
-                        .from(Tables.ENTITY_COMPUTE_TIER_ALLOCATION)
-                        .leftJoin(Tables.ENTITY_CLOUD_SCOPE)
-                        .onKey()
-                        .where(generateConditionsFromFilter(filter))
-                        .fetch();
-
-        dslContext.delete(Tables.ENTITY_COMPUTE_TIER_ALLOCATION)
-                .where(DSL.row(Tables.ENTITY_COMPUTE_TIER_ALLOCATION.ENTITY_OID, Tables.ENTITY_COMPUTE_TIER_ALLOCATION.START_TIME)
-                        .in(recordsToDelete))
-                .execute();
-
-        return recordsToDelete.size();
-
     }
 
     /**
@@ -521,7 +591,7 @@ public class SQLComputeTierAllocationStore extends SQLCloudScopedStore implement
         final EntityComputeTierAllocationRecord allocationRecord = record.into(EntityComputeTierAllocationRecord.class);
         final EntityCloudScopeRecord entityCloudScopeRecord = record.into(EntityCloudScopeRecord.class);
 
-        return ImmutableEntityComputeTierAllocation.builder()
+        return EntityComputeTierAllocation.builder()
                 .timeInterval(TimeInterval.builder()
                         .startTime(allocationRecord.getStartTime().toInstant(ZoneOffset.UTC))
                         .endTime(allocationRecord.getEndTime().toInstant(ZoneOffset.UTC))

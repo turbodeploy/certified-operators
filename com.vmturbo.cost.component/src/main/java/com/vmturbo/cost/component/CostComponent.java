@@ -39,6 +39,7 @@ import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecConfig;
 import com.vmturbo.cost.component.reserved.instance.migratedworkloadcloudcommitmentalgorithm.MigratedWorkloadCloudCommitmentConfig;
 import com.vmturbo.cost.component.rpc.CostDebugConfig;
 import com.vmturbo.cost.component.topology.TopologyListenerConfig;
+import com.vmturbo.topology.event.library.uptime.EntityUptimeSpringConfig;
 import com.vmturbo.trax.TraxConfiguration;
 import com.vmturbo.trax.TraxConfiguration.TopicSettings;
 import com.vmturbo.trax.TraxThrottlingLimit;
@@ -62,7 +63,8 @@ import com.vmturbo.trax.TraxThrottlingLimit;
     CostPlanListenerConfig.class,
     ReservedInstanceSpecConfig.class,
     CostDiagnosticsConfig.class,
-    MigratedWorkloadCloudCommitmentConfig.class
+    MigratedWorkloadCloudCommitmentConfig.class,
+    EntityUptimeSpringConfig.class
 })
 public class CostComponent extends BaseVmtComponent {
     /**
@@ -114,6 +116,9 @@ public class CostComponent extends BaseVmtComponent {
 
     @Autowired
     private MigratedWorkloadCloudCommitmentConfig migratedWorkloadCloudCommitmentConfig;
+
+    @Autowired
+    private EntityUptimeSpringConfig entityUptimeSpringConfig;
 
     /**
      * Starts the component.
@@ -172,7 +177,8 @@ public class CostComponent extends BaseVmtComponent {
             buyRIAnalysisConfig.buyReservedInstanceRpcService(),
             buyRIAnalysisConfig.riBuyContextFetchRpcService(),
             costDebugConfig.traxConfigurationRpcService(),
-            migratedWorkloadCloudCommitmentConfig.migratedWorkloadCloudCommitmentAnalysisService());
+            migratedWorkloadCloudCommitmentConfig.migratedWorkloadCloudCommitmentAnalysisService(),
+            entityUptimeSpringConfig.entityUptimeRpcService());
     }
 
     @Nonnull
