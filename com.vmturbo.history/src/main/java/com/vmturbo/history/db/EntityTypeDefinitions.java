@@ -100,6 +100,7 @@ public class EntityTypeDefinitions {
             create(ApiEntityType.VIRTUAL_VOLUME, "virtual_volume_stats", STANDARD_STATS),
             create(ApiEntityType.VPOD, "vpod_stats", STANDARD_STATS),
             create(ApiEntityType.WORKLOAD_CONTROLLER, "wkld_ctl_stats", STANDARD_STATS),
+            create(ApiEntityType.CLOUD_COMMITMENT),
             create(ApiEntityType.SERVICE_PROVIDER)
     );
 
