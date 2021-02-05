@@ -13,6 +13,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.Table;
 import com.google.common.collect.Table.Cell;
@@ -41,10 +42,13 @@ public class AuditedActionsManager {
      * Queue containing new audited actions that we need to write into DB or CLEARED actions for
      * which we need to persist cleared_timestamp.
      */
-    private final BlockingDeque<AuditedActionsUpdate> auditedActionsUpdateBatches =
-            new LinkedBlockingDeque<>();
+    private final BlockingDeque<AuditedActionsUpdate> auditedActionsUpdateBatches;
 
     private final AuditActionsPersistenceManager auditActionsPersistenceManager;
+
+    private final ScheduledExecutorService scheduledExecutorService;
+
+    private final long minsRecoveryInterval;
 
     private final Logger logger = LogManager.getLogger();
 
@@ -60,10 +64,25 @@ public class AuditedActionsManager {
             @Nonnull final AuditActionsPersistenceManager auditActionsPersistenceManager,
             @Nonnull final ScheduledExecutorService scheduledExecutorService,
             final long minsRecoveryInterval) {
+        this(
+            auditActionsPersistenceManager,
+            scheduledExecutorService,
+            minsRecoveryInterval,
+            new LinkedBlockingDeque<>());
+    }
+
+    @VisibleForTesting
+    AuditedActionsManager(
+            @Nonnull final AuditActionsPersistenceManager auditActionsPersistenceManager,
+            @Nonnull final ScheduledExecutorService scheduledExecutorService,
+            final long minsRecoveryInterval,
+            BlockingDeque<AuditedActionsUpdate> auditedActionsUpdateBatches) {
         this.auditActionsPersistenceManager = Objects.requireNonNull(auditActionsPersistenceManager);
+        this.scheduledExecutorService = scheduledExecutorService;
+        this.minsRecoveryInterval = minsRecoveryInterval;
+        this.auditedActionsUpdateBatches = auditedActionsUpdateBatches;
         this.sentActionsToWorkflowCache = restoreAuditedActionsFromDB();
-        scheduledExecutorService.scheduleWithFixedDelay(this::updateDbBookkeeping, 0,
-                minsRecoveryInterval, TimeUnit.MINUTES);
+        scheduledExecutorService.submit(this::updateDbBookkeeping);
     }
 
     private void updateDbBookkeeping() {
@@ -78,56 +97,57 @@ public class AuditedActionsManager {
 
     private void updateDbBookkeepingInner() {
         // As long as there are no database issues, we immediately wait for the next batch.
-        while (true) {
-            final AuditedActionsUpdate auditedActionsUpdatesBatch;
+        final AuditedActionsUpdate auditedActionsUpdatesBatch;
+        try {
+            auditedActionsUpdatesBatch = auditedActionsUpdateBatches.take();
+        } catch (InterruptedException e) {
+            //     There might still be items in the queue when we got interrupted. To make sure
+            // we don't lose data, we drain the queue and handle all the batches. For instance,
+            // the interrupted could occur inbetween when we finished handling the latest batch
+            // of actions from the market, but just before this runnable woke up from the
+            // blocking .take() call.
+            //     It handles some cases assuming that by catching interrupted exception,
+            // blocking on a database connection will not be interrupted and that the JVM stays alive long enough to write to the database.
+            logger.info("Operation of updating DB bookkeeping is interrupted because "
+                    + "application is shutting down. This is our final attempt to drain the queue before shutting"
+                    + " down.");
+            final List<AuditedActionsUpdate> batchesToUpdate = new ArrayList<>();
+            auditedActionsUpdateBatches.drainTo(batchesToUpdate);
             try {
-                auditedActionsUpdatesBatch = auditedActionsUpdateBatches.take();
-            } catch (InterruptedException e) {
-                //     There might still be items in the queue when we got interrupted. To make sure
-                // we don't lose data, we drain the queue and handle all the batches. For instance,
-                // the interrupted could occur inbetween when we finished handling the latest batch
-                // of actions from the market, but just before this runnable woke up from the
-                // blocking .take() call.
-                //     It handles some cases assuming that by catching interrupted exception,
-                // blocking on a database connection will not be interrupted and that the JVM stays alive long enough to write to the database.
-                logger.info("Operation of updating DB bookkeeping is interrupted because "
-                        + "application is shutting down. This is our final attempt to drain the queue before shutting"
-                        + " down.");
-                final List<AuditedActionsUpdate> batchesToUpdate = new ArrayList<>();
-                auditedActionsUpdateBatches.drainTo(batchesToUpdate);
-                try {
-                    for (AuditedActionsUpdate batch : batchesToUpdate) {
-                        handleBatch(batch);
-                    }
-                } catch (ActionStoreOperationException ex) {
-                    logger.error("We tried our best to drain the queue when shutting down"
-                            + " but could not contact the database. As a result "
-                            + batchesToUpdate.size() + " batches could not be persisted", ex);
+                for (AuditedActionsUpdate batch : batchesToUpdate) {
+                    handleBatch(batch);
                 }
-                // We must break so that the application can shutdown. Without breaking, the
-                // application will wait on this thread forever and the application process will have to be
-                // killed with a dangerous interrupted level.
-                break;
+            } catch (ActionStoreOperationException ex) {
+                logger.error("We tried our best to drain the queue when shutting down"
+                        + " but could not contact the database. As a result "
+                        + batchesToUpdate.size() + " batches could not be persisted", ex);
             }
+            // We must break so that the application can shutdown. Without breaking, the
+            // application will wait on this thread forever and the application process will have to be
+            // killed with a dangerous interrupted level.
+            return;
+        }
 
-            try {
-                handleBatch(auditedActionsUpdatesBatch);
-            } catch (ActionStoreOperationException e) {
-                // TODO(OM-66325): For now it's expected that it is safe to keep this unbounded because:
-                // 1. Action store errors occuring often is a much larger problem that needs to be resolved.
-                //    As a result, data store errors should not be frequent.
-                // 2. Assuming frequent errors, there is at most one message add every 10 minutes.
-                auditedActionsUpdateBatches.addFirst(auditedActionsUpdatesBatch);
-                logger.error("We could not communicate with the database."
-                        + " We added the work to the front of the queue."
-                        + " When the scheduler schedules this task again we will try again."
-                        + " There are " + auditedActionsUpdateBatches.size()
-                        + " batches still in the queue.", e);
-                // It's safe to break because this Runnable is scheduled with a fixed delay.
-                // The delay is the retry interval. This way we avoid Thread.sleep() which is
-                // difficult to unit test.
-                break;
-            }
+        try {
+            handleBatch(auditedActionsUpdatesBatch);
+            // batch was handled successfully, we can immediately start the next batch if there is one
+            // or block and wait for the next one.
+            scheduledExecutorService.submit(this::updateDbBookkeeping);
+        } catch (ActionStoreOperationException e) {
+            // TODO(OM-66325): For now it's expected that it is safe to keep this unbounded because:
+            // 1. Action store errors occuring often is a much larger problem that needs to be resolved.
+            //    As a result, data store errors should not be frequent.
+            // 2. Assuming frequent errors, there is at most one message add every 10 minutes.
+            auditedActionsUpdateBatches.addFirst(auditedActionsUpdatesBatch);
+            logger.error("We could not communicate with the database."
+                    + " We added the work to the front of the queue."
+                    + " When the scheduler schedules this task again we will try again."
+                    + " There are " + auditedActionsUpdateBatches.size()
+                    + " batches still in the queue.", e);
+            // It's safe to break because this Runnable is scheduled with a fixed delay.
+            // The delay is the retry interval. This way we avoid Thread.sleep() which is
+            // difficult to unit test.
+            scheduledExecutorService.schedule(this::updateDbBookkeeping, minsRecoveryInterval, TimeUnit.MINUTES);
         }
     }
 
