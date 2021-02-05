@@ -3,6 +3,7 @@ package com.vmturbo.api.conversion.action;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertThat;
 
+import java.time.OffsetDateTime;
 import java.util.Collections;
 
 import org.junit.Test;
@@ -23,8 +24,8 @@ import com.vmturbo.platform.common.dto.CommonDTO;
  */
 public class SdkActionToApiConverterTest {
     private static final long ACTION_OID = 144151046183132L;
-    private static final long ACTION_CREATION_TIME = 1609367960707L;
-    private static final long ACTION_UPDATE_TIME = 1609367994532L;
+    private static final long ACTION_CREATION_TIME = 1609367961000L;
+    private static final long ACTION_UPDATE_TIME = 1609367994000L;
     private static final String ACCEPTED_BY = "administrator(3391249354768)";
     private static final long ACTION_UUID = 144151046183109L;
     private static final long VM_UUID = 23525323L;
@@ -252,12 +253,13 @@ public class SdkActionToApiConverterTest {
 
         // ACT
         final ActionApiDTO apiMessage = converter.convert(provider, false, 0L, false);
-
         // ASSERT
         assertThat(apiMessage.getActionID(), is(ACTION_UUID));
         assertThat(apiMessage.getActionImpactID(), is(ACTION_OID));
-        assertThat(apiMessage.getCreateTime(), is("2020-12-30T17:39:20-05:00"));
-        assertThat(apiMessage.getUpdateTime(), is("2020-12-30T17:39:54-05:00"));
+        assertThat(OffsetDateTime.parse(apiMessage.getCreateTime()).toInstant().toEpochMilli(),
+            is(ACTION_CREATION_TIME));
+        assertThat(OffsetDateTime.parse(apiMessage.getUpdateTime()).toInstant().toEpochMilli(),
+            is(ACTION_UPDATE_TIME));
         assertThat(apiMessage.getActionType(), is(ActionType.MOVE));
         assertThat(apiMessage.getActionState(), is(ActionState.IN_PROGRESS));
         assertThat(apiMessage.getUserName(), is(ACCEPTED_BY));
@@ -303,8 +305,10 @@ public class SdkActionToApiConverterTest {
         // ASSERT
         assertThat(apiMessage.getActionID(), is(ACTION_OID));
         assertThat(apiMessage.getActionImpactID(), is(ACTION_OID));
-        assertThat(apiMessage.getCreateTime(), is("2020-12-30T17:39:20-05:00"));
-        assertThat(apiMessage.getUpdateTime(), is("2020-12-30T17:39:54-05:00"));
+        assertThat(OffsetDateTime.parse(apiMessage.getCreateTime()).toInstant().toEpochMilli(),
+            is(ACTION_CREATION_TIME));
+        assertThat(OffsetDateTime.parse(apiMessage.getUpdateTime()).toInstant().toEpochMilli(),
+            is(ACTION_UPDATE_TIME));
         assertThat(apiMessage.getActionType(), is(ActionType.RESIZE));
         assertThat(apiMessage.getActionState(), is(ActionState.IN_PROGRESS));
         assertThat(apiMessage.getUserName(), is(ACCEPTED_BY));
@@ -343,8 +347,10 @@ public class SdkActionToApiConverterTest {
         // ASSERT
         assertThat(apiMessage.getActionID(), is(ACTION_UUID));
         assertThat(apiMessage.getActionImpactID(), is(ACTION_OID));
-        assertThat(apiMessage.getCreateTime(), is("2020-12-30T17:39:20-05:00"));
-        assertThat(apiMessage.getUpdateTime(), is("2020-12-30T17:39:54-05:00"));
+        assertThat(OffsetDateTime.parse(apiMessage.getCreateTime()).toInstant().toEpochMilli(),
+            is(ACTION_CREATION_TIME));
+        assertThat(OffsetDateTime.parse(apiMessage.getUpdateTime()).toInstant().toEpochMilli(),
+            is(ACTION_UPDATE_TIME));
         assertThat(apiMessage.getActionType(), is(ActionType.SCALE));
         assertThat(apiMessage.getActionState(), is(ActionState.IN_PROGRESS));
         assertThat(apiMessage.getUserName(), is(ACCEPTED_BY));
