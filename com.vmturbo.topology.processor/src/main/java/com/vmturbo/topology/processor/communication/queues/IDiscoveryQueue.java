@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.communication.queues;
 
+import java.util.Collection;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
@@ -71,4 +72,11 @@ public interface IDiscoveryQueue {
      * we call sort afterwards to get the queue elements in the right order.
      */
     void sort();
+
+    /**
+     * Remove all the elements of the queue and return them.
+     *
+     * @return Collection of all the elements in the queue.
+     */
+    Collection<IDiscoveryQueueElement> flush();
 }

@@ -1,13 +1,16 @@
 package com.vmturbo.topology.processor.communication.queues;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -258,5 +261,21 @@ public class DiscoveryQueueTest {
         discoveryQueue.handleTargetRemoval(targetId1);
         assertEquals(discoveryQueueElement2, discoveryQueue.peek().get());
         assertEquals(1, discoveryQueue.size());
+    }
+
+    /**
+     * Test that the flush method works correctly.
+     *
+     * @throws DiscoveryQueueException if call to add method throws it.
+     */
+    @Test
+    public void testFlush() throws DiscoveryQueueException {
+        discoveryQueue.add(discoveryQueueElement1);
+        discoveryQueue.add(discoveryQueueElement2);
+        Collection<IDiscoveryQueueElement> deletedElements = discoveryQueue.flush();
+        assertEquals(2, deletedElements.size());
+        assertThat(deletedElements,
+                containsInAnyOrder(discoveryQueueElement1, discoveryQueueElement2));
+        assertTrue(discoveryQueue.isEmpty());
     }
 }

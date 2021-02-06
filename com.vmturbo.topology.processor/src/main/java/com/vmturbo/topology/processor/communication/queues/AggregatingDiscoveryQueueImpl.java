@@ -1,8 +1,10 @@
 package com.vmturbo.topology.processor.communication.queues;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -350,44 +352,57 @@ public class AggregatingDiscoveryQueueImpl implements AggregatingDiscoveryQueue 
         transportToChannel.put(transport, communicationChannel);
     }
 
-    private void flushQueue(@Nonnull DiscoveryQueue queue) {
-        if (!queue.isEmpty()) {
-            final long probeId = queue.peek().get().getTarget().getProbeId();
-            final ProbeException probeException =
-                    new ProbeException(String.format("Probe %s is not registered", probeId));
-            // To properly clean up the queue, call each queued discovery and force it to fail
-            // with a probe exception. This will ensure OperationManager does the proper cleanup.
-            while (!queue.isEmpty()) {
-                queue.remove().ifPresent(element -> element.performDiscovery(bundle -> {
-                    bundle.setException(probeException);
-                    return bundle.getDiscovery();
-                }, () -> logger.info("Purged discovery for target {}",
-                        element.getTarget().getId())));
-            }
+    private void handleDeletedDiscoveries(
+            @Nonnull Collection<IDiscoveryQueueElement> deletedElements) {
+        Iterator<IDiscoveryQueueElement> iterator = deletedElements.iterator();
+        // To properly clean up the queue, call each queued discovery and force it to fail
+        // with a probe exception. This will ensure OperationManager does the proper cleanup.
+        while (iterator.hasNext()) {
+            final IDiscoveryQueueElement nextElement = iterator.next();
+            final long probeId = nextElement.getTarget().getProbeId();
+            final ProbeException probeException = new ProbeException(
+                    String.format("Probe %s is not registered", probeId));
+            nextElement.performDiscovery(bundle -> {
+                bundle.setException(probeException);
+                return bundle.getDiscovery();
+            }, () -> logger.info("Purged discovery for target {}",
+                    nextElement.getTarget().getId()));
         }
     }
 
     @Override
-    public synchronized void handleTransportRemoval(
+    public void handleTransportRemoval(
             @Nonnull ITransport<MediationServerMessage, MediationClientMessage> transport,
             @Nonnull Set<Long> probesSupported) {
-        transportByTargetId.values().removeIf(transport::equals);
-        discoveryQueueByTransport.getOrDefault(transport, Collections.emptyMap())
-                .entrySet()
-                .stream()
-                .forEach(entry -> reassignQueueContents(entry.getValue(), entry.getKey(), transport));
+        Collection<IDiscoveryQueueElement> deletedElements = new ArrayList<>();
+        synchronized (this) {
+            transportByTargetId.values().removeIf(transport::equals);
+            discoveryQueueByTransport.getOrDefault(transport, Collections.emptyMap())
+                    .entrySet()
+                    .stream()
+                    .forEach(entry -> reassignQueueContents(entry.getValue(), entry.getKey(),
+                            transport));
 
-        transportToChannel.keySet().removeIf(transport::equals);
+            transportToChannel.keySet().removeIf(transport::equals);
 
-        // for any probes that are no longer connected, flush the related queue and fail the
-        // discoveries in them.
-        probesSupported.stream()
-                .filter(probeId -> !probeStore.isProbeConnected(probeId))
-                .flatMap(probeId -> discoveryQueueByProbeId.values().stream()
-                        .map(map -> map.get(probeId)))
-                .filter(Objects::nonNull)
-                .forEach(this::flushQueue);
+            // for any probes that are no longer connected, flush the related queues and collect
+            // the discoveries in them.
+            probesSupported.stream()
+                    .filter(probeId -> !probeStore.isProbeConnected(probeId))
+                    .flatMap(probeId -> discoveryQueueByProbeId.values()
+                            .stream()
+                            .map(map -> map.get(probeId)))
+                    .filter(Objects::nonNull)
+                    .flatMap(queue -> queue.flush().stream())
+                    .forEach(deletedElements::add);
+        }
 
-        notifyAll();
+        // This must be done without holding any locks, as handleDeletedDiscoveries will take a lock
+        // on OperationManager, which in turn may take on a lock on this queue.
+        handleDeletedDiscoveries(deletedElements);
+
+        synchronized (this) {
+            notifyAll();
+        }
     }
 }

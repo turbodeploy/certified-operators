@@ -1,14 +1,17 @@
 package com.vmturbo.topology.processor.communication.queues;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.Deque;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.NotThreadSafe;
 
+import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Queues;
 
@@ -139,5 +142,12 @@ public class DiscoveryQueue implements IDiscoveryQueue {
         Arrays.sort(queueContents, Comparator.naturalOrder());
         innerQ.clear();
         innerQ.addAll(Arrays.asList(queueContents));
+    }
+
+    @Override
+    public Collection<IDiscoveryQueueElement> flush() {
+        List<IDiscoveryQueueElement> retVal = Lists.newArrayList(innerQ.iterator());
+        innerQ.clear();
+        return retVal;
     }
 }
