@@ -225,6 +225,7 @@
         "preferSavingsOverReversibility",
         "dtuUtilization",
         "allowUnlimitedHostOverprovisioning",
+        "onPremVolumeAnalysis",
         "minReplicas",
         "maxReplicas"
       ]

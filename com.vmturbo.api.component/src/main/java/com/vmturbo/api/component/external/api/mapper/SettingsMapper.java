@@ -265,6 +265,7 @@ public class SettingsMapper {
             .put(GlobalSettingSpecs.DisableAllActions.getSettingName(), SERVICE_ENTITY)
             .put(GlobalSettingSpecs.MaxVMGrowthObservationPeriod.getSettingName(), SERVICE_ENTITY)
             .put(GlobalSettingSpecs.AllowUnlimitedHostOverprovisioning.getSettingName(), SERVICE_ENTITY)
+            .put(GlobalSettingSpecs.OnPremVolumeAnalysis.getSettingName(), SERVICE_ENTITY)
             .build();
 
     /**
