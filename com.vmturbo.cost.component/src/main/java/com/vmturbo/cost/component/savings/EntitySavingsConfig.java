@@ -1,8 +1,10 @@
 package com.vmturbo.cost.component.savings;
 
-import java.time.Clock;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -10,6 +12,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
+import com.vmturbo.cost.component.CostComponentGlobalConfig;
 import com.vmturbo.cost.component.CostDBConfig;
 
 /**
@@ -17,13 +20,20 @@ import com.vmturbo.cost.component.CostDBConfig;
  * powered on, entity powered off, entity provider change, and entity deleted.
  */
 @Configuration
-@Import({ActionOrchestratorClientConfig.class})
+@Import({ActionOrchestratorClientConfig.class,
+        CostComponentGlobalConfig.class})
 public class EntitySavingsConfig {
+
+    private final Logger logger = LogManager.getLogger();
+
     /**
      * DB config for DSL access.
      */
     @Autowired
     private CostDBConfig databaseConfig;
+
+    @Autowired
+    private CostComponentGlobalConfig costComponentGlobalConfig;
 
     /**
      * Chunk size configuration.
@@ -78,13 +88,63 @@ public class EntitySavingsConfig {
     }
 
     /**
-     * Create and return an entity savings tracker.
+     * Action listener: Listen for action events and insert records in event journal.
      *
-     * @return the entity savings tracker.
+     * @return singleton instance of action listener
      */
+    @Bean
+    public ActionListener actionListener() {
+        ActionListener actionListener = new ActionListener(entityEventsJournal());
+        if (isEnabled()) {
+            logger.info("Registering action listener with AO to receive action events.");
+            // Register listener with the action orchestrator to receive action events.
+            aoClientConfig.actionOrchestratorClient().addListener(actionListener);
+        } else {
+            logger.info("Action listener is disabled because Entity Savings feature is disabled.");
+        }
+        return actionListener;
+    }
+
+    /**
+     * Topology Events Poller: gets topology events.
+     *
+     * @return singleton instance of TopologyEventsPoller
+     */
+    @Bean
+    public TopologyEventsPoller topologyEventsPoller() {
+        return new TopologyEventsPoller();
+    }
+
+    /**
+     * Entity Savings Tracker: object responsible for coordinating the generation of entity savings
+     * stats.
+     *
+     * @return singleton instance of EntitySavingsTracker
+     */
+    @Bean
     public EntitySavingsTracker entitySavingsTracker() {
-       return new EntitySavingsTracker(this, aoClientConfig,
-               Executors.newSingleThreadScheduledExecutor());
+        return new EntitySavingsTracker(entitySavingsStore(), entityEventsJournal(), entityStateCache());
+    }
+
+    /**
+     * Task that executes once an hour to process entity events.
+     *
+     * @return singleton instance of EntitySavingsProcessor
+     */
+    @Bean
+    public EntitySavingsProcessor entitySavingsProcessor() {
+        EntitySavingsProcessor entitySavingsProcessor =
+                new EntitySavingsProcessor(entitySavingsTracker(), topologyEventsPoller());
+
+        if (isEnabled()) {
+            logger.info("EntitySavingsProcessor is enabled.");
+            Executors.newSingleThreadScheduledExecutor().scheduleWithFixedDelay(
+                    entitySavingsProcessor::execute, 0, 1, TimeUnit.HOURS);
+        } else {
+            logger.info("EntitySavingsProcessor is disabled.");
+        }
+
+        return entitySavingsProcessor;
     }
 
     /**
@@ -94,7 +154,7 @@ public class EntitySavingsConfig {
      */
     @Bean
     public EntitySavingsStore entitySavingsStore() {
-        return new SqlEntitySavingsStore(databaseConfig.dsl(), Clock.systemUTC(),
+        return new SqlEntitySavingsStore(databaseConfig.dsl(), costComponentGlobalConfig.clock(),
                 persistEntityCostChunkSize);
     }
 

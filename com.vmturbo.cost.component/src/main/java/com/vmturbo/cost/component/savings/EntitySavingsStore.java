@@ -3,6 +3,7 @@ package com.vmturbo.cost.component.savings;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.commons.collections4.MultiValuedMap;
 
@@ -39,4 +40,12 @@ public interface EntitySavingsStore {
             @Nonnull Long startTime, @Nonnull Long endTime,
             @Nonnull MultiValuedMap<EntityType, Long> entitiesByType)
             throws EntitySavingsException;
+
+    /**
+     * Gets the timestamp in milliseconds of the last stats record. (i.e. the max timestamp)
+     *
+     * @return timestamp in milliseconds of the last record, null if table is empty.
+     */
+    @Nullable
+    Long getMaxStatsTime();
 }

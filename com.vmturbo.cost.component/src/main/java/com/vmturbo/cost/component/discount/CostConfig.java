@@ -78,7 +78,6 @@ public class CostConfig {
                 Clock.systemUTC(),
                 realtimeTopologyContextId,
                 maxNumberOfInnerStatRecords,
-                entitySavingsConfig.entitySavingsTracker(),
                 entitySavingsConfig.entitySavingsStore());
     }
 

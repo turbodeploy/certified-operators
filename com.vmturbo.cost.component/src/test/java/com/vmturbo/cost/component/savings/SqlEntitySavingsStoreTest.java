@@ -2,6 +2,7 @@ package com.vmturbo.cost.component.savings;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -10,6 +11,7 @@ import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -137,6 +139,10 @@ public class SqlEntitySavingsStoreTest {
     public void testHourlyStats() throws EntitySavingsException, IOException {
         final Set<EntitySavingsStats> hourlyStats = new HashSet<>();
 
+        // Verify getMaxStatsTime returns null when table is empty.
+        Long maxStatsTime = store.getMaxStatsTime();
+        assertNull(maxStatsTime);
+
         // Set scope
         insertScopeRecords();
 
@@ -159,6 +165,10 @@ public class SqlEntitySavingsStoreTest {
 
         // Write it.
         store.addHourlyStats(hourlyStats);
+
+        // Verify getMaxStatsTime return the 3pm as the max time.
+        maxStatsTime = store.getMaxStatsTime();
+        assertEquals(Date.from(timeExact3PM.atZone(clock.getZone()).toInstant()).getTime(), maxStatsTime.longValue());
 
         final Set<EntitySavingsStatsType> allStatsTypes = Arrays.stream(EntitySavingsStatsType
                 .values()).collect(Collectors.toSet());
