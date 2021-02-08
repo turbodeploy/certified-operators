@@ -345,6 +345,15 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
                 .setCommodityType(TopologyDTO.CommodityType.newBuilder()
                     .setType(CommodityType.STORAGE_ACCESS_VALUE)),
             EntityType.COMPUTE_TIER_VALUE));
+        // Set percentile for IO Throughput commodity bought from Compute Tier, if
+        // utilizationData is present
+        Assert.assertTrue(percentileEditor.isCommodityApplicable(
+            TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()).build(),
+            TopologyDTO.CommodityBoughtDTO.newBuilder()
+                .setUtilizationData(UtilizationData.getDefaultInstance())
+                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                    .setType(CommodityType.IO_THROUGHPUT_VALUE)),
+            EntityType.COMPUTE_TIER_VALUE));
     }
 
     /**
