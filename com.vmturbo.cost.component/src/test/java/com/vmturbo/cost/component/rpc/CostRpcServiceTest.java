@@ -240,8 +240,7 @@ public class CostRpcServiceTest {
         businessAccountHelper.storeDiscoveredBusinessAccount(ACCOUNT_DTO);
         costRpcService = new CostRpcService(discountStore, accountExpenseStore, entityCostStore,
             projectedEntityCostStore, planProjectedEntityCostStore, timeFrameCalculator,
-            businessAccountHelper, clock, RT_TOPO_CONTEXT_ID, MAX_INNER_STAT_RECORDS, null,
-                entitySavingsStore);
+            businessAccountHelper, clock, RT_TOPO_CONTEXT_ID, MAX_INNER_STAT_RECORDS, null);
         repositoryClient = mock(RepositoryClient.class);
         serviceBlockingStub = SupplyChainServiceGrpc.newBlockingStub(mock(Channel.class));
         when(timeFrameCalculator.millis2TimeFrame(anyLong())).thenReturn(TimeFrame.LATEST);

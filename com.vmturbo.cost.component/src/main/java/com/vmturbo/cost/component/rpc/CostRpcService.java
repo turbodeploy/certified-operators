@@ -139,8 +139,6 @@ public class CostRpcService extends CostServiceImplBase {
 
     private final int maxNumberOfInnerStatRecords;
 
-    private final EntitySavingsTracker entitySavingsTracker;
-
     private final EntitySavingsStore entitySavingsStore;
 
     /**
@@ -156,7 +154,6 @@ public class CostRpcService extends CostServiceImplBase {
      * @param clock A clock providing access to the current instant, date and time using a time-zone
      * @param realtimeTopologyContextId real-time topology context ID
      * @param maxNumberOfInnerStatRecords maximum number of stats transferred in a single GRPC message
-     * @param entitySavingsTracker entity savings tracker
      * @param savingsStore Entity Savings DB store.
      */
     public CostRpcService(@Nonnull final DiscountStore discountStore,
@@ -169,7 +166,6 @@ public class CostRpcService extends CostServiceImplBase {
                           @Nonnull final Clock clock,
                           final long realtimeTopologyContextId,
                           final int maxNumberOfInnerStatRecords,
-                          @Nonnull final EntitySavingsTracker entitySavingsTracker,
                           @Nonnull final EntitySavingsStore savingsStore) {
         this.discountStore = Objects.requireNonNull(discountStore);
         this.accountExpensesStore = Objects.requireNonNull(accountExpensesStore);
@@ -181,7 +177,6 @@ public class CostRpcService extends CostServiceImplBase {
         this.clock = Objects.requireNonNull(clock);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.maxNumberOfInnerStatRecords = maxNumberOfInnerStatRecords;
-        this.entitySavingsTracker = entitySavingsTracker;
         this.entitySavingsStore = savingsStore;
     }
 

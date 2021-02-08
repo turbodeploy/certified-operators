@@ -23,13 +23,15 @@ public class ActionListener implements ActionsListener {
      */
     private final Logger logger = LogManager.getLogger();
 
+    private final EntityEventsJournal entityEventsJournal;
+
     /**
      * Constructor.
      *
-     * @param config entity savings configuration.
+     * @param entityEventsJournal entity events journal
      */
-    ActionListener(EntitySavingsConfig config) {
-        logger.debug("Action listener enabled.");
+    ActionListener(EntityEventsJournal entityEventsJournal) {
+        this.entityEventsJournal = entityEventsJournal;
     }
 
     /**

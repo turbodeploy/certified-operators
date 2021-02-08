@@ -6,7 +6,7 @@ import org.apache.logging.log4j.Logger;
 /**
  * Listens for topology event changes and inserts events into the internal savings event log.
  */
-public class TopologyEventListener {
+public class TopologyEventsPoller {
     /**
      * Logger.
      */
@@ -14,10 +14,11 @@ public class TopologyEventListener {
 
     /**
      * Constructor.
-     * @param config entity savings configuration.
      */
-    TopologyEventListener(EntitySavingsConfig config) {
-        // BCTODO register for action and topology events.
-        logger.debug("Topology event listener enabled.");
+    TopologyEventsPoller() {
+    }
+
+    void poll() {
+        logger.debug("Topology event poller getting TEP events.");
     }
 }
