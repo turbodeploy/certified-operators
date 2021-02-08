@@ -39,6 +39,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetOwnersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters.EntityFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
@@ -162,7 +163,11 @@ public class GroupExpanderTest {
      */
     @Test
     public void testGetGroups() {
-        when(groupServiceSpy.getGroups(GetGroupsRequest.newBuilder().addScopes(1234).build()))
+        when(groupServiceSpy.getGroups(
+            GetGroupsRequest.newBuilder()
+                .setGroupFilter(GroupFilter.getDefaultInstance())
+                .addScopes(1234)
+                .build()))
             .thenReturn(Collections.singletonList(Grouping.newBuilder().setId(1234).build()));
         Set<Grouping> result = groupExpander.getGroups(Arrays.asList("1234", "abcd"));
         assertEquals(1, result.size());
