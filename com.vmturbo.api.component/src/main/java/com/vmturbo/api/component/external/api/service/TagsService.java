@@ -8,15 +8,23 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
+import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.TagsMapper;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.entity.TagApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.OperationFailedException;
+import com.vmturbo.api.pagination.SearchPaginationRequest;
 import com.vmturbo.api.serviceinterfaces.ITagsService;
 import com.vmturbo.common.api.mappers.EnvironmentTypeMapper;
+import com.vmturbo.common.protobuf.common.Pagination;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.MapFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
@@ -38,13 +46,15 @@ public class TagsService implements ITagsService {
     private final SearchServiceBlockingStub searchServiceBlockingStub;
     private final GroupExpander groupExpander;
     private final RepositoryApi repositoryApi;
+    private final PaginationMapper paginationMapper;
 
     public TagsService(@Nonnull SearchServiceBlockingStub searchServiceBlockingStub,
-            @Nonnull final RepositoryApi repositoryApi,
-            @Nonnull GroupExpander groupExpander) {
+            @Nonnull final RepositoryApi repositoryApi, @Nonnull GroupExpander groupExpander,
+            @Nonnull PaginationMapper paginationMapper) {
         this.searchServiceBlockingStub = searchServiceBlockingStub;
         this.repositoryApi = repositoryApi;
         this.groupExpander = groupExpander;
+        this.paginationMapper = paginationMapper;
     }
 
     /**
@@ -119,13 +129,24 @@ public class TagsService implements ITagsService {
      * @throws Exception happens when the use of remote services fails.
      */
     @Override
-    public List<ServiceEntityApiDTO> getEntitiesByTagKey(@Nonnull final String tagKey) throws Exception {
-        final SearchParameters params = SearchParameters.newBuilder()
+    public ResponseEntity<List<ServiceEntityApiDTO>> getEntitiesByTagKey(@Nonnull final String tagKey, @Nullable
+            SearchPaginationRequest paginationRequest) throws Exception {
+        final SearchParameters.Builder searchParams = SearchParameters.newBuilder()
             .setStartingFilter(PropertyFilter.newBuilder()
                 .setPropertyName(StringConstants.TAGS_ATTR)
-                .setMapFilter(MapFilter.newBuilder().setKey(tagKey).build()))
-            .build();
-        return repositoryApi.newSearchRequest(params)
-            .getSEList();
+                .setMapFilter(MapFilter.newBuilder().setKey(tagKey).build()));
+
+
+        //Check to see if pagination is requested,
+        //else use legacy code path with no pagination for backwards compatibility.
+        if (paginationRequest != null) {
+            final SearchRequest searchRequest = repositoryApi.newSearchRequest(searchParams.build());
+            searchRequest.usePriceIndexPopulator(true);
+            final Pagination.PaginationParameters paginationParameters = paginationMapper.toProtoParams(paginationRequest);
+            return searchRequest.getPaginatedSEList(paginationParameters);
+        }
+        List<ServiceEntityApiDTO> results = repositoryApi.newSearchRequest(searchParams.build())
+                .getSEList();
+        return new ResponseEntity<List<ServiceEntityApiDTO>>(results, new HttpHeaders(), HttpStatus.OK);
     }
 }
