@@ -18,14 +18,20 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
+import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.OperationFailedException;
+import com.vmturbo.api.pagination.SearchPaginationRequest;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.MapFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
@@ -43,6 +49,7 @@ public class TagsServiceTest {
     private final SearchServiceMole searchService = Mockito.spy(new SearchServiceMole());
     private final GroupExpander groupExpander = Mockito.mock(GroupExpander.class);
     private final RepositoryApi repositoryApi = Mockito.mock(RepositoryApi.class);
+    private final PaginationMapper paginationMapper = Mockito.mock(PaginationMapper.class);
 
     /**
      * Testing gRPC server.
@@ -76,7 +83,7 @@ public class TagsServiceTest {
                 .thenReturn(EXPANDED_SCOPE);
         tagsService = new TagsService(SearchServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                                       repositoryApi,
-                                      groupExpander);
+                                      groupExpander, paginationMapper);
     }
 
     /**
@@ -160,6 +167,39 @@ public class TagsServiceTest {
     /**
      * Tests {@link TagsService#getEntitiesByTagKey}.
      *
+     * @throws Exception if an error occurs.
+     */
+    @Test
+    public void testGetPaginatedEntitiesByTagKey() throws Exception {
+
+        final String tagKey = "tagKey";
+        final ResponseEntity responseEntity = new ResponseEntity<List<ServiceEntityApiDTO>>(HttpStatus.OK);
+
+        final SearchRequest searchRequest = Mockito.mock(SearchRequest.class);
+        final String cursor = "cursor";
+        final int limit = 10;
+        final Boolean ascending = true;
+        final String orderBy = StringConstants.NAME;
+        SearchPaginationRequest searchPaginationRequest = new SearchPaginationRequest(cursor, limit, ascending, orderBy);
+        PaginationParameters paginationParameters = paginationMapper.toProtoParams(searchPaginationRequest);
+
+        Mockito.when(repositoryApi.newSearchRequest(Mockito.eq(
+                SearchParameters.newBuilder()
+                        .setStartingFilter(PropertyFilter.newBuilder()
+                                .setPropertyName(StringConstants.TAGS_ATTR)
+                                .setMapFilter(MapFilter.newBuilder().setKey(tagKey)))
+                        .build())))
+                .thenReturn(searchRequest);
+
+        Mockito.when(searchRequest.getPaginatedSEList(Mockito.eq(paginationParameters)))
+                .thenReturn(responseEntity);
+
+        Assert.assertEquals(responseEntity, tagsService.getEntitiesByTagKey(tagKey, searchPaginationRequest));
+    }
+
+    /**
+     * Tests {@link TagsService#getEntitiesByTagKey}.
+     *
      * @throws Exception should not happen
      */
     @Test
@@ -167,8 +207,8 @@ public class TagsServiceTest {
         final String tagKey = "tagKey";
         final SearchRequest searchRequest = Mockito.mock(SearchRequest.class);
         final ServiceEntityApiDTO mockSE = new ServiceEntityApiDTO();
-        final List<ServiceEntityApiDTO> mockResult = Collections.singletonList(mockSE);
-        Mockito.when(searchRequest.getSEList()).thenReturn(mockResult);
+        final ResponseEntity<List<ServiceEntityApiDTO>> mockResult = new ResponseEntity<List<ServiceEntityApiDTO>>(Collections.singletonList(mockSE), new HttpHeaders(), HttpStatus.OK);
+        Mockito.when(searchRequest.getSEList()).thenReturn(mockResult.getBody());
         Mockito.when(repositoryApi.newSearchRequest(Mockito.eq(
                 SearchParameters.newBuilder()
                     .setStartingFilter(PropertyFilter.newBuilder()
@@ -177,7 +217,8 @@ public class TagsServiceTest {
                     .build())))
             .thenReturn(searchRequest);
 
-        Assert.assertEquals(mockResult, tagsService.getEntitiesByTagKey(tagKey));
+        SearchPaginationRequest searchPaginationRequest = null;
+        Assert.assertEquals(mockResult, tagsService.getEntitiesByTagKey(tagKey, searchPaginationRequest));
     }
 
     private SearchTagsRequest callGetTags(@Nullable final List<String> scope,

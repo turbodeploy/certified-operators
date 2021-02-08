@@ -653,7 +653,8 @@ public class ServiceConfig {
         return new TagsService(
                 communicationConfig.searchServiceBlockingStub(),
                 communicationConfig.repositoryApi(),
-                communicationConfig.groupExpander());
+                communicationConfig.groupExpander(),
+                mapperConfig.paginationMapper());
     }
 
     @Bean
