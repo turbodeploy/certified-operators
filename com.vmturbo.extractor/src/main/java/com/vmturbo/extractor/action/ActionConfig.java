@@ -139,7 +139,6 @@ public class ActionConfig {
         final PendingActionWriter pendingActionWriter = new PendingActionWriter(
             actionServiceBlockingStub(),
             entitySeverityServiceStub(),
-            policyService(),
             topologyListenerConfig.dataProvider(),
             globalConfig.featureFlags(),
             realtimeTopologyContextId,
@@ -159,7 +158,10 @@ public class ActionConfig {
         final CompletedActionWriter completedActionWriter = new CompletedActionWriter(
                 extractorDbConfig.ingesterEndpoint(), completedActionExecutor(),
                 topologyListenerConfig.writerConfig(), topologyListenerConfig.pool(),
-                actionConverter(), topologyListenerConfig.dataProvider(), globalConfig.featureFlags());
+                actionConverter(), topologyListenerConfig.dataProvider(), globalConfig.featureFlags(),
+                topologyListenerConfig.extractorKafkaSender(),
+                topologyListenerConfig.dataExtractionFactory(),
+                actionWriterFactory(), clock());
         actionClientConfig.actionOrchestratorClient().addListener(completedActionWriter);
         return completedActionWriter;
     }
@@ -185,7 +187,7 @@ public class ActionConfig {
     @Bean
     public ActionWriterFactory actionWriterFactory() {
         return new ActionWriterFactory(
-                Clock.systemUTC(),
+                clock(),
                 actionConverter(),
                 extractorDbConfig.ingesterEndpoint(),
                 TimeUnit.MINUTES.toMillis(actionMetricsWritingIntervalMins),
@@ -195,7 +197,17 @@ public class ActionConfig {
                 topologyListenerConfig.extractorKafkaSender(),
                 topologyListenerConfig.dataExtractionFactory(),
                 TimeUnit.MINUTES.toMillis(actionExtractionIntervalMins),
-                actionAttributeExtractor()
+                policyService()
         );
+    }
+
+    /**
+     * An instance of {@link Clock}.
+     *
+     * @return {@link Clock}
+     */
+    @Bean
+    public Clock clock() {
+        return Clock.systemUTC();
     }
 }

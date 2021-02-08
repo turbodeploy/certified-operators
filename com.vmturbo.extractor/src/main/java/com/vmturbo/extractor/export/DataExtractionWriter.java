@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -94,9 +95,8 @@ public class DataExtractionWriter extends TopologyWriterBase {
 
     @Override
     public int finish(final DataProvider dataProvider) {
-        final RelatedEntitiesExtractor relatedEntitiesExtractor =
-                dataExtractionFactory.newRelatedEntitiesExtractor(dataProvider.getTopologyGraph(),
-                        dataProvider.getSupplyChain(), dataProvider.getGroupData());
+        final Optional<RelatedEntitiesExtractor> relatedEntitiesExtractor =
+                dataExtractionFactory.newRelatedEntitiesExtractor(dataProvider);
 
         // set related entities and related groups
         final String relatedStageLabel = "Populate related entities and groups";
@@ -104,7 +104,8 @@ public class DataExtractionWriter extends TopologyWriterBase {
         timer.start(relatedStageLabel);
         final List<ExportedObject> exportedObjects = entities.parallelStream()
                 .map(entity -> {
-                    entity.setRelated(relatedEntitiesExtractor.extractRelatedEntities(entity.getOid()));
+                    relatedEntitiesExtractor.ifPresent(extractor -> entity.setRelated(
+                            extractor.extractRelatedEntities(entity.getOid())));
                     final ExportedObject exportedObject = new ExportedObject();
                     exportedObject.setTimestamp(formattedTopologyCreationTime);
                     exportedObject.setEntity(entity);

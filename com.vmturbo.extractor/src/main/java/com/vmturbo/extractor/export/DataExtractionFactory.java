@@ -1,7 +1,9 @@
 package com.vmturbo.extractor.export;
 
+import java.util.Optional;
+
+import com.vmturbo.extractor.topology.DataProvider;
 import com.vmturbo.extractor.topology.SupplyChainEntity;
-import com.vmturbo.extractor.topology.fetcher.GroupFetcher.GroupData;
 import com.vmturbo.extractor.topology.fetcher.SupplyChainFetcher.SupplyChain;
 import com.vmturbo.topology.graph.TopologyGraph;
 
@@ -30,14 +32,16 @@ public class DataExtractionFactory {
     /**
      * Create a new instance of {@link RelatedEntitiesExtractor}.
      *
-     * @param graph containing whole topology
-     * @param supplyChain containing supply chain info for all entities
-     * @param groupData containing all groups related data
-     * @return {@link RelatedEntitiesExtractor}
+     * @param dataProvider providing topology, supply chain, group and more
+     * @return optional of {@link RelatedEntitiesExtractor}
      */
-    public RelatedEntitiesExtractor newRelatedEntitiesExtractor(
-            final TopologyGraph<SupplyChainEntity> graph, final SupplyChain supplyChain,
-            final GroupData groupData) {
-        return new RelatedEntitiesExtractor(graph, supplyChain, groupData);
+    public Optional<RelatedEntitiesExtractor> newRelatedEntitiesExtractor(DataProvider dataProvider) {
+        TopologyGraph<SupplyChainEntity> topologyGraph = dataProvider.getTopologyGraph();
+        SupplyChain supplyChain = dataProvider.getSupplyChain();
+        if (topologyGraph == null || supplyChain == null) {
+            return Optional.empty();
+        }
+        return Optional.of(new RelatedEntitiesExtractor(topologyGraph, supplyChain,
+                dataProvider.getGroupData()));
     }
 }
