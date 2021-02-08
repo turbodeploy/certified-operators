@@ -1,14 +1,20 @@
 package com.vmturbo.action.orchestrator.action;
 
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -16,7 +22,6 @@ import com.google.common.collect.Table.Cell;
 
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
@@ -35,17 +40,24 @@ import com.vmturbo.platform.sdk.common.util.Pair;
  */
 public class AuditedActionsManagerTest {
 
-    private static final long RECOVERY_INTERNAL_MSEC = TimeUnit.MINUTES.toMillis(10L);
+    private static final long RECOVERY_INTERNAL_MINUTES = 1L;
 
     @Mock
     private AuditActionsPersistenceManager auditActionsPersistenceManager;
 
+    @Mock
+    private BlockingDeque<AuditedActionsUpdate> auditedActionsUpdateBatches;
+
+    @Mock
     private ScheduledExecutorService scheduledExecutorService;
 
     private AuditedActionsManager auditedActionsManager;
 
     @Captor
-    private ArgumentCaptor<Collection<AuditedActionInfo>> auditedActionsCaptor;
+    private ArgumentCaptor<AuditedActionsUpdate> auditedActionsUpdateCaptor;
+
+    @Captor
+    private ArgumentCaptor<Runnable> runnableCaptor;
 
     /**
      * Sets up a AuditedActionsManager with mocks, shared by the tests that can.
@@ -53,11 +65,12 @@ public class AuditedActionsManagerTest {
     @Before
     public void init() {
         MockitoAnnotations.initMocks(this);
-        scheduledExecutorService = new ScheduledThreadPoolExecutor(1);
+        when(scheduledExecutorService.submit(runnableCaptor.capture())).thenReturn(null);
         auditedActionsManager = new AuditedActionsManager(
             auditActionsPersistenceManager,
             scheduledExecutorService,
-            RECOVERY_INTERNAL_MSEC
+            RECOVERY_INTERNAL_MINUTES,
+            auditedActionsUpdateBatches
         );
     }
 
@@ -78,10 +91,11 @@ public class AuditedActionsManagerTest {
             new AuditedActionInfo(1L, 1L, null),
             new AuditedActionInfo(1L, 2L, 1000L)
         ));
+        // need to create a new instance since the load happens in the constructor
         auditedActionsManager = new AuditedActionsManager(
             auditActionsPersistenceManager,
             scheduledExecutorService,
-            RECOVERY_INTERNAL_MSEC
+            RECOVERY_INTERNAL_MINUTES
         );
 
         Assert.assertTrue(auditedActionsManager.isAlreadySent(1L, 1L));
@@ -106,8 +120,7 @@ public class AuditedActionsManagerTest {
      * @throws ActionStoreOperationException shouldn't happen
      */
     @Test
-    @Ignore
-    public void testChangingCache() throws ActionStoreOperationException {
+    public void testChangingCache() {
         final AuditedActionsUpdate update = new AuditedActionsUpdate();
         final AuditedActionInfo newAuditedAction = new AuditedActionInfo(1L, 1L, null);
         final AuditedActionInfo recentlyClearedAuditedAction = new AuditedActionInfo(1L, 2L, 1000L);
@@ -129,7 +142,16 @@ public class AuditedActionsManagerTest {
         Assert.assertEquals(Optional.empty(), actualMap.get(new Pair<>(1L, 1L)));
         Assert.assertEquals(Optional.of(1000L), actualMap.get(new Pair<>(1L, 2L)));
 
+        // check that the updates are added to the queue
+        verify(auditedActionsUpdateBatches, Mockito.times(1))
+            .addLast(auditedActionsUpdateCaptor.capture());
+        AuditedActionsUpdate actualUpdate = auditedActionsUpdateCaptor.getValue();
+        Assert.assertEquals(update.getAuditedActions(), actualUpdate.getAuditedActions());
+        Assert.assertEquals(update.getRecentlyClearedActions(), actualUpdate.getRecentlyClearedActions());
+        Assert.assertEquals(update.getExpiredClearedActions(), actualUpdate.getExpiredClearedActions());
+
         // now clearing an expired entry from the cache
+        Mockito.reset(auditedActionsUpdateBatches);
         final AuditedActionsUpdate expiredUpdate = new AuditedActionsUpdate();
         final AuditedActionInfo expiredClearedAuditedAction = new AuditedActionInfo(1L, 2L, null);
         expiredUpdate.addExpiredClearedAction(expiredClearedAuditedAction);
@@ -149,18 +171,100 @@ public class AuditedActionsManagerTest {
         Assert.assertEquals(Optional.empty(), afterExpiredMap.get(new Pair<>(1L, 1L)));
         Assert.assertFalse(afterExpiredMap.containsKey(new Pair<>(1L, 2L)));
 
-        // execute all sync up tasks in order to check that we persisted all audited action
-        // updates in DB. Checks that in-memory bookkeeping cache is synchronized with DB cache.
-        scheduledExecutorService.shutdown();
-        Mockito.verify(auditActionsPersistenceManager, Mockito.times(1))
-                .persistActions(auditedActionsCaptor.capture());
-        Assert.assertEquals(
-            Arrays.asList(newAuditedAction, recentlyClearedAuditedAction),
-            auditedActionsCaptor.getValue());
-        Mockito.verify(auditActionsPersistenceManager, Mockito.times(1))
-                .removeActions(Mockito.eq(Collections.singletonList(
-                        Pair.create(expiredClearedAuditedAction.getRecommendationId(),
-                                expiredClearedAuditedAction.getWorkflowId()))));
+        // check that the updates are added to the queue
+        verify(auditedActionsUpdateBatches, Mockito.times(1))
+            .addLast(auditedActionsUpdateCaptor.capture());
+        AuditedActionsUpdate actualExpireUpdate = auditedActionsUpdateCaptor.getValue();
+        Assert.assertEquals(expiredUpdate.getAuditedActions(), actualExpireUpdate.getAuditedActions());
+        Assert.assertEquals(expiredUpdate.getRecentlyClearedActions(), actualExpireUpdate.getRecentlyClearedActions());
+        Assert.assertEquals(expiredUpdate.getExpiredClearedActions(), actualExpireUpdate.getExpiredClearedActions());
+    }
+
+    /**
+     * Runnable added to the scheduler to process the next batch in the queue.
+     *
+     * @throws Exception should not be thrown.
+     */
+    @Test
+    public void testQueueProcessed() throws Exception {
+        final AuditedActionsUpdate update = new AuditedActionsUpdate();
+        final AuditedActionInfo newAuditedAction = new AuditedActionInfo(1L, 1L, null);
+        final AuditedActionInfo recentlyClearedAuditedAction = new AuditedActionInfo(1L, 2L, 1000L);
+        final AuditedActionInfo expiredAction = new AuditedActionInfo(1L, 3L, null);
+        update.addAuditedAction(newAuditedAction);
+        update.addRecentlyClearedAction(recentlyClearedAuditedAction);
+        update.addExpiredClearedAction(expiredAction);
+        when(auditedActionsUpdateBatches.take()).thenReturn(update);
+
+        Runnable queueProcessRunnable = runnableCaptor.getValue();
+        reset(scheduledExecutorService);
+        queueProcessRunnable.run();
+
+        verify(auditActionsPersistenceManager)
+            .persistActions(eq(Arrays.asList(newAuditedAction, recentlyClearedAuditedAction)));
+        verify(auditActionsPersistenceManager)
+            .removeActions(eq(Arrays.asList(Pair.create(
+                expiredAction.getRecommendationId(), expiredAction.getWorkflowId()))));
+
+        // when finished, it should schedule another run of the runnable
+        verify(scheduledExecutorService, times(1))
+                .submit((Runnable)any());
+    }
+
+    /**
+     * When persist fails, the runnable should be rescheduled with RECOVERY_INTERNAL_MINUTES delay.
+     *
+     * @throws Exception should not be thrown.
+     */
+    @Test
+    public void testPersistFailed() throws Exception {
+        final AuditedActionsUpdate update = new AuditedActionsUpdate();
+        final AuditedActionInfo newAuditedAction = new AuditedActionInfo(1L, 1L, null);
+        final AuditedActionInfo recentlyClearedAuditedAction = new AuditedActionInfo(1L, 2L, 1000L);
+        final AuditedActionInfo expiredAction = new AuditedActionInfo(1L, 3L, null);
+        update.addAuditedAction(newAuditedAction);
+        update.addRecentlyClearedAction(recentlyClearedAuditedAction);
+        update.addExpiredClearedAction(expiredAction);
+        when(auditedActionsUpdateBatches.take()).thenReturn(update);
+        doThrow(new ActionStoreOperationException("Testing storage failure"))
+            .when(auditActionsPersistenceManager).persistActions(any());
+
+        Runnable queueProcessRunnable = runnableCaptor.getValue();
+        reset(scheduledExecutorService);
+        queueProcessRunnable.run();
+
+        // when finished, it should schedule another run of the runnable
+        verify(scheduledExecutorService, times(1))
+            .schedule((Runnable)any(), eq(RECOVERY_INTERNAL_MINUTES), eq(TimeUnit.MINUTES));
+    }
+
+    /**
+     * When the thread is interrupted, it should not crash and it should not reschedule a
+     * runnable since the application is shutting down.
+     *
+     * @throws InterruptedException should not be thrown.
+     */
+    @Test
+    public void testInterruptDoesNotCrash() throws InterruptedException {
+        final AuditedActionsUpdate update = new AuditedActionsUpdate();
+        final AuditedActionInfo newAuditedAction = new AuditedActionInfo(1L, 1L, null);
+        final AuditedActionInfo recentlyClearedAuditedAction = new AuditedActionInfo(1L, 2L, 1000L);
+        final AuditedActionInfo expiredAction = new AuditedActionInfo(1L, 3L, null);
+        update.addAuditedAction(newAuditedAction);
+        update.addRecentlyClearedAction(recentlyClearedAuditedAction);
+        update.addExpiredClearedAction(expiredAction);
+        doThrow(new InterruptedException())
+            .when(auditedActionsUpdateBatches).take();
+
+        Runnable queueProcessRunnable = runnableCaptor.getValue();
+        reset(scheduledExecutorService);
+        // Should not block and should not throw an exception.
+        queueProcessRunnable.run();
+        // Should not schedule another Runnable
+        verify(scheduledExecutorService, times(0))
+            .submit((Runnable)any());
+        verify(scheduledExecutorService, times(0))
+            .schedule((Runnable)any(), anyLong(), any());
     }
 
     private static Map<Pair<Long, Long>, Optional<Long>> toMap(
