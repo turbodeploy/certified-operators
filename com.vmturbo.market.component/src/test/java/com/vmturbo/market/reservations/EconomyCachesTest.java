@@ -739,6 +739,7 @@ public class EconomyCachesTest {
     public void testWhenNPEInAccessCommUpdate() {
         EconomyCaches economyCaches = new EconomyCaches();
         EconomyCaches spy = Mockito.spy(economyCaches);
+        spy.getState().setHistoricalCacheReceived(true);
 
         Mockito.doThrow(NullPointerException.class)
                 .when(spy)
