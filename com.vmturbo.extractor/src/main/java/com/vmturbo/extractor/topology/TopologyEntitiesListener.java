@@ -208,7 +208,12 @@ public class TopologyEntitiesListener implements EntitiesListener {
 
                 for (final ITopologyWriter writer : writers) {
                     AsyncTimer asyncTimer = timer.async(getFinishPhaseLabel(writer));
-                    writer.finish(dataProvider);
+                    try {
+                        writer.finish(dataProvider);
+                    } catch (RuntimeException e) {
+                        logger.error("Writer {} failed to complete ingestion.",
+                                writer.getClass().getSimpleName(), e);
+                    }
                     asyncTimer.close();
                 }
 

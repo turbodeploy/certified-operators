@@ -75,6 +75,10 @@ public class HistoricalAttributeWriter implements ITopologyWriter {
 
     @Override
     public int finish(DataProvider dataProvider)  throws InterruptedException, UnsupportedDialectException, SQLException {
+        if (records.isEmpty()) {
+            return 0;
+        }
+
         Metrics.totalRecords(records.size());
         logger.debug("Attempting to write {} metrics to the historical attributes database.", records.size());
         try (DSLContext dsl = dbEndpoint.dslContext();
