@@ -23,14 +23,24 @@ public class UserPolicyTest {
     private final UserPolicy oneEditorPolicy = new UserPolicy(LoginPolicy.LOCAL_ONLY, new ReportPolicy(1));
     private final UserPolicy twoEditorsPolicy = new UserPolicy(LoginPolicy.LOCAL_ONLY, new ReportPolicy(2));
 
-    private final AuthUserDTO localUser1 = new AuthUserDTO(PROVIDER.LOCAL, "", "uuid",
+    private final AuthUserDTO
+            localUser1AdminAndEditorRole = new AuthUserDTO(PROVIDER.LOCAL, "user1", "uuid",
             ImmutableList.of(ADMINISTRATOR, REPORT_EDITOR));
-
-    private final AuthUserDTO localUser2 = new AuthUserDTO(PROVIDER.LOCAL, "", "uuid",
-            ImmutableList.of(ADMINISTRATOR, REPORT_EDITOR));
-    private final AuthUserDTO ldapUser1 = new AuthUserDTO(PROVIDER.LDAP, "", "uuid",
+    private final AuthUserDTO
+            localUser1AdvisorAndEditorRole = new AuthUserDTO(PROVIDER.LOCAL, "user1", "uuid",
             ImmutableList.of(ADVISOR, REPORT_EDITOR));
-    private final AuthUserDTO ldapUser2 = new AuthUserDTO(PROVIDER.LDAP, "", "uuid",
+
+    private final AuthUserDTO
+            localUser2AdminAndEditorRole = new AuthUserDTO(PROVIDER.LOCAL, "user2", "uuid",
+            ImmutableList.of(ADMINISTRATOR, REPORT_EDITOR));
+    private final AuthUserDTO
+            externalUser3AdvisorAndEditorRole = new AuthUserDTO(PROVIDER.LDAP, "user3", "uuid",
+            ImmutableList.of(ADVISOR, REPORT_EDITOR));
+    private final AuthUserDTO
+            externalUser3AdminAndEditorRole = new AuthUserDTO(PROVIDER.LDAP, "user3", "uuid",
+            ImmutableList.of(ADVISOR, REPORT_EDITOR));
+    private final AuthUserDTO
+            externalUser4AdvisorAndEditorRole = new AuthUserDTO(PROVIDER.LDAP, "user4", "uuid",
             ImmutableList.of(ADVISOR, REPORT_EDITOR));
 
     /**
@@ -39,10 +49,20 @@ public class UserPolicyTest {
      */
     @Test
     public void testLocalUserPolicy() {
-        assertTrue(checkError(() -> oneEditorPolicy.isAddingReportEditorRoleAllowed(localUser1, Collections.emptyList())));
-        assertFalse(checkError(() -> oneEditorPolicy.isAddingReportEditorRoleAllowed(localUser1, Collections.singletonList(localUser2))));
+        assertTrue(checkError(() -> oneEditorPolicy.isAddingReportEditorRoleAllowed(
+                localUser1AdminAndEditorRole, Collections.emptyList())));
+        assertFalse(checkError(() -> oneEditorPolicy.isAddingReportEditorRoleAllowed(
+                localUser1AdminAndEditorRole, Collections.singletonList(
+                        localUser2AdminAndEditorRole))));
 
-        assertTrue(checkError(() -> twoEditorsPolicy.isAddingReportEditorRoleAllowed(localUser1, Collections.singletonList(localUser2))));
+        assertTrue(checkError(() -> twoEditorsPolicy.isAddingReportEditorRoleAllowed(
+                localUser1AdminAndEditorRole, Collections.singletonList(
+                        localUser2AdminAndEditorRole))));
+
+        // Verify existing local user with editor role is allowed to update roles. See OM-66796.
+        assertTrue(checkError(() -> oneEditorPolicy.isAddingReportEditorRoleAllowed(
+                localUser1AdvisorAndEditorRole, Collections.singletonList(
+                        localUser1AdminAndEditorRole))));
     }
 
     /**
@@ -51,19 +71,31 @@ public class UserPolicyTest {
      */
     @Test
     public void testLdapUserPolicy() {
-        assertTrue(checkError(() -> oneEditorPolicy.isAddingReportEditorRoleAllowed(ldapUser1, Collections.emptyList())));
-        assertFalse(checkError(() -> oneEditorPolicy.isAddingReportEditorRoleAllowed(ldapUser1, Collections.singletonList(ldapUser2))));
+        assertTrue(checkError(() -> oneEditorPolicy.isAddingReportEditorRoleAllowed(
+                externalUser3AdvisorAndEditorRole, Collections.emptyList())));
+        assertFalse(checkError(() -> oneEditorPolicy.isAddingReportEditorRoleAllowed(
+                externalUser3AdvisorAndEditorRole, Collections.singletonList(
+                        externalUser4AdvisorAndEditorRole))));
 
-        assertTrue(checkError(() -> twoEditorsPolicy.isAddingReportEditorRoleAllowed(ldapUser1, Collections.singletonList(ldapUser2))));
+        assertTrue(checkError(() -> twoEditorsPolicy.isAddingReportEditorRoleAllowed(
+                externalUser3AdvisorAndEditorRole, Collections.singletonList(
+                        externalUser4AdvisorAndEditorRole))));
+        // Verify existing external user with editor role is allowed to update roles. See OM-66796.
+        assertTrue(checkError(() -> oneEditorPolicy.isAddingReportEditorRoleAllowed(
+                externalUser3AdvisorAndEditorRole, Collections.singletonList(
+                        externalUser3AdminAndEditorRole))));
     }
 
     /**
-     * Test that local and LDAP report policy enforcements are independent.
+     * Verify report policy enforce user limit regardless the local or external user.
      */
     @Test
     public void testMixedUserPolicy() {
-        assertTrue(checkError(() -> oneEditorPolicy.isAddingReportEditorRoleAllowed(localUser1, Collections.emptyList())));
-        assertTrue(checkError(() -> oneEditorPolicy.isAddingReportEditorRoleAllowed(localUser1, Collections.singletonList(ldapUser1))));
+        assertTrue(checkError(() -> oneEditorPolicy.isAddingReportEditorRoleAllowed(
+                localUser1AdminAndEditorRole, Collections.emptyList())));
+        assertFalse(checkError(() -> oneEditorPolicy.isAddingReportEditorRoleAllowed(
+                localUser1AdminAndEditorRole, Collections.singletonList(
+                        externalUser3AdvisorAndEditorRole))));
     }
 
     /**
