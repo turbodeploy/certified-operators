@@ -150,6 +150,10 @@ public class TestUtils {
      */
     public static final CommoditySpecification APPLICATION = createNewCommSpec();
     /**
+     * Construct the commodity specification for sidecar Application commodity.
+     */
+    public static final CommoditySpecification SIDECAR_APPLICATION = createNewCommSpec();
+    /**
      * Construct the commodity specification for Q16_VCPU commodity.
      */
     public static final CommoditySpecification Q16_VCPU = createNewCommSpec();

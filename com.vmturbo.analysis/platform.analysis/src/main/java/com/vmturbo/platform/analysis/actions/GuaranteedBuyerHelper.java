@@ -388,7 +388,7 @@ public final class GuaranteedBuyerHelper {
     private static Set<ShoppingList> removeSLsWithInvalidBasket(@NonNull final Set<ShoppingList> allSls,
                                                                 @NonNull final Set<Basket> validBaskets) {
         return allSls.stream()
-                .filter(sl -> validBaskets.contains(sl.getBasket()))
+                .filter(sl -> validBaskets.stream().anyMatch(sl.getBasket()::isSatisfiedBy))
                 .collect(Collectors.toSet());
     }
 } // end GuaranteedBuyerHelper class
