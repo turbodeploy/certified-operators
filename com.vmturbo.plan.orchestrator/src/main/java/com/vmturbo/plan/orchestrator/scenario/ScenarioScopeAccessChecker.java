@@ -7,9 +7,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -21,6 +19,9 @@ import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.IncludedCoupons;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
@@ -35,6 +36,7 @@ import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.platform.sdk.common.CloudCostDTO;
 
 /**
  * A Utility class for checking user scope
@@ -163,10 +165,22 @@ public class ScenarioScopeAccessChecker {
                 // Check if user has access to all workloads in the plan scope.
                 final boolean planScopeSubsetOfUserScope = accessScope.contains(planScope);
                 if (!planScopeSubsetOfUserScope) {
-                    // Don't allow user to run the plan if some of the workloads are not accessible.
+                    // Disable the Buy RI and remove all the RI Inventory if some of the workloads are not accessible.
                     // RI analysis and RI related APIs only support certain entity type as scopes.
                     // We can't do RI analysis on an arbitrary set of entities.
-                    throw new UserAccessScopeException("User doesn't have access to some entities in plan scope.");
+                    Set<ScenarioChange> notRIChanges = scenarioInfo.getChangesList().stream()
+                            .filter(change -> !(change.hasRiSetting()
+                                        && CloudCostDTO.DemandType.CONSUMPTION == change.getRiSetting().getDemandType())
+                                    && !(change.hasPlanChanges() && change.getPlanChanges().hasIncludedCoupons()))
+                            .collect(Collectors.toSet());
+
+                    scenarioInfo = scenarioInfo.toBuilder()
+                            .clearChanges()
+                            .addAllChanges(notRIChanges)
+                            .addChanges(ScenarioChange.newBuilder()
+                                    .setPlanChanges(PlanChanges.newBuilder()
+                                            .setIncludedCoupons(IncludedCoupons.newBuilder().build())))
+                            .build();
                 }
             } else {
                 final Set<Long> workloadOidsInPlanScope = response.getSupplyChainNodesList().stream()
