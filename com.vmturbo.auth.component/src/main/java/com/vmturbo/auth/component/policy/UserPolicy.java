@@ -65,8 +65,8 @@ public class UserPolicy {
                     "Scoped user {} cannot be designated as Report Editor.", userToCheck.getUser()));
             }
             long userCount = allUsers.stream()
-                    .filter(user -> user.getProvider().equals(userToCheck.getProvider())
-                            && roleMatched(user, REPORT_EDITOR))
+                    .filter(user -> roleMatched(user, REPORT_EDITOR) &&
+                            !isSameUser(userToCheck, user))
                     .count();
             if (userCount >= getAllowedMaximumEditor()) {
                 throw new IllegalArgumentException(FormattedString.format(
@@ -74,6 +74,12 @@ public class UserPolicy {
                     userToCheck.getUser(), getAllowedMaximumEditor()));
             }
         }
+    }
+
+    // new user doesn't have uuid, so we need to compare provider and username.
+    private boolean isSameUser(@Nonnull AuthUserDTO userToCheck, AuthUserDTO user) {
+        return user.getProvider() == userToCheck.getProvider()
+                && user.getUser().equalsIgnoreCase(userToCheck.getUser());
     }
 
     private boolean roleMatched(@Nonnull AuthUserDTO userInfo, @Nonnull String roleName) {
