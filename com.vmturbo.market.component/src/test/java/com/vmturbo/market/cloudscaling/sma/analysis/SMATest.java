@@ -150,12 +150,6 @@ public class SMATest {
          */
         testExactResult("1vm0ri2templatesPenaltyTieBreakerChooseCurrent.json");
 
-        //A vm scaled down while staying in same family will only regain the coupons it currently need.
-        testExactResult("2vm1ripostprocessingwithinfamily.json");
-
-        // vm2 scaling down and remaining in the same family will not lose the coupon coverage.
-        testExactResult("2vm1ripostprocessingwithinfamily1.json");
-
 
 
     }

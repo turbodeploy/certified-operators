@@ -2,13 +2,7 @@ package com.vmturbo.components.common.migration;
 
 import java.util.Optional;
 import java.util.stream.Collectors;
-
-import javax.annotation.Nullable;
-
-import com.google.gson.Gson;
-
-import io.swagger.annotations.Api;
-import io.swagger.annotations.ApiOperation;
+import javax.annotation.Nonnull;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -17,6 +11,11 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
+
+import com.google.gson.Gson;
+
+import io.swagger.annotations.Api;
+import io.swagger.annotations.ApiOperation;
 
 import com.vmturbo.common.protobuf.common.Migration.MigrationRecord;
 import com.vmturbo.components.api.ComponentGsonFactory;
@@ -33,7 +32,7 @@ public class MigrationController {
 
     private static final Gson GSON = ComponentGsonFactory.createGsonNoPrettyPrint();
 
-    public MigrationController(@Nullable final MigrationFramework dataMigrations) {
+    public MigrationController(@Nonnull final MigrationFramework dataMigrations) {
         this.dataMigrations = dataMigrations;
     }
 
@@ -41,9 +40,6 @@ public class MigrationController {
             produces = {MediaType.APPLICATION_JSON_UTF8_VALUE})
     @ApiOperation("Return the list of migrations.")
     public ResponseEntity<String> listMigrations() {
-        if (dataMigrations == null) {
-            return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED).build();
-        }
         return ResponseEntity.status(HttpStatus.OK)
                 .body(GSON.toJson(dataMigrations.listMigrations()
                         .stream()
@@ -57,9 +53,6 @@ public class MigrationController {
     @ApiOperation("Return the migration info.")
     public ResponseEntity<String> getMigration(
             @PathVariable("migrationName") final String migrationName) {
-        if (dataMigrations == null) {
-            return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED).build();
-        }
         Optional<MigrationRecord> record = dataMigrations.getMigrationRecord(migrationName);
         if (record.isPresent()) {
             return ResponseEntity.status(HttpStatus.OK)

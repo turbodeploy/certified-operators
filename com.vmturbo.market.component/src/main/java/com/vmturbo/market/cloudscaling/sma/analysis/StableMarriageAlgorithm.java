@@ -123,12 +123,8 @@ public class StableMarriageAlgorithm {
             Long riKeyId = riKeyIdMatchPair.getKey();
             List<SMAMatch> outgoingCouponMatches = riKeyIdMatchPair.getValue();
             for (SMAMatch outgoingCouponMatch : outgoingCouponMatches) {
-                // If the VM scales down then coupons required should be based on the
-                // coupons required for the scaled down template. It is legit to lose coupons
-                // if the vm scales down and is 100% covered. For eg a vm in t2.large with 10/16
-                // coverage can go to t2.medium and have 8/8 coverage.
-                float coupons_required = Math.min(outgoingCouponMatch.getVirtualMachine()
-                        .getCurrentRICoverage(), outgoingCouponMatch.getTemplate().getCoupons())
+                float coupons_required = outgoingCouponMatch.getVirtualMachine()
+                        .getCurrentRICoverage()
                         - outgoingCouponMatch.getDiscountedCoupons();
                 for (SMAMatch incomingCouponMatch : matchesWithIncomingCoupons.get(riKeyId)) {
                     float coupons_grabbed;
@@ -158,11 +154,8 @@ public class StableMarriageAlgorithm {
                         break;
                     }
                 }
-                // adjust the outgoingCouponMatch based on the coupons_required. Ideally coupons_required
-                // should be 0 and the VM should retain all the coupons it already had. If not it will
-                // retain coupons to be 100% covered if it had scaled down.
-                outgoingCouponMatch.setDiscountedCoupons(Math.min(outgoingCouponMatch.getVirtualMachine()
-                        .getCurrentRICoverage(), outgoingCouponMatch.getTemplate().getCoupons()) - coupons_required);
+                outgoingCouponMatch.setDiscountedCoupons(outgoingCouponMatch
+                        .getVirtualMachine().getCurrentRICoverage() - coupons_required);
                 outgoingCouponMatch.setReservedInstance(outgoingCouponMatch.getVirtualMachine()
                         .getCurrentRI());
             }

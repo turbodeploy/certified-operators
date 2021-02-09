@@ -1,6 +1,8 @@
 package com.vmturbo.components.common;
 
 import static com.vmturbo.clustermgr.api.ClusterMgrClient.COMPONENT_VERSION_KEY;
+import static com.vmturbo.components.common.ConsulRegistrationConfig.ENABLE_CONSUL_MIGRATION;
+import static com.vmturbo.components.common.ConsulRegistrationConfig.ENABLE_CONSUL_REGISTRATION;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -89,7 +91,7 @@ import com.vmturbo.proactivesupport.DataMetricGauge;
  **/
 @Configuration
 @EnableWebMvc
-@Import({BaseVmtComponentConfig.class, ComponentStatusNotifierConfig.class})
+@Import({BaseVmtComponentConfig.class})
 public abstract class BaseVmtComponent implements IVmtComponent,
         ApplicationListener<ContextRefreshedEvent> {
 
@@ -197,6 +199,23 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     private ExecutionStatus status = ExecutionStatus.NEW;
     private final AtomicBoolean startFired = new AtomicBoolean(false);
 
+    /**
+     * This property is used to disable consul registration. This is necessary for tests and
+     * for components running outside the primary Turbonomic K8s cluster.
+     */
+    @Value("${" + ENABLE_CONSUL_REGISTRATION + ":true}")
+    private Boolean enableConsulRegistration;
+
+    /**
+     * This property is used to disable consul migration. This is necessary for tests and
+     * for components running outside the primary Turbonomic K8s cluster.  Migration will be
+     * disabled when both this flag and the "enableConsulRegistration" flag is false.  This false
+     * default makes backward compatible with using the single "enableConsulRegistration" to
+     * control migration.
+     */
+    @Value("${" + ENABLE_CONSUL_MIGRATION + ":false}")
+    private Boolean enableConsulMigration;
+
     private static final int SCHEDULED_METRICS_DELAY_MS = 60000;
 
     @Value("${scheduledMetricsIntervalMs:60000}")
@@ -230,9 +249,6 @@ public abstract class BaseVmtComponent implements IVmtComponent,
 
     @Autowired
     private ConsulRegistrationConfig consulRegistrationConfig;
-
-    @Autowired
-    private ComponentStatusNotifierConfig componentStatusNotifierConfig;
 
     /**
      * Embed a component for monitoring dependency/subcomponent health.
@@ -359,8 +375,10 @@ public abstract class BaseVmtComponent implements IVmtComponent,
         }
 
         setStatus(ExecutionStatus.MIGRATING);
-        baseVmtComponentConfig.migrationFramework().ifPresent(migrationFramework ->
-                migrationFramework.startMigrations(getMigrations(), forceRetryMigrations));
+        if (enableConsulRegistration || enableConsulMigration) {
+            baseVmtComponentConfig.migrationFramework()
+                .startMigrations(getMigrations(), forceRetryMigrations);
+        }
 
         registerGrpcServices();
 
@@ -401,8 +419,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
 
                 this.onStartComponent();
                 publishVersionInformation();
-                componentStatusNotifierConfig.componentStatusNotifier().ifPresent(
-                        ComponentStatusNotifier::notifyComponentStartup);
+                consulRegistrationConfig.componentStatusNotifier().ifPresent(ComponentStatusNotifier::notifyComponentStartup);
                 setStatus(ExecutionStatus.RUNNING);
             } catch (Exception e) {
                 logger.error("Error while trying to finish startup routine. Will shut down.", e);
@@ -422,8 +439,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
         setStatus(ExecutionStatus.STOPPING);
         logger.info("Deregistering service: {}", instanceId);
         consulRegistrationConfig.consulHealthcheckRegistration().deregisterService();
-        componentStatusNotifierConfig.componentStatusNotifier().ifPresent(
-                ComponentStatusNotifier::notifyComponentShutdown);
+        consulRegistrationConfig.componentStatusNotifier().ifPresent(ComponentStatusNotifier::notifyComponentShutdown);
         onStopComponent();
         ComponentGrpcServer.get().stop();
         JETTY_SERVER.getValue().ifPresent(server -> {
