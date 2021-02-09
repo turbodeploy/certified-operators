@@ -159,14 +159,14 @@ public class EntityStore {
     );
 
     /**
-     * Exports the entity count per target type and entity type from entity store.
+     * Specifies the entity count per target type from the stitching context.
      */
-    private static final DataMetricGauge DISCOVERED_ENTITIES_GAUGE = DataMetricGauge.builder()
-        .withName(StringConstants.METRICS_TURBO_PREFIX + "discovered_entities")
-        .withHelp("Number of (pre-stitching) entities that were discovered per entity type and type of probe that discovered them.")
-        .withLabelNames("target_type", "entity_type")
-        .build()
-        .register();
+    private static final DataMetricGauge ENTITY_COUNT_GAUGE = DataMetricGauge.builder()
+            .withName(StringConstants.METRICS_TURBO_PREFIX + "entities")
+            .withHelp("Entity Count Per Target.")
+            .withLabelNames("target_type", "entity_type")
+            .build()
+            .register();
 
     /**
      * Specifies the amount of targets per type from the stitching context.
@@ -1008,33 +1008,30 @@ public class EntityStore {
 
     /**
      * Push entity and target related information to topology-processor metrics endpoint.
+     *
+     * @param stitchingContext The topology stitching context containing entity related information.
      */
-    public void sendMetricsEntityAndTargetData() {
+    public void sendMetricsEntityAndTargetData(StitchingContext stitchingContext) {
+        ENTITY_COUNT_GAUGE.getLabeledMetrics().forEach((key, val) -> val.setData(0.0));
         TARGET_COUNT_GAUGE.getLabeledMetrics().forEach((key, val) -> val.setData(0.0));
+        stitchingContext.getEntitiesByEntityTypeAndTarget().forEach((entityType, values) -> {
+            values.forEach((target, entitiesList) -> {
+                if (entitiesList.size() > 0) {
+                    Optional<Target> t = targetStore.getTarget(target);
+                    if (t.isPresent()) {
+                        double currentVal = ENTITY_COUNT_GAUGE.labels(t.get().getProbeInfo()
+                            .getProbeType(), entityType.toString()).getData();
+                        ENTITY_COUNT_GAUGE.labels(t.get().getProbeInfo().getProbeType(),
+                            entityType.toString()).setData(currentVal + entitiesList.size());
+                    }
+                }
+            });
+        });
+
         targetStore.getAll().forEach((target) -> {
             String targetType = target.getProbeInfo().getProbeType();
             TARGET_COUNT_GAUGE.labels(targetType).increment();
         });
-
-        DISCOVERED_ENTITIES_GAUGE.getLabeledMetrics().forEach((key, val) -> val.setData(0.0));
-        //
-        final Map<String, Map<String, Long>> counts = new HashMap<>(targetEntities.size());
-        targetEntities.forEach((targetId, targetEntityIdInfo) ->
-            targetStore.getTarget(targetId).ifPresent(target -> {
-                final String targetType = target.getProbeInfo().getProbeType();
-                targetEntityIdInfo.getEntityIds().forEach(entityId -> {
-                    final Entity entity = entityMap.get(entityId);
-                    if (entity != null) {
-                        final String entityType = entity.getEntityType().toString();
-                        final Map<String, Long> entityTypeToCount =
-                            counts.computeIfAbsent(targetType, key -> new HashMap<>());
-                        entityTypeToCount.put(entityType, entityTypeToCount.getOrDefault(entityType, 0L) + 1);
-                    }
-                });
-            }));
-        counts.forEach((targetType, entityTypeToCount) ->
-            entityTypeToCount.forEach((entityType, count) ->
-                DISCOVERED_ENTITIES_GAUGE.labels(targetType, entityType).setData((double)count)));
     }
 
     /**

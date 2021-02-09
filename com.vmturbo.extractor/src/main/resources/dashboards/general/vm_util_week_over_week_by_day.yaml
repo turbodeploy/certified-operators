@@ -1,3 +1,4 @@
+---
 annotations:
   list:
   - builtIn: 1
@@ -11,7 +12,7 @@ description: This dashboard compares average daily utilization measurements for 
   machines week-over-week for two consecutive weeks. All VMs in the selected group
   are included in the averages.
 editable: false
-gnetId:
+gnetId: null
 graphTooltip: 1
 iteration: 1598643345092
 links: []
@@ -48,7 +49,7 @@ panels:
     values: true
   lines: true
   linewidth: 2
-  nullPointMode: 'null'
+  nullPointMode: "null"
   options:
     dataLinks: []
   percentage: false
@@ -71,35 +72,32 @@ panels:
     metricColumn: none
     rawQuery: true
     rawSql: |-
-      WITH vms as (
-        ${VMSelector:raw}
-      ),
-      data as (
-        SELECT m.time, avg(m.utilization) AS avg_util
-        FROM  metric m, vms v
-        WHERE m.entity_oid = v.oid
-        AND m.type = 'VMEM'
-        AND m.provider_oid IS NULL
-        AND m.time BETWEEN $__timeFrom()::timestamptz - interval '7 day' AND date_trunc('day', $__timeTo()::timestamptz)
-        AND ${ScopeCondition:raw}
-        GROUP BY 1
+      WITH data as (
+         SELECT m.time
+                ,avg(m.utilization) AS avg_util
+            FROM entity e
+            JOIN metric m ON m.entity_oid = e.oid
+             AND m.entity_hash = e.hash
+             AND m.type = 'VMEM'
+             AND e.type = 'VIRTUAL_MACHINE'
+             AND m.time BETWEEN ($__timeFrom()::TIMESTAMPTZ - interval '7 day') AND date_trunc('day', $__timeTo()::TIMESTAMPTZ)
+             AND ($__timeFrom()::TIMESTAMPTZ - interval '7 day', $__timeTo()::TIMESTAMPTZ) OVERLAPS (first_seen, last_seen)
+             AND CASE WHEN ARRAY[ $Group ]::text[] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ $Group ]::bigint[]) END
+           GROUP BY 1
       )
-      SELECT
-        CASE
-          WHEN time BETWEEN date_trunc('day', $__timeFrom()::timestamptz)
-              AND date_trunc('day', $__timeTo()::timestamptz - interval '7 day')
-            THEN date_trunc('day', time + interval '7 day')
-            ELSE date_trunc('day', time)
-          END + interval '1 DAY' as "time",
-        CASE
-          WHEN time BETWEEN date_trunc('day', $__timeFrom()::timestamptz - interval '7 day')
-              AND date_trunc('day', $__timeTo()::timestamptz - interval '7 day')
-            THEN 'Previous Week'
-            ELSE 'Week Ending ' || date($__timeTo()::timestamptz)::TEXT
-        END as metric,
-        avg(avg_util)
-      FROM data
-      GROUP BY 1, 2
+
+       SELECT CASE
+                  WHEN time BETWEEN date_trunc('day', $__timeFrom()::TIMESTAMPTZ - interval '7 day') AND date_trunc('day', $__timeTo()::TIMESTAMPTZ - interval '7 day') THEN date_trunc('day', time + interval '7 day')
+                  ELSE date_trunc('day', time)
+             END + interval '1 DAY' as "time"
+            ,
+             CASE
+                  WHEN time BETWEEN date_trunc('day', $__timeFrom()::TIMESTAMPTZ - interval '7 day') AND date_trunc('day', $__timeTo()::TIMESTAMPTZ - interval '7 day') THEN 'Previous Week'
+                  ELSE 'Week Ending ' || DATE($__timeTo()::TIMESTAMPTZ)::TEXT
+             END as metric
+            ,avg(avg_util)
+        FROM data
+       GROUP BY 1, 2
     refId: A
     select:
     - - params:
@@ -113,9 +111,9 @@ panels:
       params: []
       type: macro
   thresholds: []
-  timeFrom:
+  timeFrom: null
   timeRegions: []
-  timeShift:
+  timeShift: null
   title: VM Avg VMem Utilization
   tooltip:
     shared: true
@@ -123,28 +121,28 @@ panels:
     value_type: individual
   type: graph
   xaxis:
-    buckets:
+    buckets: null
     mode: time
-    name:
+    name: null
     show: true
     values: []
   yaxes:
-  - decimals:
+  - decimals: null
     format: percentunit
-    label:
+    label: null
     logBase: 1
-    max:
-    min:
+    max: null
+    min: null
     show: true
   - format: short
-    label:
+    label: null
     logBase: 1
-    max:
-    min:
+    max: null
+    min: null
     show: true
   yaxis:
     align: false
-    alignLevel:
+    alignLevel: null
 - aliasColors: {}
   bars: false
   dashLength: 10
@@ -177,7 +175,7 @@ panels:
     values: true
   lines: true
   linewidth: 2
-  nullPointMode: 'null'
+  nullPointMode: "null"
   options:
     dataLinks: []
   percentage: false
@@ -200,36 +198,32 @@ panels:
     metricColumn: none
     rawQuery: true
     rawSql: |-
-      WITH vms as (
-        ${VMSelector:raw}
-      ),
-      data as (
-        SELECT m.time, avg(m.utilization) AS avg_util
-        FROM  metric m, vms v
-        WHERE m.entity_oid = v.oid
-        AND m.type = 'VCPU'
-        AND m.provider_oid IS NULL
-        AND m.time BETWEEN $__timeFrom()::timestamptz - interval '7 day' AND date_trunc('day', $__timeTo()::timestamptz)
-        AND ${ScopeCondition:raw}
-        GROUP BY 1
+      WITH data as (
+         SELECT m.time
+                ,avg(m.utilization) AS avg_util
+            FROM entity e
+            JOIN metric m ON m.entity_oid = e.oid
+             AND m.entity_hash = e.hash
+             AND m.type = 'VCPU'
+             AND e.type = 'VIRTUAL_MACHINE'
+             AND m.time BETWEEN ($__timeFrom()::TIMESTAMPTZ - interval '7 day') AND date_trunc('day', $__timeTo()::TIMESTAMPTZ)
+             AND ($__timeFrom()::TIMESTAMPTZ - interval '7 day',$__timeTo()::TIMESTAMPTZ) OVERLAPS (first_seen, last_seen)
+             AND CASE WHEN ARRAY[ $Group ]::text[] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ $Group ]::bigint[]) END
+           GROUP BY 1
       )
-      SELECT
-          INTERVAL '1 DAY' + CASE
-            WHEN time BETWEEN date_trunc('day', $__timeFrom()::TIMESTAMPTZ - interval '7 day')
-                AND date_trunc('day', $__timeTo()::TIMESTAMPTZ - interval '7 day')
-              THEN date_trunc('day', time + interval '7 day')
-            ELSE date_trunc('day', time)
-          END  AS "time",
-          CASE
-            WHEN time BETWEEN date_trunc('day', $__timeFrom()::TIMESTAMPTZ - interval '7 day')
-                AND date_trunc('day', $__timeTo()::TIMESTAMPTZ - interval '7 day')
-              THEN 'Previous Week'
-            ELSE 'Week Ending ' || DATE($__timeTo()::TIMESTAMPTZ)::TEXT
-          END as metric,
-          avg(data.avg_util)
-      FROM data
-      GROUP BY 1, 2
-      ORDER BY 1
+
+       SELECT CASE
+                  WHEN time BETWEEN date_trunc('day', $__timeFrom()::TIMESTAMPTZ - interval '7 day') AND date_trunc('day', $__timeTo()::TIMESTAMPTZ - interval '7 day') THEN date_trunc('day', time + interval '7 day')
+                  ELSE date_trunc('day', time)
+             END + interval '1 DAY' as "time"
+            ,
+             CASE
+                  WHEN time BETWEEN date_trunc('day', $__timeFrom()::TIMESTAMPTZ - interval '7 day') AND date_trunc('day', $__timeTo()::TIMESTAMPTZ - interval '7 day') THEN 'Previous Week'
+                  ELSE 'Week Ending ' || DATE($__timeTo()::TIMESTAMPTZ)::TEXT
+             END as metric
+            ,avg(avg_util)
+        FROM data
+       GROUP BY 1, 2
     refId: A
     select:
     - - params:
@@ -243,9 +237,9 @@ panels:
       params: []
       type: macro
   thresholds: []
-  timeFrom:
+  timeFrom: null
   timeRegions: []
-  timeShift:
+  timeShift: null
   title: VM Avg VCPU Utilization
   tooltip:
     shared: true
@@ -253,28 +247,28 @@ panels:
     value_type: individual
   type: graph
   xaxis:
-    buckets:
+    buckets: null
     mode: time
-    name:
+    name: null
     show: true
     values: []
   yaxes:
-  - decimals:
+  - decimals: null
     format: percentunit
-    label:
+    label: null
     logBase: 1
-    max:
-    min:
+    max: null
+    min: null
     show: true
   - format: short
-    label:
+    label: null
     logBase: 1
-    max:
-    min:
+    max: null
+    min: null
     show: true
   yaxis:
     align: false
-    alignLevel:
+    alignLevel: null
 schemaVersion: 25
 style: dark
 tags: []
@@ -282,17 +276,17 @@ templating:
   list:
   - hide: 2
     includeAll: false
-    label:
+    label: null
     multi: false
     name: DB
     options: []
     query: postgres
-    queryValue: ''
+    queryValue: ""
     refresh: 1
-    regex: ''
+    regex: ""
     skipUrlSync: false
     type: datasource
-  - allValue: "0"
+  - allValue: '''0'''
     datasource: $DB
     definition: |-
       SELECT name as __text,
@@ -305,7 +299,7 @@ templating:
       ORDER BY 1
     hide: 0
     includeAll: true
-    label:
+    label: null
     multi: false
     name: Group
     options: []
@@ -319,80 +313,12 @@ templating:
       GROUP BY name, oid
       ORDER BY 1
     refresh: 2
-    regex: ''
+    regex: ""
     skipUrlSync: false
     sort: 0
-    tagValuesQuery: ''
+    tagValuesQuery: ""
     tags: []
-    tagsQuery: ''
-    type: query
-    useTags: false
-  - allValue:
-    datasource: $DB
-    definition: |-
-      SELECT CASE
-         WHEN '${Group:raw}' = '0' THEN
-           'SELECT oid from entity where type=''VIRTUAL_MACHINE'''
-         ELSE concat(
-           'SELECT distinct s.scoped_oid as oid, start, finish ',
-           'FROM scope s ',
-           'WHERE s.scoped_type = ''VIRTUAL_MACHINE'' ',
-           '  AND ('$__timeFrom()'::timestamptz - interval ''7 day'', date_trunc(''day'', '$__timeTo()'::timestamptz)) ',
-                'OVERLAPS (s.start, s.finish) ',
-           '  AND s.seed_oid IN (SELECT * FROM unnest(ARRAY[${Group:raw}]::bigint[]))')
-         END
-    hide: 2
-    includeAll: true
-    label:
-    multi: false
-    name: VMSelector
-    options: []
-    query: |-
-      SELECT CASE
-         WHEN '${Group:raw}' = '0' THEN
-           'SELECT oid from entity where type=''VIRTUAL_MACHINE'''
-         ELSE concat(
-           'SELECT distinct s.scoped_oid as oid, start, finish ',
-           'FROM scope s ',
-           'WHERE s.scoped_type = ''VIRTUAL_MACHINE'' ',
-           '  AND ('$__timeFrom()'::timestamptz - interval ''7 day'', date_trunc(''day'', '$__timeTo()'::timestamptz)) ',
-                'OVERLAPS (s.start, s.finish) ',
-           '  AND s.seed_oid IN (SELECT * FROM unnest(ARRAY[${Group:raw}]::bigint[]))')
-         END
-    refresh: 2
-    regex: ''
-    skipUrlSync: false
-    sort: 0
-    tagValuesQuery: ''
-    tags: []
-    tagsQuery: ''
-    type: query
-    useTags: false
-  - allValue:
-    datasource: $DB
-    definition: |-
-      SELECT CASE
-         WHEN '${Group:raw}' = '0' THEN 'true'
-         ELSE 'm.time BETWEEN v.start AND v.finish'
-      END
-    hide: 2
-    includeAll: true
-    label:
-    multi: false
-    name: ScopeCondition
-    options: []
-    query: |-
-      SELECT CASE
-         WHEN '${Group:raw}' = '0' THEN 'true'
-         ELSE 'm.time BETWEEN v.start AND v.finish'
-      END
-    refresh: 2
-    regex: ''
-    skipUrlSync: false
-    sort: 0
-    tagValuesQuery: ''
-    tags: []
-    tagsQuery: ''
+    tagsQuery: ""
     type: query
     useTags: false
 time:
@@ -409,6 +335,6 @@ timepicker:
   - 1h
   - 2h
   - 1d
-timezone: ''
+timezone: ""
 title: Virtual Machine Utilization Week over Week By Day
 uid: vm_util_week_over_week_by_day

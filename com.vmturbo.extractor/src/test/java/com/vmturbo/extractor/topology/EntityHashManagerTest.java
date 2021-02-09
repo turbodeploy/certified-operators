@@ -1,6 +1,7 @@
 package com.vmturbo.extractor.topology;
 
 import static com.vmturbo.extractor.models.ModelDefinitions.ATTRS;
+import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_HASH_AS_HASH;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_OID_AS_OID;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_STATE_ENUM;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_TABLE;
@@ -8,6 +9,7 @@ import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_TYPE_ENUM;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENVIRONMENT_TYPE_ENUM;
 import static com.vmturbo.extractor.models.ModelDefinitions.FIRST_SEEN;
 import static com.vmturbo.extractor.models.ModelDefinitions.LAST_SEEN;
+import static com.vmturbo.extractor.models.ModelDefinitions.SCOPED_OIDS;
 import static com.vmturbo.extractor.util.ExtractorTestUtil.config;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
@@ -24,10 +26,8 @@ import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 
-import com.vmturbo.extractor.RecordHashManager;
 import com.vmturbo.extractor.RecordHashManager.SnapshotManager;
 import com.vmturbo.extractor.models.Column.JsonString;
 import com.vmturbo.extractor.models.DslRecordSink;
@@ -62,6 +62,7 @@ public class EntityHashManagerTest {
         baseEntity.set(ENVIRONMENT_TYPE_ENUM, EnvironmentType.ON_PREM);
         baseEntity.set(ENTITY_STATE_ENUM, EntityState.POWERED_ON);
         baseEntity.set(ATTRS, new JsonString("{}"));
+        baseEntity.set(SCOPED_OIDS, new Long[]{});
         this.sink = mock(DslRecordSink.class);
         this.sinkCapture = RecordTestUtil.captureSink(sink, false);
     }
@@ -73,8 +74,6 @@ public class EntityHashManagerTest {
      * @throws UnsupportedDialectException if endpoint is mis-configured
      * @throws SQLException                if there's a DB error
      */
-    //Unignore and update tests when entity upsert is updated to update relevant columns on hash changes
-    @Ignore
     @Test
     public void testEntityHashChangesAreNoticed() throws UnsupportedDialectException, SQLException {
         final Long oid = baseEntity.get(ENTITY_OID_AS_OID);
@@ -167,7 +166,7 @@ public class EntityHashManagerTest {
         Long hash6;
         try (SnapshotManager snapshotManager = entityHashManager.open(++topologyTime);
              TableWriter entitiesWriter = ENTITY_TABLE.open(sink, "test", logger)) {
-//            baseEntity.set(SCOPED_OIDS, new Long[]{1234L});
+            baseEntity.set(SCOPED_OIDS, new Long[]{1234L});
             assertThat(snapshotManager.updateRecordHash(baseEntity), notNullValue());
             hash6 = entityHashManager.getEntityHash(oid);
             snapshotManager.processChanges(entitiesWriter);
@@ -176,7 +175,7 @@ public class EntityHashManagerTest {
             assertThat(hash6, not(hash1));
             assertThat(hash6, not(hash5));
             assertThat(entityHashManager.getHashLastSeen(hash5), nullValue());
-//            baseEntity.set(SCOPED_OIDS, new Long[]{});
+            baseEntity.set(SCOPED_OIDS, new Long[]{});
         }
 
         // entity is back to original state... make sure we see first hash again
@@ -265,8 +264,6 @@ public class EntityHashManagerTest {
      * correct.
      *
      */
-    //Unignore and update tests when entity upsert is updated to update relevant columns on hash changes
-    @Ignore
     @Test
     public void testThatFirstAndLastSeenValuesAreCorrect() {
         long updateInterval = TimeUnit.MINUTES.toMillis(config.lastSeenUpdateIntervalMinutes());
@@ -276,32 +273,32 @@ public class EntityHashManagerTest {
             final Record r = new Record(ENTITY_TABLE);
             sm.setRecordTimes(r);
             sm.processChanges(entitiesWriter);
-            assertThat(r.get(FIRST_SEEN).toEpochSecond(), is(0L));
-            assertThat(r.get(LAST_SEEN), is(RecordHashManager.MAX_TIMESTAMP));
+            assertThat(r.get(FIRST_SEEN).getTime(), is(0L));
+            assertThat(r.get(LAST_SEEN).getTime(), is(updateInterval + updateFuzz));
         }
         try (SnapshotManager sm = entityHashManager.open(updateInterval / 2);
              TableWriter entitiesWriter = ENTITY_TABLE.open(sink, "test", logger)) {
             final Record r = new Record(ENTITY_TABLE);
             sm.setRecordTimes(r);
             sm.processChanges(entitiesWriter);
-            assertThat(r.get(FIRST_SEEN).toEpochSecond(), is(updateInterval / 2));
-            assertThat(r.get(LAST_SEEN), is(RecordHashManager.MAX_TIMESTAMP));
+            assertThat(r.get(FIRST_SEEN).getTime(), is(updateInterval / 2));
+            assertThat(r.get(LAST_SEEN).getTime(), is(updateInterval + updateFuzz));
         }
         try (SnapshotManager sm = entityHashManager.open(updateInterval - 1);
              TableWriter entitiesWriter = ENTITY_TABLE.open(sink, "test", logger)) {
             final Record r = new Record(ENTITY_TABLE);
             sm.setRecordTimes(r);
             sm.processChanges(entitiesWriter);
-            assertThat(r.get(FIRST_SEEN).toEpochSecond(), is(updateInterval - 1));
-            assertThat(r.get(LAST_SEEN), is(RecordHashManager.MAX_TIMESTAMP));
+            assertThat(r.get(FIRST_SEEN).getTime(), is(updateInterval - 1));
+            assertThat(r.get(LAST_SEEN).getTime(), is(updateInterval + updateFuzz));
         }
         try (SnapshotManager sm = entityHashManager.open(updateInterval);
              TableWriter entitiesWriter = ENTITY_TABLE.open(sink, "test", logger)) {
             final Record r = new Record(ENTITY_TABLE);
             sm.setRecordTimes(r);
             sm.processChanges(entitiesWriter);
-            assertThat(r.get(FIRST_SEEN).toEpochSecond(), is(updateInterval));
-            assertThat(r.get(LAST_SEEN), is(RecordHashManager.MAX_TIMESTAMP));
+            assertThat(r.get(FIRST_SEEN).getTime(), is(updateInterval));
+            assertThat(r.get(LAST_SEEN).getTime(), is(2 * updateInterval + updateFuzz));
         }
     }
 
@@ -316,11 +313,13 @@ public class EntityHashManagerTest {
             sm.setRecordTimes(r);
             // every record goes in with current snapshot time as "first_seen". That will only
             // make it into the DB if the OID has never been recorded before.
-            assertThat(r.get(FIRST_SEEN).toEpochSecond(), is(0L));
+            assertThat(r.get(FIRST_SEEN).getTime(), is(0L));
             // last-seen will should be time of next expected last-seen update, plus some extra
             // fuzz. In this case we haven't done a last-seen update yet, so next one should be]
             // current time + interval + fuzz
-            assertThat(r.get(LAST_SEEN), is(RecordHashManager.MAX_TIMESTAMP));
+            assertThat(r.get(LAST_SEEN).getTime(), is(
+                    TimeUnit.MINUTES.toMillis(config.lastSeenUpdateIntervalMinutes())
+                            + TimeUnit.MINUTES.toMillis(config.lastSeenAdditionalFuzzMinutes())));
         }
     }
 
@@ -329,8 +328,6 @@ public class EntityHashManagerTest {
      * values are correct.
      *
      */
-    //Unignore and update tests when entity upsert is updated to update relevant columns on hash changes
-    @Ignore
     @Test
     public void testCorrectedUpdateRecordsForDroppedHashes() {
         final Long baseOid = baseEntity.get(ENTITY_OID_AS_OID);
@@ -351,8 +348,8 @@ public class EntityHashManagerTest {
         }
         assertThat(sinkCapture.size(), is(1));
         Record r = sinkCapture.get(0);
-//        assertThat(r.get(ENTITY_HASH_AS_HASH), is(hash));
-        assertThat(r.get(LAST_SEEN).toEpochSecond(), is(1L));
+        assertThat(r.get(ENTITY_HASH_AS_HASH), is(hash));
+        assertThat(r.get(LAST_SEEN).getTime(), is(1L));
     }
 
     /**
@@ -381,7 +378,7 @@ public class EntityHashManagerTest {
         }
         assertThat(sinkCapture.size(), is(1));
         Record r = sinkCapture.get(0);
-//        assertThat(r.get(ENTITY_HASH_AS_HASH), is(hash));
-        assertThat(r.get(LAST_SEEN), is(RecordHashManager.MAX_TIMESTAMP));
+        assertThat(r.get(ENTITY_HASH_AS_HASH), is(hash));
+        assertThat(r.get(LAST_SEEN).getTime(), is(2 * updatePeriod + updateFuzz));
     }
 }

@@ -1,3 +1,4 @@
+---
 annotations:
   list:
   - builtIn: 1
@@ -8,7 +9,7 @@ annotations:
     name: Annotations & Alerts
     type: dashboard
 editable: false
-gnetId:
+gnetId: null
 graphTooltip: 0
 iteration: 1600812107378
 links: []
@@ -19,19 +20,19 @@ panels:
   fieldConfig:
     defaults:
       custom:
-        align:
+        align: null
       mappings:
-      - from: ''
+      - from: ""
         id: 0
-        text: ''
-        to: ''
+        text: ""
+        to: ""
         type: 1
-        value: ''
+        value: ""
       thresholds:
         mode: absolute
         steps:
         - color: green
-          value:
+          value: null
       unit: none
     overrides: []
   gridPos:
@@ -50,97 +51,88 @@ panels:
     rawQuery: true
     rawSql: |-
       with pm_counts as (
-        SELECT
-            count(distinct oid) as pm_count,
-            sum(cpus) as cpu_count,
-            sum(mem) as pm_mem
-        from
-            (
-            select
-                entity.oid,
-                avg((entity.attrs -> 'num_cpus')::int) as cpus,
-                avg(metric.capacity) as mem
-            from
-                metric, entity, scope
-            where
-                -- join conditions
-                metric.entity_oid = entity.oid
-                and entity.oid = scope.scoped_oid
-                and metric.time between scope.start and scope.finish
-                -- fixed conditions
-                and metric.type = 'MEM'
-                and scope.scoped_type = 'PHYSICAL_MACHINE'
-                -- conditions involving dashboard vars
-                and metric.time between timestamptz $__timeTo() - interval '1 hour' and $__timeTo()
-                and (timestamptz $__timeTo() - interval '1 hour', $__timeTo()) overlaps (scope.start, scope.finish)
-                and scope.seed_oid = ${Cluster:raw} + 0
-            group by 1) as pm_data
-      ),
-      -- WITH...
+          SELECT count(distinct oid) as pm_count
+                ,sum(cpus) as cpu_count
+                ,sum(mem) as pm_mem
+            FROM
+              (SELECT oid
+                     ,avg((attrs -> 'num_cpus')::int) as cpus
+                     ,avg(capacity) as mem
+                 FROM entity
+                INNER JOIN LATERAL (
+                  SELECT capacity
+                    FROM metric
+                   WHERE metric.entity_oid = entity.oid
+                     AND metric.entity_hash = entity.hash
+                     AND metric.type = 'MEM'
+                     AND metric.time between timestamptz $__timeTo() - INTERVAL '1 hour' and $__timeTo()
+                   LIMIT 1
+                ) as foo ON true
+                WHERE type = 'PHYSICAL_MACHINE'
+                  AND (timestamptz $__timeTo() - INTERVAL '1 hour', $__timeTo() ) OVERLAPS (first_seen, last_seen)
+                  AND scope && ARRAY[$Cluster]::bigint[]
+                GROUP BY 1) as bar
+          ),
+
       vm_counts as (
-        select
-            count(distinct oid) as vm_count, sum(vcpus) as vcpu_count, sum(vmem) as vm_vmem
-        from
-            (
-            select
-                entity.oid,
-                avg((attrs -> 'num_cpus')::int) as vcpus,
-                avg(capacity) as vmem
-            from
-                metric, entity, scope
-            where
-                -- join conditions
-                metric.entity_oid = entity.oid
-                and entity.oid = scope.scoped_oid
-                and metric.time between scope.start and scope.finish
-                -- fixed conditions
-                and metric.type = 'VMEM'
-                and scope.scoped_type = 'VIRTUAL_MACHINE'
-                -- conditions involving dashboard vars
-                and metric.time between timestamptz $__timeTo() - interval '1 hour' and $__timeTo()
-                and (timestamptz $__timeTo() - interval '1 hour', $__timeTo()) overlaps (scope.start, scope.finish)
-                and scope.seed_oid = ${Cluster:raw}
-            group by 1) as vm_data
-      ),
-      -- WITH ...
+          SELECT count(distinct oid) as vm_count
+                ,sum(vcpus) as vcpu_count
+                ,sum(vmem) as vm_vmem
+            FROM
+              (SELECT oid
+                     ,avg((attrs -> 'num_cpus')::int) as vcpus
+                     ,avg(capacity) as vmem
+                 FROM entity
+                INNER JOIN LATERAL (
+                  SELECT capacity
+                    FROM metric
+                   WHERE metric.entity_oid = entity.oid
+                     AND metric.entity_hash = entity.hash
+                     AND metric.type = 'VMEM'
+                     AND metric.time between timestamptz $__timeTo() - INTERVAL '1 hour' and $__timeTo()
+                ) as foo ON true
+                WHERE type = 'VIRTUAL_MACHINE'
+                  AND (timestamptz $__timeTo() - INTERVAL '1 hour', $__timeTo()) OVERLAPS (first_seen, last_seen)
+                  AND scope && ARRAY[$Cluster]::bigint[]
+                GROUP BY 1) as bar
+          ),
+
       storage_stats as (
-        select
-            sum(stor_used) as stor_used, sum(stor_cap) as stor_cap, sum(stor_prov) as stor_prov
-        from
-            (
-            select
-                entity.oid,
-                MAX(current) filter (where metric.type = 'STORAGE_AMOUNT') as stor_used,
-                MAX(capacity) filter (where metric.type = 'STORAGE_AMOUNT') as stor_cap,
-                MAX(current) filter (where metric.type = 'STORAGE_PROVISIONED') as stor_prov
-            from
-                metric, entity, scope
-            where
-                -- join conditions
-                metric.entity_oid = entity.oid
-                and entity.oid = scope.scoped_oid
-                and metric.time between scope.start and scope.finish
-                -- fixed conditions
-                and metric.type in ('STORAGE_AMOUNT', 'STORAGE_PROVISIONED')
-                and scope.scoped_type = 'STORAGE'
-                -- conditions involving dashboard vars
-                and metric.time between timestamptz $__timeTo() - interval '1 hour' and $__timeTo()
-                and (timestamptz $__timeTo() - interval '1 hour', $__timeTo()) overlaps (scope.start, scope.finish)
-                and scope.seed_oid = ${Cluster:raw}
-            group by 1) as stg_data
-      )
-      select
-      pm_count as "Hosts",
-      vm_count as "VMs",
-      pm_mem / 1024 / 1024 as "Mem Capacity",
-      vm_vmem / 1024 / 1024 as "VMem Provisioned",
-      cpu_count as "Host CPUs",
-      vcpu_count as "VCPUs Provisioned",
-      stor_cap / 1024 as "Total Storage",
-      (stor_cap - stor_used)/ 1024 as "Available Storage",
-      stor_prov / 1024 as "Allocated Storage"
-      from
-      pm_counts, vm_counts, storage_stats
+          SELECT sum(stor_used) as stor_used
+                ,sum(stor_cap) as stor_cap
+                ,sum(stor_prov) as stor_prov
+            FROM
+              (SELECT oid
+                     ,MAX(current) FILTER (WHERE foo.type = 'STORAGE_AMOUNT') as stor_used
+                     ,MAX(capacity) FILTER (WHERE foo.type = 'STORAGE_AMOUNT') as stor_cap
+                     ,MAX(current) FILTER (WHERE foo.type = 'STORAGE_PROVISIONED') as stor_prov
+                 FROM entity
+                INNER JOIN LATERAL (
+                  SELECT type
+                        ,current
+                        ,capacity
+                    FROM metric
+                   WHERE metric.entity_oid = entity.oid
+                     AND metric.entity_hash = entity.hash
+                     AND metric.type in ('STORAGE_AMOUNT', 'STORAGE_PROVISIONED')
+                     AND metric.time between timestamptz $__timeTo() - INTERVAL '1 hour' and $__timeTo()
+                ) as foo ON true
+                WHERE entity.type = 'STORAGE'
+                  AND (timestamptz $__timeTo() - INTERVAL '1 hour', $__timeTo()) OVERLAPS (first_seen, last_seen)
+                  AND scope && ARRAY[$Cluster]::bigint[]
+                GROUP BY 1) as bar
+          )
+
+      SELECT pm_count as "Hosts"
+            ,vm_count as "VMs"
+            ,pm_mem/1024/1024 as "Mem Capacity"
+            ,vm_vmem/1024/1024 as "VMem Provisioned"
+            ,cpu_count as "Host CPUs"
+            ,vcpu_count as "VCPUs Provisioned"
+            ,stor_cap/1024 as "Total Storage"
+            ,(stor_cap - stor_used)/1024 as "Available Storage"
+            ,stor_prov/1024 as "Allocated Storage"
+        FROM pm_counts, vm_counts, storage_stats
     refId: A
     select:
     - - params:
@@ -153,8 +145,8 @@ panels:
     - name: $__timeFilter
       params: []
       type: macro
-  timeFrom:
-  timeShift:
+  timeFrom: null
+  timeShift: null
   title: Current Counts
   transformations:
   - id: organize
@@ -189,13 +181,13 @@ panels:
   fieldConfig:
     defaults:
       custom:
-        align:
+        align: null
       mappings: []
       thresholds:
         mode: absolute
         steps:
         - color: green
-          value:
+          value: null
         - color: red
           value: 80
     overrides: []
@@ -218,7 +210,7 @@ panels:
     values: false
   lines: true
   linewidth: 2
-  nullPointMode: 'null'
+  nullPointMode: "null"
   options:
     dataLinks: []
   percentage: false
@@ -236,54 +228,47 @@ panels:
     metricColumn: none
     rawQuery: true
     rawSql: |-
-      WITH pm_counts AS (
-          SELECT
-            date_trunc('day', metric.time) as time,
-            count(distinct oid) as pm_count
-          FROM
-              metric
-          JOIN scope ON metric.entity_oid = scope.scoped_oid
-              AND metric.time between scope.start and scope.finish
-          JOIN entity ON entity.oid = scope.seed_oid
-          WHERE
-            -- fixed conditions
-            metric.type = 'MEM'
-            AND scope.scoped_type = 'PHYSICAL_MACHINE'
-            AND metric.time - date_trunc('day', metric.time) < interval '10 minutes'
-            -- conditions involving dashboard vars
-            AND metric.time between timestamptz $__timeFrom() and $__timeTo()
-            AND ($__timeFrom(), $__timeTo()) OVERLAPS (scope.start, scope.finish)
-            AND scope.seed_oid = ${Cluster:raw} + 0
-          GROUP BY 1),
-      -- WITH...
+      with pm_counts as (
+           SELECT date_trunc('day', foo.time) as time
+                 ,count(distinct oid) as pm_count
+             FROM entity
+            INNER JOIN LATERAL (
+              SELECT time
+                FROM metric
+               WHERE metric.entity_oid = entity.oid
+                 AND metric.entity_hash = entity.hash
+                 AND metric.type = 'MEM'
+                 AND metric.time between timestamptz $__timeFrom() and $__timeTo()
+                 AND metric.time - date_trunc('day', metric.time) < interval '10 minutes'
+            ) as foo ON true
+            WHERE type = 'PHYSICAL_MACHINE'
+              AND ($__timeFrom() , $__timeTo()) OVERLAPS (first_seen, last_seen)
+              AND scope && ARRAY[$Cluster]::bigint[]
+            GROUP BY 1),
+
       vm_counts as (
-          SELECT
-             date_trunc('day', metric.time) as time,
-             count(distinct oid) as vm_count
-          FROM
-              metric
-          JOIN scope ON metric.entity_oid = scope.seed_oid
-              AND metric.time between scope.start and scope.finish
-              AND scope.scoped_type = 'COMPUTE_CLUSTER'
-          JOIN entity ON entity.oid = scope.seed_oid
-              AND entity.type = 'VIRTUAL_MACHINE'
-          WHERE
-            -- fixed conditions
-            metric.type = 'VMEM'
-            AND metric.time - date_trunc('day', metric.time) < interval '10 minutes'
-            -- conditions involving dashboard vars
-            AND metric.time between timestamptz $__timeFrom() and $__timeTo()
-            AND ($__timeFrom(), $__timeTo()) OVERLAPS (start, finish)
-            AND scope.scoped_oid = ${Cluster:raw}::bigint
-          GROUP BY 1)
-      SELECT
-          pm_counts.time as time,
-          pm_count as "Hosts",
-          vm_count as "VMs"
-      FROM
-          pm_counts, vm_counts
-      WHERE
-          pm_counts.time = vm_counts.time
+           SELECT date_trunc('day', foo.time) as time
+                 ,count(distinct oid) as vm_count
+             FROM entity
+            INNER JOIN LATERAL (
+              SELECT time
+                FROM metric
+               WHERE metric.entity_oid = entity.oid
+                 AND metric.entity_hash = entity.hash
+                 AND metric.type = 'VMEM'
+                 AND metric.time between timestamptz $__timeFrom() and $__timeTo()
+                 AND metric.time - date_trunc('day', metric.time) < interval '10 minutes'
+            ) as foo ON true
+            WHERE type = 'VIRTUAL_MACHINE'
+              AND ($__timeFrom() , $__timeTo()) OVERLAPS (first_seen, last_seen)
+              AND scope && ARRAY[$Cluster]::bigint[]
+            GROUP BY 1)
+
+      SELECT pm_counts.time as time
+            ,pm_count as "Hosts"
+            ,vm_count as "VMs"
+        FROM pm_counts, vm_counts
+       WHERE pm_counts.time = vm_counts.time
     refId: A
     select:
     - - params:
@@ -295,9 +280,9 @@ panels:
       params: []
       type: macro
   thresholds: []
-  timeFrom:
+  timeFrom: null
   timeRegions: []
-  timeShift:
+  timeShift: null
   title: VM and Host Count Over Time
   tooltip:
     shared: true
@@ -317,40 +302,40 @@ panels:
         reducer: sum
   type: graph
   xaxis:
-    buckets:
+    buckets: null
     mode: time
-    name:
+    name: null
     show: true
     values: []
   yaxes:
   - format: short
-    label:
+    label: null
     logBase: 1
-    max:
-    min:
+    max: null
+    min: null
     show: true
   - format: short
-    label:
+    label: null
     logBase: 1
-    max:
-    min:
+    max: null
+    min: null
     show: true
   yaxis:
     align: false
-    alignLevel:
+    alignLevel: null
 - datasource: -- Dashboard --
   description: This panel shows current Memory and Storage stats across the cluster,
     based on the most recent date in the time selection.
   fieldConfig:
     defaults:
       custom:
-        align:
+        align: null
       mappings: []
       thresholds:
         mode: absolute
         steps:
         - color: green
-          value:
+          value: null
         - color: red
           value: 80
       unit: gbytes
@@ -370,8 +355,8 @@ panels:
   targets:
   - panelId: 6
     refId: A
-  timeFrom:
-  timeShift:
+  timeFrom: null
+  timeShift: null
   title: Current Stats
   transformations:
   - id: filterFieldsByName
@@ -421,7 +406,7 @@ panels:
     values: false
   lines: true
   linewidth: 2
-  nullPointMode: 'null'
+  nullPointMode: "null"
   options:
     dataLinks: []
   percentage: false
@@ -445,31 +430,32 @@ panels:
     metricColumn: none
     rawQuery: true
     rawSql: |-
-      SELECT
-         time,
-         sum(stor_cap) as "Total Storage",
-         sum(stor_used) as "Used Storage",
-         sum(stor_prov) as "Allocated Storage"
-       FROM
-         (SELECT
-           date_trunc('day', metric.time) as time,
-           metric.entity_oid,
-           MAX(current) FILTER (WHERE metric.type = 'STORAGE_AMOUNT') as stor_used,
-           MAX(capacity) FILTER (WHERE metric.type = 'STORAGE_AMOUNT') as stor_cap,
-           MAX(current) FILTER (WHERE metric.type = 'STORAGE_PROVISIONED') as stor_prov
-         FROM
-           metric
-           JOIN scope ON metric.entity_oid = scope.seed_oid
-             AND metric.time between scope.start and scope.finish
-         WHERE
-           -- fixed conditions
-           metric.type in ('STORAGE_AMOUNT', 'STORAGE_PROVISIONED')
-           AND scope.scoped_type = 'STORAGE'
-           -- conditions involving dashboard vars
-           AND metric.time between timestamptz $__timeFrom() and $__timeTo()
-           AND ($__timeFrom(), $__timeTo()) OVERLAPS (scope.start, scope.finish)
-           AND scope.seed_oid = ${Cluster:raw}::bigint + 0
-         GROUP BY 1, 2) AS data
+      SELECT time
+            ,sum(stor_cap) as "Total Storage"
+            ,sum(stor_used) as "Used Storage"
+            ,sum(stor_prov) as "Allocated Storage"
+        FROM
+          (SELECT date_trunc('day', foo.time) as time
+                 ,oid
+                 ,MAX(current) FILTER (WHERE foo.type = 'STORAGE_AMOUNT') as stor_used
+                 ,MAX(capacity) FILTER (WHERE foo.type = 'STORAGE_AMOUNT') as stor_cap
+                 ,MAX(current) FILTER (WHERE foo.type = 'STORAGE_PROVISIONED') as stor_prov
+             FROM entity
+            INNER JOIN LATERAL (
+              SELECT time
+                     ,type
+                     ,current
+                     ,capacity
+                FROM metric
+               WHERE metric.entity_oid = entity.oid
+                 AND metric.entity_hash = entity.hash
+                 AND metric.type in ('STORAGE_AMOUNT', 'STORAGE_PROVISIONED')
+                 AND metric.time between timestamptz $__timeFrom() and $__timeTo()
+            ) as foo ON true
+            WHERE entity.type = 'STORAGE'
+              AND ($__timeFrom() , $__timeTo()) OVERLAPS (first_seen, last_seen)
+              AND scope && ARRAY[$Cluster]::bigint[]
+            GROUP BY 1,2) as bar
        GROUP BY 1
     refId: A
     select:
@@ -484,9 +470,9 @@ panels:
       params: []
       type: macro
   thresholds: []
-  timeFrom:
+  timeFrom: null
   timeRegions: []
-  timeShift:
+  timeShift: null
   title: Storage Over Time
   tooltip:
     shared: true
@@ -495,41 +481,41 @@ panels:
   transformations: []
   type: graph
   xaxis:
-    buckets:
+    buckets: null
     mode: time
-    name:
+    name: null
     show: true
     values: []
   yaxes:
   - format: mbytes
-    label:
+    label: null
     logBase: 1
-    max:
-    min:
+    max: null
+    min: null
     show: true
   - format: short
-    label:
+    label: null
     logBase: 1
-    max:
-    min:
+    max: null
+    min: null
     show: true
   yaxis:
     align: false
-    alignLevel:
+    alignLevel: null
 - datasource: -- Dashboard --
   description: This panel shows current VM ratios across the cluster, based on the
     most recent date in the time selection.
   fieldConfig:
     defaults:
       custom:
-        align:
+        align: null
       decimals: 2
       mappings: []
       thresholds:
         mode: absolute
         steps:
         - color: green
-          value:
+          value: null
         - color: red
           value: 80
       unit: none
@@ -553,8 +539,8 @@ panels:
   targets:
   - panelId: 6
     refId: A
-  timeFrom:
-  timeShift:
+  timeFrom: null
+  timeShift: null
   title: Current Ratios
   transformations:
   - id: calculateField
@@ -709,7 +695,7 @@ panels:
     values: false
   lines: true
   linewidth: 2
-  nullPointMode: 'null'
+  nullPointMode: "null"
   options:
     dataLinks: []
   percentage: false
@@ -726,27 +712,28 @@ panels:
     group: []
     metricColumn: none
     rawQuery: true
-    rawSql: |-
-      SELECT
-        date_trunc('day', metric.time) AS time,
-         sum(CURRENT) FILTER (WHERE metric.type = 'CPU') /
-            sum(capacity) FILTER (WHERE metric.type = 'CPU') * 100 AS "CPU Utilization",
-         sum(CURRENT) FILTER (WHERE metric.type = 'MEM') /
-            sum(capacity) FILTER (WHERE metric.type = 'MEM') * 100 AS "Mem Utilization"
-      FROM metric
-      JOIN scope ON
-         metric.entity_oid = scope.scoped_oid
-         AND metric.time BETWEEN scope.start AND scope.finish
-      WHERE
-         -- fixed conditions
-         metric.type IN ('MEM', 'CPU')
-         AND scope.scoped_type = 'PHYSICAL_MACHINE'
-         -- conditions related to dashboard vars
-         AND metric.time BETWEEN timestamptz $__timeFrom() AND $__timeTo()
-         AND (timestamptz $__timeTo(), $__timeTo() ) OVERLAPS (START, finish)
-         AND scope.seed_oid = ${Cluster:raw}::bigint + 0
-      GROUP BY 1
-      ORDER BY 1
+    rawSql: |2-
+       SELECT date_trunc('day', foo.time) as time
+             ,sum(current) FILTER (WHERE foo.type = 'CPU') /
+                  sum(capacity) FILTER (WHERE foo.type = 'CPU') * 100 as "CPU Utilization"
+             ,sum(current) FILTER (WHERE foo.type = 'MEM') /
+                  sum(capacity) FILTER (WHERE foo.type = 'MEM') * 100 as "Mem Utilization"
+         FROM entity
+        INNER JOIN LATERAL (
+          SELECT time
+                ,type
+                ,current
+                ,capacity
+            FROM metric
+           WHERE metric.entity_oid = entity.oid
+             AND metric.entity_hash = entity.hash
+             AND metric.type IN ('MEM', 'CPU')
+             AND metric.time between timestamptz $__timeFrom() and $__timeTo()
+        ) as foo ON true
+        WHERE entity.type = 'PHYSICAL_MACHINE'
+          AND (timestamptz $__timeTo(), $__timeTo() ) OVERLAPS (first_seen, last_seen)
+          AND scope && ARRAY[$Cluster]::bigint[]
+        GROUP BY 1
     refId: A
     select:
     - - params:
@@ -758,9 +745,9 @@ panels:
       params: []
       type: macro
   thresholds: []
-  timeFrom:
+  timeFrom: null
   timeRegions: []
-  timeShift:
+  timeShift: null
   title: CPU and Mem Utilization Over Time
   tooltip:
     shared: true
@@ -768,27 +755,27 @@ panels:
     value_type: individual
   type: graph
   xaxis:
-    buckets:
+    buckets: null
     mode: time
-    name:
+    name: null
     show: true
     values: []
   yaxes:
   - format: percent
-    label:
+    label: null
     logBase: 1
-    max:
-    min:
+    max: null
+    min: null
     show: true
   - format: short
-    label:
+    label: null
     logBase: 1
-    max:
-    min:
+    max: null
+    min: null
     show: true
   yaxis:
     align: false
-    alignLevel:
+    alignLevel: null
 schemaVersion: 25
 style: dark
 tags: []
@@ -796,41 +783,44 @@ templating:
   list:
   - hide: 2
     includeAll: false
-    label:
+    label: null
     multi: false
     name: DB
     options: []
     query: postgres
     refresh: 1
-    regex: ''
+    regex: ""
     skipUrlSync: false
     type: datasource
-  - allValue:
+  - allValue: null
     datasource: $DB
-    definition: ''
+    definition: |-
+      SELECT name as __text,
+                     oid as __value
+      FROM entity
+      WHERE entity.type = 'COMPUTE_CLUSTER'
+      AND ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)
+      ORDER BY 1
     hide: 0
     includeAll: false
-    label:
+    label: null
     multi: false
     name: Cluster
     options: []
     query: |-
-      SELECT
-        name as __text,
-        oid as __value
-      FROM
-        entity
-      WHERE
-        entity.type = 'COMPUTE_CLUSTER'
-        AND ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)
+      SELECT name as __text,
+                     oid as __value
+      FROM entity
+      WHERE entity.type = 'COMPUTE_CLUSTER'
+      AND ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)
       ORDER BY 1
     refresh: 2
-    regex: ''
+    regex: ""
     skipUrlSync: false
     sort: 0
-    tagValuesQuery: ''
+    tagValuesQuery: ""
     tags: []
-    tagsQuery: ''
+    tagsQuery: ""
     type: query
     useTags: false
 time:
@@ -847,6 +837,6 @@ timepicker:
   - 1h
   - 2h
   - 1d
-timezone: ''
+timezone: ""
 title: Individual Host Cluster Summary
 uid: individual_cluster_summary

@@ -1,3 +1,4 @@
+---
 annotations:
   list:
   - builtIn: 1
@@ -9,7 +10,7 @@ annotations:
     type: dashboard
 description: Average consumption of physical resources for a group of virtual machines.
 editable: false
-gnetId:
+gnetId: null
 graphTooltip: 0
 iteration: 1600436048145
 links: []
@@ -43,7 +44,7 @@ panels:
     values: false
   lines: true
   linewidth: 2
-  nullPointMode: 'null'
+  nullPointMode: "null"
   options:
     dataLinks: []
   percentage: false
@@ -60,26 +61,24 @@ panels:
     metricColumn: none
     rawQuery: true
     rawSql: |-
-      WITH metrics_data AS (
-        SELECT m.time, m.entity_oid, m.consumed as value
-        FROM metric m, entity e
-        WHERE m.time  BETWEEN $__timeFrom() AND $__timeTo()
-          AND m.type = 'CPU'
-          AND e.oid = m.entity_oid
-          AND e.type = 'VIRTUAL_MACHINE'
-      ), daily_avg_metrics as (
-        SELECT
-          date_trunc('day', m.time) as "time",
-          m.entity_oid,
-          avg(m.value) as value
-          FROM metrics_data m
-          ${GroupClause:raw}
-        GROUP BY 1, 2
-      )
       SELECT
-        daily_avg_metrics.time,
-        sum(daily_avg_metrics.value) as "CPU Usage"
-      FROM daily_avg_metrics
+          time,
+          sum(cpu) as "CPU Usage"
+      FROM
+          (SELECT
+            date_trunc('day', time) as "time",
+            entity.oid,
+            avg(metric.consumed) AS cpu
+          FROM metric, entity
+          WHERE
+            $__timeFilter("time") AND
+            metric.type = 'CPU' AND
+            metric.entity_oid = entity.oid AND
+            metric.entity_hash = entity.hash AND
+            entity.type = 'VIRTUAL_MACHINE' AND
+            ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) AND
+            CASE WHEN ARRAY[$Group]::text[] = ARRAY[ '0' ] THEN true ELSE (entity.scope && ARRAY[$Group]::bigint[]) END
+          GROUP BY 1, 2) as a
       GROUP BY 1
       ORDER BY 1
     refId: A
@@ -95,9 +94,9 @@ panels:
       params: []
       type: macro
   thresholds: []
-  timeFrom:
+  timeFrom: null
   timeRegions: []
-  timeShift:
+  timeShift: null
   title: CPU Usage
   tooltip:
     shared: true
@@ -105,9 +104,9 @@ panels:
     value_type: individual
   type: graph
   xaxis:
-    buckets:
+    buckets: null
     mode: time
-    name:
+    name: null
     show: true
     values: []
   yaxes:
@@ -115,19 +114,19 @@ panels:
     format: none
     label: MHz
     logBase: 1
-    max:
-    min:
+    max: null
+    min: null
     show: true
   - $$hashKey: object:1301
     format: short
-    label:
+    label: null
     logBase: 1
-    max:
-    min:
+    max: null
+    min: null
     show: true
   yaxis:
     align: false
-    alignLevel:
+    alignLevel: null
 - aliasColors: {}
   bars: false
   dashLength: 10
@@ -157,7 +156,7 @@ panels:
     values: false
   lines: true
   linewidth: 3
-  nullPointMode: 'null'
+  nullPointMode: "null"
   options:
     dataLinks: []
   percentage: false
@@ -174,26 +173,24 @@ panels:
     metricColumn: none
     rawQuery: true
     rawSql: |-
-      WITH metrics_data AS (
-        SELECT m.time, m.entity_oid, m.consumed as value
-        FROM metric m, entity e
-        WHERE m.time  BETWEEN $__timeFrom() AND $__timeTo()
-          AND m.type = 'MEM'
-          AND e.oid = m.entity_oid
-          AND e.type = 'VIRTUAL_MACHINE'
-      ), daily_avg_metrics as (
-        SELECT
-          date_trunc('day', m.time) as "time",
-          m.entity_oid,
-          avg(m.value) as value
-          FROM metrics_data m
-          ${GroupClause:raw}
-        GROUP BY 1, 2
-      )
       SELECT
-        daily_avg_metrics.time,
-        sum(daily_avg_metrics.value) as "Mem Usage"
-      FROM daily_avg_metrics
+          time,
+          sum(mem)
+      FROM
+          (SELECT
+            date_trunc('day', time) as time,
+            entity.oid,
+            avg(metric.consumed) AS mem
+          FROM metric, entity
+          WHERE
+            $__timeFilter("time") AND
+            metric.type = 'MEM' AND
+            metric.entity_oid = entity.oid AND
+            metric.entity_hash = entity.hash AND
+            entity.type = 'VIRTUAL_MACHINE' AND
+            ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) AND
+            CASE WHEN ARRAY[$Group]::text[] = ARRAY[ '0' ] THEN true ELSE (entity.scope && ARRAY[$Group]::bigint[]) END
+          GROUP BY 1, 2) as a
       GROUP BY 1
       ORDER BY 1
     refId: A
@@ -209,9 +206,9 @@ panels:
       params: []
       type: macro
   thresholds: []
-  timeFrom:
+  timeFrom: null
   timeRegions: []
-  timeShift:
+  timeShift: null
   title: Mem Usage
   tooltip:
     shared: true
@@ -219,29 +216,29 @@ panels:
     value_type: individual
   type: graph
   xaxis:
-    buckets:
+    buckets: null
     mode: time
-    name:
+    name: null
     show: true
     values: []
   yaxes:
   - $$hashKey: object:1219
     format: kbytes
-    label:
+    label: null
     logBase: 1
-    max:
-    min:
+    max: null
+    min: null
     show: true
   - $$hashKey: object:1220
     format: short
-    label:
+    label: null
     logBase: 1
-    max:
-    min:
+    max: null
+    min: null
     show: true
   yaxis:
     align: false
-    alignLevel:
+    alignLevel: null
 - aliasColors: {}
   bars: false
   dashLength: 10
@@ -271,7 +268,7 @@ panels:
     values: false
   lines: true
   linewidth: 3
-  nullPointMode: 'null'
+  nullPointMode: "null"
   options:
     dataLinks: []
   percentage: false
@@ -288,26 +285,24 @@ panels:
     metricColumn: none
     rawQuery: true
     rawSql: |-
-      WITH metrics_data AS (
-        SELECT m.time, m.entity_oid, m.consumed as value
-        FROM metric m, entity e
-        WHERE m.time  BETWEEN $__timeFrom() AND $__timeTo()
-          AND m.type = 'STORAGE_AMOUNT'
-          AND e.oid = m.entity_oid
-          AND e.type = 'VIRTUAL_MACHINE'
-      ), daily_avg_metrics as (
-        SELECT
-          date_trunc('day', m.time) as "time",
-          m.entity_oid,
-          avg(m.value) as value
-          FROM metrics_data m
-          ${GroupClause:raw}
-        GROUP BY 1, 2
-      )
       SELECT
-        daily_avg_metrics.time,
-        sum(daily_avg_metrics.value) as "Storage Used"
-      FROM daily_avg_metrics
+          time,
+          sum(storage_used) as "Storage Usage"
+      FROM
+          (SELECT
+            date_trunc('day', time) as "time",
+            entity.oid,
+            avg(metric.consumed) AS storage_used
+          FROM metric, entity
+          WHERE
+            $__timeFilter("time") AND
+            metric.type = 'STORAGE_AMOUNT' AND
+            metric.entity_oid = entity.oid AND
+            metric.entity_hash = entity.hash AND
+            entity.type = 'VIRTUAL_MACHINE' AND
+            ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) AND
+            CASE WHEN ARRAY[$Group]::text[] = ARRAY[ '0' ] THEN true ELSE (entity.scope && ARRAY[$Group]::bigint[]) END
+          GROUP BY 1, 2) as a
       GROUP BY 1
       ORDER BY 1
     refId: A
@@ -323,9 +318,9 @@ panels:
       params: []
       type: macro
   thresholds: []
-  timeFrom:
+  timeFrom: null
   timeRegions: []
-  timeShift:
+  timeShift: null
   title: Storage Usage
   tooltip:
     shared: true
@@ -333,29 +328,29 @@ panels:
     value_type: individual
   type: graph
   xaxis:
-    buckets:
+    buckets: null
     mode: time
-    name:
+    name: null
     show: true
     values: []
   yaxes:
   - $$hashKey: object:1386
     format: mbytes
-    label:
+    label: null
     logBase: 1
-    max:
-    min:
+    max: null
+    min: null
     show: true
   - $$hashKey: object:1387
     format: short
-    label:
+    label: null
     logBase: 1
-    max:
-    min:
+    max: null
+    min: null
     show: true
   yaxis:
     align: false
-    alignLevel:
+    alignLevel: null
 - aliasColors: {}
   bars: false
   dashLength: 10
@@ -385,7 +380,7 @@ panels:
     values: false
   lines: true
   linewidth: 3
-  nullPointMode: 'null'
+  nullPointMode: "null"
   options:
     dataLinks: []
   percentage: false
@@ -402,26 +397,24 @@ panels:
     metricColumn: none
     rawQuery: true
     rawSql: |-
-      WITH metrics_data AS (
-        SELECT m.time, m.entity_oid, m.consumed as value
-        FROM metric m, entity e
-        WHERE m.time  BETWEEN $__timeFrom() AND $__timeTo()
-          AND m.type = 'STORAGE_ACCESS'
-          AND e.oid = m.entity_oid
-          AND e.type = 'VIRTUAL_MACHINE'
-      ), daily_avg_metrics as (
-        SELECT
-          date_trunc('day', m.time) as "time",
-          m.entity_oid,
-          avg(m.value) as value
-          FROM metrics_data m
-          ${GroupClause:raw}
-        GROUP BY 1, 2
-      )
       SELECT
-        daily_avg_metrics.time,
-        sum(daily_avg_metrics.value) as "Storage Access - IOPS"
-      FROM daily_avg_metrics
+          time,
+          sum(iops) as "Storage Access - IOPS"
+      FROM
+          (SELECT
+            date_trunc('day', time) as "time",
+            entity.oid,
+            avg(metric.consumed) AS iops
+          FROM metric, entity
+          WHERE
+            $__timeFilter("time") AND
+            metric.type = 'STORAGE_ACCESS' AND
+            metric.entity_oid = entity.oid AND
+            metric.entity_hash = entity.hash AND
+            entity.type = 'VIRTUAL_MACHINE' AND
+            ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) AND
+            CASE WHEN ARRAY[$Group]::text[] = ARRAY[ '0' ] THEN true ELSE (entity.scope && ARRAY[$Group]::bigint[]) END
+          GROUP BY 1, 2) as a
       GROUP BY 1
       ORDER BY 1
     refId: A
@@ -437,9 +430,9 @@ panels:
       params: []
       type: macro
   thresholds: []
-  timeFrom:
+  timeFrom: null
   timeRegions: []
-  timeShift:
+  timeShift: null
   title: Storage Access - IOPS
   tooltip:
     shared: true
@@ -447,9 +440,9 @@ panels:
     value_type: individual
   type: graph
   xaxis:
-    buckets:
+    buckets: null
     mode: time
-    name:
+    name: null
     show: true
     values: []
   yaxes:
@@ -457,19 +450,19 @@ panels:
     format: none
     label: IOPS
     logBase: 1
-    max:
-    min:
+    max: null
+    min: null
     show: true
   - $$hashKey: object:1481
     format: short
-    label:
+    label: null
     logBase: 1
-    max:
-    min:
+    max: null
+    min: null
     show: true
   yaxis:
     align: false
-    alignLevel:
+    alignLevel: null
 - columns: []
   datasource: $DB
   description: Average measurement for each VM in the selected group
@@ -484,7 +477,7 @@ panels:
     x: 0
     y: 27
   id: 10
-  pageSize:
+  pageSize: null
   showHeader: true
   sort:
     col: 1
@@ -495,9 +488,9 @@ panels:
     dateFormat: YYYY-MM-DD HH:mm:ss
     pattern: Time
     type: date
-  - alias: ''
+  - alias: ""
     align: right
-    colorMode:
+    colorMode: null
     colors:
     - rgba(245, 54, 54, 0.9)
     - rgba(237, 129, 40, 0.89)
@@ -507,9 +500,9 @@ panels:
     thresholds: []
     type: number
     unit: kbytes
-  - alias: ''
+  - alias: ""
     align: auto
-    colorMode:
+    colorMode: null
     colors:
     - rgba(245, 54, 54, 0.9)
     - rgba(237, 129, 40, 0.89)
@@ -521,9 +514,9 @@ panels:
     thresholds: []
     type: number
     unit: mbytes
-  - alias: ''
+  - alias: ""
     align: auto
-    colorMode:
+    colorMode: null
     colors:
     - rgba(245, 54, 54, 0.9)
     - rgba(237, 129, 40, 0.89)
@@ -541,23 +534,22 @@ panels:
     metricColumn: none
     rawQuery: true
     rawSql: |-
-      WITH metrics_data AS (
-        SELECT m.entity_oid, e.name as entity_name, m.consumed as value, m.type as metric_type
-        FROM metric m
-        JOIN entity e ON (e.oid = m.entity_oid)
-        ${GroupClause:raw}
-        WHERE m.time  BETWEEN $__timeFrom() AND $__timeTo()
-          AND m.type IN ('CPU', 'MEM', 'STORAGE_AMOUNT')
-          AND e.type = 'VIRTUAL_MACHINE'
-      )
       SELECT
-        m.entity_name as "VM Name",
-        avg(m.value) FILTER (WHERE m.metric_type = 'MEM') AS "Mem",
-        avg(m.value) FILTER (WHERE m.metric_type = 'CPU') AS "CPU",
-        avg(m.value) FILTER (WHERE m.metric_type = 'STORAGE_AMOUNT') AS "Storage"
-      FROM metrics_data m
-      GROUP BY m.entity_oid, m.entity_name
-      ORDER BY m.entity_name
+        e.name as "VM Name",
+        avg(m.consumed) FILTER (WHERE m.type = 'MEM') AS "Mem",
+        avg(m.consumed) FILTER (WHERE m.type = 'CPU') AS "CPU",
+        avg(m.consumed) FILTER (WHERE m.type = 'STORAGE_AMOUNT') AS "Storage"
+      FROM metric as m, entity as e
+      WHERE
+        $__timeFilter(m.time) AND
+        m.type IN ('MEM', 'CPU', 'STORAGE_AMOUNT') AND
+        m.entity_oid = e.oid AND
+        m.entity_hash = e.hash AND
+        e.type = 'VIRTUAL_MACHINE' AND
+        ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) AND
+        CASE WHEN ARRAY[$Group]::text[] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[$Group]::bigint[]) END
+      GROUP BY 1
+      ORDER BY 1
     refId: A
     select:
     - - params:
@@ -570,8 +562,8 @@ panels:
     - name: $__timeFilter
       params: []
       type: macro
-  timeFrom:
-  timeShift:
+  timeFrom: null
+  timeShift: null
   title: Virtual Machine Physical Resource Usage
   transform: table
   type: table-old
@@ -581,90 +573,53 @@ style: dark
 tags: []
 templating:
   list:
-    - hide: 2
-      includeAll: false
-      label:
-      multi: false
-      name: DB
-      options: []
-      query: postgres
-      queryValue: ''
-      refresh: 1
-      regex: ''
-      skipUrlSync: false
-      type: datasource
-    - allValue: "0"
-      datasource: $DB
-      definition: |-
-        SELECT
-          name as __text,
-          oid as __value
-        FROM entity
-        WHERE
-          entity.type = 'GROUP'
-          AND ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)
-          AND attrs -> 'member_types' ? 'VIRTUAL_MACHINE'
-        GROUP BY name, oid
-        ORDER BY 1
-      hide: 0
-      includeAll: true
-      label:
-      multi: false
-      name: Group
-      options: []
-      query: |-
-        SELECT
-          name as __text,
-          oid as __value
-        FROM entity
-        WHERE
-          entity.type = 'GROUP'
-          AND ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)
-          AND attrs -> 'member_types' ? 'VIRTUAL_MACHINE'
-        GROUP BY name, oid
-        ORDER BY 1
-      refresh: 2
-      regex: ''
-      skipUrlSync: false
-      sort: 0
-      tagValuesQuery: ''
-      tags: []
-      tagsQuery: ''
-      type: query
-      useTags: false
-    - allValue:
-      datasource: $DB
-      definition: |-
-        SELECT CASE
-          WHEN ${Group:raw} + 0 = 0 THEN ''
-          ELSE concat('JOIN  scope s ',
-            'ON m.entity_oid = s.scoped_oid ',
-            'AND m.time between s.start and s.finish ',
-            'AND s.seed_oid = ${Group:raw} + 0')
-        END
-      hide: 2
-      includeAll: false
-      label:
-      multi: false
-      name: GroupClause
-      options: []
-      query: |-
-        SELECT CASE
-          WHEN ${Group:raw} + 0 = 0 THEN ''
-          ELSE concat('JOIN  scope s ',
-            'ON (m.entity_oid = s.scoped_oid ',
-            'AND m.time between s.start and s.finish ',
-            'AND s.seed_oid = ${Group:raw} + 0)')
-        END
-      refresh: 2
-      regex: ''
-      skipUrlSync: false
-      sort: 0
-      tagValuesQuery: ''
-      tags: []
-      tagsQuery: ''
-      type: query
-      useTags: false
+  - hide: 2
+    includeAll: false
+    label: null
+    multi: false
+    name: DB
+    options: []
+    query: postgres
+    queryValue: ""
+    refresh: 1
+    regex: ""
+    skipUrlSync: false
+    type: datasource
+  - allValue: '''0'''
+    datasource: $DB
+    definition: |-
+      SELECT name as __text,
+             oid as __value
+      FROM entity
+      WHERE entity.type = 'GROUP'
+      AND ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)
+      AND attrs -> 'member_types' ? 'VIRTUAL_MACHINE'
+      GROUP BY name, oid
+      ORDER BY 1
+    hide: 0
+    includeAll: true
+    label: null
+    multi: false
+    name: Group
+    options: []
+    query: |-
+      SELECT name as __text,
+             oid as __value
+      FROM entity
+      WHERE entity.type = 'GROUP'
+      AND ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)
+      AND attrs -> 'member_types' ? 'VIRTUAL_MACHINE'
+      GROUP BY name, oid
+      ORDER BY 1
+    refresh: 2
+    regex: ""
+    skipUrlSync: false
+    sort: 0
+    tagValuesQuery: ""
+    tags: []
+    tagsQuery: ""
+    type: query
+    useTags: false
 time:
   from: now-7d
   to: now
@@ -679,7 +634,6 @@ timepicker:
   - 1h
   - 2h
   - 1d
-timezone: ''
+timezone: ""
 title: Consumption Summary of Physical Resources for Virtual Machines
 uid: consumption_summary_physical_for_virtual
-

@@ -130,6 +130,9 @@ public class ScopeManager {
         this.db = db;
         this.pool = pool;
         this.config = config;
+        if (!config.populateScopeTable()) {
+            logger.info("Scope table data population is disabled in this installation");
+        }
     }
 
     /**
@@ -151,7 +154,7 @@ public class ScopeManager {
         if (dsl == null) {
             this.dsl = db.dslContext();
         }
-        if (priorScope.isEmpty()) {
+        if (priorScope.isEmpty() && config.populateScopeTable()) {
             reloadPriorScope();
         }
         logger.info("Scope initialized for timestamp {}; prior scope timestamp {}",
@@ -198,6 +201,10 @@ public class ScopeManager {
     public void finishTopology() {
         logger.info("Scope is complete for {}", currentTimestamp);
         trim(currentScope); // scope map is complete, so this is a good time to optimize
+        if (!config.populateScopeTable()) {
+            // don't update database unless the feature flag is enabled
+            return;
+        }
         try (TableWriter scopeInserter = getScopeInsertWriter();
              TableWriter scopeUpdater = getScopeUpdateWriter()) {
 
@@ -473,7 +480,9 @@ public class ScopeManager {
         @Override
         protected List<String> getPostCopyHookSql(final Connection transConn) {
             final Select<Record5<Long, Long, EntityType, OffsetDateTime, OffsetDateTime>> selectStmt;
-            selectStmt = DSL.select(
+            // TODO Remove "distinct" during transition away from old schema; it's there because
+            // there will often be multiple matching `entity` records for a given entity oid
+            selectStmt = DSL.selectDistinct(
                     tempTable.field(SCOPE.SEED_OID),
                     tempTable.field(SCOPE.SCOPED_OID),
                     ENTITY.TYPE.as(SCOPE.SCOPED_TYPE),

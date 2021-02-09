@@ -29,16 +29,20 @@ public class ModelDefinitions {
     public static final Column<Long> ENTITY_OID_AS_OID = Column.longColumn("oid");
     /** ENTITY_HASH column. */
     public static final Column<Long> ENTITY_HASH = Column.longColumn("entity_hash");
+    /** ENTITY_HASH column, named just "hash". */
+    public static final Column<Long> ENTITY_HASH_AS_HASH = Column.longColumn("hash");
     /** ENTITY_NAME column. */
     public static final Column<String> ENTITY_NAME = Column.stringColumn("name");
     /** ATTRS column. */
     public static final Column<JsonString> ATTRS = Column.jsonColumn("attrs");
     /** SEED column. */
     public static final Column<Long> SEED_OID = Column.longColumn("seed_oid");
+    /** SCOPED_OIDS column. */
+    public static final Column<Long[]> SCOPED_OIDS = Column.longSetColumn("scoped_oids");
     /** FIRST_SEEN column. */
-    public static final Column<OffsetDateTime> FIRST_SEEN = Column.offsetDateTimeColumn("first_seen");
+    public static final Column<Timestamp> FIRST_SEEN = Column.timestampColumn("first_seen");
     /** LAST_SEEN column. */
-    public static final Column<OffsetDateTime> LAST_SEEN = Column.offsetDateTimeColumn("last_seen");
+    public static final Column<Timestamp> LAST_SEEN = Column.timestampColumn("last_seen");
     /** COMMODITY_TYPE column. */
     public static final Column<MetricType> COMMODITY_TYPE = new Column<>(Metric.METRIC.TYPE, ColType.METRIC_TYPE);
     /** COMMODITY_KEY column. */
@@ -91,8 +95,8 @@ public class ModelDefinitions {
 
     /** ENTITY_TABLE. */
     public static final Table ENTITY_TABLE = Table.named("entity")
-            .withColumns(ENTITY_OID_AS_OID, ENTITY_TYPE_ENUM, ENTITY_NAME,
-                    ENVIRONMENT_TYPE_ENUM, ENTITY_STATE_ENUM, ATTRS, FIRST_SEEN, LAST_SEEN)
+            .withColumns(ENTITY_OID_AS_OID, ENTITY_HASH_AS_HASH, ENTITY_TYPE_ENUM, ENTITY_NAME,
+                    ENVIRONMENT_TYPE_ENUM, ENTITY_STATE_ENUM, ATTRS, SCOPED_OIDS, FIRST_SEEN, LAST_SEEN)
             .build();
 
     /** SCOPE_TABLE. */
