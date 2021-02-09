@@ -24,7 +24,6 @@ import javax.annotation.Nonnull;
 
 import org.jooq.DSLContext;
 import org.jooq.InsertValuesStep5;
-import org.jooq.InsertValuesStep7;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
@@ -84,7 +83,6 @@ public class ScopeManagerTest {
         final ExecutorService pool = Executors.newSingleThreadExecutor();
         final WriterConfig config = mock(WriterConfig.class);
         doReturn(10).when(config).insertTimeoutSeconds();
-        doReturn(true).when(config).populateScopeTable();
         this.scopeManager = new ScopeManager(entityIdManager, endpoint, config, pool);
         this.dsl = endpoint.dslContext();
     }
@@ -230,10 +228,10 @@ public class ScopeManagerTest {
     }
 
     private void setupEntities(long... oids) {
-        final InsertValuesStep7<EntityRecord, Long, Long, String, EntityType, Long[], OffsetDateTime, OffsetDateTime> insert;
-        insert = dsl.insertInto(ENTITY, ENTITY.OID, ENTITY.HASH, ENTITY.NAME, ENTITY.TYPE, ENTITY.SCOPE, ENTITY.FIRST_SEEN, ENTITY.LAST_SEEN);
+        final InsertValuesStep5<EntityRecord, Long, String, EntityType, OffsetDateTime, OffsetDateTime> insert;
+        insert = dsl.insertInto(ENTITY, ENTITY.OID, ENTITY.NAME, ENTITY.TYPE, ENTITY.FIRST_SEEN, ENTITY.LAST_SEEN);
         for (final long oid : oids) {
-            insert.values(oid, 1L, "x", EntityType.VIRTUAL_MACHINE, new Long[0], OffsetDateTime.now(), OffsetDateTime.now());
+            insert.values(oid, "x", EntityType.VIRTUAL_MACHINE, OffsetDateTime.now(), OffsetDateTime.now());
         }
         insert.execute();
     }

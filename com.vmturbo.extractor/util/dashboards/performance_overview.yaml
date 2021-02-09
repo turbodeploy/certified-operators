@@ -190,7 +190,7 @@ panels:
         value:
         - targetBlank: true
           title: ''
-          url: "http://xlr01.eng.turbonomic.com:3000/d/7Vo8bbiMk/query-details?orgId=1&var-DB=${DB}&var-id=${__data.fields[id]}\uFEFF"
+          url: "/d/query_details/query-panel?orgId=1&var-DB=${DB}&var-id=${__data.fields[id]}"
     - matcher:
         id: byName
         options: time

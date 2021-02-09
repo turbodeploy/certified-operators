@@ -1,189 +1,102 @@
-from pathlib import Path
-from enum import Enum
 import argparse
-import os
-import sys
-
-import json
-import ruamel.yaml
-from ruamel.yaml import YAML
-import requests
-import psycopg2
-import pprint
-import re
 import dataset
-from datetime import datetime
-from datetime import timezone
-from datetime import timedelta
+import json
 import logging
-import time
+import os
+import psycopg2
+import re
+import requests
+import ruamel.yaml
 import sqlalchemy
+import sys
+import time
+from collections import OrderedDict
+from datetime import datetime
+from datetime import timedelta
+from datetime import timezone
+from enum import Enum
 from fnmatch import fnmatch
-
-dashboards = []
-now = datetime.now(timezone.utc)
-
-
-class Dashboard:
-    def __init__(self, title, raw):
-        self.title = title
-        self.variables = []
-        self.panels = []
-        self.raw = raw
-
-    def add_variable(self, variable):
-        self.variables.append(variable)
-
-    def add_panel(self, panel):
-        self.panels.append(panel)
+from pathlib import Path
+from ruamel.yaml import YAML
 
 
-class Variable:
-    def __init__(self, dashboard, name, query, raw, refresh, all_value=None):
-        self.name = name
-        self.query = Query(query)
-        self.all_value = all_value
-        self.raw = raw
-        self.refresh = refresh
-        dashboard.add_variable(self)
+class Folder: pass
 
 
-class Panel:
-    def __init__(self, dashboard, title, queries, raw):
-        self.title = title
-        self.queries = []
-        for q in queries:
-            self.queries.append(Query(q))
-        self.raw = raw
-        dashboard.add_panel(self)
+class Dashboard: pass
 
 
-class Query:
-    time_filter = re.compile('\$__timeFilter\(([^)]*)\)')
+class Variable: pass
 
-    def __init__(self, query):
-        self.query = query
 
-    def sub(self, cursor, start_time, end_time, variables={}):
-        temp = self.time_filter.sub(r"\1 between '" + start_time.isoformat() + "' and '" +
-                                    end_time.isoformat() + "'", self.query)
-        temp = temp.replace('$__timeFrom()', "'" + start_time.isoformat() + "'")
-        temp = temp.replace('$__timeTo()', "'" + end_time.isoformat() + "'")
-        for key, value in variables.items():
-            temp = temp.replace('[[' + str(key) + ']]', str(value))
-            temp = temp.replace('$' + str(key), str(value))
-            temp = temp.replace('${' + str(key) + '}', str(value))
-        return temp
+class Panel: pass
 
-    def explain(self, database, start_time, end_time, variables={}):
-        return self.execute(database, start_time, end_time, 'EXPLAIN', variables)
 
-    def explain_analyze(self, database, start_time, end_time, variables={}):
-        return self.execute(database, start_time, end_time, 'ANALYZE', variables)
+class Query: pass
 
-    def execute(self, database, start_time, end_time, mode, variables={}):
-        sql = self.sub(database, start_time, end_time, variables)
-        if mode == 'EXPLAIN':
-            sql = f'EXPLAIN {sql}'
-        elif mode == 'ANALYZE':
-            sql = f'EXPLAIN ANALYZE {sql}'
-        elif mode == 'VERBOSE':
-            sql = f'EXPLAIN ANALYZE VERBOSE {sql}'
-        logger.debug(f'Executing DB query: {sql}')
-        return database.query(sql), sql
 
-    def get_n_values(self, database, start_time, end_time, n=1, variables={}):
-        temp = self.sub(database, start_time, end_time, variables)
-        #        temp = temp + ' offset 10 limit 1'
-        temp = f'{temp} limit {n}'
-        return database.query(temp), temp
+class DB: pass
 
 
 class Grafana:
-    def __init__(self, url, api_key, folder_name):
+    now = datetime.now(timezone.utc)
+
+    def __init__(self, url, api_key):
         self.url = url
-        self.api_key = api_key
-        self.folder_name = folder_name
         self.headers = {'Authorization': 'Bearer ' + api_key}
-        self.dashboards = []
 
         r = self.get('/api/folders')
-        self.raw = r.text
-        self.id = None
-        for folder in r.json():
-            if (folder['title'] == self.folder_name):
-                self.id = folder['id']
-                break
+        self.folders = {folder['title']: folder for folder in r.json()}
 
-        if (None == self.id):
-            raise Exception('Unable to find folder ' + folder_name)
+    def __require_folder_id(self, title):
+        if (self.folders[title]):
+            return self.folders[title]['id']
+        else:
+            raise Exception('Unable to find folder ' + title)
 
-        r = self.get('/api/search?folderIds=' + str(self.id))
+    def get_folder(self, title):
+        self.__require_folder_id(title)
+        return Folder(self.folders[title], self)
 
-        result = []
-        for d in r.json():
-            uid = d['uid']
-            r2 = self.get('/api/dashboards/uid/' + str(uid))
-            current = r2.json()["dashboard"]
-            dashboard = Dashboard(title=current["title"], raw=json.dumps(current, indent=2))
-            self.dashboards.append(dashboard)
+    def load_folder(self, args):
+        # note that we don't actually instantiate a folder or its dashboards from grafana
+        # in this case, so the logic is all here, except for a few static utility methods
+        # in other classes
+        id = self.__require_folder_id(args.folder)
+        p = Path(args.directory)
+        if (not p.is_dir()):
+            raise Exception(f'Path "{path}" is not a directory')
 
-            variable_list = current["templating"]["list"]
-            for variable in variable_list:
-                if variable["type"] == "query":
-                    Variable(dashboard=dashboard, name=variable["name"], query=variable["query"],
-                             refresh=variable["refresh"],
-                             all_value=(variable["allValue"] if variable["includeAll"] else None),
-                             raw=json.dumps(variable, indent=2))
+        filext = f'.{args.disk_format.lower()}'
+        for child in p.iterdir():
+            if (child.name == "folder" + filext
+                    or child.name == "permissions" + filext
+                    or Path(child.name).suffix != filext):
+                continue
+            if (args.disk_format == 'YAML'):
+                db_json = Grafana.__fix_value_tagged_scalars(YAML().load(child.read_text()))
+            elif (args.disk_format == 'JSON'):
+                db_json = json.loads(child.read_text())
+            else:
+                raise Exception(f'Cannot load from unrecognized disk format {args.disk_format}')
 
-            for panel in current["panels"]:
-                queries = []
-                for q in panel.get("targets", []):
-                    if "rawSql" in q:
-                        queries.append(q["rawSql"])
-                Panel(dashboard=dashboard, title=panel["title"], queries=queries,
-                      raw=json.dumps(panel, indent=2))
+            if Dashboard.should_include(db_json['uid'], db_json['title'], args):
+                prepped_json = Dashboard.prep_for_load(db_json, args)
+                post_data = {
+                    'dashboard': prepped_json,
+                    'overwrite': args.overwrite,
+                    'folderId': id,
+                    'message': f'Uploaded dashboard at {Grafana.now}'
+                }
+                logger.info(f"Posting dashboard {db_json['title']} [{db_json['uid']}]")
+                self.post("/api/dashboards/db", post_data)
 
-    timestamp_filter = re.compile('TIMESTAMP(?!TZ)', re.IGNORECASE)
-
-    def lint(self):
-        results = []
-        for d in self.dashboards:
-            logger.info(f'Checking dashboard {d.title}')
-            for v in d.variables:
-
-                if (v.refresh != 2):
-                    results.append(
-                        'Dashboard "{0}", Variable "{1}" is not set to refresh on time change'.format(
-                            d.title, v.name))
-                variable = json.loads(v.raw)
-                if (variable['type'] == 'query' and variable['datasource'][0] != '$'):
-                    results.append(
-                        'Dashboard "{0}", Variable "{1}" datasource is not variable: "{2}"'.format(
-                            d.title, v.name, variable['datasource']))
-
-            for p in d.panels:
-                panel = json.loads(p.raw)
-                # Datasource should be variable based
-                if ('datasource' in panel and
-                        (panel["datasource"] == None or
-                         (panel["datasource"][0] != '$' and panel[
-                             "datasource"] != '-- Dashboard --'))):
-                    results.append(
-                        'Dashboard "{0}", Panel "{1}", Datasource "{2}" does not have variable datasource'.format(
-                            d.title, p.title, panel["datasource"]))
-                for q in p.queries:
-                    if (None != self.timestamp_filter.search(q.query)):
-                        results.append(
-                            'Dashboard "{0}", Panel "{1}" uses TIMESTAMP instead of TIMESTAMPTZ'.format(
-                                d.title, p.title))
-        return results
-
-    def save(self, args):
+    def save_folder(self, args):
+        f = self.get_folder(args.folder)
         p = Path(args.directory)
         filext = f'.{args.disk_format.lower()}'
         if (not p.is_dir()):
-            raise Exception('Path "{0}" is not a directory'.format(args.directory))
+            raise Exception(f'Path "{p}" is not a directory')
         for d in self.dashboards:
             dashboard = json.loads(d.raw)
             # Remove id and version
@@ -215,69 +128,26 @@ class Grafana:
             else:
                 raise Exception(f'Cannot save to unrecognized disk format {args.disk_format}')
 
-    def load(self, args):
-        p = Path(args.directory)
-        filext = f'.{args.disk_format.lower()}'
-        if (not p.is_dir()):
-            raise Exception('Path "{0}" is not a directory'.format(path))
-
-        for child in p.iterdir():
-            if (child.name == "folder" + filext
-                    or child.name == "permissions" + filext
-                    or Path(child.name).suffix != filext):
-                continue
-            if (args.disk_format == 'YAML'):
-                dashboard = self.__fixValueTaggedScalars(YAML().load(child.read_text()))
-            elif (args.disk_format == 'JSON'):
-                dashboard = json.loads(child.read_text())
-            else:
-                raise Exception(f'Cannot load from unrecognized disk format {args.disk_format}')
-
-            if (self.should_exclude(dashboard, args)):
-                continue
-
-            for v in dashboard["templating"]["list"]:
-                # Unhide the datasource variables
-                if (v["type"] == "datasource"):
-                    v["hide"] = 0
-            # Make dashboard editable
-            dashboard["editable"] = True
-            post_data = {}
-            post_data["dashboard"] = dashboard
-            post_data["overwrite"] = args.overwrite
-            post_data["folderId"] = self.id
-            post_data["message"] = 'Uploaded dashboard at {0}'.format(now)
-
-            logger.info(f'Posting dashboard {dashboard["title"]} [{dashboard["uid"]}]')
-            self.post("/api/dashboards/db", post_data)
-
-    def should_exclude(self, dashboard, args):
-        uid = (args.match_on == 'uid' or args.match_on == 'both') and dashboard['uid']
-        title = (args.match_on == 'title' or args.match_on == 'both') and dashboard['title']
-        included = (not args.include_globs) \
-                   or (uid and match_globs(uid, args.include_globs)) \
-                   or (title and match_globs(title, args.include_globs))
-        excluded = args.exclude_globs\
-                   and ((uid and match_globs(uid, args.exclude_globs)) \
-                        or (title and match_globs(title, args.exclude_globs)))
-        return excluded or not included
+    def test_folder(self, args):
+        f = self.get_folder(args.folder)
+        test_db = DB(dataset.connect(args.database, schema=args.schema or None))
+        perf_db = DB(dataset.connect(args.perfdb or args.database, schema=args.schema or None))
+        f.test(args, test_db, perf_db)
 
     def post(self, path, body):
-        r = requests.post(self.url + path, headers=self.headers, json=body)
-
+        r = requests.post(self.url + path, headers=self.headers, json=body, verify=False)
         if (r.status_code != requests.codes.ok):
-            logger.error(f'HTTP request failed: {r.json()["message"]}')
             r.raise_for_status()
         return r
 
     def get(self, path):
-        r = requests.get(self.url + path, headers=self.headers)
+        r = requests.get(self.url + path, headers=self.headers, verify=False)
         if (r.status_code != requests.codes.ok):
-            logger.error(f'HTTP request failed: {r.json()["message"]}')
             r.raise_for_status()
         return r
 
-    def __fixValueTaggedScalars(self, yaml):
+    @staticmethod
+    def __fix_value_tagged_scalars(yaml):
         """
         This post-processes the output of the ruamel.yaml parser, fixing a case
         where the parser output is not correct according to YAML 1.2 specification,
@@ -294,228 +164,295 @@ class Grafana:
                 return yaml.value
         elif (isinstance(yaml, list)):
             for i in range(len(yaml)):
-                yaml[i] = self.__fixValueTaggedScalars(yaml[i])
+                yaml[i] = Grafana.__fix_value_tagged_scalars(yaml[i])
         elif (isinstance(yaml, dict)):
             for key in yaml:
-                yaml[key] = self.__fixValueTaggedScalars(yaml[key])
+                yaml[key] = Grafana.__fix_value_tagged_scalars(yaml[key])
         return yaml
 
+    @staticmethod
+    def get_times(args, interval):
+        to_time = datetime.fromisoformat(args.end_time)
+        from_time = to_time - Grafana.__get_time_delta(args, interval)
+        return (from_time, to_time)
 
-def match_globs(x, globs):
-    """ Check whether the given string matches any of the specified glob patterns.
-    :param x: value to be tested
-    :param globs: comma-separated list of globs to match
-:return: whether value matches at least one of the provided globs
-    """
-    for glob in str.split(globs, ','):
-        if fnmatch(x, glob):
-            return True
-    return False
+    @staticmethod
+    def __get_time_delta(args, interval):
+        match = re.fullmatch(r'(\d+)([smhd])', interval)
+        if match:
+            n = int(match.group(1))
+            u = match.group(2)
+            return timedelta(
+                seconds=u == 's' and n,
+                minutes=u == 'm' and n,
+                hours=u == 'h' and n,
+                days=u == 'd' and n)
+        else:
+            raise Exception(f'Invalid test time interval: {interval}')
+
+    __time_filter_pat = re.compile(r'\$__timeFilter\(([^)]*)\)')
+
+    @staticmethod
+    def interpolate(s, from_time, to_time, bindings):
+        if not s:
+            return None
+        time_filter_sub = fr"\1 BETWEEN '{from_time.isoformat()}' AND '{to_time.isoformat()}'"
+        result = Grafana.__time_filter_pat.sub(time_filter_sub, s)
+        result = result.replace('$__timeFrom()', f"'{from_time.isoformat()}'")
+        result = result.replace('$__timeTo()', f"'{to_time.isoformat()}'")
+        for key, values in bindings.items():
+            key_pat = fr'\[\[{re.escape(key)}\]\]'  # [[key]]
+            key_pat += fr'|\${re.escape(key)}'  # $key
+            key_pat += fr'|\$\{{{re.escape(key)}(:([a-z]+))?\}}'  # ${key} or ${key:fmt}
+            repl = lambda match: Grafana.__value_replacement(values, match.group(2))
+            result = re.sub(key_pat, repl, result)
+        return result
+
+    @staticmethod
+    def __value_replacement(values, format):
+        # currently only raw and (default) Sqlstring
+        if format == 'raw':
+            return ",".join(values)
+        else:  # format == 'SqlSring' or unspecivied
+            quoted_values = ["'" + x.replace("'", "''") + "'" for x in values]
+            return ",".join(quoted_values)
+
+    @staticmethod
+    def match_globs(x, globs):
+        """ Check whether the given string matches any of the specified glob patterns.
+        :param x: value to be tested
+        :param globs: comma-separated list of globs to match
+        :return: whether value matches at least one of the provided globs
+        """
+        for glob in str.split(globs, ','):
+            if fnmatch(x, glob):
+                return True
+        return False
 
 
-class GrafanaTester:
-    execution_time_expr = re.compile('[0-9.]+')
-
-    def __init__(self, grafana, database):
+class Folder:
+    def __init__(self, folder_json, grafana):
+        self.title = folder_json['title']
+        self.id = folder_json['id']
         self.grafana = grafana
-        self.database = database
-        self.result_table = self.database["grafana"]
 
-    def test(self, start_time, end_time, interval, args):
-        for d in self.grafana.dashboards:
-            dashboard = json.loads(d.raw)
-            if (self.grafana.should_exclude(dashboard, args)):
-                continue
-            logger.info(f'Testing dashboard {d.title} interval {start_time}..{end_time}')
-            for v in d.variables:
-                try:
-                    logger.debug(f'  Processing variable {v.name} ')
-                    query, text = v.query.explain_analyze(
-                        database=self.database, start_time=start_time,
-                        end_time=end_time)
+        self.dashboards = []
+        for db_meta in self.grafana.get(f"/api/search?folderIds={self.id}&type=dash-db").json():
+            logger.debug(f"search response: {db_meta['uid']}")
+            db_json = self.grafana.get(f"/api/dashboards/uid/{db_meta['uid']}").json()
+            self.dashboards.append(Dashboard(db_json['dashboard'], self))
 
-                    result_text = ""
+    def test(self, args, test_db, perf_db):
+        for interval in args.intervals.split(','):
+            for db in self.dashboards:
+                if (db.included(args)):
+                    db.test(args, interval, test_db, perf_db)
 
-                    for r in query:
-                        result_text += r['QUERY PLAN'] + "\n"
-                        last_result = r['QUERY PLAN']
 
-                    execution_time = float(
-                        self.execution_time_expr.search(last_result).group())
+class Dashboard:
+    def __init__(self, db_json, folder):
+        self.json = db_json
+        self.folder = folder
 
-                    result_row = dict(time=now,
-                                      label=args.label,
-                                      trial=int(args.trial),
-                                      folder_uid=args.folder,
-                                      dashboard=d.title,
-                                      dashboard_uid=dashboard['uid'],
-                                      query_type="variable",
-                                      name=v.name,
-                                      interval=interval,
-                                      start_time=start_time,
-                                      end_time=end_time,
-                                      execution_time=execution_time,
-                                      variable='{}',
-                                      query=text,
-                                      analysis=result_text)
-                    self.result_table.insert(result_row)
-                except psycopg2.errors.SyntaxError as err:
-                    logger.error(f'Error getting variable {v.name}')
-                    raise err
-                except sqlalchemy.exc.OperationalError as err:
-                    logger.error(err)
+        self.title = db_json['title']
+        self.uid = db_json['uid']
+        self.variables = [Variable(var_json, self) for var_json in db_json['templating']['list'] \
+                          if var_json['type'] == 'query']
+        self.has_all = [v for v in self.variables if v.include_all]
+        self.panels = [Panel(panel_json, self) for panel_json in db_json['panels']]
 
-            variables = {}
-            for v in d.variables:
-                try:
-                    query, text = v.query.get_n_values(database=self.database,
-                                                       n=args.var_value_count,
-                                                       start_time=start_time, end_time=end_time)
-                    found = False
-                    raw = json.loads(v.raw)
-                    multi = raw['multi']
-                    includeAll = raw['includeAll']
-                    values = []
-                    for r in query:
-                        value = str(r['__value'])
-                        if (multi or includeAll):
-                            values.append(f"'{value}'")
-                        else:
-                            values.append(value)
-                        found = True
-                    if (found):
-                        variables[v.name] = ','.join(values)
-                        logger.debug(f'  Values for variable {v.name}: {variables[v.name]}')
-                    else:
-                        logger.debug(f'  No values found for variable {v.name}')
-                except psycopg2.errors.SyntaxError as err:
-                    logger.error('Error getting variable {v.name}')
-                    raise err
-                except sqlalchemy.exc.OperationalError as err:
-                    logger.error(err)
+    def test(self, args, interval, test_db, perf_db):
+        (from_time, to_time) = Grafana.get_times(args, interval)
+        logger.info(f"Testing dashboard '{self.title}'"
+                    + f" interval {interval} ({from_time}..{to_time})")
+        for all in ([False, True] if self.has_all else [False]):
+            bindings = self.get_var_bindings(args, interval, 1, all, test_db)
+            for var in self.variables:
+                logger.debug(f"  Testing variable {var.name}")
+                logger.debug(f"  - Var bindings: {bindings}")
+                var.test(args, interval, all, test_db, perf_db, bindings)
+            for panel in self.panels:
+                logger.info(f"  Testing panel '{panel.title}'{'[ALL]' if all else ''}")
+                logger.debug(f"  - Var bindings: {bindings}")
+                panel.test(args, interval, all, test_db, perf_db, bindings)
 
-            if ((len(d.variables) == 0) or
-                    (len(variables) != 0)):
-                for p in d.panels:
-                    if len(p.queries) == 0:
-                        continue
-                    if not match_globs(p.title, args.panels_globs):
-                        continue
-                    logger.info(f'  Testing panel {p.title} with var values {variables}')
-                    # statement = """select id from grafana where id >= 1599
-                    # and dashboard = {0}
-                    # and query_type='panel'
-                    # and name= {1}
-                    # and not all_variable""".format(d.title, p.title)
+    def get_var_bindings(self, args, interval, n, all, test_db):
+        bindings = {}
+        for var in self.variables:
+            bindings[var.name] = var.get_values(args, interval, n, all, test_db, bindings)
+        return bindings
 
-                    timings = []
-                    for q in p.queries:
-                        try:
-                            query, text = q.execute(
-                                database=self.database, start_time=start_time, end_time=end_time,
-                                variables=variables, mode=args.panel_mode)
+    def included(self, args):
+        return Dashboard.should_include(self.uid, self.title, args)
 
-                            result_text = ""
-                            for r in query:
-                                result_text += r['QUERY PLAN'] + "\n"
-                                last_result = r['QUERY PLAN']
+    @staticmethod
+    def should_include(uid, title, args):
+        uid = uid if args.match_on == 'uid' or args.match_on == 'both' else None
+        title = title if args.match_on == 'title' or args.match_on == 'both' else None
+        included = (not args.include_globs) \
+                   or (uid and Grafana.match_globs(uid, args.include_globs)) \
+                   or (title and Grafana.match_globs(title, args.include_globs))
+        excluded = args.exclude_globs \
+                   and ((uid and Grafana.match_globs(uid, args.exclude_globs)) \
+                        or (title and Grafana.match_globs(title, args.exclude_globs)))
+        return included and not excluded
 
-                            if args.panel_mode == 'ANALYZE' or args.panel_mode == 'VERBOSE':
-                                execution_time = float(
-                                    self.execution_time_expr.search(last_result).group())
+    @staticmethod
+    def prep_for_load(db_json, args):
+        for v in db_json['templating']['list']:
+            # Unhide the datasource variables
+            if (v['type'] == 'datasource'):
+                v['hide'] = 0
+        # Make dashboard editable
+        db_json['editable'] = True
+        return db_json
 
-                            result_row = dict(time=now,
-                                              label=args.label,
-                                              trial=int(args.trial),
-                                              folder_uid=args.folder,
-                                              dashboard=d.title,
-                                              dashboard_uid=dashboard['uid'],
-                                              query_type="panel",
-                                              name=p.title,
-                                              interval=interval,
-                                              start_time=start_time,
-                                              end_time=end_time,
-                                              execution_time=execution_time,
-                                              variable=json.dumps(variables),
-                                              all_variable=False,
-                                              query=text,
-                                              analysis=result_text)
-                            self.result_table.insert(result_row)
-                            timings.append(execution_time / 1000)
-                        except sqlalchemy.exc.ProgrammingError as err:
-                            logger.error(f'Error executing dashboard {d.title} panel {p.title}')
-                            raise err
-                        except sqlalchemy.exc.OperationalError as err:
-                            logger.error(err)
-                    if timings:
-                        logger.info(f'    Query time(s): {timings}')
-            all_variable = False
-            variables = {}
-            for v in d.variables:
-                if (v.all_value != None):
-                    variables[v.name] = v.all_value
-                    all_variable = True
 
-            if (not all_variable):
-                continue
+class Variable:
+    # todo handle custom varialbe type
+    def __init__(self, var_json, dashboard):
+        self.json = var_json
+        self.dashboard = dashboard
 
-            for p in d.panels:
-                if len(p.queries) == 0:
-                    continue
-                if not match_globs(p.title, args.panels_globs):
-                    continue
-                logger.info(f'  Testing panel {p.title} with all value')
-                timings = []
-                for q in p.queries:
-                    try:
-                        query, text = q.execute(
-                            database=self.database, start_time=start_time, end_time=end_time,
-                            mode=args.panel_mode, variables=variables)
+        self.name = var_json['name']
+        self.query = var_json['query'] if var_json['type'] == 'query' else None
+        self.include_all = var_json['includeAll']
+        self.all_value = var_json['allValue'] if var_json['includeAll'] else None
 
-                        result_text = ""
-                        for r in query:
-                            result_text += r['QUERY PLAN'] + "\n"
-                            last_result = r['QUERY PLAN']
+    def get_values(self, args, interval, n, all, test_db, bindings):
+        if not self.query:
+            return []
+        (from_time, to_time) = Grafana.get_times(args, interval)
+        if all:
+            if self.all_value:
+                return self.all_value
+            else:
+                n = 0 if self.include_all else 1
+        sql = Grafana.interpolate(self.query, from_time, to_time, bindings)
+        return Variable.get_n_values(sql, n, test_db)
 
-                        if args.panel_mode == 'ANALYZE' or args.panel_mode == 'VERBOSE':
-                            execution_time = float(
-                                self.execution_time_expr.search(last_result).group())
+    @staticmethod
+    def get_n_values(sql, n, test_db):
+        if sql:
+            r = test_db.query(sql)  # todo
+            values = list(OrderedDict.fromkeys([Variable.__get_value(row) for row in r]))
+            return values if n == 0 else values[0:n]
 
-                        result_row = dict(time=now,
-                                          label=args.label,
-                                          trial=int(args.trial),
-                                          folder_uid=args.folder,
-                                          dashboard=d.title,
-                                          dashboard_uid=dashboard['uid'],
-                                          query_type="panel",
-                                          name=p.title,
-                                          interval=interval,
-                                          start_time=start_time,
-                                          end_time=end_time,
-                                          execution_time=execution_time,
-                                          variable=json.dumps(variables),
-                                          all_variable=True,
-                                          query=text,
-                                          analysis=result_text)
-                        self.result_table.insert(result_row)
-                        timings.append(execution_time / 1000)
-                    except psycopg2.errors.SyntaxError as err:
-                        logger.error(f'Error getting variable {v.name}')
-                        raise err
-                    except sqlalchemy.exc.OperationalError as err:
-                        logger.error(err)
-                if timings:
-                    logger.info(f'    Query time(s): {timings}')
+    @staticmethod
+    def __get_value(row):
+        if '__value' in row:
+            return str(row['__value'])
+        elif len(row) == 1:
+            return str(list(row.values())[0])
+        else:
+            raise Exception(f'Invalid result row from variable query: {row}')
+
+    def test(self, args, interval, all, test_db, perf_db, bindings):
+        (from_time, to_time) = Grafana.get_times(args, interval)
+        sql = Grafana.interpolate(self.query, from_time, to_time, bindings)
+        metadata = {'time': Grafana.now, 'trial': int(args.trial), 'label': args.label,
+                    'folder': args.folder, 'dashboard': self.dashboard.title,
+                    'dashboard_uid': self.dashboard.uid, 'query_type': 'variable',
+                    'name': self.name, 'variable': str(bindings), 'all_variable': all,
+                    'interval': interval, 'start_time': from_time, 'end_time': to_time}
+        record_data = test_db.measure([sql], args.panel_mode, metadata)
+        keys = ['trial', 'label', 'dashboard_uid', 'query_type', 'name', 'all_variable',
+                'interval'] if args.upsert else None
+        perf_db.record(record_data, keys)
+
+
+class Panel:
+    def __init__(self, panel_json, dashboard):
+        self.json = panel_json
+        self.dashboard = dashboard
+        self.queries = []
+
+        self.title = panel_json['title']
+        if 'targets' in panel_json and panel_json['targets']:
+            self.queries = [target['rawSql'] for target in panel_json['targets'] if
+                            'rawSql' in target]
+
+    def test(self, args, interval, all, test_db, perf_db, bindings):
+        (from_time, to_time) = Grafana.get_times(args, interval)
+        queries = [Grafana.interpolate(query, from_time, to_time, bindings) for query in
+                   self.queries]
+        metadata = {'time': Grafana.now, 'trial': int(args.trial), 'label': args.label,
+                    'folder': args.folder, 'dashboard': self.dashboard.title,
+                    'dashboard_uid': self.dashboard.uid, 'query_type': 'panel',
+                    'name': self.title, 'variable': str(bindings), 'all_variable': all,
+                    'interval': interval, 'start_time': from_time, 'end_time': to_time}
+        record_data = test_db.measure(queries, args.panel_mode, metadata, log_times=True)
+        keys = ['trial', 'label', 'dashboard_uid', 'query_type', 'name', 'all_variable',
+                'interval'] if args.upsert else None
+        perf_db.record(record_data, keys)
+
+
+class DB:
+    def __init__(self, datasource):
+        self.datasource = datasource
+        # todo make table name an option
+        self.result_table = datasource['grafana']
+
+    def query(self, sql):
+        return self.datasource.query(sql)
+
+    __exec_time_pat = re.compile('[0-9.]+')
+
+    def measure(self, queries, mode, metadata, log_times=False):
+        expect_plan = True
+        prefix = ''
+        if mode == 'EXPLAIN':
+            prefix = 'EXPLAIN'
+        elif mode == 'ANALYZE':
+            prefix = 'EXPLAIN ANALYZE'
+        elif mode == 'VERBOSE':
+            prefix = 'EXPLAIN ANALYZE VERBOSE'
+        else:
+            expect_plan = False
+
+        timings = []
+        records = []
+        for sql in queries:
+            logger.debug(f"Executing SQL: {sql}")
+            try:
+                start_time = time.time()
+                result = self.datasource.query(f'{prefix} {sql}')
+                analysis = [row['QUERY PLAN'] for row in result] if expect_plan else None
+                # todo extract row count and list of record hashes for correctness checks
+                execution_time = time.time() - start_time
+                if analysis:
+                    execution_time = float(DB.__exec_time_pat.search(analysis[-1]).group())
+                record = {'query': sql, 'analysis': '\n'.join(analysis),
+                          'execution_time': execution_time}
+                timings.append(execution_time / 1000)
+                record.update(metadata)
+                records.append(record)
+            except psycopg2.errors.SyntaxError as err:
+                logger.error(f'Error executing qeury')
+                raise err
+            except sqlalchemy.exc.OperationalError as err:
+                logger.error(err)
+        if log_times:
+            logger.info(f'    Query time(s): {timings}')
+        return records
+
+    def record(self, record_data, keys):
+        try:
+            for rec in record_data:
+                if keys:
+                    self.result_table.upsert(rec, keys)
+                else:
+                    self.result_table.insert(rec)
+        except sqlalchemy.exc.OperationalError as err:
+            logger.error(err)
 
 
 def run_load(args):
-    g = Grafana(url=args.url, folder_name=args.folder, api_key=args.api_key)
-    g.load(args)
+    g = Grafana(args.url, args.api_key).load_folder(args)
 
 
 def run_save(args):
-    g = Grafana(url=args.url, folder_name=args.folder, api_key=args.api_key)
-    g.save(args)
+    g = Grafana(args.url, args.api_key).save_folder(args)
 
 
 def run_lint(args):
@@ -534,27 +471,12 @@ def run_lint(args):
 
 
 def run_test(args):
-    os.environ['PGOPTIONS'] = '-c statement_timeout=3600000'
-    db = dataset.connect(args.database, schema=(None if not args.schema else args.schema))
-    g = Grafana(url=args.url, folder_name=args.folder, api_key=args.api_key)
-    t = GrafanaTester(grafana=g, database=db)
-    end_time = datetime.fromisoformat(args.end_time)
-    for interval in args.intervals.split(','):
-        t.test(end_time - get_time_delta(interval), end_time, interval, args)
+    Grafana(args.url, args.api_key).test_folder(args)
 
-
-def get_time_delta(duration):
-    match = re.fullmatch(r'(\d+)([smhd])', duration)
-    if match:
-        n = int(match.group(1))
-        u = match.group(2)
-        return timedelta(
-            seconds=u == 's' and n,
-            minutes=u == 'm' and n,
-            hours=u == 'h' and n,
-            days=u == 'd' and n)
-    else:
-        raise Exception(f'Invalid test time duration: {duration}')
+    # t = GrafanaTester(grafana=g, database=db, perfdb=perfdb)
+    # end_time = datetime.fromisoformat(args.end_time)
+    # for interval in args.intervals.split(','):
+    #     t.test(end_time - Grafana.__get_time_delta(interval), end_time, interval, args)
 
 
 class Command(Enum):
@@ -576,9 +498,11 @@ class Arg(Enum):
     """
     url = (['-u', '--url'],
            {'dest': 'url', 'help': 'Grafana base URL (e.g. http://host:3000); env: GRAFANA_URL',
-            'default': os.environ.get('GRAFANA_URL'), 'required': 'GRAFANA_URL' not in os.environ})
+            'default': os.environ.get('GRAFANA_URL'),
+            'required': 'GRAFANA_URL' not in os.environ})
     api_key = (['-k', '--apikey'],
-               {'dest': 'api_key', 'help': 'API key for Grafana authentication; env: GRAFANA_KEY',
+               {'dest': 'api_key',
+                'help': 'API key for Grafana authentication; env: GRAFANA_KEY',
                 'default': os.environ.get('GRAFANA_KEY'),
                 'required': 'GRAFANA_KEY' not in os.environ})
     folder = (['-f', '--folder'],
@@ -608,16 +532,19 @@ class Arg(Enum):
     clear = (['-c', '--clear'],
              {'dest': 'clear', 'action': 'store_true', 'help': 'remove existing dashboards'})
     include = (['--include'],
-               {'dest': 'include_globs', 'help': 'glob patterns to match for included dashboards'})
+               {'dest': 'include_globs',
+                'help': 'glob patterns to match for included dashboards'})
     exclude = (['--exclude'],
-               {'dest': 'exclude_globs', 'help': 'glob patterns to match for exclude dashboards'})
+               {'dest': 'exclude_globs',
+                'help': 'glob patterns to match for exclude dashboards'})
     match_on = (['--match-on'],
                 {'dest': 'match_on', 'help': 'how to match dashboards for inclusion/exclusion',
                  'choices': ['title', 'uid', 'both'], 'default': 'uid'})
     test_intervals = (['--intervals'],
                       {
-                          'help': 'test interval durations e.g. 30m,1h,4h,1d; env GRAFANA _TEST_INTERVALS',
-                          'default': os.environ.get('GRAFANA_TEST_INTERVALS', '1h,2h,4h,8h,24h'),
+                          'help': 'test interval durations e.g. 30m,1h,4h,1d; env GRAFANA_TEST_INTERVALS',
+                          'default': os.environ.get('GRAFANA_TEST_INTERVALS',
+                                                    '1h,2h,4h,8h,24h'),
                           'dest': 'intervals'
                       })
     test_end_time = (['--end-time'],
@@ -633,7 +560,8 @@ class Arg(Enum):
                     'default': '*'})
     test_panel_mode = (['--test-panel-mode'],
                        {'dest': 'panel_mode', 'help': 'how to execute SQL for panel queries',
-                        'choices': ['RUN', 'EXPLAIN', 'ANALYZE', 'VERBOSE'], 'default': 'ANALYZE'})
+                        'choices': ['RUN', 'EXPLAIN', 'ANALYZE', 'VERBOSE'],
+                        'default': 'ANALYZE'})
     test_var_value_count = (['--test-var-value-count'],
                             {'dest': 'var_value_count', 'type': int, 'default': 1,
                              'help': 'how many of the available vars to include for "many" vars'})
@@ -642,9 +570,15 @@ class Arg(Enum):
                    'default': '-none-'})
     test_trial = (['--trial'],
                   {'dest': 'trial',
-                   'help': 'trial id to link multiple test executions for reporting',
+                   'help': 'trial id to link multiple test executions for reporting; env: GRAFANA_TEST_TRIAL',
                    'type': int, 'default': os.environ.get('GRAFANA_TEST_TRIAL'),
                    'required': 'GRAFANA_TEST_TRIAL' not in os.environ})
+    test_perfdb = (['--perfdb'],
+                   {'dest': 'perfdb', 'help': 'DB URL for where to write test results',
+                    'default': os.environ.get('GRAFANA_PERFDB')})
+    test_upsert = (['--upsert'],
+                   {'dest': 'upsert', 'action': 'store_true',
+                    'help': 'Use upserts so existing perf records are updated'})
     log_level = (['-l', '-log-level'],
                  {'dest': 'loglevel', 'help': 'logging level', 'default': 'INFO',
                   'choices': ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']})
@@ -655,6 +589,7 @@ class Arg(Enum):
 
 
 def main():
+    os.environ['PGOPTIONS'] = '-c statement_timeout=3600000'
     parser = argparse.ArgumentParser(
         description='Grafana Utilities', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
@@ -662,13 +597,15 @@ def main():
     load_parser = subparsers.add_parser(
         Command.load.name, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     for arg in [Arg.url, Arg.api_key, Arg.folder, Arg.disk_directory, Arg.disk_format,
-                Arg.overwrite, Arg.clear, Arg.include, Arg.exclude, Arg.match_on, Arg.log_level]:
+                Arg.overwrite, Arg.clear, Arg.include, Arg.exclude, Arg.match_on,
+                Arg.log_level]:
         arg.add_to_parser(load_parser)
 
     save_parser = subparsers.add_parser(
         Command.save.name, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     for arg in [Arg.url, Arg.api_key, Arg.folder, Arg.disk_directory, Arg.disk_format,
-                Arg.overwrite, Arg.clear, Arg.include, Arg.exclude, Arg.match_on, Arg.log_level]:
+                Arg.overwrite, Arg.clear, Arg.include, Arg.exclude, Arg.match_on,
+                Arg.log_level]:
         arg.add_to_parser(save_parser)
 
     lint_parser = subparsers.add_parser(
@@ -679,10 +616,10 @@ def main():
 
     test_parser = subparsers.add_parser(
         Command.test.name, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    for arg in [Arg.url, Arg.api_key, Arg.folder, Arg.database, Arg.schema, Arg.include,
-                Arg.exclude, Arg.match_on, Arg.test_intervals, Arg.test_end_time, Arg.log_level,
-                Arg.test_panels, Arg.test_panel_mode, Arg.test_var_value_count,
-                Arg.test_label, Arg.test_trial]:
+    for arg in [Arg.url, Arg.api_key, Arg.folder, Arg.database, Arg.schema, Arg.test_perfdb,
+                Arg.include, Arg.exclude, Arg.match_on, Arg.test_intervals, Arg.test_end_time,
+                Arg.log_level, Arg.test_panels, Arg.test_panel_mode, Arg.test_var_value_count,
+                Arg.test_label, Arg.test_trial, Arg.test_upsert]:
         arg.add_to_parser(test_parser)
 
     args = parser.parse_args()
@@ -703,3 +640,4 @@ if (__name__ == '__main__'):
 # TODO: Implement "clear" behavior for load and save
 # TODO: Package this up properly, e.g. for library version dependencies, etc.
 # TODO: Add some comments where helpful
+# TODO: Fix save and lint operations
