@@ -8,7 +8,7 @@ annotations:
     name: Annotations & Alerts
     type: dashboard
 description: Compare performance of dashboard query implementations
-editable: false
+editable: true
 gnetId:
 graphTooltip: 0
 iteration: 1610560253461
@@ -31,6 +31,276 @@ panels:
     w: 23
     x: 0
     y: 0
+  hiddenSeries: false
+  id: 6
+  legend:
+    avg: false
+    current: false
+    max: false
+    min: false
+    show: true
+    total: false
+    values: false
+  lines: true
+  linewidth: 2
+  nullPointMode: null as zero
+  percentage: false
+  pluginVersion: 7.1.1
+  pointradius: 3
+  points: true
+  renderer: flot
+  seriesOverrides: []
+  spaceLength: 10
+  stack: false
+  steppedLine: false
+  targets:
+    - format: time_series
+      group: []
+      metricColumn: none
+      rawQuery: true
+      rawSql: |+
+        SELECT
+          timestamp '2019-12-31T05:00Z' + (b.end_time - b.start_time) as "time",
+          b.label || ': ' || b.dashboard || '/' || b.name || case when coalesce(b.all_variable,True) then '[ALL]' else '' end as metric,
+          b.execution_time/a.execution_time
+        FROM
+          grafana as b, grafana as a
+        where
+          a.trial = b.trial
+          AND a.dashboard = b.dashboard
+          AND a.query_type = b.query_type
+          AND a.name = b.name
+          AND a.all_variable = b.all_variable
+          AND a.interval = b.interval
+          AND b.trial = $trial
+          AND b.label = '$b_label' AND a.label='$a_label'
+          AND b.dashboard = any( array[ $dashboard ] )
+          and b.query_type = any( array[ $type ] )
+          and b.name = any( array [ $name ] )
+          and ('$all' = 'Either' OR ('$all' = 'All Values') = b.all_variable)
+        order by 1
+      refId: A
+      select:
+        - - params:
+              - current
+            type: column
+      table: metric
+      timeColumn: '"time"'
+      timeColumnType: timestamp
+      where:
+        - name: $__timeFilter
+          params: []
+          type: macro
+  thresholds: []
+  timeFrom:
+  timeRegions:
+    - $$hashKey: object:383
+      colorMode: background6
+      fill: true
+      fillColor: rgba(234, 112, 112, 0.12)
+      line: false
+      lineColor: rgba(237, 46, 24, 0.60)
+      op: time
+  timeShift:
+  title: Query time ratio - $b_label / $a_label
+  tooltip:
+    shared: true
+    sort: 2
+    value_type: individual
+  type: graph
+  xaxis:
+    buckets:
+    mode: time
+    name:
+    show: true
+    values: []
+  yaxes:
+    - $$hashKey: object:319
+      format:
+      label:
+      logBase: 1
+      max:
+      min:
+      show: true
+    - $$hashKey: object:320
+      format: short
+      label:
+      logBase: 1
+      max:
+      min:
+      show: true
+  yaxis:
+    align: false
+    alignLevel:
+- datasource: $DB
+  fieldConfig:
+    defaults:
+      custom:
+        align:
+      mappings:
+        - from: ''
+          id: 0
+          operator: ''
+          text: ''
+          to: ''
+          type: 1
+      thresholds:
+        mode: absolute
+        steps:
+          - color: green
+            value:
+          - color: red
+            value: 80
+      unit: none
+    overrides:
+      - matcher:
+          id: byName
+          options: execution_time
+        properties:
+          - id: unit
+            value: ms
+          - id: custom.width
+            value: 117
+      - matcher:
+          id: byName
+          options: dashboard
+        properties:
+          - id: custom.width
+            value: 308
+      - matcher:
+          id: byName
+          options: query_type
+        properties:
+          - id: custom.width
+            value: 124
+      - matcher:
+          id: byName
+          options: name
+        properties:
+          - id: custom.width
+            value: 249
+      - matcher:
+          id: byName
+          options: variable
+        properties:
+          - id: custom.width
+            value: 239
+      - matcher:
+          id: byName
+          options: B id
+        properties:
+        - id: custom.width
+          value: 50
+        - id: links
+          value:
+          - targetBlank: true
+            title: Link to Query Details for this query
+            url: "/d/query_details/query-panel?orgId=1&var-DB=${DB}&var-id=${__data.fields[B id]}"
+      - matcher:
+          id: byName
+          options: A id
+        properties:
+        - id: unit
+          value: none
+        - id: custom.width
+          value: 50
+        - id: links
+          value:
+          - title: Link to Query Details for this query
+            targetBlank: true
+            url: "/d/query_details/query_panel?org_id=1&var-DB=${DB}&var-id=${__data.fields[A id]}"
+      - matcher:
+          id: byName
+          options: time
+        properties:
+          - id: custom.width
+            value: 200
+      - matcher:
+          id: byName
+          options: interval
+        properties:
+          - id: custom.width
+            value: 102
+  gridPos:
+    h: 12
+    w: 23
+    x: 0
+    y: 12
+  id: 2
+  options:
+    showHeader: true
+    sortBy: []
+  pluginVersion: 7.1.1
+  targets:
+    - format: table
+      group: []
+      metricColumn: none
+      rawQuery: true
+      rawSql: |
+        SELECT
+          a.id as "A id", b.id as "B id",
+          $__time(a.time),
+          a.trial,
+          a.label as "A label",
+          b.label as "B label",
+          (a.end_time - a.start_time)::interval as interval,
+          extract('epoch' from (a.end_time - a.start_time)::interval) as interval_secs,
+          a.execution_time AS "A Time",
+          b.execution_time AS "B Time",
+          b.execution_time / a.execution_time AS "B/A ratio",
+          a.dashboard,
+          a.query_type,
+          a.name,
+          a.all_variable,
+          a.variable
+        FROM
+          grafana as a full outer join grafana as b
+        ON
+          a.trial = b.trial
+          AND a.dashboard = b.dashboard
+          AND a.query_type = b.query_type
+          AND a.name = b.name
+          AND a.all_variable = b.all_variable
+          AND a.interval = b.interval
+        where
+          a.trial = $trial
+          AND a.label = '$a_label'
+          AND b.label = '$b_label'
+          AND a.dashboard = any( array[ $dashboard ] )
+          and a.query_type = any( array[ $type ] )
+          and a.name = any( array [ $name ] )
+          and ('$all' = 'Either' OR ('$all' = 'All Values') = a.all_variable)
+          ORDER BY a.dashboard, a.query_type, a.name, a.interval::interval
+      refId: A
+      select:
+        - - params:
+              - execution_time
+            type: column
+      table: grafana
+      timeColumn: '"time"'
+      timeColumnType: timestamp
+      where: []
+  timeFrom:
+  timeShift:
+  title: "Performance Overview - A: $a_label vs. B: $b_label"
+  type: table
+- aliasColors: {}
+  bars: false
+  dashLength: 10
+  dashes: false
+  datasource: $DB
+  fieldConfig:
+    defaults:
+      custom: {}
+      links: []
+    overrides: []
+  fill: 0
+  fillGradient: 0
+  gridPos:
+    h: 12
+    w: 23
+    x: 0
+    y: 24
   hiddenSeries: false
   id: 4
   legend:
@@ -143,7 +413,7 @@ panels:
     h: 12
     w: 23
     x: 0
-    y: 12
+    y: 36
   hiddenSeries: false
   id: 5
   legend:
@@ -167,48 +437,48 @@ panels:
   stack: false
   steppedLine: false
   targets:
-  - format: time_series
-    group: []
-    metricColumn: none
-    rawQuery: true
-    rawSql: |+
-      SELECT
-        timestamp '2019-12-31T05:00Z' + (end_time - start_time) as "time",
-        label || ': ' || dashboard || '/' || name || case when coalesce(all_variable,True) then '[ALL]' else '' end as metric,
-        execution_time
-      FROM
-        grafana
-      where
-        trial = $trial
-        AND label = '$b_label'
-        AND dashboard = any( array[ $dashboard ] )
-        and query_type = any( array[ $type ] )
-        and name = any( array [ $name ] )
-        and ('$all' = 'Either' OR ('$all' = 'All Values') = all_variable)
-      order by 1
+    - format: time_series
+      group: []
+      metricColumn: none
+      rawQuery: true
+      rawSql: |+
+        SELECT
+          timestamp '2019-12-31T05:00Z' + (end_time - start_time) as "time",
+          label || ': ' || dashboard || '/' || name || case when coalesce(all_variable,True) then '[ALL]' else '' end as metric,
+          execution_time
+        FROM
+          grafana
+        where
+          trial = $trial
+          AND label = '$b_label'
+          AND dashboard = any( array[ $dashboard ] )
+          and query_type = any( array[ $type ] )
+          and name = any( array [ $name ] )
+          and ('$all' = 'Either' OR ('$all' = 'All Values') = all_variable)
+        order by 1
 
-    refId: A
-    select:
-    - - params:
-        - current
-        type: column
-    table: metric
-    timeColumn: '"time"'
-    timeColumnType: timestamp
-    where:
-    - name: $__timeFilter
-      params: []
-      type: macro
+      refId: A
+      select:
+        - - params:
+              - current
+            type: column
+      table: metric
+      timeColumn: '"time"'
+      timeColumnType: timestamp
+      where:
+        - name: $__timeFilter
+          params: []
+          type: macro
   thresholds: []
   timeFrom:
   timeRegions:
-  - $$hashKey: object:383
-    colorMode: background6
-    fill: true
-    fillColor: rgba(234, 112, 112, 0.12)
-    line: false
-    lineColor: rgba(237, 46, 24, 0.60)
-    op: time
+    - $$hashKey: object:383
+      colorMode: background6
+      fill: true
+      fillColor: rgba(234, 112, 112, 0.12)
+      line: false
+      lineColor: rgba(237, 46, 24, 0.60)
+      op: time
   timeShift:
   title: Query time by interval - $b_label
   tooltip:
@@ -223,150 +493,23 @@ panels:
     show: true
     values: []
   yaxes:
-  - $$hashKey: object:319
-    format: ms
-    label:
-    logBase: 1
-    max:
-    min:
-    show: true
-  - $$hashKey: object:320
-    format: short
-    label:
-    logBase: 1
-    max:
-    min:
-    show: true
+    - $$hashKey: object:319
+      format: ms
+      label:
+      logBase: 1
+      max:
+      min:
+      show: true
+    - $$hashKey: object:320
+      format: short
+      label:
+      logBase: 1
+      max:
+      min:
+      show: true
   yaxis:
     align: false
     alignLevel:
-- datasource: $DB
-  fieldConfig:
-    defaults:
-      custom:
-        align:
-      mappings:
-      - from: ''
-        id: 0
-        operator: ''
-        text: ''
-        to: ''
-        type: 1
-      thresholds:
-        mode: absolute
-        steps:
-        - color: green
-          value:
-        - color: red
-          value: 80
-      unit: none
-    overrides:
-    - matcher:
-        id: byName
-        options: execution_time
-      properties:
-      - id: unit
-        value: ms
-      - id: custom.width
-        value: 117
-    - matcher:
-        id: byName
-        options: dashboard
-      properties:
-      - id: custom.width
-        value: 308
-    - matcher:
-        id: byName
-        options: query_type
-      properties:
-      - id: custom.width
-        value: 124
-    - matcher:
-        id: byName
-        options: name
-      properties:
-      - id: custom.width
-        value: 249
-    - matcher:
-        id: byName
-        options: variable
-      properties:
-      - id: custom.width
-        value: 239
-    - matcher:
-        id: byName
-        options: id
-      properties:
-      - id: custom.width
-        value: 143
-      - id: links
-        value:
-        - targetBlank: true
-          title: ''
-          url: "http://xlr01.eng.turbonomic.com:3000/d/7Vo8bbiMk/query-details?orgId=1&var-DB=${DB}&var-id=${__data.fields[id]}\uFEFF"
-    - matcher:
-        id: byName
-        options: time
-      properties:
-      - id: custom.width
-        value: 200
-    - matcher:
-        id: byName
-        options: interval
-      properties:
-      - id: custom.width
-        value: 102
-  gridPos:
-    h: 9
-    w: 23
-    x: 0
-    y: 24
-  id: 2
-  options:
-    showHeader: true
-    sortBy: []
-  pluginVersion: 7.1.1
-  targets:
-  - format: table
-    group: []
-    metricColumn: none
-    rawQuery: true
-    rawSql: |
-      SELECT
-        id, 
-        $__time(time),
-        trial,
-        label,
-        (end_time - start_time)::interval as interval,
-        extract('epoch' from (end_time - start_time)::interval) as interval_secs,
-        execution_time,
-        dashboard,
-        query_type,
-        name,
-        variable
-      FROM
-        grafana
-      where
-        trial = $trial
-        AND (label = '$a_label' OR label = '$b_label')
-        AND dashboard = any( array[ $dashboard ] )
-        and query_type = any( array[ $type ] )
-        and name = any( array [ $name ] )
-        and ('$all' = 'Either' OR ('$all' = 'All Values') = all_variable)
-        ORDER BY dashboard, query_type, name, interval::interval, label
-    refId: A
-    select:
-    - - params:
-        - execution_time
-        type: column
-    table: grafana
-    timeColumn: '"time"'
-    timeColumnType: timestamp
-    where: []
-  timeFrom:
-  timeShift:
-  title: Performance Overview
-  type: table
 refresh: false
 schemaVersion: 26
 style: dark

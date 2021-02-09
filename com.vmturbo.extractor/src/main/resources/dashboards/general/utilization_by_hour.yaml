@@ -1,4 +1,3 @@
----
 annotations:
   list:
   - builtIn: 1
@@ -11,7 +10,7 @@ annotations:
 description: This report shows hourly averaged for CPU and Memory utilization measurements
   for physical and virtual machines. Averages are rolled up for all machines.
 editable: false
-gnetId: null
+gnetId:
 graphTooltip: 0
 iteration: 1596479923641
 links: []
@@ -35,7 +34,7 @@ panels:
     y: 0
   hiddenSeries: false
   id: 4
-  interval: ""
+  interval: ''
   legend:
     avg: false
     current: false
@@ -48,7 +47,7 @@ panels:
     values: false
   lines: true
   linewidth: 3
-  nullPointMode: "null"
+  nullPointMode: 'null'
   options:
     dataLinks: []
   percentage: false
@@ -66,17 +65,18 @@ panels:
     rawQuery: true
     rawSql: |-
       SELECT
-        date_trunc('hour', m.time) as "time",
-        avg(m.utilization) FILTER (WHERE m.type = 'VMEM') AS "VMem",
-        avg(m.utilization) FILTER (WHERE m.type = 'VCPU') AS "VCPU",
-        avg(m.utilization) FILTER (WHERE m.type = 'VSTORAGE') AS "VStorage"
+          date_trunc('hour', m.time) as "time",
+          avg(m.utilization) FILTER (WHERE m.type = 'VMEM') AS "VMem",
+          avg(m.utilization) FILTER (WHERE m.type = 'VCPU') AS "VCPU",
+          avg(m.utilization) FILTER (WHERE m.type = 'VSTORAGE') AS "VStorage"
       FROM entity e
       JOIN metric m ON m.entity_oid = e.oid AND
-        m.entity_hash = e.hash AND
-        $__timeFilter(m."time") AND
-        e.type = 'VIRTUAL_MACHINE' AND
-        e.environment = 'ON_PREM' AND
-        ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)
+          m.time BETWEEN $__timeFrom() AND $__timeTo()
+      WHERE
+          e.type = 'VIRTUAL_MACHINE' AND
+          e.environment = 'ON_PREM' AND
+          ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)
+          and m.type in ('VMEM', 'VCPU', 'VSTORAGE')
       GROUP BY 1
       ORDER BY 1
     refId: A
@@ -92,16 +92,16 @@ panels:
       params: []
       type: macro
     - datatype: timestamptz
-      name: ""
+      name: ''
       params:
       - '"time"'
-      - =
+      - '='
       - $Day
       type: expression
   thresholds: []
-  timeFrom: null
+  timeFrom:
   timeRegions: []
-  timeShift: null
+  timeShift:
   title: Average Hourly Virtual Machine Utilization
   tooltip:
     shared: true
@@ -109,29 +109,29 @@ panels:
     value_type: individual
   type: graph
   xaxis:
-    buckets: null
+    buckets:
     mode: time
-    name: null
+    name:
     show: true
     values: []
   yaxes:
   - $$hashKey: object:1961
     format: percentunit
-    label: null
+    label:
     logBase: 1
     max: 1
     min: 0
     show: true
   - $$hashKey: object:1962
     format: short
-    label: null
+    label:
     logBase: 1
-    max: null
-    min: null
+    max:
+    min:
     show: true
   yaxis:
     align: false
-    alignLevel: null
+    alignLevel:
 - aliasColors: {}
   bars: false
   dashLength: 10
@@ -161,7 +161,7 @@ panels:
     values: false
   lines: true
   linewidth: 3
-  nullPointMode: "null"
+  nullPointMode: 'null'
   options:
     dataLinks: []
   percentage: false
@@ -195,10 +195,11 @@ panels:
         avg(m.utilization) FILTER (WHERE m.type = 'Q64_VCPU') AS "Q64_VCPU"
       FROM entity e
       JOIN metric m ON m.entity_oid = e.oid AND
-        m.entity_hash = e.hash AND
-        $__timeFilter(m."time") AND
+        m."time" BETWEEN $__timeFrom() AND $__timeTo()
+      WHERE
         e.type = 'PHYSICAL_MACHINE'  AND
         ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)
+      and m.type in ('MEM', 'CPU', 'BALLOONING', 'IO_THROUGHPUT', 'NET_THROUGHPUT', 'SWAPPING', 'Q1_VCPU', 'Q2_VCPU', 'Q4_VCPU', 'Q8_VCPU', 'Q16_VCPU', 'Q32_VCPU', 'Q64_VCPU')
       GROUP BY 1
       ORDER BY 1
     refId: A
@@ -214,9 +215,9 @@ panels:
       params: []
       type: macro
   thresholds: []
-  timeFrom: null
+  timeFrom:
   timeRegions: []
-  timeShift: null
+  timeShift:
   title: Average Hourly Physical Machine Utilization
   tooltip:
     shared: true
@@ -224,29 +225,29 @@ panels:
     value_type: individual
   type: graph
   xaxis:
-    buckets: null
+    buckets:
     mode: time
-    name: null
+    name:
     show: true
     values: []
   yaxes:
   - $$hashKey: object:2041
     format: percentunit
-    label: null
+    label:
     logBase: 1
     max: 1
     min: 0
     show: true
   - $$hashKey: object:2042
     format: short
-    label: null
+    label:
     logBase: 1
-    max: null
-    min: null
+    max:
+    min:
     show: true
   yaxis:
     align: false
-    alignLevel: null
+    alignLevel:
 refresh: false
 schemaVersion: 25
 style: dark
@@ -255,14 +256,14 @@ templating:
   list:
   - hide: 2
     includeAll: false
-    label: null
+    label:
     multi: false
     name: DB
     options: []
     query: postgres
-    queryValue: ""
+    queryValue: ''
     refresh: 1
-    regex: ""
+    regex: ''
     skipUrlSync: false
     type: datasource
 timepicker:
@@ -276,6 +277,6 @@ timepicker:
   - 1h
   - 2h
   - 1d
-timezone: ""
+timezone: ''
 title: Daily Infrastructure Utilization Levels by Hour
 uid: utilization_by_hour

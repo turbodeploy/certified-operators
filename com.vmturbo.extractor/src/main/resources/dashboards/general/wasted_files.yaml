@@ -1,4 +1,3 @@
----
 annotations:
   list:
   - builtIn: 1
@@ -12,7 +11,7 @@ description: This dashboard displays information on data stores organized by was
   storage amounts. Wasted amounts are those that are allocated on a data store, and
   occupy space, but are not associated with a virtual machine.
 editable: false
-gnetId: null
+gnetId:
 graphTooltip: 0
 iteration: 1607110974420
 links: []
@@ -30,7 +29,7 @@ panels:
         mode: absolute
         steps:
         - color: light-red
-          value: null
+          value:
       unit: kbytes
     overrides: []
   gridPos:
@@ -59,8 +58,7 @@ panels:
              storage_name as "Datastore",
              SUM(file_size_kb) as "Wasted Storage Amount"
         FROM wasted_file
-       WHERE CASE WHEN ARRAY[$Datastore]::text[] = ARRAY[ '0' ] THEN true
-                  ELSE ARRAY[storage_oid]::text[] && Array[$Datastore]::text[] END
+       WHERE ARRAY[storage_oid]::text[] && Array[$Datastore]::text[]
          AND file_size_kb >= $MinFileSize
        GROUP BY 1, 2
        ORDER BY 3 DESC
@@ -76,21 +74,21 @@ panels:
     - name: $__timeFilter
       params: []
       type: macro
-  timeFrom: null
-  timeShift: null
+  timeFrom:
+  timeShift:
   title: Total Wasted Amount Per Datastore
   type: bargauge
 - datasource: $DB
   fieldConfig:
     defaults:
       custom:
-        align: null
+        align:
       mappings: []
       thresholds:
         mode: absolute
         steps:
         - color: green
-          value: null
+          value:
         - color: red
           value: 80
       unit: kbytes
@@ -128,8 +126,7 @@ panels:
              SUM(file_size_kb) as "Wasted Storage Amount",
              COUNT(file_size_kb) as "Wasted File Count"
         FROM wasted_file
-       WHERE CASE WHEN ARRAY[$Datastore]::text[] = ARRAY[ '0' ]  THEN true
-                  ELSE ARRAY[storage_oid]::text[] && Array[$Datastore]::text[] END
+       WHERE ARRAY[storage_oid]::text[] && Array[$Datastore]::text[]
          AND file_size_kb >= $MinFileSize
        GROUP BY storage_oid, storage_name
        ORDER BY 2 DESC;
@@ -145,15 +142,15 @@ panels:
     - name: $__timeFilter
       params: []
       type: macro
-  timeFrom: null
-  timeShift: null
+  timeFrom:
+  timeShift:
   title: Total Wasted Storage Per Datastore
   type: table
 - datasource: $DB
   fieldConfig:
     defaults:
       custom:
-        align: null
+        align:
       links:
       - title: Scope Dashboard to ${__field.name}
         url: /d/wasted_files?var-Datastore=${__field.name}&var-MinFileSize=${MinFileSize}
@@ -163,7 +160,7 @@ panels:
         mode: absolute
         steps:
         - color: green
-          value: null
+          value:
     overrides: []
   gridPos:
     h: 10
@@ -191,8 +188,7 @@ panels:
              storage_name as "Datastore",
              COUNT(*) as "Wasted File Count"
         FROM wasted_file
-       WHERE CASE WHEN ARRAY[$Datastore]::text[] = ARRAY[ '0' ]  THEN true
-                  ELSE ARRAY[storage_oid]::text[] && Array[$Datastore]::text[] END
+       WHERE ARRAY[storage_oid]::text[] && Array[$Datastore]::text[]
          AND file_size_kb >= $MinFileSize
        GROUP BY 1, storage_oid, storage_name
        ORDER BY 3 DESC
@@ -208,21 +204,21 @@ panels:
     - name: $__timeFilter
       params: []
       type: macro
-  timeFrom: null
-  timeShift: null
+  timeFrom:
+  timeShift:
   title: Wasted File Count Per Datastore
   type: bargauge
 - datasource: $DB
   fieldConfig:
     defaults:
       custom:
-        align: null
+        align:
       mappings: []
       thresholds:
         mode: absolute
         steps:
         - color: green
-          value: null
+          value:
         - color: red
           value: 80
     overrides:
@@ -268,8 +264,7 @@ panels:
              modification_time as "Last Modified Time"
         FROM wasted_file
        WHERE file_size_kb >= $MinFileSize
-         AND CASE WHEN ARRAY[$Datastore]::text[] = ARRAY[ '0' ]  THEN true
-                  ELSE ARRAY[storage_oid]::text[] && Array[$Datastore]::text[] END
+         AND ARRAY[storage_oid]::text[] && Array[$Datastore]::text[]
        ORDER BY 3 DESC
     refId: A
     select:
@@ -283,8 +278,8 @@ panels:
     - name: $__timeFilter
       params: []
       type: macro
-  timeFrom: null
-  timeShift: null
+  timeFrom:
+  timeShift:
   title: Individual Wasted Files
   type: table
 refresh: false
@@ -295,17 +290,17 @@ templating:
   list:
   - hide: 2
     includeAll: false
-    label: null
+    label:
     multi: false
     name: DB
     options: []
     query: postgres
-    queryValue: ""
+    queryValue: ''
     refresh: 1
-    regex: ""
+    regex: ''
     skipUrlSync: false
     type: datasource
-  - allValue: '''0'''
+  - allValue:
     datasource: $DB
     definition: |-
       SELECT DISTINCT storage_name as __text,
@@ -314,7 +309,7 @@ templating:
       ORDER BY storage_name
     hide: 0
     includeAll: true
-    label: null
+    label:
     multi: true
     name: Datastore
     options: []
@@ -324,15 +319,15 @@ templating:
       FROM wasted_file
       ORDER BY storage_name
     refresh: 2
-    regex: ""
+    regex: ''
     skipUrlSync: false
     sort: 0
-    tagValuesQuery: ""
+    tagValuesQuery: ''
     tags: []
-    tagsQuery: ""
+    tagsQuery: ''
     type: query
     useTags: false
-  - allValue: null
+  - allValue:
     datasource: $DB
     definition: |-
       SELECT  col || ' MB' as __text,
@@ -348,7 +343,7 @@ templating:
        ORDER BY __value
     hide: 0
     includeAll: false
-    label: null
+    label:
     multi: false
     name: MinFileSize
     options: []
@@ -365,12 +360,12 @@ templating:
         FROM generate_series(10,100,10)
        ORDER BY __value
     refresh: 2
-    regex: ""
+    regex: ''
     skipUrlSync: false
     sort: 0
-    tagValuesQuery: ""
+    tagValuesQuery: ''
     tags: []
-    tagsQuery: ""
+    tagsQuery: ''
     type: query
     useTags: false
 timepicker:
@@ -385,6 +380,6 @@ timepicker:
   - 1h
   - 2h
   - 1d
-timezone: ""
+timezone: ''
 title: Wasted Storage Files
 uid: wasted_files
