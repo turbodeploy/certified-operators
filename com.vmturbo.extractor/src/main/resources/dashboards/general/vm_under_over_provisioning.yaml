@@ -1,4 +1,3 @@
----
 annotations:
   list:
   - builtIn: 1
@@ -11,7 +10,7 @@ annotations:
 description: This dashboard shows virtual machines that are over or under provisioned,
   as indicated by their utilization levels of allocated resources.
 editable: false
-gnetId: null
+gnetId:
 graphTooltip: 0
 iteration: 1597070835900
 links: []
@@ -34,7 +33,7 @@ panels:
   pageSize: 50
   showHeader: true
   sort:
-    col: null
+    col:
     desc: false
   styles:
   - $$hashKey: object:279
@@ -44,7 +43,7 @@ panels:
     pattern: Time
     type: date
   - $$hashKey: object:280
-    alias: ""
+    alias: ''
     align: right
     colorMode: value
     colors:
@@ -58,9 +57,9 @@ panels:
     type: number
     unit: percentunit
   - $$hashKey: object:281
-    alias: ""
+    alias: ''
     align: auto
-    colorMode: null
+    colorMode:
     colors:
     - rgba(245, 54, 54, 0.9)
     - rgba(237, 129, 40, 0.89)
@@ -73,9 +72,9 @@ panels:
     type: number
     unit: percentunit
   - $$hashKey: object:282
-    alias: ""
+    alias: ''
     align: auto
-    colorMode: null
+    colorMode:
     colors:
     - rgba(245, 54, 54, 0.9)
     - rgba(237, 129, 40, 0.89)
@@ -88,9 +87,9 @@ panels:
     type: number
     unit: kbytes
   - $$hashKey: object:291
-    alias: ""
+    alias: ''
     align: auto
-    colorMode: null
+    colorMode:
     colors:
     - rgba(245, 54, 54, 0.9)
     - rgba(237, 129, 40, 0.89)
@@ -108,28 +107,31 @@ panels:
     metricColumn: none
     rawQuery: true
     rawSql: |
-      with vms_by_cluster as (
-          select distinct on (e.oid) g.name as cluster_name, e.oid as vm_oid, e.name as vm_name
-              from entity g
-              join entity e on g."type" = 'COMPUTE_CLUSTER' and
-                   array[g.oid] <@ e.scope
-                   and e."type" = 'VIRTUAL_MACHINE' and e.state = 'POWERED_ON'
-                   and (e.first_seen, e.last_seen) overlaps ($__timeFrom(),$__timeTo()))
-      select max(cluster_name) as "Cluster name",
-             max(vm_name) as "VM name",
-             AVG(metric.capacity) filter (where metric.type = 'VMEM') as "VMEM Capacity",
-             AVG(metric.utilization) filter (where metric.type = 'VMEM') as "VMEM Avg",
-             max(metric.utilization) filter (where metric.type = 'VMEM') as "VMEM Peak",
-             AVG(metric.capacity * 1000000) filter (where metric.type = 'VCPU') as "VCPU Capacity",
-             AVG(metric.utilization) filter (where metric.type = 'VCPU') as "VCPU Avg",
-             max(metric.utilization) filter (where metric.type = 'VCPU') as "VCPU Peak"
-      from vms_by_cluster
-      join metric on
-             metric.entity_oid = vm_oid and
-             metric."type" in ('VMEM', 'VCPU') and provider_oid isnull and $__timeFilter(metric."time")
-      group by vm_oid
-      having max(metric.utilization) filter (where metric.type = 'VMEM') < 0.1 OR
-             max(metric.utilization) filter (where metric.type = 'VCPU') < 0.1
+      WITH vms_by_cluster AS (
+        SELECT DISTINCT ON (e.oid) c.name AS cluster_name, e.oid AS vm_oid, e.name AS vm_name
+        FROM entity e
+          JOIN scope s ON (e.oid = s.seed_oid)
+          JOIN entity c ON (c.oid = s.scoped_oid)
+        WHERE e.type = 'VIRTUAL_MACHINE'
+          AND e.state = 'POWERED_ON'
+          AND c.type = 'COMPUTE_CLUSTER'
+          AND (s.start, s.finish) OVERLAPS ($__timeFrom(), $__timeTo()))
+      SELECT max(cluster_name) AS "Cluster name",
+        max(vm_name) AS "VM name",
+        avg(metric.capacity) FILTER (WHERE metric.type = 'VMEM') AS "VMEM Capacity",
+        avg(metric.utilization) FILTER (WHERE metric.type = 'VMEM') AS "VMEM Avg",
+        max(metric.utilization) FILTER (WHERE metric.type = 'VMEM') AS "VMEM Peak",
+        avg(metric.capacity * 1000000) FILTER (WHERE metric.type = 'VCPU') AS "VCPU Capacity",
+        avg(metric.utilization) FILTER (WHERE metric.type = 'VCPU') AS "VCPU Avg",
+        max(metric.utilization) FILTER (WHERE metric.type = 'VCPU') AS "VCPU Peak"
+      FROM vms_by_cluster
+        JOIN metric ON metric.entity_oid = vm_oid
+      WHERE metric."type" IN ('VMEM', 'VCPU')
+        AND provider_oid IS NULL
+        AND metric."time" BETWEEN $__timeFrom() AND $__timeTo()
+      GROUP BY vm_oid
+      HAVING max(metric.utilization) FILTER (WHERE metric.type = 'VMEM') < 0.1
+        OR max(metric.utilization) FILTER (WHERE metric.type = 'VCPU') < 0.1;
     refId: B
     select:
     - - params:
@@ -140,8 +142,8 @@ panels:
     - name: $__timeFilter
       params: []
       type: macro
-  timeFrom: null
-  timeShift: null
+  timeFrom:
+  timeShift:
   title: Over-provisioned VMs
   transform: table
   type: table-old
@@ -163,7 +165,7 @@ panels:
   pageSize: 50
   showHeader: true
   sort:
-    col: null
+    col:
     desc: false
   styles:
   - $$hashKey: object:511
@@ -173,7 +175,7 @@ panels:
     pattern: Time
     type: date
   - $$hashKey: object:512
-    alias: ""
+    alias: ''
     align: right
     colorMode: value
     colors:
@@ -187,9 +189,9 @@ panels:
     type: number
     unit: percentunit
   - $$hashKey: object:513
-    alias: ""
+    alias: ''
     align: auto
-    colorMode: null
+    colorMode:
     colors:
     - rgba(245, 54, 54, 0.9)
     - rgba(237, 129, 40, 0.89)
@@ -202,9 +204,9 @@ panels:
     type: number
     unit: percentunit
   - $$hashKey: object:514
-    alias: ""
+    alias: ''
     align: auto
-    colorMode: null
+    colorMode:
     colors:
     - rgba(245, 54, 54, 0.9)
     - rgba(237, 129, 40, 0.89)
@@ -217,9 +219,9 @@ panels:
     type: number
     unit: kbytes
   - $$hashKey: object:541
-    alias: ""
+    alias: ''
     align: auto
-    colorMode: null
+    colorMode:
     colors:
     - rgba(245, 54, 54, 0.9)
     - rgba(237, 129, 40, 0.89)
@@ -237,28 +239,31 @@ panels:
     metricColumn: none
     rawQuery: true
     rawSql: |
-      with vms_by_cluster as (
-          select distinct on (e.oid) g.name as cluster_name, e.oid as vm_oid, e.name as vm_name
-              from entity g
-              join entity e on g."type" = 'COMPUTE_CLUSTER' and
-                   array[g.oid] <@ e.scope
-                   and e."type" = 'VIRTUAL_MACHINE' and e.state = 'POWERED_ON'
-                   and (e.first_seen, e.last_seen) overlaps ($__timeFrom(),$__timeTo()))
-      select max(cluster_name) as "Cluster name",
-             max(vm_name) as "VM name",
-             AVG(metric.capacity) filter (where metric.type = 'VMEM') as "VMEM Capacity",
-             AVG(metric.utilization) filter (where metric.type = 'VMEM') as "VMEM Avg",
-             max(metric.utilization) filter (where metric.type = 'VMEM') as "VMEM Peak",
-             AVG(metric.capacity * 1000000) filter (where metric.type = 'VCPU') as "VCPU Capacity",
-             AVG(metric.utilization) filter (where metric.type = 'VCPU') as "VCPU Avg",
-             max(metric.utilization) filter (where metric.type = 'VCPU') as "VCPU Peak"
-      from vms_by_cluster
-      join metric on
-             metric.entity_oid = vm_oid and
-             metric."type" in ('VMEM', 'VCPU') and provider_oid isnull and $__timeFilter(metric."time")
-      group by vm_oid
-      having max(metric.utilization) filter (where metric.type = 'VMEM') > 0.85 OR
-             max(metric.utilization) filter (where metric.type = 'VCPU') > 0.85
+      WITH vms_by_cluster AS (
+        SELECT DISTINCT ON (e.oid) c.name AS cluster_name, e.oid AS vm_oid, e.name AS vm_name
+        FROM entity e
+          JOIN scope s ON (e.oid = s.seed_oid)
+          JOIN entity c ON (c.oid = s.scoped_oid)
+        WHERE e.type = 'VIRTUAL_MACHINE'
+          AND e.state = 'POWERED_ON'
+          AND c.type = 'COMPUTE_CLUSTER'
+          AND (s.start, s.finish) OVERLAPS ($__timeFrom(), $__timeTo()))
+      SELECT max(cluster_name) AS "Cluster name",
+        max(vm_name) AS "VM name",
+        avg(metric.capacity) FILTER (WHERE metric.type = 'VMEM') AS "VMEM Capacity",
+        avg(metric.utilization) FILTER (WHERE metric.type = 'VMEM') AS "VMEM Avg",
+        max(metric.utilization) FILTER (WHERE metric.type = 'VMEM') AS "VMEM Peak",
+        avg(metric.capacity * 1000000) FILTER (WHERE metric.type = 'VCPU') AS "VCPU Capacity",
+        avg(metric.utilization) FILTER (WHERE metric.type = 'VCPU') AS "VCPU Avg",
+        max(metric.utilization) FILTER (WHERE metric.type = 'VCPU') AS "VCPU Peak"
+      FROM vms_by_cluster
+        JOIN metric ON metric.entity_oid = vm_oid
+      WHERE metric."type" IN ('VMEM', 'VCPU')
+        AND provider_oid IS NULL
+        AND metric."time" BETWEEN $__timeFrom() AND $__timeTo()
+      GROUP BY vm_oid
+      HAVING max(metric.utilization) FILTER (WHERE metric.type = 'VMEM') < 0.1
+        OR max(metric.utilization) FILTER (WHERE metric.type = 'VCPU') < 0.1;
     refId: B
     select:
     - - params:
@@ -269,8 +274,8 @@ panels:
     - name: $__timeFilter
       params: []
       type: macro
-  timeFrom: null
-  timeShift: null
+  timeFrom:
+  timeShift:
   title: Under-provisioned VMs
   transform: table
   type: table-old
@@ -295,9 +300,9 @@ panels:
     col: 2
     desc: true
   styles:
-  - alias: ""
+  - alias: ''
     align: right
-    colorMode: null
+    colorMode:
     colors:
     - rgba(245, 54, 54, 0.9)
     - rgba(237, 129, 40, 0.89)
@@ -312,27 +317,35 @@ panels:
     group: []
     metricColumn: none
     rawQuery: true
-    rawSql: |+
-      with vms_by_cluster as (
-        select distinct on(e.oid) g.name as cluster_name, e.oid as vm_oid
-              from entity g
-              join entity e on g."type" = 'COMPUTE_CLUSTER' and array[g.oid] <@ e.scope and e."type" = 'VIRTUAL_MACHINE'
-                                              and e."type" = 'VIRTUAL_MACHINE' and e.state = 'POWERED_ON'
-                                              and (e.first_seen, e.last_seen) overlaps ($__timeFrom(),$__timeTo())),
-      vm_peaks as (
-          SELECT MAX(cluster_name) as cluster_name,
-                     MAX(metric.utilization) filter (where metric.type = 'VMEM') as vmem_peak,
-                     MAX(metric.utilization) filter (where metric.type = 'VCPU') as vcpu_peak
-              FROM vms_by_cluster
-              join metric on vm_oid = metric.entity_oid
-                    and $__timeFilter(metric."time")
-                    and metric."type" in ('VMEM', 'VCPU')
-                    and provider_oid isnull
-              group by vm_oid)
-      select cluster_name as "Cluster", avg(vcpu_peak) as "Avg(Peak VCPU)", avg(vmem_peak) as "Avg(Peak VMem)"
-      from vm_peaks
-      group by cluster_name
-
+    rawSql: |
+      WITH vms_by_cluster AS (
+        SELECT DISTINCT ON (e.oid) c.name AS cluster_name, e.oid AS vm_oid, e.name AS vm_name
+        FROM entity e
+          JOIN scope s ON (e.oid = s.seed_oid)
+          JOIN entity c ON (c.oid = s.scoped_oid)
+        WHERE e.type = 'VIRTUAL_MACHINE'
+          AND e.state = 'POWERED_ON'
+          AND c.type = 'COMPUTE_CLUSTER'
+          AND (s.start, s.finish) OVERLAPS ($__timeFrom(), $__timeTo())),
+      vm_peaks AS (
+        SELECT
+          max(cluster_name) AS cluster_name,
+          max(metric.utilization) FILTER (WHERE metric.type = 'VMEM') AS vmem_peak,
+          max(metric.utilization) FILTER (WHERE metric.type = 'VCPU') AS vcpu_peak
+        FROM vms_by_cluster
+        JOIN metric ON metric.entity_oid = vm_oid
+        WHERE
+          $__timeFilter(metric."time")
+          AND metric.type IN ('VMEM', 'VCPU')
+          AND provider_oid IS NULL
+        GROUP BY vm_oid
+      )
+      SELECT
+        cluster_name AS "Cluster",
+        avg(vcpu_peak) AS "Avg(Peak VCPU)",
+        avg(vmem_peak) AS "Avg(Peak VMem)"
+      FROM vm_peaks
+      GROUP BY cluster_name
     refId: A
     select:
     - - params:
@@ -343,8 +356,8 @@ panels:
     - name: $__timeFilter
       params: []
       type: macro
-  timeFrom: null
-  timeShift: null
+  timeFrom:
+  timeShift:
   title: Clusters with Average Peaks
   transform: table
   type: table-old
@@ -356,14 +369,14 @@ templating:
   list:
   - hide: 2
     includeAll: false
-    label: null
+    label:
     multi: false
     name: DB
     options: []
     query: postgres
-    queryValue: ""
+    queryValue: ''
     refresh: 1
-    regex: ""
+    regex: ''
     skipUrlSync: false
     type: datasource
 timepicker:
@@ -377,6 +390,6 @@ timepicker:
   - 1h
   - 2h
   - 1d
-timezone: ""
+timezone: ''
 title: Virtual Machine Over or Under Provisioning
 uid: vm_under_over_provisioning

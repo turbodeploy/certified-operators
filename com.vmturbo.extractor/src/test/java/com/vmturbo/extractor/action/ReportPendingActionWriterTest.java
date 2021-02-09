@@ -59,7 +59,6 @@ public class ReportPendingActionWriterTest {
             .lastSeenUpdateIntervalMinutes(1)
             .lastSeenAdditionalFuzzMinutes(1)
             .insertTimeoutSeconds(10)
-            .populateScopeTable(true)
             .build();
 
     private MutableFixedClock clock = new MutableFixedClock(1_000_000);

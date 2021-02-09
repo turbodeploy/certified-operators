@@ -4,6 +4,9 @@ Inside each folder there can be a "permissions.yaml" file which will specify per
 for the folder (see
 [the Grafana docs](https://grafana.com/docs/grafana/latest/http_api/folder_permissions/)).
 
+Except in the case of the "general" folder, every other folder needs its own `folder.yaml` file.
+The file minimally needs `title` and `uid` property values.
+
 The other .yaml files inside each folder are assumed to be Grafana dashboards, and will be created
 or updated in Grafana under the appropriate folder.
 
