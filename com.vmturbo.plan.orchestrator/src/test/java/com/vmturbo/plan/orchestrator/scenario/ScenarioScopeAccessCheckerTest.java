@@ -1,6 +1,7 @@
 package com.vmturbo.plan.orchestrator.scenario;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -12,10 +13,8 @@ import java.util.Collections;
 import java.util.List;
 
 import com.google.common.collect.ImmutableList;
-
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
-
 import org.junit.Before;
 import org.junit.Test;
 
@@ -31,6 +30,10 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.IncludedCoupons;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.RISetting;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
@@ -53,6 +56,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.identity.ArrayOidSet;
+import com.vmturbo.platform.sdk.common.CloudCostDTO;
 
 /**
  *
@@ -530,12 +534,11 @@ public class ScenarioScopeAccessCheckerTest {
     }
 
     /**
-     * If scenario is for OCP, throw exception if user does not have access to all workloads of the
+     * If scenario is for OCP, remove the RI changes if user does not have access to all workloads of the
      * plan scope.
      *
-     * @throws ScenarioScopeNotFoundException exception thrown if scenario scope can not be found
      */
-    @Test(expected = UserAccessScopeException.class)
+    @Test
     public void testScenarioInfoScopeAccessWithGroupSupplyChainOCP()
             throws ScenarioScopeNotFoundException {
         long groupOid = 1L;
@@ -543,12 +546,21 @@ public class ScenarioScopeAccessCheckerTest {
         long vmOutOfScopeOid = 101L;
 
         // Setup the scenario scope
+        ScenarioChange couponsChange = ScenarioChange.newBuilder()
+                .setPlanChanges(PlanChanges.newBuilder()
+                        .setIncludedCoupons(IncludedCoupons.newBuilder().addIncludedCouponOids(1L).build()))
+                .build();
+        ScenarioChange buyRIChange = ScenarioChange.newBuilder()
+                .setRiSetting(RISetting.newBuilder().setDemandType(CloudCostDTO.DemandType.CONSUMPTION).build())
+                .build();
         ScenarioInfo scenarioInfo = ScenarioInfo.newBuilder()
                 .setType(StringConstants.OPTIMIZE_CLOUD_PLAN)
                 .setScope(PlanScope.newBuilder()
                         .addScopeEntries(PlanScopeEntry.newBuilder()
                                 .setClassName(StringConstants.GROUP)
                                 .setScopeObjectOid(groupOid)))
+                .addChanges(couponsChange)
+                .addChanges(buyRIChange)
                 .build();
         // Setup the User scope with 1 VM
         when(userSessionContext.isUserScoped()).thenReturn(true);
@@ -578,7 +590,12 @@ public class ScenarioScopeAccessCheckerTest {
 
         // Act
         ScenarioInfo info = scenarioScopeAccessChecker.checkScenarioAccessAndValidateScopes(scenarioInfo);
+
+        // Assert
+        assertEquals(1, info.getChangesList().size());
+        assertTrue(info.getChangesList().get(0).hasPlanChanges());
+        assertTrue(info.getChangesList().get(0).getPlanChanges().hasIncludedCoupons());
+        assertEquals(0, info.getChangesList().get(0).getPlanChanges()
+                .getIncludedCoupons().getIncludedCouponOidsCount());
     }
-
-
 }
