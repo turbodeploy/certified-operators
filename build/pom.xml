@@ -175,7 +175,7 @@
         <commons-beanutils.version>1.9.4</commons-beanutils.version>
 
         <!-- timescaledb image tag pulled by builds of extractor and extractor-scheam -->
-        <timescaledb-image-tag>1.7.4-pg12</timescaledb-image-tag>
+        <timescaledb-image-tag>2.0.1-pg12</timescaledb-image-tag>
     </properties>
 
     <prerequisites>

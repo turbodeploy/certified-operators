@@ -5,13 +5,16 @@ import java.util.Optional;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.flywaydb.core.api.callback.FlywayCallback;
 import org.jooq.SQLDialect;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
 
+import com.vmturbo.extractor.flyway.ResetChecksumsForTimescaleDB201Migrations;
 import com.vmturbo.extractor.schema.ExtractorDbBaseConfig;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.DbEndpointAccess;
@@ -47,6 +50,7 @@ public class ExtractorDbConfig {
                 .withDbDestructiveProvisioningEnabled(true)
                 .withDbShouldProvision(true)
                 .withDbEndpointEnabled(extractorGlobalConfig.requireDatabase())
+                .withDbFlywayCallbacks(flywayCallbacks())
                 .build();
     }
 
@@ -137,5 +141,24 @@ public class ExtractorDbConfig {
                 .withNoDbMigrations()
                 .withDbEndpointEnabled(extractorGlobalConfig.featureFlags().isReportingEnabled())
                 .build();
+    }
+
+    /**
+     * Callbacks to be configured for our Flyway migrations.
+     *
+     * <p>These can be used to handle issues such as problematic migrations that have been released
+     * to customers and thus cannot generally be either replaced or removed from the migration
+     * sequence.</p>
+     *
+     * <p>A component should define a {@link Primary} bean elsewhere in order to override the
+     * empty default.</p>
+     *
+     * @return array of callback objects, in order in which they should be invoked
+     */
+    @Bean
+    public FlywayCallback[] flywayCallbacks() {
+        return new FlywayCallback[]{
+                new ResetChecksumsForTimescaleDB201Migrations()
+        };
     }
 }
