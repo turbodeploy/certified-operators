@@ -1,5 +1,9 @@
 package com.vmturbo.components.common;
 
+import static com.vmturbo.components.common.ConsulRegistrationConfig.ENABLE_CONSUL_MIGRATION;
+
+import java.util.Optional;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -47,6 +51,13 @@ public class BaseVmtComponentConfig {
 
     @Value("${enableMemoryMonitor:true}")
     private boolean enableMemoryMonitor;
+
+    /**
+     * This property is used to disable consul migration. This is necessary for tests and
+     * for components running outside the primary Turbonomic K8s cluster.
+     */
+    @Value("${" + ENABLE_CONSUL_MIGRATION + ":true}")
+    private Boolean enableConsulMigration;
 
     /**
      * Required to fill @{...} @Value annotations referencing
@@ -119,24 +130,14 @@ public class BaseVmtComponentConfig {
     }
 
     @Bean
-    public MigrationFramework migrationFramework() {
-        final Boolean enableConsulRegistration = EnvironmentUtils
-            .getOptionalEnvProperty(ConsulRegistrationConfig.ENABLE_CONSUL_REGISTRATION)
-            .map(Boolean::parseBoolean)
-            .orElse(true);
-        final Boolean enableConsulMigration = EnvironmentUtils
-                .getOptionalEnvProperty(ConsulRegistrationConfig.ENABLE_CONSUL_MIGRATION)
-                .map(Boolean::parseBoolean)
-                .orElse(false);
-        if (enableConsulRegistration || enableConsulMigration) {
-            return new MigrationFramework(keyValueStore());
-        }
-        return null;
+    public Optional<MigrationFramework> migrationFramework() {
+        return Optional.ofNullable(enableConsulMigration ?
+                new MigrationFramework(keyValueStore()) : null);
     }
 
     @Bean
     public MigrationController migrationController() {
-        return new MigrationController(migrationFramework());
+        return new MigrationController(migrationFramework().orElse(null));
     }
 
     @Bean

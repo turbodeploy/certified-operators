@@ -1,7 +1,6 @@
 package com.vmturbo.components.common;
 
 import java.time.Clock;
-import java.util.Optional;
 
 import javax.annotation.PostConstruct;
 
@@ -10,14 +9,12 @@ import com.ecwid.consul.v1.ConsulRawClient;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.components.common.diagnostics.DiagnosticService;
-import com.vmturbo.components.common.health.ComponentStatusNotifier;
 import com.vmturbo.components.common.health.ConsulHealthcheckRegistration;
 import com.vmturbo.components.common.notification.ComponentStatusNotificationSenderConfig;
 import com.vmturbo.kvstore.ConsulKeyValueStore;
@@ -45,9 +42,6 @@ public class ConsulRegistrationConfig {
      * equipped with Consul.
      */
     public static final String ENABLE_CONSUL_MIGRATION = "enableConsulMigration";
-
-    @Autowired
-    private ComponentStatusNotificationSenderConfig notificationSenderConfig;
 
     @Value("${consul_host}")
     private String consulHost;
@@ -83,7 +77,6 @@ public class ConsulRegistrationConfig {
     @Value("${" + ENABLE_CONSUL_REGISTRATION + ":true}")
     private Boolean enableConsulRegistration;
 
-
     /**
      * Create a handler for Consul service registration to track Component status.
      *
@@ -98,23 +91,6 @@ public class ConsulRegistrationConfig {
             componentType, instanceId, instanceIp, instanceRoute, serverPort, consulMaxRetrySecs, consulMaxRetryDelaySecs,
             ConsulKeyValueStore.constructNamespacePrefix(consulNamespace, enableConsulNamespace),
             Clock.systemUTC());
-    }
-
-    /**
-     * Used to send notification about component status changes.
-     *
-     * @return The {@link ComponentStatusNotifier}.
-     */
-    @Bean
-    public Optional<ComponentStatusNotifier> componentStatusNotifier() {
-        if (enableConsulRegistration) {
-            return Optional.of(new ComponentStatusNotifier(notificationSenderConfig.componentStatusNotificationSender(),
-                enableConsulRegistration,
-                componentType, instanceId, instanceIp, instanceRoute, serverPort,
-                Clock.systemUTC()));
-        } else {
-            return Optional.empty();
-        }
     }
 
     /**

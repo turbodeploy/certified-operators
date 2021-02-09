@@ -27,7 +27,7 @@ public class ComponentStatusNotifier {
 
     private final ComponentStatusNotificationSender notificationSender;
 
-    private final Boolean enableRegistration;
+    private final Boolean enableComponentStatusNotification;
 
     private final long jvmId;
 
@@ -39,7 +39,7 @@ public class ComponentStatusNotifier {
      * Create a new notifier.
      *
      * @param notificationSender The sender to use to actually send notifications.
-     * @param enableRegistration Whether or not registration (and, therefore, notifications) are enabled.
+     * @param enableComponentStatusNotification Whether or not notifications are enabled.
      * @param componentType The type of the component.
      * @param instanceId The instance of the component.
      * @param instanceIp The IP of the instance.
@@ -48,7 +48,7 @@ public class ComponentStatusNotifier {
      * @param clock System clock.
      */
     public ComponentStatusNotifier(final ComponentStatusNotificationSender notificationSender,
-                                   final Boolean enableRegistration,
+                                   final Boolean enableComponentStatusNotification,
                                    final String componentType,
                                    final String instanceId,
                                    final String instanceIp,
@@ -56,7 +56,7 @@ public class ComponentStatusNotifier {
                                    final Integer serverPort,
                                    final Clock clock) {
         this.notificationSender = notificationSender;
-        this.enableRegistration = enableRegistration;
+        this.enableComponentStatusNotification = enableComponentStatusNotification;
 
         this.startupTime = clock.millis();
         // We use k8s pod names as instance IDs. However, these names do not change when k8s pods
@@ -96,14 +96,14 @@ public class ComponentStatusNotifier {
      */
     public void notifyComponentShutdown() {
         final String logId = ComponentStatusProtoUtil.getComponentLogId(componentInfo.getId());
-        if (Boolean.TRUE.equals(enableRegistration)) {
+        if (Boolean.TRUE.equals(enableComponentStatusNotification)) {
             logger.info("Sending shutdown notification for component {}.", logId);
             try {
                 notificationSender.sendStoppingNotification(ComponentStopping.newBuilder()
                     .setStartTimestamp(startupTime)
                     .setComponentId(componentInfo.getId())
                     .build());
-                logger.info("Successfully sent de-registration notification for component {}", logId);
+                logger.info("Successfully sent shutdown notification for component {}", logId);
             } catch (CommunicationException e) {
                 logger.error("Failed to send shutdown notification.", e);
             } catch (InterruptedException e) {
@@ -111,7 +111,7 @@ public class ComponentStatusNotifier {
                 logger.error("Failed to send shutdown notification.", e);
             }
         } else {
-            logger.info("Registration disabled. Not sending shutdown notification for component {}", logId);
+            logger.info("Notification disabled. Not sending shutdown notification for component {}", logId);
         }
     }
 
@@ -120,7 +120,7 @@ public class ComponentStatusNotifier {
      */
     public void notifyComponentStartup() {
         final String logId = ComponentStatusProtoUtil.getComponentLogId(componentInfo.getId());
-        if (Boolean.TRUE.equals(enableRegistration)) {
+        if (Boolean.TRUE.equals(enableComponentStatusNotification)) {
             logger.info("Sending startup notification for component {}.", logId);
             try {
                 notificationSender.sendStartingNotification(ComponentStarting.newBuilder()
