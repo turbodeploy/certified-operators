@@ -34,6 +34,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetOwnersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetOwnersRequest.Builder;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
@@ -113,7 +114,11 @@ public class GroupExpander {
             .collect(Collectors.toList());
         if (!numericUuids.isEmpty()) {
             final Iterator<Grouping> responseIterator = groupServiceGrpc.getGroups(
-                GetGroupsRequest.newBuilder().addAllScopes(numericUuids).build());
+                GetGroupsRequest.newBuilder()
+                    .setGroupFilter(GroupFilter.getDefaultInstance())
+                    .addAllScopes(numericUuids)
+                    .build()
+            );
             return Sets.newHashSet(responseIterator);
         } else {
             return Collections.emptySet();
@@ -143,8 +148,7 @@ public class GroupExpander {
                     .map(this::expandUuidToTypeToEntitiesMap)
                     .map(Map::entrySet)
                     .flatMap(Set::stream)
-                    .collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue(),
-                        (e1, e2) -> Sets.union(e1, e2)));
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, Sets::union));
 
             } else if (group.hasStaticGroupMembers()) {
                 return group
