@@ -89,7 +89,6 @@ public class SearchPendingActionWriterTest {
             .lastSeenUpdateIntervalMinutes(1)
             .lastSeenAdditionalFuzzMinutes(1)
             .insertTimeoutSeconds(10)
-            .populateScopeTable(true)
             .build();
 
     private DataProvider dataProvider = mock(DataProvider.class);

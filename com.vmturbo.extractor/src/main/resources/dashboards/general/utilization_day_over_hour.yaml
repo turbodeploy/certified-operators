@@ -1,4 +1,3 @@
----
 annotations:
   list:
   - builtIn: 1
@@ -12,7 +11,7 @@ description: This dashboard compares average hourly utilization measurements for
   machines (aka hosts) day-over-day for the two consecutive days. All physical machines
   in the selected group are included in the averages.
 editable: false
-gnetId: null
+gnetId:
 graphTooltip: 1
 iteration: 1597070407142
 links: []
@@ -49,7 +48,7 @@ panels:
     values: true
   lines: true
   linewidth: 2
-  nullPointMode: "null"
+  nullPointMode: 'null'
   options:
     dataLinks: []
   percentage: false
@@ -75,30 +74,42 @@ panels:
     rawQuery: true
     rawSql: |-
       WITH data as (
-         SELECT m.time
-                ,m.utilization AS avg_util
-            FROM entity e
-            JOIN metric m ON m.entity_oid = e.oid
-             AND m.entity_hash = e.hash
-             AND m.type = 'MEM'
-             AND e.type = 'PHYSICAL_MACHINE'
-             AND m.time BETWEEN ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR') AND date_trunc('HOUR', $__timeTo()::TIMESTAMPTZ)
-             AND ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR', $__timeTo()::TIMESTAMPTZ) OVERLAPS (first_seen, last_seen)
-             AND CASE WHEN ARRAY[ $Group ]::text[] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ $Group ]::bigint[]) END
+          SELECT
+            m.time,
+            m.utilization AS avg_util
+          FROM metric m
+          JOIN scope s ON s.scoped_oid = m.entity_oid
+              AND ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR', $__timeTo()::TIMESTAMPTZ) OVERLAPS (start, finish)
+              AND m.time BETWEEN s."start" AND s.finish
+          WHERE
+            s.scoped_type ='PHYSICAL_MACHINE'
+            AND m.type = 'MEM'
+            AND m.time BETWEEN ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR')
+            AND date_trunc('HOUR', $__timeTo()::TIMESTAMPTZ)
+            AND s.seed_oid IN (SELECT * FROM unnest(ARRAY[ $Group ]::bigint[]))
+            --Remove duplicate joins on metric and scope table
+            GROUP BY m.time, m.utilization, m.entity_oid
       )
-
-      SELECT CASE
-                  WHEN time BETWEEN date_trunc('hour', $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR') AND date_trunc('hour', $__timeTo()::TIMESTAMPTZ - interval '24 HOUR') THEN date_trunc('HOUR', time + interval '24 HOUR')
-                  ELSE date_trunc('HOUR', time)
-             END + INTERVAL '1 HOUR' as "time"
-            ,CASE
-                  WHEN time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR' AND $__timeTo()::TIMESTAMPTZ - interval '24 HOUR' THEN 'Previous Day'
-                  ELSE 'Ending ' || DATE($__timeTo()::TIMESTAMPTZ)::TEXT
-             END as metric
-            ,avg(avg_util)
-        FROM data
-       GROUP BY 1, 2
-       ORDER BY 1
+      SELECT
+          INTERVAL '1 HOUR' + CASE
+            WHEN time BETWEEN date_trunc('hour', $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR') AND
+            date_trunc('hour', $__timeTo()::TIMESTAMPTZ - interval '24 HOUR')
+              THEN date_trunc('HOUR', time + interval '24 HOUR')
+            ELSE date_trunc('HOUR', time)
+          END as "time",
+          CASE
+            WHEN time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR'
+                AND $__timeTo()::TIMESTAMPTZ - interval '24 HOUR'
+              THEN 'Previous Day'
+            ELSE 'Ending ' || DATE($__timeTo()::TIMESTAMPTZ)::TEXT
+          END as metric,
+          avg(avg_util)
+      FROM
+          data
+      GROUP
+          BY 1, 2
+      ORDER BY
+          1
     refId: A
     select:
     - - params:
@@ -112,9 +123,9 @@ panels:
       params: []
       type: macro
   thresholds: []
-  timeFrom: null
+  timeFrom:
   timeRegions: []
-  timeShift: null
+  timeShift:
   title: Physical Machine Avg Memory Utilization - Day over Day by Hour
   tooltip:
     shared: true
@@ -122,29 +133,29 @@ panels:
     value_type: individual
   type: graph
   xaxis:
-    buckets: null
+    buckets:
     mode: time
-    name: null
+    name:
     show: true
     values: []
   yaxes:
   - $$hashKey: object:204
     format: percentunit
-    label: null
+    label:
     logBase: 1
-    max: null
-    min: null
+    max:
+    min:
     show: true
   - $$hashKey: object:205
     format: short
-    label: null
+    label:
     logBase: 1
-    max: null
-    min: null
+    max:
+    min:
     show: true
   yaxis:
     align: false
-    alignLevel: null
+    alignLevel:
 - aliasColors: {}
   bars: false
   dashLength: 10
@@ -177,7 +188,7 @@ panels:
     values: true
   lines: true
   linewidth: 2
-  nullPointMode: "null"
+  nullPointMode: 'null'
   options:
     dataLinks: []
   percentage: false
@@ -203,30 +214,42 @@ panels:
     rawQuery: true
     rawSql: |-
       WITH data as (
-         SELECT m.time
-                ,m.utilization AS avg_util
-            FROM entity e
-            JOIN metric m ON m.entity_oid = e.oid
-             AND m.entity_hash = e.hash
-             AND m.type = 'CPU'
-             AND e.type = 'PHYSICAL_MACHINE'
-             AND m.time BETWEEN ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR') AND date_trunc('HOUR', $__timeTo()::TIMESTAMPTZ)
-             AND ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR', $__timeTo()::TIMESTAMPTZ) OVERLAPS (first_seen, last_seen)
-             AND CASE WHEN ARRAY[ $Group ]::text[] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ $Group ]::bigint[]) END
+          SELECT
+            m.time,
+            m.utilization AS avg_util
+          FROM metric m
+          JOIN scope s ON s.scoped_oid = m.entity_oid
+              AND ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR', $__timeTo()::TIMESTAMPTZ) OVERLAPS (start, finish)
+              AND m.time BETWEEN s."start" AND s.finish
+          WHERE
+            s.scoped_type = 'PHYSICAL_MACHINE'
+            AND m.type = 'CPU'
+            AND m.time BETWEEN ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR')
+            AND date_trunc('HOUR', $__timeTo()::TIMESTAMPTZ)
+            AND s.seed_oid IN (SELECT * FROM unnest(ARRAY[ $Group ]::bigint[]))
+            --Remove duplicate joins on metric and scope table
+            GROUP BY m.time, m.utilization, m.entity_oid
       )
-
-      SELECT CASE
-                  WHEN time BETWEEN date_trunc('hour', $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR') AND date_trunc('hour', $__timeTo()::TIMESTAMPTZ - interval '24 HOUR') THEN date_trunc('HOUR', time + interval '24 HOUR')
-                  ELSE date_trunc('HOUR', time)
-             END + INTERVAL '1 HOUR' as "time"
-            ,CASE
-                  WHEN time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR' AND $__timeTo()::TIMESTAMPTZ - interval '24 HOUR' THEN 'Previous Day'
-                  ELSE 'Ending ' || DATE($__timeTo()::TIMESTAMPTZ)::TEXT
-             END as metric
-            ,avg(avg_util)
-        FROM data
-       GROUP BY 1, 2
-       ORDER BY 1
+      SELECT
+          INTERVAL '1 HOUR' + CASE
+            WHEN time BETWEEN date_trunc('hour', $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR') AND
+            date_trunc('hour', $__timeTo()::TIMESTAMPTZ - interval '24 HOUR')
+              THEN date_trunc('HOUR', time + interval '24 HOUR')
+            ELSE date_trunc('HOUR', time)
+          END as "time",
+          CASE
+            WHEN time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR'
+                AND $__timeTo()::TIMESTAMPTZ - interval '24 HOUR'
+              THEN 'Previous Day'
+            ELSE 'Ending ' || DATE($__timeTo()::TIMESTAMPTZ)::TEXT
+          END as metric,
+          avg(avg_util)
+      FROM
+          data
+      GROUP
+          BY 1, 2
+      ORDER BY
+          1
     refId: A
     select:
     - - params:
@@ -240,9 +263,9 @@ panels:
       params: []
       type: macro
   thresholds: []
-  timeFrom: null
+  timeFrom:
   timeRegions: []
-  timeShift: null
+  timeShift:
   title: Physical Machine Avg CPU Utilization - Day over Day by Hour
   tooltip:
     shared: true
@@ -250,29 +273,29 @@ panels:
     value_type: individual
   type: graph
   xaxis:
-    buckets: null
+    buckets:
     mode: time
-    name: null
+    name:
     show: true
     values: []
   yaxes:
   - $$hashKey: object:289
     format: percentunit
-    label: null
+    label:
     logBase: 1
-    max: null
-    min: null
+    max:
+    min:
     show: true
   - $$hashKey: object:290
     format: short
-    label: null
+    label:
     logBase: 1
-    max: null
-    min: null
+    max:
+    min:
     show: true
   yaxis:
     align: false
-    alignLevel: null
+    alignLevel:
 - aliasColors: {}
   bars: false
   dashLength: 10
@@ -305,7 +328,7 @@ panels:
     values: true
   lines: true
   linewidth: 2
-  nullPointMode: "null"
+  nullPointMode: 'null'
   options:
     dataLinks: []
   percentage: false
@@ -331,30 +354,42 @@ panels:
     rawQuery: true
     rawSql: |-
       WITH data as (
-         SELECT m.time
-                ,m.utilization AS avg_util
-            FROM entity e
-            JOIN metric m ON m.entity_oid = e.oid
-             AND m.entity_hash = e.hash
-             AND m.type = 'BALLOONING'
-             AND e.type = 'PHYSICAL_MACHINE'
-             AND m.time BETWEEN ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR') AND date_trunc('HOUR', $__timeTo()::TIMESTAMPTZ)
-             AND ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR', $__timeTo()::TIMESTAMPTZ) OVERLAPS (first_seen, last_seen)
-             AND CASE WHEN ARRAY[ $Group ]::text[] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ $Group ]::bigint[]) END
+          SELECT
+            m.time,
+            m.utilization AS avg_util
+          FROM metric m
+          JOIN scope s ON s.scoped_oid = m.entity_oid
+              AND ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR', $__timeTo()::TIMESTAMPTZ) OVERLAPS (start, finish)
+              AND m.time BETWEEN s.start AND s.finish
+          WHERE
+            s.scoped_type = 'PHYSICAL_MACHINE'
+            AND m.type = 'BALLOONING'
+            AND m.time BETWEEN ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR')
+            AND date_trunc('HOUR', $__timeTo()::TIMESTAMPTZ)
+            AND s.seed_oid IN (SELECT * FROM unnest(ARRAY[ $Group ]::bigint[]))
+            --Remove duplicate joins on metric and scope table
+            GROUP BY m.time, m.utilization, m.entity_oid
       )
-
-      SELECT CASE
-                  WHEN time BETWEEN date_trunc('hour', $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR') AND date_trunc('hour', $__timeTo()::TIMESTAMPTZ - interval '24 HOUR') THEN date_trunc('HOUR', time + interval '24 HOUR')
-                  ELSE date_trunc('HOUR', time)
-             END + INTERVAL '1 HOUR' as "time"
-            ,CASE
-                  WHEN time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR' AND $__timeTo()::TIMESTAMPTZ - interval '24 HOUR' THEN 'Previous Day'
-                  ELSE 'Ending ' || DATE($__timeTo()::TIMESTAMPTZ)::TEXT
-             END as metric
-            ,avg(avg_util)
-        FROM data
-       GROUP BY 1, 2
-       ORDER BY 1
+      SELECT
+          INTERVAL '1 HOUR' + CASE
+            WHEN time BETWEEN date_trunc('hour', $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR') AND
+            date_trunc('hour', $__timeTo()::TIMESTAMPTZ - interval '24 HOUR')
+              THEN date_trunc('HOUR', time + interval '24 HOUR')
+            ELSE date_trunc('HOUR', time)
+          END as "time",
+          CASE
+            WHEN time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR'
+                AND $__timeTo()::TIMESTAMPTZ - interval '24 HOUR'
+              THEN 'Previous Day'
+            ELSE 'Ending ' || DATE($__timeTo()::TIMESTAMPTZ)::TEXT
+          END as metric,
+          avg(avg_util)
+      FROM
+          data
+      GROUP
+          BY 1, 2
+      ORDER BY
+          1
     refId: A
     select:
     - - params:
@@ -368,9 +403,9 @@ panels:
       params: []
       type: macro
   thresholds: []
-  timeFrom: null
+  timeFrom:
   timeRegions: []
-  timeShift: null
+  timeShift:
   title: Physical Machine Avg Ballooning Utilization - Day over Day by Hour
   tooltip:
     shared: true
@@ -378,29 +413,29 @@ panels:
     value_type: individual
   type: graph
   xaxis:
-    buckets: null
+    buckets:
     mode: time
-    name: null
+    name:
     show: true
     values: []
   yaxes:
   - $$hashKey: object:374
     format: percentunit
-    label: null
+    label:
     logBase: 1
-    max: null
-    min: null
+    max:
+    min:
     show: true
   - $$hashKey: object:375
     format: short
-    label: null
+    label:
     logBase: 1
-    max: null
-    min: null
+    max:
+    min:
     show: true
   yaxis:
     align: false
-    alignLevel: null
+    alignLevel:
 - aliasColors: {}
   bars: false
   dashLength: 10
@@ -433,7 +468,7 @@ panels:
     values: true
   lines: true
   linewidth: 2
-  nullPointMode: "null"
+  nullPointMode: 'null'
   options:
     dataLinks: []
   percentage: false
@@ -459,30 +494,42 @@ panels:
     rawQuery: true
     rawSql: |-
       WITH data as (
-         SELECT m.time
-                ,m.utilization AS avg_util
-            FROM entity e
-            JOIN metric m ON m.entity_oid = e.oid
-             AND m.entity_hash = e.hash
-             AND m.type = 'SWAPPING'
-             AND e.type = 'PHYSICAL_MACHINE'
-             AND m.time BETWEEN ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR') AND date_trunc('HOUR', $__timeTo()::TIMESTAMPTZ)
-             AND ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR', $__timeTo()::TIMESTAMPTZ) OVERLAPS (first_seen, last_seen)
-             AND CASE WHEN ARRAY[ $Group ]::text[] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ $Group ]::bigint[]) END
+          SELECT
+            m.time,
+            m.utilization AS avg_util
+          FROM metric m
+          JOIN scope s ON s.scoped_oid = m.entity_oid
+              AND ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR', $__timeTo()::TIMESTAMPTZ) OVERLAPS (start, finish)
+              AND m.time BETWEEN s.start AND s.finish
+          WHERE
+            s.scoped_type = 'PHYSICAL_MACHINE'
+            AND m.type = 'SWAPPING'
+            AND m.time BETWEEN ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR')
+            AND date_trunc('HOUR', $__timeTo()::TIMESTAMPTZ)
+            AND s.seed_oid IN (SELECT * FROM unnest(ARRAY[ $Group ]::bigint[]))
+            --Remove duplicate joins on metric and scope table
+            GROUP BY m.time, m.utilization, m.entity_oid
       )
-
-      SELECT CASE
-                  WHEN time BETWEEN date_trunc('hour', $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR') AND date_trunc('hour', $__timeTo()::TIMESTAMPTZ - interval '24 HOUR') THEN date_trunc('HOUR', time + interval '24 HOUR')
-                  ELSE date_trunc('HOUR', time)
-             END + INTERVAL '1 HOUR' as "time"
-            ,CASE
-                  WHEN time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR' AND $__timeTo()::TIMESTAMPTZ - interval '24 HOUR' THEN 'Previous Day'
-                  ELSE 'Ending ' || DATE($__timeTo()::TIMESTAMPTZ)::TEXT
-             END as metric
-            ,avg(avg_util)
-        FROM data
-       GROUP BY 1, 2
-       ORDER BY 1
+      SELECT
+          INTERVAL '1 HOUR' + CASE
+            WHEN time BETWEEN date_trunc('hour', $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR') AND
+            date_trunc('hour', $__timeTo()::TIMESTAMPTZ - interval '24 HOUR')
+              THEN date_trunc('HOUR', time + interval '24 HOUR')
+            ELSE date_trunc('HOUR', time)
+          END as "time",
+          CASE
+            WHEN time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR'
+                AND $__timeTo()::TIMESTAMPTZ - interval '24 HOUR'
+              THEN 'Previous Day'
+            ELSE 'Ending ' || DATE($__timeTo()::TIMESTAMPTZ)::TEXT
+          END as metric,
+          avg(avg_util)
+      FROM
+          data
+      GROUP
+          BY 1, 2
+      ORDER BY
+          1
     refId: A
     select:
     - - params:
@@ -496,9 +543,9 @@ panels:
       params: []
       type: macro
   thresholds: []
-  timeFrom: null
+  timeFrom:
   timeRegions: []
-  timeShift: null
+  timeShift:
   title: Physical Machine Avg Swapping Utilization - Day over Day by Hour
   tooltip:
     shared: true
@@ -506,29 +553,29 @@ panels:
     value_type: individual
   type: graph
   xaxis:
-    buckets: null
+    buckets:
     mode: time
-    name: null
+    name:
     show: true
     values: []
   yaxes:
   - $$hashKey: object:115
     format: percentunit
-    label: null
+    label:
     logBase: 1
-    max: null
-    min: null
+    max:
+    min:
     show: true
   - $$hashKey: object:116
     format: short
-    label: null
+    label:
     logBase: 1
-    max: null
-    min: null
+    max:
+    min:
     show: true
   yaxis:
     align: false
-    alignLevel: null
+    alignLevel:
 - aliasColors: {}
   bars: false
   dashLength: 10
@@ -561,7 +608,7 @@ panels:
     values: true
   lines: true
   linewidth: 2
-  nullPointMode: "null"
+  nullPointMode: 'null'
   options:
     dataLinks: []
   percentage: false
@@ -587,30 +634,42 @@ panels:
     rawQuery: true
     rawSql: |-
       WITH data as (
-         SELECT m.time
-                ,m.utilization AS avg_util
-            FROM entity e
-            JOIN metric m ON m.entity_oid = e.oid
-             AND m.entity_hash = e.hash
-             AND m.type = 'IO_THROUGHPUT'
-             AND e.type = 'PHYSICAL_MACHINE'
-             AND m.time BETWEEN ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR') AND date_trunc('HOUR', $__timeTo()::TIMESTAMPTZ)
-             AND ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR', $__timeTo()::TIMESTAMPTZ) OVERLAPS (first_seen, last_seen)
-             AND CASE WHEN ARRAY[ $Group ]::text[] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ $Group ]::bigint[]) END
+          SELECT
+            m.time,
+            m.utilization AS avg_util
+          FROM metric m
+          JOIN scope s ON s.scoped_oid = m.entity_oid
+              AND ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR', $__timeTo()::TIMESTAMPTZ) OVERLAPS (start, finish)
+              AND m.time BETWEEN s.start AND s.finish
+          WHERE
+            s.scoped_type = 'PHYSICAL_MACHINE'
+            AND m.type = 'IO_THROUGHPUT'
+            AND m.time BETWEEN ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR')
+            AND date_trunc('HOUR', $__timeTo()::TIMESTAMPTZ)
+            AND s.seed_oid IN (SELECT * FROM unnest(ARRAY[ $Group ]::bigint[]))
+            --Remove duplicate joins on metric and scope table
+            GROUP BY m.time, m.utilization, m.entity_oid
       )
-
-      SELECT CASE
-                  WHEN time BETWEEN date_trunc('hour', $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR') AND date_trunc('hour', $__timeTo()::TIMESTAMPTZ - interval '24 HOUR') THEN date_trunc('HOUR', time + interval '24 HOUR')
-                  ELSE date_trunc('HOUR', time)
-             END + INTERVAL '1 HOUR' as "time"
-            ,CASE
-                  WHEN time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR' AND $__timeTo()::TIMESTAMPTZ - interval '24 HOUR' THEN 'Previous Day'
-                  ELSE 'Ending ' || DATE($__timeTo()::TIMESTAMPTZ)::TEXT
-             END as metric
-            ,avg(avg_util)
-        FROM data
-       GROUP BY 1, 2
-       ORDER BY 1
+      SELECT
+          INTERVAL '1 HOUR' + CASE
+            WHEN time BETWEEN date_trunc('hour', $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR') AND
+            date_trunc('hour', $__timeTo()::TIMESTAMPTZ - interval '24 HOUR')
+              THEN date_trunc('HOUR', time + interval '24 HOUR')
+            ELSE date_trunc('HOUR', time)
+          END as "time",
+          CASE
+            WHEN time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR'
+                AND $__timeTo()::TIMESTAMPTZ - interval '24 HOUR'
+              THEN 'Previous Day'
+            ELSE 'Ending ' || DATE($__timeTo()::TIMESTAMPTZ)::TEXT
+          END as metric,
+          avg(avg_util)
+      FROM
+          data
+      GROUP
+          BY 1, 2
+      ORDER BY
+          1
     refId: A
     select:
     - - params:
@@ -624,9 +683,9 @@ panels:
       params: []
       type: macro
   thresholds: []
-  timeFrom: null
+  timeFrom:
   timeRegions: []
-  timeShift: null
+  timeShift:
   title: Physical Machine Avg IO Throughput Utilization - Day over Day by Hour
   tooltip:
     shared: true
@@ -634,29 +693,29 @@ panels:
     value_type: individual
   type: graph
   xaxis:
-    buckets: null
+    buckets:
     mode: time
-    name: null
+    name:
     show: true
     values: []
   yaxes:
   - $$hashKey: object:542
     format: percentunit
-    label: null
+    label:
     logBase: 1
-    max: null
-    min: null
+    max:
+    min:
     show: true
   - $$hashKey: object:543
     format: short
-    label: null
+    label:
     logBase: 1
-    max: null
-    min: null
+    max:
+    min:
     show: true
   yaxis:
     align: false
-    alignLevel: null
+    alignLevel:
 - aliasColors: {}
   bars: false
   dashLength: 10
@@ -677,7 +736,7 @@ panels:
     y: 41
   hiddenSeries: false
   id: 12
-  interval: ""
+  interval: ''
   legend:
     alignAsTable: true
     avg: true
@@ -690,7 +749,7 @@ panels:
     values: true
   lines: true
   linewidth: 2
-  nullPointMode: "null"
+  nullPointMode: 'null'
   options:
     dataLinks: []
   percentage: false
@@ -716,30 +775,42 @@ panels:
     rawQuery: true
     rawSql: |-
       WITH data as (
-         SELECT m.time
-                ,m.utilization AS avg_util
-            FROM entity e
-            JOIN metric m ON m.entity_oid = e.oid
-             AND m.entity_hash = e.hash
-             AND m.type = 'NET_THROUGHPUT'
-             AND e.type = 'PHYSICAL_MACHINE'
-             AND m.time BETWEEN ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR') AND date_trunc('HOUR', $__timeTo()::TIMESTAMPTZ)
-             AND ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR', $__timeTo()::TIMESTAMPTZ) OVERLAPS (first_seen, last_seen)
-             AND CASE WHEN ARRAY[ $Group ]::text[] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ $Group ]::bigint[]) END
+          SELECT
+            m.time,
+            m.utilization AS avg_util
+          FROM metric m
+          JOIN scope s ON s.scoped_oid = m.entity_oid
+              AND ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR', $__timeTo()::TIMESTAMPTZ) OVERLAPS (start, finish)
+              AND m.time BETWEEN s."start" AND s.finish
+          WHERE
+            s.scoped_type = 'PHYSICAL_MACHINE'
+            AND m.type = 'NET_THROUGHPUT'
+            AND m.time BETWEEN ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR')
+            AND date_trunc('HOUR', $__timeTo()::TIMESTAMPTZ)
+            AND s.seed_oid IN (SELECT * FROM unnest(ARRAY[ $Group ]::bigint[]))
+            --Remove duplicate joins on metric and scope table
+            GROUP BY m.time, m.utilization, m.entity_oid
       )
-
-      SELECT CASE
-                  WHEN time BETWEEN date_trunc('hour', $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR') AND date_trunc('hour', $__timeTo()::TIMESTAMPTZ - interval '24 HOUR') THEN date_trunc('HOUR', time + interval '24 HOUR')
-                  ELSE date_trunc('HOUR', time)
-             END + INTERVAL '1 HOUR' as "time"
-            ,CASE
-                  WHEN time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR' AND $__timeTo()::TIMESTAMPTZ - interval '24 HOUR' THEN 'Previous Day'
-                  ELSE 'Ending ' || DATE($__timeTo()::TIMESTAMPTZ)::TEXT
-             END as metric
-            ,avg(avg_util)
-        FROM data
-       GROUP BY 1, 2
-       ORDER BY 1
+      SELECT
+          INTERVAL '1 HOUR' + CASE
+            WHEN time BETWEEN date_trunc('hour', $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR') AND
+            date_trunc('hour', $__timeTo()::TIMESTAMPTZ - interval '24 HOUR')
+              THEN date_trunc('HOUR', time + interval '24 HOUR')
+            ELSE date_trunc('HOUR', time)
+          END as "time",
+          CASE
+            WHEN time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR'
+                AND $__timeTo()::TIMESTAMPTZ - interval '24 HOUR'
+              THEN 'Previous Day'
+            ELSE 'Ending ' || DATE($__timeTo()::TIMESTAMPTZ)::TEXT
+          END as metric,
+          avg(avg_util)
+      FROM
+          data
+      GROUP
+          BY 1, 2
+      ORDER BY
+          1
     refId: A
     select:
     - - params:
@@ -753,9 +824,9 @@ panels:
       params: []
       type: macro
   thresholds: []
-  timeFrom: null
+  timeFrom:
   timeRegions: []
-  timeShift: null
+  timeShift:
   title: Physical Machine Avg Net Throughput Utilization - Day over Day by Hour
   tooltip:
     shared: true
@@ -763,29 +834,29 @@ panels:
     value_type: individual
   type: graph
   xaxis:
-    buckets: null
+    buckets:
     mode: time
-    name: null
+    name:
     show: true
     values: []
   yaxes:
   - $$hashKey: object:627
     format: percentunit
-    label: null
+    label:
     logBase: 1
-    max: null
-    min: null
+    max:
+    min:
     show: true
   - $$hashKey: object:628
     format: short
-    label: null
+    label:
     logBase: 1
-    max: null
-    min: null
+    max:
+    min:
     show: true
   yaxis:
     align: false
-    alignLevel: null
+    alignLevel:
 refresh: false
 schemaVersion: 25
 style: dark
@@ -794,17 +865,17 @@ templating:
   list:
   - hide: 2
     includeAll: false
-    label: null
+    label:
     multi: false
     name: DB
     options: []
     query: postgres
-    queryValue: ""
+    queryValue: ''
     refresh: 1
-    regex: ""
+    regex: ''
     skipUrlSync: false
     type: datasource
-  - allValue: '''0'''
+  - allValue:
     datasource: $DB
     definition: |-
       SELECT name as __text,
@@ -817,7 +888,7 @@ templating:
       ORDER BY 1
     hide: 0
     includeAll: true
-    label: null
+    label:
     multi: false
     name: Group
     options: []
@@ -831,12 +902,12 @@ templating:
       GROUP BY name, oid
       ORDER BY 1
     refresh: 2
-    regex: ""
+    regex: ''
     skipUrlSync: false
     sort: 0
-    tagValuesQuery: ""
+    tagValuesQuery: ''
     tags: []
-    tagsQuery: ""
+    tagsQuery: ''
     type: query
     useTags: false
 timepicker:
@@ -850,6 +921,6 @@ timepicker:
   - 1h
   - 2h
   - 1d
-timezone: ""
+timezone: ''
 title: Physical Machine Utilization Day over Day by Hour
 uid: utilization_day_over_hour

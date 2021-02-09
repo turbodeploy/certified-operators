@@ -1,4 +1,3 @@
----
 annotations:
   list:
   - builtIn: 1
@@ -14,7 +13,7 @@ description: This report shows daily average utilization measurements for the se
   virtual machines are included. This information is useful as a top-level assessment
   of the overall average loading of your entire environment over time.
 editable: false
-gnetId: null
+gnetId:
 graphTooltip: 0
 iteration: 1596048754801
 links: []
@@ -48,7 +47,7 @@ panels:
     values: false
   lines: true
   linewidth: 3
-  nullPointMode: "null"
+  nullPointMode: 'null'
   options:
     dataLinks: []
   percentage: false
@@ -66,13 +65,14 @@ panels:
     rawQuery: true
     rawSql: |-
       select DATE(metric."time") as "time", metric."type" as metric, avg(utilization)
-      from metric, entity
-      where metric.entity_oid = entity.oid and
-            metric.entity_hash = entity.hash and
-            entity."type" = 'PHYSICAL_MACHINE' and
-            provider_oid isnull and
-            $__timeFilter("time") and
-            ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)
+      from metric
+      join entity e on
+          e.type = 'PHSYSICAL_MACHINE'
+          and e.oid = metric.entity_oid
+      where
+          ($__timeFrom(),$__timeTo()) OVERLAPS (e.first_seen, e.last_seen)
+          and provider_oid isnull
+          and metric.time BETWEEN timestamptz $__timeFrom() AND $__timeTo()
       group by 1, 2
       order by 1
     refId: A
@@ -88,9 +88,9 @@ panels:
       params: []
       type: macro
   thresholds: []
-  timeFrom: null
+  timeFrom:
   timeRegions: []
-  timeShift: null
+  timeShift:
   title: Physical Infrastructure Utilization Metrics
   tooltip:
     shared: true
@@ -98,43 +98,43 @@ panels:
     value_type: individual
   type: graph
   xaxis:
-    buckets: null
+    buckets:
     mode: time
-    name: null
+    name:
     show: true
     values: []
   yaxes:
   - $$hashKey: object:410
     format: percentunit
-    label: null
+    label:
     logBase: 1
-    max: null
-    min: null
+    max:
+    min:
     show: true
   - $$hashKey: object:411
     format: short
-    label: null
+    label:
     logBase: 1
-    max: null
-    min: null
+    max:
+    min:
     show: true
   yaxis:
     align: false
-    alignLevel: null
+    alignLevel:
 - datasource: $DB
   description: Percentage thresholds at which the color changes from Green to Yellow,
     and Yellow to Red
   fieldConfig:
     defaults:
       custom:
-        align: null
+        align:
         width: 115
       mappings: []
       thresholds:
         mode: percentage
         steps:
         - color: green
-          value: null
+          value:
         - color: red
           value: 80
       unit: percentunit
@@ -148,7 +148,7 @@ panels:
           mode: percentage
           steps:
           - color: green
-            value: null
+            value:
           - color: yellow
             value: 20
           - color: red
@@ -166,7 +166,7 @@ panels:
           mode: percentage
           steps:
           - color: green
-            value: null
+            value:
           - color: '#EAB839'
             value: 60
           - color: red
@@ -182,7 +182,7 @@ panels:
           mode: percentage
           steps:
           - color: green
-            value: null
+            value:
           - color: '#EAB839'
             value: 30
           - color: red
@@ -198,7 +198,7 @@ panels:
           mode: percentage
           steps:
           - color: green
-            value: null
+            value:
           - color: '#EAB839'
             value: 10
           - color: red
@@ -214,7 +214,7 @@ panels:
           mode: percentage
           steps:
           - color: green
-            value: null
+            value:
           - color: '#EAB839'
             value: 20
           - color: red
@@ -230,7 +230,7 @@ panels:
           mode: percentage
           steps:
           - color: green
-            value: null
+            value:
           - color: '#EAB839'
             value: 20
           - color: red
@@ -246,7 +246,7 @@ panels:
           mode: percentage
           steps:
           - color: green
-            value: null
+            value:
           - color: '#EAB839'
             value: 3
           - color: red
@@ -260,7 +260,7 @@ panels:
           mode: percentage
           steps:
           - color: green
-            value: null
+            value:
           - color: '#EAB839'
             value: 60
           - color: red
@@ -278,7 +278,7 @@ panels:
           mode: percentage
           steps:
           - color: green
-            value: null
+            value:
           - color: '#EAB839'
             value: 20
           - color: red
@@ -316,8 +316,8 @@ panels:
     - name: $__timeFilter
       params: []
       type: macro
-  timeFrom: null
-  timeShift: null
+  timeFrom:
+  timeShift:
   title: Legend
   type: table
 - columns: []
@@ -334,7 +334,7 @@ panels:
     x: 0
     y: 13
   id: 4
-  pageSize: null
+  pageSize:
   showHeader: true
   sort:
     col: 0
@@ -342,13 +342,13 @@ panels:
   styles:
   - $$hashKey: object:1199
     alias: Date
-    align: ""
+    align: ''
     dateFormat: YYYY-MM-DD
     pattern: Time
     type: date
   - $$hashKey: object:1200
-    alias: ""
-    align: ""
+    alias: ''
+    align: ''
     colorMode: cell
     colors:
     - rgba(41, 168, 36, 0.97)
@@ -364,7 +364,7 @@ panels:
     type: number
     unit: percentunit
   - $$hashKey: object:1201
-    alias: ""
+    alias: ''
     align: auto
     colorMode: cell
     colors:
@@ -381,7 +381,7 @@ panels:
     type: number
     unit: percentunit
   - $$hashKey: object:1202
-    alias: ""
+    alias: ''
     align: auto
     colorMode: cell
     colors:
@@ -399,7 +399,7 @@ panels:
     type: number
     unit: percentunit
   - $$hashKey: object:1203
-    alias: ""
+    alias: ''
     align: auto
     colorMode: cell
     colors:
@@ -416,7 +416,7 @@ panels:
     type: number
     unit: percentunit
   - $$hashKey: object:1204
-    alias: ""
+    alias: ''
     align: auto
     colorMode: cell
     colors:
@@ -433,7 +433,7 @@ panels:
     type: number
     unit: percentunit
   - $$hashKey: object:1205
-    alias: ""
+    alias: ''
     align: auto
     colorMode: cell
     colors:
@@ -450,7 +450,7 @@ panels:
     type: number
     unit: percentunit
   - $$hashKey: object:1206
-    alias: ""
+    alias: ''
     align: auto
     colorMode: cell
     colors:
@@ -467,9 +467,9 @@ panels:
     type: number
     unit: percentunit
   - $$hashKey: object:1207
-    alias: ""
+    alias: ''
     align: right
-    colorMode: null
+    colorMode:
     colors:
     - rgba(245, 54, 54, 0.9)
     - rgba(237, 129, 40, 0.89)
@@ -482,8 +482,8 @@ panels:
   targets:
   - panelId: 2
     refId: A
-  timeFrom: null
-  timeShift: null
+  timeFrom:
+  timeShift:
   title: Physical Machine Summary
   transform: timeseries_to_columns
   type: table-old
@@ -516,7 +516,7 @@ panels:
     values: false
   lines: true
   linewidth: 3
-  nullPointMode: "null"
+  nullPointMode: 'null'
   options:
     dataLinks: []
   percentage: false
@@ -534,14 +534,15 @@ panels:
     rawQuery: true
     rawSql: |-
       select DATE(metric."time") as "time", metric."type" as metric, avg(utilization)
-      from metric, entity
-      where metric.entity_oid = entity.oid and
-            metric.entity_hash = entity.hash and
-            entity."type" = 'VIRTUAL_MACHINE' and
-            provider_oid isnull and
-            $__timeFilter("time") and
-            ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) and
-            entity.environment = 'ON_PREM'
+      from metric
+      join entity e on
+          metric.entity_oid = e.oid and
+          e."type" = 'VIRTUAL_MACHINE' and
+          e.environment = 'ON_PREM'
+      where
+          ($__timeFrom(),$__timeTo()) OVERLAPS (e.first_seen, e.last_seen)
+          and provider_oid isnull
+          and metric.time BETWEEN timestamptz $__timeFrom() AND $__timeTo()
       group by 1, 2
       order by 1
     refId: A
@@ -557,9 +558,9 @@ panels:
       params: []
       type: macro
   thresholds: []
-  timeFrom: null
+  timeFrom:
   timeRegions: []
-  timeShift: null
+  timeShift:
   title: Virtual Infrastructure Utilization Metrics
   tooltip:
     shared: true
@@ -567,29 +568,29 @@ panels:
     value_type: individual
   type: graph
   xaxis:
-    buckets: null
+    buckets:
     mode: time
-    name: null
+    name:
     show: true
     values: []
   yaxes:
   - $$hashKey: object:317
     format: percentunit
-    label: null
+    label:
     logBase: 1
-    max: null
-    min: null
+    max:
+    min:
     show: true
   - $$hashKey: object:318
     format: short
-    label: null
+    label:
     logBase: 1
-    max: null
-    min: null
+    max:
+    min:
     show: true
   yaxis:
     align: false
-    alignLevel: null
+    alignLevel:
 - columns: []
   datasource: -- Dashboard --
   description: Daily average for virtual machines.
@@ -604,7 +605,7 @@ panels:
     x: 12
     y: 25
   id: 5
-  pageSize: null
+  pageSize:
   showHeader: true
   sort:
     col: 0
@@ -612,13 +613,13 @@ panels:
   styles:
   - $$hashKey: object:1426
     alias: Date
-    align: ""
+    align: ''
     dateFormat: YYYY-MM-DD
     pattern: Time
     type: date
   - $$hashKey: object:1427
-    alias: ""
-    align: ""
+    alias: ''
+    align: ''
     colorMode: cell
     colors:
     - rgba(41, 168, 36, 0.97)
@@ -634,8 +635,8 @@ panels:
     type: number
     unit: percentunit
   - $$hashKey: object:1428
-    alias: ""
-    align: ""
+    alias: ''
+    align: ''
     colorMode: cell
     colors:
     - rgba(50, 172, 45, 0.97)
@@ -651,9 +652,9 @@ panels:
     type: number
     unit: percentunit
   - $$hashKey: object:1429
-    alias: ""
-    align: ""
-    colorMode: null
+    alias: ''
+    align: ''
+    colorMode:
     colors:
     - rgba(245, 54, 54, 0.9)
     - rgba(237, 129, 40, 0.89)
@@ -668,8 +669,8 @@ panels:
   targets:
   - panelId: 3
     refId: A
-  timeFrom: null
-  timeShift: null
+  timeFrom:
+  timeShift:
   title: Virtual Machine Summary
   transform: timeseries_to_columns
   type: table-old
@@ -681,14 +682,14 @@ templating:
   list:
   - hide: 2
     includeAll: false
-    label: null
+    label:
     multi: false
     name: DB
     options: []
     query: postgres
-    queryValue: ""
+    queryValue: ''
     refresh: 1
-    regex: ""
+    regex: ''
     skipUrlSync: false
     type: datasource
 time:
@@ -705,6 +706,6 @@ timepicker:
   - 1h
   - 2h
   - 1d
-timezone: ""
+timezone: ''
 title: Daily Infrastructure Average Stats vs. Thresholds
 uid: host_vm_stats_thresholds
