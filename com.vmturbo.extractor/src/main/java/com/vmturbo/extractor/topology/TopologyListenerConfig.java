@@ -103,6 +103,15 @@ public class TopologyListenerConfig {
     private String[] reportingCommodityWhitelistRemoved;
 
     /**
+     * Whether the scope table should be populated.
+     *
+     * <p>This is a feature flag that should be removed when we are ready to turn enable this
+     * feature in production.</p>
+     */
+    @Value("${enableScopeTable:false}")
+    public boolean enableScopeTable;
+
+    /**
      * The interval at which we will force-write historical attributes to the database even if
      * they have not changed.
      */
@@ -135,6 +144,7 @@ public class TopologyListenerConfig {
                 .insertTimeoutSeconds(insertTimeoutSeconds)
                 .addAllReportingCommodityWhitelist(getReportingCommodityWhitelist())
                 .unaggregatedCommodities(Constants.UNAGGREGATED_KEYED_COMMODITY_TYPES)
+                .populateScopeTable(enableScopeTable)
                 .build();
     }
 

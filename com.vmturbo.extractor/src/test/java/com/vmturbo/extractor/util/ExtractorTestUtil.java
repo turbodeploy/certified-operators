@@ -41,6 +41,7 @@ public class ExtractorTestUtil {
             .lastSeenAdditionalFuzzMinutes(10)
             .lastSeenUpdateIntervalMinutes(20)
             .unaggregatedCommodities(Constants.UNAGGREGATED_KEYED_COMMODITY_TYPES)
+            .populateScopeTable(true)
             .build();
 
     /**

@@ -57,4 +57,15 @@ public interface WriterConfig {
      * @return multimap of qualifying combos
      */
     Multimap<CommodityType, EntityType> unaggregatedCommodities();
+
+    /**
+     * Specifies whether code to populate the scope table should be executed.
+     *
+     * <p>The scope table is not currently utilized, and until it is, this acts as a feature flag to
+     * avoid the cost of population outside of internal environments that need it for development
+     * and/or testing.</p>
+     *
+     * @return true if scope table should be populated
+     */
+    boolean populateScopeTable();
 }

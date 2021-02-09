@@ -1,8 +1,6 @@
 package com.vmturbo.extractor;
 
-import java.time.Instant;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
+import java.sql.Timestamp;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -39,14 +37,6 @@ import com.vmturbo.extractor.topology.WriterConfig;
  */
 public class RecordHashManager {
 
-    /** valid DB timestamp value that's far in the future.
-     *
-     * <p>We're specifying a day before end of 9999, since Postgres doesn't deal with larger years.
-     * The one-day gap ensures if jOOQ uses this value in a literal and expresses it in local
-     * time zone it won't get bumped into year-10000 in that literal.</p>
-     */
-    public static final OffsetDateTime MAX_TIMESTAMP = OffsetDateTime.parse("9999-12-31T00:00:00Z");
-
     private final Set<Column<?>> columnsForHash;
     private final HashState state;
     // currently open snapshot manager
@@ -54,17 +44,20 @@ public class RecordHashManager {
     private final WriterConfig config;
     private Long priorSnapshotTime = null;
     private final Column<Long> oidColumn;
-    private final Column<OffsetDateTime> firstSeenColumn;
-    private final Column<OffsetDateTime> lastSeenColumn;
+    private final Column<Long> hashColumn;
+    private final Column<Timestamp> firstSeenColumn;
+    private final Column<Timestamp> lastSeenColumn;
 
     protected RecordHashManager(Set<Column<?>> columnsForHash,
             Column<Long> oidColumn,
-            Column<OffsetDateTime> firstSeenColumn,
-            Column<OffsetDateTime> lastSeenColumn,
+            Column<Long> hashColumn,
+            Column<Timestamp> firstSeenColumn,
+            Column<Timestamp> lastSeenColumn,
             WriterConfig config) {
         this.columnsForHash = columnsForHash;
         this.config = config;
         this.oidColumn = oidColumn;
+        this.hashColumn = hashColumn;
         this.firstSeenColumn = firstSeenColumn;
         this.lastSeenColumn = lastSeenColumn;
         this.state = new HashState(this, new Long2LongOpenHashMap(), new Long2LongOpenHashMap(), null);
@@ -134,8 +127,8 @@ public class RecordHashManager {
 
         private final long time;
         private final HashState state;
-        private final OffsetDateTime firstSeenTimestamp;
-        private final OffsetDateTime lastSeenTimestamp;
+        private final Timestamp firstSeenTimestamp;
+        private final Timestamp lastSeenTimestamp;
         private boolean doLastSeenUpdateForThisSnapshot = false;
         private final LongSet addedHashes = new LongOpenHashSet();
 
@@ -156,8 +149,7 @@ public class RecordHashManager {
             // compute timestamps to use as first- and last-seen times in current cycle
             // also, coming out of this, timeOfLastSeenUpdate be updated to reflect this
             // snapshot time, if we'll be doing an update as part of processing this snapshot
-            this.firstSeenTimestamp = OffsetDateTime.ofInstant(Instant.ofEpochMilli(time), ZoneOffset.UTC);
-            this.lastSeenTimestamp = MAX_TIMESTAMP;
+            this.firstSeenTimestamp = new Timestamp(time);
             long priorUpdate = state.lastLastSeenUpdateTime != null ? state.lastLastSeenUpdateTime
                     // for first snapshot, pretend that we did one exactly one interval before time
                     // zero, so that we'll treat it like landing precisely on our next expected
@@ -171,6 +163,8 @@ public class RecordHashManager {
                 timeOfNextUpdate = time + updateInterval;
                 state.lastLastSeenUpdateTime = time;
             }
+            this.lastSeenTimestamp = new Timestamp(timeOfNextUpdate
+                    + updateFuzz);
         }
 
         /**
@@ -198,17 +192,6 @@ public class RecordHashManager {
         }
 
         /**
-         * Checks if we have hash for record.
-         *
-         * @param record record to check if hash has been computed
-         * @return true if record has recorded hash value
-         */
-        public boolean hasHashForRecord(final Record record) {
-            final long oid = record.get(state.recordHashManager.oidColumn);
-            return state.hashesById.containsKey(oid);
-        }
-
-        /**
          * Set first-seen and last-seen values in the given record for a record that appears
          * in the current processing cycle.
          *
@@ -228,7 +211,7 @@ public class RecordHashManager {
          */
         public void setRecordTimes(final Record record) {
             record.set(state.recordHashManager.firstSeenColumn, firstSeenTimestamp);
-            record.set(state.recordHashManager.lastSeenColumn, MAX_TIMESTAMP);
+            record.set(state.recordHashManager.lastSeenColumn, lastSeenTimestamp);
         }
 
         /**
@@ -275,9 +258,8 @@ public class RecordHashManager {
                 LongList drops, TableWriter updater) {
             drops.forEach((long oid) -> {
                 try (Record r = updater.open()) {
-                    Long hashLastSeenTimeStamp = state.hashLastSeen.get(oid);
-                    OffsetDateTime lastSeenTime = OffsetDateTime.ofInstant(Instant.ofEpochMilli(hashLastSeenTimeStamp), ZoneOffset.UTC);
-                    r.set(state.recordHashManager.lastSeenColumn, lastSeenTime);
+                    r.set(state.recordHashManager.hashColumn, oid);
+                    r.set(state.recordHashManager.lastSeenColumn, new Timestamp(state.hashLastSeen.get(oid)));
                 }
             });
         }
@@ -318,7 +300,7 @@ public class RecordHashManager {
                     // records will already set the last-seen time correctly
                     if (!addedHashes.contains(e.getLongKey())) {
                         try (Record r = entitiesUpdater.open()) {
-//                            r.set(state.recordHashManager.hashColumn, e.getLongKey());
+                            r.set(state.recordHashManager.hashColumn, e.getLongKey());
                             r.set(state.recordHashManager.lastSeenColumn, lastSeenTimestamp);
                         }
                     }

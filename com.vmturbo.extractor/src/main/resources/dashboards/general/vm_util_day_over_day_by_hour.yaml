@@ -1,3 +1,4 @@
+---
 annotations:
   list:
   - builtIn: 1
@@ -11,7 +12,7 @@ description: This dashboard compares average hourly utilization measurements for
   machines day-over-day for the two consecutive days. All VMs in the selected group
   are included in the averages.
 editable: false
-gnetId:
+gnetId: null
 graphTooltip: 1
 iteration: 1597070550382
 links: []
@@ -48,7 +49,7 @@ panels:
     values: true
   lines: true
   linewidth: 2
-  nullPointMode: 'null'
+  nullPointMode: "null"
   options:
     dataLinks: []
   percentage: false
@@ -71,36 +72,31 @@ panels:
     metricColumn: none
     rawQuery: true
     rawSql: |-
-      WITH vms as (
-        ${VMSelector:raw}
-      ),
-      data as (
-        SELECT m.time, avg(m.utilization) AS avg_util
-        FROM  metric m, vms v
-        WHERE m.entity_oid = v.oid
-        AND m.type = 'VMEM'
-        AND m.provider_oid IS NULL
-        AND m.time BETWEEN $__timeFrom()::timestamptz - interval '24 hour' AND date_trunc('hour', $__timeTo()::timestamptz)
-        AND ${ScopeCondition:raw}
-        GROUP BY 1
+      WITH data as (
+         SELECT m.time
+                ,m.utilization AS avg_util
+            FROM entity e
+            JOIN metric m ON m.entity_oid = e.oid
+             AND m.entity_hash = e.hash
+             AND m.type = 'VMEM'
+             AND e.type = 'VIRTUAL_MACHINE'
+             AND m.time BETWEEN ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR') AND date_trunc('HOUR', $__timeTo()::TIMESTAMPTZ)
+             AND ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR', $__timeTo()::TIMESTAMPTZ) OVERLAPS (first_seen, last_seen)
+             AND CASE WHEN ARRAY[ $Group ]::text[] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ $Group ]::bigint[]) END
       )
-      SELECT
-          INTERVAL '1 HOUR'  + CASE
-            WHEN time BETWEEN date_trunc('hour', $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR')
-                AND date_trunc('hour', $__timeTo()::TIMESTAMPTZ - interval '24 HOUR')
-              THEN date_trunc('HOUR', time + interval '24 HOUR')
-            ELSE date_trunc('HOUR', time)
-          END as "time",
-          CASE
-            WHEN time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR'
-                AND $__timeTo()::TIMESTAMPTZ - interval '24 HOUR'
-              THEN 'Previous Day'
-            ELSE 'Ending ' || DATE($__timeTo()::TIMESTAMPTZ)::TEXT
-          END as metric,
-          avg(avg_util)
+
+      SELECT CASE
+                  WHEN time BETWEEN date_trunc('hour', $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR') AND date_trunc('hour', $__timeTo()::TIMESTAMPTZ - interval '24 HOUR') THEN date_trunc('HOUR', time + interval '24 HOUR')
+                  ELSE date_trunc('HOUR', time)
+             END + INTERVAL '1 HOUR' as "time"
+            ,CASE
+                  WHEN time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR' AND $__timeTo()::TIMESTAMPTZ - interval '24 HOUR' THEN 'Previous Day'
+                  ELSE 'Ending ' || DATE($__timeTo()::TIMESTAMPTZ)::TEXT
+             END as metric
+            ,avg(avg_util)
         FROM data
-        GROUP BY 1, 2
-        ORDER BY 1
+       GROUP BY 1, 2
+       ORDER BY 1
     refId: A
     select:
     - - params:
@@ -114,9 +110,9 @@ panels:
       params: []
       type: macro
   thresholds: []
-  timeFrom:
+  timeFrom: null
   timeRegions: []
-  timeShift:
+  timeShift: null
   title: VM Avg VMem Utilization
   tooltip:
     shared: true
@@ -124,28 +120,28 @@ panels:
     value_type: individual
   type: graph
   xaxis:
-    buckets:
+    buckets: null
     mode: time
-    name:
+    name: null
     show: true
     values: []
   yaxes:
-  - decimals:
+  - decimals: null
     format: percentunit
-    label:
+    label: null
     logBase: 1
-    max:
-    min:
+    max: null
+    min: null
     show: true
   - format: short
-    label:
+    label: null
     logBase: 1
-    max:
-    min:
+    max: null
+    min: null
     show: true
   yaxis:
     align: false
-    alignLevel:
+    alignLevel: null
 - aliasColors: {}
   bars: false
   dashLength: 10
@@ -178,7 +174,7 @@ panels:
     values: true
   lines: true
   linewidth: 2
-  nullPointMode: 'null'
+  nullPointMode: "null"
   options:
     dataLinks: []
   percentage: false
@@ -201,36 +197,31 @@ panels:
     metricColumn: none
     rawQuery: true
     rawSql: |-
-      WITH vms as (
-        ${VMSelector:raw}
-      ),
-      data as (
-        SELECT m.time, avg(m.utilization) AS avg_util
-        FROM  metric m, vms v
-        WHERE m.entity_oid = v.oid
-        AND m.type = 'VCPU'
-        AND m.provider_oid IS NULL
-        AND m.time BETWEEN $__timeFrom()::timestamptz - interval '24 hour' AND date_trunc('hour', $__timeTo()::timestamptz)
-        AND ${ScopeCondition:raw}
-        GROUP BY 1
+      WITH data as (
+         SELECT m.time
+                ,m.utilization AS avg_util
+            FROM entity e
+            JOIN metric m ON m.entity_oid = e.oid
+             AND m.entity_hash = e.hash
+             AND m.type = 'VCPU'
+             AND e.type = 'VIRTUAL_MACHINE'
+             AND m.time BETWEEN ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR') AND date_trunc('HOUR', $__timeTo()::TIMESTAMPTZ)
+             AND ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR', $__timeTo()::TIMESTAMPTZ) OVERLAPS (first_seen, last_seen)
+             AND CASE WHEN ARRAY[ $Group ]::text[] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ $Group ]::bigint[]) END
       )
-       SELECT
-          INTERVAL '1 HOUR'  + CASE
-            WHEN time BETWEEN date_trunc('hour', $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR')
-                AND date_trunc('hour', $__timeTo()::TIMESTAMPTZ - interval '24 HOUR')
-              THEN date_trunc('HOUR', time + interval '24 HOUR')
-            ELSE date_trunc('HOUR', time)
-          END as "time",
-          CASE
-            WHEN time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR'
-                AND $__timeTo()::TIMESTAMPTZ - interval '24 HOUR'
-              THEN 'Previous Day'
-            ELSE 'Ending ' || DATE($__timeTo()::TIMESTAMPTZ)::TEXT
-          END as metric,
-          avg(avg_util)
+
+       SELECT CASE
+                  WHEN time BETWEEN date_trunc('hour', $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR') AND date_trunc('hour', $__timeTo()::TIMESTAMPTZ - interval '24 HOUR') THEN date_trunc('HOUR', time + interval '24 HOUR')
+                  ELSE date_trunc('HOUR', time)
+             END + INTERVAL '1 HOUR' as "time"
+            ,CASE
+                  WHEN time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR' AND $__timeTo()::TIMESTAMPTZ - interval '24 HOUR' THEN 'Previous Day'
+                  ELSE 'Ending ' || DATE($__timeTo()::TIMESTAMPTZ)::TEXT
+             END as metric
+            ,avg(avg_util)
         FROM data
-        GROUP BY 1, 2
-        ORDER BY 1
+       GROUP BY 1, 2
+       ORDER BY 1
     refId: A
     select:
     - - params:
@@ -244,9 +235,9 @@ panels:
       params: []
       type: macro
   thresholds: []
-  timeFrom:
+  timeFrom: null
   timeRegions: []
-  timeShift:
+  timeShift: null
   title: VM Avg VCPU Utilization
   tooltip:
     shared: true
@@ -254,28 +245,28 @@ panels:
     value_type: individual
   type: graph
   xaxis:
-    buckets:
+    buckets: null
     mode: time
-    name:
+    name: null
     show: true
     values: []
   yaxes:
-  - decimals:
+  - decimals: null
     format: percentunit
-    label:
+    label: null
     logBase: 1
-    max:
-    min:
+    max: null
+    min: null
     show: true
   - format: short
-    label:
+    label: null
     logBase: 1
-    max:
-    min:
+    max: null
+    min: null
     show: true
   yaxis:
     align: false
-    alignLevel:
+    alignLevel: null
 schemaVersion: 25
 style: dark
 tags: []
@@ -283,17 +274,17 @@ templating:
   list:
   - hide: 2
     includeAll: false
-    label:
+    label: null
     multi: false
     name: DB
     options: []
     query: postgres
-    queryValue: ''
+    queryValue: ""
     refresh: 1
-    regex: ''
+    regex: ""
     skipUrlSync: false
     type: datasource
-  - allValue:
+  - allValue: '''0'''
     datasource: $DB
     definition: |-
       SELECT name as __text,
@@ -306,7 +297,7 @@ templating:
       ORDER BY 1
     hide: 0
     includeAll: true
-    label:
+    label: null
     multi: false
     name: Group
     options: []
@@ -320,80 +311,12 @@ templating:
       GROUP BY name, oid
       ORDER BY 1
     refresh: 2
-    regex: ''
+    regex: ""
     skipUrlSync: false
     sort: 0
-    tagValuesQuery: ''
+    tagValuesQuery: ""
     tags: []
-    tagsQuery: ''
-    type: query
-    useTags: false
-  - allValue:
-    datasource: $DB
-    definition: |-
-      SELECT CASE
-         WHEN '${Group:raw}' = '0' THEN
-           'SELECT oid from entity where type=''VIRTUAL_MACHINE'''
-         ELSE concat(
-           'SELECT distinct s.scoped_oid as oid, start, finish ',
-           'FROM scope s ',
-           'WHERE s.scoped_type = ''VIRTUAL_MACHINE'' ',
-           '  AND ('$__timeFrom()'::timestamptz - interval ''24 hour'', date_trunc(''hour'', '$__timeTo()'::timestamptz)) ',
-                'OVERLAPS (s.start, s.finish) ',
-           '  AND s.seed_oid IN (SELECT * FROM unnest(ARRAY[${Group:raw}]::bigint[]))')
-         END
-    hide: 2
-    includeAll: true
-    label:
-    multi: false
-    name: VMSelector
-    options: []
-    query: |-
-      SELECT CASE
-         WHEN '${Group:raw}' = '0' THEN
-           'SELECT oid from entity where type=''VIRTUAL_MACHINE'''
-         ELSE concat(
-           'SELECT distinct s.scoped_oid as oid, start, finish ',
-           'FROM scope s ',
-           'WHERE s.scoped_type = ''VIRTUAL_MACHINE'' ',
-           '  AND ('$__timeFrom()'::timestamptz - interval ''24 hour'', date_trunc(''hour'', '$__timeTo()'::timestamptz)) ',
-                'OVERLAPS (s.start, s.finish) ',
-           '  AND s.seed_oid IN (SELECT * FROM unnest(ARRAY[${Group:raw}]::bigint[]))')
-         END
-    refresh: 2
-    regex: ''
-    skipUrlSync: false
-    sort: 0
-    tagValuesQuery: ''
-    tags: []
-    tagsQuery: ''
-    type: query
-    useTags: false
-  - allValue:
-    datasource: $DB
-    definition: |-
-      SELECT CASE
-         WHEN '${Group:raw}' = '0' THEN 'true'
-         ELSE 'm.time BETWEEN v.start AND v.finish'
-      END
-    hide: 2
-    includeAll: true
-    label:
-    multi: false
-    name: ScopeCondition
-    options: []
-    query: |-
-      SELECT CASE
-         WHEN '${Group:raw}' = '0' THEN 'true'
-         ELSE 'm.time BETWEEN v.start AND v.finish'
-      END
-    refresh: 2
-    regex: ''
-    skipUrlSync: false
-    sort: 0
-    tagValuesQuery: ''
-    tags: []
-    tagsQuery: ''
+    tagsQuery: ""
     type: query
     useTags: false
 timepicker:
@@ -407,6 +330,6 @@ timepicker:
   - 1h
   - 2h
   - 1d
-timezone: ''
+timezone: ""
 title: Virtual Machine Utilization Day over Day By Hour
 uid: vm_util_day_over_day_by_hour

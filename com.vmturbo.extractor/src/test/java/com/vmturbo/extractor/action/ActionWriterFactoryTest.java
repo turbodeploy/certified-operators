@@ -63,6 +63,7 @@ public class ActionWriterFactoryTest {
             .lastSeenUpdateIntervalMinutes(1)
             .lastSeenAdditionalFuzzMinutes(1)
             .insertTimeoutSeconds(10)
+            .populateScopeTable(true)
             .build();
 
     private ActionConverter actionConverter = mock(ActionConverter.class);

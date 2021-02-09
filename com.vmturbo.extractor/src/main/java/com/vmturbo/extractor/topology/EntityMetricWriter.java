@@ -97,10 +97,12 @@ public class EntityMetricWriter extends TopologyWriterBase {
     public static final Pattern QX_VCPU_PATTERN = Pattern.compile("Q.*_VCPU");
 
     // configurations for upsert and update operations for entity table
-    private static final ImmutableList<Column<?>> upsertConflicts = ImmutableList.of(ENTITY_OID_AS_OID);
+    private static final ImmutableList<Column<?>> upsertConflicts = ImmutableList.of(
+            ENTITY_OID_AS_OID, ModelDefinitions.ENTITY_HASH_AS_HASH);
     private static final ImmutableList<Column<?>> upsertUpdates = ImmutableList.of(ModelDefinitions.LAST_SEEN);
-    private static final List<Column<?>> updateIncludes = ImmutableList.of(ModelDefinitions.LAST_SEEN);
-    private static final List<Column<?>> updateMatches = ImmutableList.of(ENTITY_OID_AS_OID);
+    private static final List<Column<?>> updateIncludes = ImmutableList
+            .of(ModelDefinitions.ENTITY_HASH_AS_HASH, ModelDefinitions.LAST_SEEN);
+    private static final List<Column<?>> updateMatches = ImmutableList.of(ModelDefinitions.ENTITY_HASH_AS_HASH);
     private static final List<Column<?>> updateUpdates = ImmutableList.of(ModelDefinitions.LAST_SEEN);
 
     private final Int2ObjectMap<Record> entityRecordsMap = new Int2ObjectOpenHashMap<>();
@@ -453,7 +455,8 @@ public class EntityMetricWriter extends TopologyWriterBase {
         // capture entity count before we add groups
         int n = entityRecordsMap.size();
         try (DSLContext dsl = dbEndpoint.dslContext();
-             TableWriter entitiesUpserter = ENTITY_TABLE.open(getEntityUpsertSink(dsl, upsertConflicts, upsertUpdates),
+             TableWriter entitiesUpserter = ENTITY_TABLE.open(
+                     getEntityUpsertSink(dsl, upsertConflicts, upsertUpdates),
                      "Entities Upserter", logger);
              TableWriter entitiesUpdater = ENTITY_TABLE.open(
                      getEntityUpdaterSink(dsl, updateIncludes, updateMatches, updateUpdates),
@@ -523,11 +526,13 @@ public class EntityMetricWriter extends TopologyWriterBase {
             Record record = entry.getValue();
             final LongSet scope = getRelatedEntitiesAndGroups(entityIdManager.toOid(iid),
                     dataProvider);
-            // Currently we only insert new entities.  In the future
-            // we will use the upsert with existing entities to update columns i.e name, attrs
-            if (!snapshotManager.hasHashForRecord(record)) {
+            record.set(ModelDefinitions.SCOPED_OIDS, scope.toArray(new Long[0]));
+            // only store entity if hash changes
+            Long newHash = snapshotManager.updateRecordHash(record);
+            if (newHash != null) {
                 logger.debug("Entity {} hash changed, writing new record", () -> entityIdManager.toOid(iid));
                 try (Record r = tableWriter.open(record)) {
+                    r.set(ModelDefinitions.ENTITY_HASH_AS_HASH, newHash);
                     snapshotManager.setRecordTimes(r);
                 }
             }
@@ -558,12 +563,12 @@ public class EntityMetricWriter extends TopologyWriterBase {
         logger.info("Inserting metric records for topology {}", topologyLabel);
         final Timestamp time = new Timestamp(topologyInfo.getCreationTime());
         metricRecordsMap.int2ObjectEntrySet().forEach(entry -> {
+            long oid = entityIdManager.toOid(entry.getIntKey());
+            Long hash = entityHashManager.getEntityHash(oid);
             entry.getValue().forEach(partialMetricRecord -> {
                 try (Record r = tableWriter.open(partialMetricRecord)) {
                     r.set(TIME, time);
-                    //We no longer use hash columns, unable to remove from hyper compressed tables
-                    //Setting all values to 0
-                    r.set(ModelDefinitions.ENTITY_HASH, 0L);
+                    r.set(ModelDefinitions.ENTITY_HASH, hash);
                 }
             });
         });

@@ -88,6 +88,7 @@ public class PendingActionWriterTest {
             .lastSeenUpdateIntervalMinutes(1)
             .lastSeenAdditionalFuzzMinutes(1)
             .insertTimeoutSeconds(10)
+            .populateScopeTable(true)
             .build();
 
     private ExecutorService pool = mock(ExecutorService.class);
