@@ -161,20 +161,23 @@ public abstract class AbstractRIStatsSubQuery implements StatsSubQuery {
     /**
      * Convert a list of {@link ReservedInstanceStatsRecord} to a list of {@link StatSnapshotApiDTO}.
      *
-     * @param records      a list of {@link ReservedInstanceStatsRecord}.
-     * @param isRICoverage a boolean which true means it's a reserved instance coverage stats request,
-     *                     false means it's a reserved instance utilization stats request.
+     * @param records                   a list of {@link ReservedInstanceStatsRecord}.
+     * @param isRICoverage              a boolean which true means it's a reserved instance coverage stats request,
+     *                                  false means it's a reserved instance utilization stats request.
+     * @param isPlan                    flag to indicate the records are from a Plan.
+     * @param projectedThresholdTime    the Time in millis to decide if the snapshot is PROJECTED.
      * @return a list {@link ReservedInstanceStatsRecord}.
      */
     protected static List<StatSnapshotApiDTO> internalConvertRIStatsRecordsToStatSnapshotApiDTO(
             @Nonnull final List<ReservedInstanceStatsRecord> records,
-            final boolean isRICoverage) {
+            final boolean isRICoverage, final boolean isPlan, final long projectedThresholdTime) {
+        final Epoch projectedEpoch = isPlan ? Epoch.PLAN_PROJECTED : Epoch.PROJECTED;
         return records.stream()
                 .map(record -> {
                     final StatSnapshotApiDTO snapshotApiDTO = new StatSnapshotApiDTO();
                     snapshotApiDTO.setDate(DateTimeUtil.toString(record.getSnapshotDate()));
-                    // TODO: Can these be projected?
-                    snapshotApiDTO.setEpoch(Epoch.HISTORICAL);
+                    snapshotApiDTO.setEpoch(projectedThresholdTime < record.getSnapshotDate()
+                            ? projectedEpoch : Epoch.HISTORICAL);
                     final StatApiDTO statApiDTO = createRIUtilizationStatApiDTO(record, isRICoverage);
                     snapshotApiDTO.setStatistics(Lists.newArrayList(statApiDTO));
                     return snapshotApiDTO;

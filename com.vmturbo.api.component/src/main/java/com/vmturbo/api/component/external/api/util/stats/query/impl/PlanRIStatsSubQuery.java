@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.util.stats.query.impl;
 
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -83,11 +84,14 @@ public class PlanRIStatsSubQuery extends AbstractRIStatsSubQuery {
                 throw new OperationFailedException(e.getMessage(), e);
             }
         }
+
+        final long currentTime = Clock.systemUTC().millis();
+        final boolean isPlan = context.getInputScope() != null && context.getInputScope().isPlan();
         if (containsStat(StringConstants.RI_COUPON_COVERAGE, stats)) {
-            snapshots.addAll(getRICoverageSnapshots(context));
+            snapshots.addAll(getRICoverageSnapshots(context, isPlan, currentTime));
         }
         if (containsStat(StringConstants.RI_COUPON_UTILIZATION, stats)) {
-            snapshots.addAll(getRIUtilizationSnapshots(context));
+            snapshots.addAll(getRIUtilizationSnapshots(context, isPlan, currentTime));
         }
         if (containsStat(StringConstants.RI_COST, stats)) {
             final boolean includeBuyRi = planInstance.getScenario()
@@ -108,17 +112,22 @@ public class PlanRIStatsSubQuery extends AbstractRIStatsSubQuery {
         return mergeStatsByDate(snapshots);
     }
 
-    private List<StatSnapshotApiDTO> getRICoverageSnapshots(final StatsQueryContext context)
+    private List<StatSnapshotApiDTO> getRICoverageSnapshots(final StatsQueryContext context,
+                                                            final boolean isPlan,
+                                                            final long projectedThresholdTime)
             throws OperationFailedException {
         final GetReservedInstanceCoverageStatsRequest coverageRequest =
                 createCoverageRequest(context);
         final GetReservedInstanceCoverageStatsResponse coverageResponse =
                 riUtilizationCoverageService.getReservedInstanceCoverageStats(coverageRequest);
         return internalConvertRIStatsRecordsToStatSnapshotApiDTO(
-                coverageResponse.getReservedInstanceStatsRecordsList(), true);
+                coverageResponse.getReservedInstanceStatsRecordsList(),
+                true, isPlan, projectedThresholdTime);
     }
 
-    private List<StatSnapshotApiDTO> getRIUtilizationSnapshots(final StatsQueryContext context)
+    private List<StatSnapshotApiDTO> getRIUtilizationSnapshots(final StatsQueryContext context,
+                                                               final boolean isPlan,
+                                                               final long projectedThresholdTime)
             throws OperationFailedException {
         final GetReservedInstanceUtilizationStatsRequest utilizationRequest =
                 createUtilizationRequest(context);
@@ -126,7 +135,8 @@ public class PlanRIStatsSubQuery extends AbstractRIStatsSubQuery {
                 riUtilizationCoverageService.getReservedInstanceUtilizationStats(
                         utilizationRequest);
         return internalConvertRIStatsRecordsToStatSnapshotApiDTO(
-                utilizationResponse.getReservedInstanceStatsRecordsList(), false);
+                utilizationResponse.getReservedInstanceStatsRecordsList(),
+                false, isPlan, projectedThresholdTime);
     }
 
     @VisibleForTesting

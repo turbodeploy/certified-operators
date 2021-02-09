@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.util.stats.query.impl;
 
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -11,7 +12,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.Sets;
-
 import org.apache.commons.collections4.CollectionUtils;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
@@ -102,6 +102,9 @@ public class RIStatsSubQuery extends AbstractRIStatsSubQuery {
     public List<StatSnapshotApiDTO> getAggregateStats(@Nonnull final Set<StatApiInputDTO> stats,
             @Nonnull final StatsQueryContext context)
             throws OperationFailedException, InterruptedException {
+        final long currentTime = Clock.systemUTC().millis();
+        final boolean isPlan = context.getInputScope().isPlan();
+
         final List<StatSnapshotApiDTO> snapshots = new ArrayList<>();
         // Return an empty list when scoped to an account that does not support RIs
         if (context.getQueryScope().getScopeOids().size() == 1 &&
@@ -139,7 +142,8 @@ public class RIStatsSubQuery extends AbstractRIStatsSubQuery {
                 snapshots.addAll(internalConvertRIStatsRecordsToStatSnapshotApiDTO(
                         riUtilizationCoverageService.getReservedInstanceUtilizationStats(
                                 createUtilizationRequest(context))
-                                .getReservedInstanceStatsRecordsList(), false));
+                                .getReservedInstanceStatsRecordsList(),
+                        false, isPlan, currentTime));
             }
         }
 
@@ -148,7 +152,7 @@ public class RIStatsSubQuery extends AbstractRIStatsSubQuery {
             snapshots.addAll(internalConvertRIStatsRecordsToStatSnapshotApiDTO(
                     riUtilizationCoverageService.getReservedInstanceCoverageStats(
                             createCoverageRequest(context)).getReservedInstanceStatsRecordsList(),
-                    true));
+                    true, isPlan, currentTime));
         }
 
         return mergeStatsByDate(snapshots);

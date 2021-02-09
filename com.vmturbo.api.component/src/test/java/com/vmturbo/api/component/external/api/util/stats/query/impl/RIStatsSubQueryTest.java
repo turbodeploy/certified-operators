@@ -10,7 +10,6 @@ import java.util.stream.Collectors;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
-
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 import org.junit.Assert;
@@ -34,6 +33,7 @@ import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
+import com.vmturbo.api.enums.Epoch;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
@@ -474,7 +474,7 @@ public class RIStatsSubQueryTest {
 
         final List<StatSnapshotApiDTO> snapshots =
                 AbstractRIStatsSubQuery.internalConvertRIStatsRecordsToStatSnapshotApiDTO(
-                        Collections.singletonList(record), true);
+                        Collections.singletonList(record), true, false, 1);
 
         MatcherAssert.assertThat(snapshots.size(), Matchers.is(1));
         final StatSnapshotApiDTO snapshot = snapshots.get(0);
@@ -502,7 +502,7 @@ public class RIStatsSubQueryTest {
 
         final List<StatSnapshotApiDTO> snapshots =
                 AbstractRIStatsSubQuery.internalConvertRIStatsRecordsToStatSnapshotApiDTO(
-                        Collections.singletonList(record), false);
+                        Collections.singletonList(record), false, false, 1);
 
         MatcherAssert.assertThat(snapshots.size(), Matchers.is(1));
         final StatSnapshotApiDTO snapshot = snapshots.get(0);
@@ -512,6 +512,18 @@ public class RIStatsSubQueryTest {
         final StatApiDTO stat = snapshot.getStatistics().get(0);
         MatcherAssert.assertThat(stat.getName(),
                 Matchers.is(StringConstants.RI_COUPON_UTILIZATION));
+
+        // Projected Epoch
+        final List<StatSnapshotApiDTO> projSnapshots = AbstractRIStatsSubQuery
+                .internalConvertRIStatsRecordsToStatSnapshotApiDTO(Collections.singletonList(record),
+                        false, false, MILLIS - 1);
+        MatcherAssert.assertThat(projSnapshots.get(0).getEpoch(), Matchers.is(Epoch.PROJECTED));
+
+        // Projected Plan Epoch
+        final List<StatSnapshotApiDTO> projPlanSnapshots = AbstractRIStatsSubQuery
+                .internalConvertRIStatsRecordsToStatSnapshotApiDTO(Collections.singletonList(record),
+                        false, true, MILLIS - 1);
+        MatcherAssert.assertThat(projPlanSnapshots.get(0).getEpoch(), Matchers.is(Epoch.PLAN_PROJECTED));
     }
 
     @Test
