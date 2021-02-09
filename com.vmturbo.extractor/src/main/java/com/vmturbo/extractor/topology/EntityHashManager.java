@@ -1,6 +1,5 @@
 package com.vmturbo.extractor.topology;
 
-import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_HASH_AS_HASH;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_OID_AS_OID;
 import static com.vmturbo.extractor.models.ModelDefinitions.FIRST_SEEN;
 import static com.vmturbo.extractor.models.ModelDefinitions.LAST_SEEN;
@@ -24,13 +23,11 @@ public class EntityHashManager extends RecordHashManager {
             ModelDefinitions.ENTITY_TYPE_ENUM,
             ModelDefinitions.ENTITY_STATE_ENUM,
             ModelDefinitions.ENVIRONMENT_TYPE_ENUM,
-            ModelDefinitions.ATTRS,
-            ModelDefinitions.SCOPED_OIDS);
+            ModelDefinitions.ATTRS);
 
     EntityHashManager(WriterConfig config) {
         super(INCLUDE_COLUMNS_FOR_ENTITY_HASH,
                 ENTITY_OID_AS_OID,
-                ENTITY_HASH_AS_HASH,
                 FIRST_SEEN,
                 LAST_SEEN,
                 config);

@@ -104,22 +104,19 @@ panels:
            FROM pending_action
           WHERE type = 'RESIZE'
       ),
-
       vms_by_cluster as (
           SELECT DISTINCT on (e.oid) g.name as cluster_name
                 ,e.oid as vm_oid
                 ,e.name as vm_name
-                ,e.hash as vm_hash
             FROM entity g
-            JOIN entity e on g."type" = 'COMPUTE_CLUSTER'
-             AND array[g.oid] <@ e.scope
-             AND e."type" = 'VIRTUAL_MACHINE'
+            JOIN scope s ON s.seed_oid = g.oid
+            JOIN entity e ON s.scoped_oid = e.oid AND s.scoped_type = 'VIRTUAL_MACHINE'
+            WHERE g."type" = 'COMPUTE_CLUSTER'
              AND e.state = 'POWERED_ON'
              AND e.environment = 'ON_PREM'
              AND (e.first_seen, e.last_seen) overlaps ($__timeFrom(),$__timeTo())
-             AND CASE WHEN ARRAY[ $VMGroup ]::text[] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ $VMGroup ]::bigint[]) END
+             AND g.oid IN (SELECT * FROM unnest(ARRAY[$VMGroup]::bigint[]))
       )
-
       SELECT *
       FROM (
           SELECT cluster_name as "Host Cluster"
@@ -136,7 +133,6 @@ panels:
                  END as "Resize Type"
             FROM metric as m, action_data, vms_by_cluster
            WHERE m.entity_oid = vm_oid
-             AND m.entity_hash = vm_hash
              AND vm_oid = action_data.target_entity_id
              AND $__timeFilter("time")
            GROUP BY vm_oid, description, 2, 1
@@ -178,7 +174,7 @@ templating:
     regex: ""
     skipUrlSync: false
     type: datasource
-  - allValue: '''0'''
+  - allValue:
     datasource: $DB
     definition: |-
       SELECT name as __text,

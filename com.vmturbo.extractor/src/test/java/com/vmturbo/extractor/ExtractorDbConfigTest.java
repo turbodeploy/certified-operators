@@ -108,7 +108,7 @@ public class ExtractorDbConfigTest {
             throws UnsupportedDialectException, InterruptedException {
         try {
             endpoint.dslContext().execute("INSERT INTO entity "
-                    + "VALUES (0, 0, 'VIRTUAL_MACHINE', 'Vm1', null, null, null, '{}', now(), now())");
+                    + "VALUES (0, 'VIRTUAL_MACHINE', 'Vm1', null, null, null, now(), now())");
             return 1L == (long)endpoint.dslContext().fetchValue("SELECT count(*) FROM entity");
 
         } catch (DataAccessException | SQLException | BadSqlGrammarException e) {
