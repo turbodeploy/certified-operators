@@ -4,7 +4,7 @@
 -- to performing the schema change. THIS PATTERN SHOULD NOT BE COPIED ONCE XLR IS GA.
 
 TRUNCATE TABLE metric;
-SELECT remove_compress_chunks_policy('metric');
+SELECT remove_compression_policy('metric');
 ALTER TABLE metric SET (timescaledb.compress=false);
 
 -- now for the actual schema change
@@ -20,4 +20,4 @@ ALTER TABLE "metric" SET(
   timescaledb.compress_segmentby = 'entity_oid',
   timescaledb.compress_orderby = 'type, key'
 );
-SELECT add_compress_chunks_policy('metric', INTERVAL '2 days');
+SELECT add_compression_policy('metric', INTERVAL '2 days');

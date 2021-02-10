@@ -253,20 +253,19 @@ public class PostgresAdapter extends DbAdapter {
             conn.setAutoCommit(false);
             // first drop previous policy if it exists
             conn.createStatement().execute(String.format(
-                    "SELECT remove_drop_chunks_policy('%s', if_exists => true)", table));
+                    "SELECT remove_retention_policy('%s', if_exists => true)", table));
             // create new retention policy and get its background job id
             ResultSet resultSet = conn.createStatement().executeQuery(String.format(
-                    "SELECT add_drop_chunks_policy('%s', INTERVAL '%d %s', "
-                            + "cascade_to_materializations => FALSE)", table, retentionPeriod, timeUnitSql));
+                    "SELECT add_retention_policy('%s', INTERVAL '%d %s')", table, retentionPeriod));
             if (!resultSet.next()) {
-                logger.error("Unable to create add_drop_chunks_policy for table \"{}\" with period \"{} {}\"",
-                        table, retentionPeriod, timeUnit);
+                logger.error("Unable to create drop_chunks for table \"{}\" with period \"{} {}\"",
+                        table, retentionPeriod);
                 return;
             }
 
-            final int jobId = resultSet.getInt("add_drop_chunks_policy");
+            final int jobId = resultSet.getInt("add_retention_policy");
             // set the drop_chunks background job to run every day, starting from next midnight
-            conn.createStatement().execute(String.format("SELECT alter_job_schedule(%d, "
+            conn.createStatement().execute(String.format("SELECT alter_job(%d, "
                     + "schedule_interval => INTERVAL '1 days', "
                     + "next_start => date_trunc('DAY', now()) + INTERVAL '1 day');", jobId));
             conn.commit();

@@ -92,7 +92,7 @@ CREATE TYPE metric_type AS ENUM (
 
 -- remove data and compression config from metric table
 TRUNCATE TABLE metric;
-SELECT remove_compress_chunks_policy('metric');
+SELECT remove_compression_policy('metric');
 ALTER TABLE metric SET (timescaledb.compress=false);
 
 -- make desired schema changes
@@ -107,4 +107,4 @@ ALTER TABLE "metric" SET(
   timescaledb.compress_segmentby = 'entity_oid',
   timescaledb.compress_orderby = 'type, key'
 );
-SELECT add_compress_chunks_policy('metric', INTERVAL '2 days');
+SELECT add_compression_policy('metric', INTERVAL '2 days');

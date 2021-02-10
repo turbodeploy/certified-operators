@@ -93,12 +93,12 @@ CREATE INDEX "history_attrs_byType" ON "historical_entity_attrs" USING btree ("t
 SELECT create_hypertable('historical_entity_attrs', 'time');
 
 -- remove retention policy if it exists
-SELECT remove_drop_chunks_policy('historical_entity_attrs', if_exists => true);
+SELECT remove_retention_policy('historical_entity_attrs', if_exists => true);
 -- add new retention policy, default to 12 months, and it only drop raw chunks, while keeping
 -- data in the continuous aggregates
-SELECT alter_job_schedule(
+SELECT alter_job(
     -- add new policy which returns job id and use it as parameter of function alter_job_schedule
-    add_drop_chunks_policy('historical_entity_attrs', INTERVAL '12 months', cascade_to_materializations => FALSE),
+    add_retention_policy('historical_entity_attrs', INTERVAL '12 months'),
     -- set the drop_chunks background job to run every day (this is default interval)
     schedule_interval => INTERVAL '1 days',
     -- set the job to start from midnight of next day
