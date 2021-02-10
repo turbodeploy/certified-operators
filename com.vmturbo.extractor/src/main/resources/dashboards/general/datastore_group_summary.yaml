@@ -1,4 +1,3 @@
----
 annotations:
   list:
   - builtIn: 1
@@ -10,23 +9,23 @@ annotations:
     type: dashboard
 description: Performance and capacity profile, including trends, for selected datastores.
 editable: false
-gnetId: null
+gnetId:
 graphTooltip: 0
 iteration: 1596572009638
 links: []
 panels:
 - datasource: $DB
-  description: ""
+  description: ''
   fieldConfig:
     defaults:
       custom:
-        align: null
+        align:
       mappings: []
       thresholds:
         mode: absolute
         steps:
         - color: green
-          value: null
+          value:
         - color: red
           value: 80
       unit: mbytes
@@ -52,22 +51,35 @@ panels:
     metricColumn: none
     rawQuery: true
     rawSql: |-
-      SELECT sum(used) as "Storage Used"
-            ,sum(capacity) as "Storage Capacity"
-            ,round((sum(used)/NULLIF(sum(capacity),0))::numeric, 4) as "Utilization"
+      SELECT
+        sum(used) AS "Storage Used",
+        sum(capacity) AS "Storage Capacity",
+        round((sum(used)/ NULLIF(sum(capacity), 0))::NUMERIC, 4) AS "Utilization"
       FROM
-              (SELECT e.oid
-                    ,avg(m.current) AS used
-                    ,avg(m.capacity)::numeric AS capacity
-              FROM entity e
-              JOIN metric m ON m.entity_oid = e.oid
-                AND m.type = 'STORAGE_AMOUNT'
-                AND m.entity_hash = e.hash
-                AND e.type = 'STORAGE'
-                AND $__timeFilter(m."time")
-                AND ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)
-                AND CASE WHEN ARRAY[$Group]::text[] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[$Group]::bigint[]) END
-              GROUP BY 1) as data_tbl
+         (
+          WITH unique_data as(
+          SELECT
+              m.entity_oid AS oid,
+              m.current,
+              m.capacity
+          FROM metric m
+          JOIN scope ON
+              m.entity_oid = scope.scoped_oid
+              AND m.time BETWEEN scope.start AND scope.finish
+          WHERE
+          -- fixed conditions
+          m.type = 'STORAGE_AMOUNT'
+          AND scope.scoped_type = 'STORAGE'
+          -- conditions involving dashboard vars
+          AND m."time" BETWEEN timestamptz $__timeFrom() AND $__timeTo()
+          AND ($__timeFrom(), $__timeTo()) OVERLAPS (start, finish)
+          AND seed_oid IN (SELECT * FROM unnest(ARRAY[$Group]::bigint[]))
+          GROUP BY m.time, m.entity_oid, m.current, m.capacity
+          )
+          SELECT unique_data.oid, avg(unique_data.current) AS used, avg(unique_data.capacity)::NUMERIC AS capacity
+          FROM unique_data
+          GROUP BY unique_data.oid
+         ) AS data_tbl
     refId: A
     select:
     - - params:
@@ -80,8 +92,8 @@ panels:
     - name: $__timeFilter
       params: []
       type: macro
-  timeFrom: null
-  timeShift: null
+  timeFrom:
+  timeShift:
   title: Overall Datastore Avg Consumption
   type: table
 - datasource: $DB
@@ -94,7 +106,7 @@ panels:
         mode: absolute
         steps:
         - color: green
-          value: null
+          value:
         - color: red
           value: 80
       unit: none
@@ -106,7 +118,7 @@ panels:
       - id: unit
         value: percent
       - id: custom.width
-        value: null
+        value:
     - matcher:
         id: byName
         options: IOPS
@@ -135,25 +147,40 @@ panels:
     metricColumn: none
     rawQuery: true
     rawSql: |-
+      WITH metrics AS (
+         SELECT metric.utilization, metric.CURRENT, metric.type
+         FROM metric
+         JOIN scope ON
+            metric.entity_oid = scope.scoped_oid
+            AND metric.time BETWEEN scope.start AND scope.finish
+         WHERE
+           -- fixed conditions
+           metric.type in ('STORAGE_AMOUNT','STORAGE_ACCESS','STORAGE_LATENCY')
+           AND scope.scoped_type  = 'STORAGE'
+           -- conditions related to dashboard vars
+           AND "time" BETWEEN $__timeFrom() AND $__timeTo()
+           AND ($__timeFrom(),$__timeTo()) OVERLAPS (start, finish)
+          AND scope.seed_oid IN (SELECT * FROM unnest(ARRAY[$Group]::bigint[]))
+           GROUP BY metric.time, metric.entity_oid, metric.utilization, metric.CURRENT, metric.type
+        )
       SELECT
-      unnest(array['AVG','MIN','MAX']) as "Aggregation",
-      unnest(array[avg(metric.utilization) FILTER (WHERE metric.type = 'STORAGE_AMOUNT'),
-      min(metric.utilization) FILTER (WHERE metric.type = 'STORAGE_AMOUNT'),
-      max(metric.Utilization) FILTER (WHERE metric.type = 'STORAGE_AMOUNT')
-      ]) AS "Utilization",
-      unnest(array[avg(metric.current) FILTER (WHERE metric.type = 'STORAGE_ACCESS'),
-      min(metric.current) FILTER (WHERE metric.type = 'STORAGE_ACCESS'),
-      max(metric.current) FILTER (WHERE metric.type = 'STORAGE_ACCESS')
-      ]) AS "IOPS",
-      unnest(array[avg(metric.current) FILTER (WHERE metric.type = 'STORAGE_LATENCY'),
-      min(metric.current) FILTER (WHERE metric.type = 'STORAGE_LATENCY'),
-      max(metric.current) FILTER (WHERE metric.type = 'STORAGE_LATENCY')
-      ]) AS "Latency"
-      FROM metric, entity
-      WHERE entity.type = 'STORAGE' and
-      CASE WHEN ARRAY[$Group]::text[] = ARRAY[ '0' ] THEN true ELSE (entity.scope && array[$Group]::bigint[]) END and
-      entity.oid = metric.entity_oid and entity.hash = metric.entity_hash and
-      $__timeFilter("time") and ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)
+        unnest(array['AVG','MIN','MAX']) as "Aggregation",
+        unnest(array[
+          avg(metrics.utilization) FILTER (WHERE metrics.type = 'STORAGE_AMOUNT'),
+          min(metrics.utilization) FILTER (WHERE metrics.type = 'STORAGE_AMOUNT'),
+          max(metrics.Utilization) FILTER (WHERE metrics.type = 'STORAGE_AMOUNT')
+        ]) AS "Utilization",
+        unnest(array[
+          avg(metrics.current) FILTER (WHERE metrics.type = 'STORAGE_ACCESS'),
+          min(metrics.current) FILTER (WHERE metrics.type = 'STORAGE_ACCESS'),
+          max(metrics.current) FILTER (WHERE metrics.type = 'STORAGE_ACCESS')
+        ]) AS "IOPS",
+        unnest(array[
+          avg(metrics.current) FILTER (WHERE metrics.type = 'STORAGE_LATENCY'),
+          min(metrics.current) FILTER (WHERE metrics.type = 'STORAGE_LATENCY'),
+          max(metrics.current) FILTER (WHERE metrics.type = 'STORAGE_LATENCY')
+        ]) AS "Latency"
+      FROM metrics
     refId: A
     select:
     - - params:
@@ -166,8 +193,8 @@ panels:
     - name: $__timeFilter
       params: []
       type: macro
-  timeFrom: null
-  timeShift: null
+  timeFrom:
+  timeShift:
   title: Datastore Performance Stats
   transformations:
   - id: organize
@@ -201,7 +228,7 @@ panels:
     values: false
   lines: true
   linewidth: 3
-  nullPointMode: "null"
+  nullPointMode: 'null'
   options:
     dataLinks: []
   percentage: false
@@ -218,18 +245,27 @@ panels:
     metricColumn: none
     rawQuery: true
     rawSql: |-
+      WITH metrics AS (
+         SELECT metric.time, metric.capacity, metric.current
+         FROM metric
+         JOIN scope ON
+            metric.entity_oid = scope.scoped_oid
+            AND metric.time BETWEEN scope.start AND scope.finish
+         WHERE
+           -- fixed conditions
+           metric.type = 'STORAGE_AMOUNT'
+           AND scope.scoped_type = 'STORAGE'
+           -- conditions related to dashboard vars
+           AND "time" BETWEEN $__timeFrom() AND $__timeTo()
+           AND ($__timeFrom(),$__timeTo()) OVERLAPS (start, finish)
+          AND scope.seed_oid IN (SELECT * FROM unnest(ARRAY[$Group]::bigint[]))
+         GROUP BY metric.time, metric.entity_oid, metric.capacity, metric.current
+      )
       SELECT
-            date_trunc('hour', m.time) as "time",
-            ROUND((sum(m.current)/sum(m.capacity))::NUMERIC, 4) AS "Storage Amount Used"
-      FROM entity e
-      JOIN metric m ON m.entity_oid = e.oid
-        AND m.type = 'STORAGE_AMOUNT'
-        AND m.entity_hash = e.hash
-        AND e.type = 'STORAGE'
-        AND $__timeFilter(m."time")
-        AND ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)
-        AND CASE WHEN ARRAY[$Group]::text[] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[$Group]::bigint[]) END
-      GROUP BY 1
+        date_trunc('hour', m.time) as "time",
+        ROUND((sum(m.current)/sum(m.capacity))::NUMERIC, 4) AS "Storage Amount Used"
+      FROM metrics m
+      GROUP BY m.time
     refId: A
     select:
     - - params:
@@ -243,9 +279,9 @@ panels:
       params: []
       type: macro
   thresholds: []
-  timeFrom: null
+  timeFrom:
   timeRegions: []
-  timeShift: null
+  timeShift:
   title: Datastore Consumption Trend
   tooltip:
     shared: true
@@ -253,30 +289,30 @@ panels:
     value_type: individual
   type: graph
   xaxis:
-    buckets: null
+    buckets:
     mode: time
-    name: null
+    name:
     show: true
     values: []
   yaxes:
   - $$hashKey: object:754
     decimals: 2
     format: percentunit
-    label: null
+    label:
     logBase: 1
-    max: null
-    min: null
+    max:
+    min:
     show: true
   - $$hashKey: object:755
     format: short
-    label: null
+    label:
     logBase: 1
-    max: null
-    min: null
+    max:
+    min:
     show: true
   yaxis:
     align: false
-    alignLevel: null
+    alignLevel:
 - aliasColors: {}
   bars: false
   dashLength: 10
@@ -305,7 +341,7 @@ panels:
     values: false
   lines: true
   linewidth: 3
-  nullPointMode: "null"
+  nullPointMode: 'null'
   options:
     dataLinks: []
   percentage: false
@@ -325,18 +361,29 @@ panels:
     metricColumn: none
     rawQuery: true
     rawSql: |-
-      SELECT m.time
-            ,avg(m.current) FILTER (WHERE m.type = 'STORAGE_ACCESS') AS "IOPS Avg"
-            ,avg(m.current) FILTER (WHERE m.type = 'STORAGE_LATENCY') AS "Latency Avg"
-      FROM entity e
-      JOIN metric m ON m.entity_oid = e.oid
-        AND m.type IN ('STORAGE_ACCESS', 'STORAGE_LATENCY')
-        AND m.entity_hash = e.hash
-        AND e.type = 'STORAGE'
-        AND $__timeFilter(m."time")
-        AND ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)
-        AND CASE WHEN ARRAY[$Group]::text[] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[$Group]::bigint[]) END
-      GROUP BY 1
+      WITH metrics AS (
+         SELECT metric.time, metric.current, metric.type
+         FROM metric
+         JOIN scope ON
+            metric.entity_oid = scope.scoped_oid
+            AND metric.time BETWEEN scope.start AND scope.finish
+         WHERE
+           -- fixed conditions
+           metric.type IN ('STORAGE_ACCESS', 'STORAGE_LATENCY')
+           AND scope.scoped_type = 'STORAGE'
+           -- conditions related to dashboard vars
+           AND "time" BETWEEN $__timeFrom() AND $__timeTo()
+           AND ($__timeFrom(),$__timeTo()) OVERLAPS (start, finish)
+          AND scope.seed_oid IN (SELECT * FROM unnest(ARRAY[$Group]::bigint[]))
+         GROUP BY metric.time, metric.entity_oid, metric.current, metric.type
+      )
+      SELECT
+        m.time,
+        avg(m.current) FILTER (WHERE m.type = 'STORAGE_ACCESS') AS "IOPS Avg",
+        avg(m.current) FILTER (WHERE m.type = 'STORAGE_LATENCY') AS "Latency Avg"
+      FROM metrics m
+      GROUP BY m.time
+      ORDER BY 1
     refId: A
     select:
     - - params:
@@ -350,9 +397,9 @@ panels:
       params: []
       type: macro
   thresholds: []
-  timeFrom: null
+  timeFrom:
   timeRegions: []
-  timeShift: null
+  timeShift:
   title: Datastore Performance Trends
   tooltip:
     shared: true
@@ -360,43 +407,43 @@ panels:
     value_type: individual
   type: graph
   xaxis:
-    buckets: null
+    buckets:
     mode: time
-    name: null
+    name:
     show: true
     values: []
   yaxes:
   - $$hashKey: object:851
     decimals: 2
     format: iops
-    label: ""
+    label: ''
     logBase: 1
-    max: null
-    min: null
+    max:
+    min:
     show: true
   - $$hashKey: object:852
     decimals: 2
     format: ms
-    label: null
+    label:
     logBase: 1
-    max: null
-    min: null
+    max:
+    min:
     show: true
   yaxis:
     align: false
-    alignLevel: null
+    alignLevel:
 - datasource: $DB
   description: Average values.
   fieldConfig:
     defaults:
       custom:
-        align: null
+        align:
       mappings: []
       thresholds:
         mode: absolute
         steps:
         - color: green
-          value: null
+          value:
         - color: red
           value: 80
       unit: mbytes
@@ -447,22 +494,33 @@ panels:
     metricColumn: none
     rawQuery: true
     rawSql: |-
-      SELECT e.name as "Datastore"
-            ,avg(m.capacity) FILTER (WHERE m.type = 'STORAGE_AMOUNT') AS "Storage Capacity"
-            ,avg(m.current) FILTER (WHERE m.type = 'STORAGE_AMOUNT') AS "Storage Used"
-            ,avg(m.utilization) FILTER (WHERE m.type = 'STORAGE_AMOUNT') as "Storage Utilization"
-            ,avg(m.current) FILTER (WHERE m.type = 'STORAGE_PROVISIONED') as "Storage Provisioned"
-            ,avg(m.current) FILTER (WHERE m.type = 'STORAGE_PROVISIONED') /
-                  NULLIF(avg(m.capacity) FILTER (WHERE m.type = 'STORAGE_AMOUNT'), 0) as "Storage Over-Provisioned"
-      FROM entity e
-      JOIN metric m ON m.entity_oid = e.oid
-        AND m.type IN ('STORAGE_AMOUNT', 'STORAGE_PROVISIONED')
-        AND m.entity_hash = e.hash
-        AND e.type = 'STORAGE'
-        AND $__timeFilter(m."time")
-        AND ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)
-        AND CASE WHEN ARRAY[$Group]::text[] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[$Group]::bigint[]) END
-      GROUP BY 1
+      WITH data AS (
+         SELECT e.name entity_name, metric.time, metric.entity_oid, metric.current, metric.capacity, metric.utilization, metric.type
+         FROM metric
+         JOIN scope ON
+            metric.entity_oid = scope.scoped_oid
+            AND metric.time BETWEEN scope.start AND scope.finish
+         JOIN entity e ON
+            e.oid = scope.scoped_oid
+         WHERE
+           -- fixed conditions
+            metric.type IN ('STORAGE_AMOUNT', 'STORAGE_PROVISIONED')
+            AND scope.scoped_type = 'STORAGE'
+           -- conditions related to dashboard vars
+           AND "time" BETWEEN $__timeFrom() AND $__timeTo()
+           AND ($__timeFrom(),$__timeTo()) OVERLAPS (start, finish)
+          AND scope.seed_oid IN (SELECT * FROM unnest(ARRAY[$Group::bigint]))
+         GROUP BY e.name, metric.time, metric.entity_oid, metric.current, metric.capacity, metric.utilization, metric.type
+      )
+      SELECT d.entity_name as "Datastore"
+                  ,avg(d.capacity) FILTER (WHERE d.type = 'STORAGE_AMOUNT') AS "Storage Capacity"
+                  ,avg(d.current) FILTER (WHERE d.type = 'STORAGE_AMOUNT') AS "Storage Used"
+                  ,avg(d.utilization) FILTER (WHERE d.type = 'STORAGE_AMOUNT') as "Storage Utilization"
+                  ,avg(d.current) FILTER (WHERE d.type = 'STORAGE_PROVISIONED') as "Storage Provisioned"
+                  ,avg(d.current) FILTER (WHERE d.type = 'STORAGE_PROVISIONED') /
+                        NULLIF(avg(d.capacity) FILTER (WHERE d.type = 'STORAGE_AMOUNT'), 0) as "Storage Over-Provisioned"
+      FROM data d
+      GROUP BY d.entity_name
       ORDER BY 4 DESC
     refId: A
     select:
@@ -476,21 +534,21 @@ panels:
     - name: $__timeFilter
       params: []
       type: macro
-  timeFrom: null
-  timeShift: null
+  timeFrom:
+  timeShift:
   title: Consumption Stats By Datastore
   type: table
 - datasource: $DB
   fieldConfig:
     defaults:
       custom:
-        align: null
+        align:
       mappings: []
       thresholds:
         mode: absolute
         steps:
         - color: green
-          value: null
+          value:
         - color: red
           value: 80
       unit: iops
@@ -530,20 +588,31 @@ panels:
     metricColumn: none
     rawQuery: true
     rawSql: |-
-      SELECT e.name as "Datastore"
-            ,avg(m.current) FILTER (WHERE m.type = 'STORAGE_ACCESS') AS "IOPS Avg"
-            ,max(m.current) FILTER (WHERE m.type = 'STORAGE_ACCESS') AS "IOPS Max"
-            ,avg(m.current) FILTER (WHERE m.type = 'STORAGE_LATENCY') AS "Latency Avg"
-            ,max(m.current) FILTER (WHERE m.type = 'STORAGE_LATENCY') AS "Latency Max"
-      FROM entity e
-      JOIN metric m ON m.entity_oid = e.oid
-        AND m.type IN ('STORAGE_ACCESS', 'STORAGE_LATENCY')
-        AND m.entity_hash = e.hash
-        AND e.type = 'STORAGE'
-        AND $__timeFilter(m."time")
-        AND ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)
-        AND CASE WHEN ARRAY[$Group]::text[] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[$Group]::bigint[]) END
-      GROUP BY 1
+      WITH data AS (
+         SELECT e.name entity_name, metric.current, metric.type
+         FROM metric
+         JOIN scope ON
+            metric.entity_oid = scope.scoped_oid
+            AND metric.time BETWEEN scope.start AND scope.finish
+         JOIN entity e ON
+            e.oid = scope.seed_oid
+         WHERE
+           -- fixed conditions
+            metric.type IN ('STORAGE_ACCESS', 'STORAGE_LATENCY')
+            AND scope.scoped_type = 'STORAGE'
+           -- conditions related to dashboard vars
+           AND metric.time BETWEEN $__timeFrom() AND $__timeTo()
+           AND ($__timeFrom(),$__timeTo()) OVERLAPS (start, finish)
+          AND scope.seed_oid IN (SELECT * FROM unnest(ARRAY[$Group]::bigint[]))
+         GROUP BY e.name, metric.time, metric.entity_oid, metric.current, metric.type
+      )
+      SELECT d.entity_name as "Datastore"
+                  ,avg(d.current) FILTER (WHERE d.type = 'STORAGE_ACCESS') AS "IOPS Avg"
+                  ,max(d.current) FILTER (WHERE d.type = 'STORAGE_ACCESS') AS "IOPS Max"
+                  ,avg(d.current) FILTER (WHERE d.type = 'STORAGE_LATENCY') AS "Latency Avg"
+                  ,max(d.current) FILTER (WHERE d.type = 'STORAGE_LATENCY') AS "Latency Max"
+      FROM data d
+      GROUP BY d.entity_name
       ORDER BY 2 DESC
     refId: A
     select:
@@ -557,8 +626,8 @@ panels:
     - name: $__timeFilter
       params: []
       type: macro
-  timeFrom: null
-  timeShift: null
+  timeFrom:
+  timeShift:
   title: Performance Stats By Datastore
   type: table
 refresh: false
@@ -569,49 +638,51 @@ templating:
   list:
   - hide: 2
     includeAll: false
-    label: null
+    label:
     multi: false
     name: DB
     options: []
     query: postgres
-    queryValue: ""
+    queryValue: ''
     refresh: 1
-    regex: ""
+    regex: ''
     skipUrlSync: false
     type: datasource
-  - allValue: '''0'''
+  - allValue:
     datasource: $DB
     definition: |-
-      SELECT name as __text,
-             oid as __value
+      SELECT
+        name as __text,
+        oid as __value
       FROM entity
-      WHERE ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)
-      AND (type = 'STORAGE_CLUSTER'
-      OR (type = 'GROUP'
-         AND attrs -> 'member_types' ? 'STORAGE'))
+      WHERE
+        ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)
+        AND (type = 'STORAGE_CLUSTER'
+          OR (type = 'GROUP' AND attrs -> 'member_types' ? 'STORAGE'))
       ORDER BY 1
     hide: 0
     includeAll: true
-    label: null
+    label:
     multi: false
     name: Group
     options: []
     query: |-
-      SELECT name as __text,
-             oid as __value
+      SELECT
+        name as __text,
+        oid as __value
       FROM entity
-      WHERE ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)
-      AND (type = 'STORAGE_CLUSTER'
-      OR (type = 'GROUP'
-         AND attrs -> 'member_types' ? 'STORAGE'))
+      WHERE
+        ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)
+        AND (type = 'STORAGE_CLUSTER'
+          OR (type = 'GROUP' AND attrs -> 'member_types' ? 'STORAGE'))
       ORDER BY 1
     refresh: 2
-    regex: ""
+    regex: ''
     skipUrlSync: false
     sort: 0
-    tagValuesQuery: ""
+    tagValuesQuery: ''
     tags: []
-    tagsQuery: ""
+    tagsQuery: ''
     type: query
     useTags: false
 timepicker:
@@ -625,6 +696,6 @@ timepicker:
   - 1h
   - 2h
   - 1d
-timezone: ""
+timezone: ''
 title: Datastore Group Summary
 uid: datastore_group_summary
