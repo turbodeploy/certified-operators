@@ -42,6 +42,8 @@ import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeveri
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceStub;
+import com.vmturbo.common.protobuf.cost.EntityUptimeServiceGrpc;
+import com.vmturbo.common.protobuf.cost.EntityUptimeServiceGrpc.EntityUptimeServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc;
 import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc.PlanReservedInstanceServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc;
@@ -481,6 +483,16 @@ public class CommunicationConfig {
     @Bean
     public PlanReservedInstanceServiceBlockingStub planReservedInstanceServiceBlockingStub() {
         return PlanReservedInstanceServiceGrpc.newBlockingStub(costClientConfig.costChannel());
+    }
+
+    /**
+     * Returns a {@link EntityUptimeServiceBlockingStub}.
+     *
+     * @return The {@link EntityUptimeServiceBlockingStub}.
+     */
+    @Bean
+    public EntityUptimeServiceBlockingStub entityUptimeServiceBlockingStub() {
+        return EntityUptimeServiceGrpc.newBlockingStub(costClientConfig.costChannel());
     }
 
     @Bean

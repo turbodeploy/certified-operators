@@ -352,8 +352,10 @@ public class MapperConfig {
 
     @Bean
     public CloudAspectMapper cloudAspectMapper() {
-        return new CloudAspectMapper(communicationConfig.repositoryApi(), communicationConfig
-                .reservedInstanceUtilizationCoverageServiceBlockingStub(), communicationConfig.groupRpcService(), executorService());
+        return new CloudAspectMapper(communicationConfig.repositoryApi(),
+                communicationConfig.reservedInstanceUtilizationCoverageServiceBlockingStub(),
+                communicationConfig.groupRpcService(),
+                communicationConfig.entityUptimeServiceBlockingStub(), executorService());
     }
 
     @Bean
