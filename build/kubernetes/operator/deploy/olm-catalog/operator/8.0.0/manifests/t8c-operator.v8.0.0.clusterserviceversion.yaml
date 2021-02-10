@@ -6,7 +6,7 @@ metadata:
     capabilities: Basic Install
     categories: Monitoring
     certified: "false"
-    containerImage: turbonomic/t8c-operator:8.0
+    containerImage: registry.connect.redhat.com/turbonomic/t8c-operator@sha256:7a9e008f52d6cf55cacc9ffee78a133c1c86ea04b4e84bf6a5bb75c24d153d61
     createdAt: "2019-07-01T00:00:00.000Z"
     description: Turbonomic Workload Automation for Multicloud simultaneously optimizes performance, compliance, and cost in real-time. Workloads are precisely resourced, automatically, to perform while satisfying business constraints.
     repository: https://github.com/turbonomic/t8c-install/tree/master/operator
@@ -55,7 +55,7 @@ spec:
                 serviceAccountName: t8c-operator
                 containers:
                 - name: t8c-operator
-                  image: turbonomic/t8c-operator:8.0
+                  image: registry.connect.redhat.com/turbonomic/t8c-operator@sha256:7a9e008f52d6cf55cacc9ffee78a133c1c86ea04b4e84bf6a5bb75c24d153d61
                   imagePullPolicy: Always
                   env:
                   - name: WATCH_NAMESPACE
@@ -197,5 +197,5 @@ spec:
   maturity: alpha
   provider:
     name: Turbonomic, Inc.
-  replaces: t8c-operator.v7.22.0
+  replaces: t8c-operator.v7.22.9
   version: 8.0.0
