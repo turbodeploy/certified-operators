@@ -86,7 +86,7 @@ public class SMAConverter {
             oidToProjectedTraderMap.put(traderTO.getOid(), traderTO);
         }
         // update projectedTraderDTOsWithSMA.
-        updateProjectTraderWithSMA();
+        updateProjectedTraderWithSMA();
         // update smaActions.
         updateActionsWithSMA();
     }
@@ -96,7 +96,7 @@ public class SMAConverter {
      * Update the supplier of the compute shopping list of cloud vms. Add coupon
      * commodity to the compute shopping list and update quantity appropriately.
      */
-    private void updateProjectTraderWithSMA() {
+    private void updateProjectedTraderWithSMA() {
         for (SMAOutputContext outputContext : getSmaOutput().getContexts()) {
             for (SMAMatch smaMatch : outputContext.getMatches()) {
                 long vmOid = smaMatch.getVirtualMachine().getOid();
@@ -117,7 +117,7 @@ public class SMAConverter {
                     final ReservedInstanceData riData = converter.getCloudTc().getRiDataById(
                             smaMatch.getReservedInstance().getOid());
                     if (riData == null) {
-                        logger.error("Reserved Instance for topology entity: {} " +
+                        logger.error("Reserved Instance: {} " +
                                         "not found in scope.",
                                 smaMatch.getReservedInstance().getOid());
                         continue;
@@ -203,6 +203,24 @@ public class SMAConverter {
                                     .getCurrentTemplate().getOid());
                     continue;
                 }
+                //sourceRIDiscountedMarketTierOid can be ondemand if source wasnt RI to begin with.
+                Long sourceRIDiscountedMarketTierOid = sourceOnDemandMarketTierOid;
+                // If SMAMatch is already in an RI, then create a corresponding
+                // RiDiscountedMarketTier and use it instead of the OnDemandMarketTier.
+                if (smaMatch.getVirtualMachine().getCurrentRI() != null) {
+                    final ReservedInstanceData riData = converter.getCloudTc().getRiDataById(
+                            smaMatch.getVirtualMachine().getCurrentRI().getOid());
+                    if (riData != null) {
+                        sourceRIDiscountedMarketTierOid = converter.getCloudTc()
+                                .getRIDiscountedMarketTierIDFromRIData(riData);
+                    } else {
+                        logger.error("Reserved Instance: {} " +
+                                        "not found in scope.",
+                                smaMatch.getVirtualMachine().getCurrentRI().getOid());
+                    }
+                }
+
+
                 int indexOfComputeShoppingList =
                         converter.getCloudTc().getIndexOfSlSuppliedByPrimaryTier(projectedVmTraderTO);
                 if (indexOfComputeShoppingList < 0) {
@@ -262,7 +280,7 @@ public class SMAConverter {
                 }
                 MoveTO.Builder moveTO = MoveTO.newBuilder()
                         .setDestination(destinationOnDemandMarketTierOid)
-                        .setSource(sourceOnDemandMarketTierOid)
+                        .setSource(sourceRIDiscountedMarketTierOid)
                         .setShoppingListToMove(sl.getOid())
                         .setMoveExplanation(moveExplanation)
                         .setMoveContext(Context.newBuilder()
