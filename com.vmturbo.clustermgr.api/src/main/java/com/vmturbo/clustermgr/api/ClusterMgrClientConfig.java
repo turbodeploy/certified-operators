@@ -36,6 +36,15 @@ public class ClusterMgrClientConfig {
     @Value("${kafkaReceiverTimeoutSeconds:3600}")
     private int kafkaReceiverTimeoutSeconds;
 
+    @Value("${restClientConnectionRequestTimeoutMins:60}")
+    private int restClientConnectionRequestTimeoutMins;
+
+    @Value("${restClientConnectTimeoutMins:60}")
+    private int restClientConnectTimeoutMins;
+
+    @Value("${restClientReadTimeoutMins:60}")
+    private int restClientReadTimeoutMins;
+
     /**
      * A persistent channel to make gRPC calls to the cluster manager.
      *
@@ -57,6 +66,8 @@ public class ClusterMgrClientConfig {
     public ClusterMgrRestClient restClient() {
         return ClusterMgrClient.createClient(ComponentApiConnectionConfig.newBuilder()
                 .setHostAndPort(clusterMgrHost, clusterMgrPort, clusterMgrRoute)
+                .setTimeOuts(restClientConnectionRequestTimeoutMins, restClientConnectTimeoutMins,
+                    restClientReadTimeoutMins)
                 .build());
     }
 }

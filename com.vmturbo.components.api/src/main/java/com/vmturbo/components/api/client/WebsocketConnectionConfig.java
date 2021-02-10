@@ -14,6 +14,13 @@ public class WebsocketConnectionConfig extends ComponentApiConnectionConfig {
     private final long connRetryIntervalSeconds;
 
     private final long pongMessageTimeout;
+
+    private static final int DEFAULT_CONNECTION_REQUEST_TIMEOUT = 0;
+
+    private static final int DEFAULT_CONNECT_TIMEOUT = 0;
+
+    private static final int DEFAULT_READ_TIMEOUT = 0;
+
     /**
      * Timeout applied for atomic sending operation. Some large data buffers are chunked into a less
      * ones in order to send over the wire. This timeout applies to the 2nd ones, i.e. the buffers
@@ -25,8 +32,11 @@ public class WebsocketConnectionConfig extends ComponentApiConnectionConfig {
             @Nullable final String userName, @Nullable final String userPassword,
             @Nullable final File sslKeystoreFile, @Nullable final String sslKeystorePassword,
             final long silentRetriesTime, final long connRetryIntervalSeconds,
-            final long pongMessageTimeout, final long atomicSendTimeoutSec) {
-        super(host, port, route, userName, userPassword, sslKeystoreFile, sslKeystorePassword);
+            final long pongMessageTimeout, final long atomicSendTimeoutSec,
+            final int restClientConnectionRequestTimeoutMins, final int restClientConnectTimeoutMins,
+            final int restClientReadTimeoutMins) {
+        super(host, port, route, userName, userPassword, sslKeystoreFile, sslKeystorePassword,
+            restClientConnectionRequestTimeoutMins, restClientConnectTimeoutMins, restClientReadTimeoutMins);
         this.silentRetriesTime = silentRetriesTime;
         this.connRetryIntervalSeconds = connRetryIntervalSeconds;
         this.pongMessageTimeout = pongMessageTimeout;
@@ -56,7 +66,8 @@ public class WebsocketConnectionConfig extends ComponentApiConnectionConfig {
     public static Builder newBuilder(@Nonnull String host,
                                      int port,
                                      @Nonnull String route) {
-        return new Builder(host, port, route);
+        return new Builder(host, port, route, DEFAULT_CONNECTION_REQUEST_TIMEOUT,
+            DEFAULT_CONNECT_TIMEOUT, DEFAULT_READ_TIMEOUT);
     }
 
     /**
@@ -71,7 +82,10 @@ public class WebsocketConnectionConfig extends ComponentApiConnectionConfig {
         private long pongMessageTimeout = 10000;
         private long atomicSendTimeoutSec = 30;
 
-        private Builder(@Nonnull String host, int port, @Nonnull String route) {
+
+        private Builder(@Nonnull String host, int port, @Nonnull String route,
+                        int restClientConnectionRequestTimeoutMins, int restClientConnectTimeoutMins,
+                        int restClientReadTimeoutMins) {
             super(host, port, route);
         }
 
@@ -99,7 +113,7 @@ public class WebsocketConnectionConfig extends ComponentApiConnectionConfig {
             return new WebsocketConnectionConfig(getHost(), getPort(), getRoute(), getUserName(),
                     getUserPassword(), getSslKeystoreFile(), getSslKeystorePassword(),
                     silentRetriesTime, connRetryIntervalSeconds, pongMessageTimeout,
-                    atomicSendTimeoutSec);
+                    atomicSendTimeoutSec, getRestClientConnectionRequestTimeoutMins(), getRestClientConnectTimeoutMins(), getRestClientReadTimeoutMins());
         }
     }
 }

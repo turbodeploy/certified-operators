@@ -155,8 +155,7 @@ public class ProbeCapabilityCache implements ProbeListener {
 
             return this.cachedCapabilities;
         } catch (CommunicationException | StatusRuntimeException e) {
-            logger.error("Failed to refresh capability cache due to exception: {}",
-                e.getMessage());
+            logger.error("Failed to refresh capability cache due to exception: ", e);
             // If this happens, we most likely couldn't reach the topology processor.
             if (cachedCapabilities == null) {
                 return cachedCapabilitiesFactory.newCapabilities(
