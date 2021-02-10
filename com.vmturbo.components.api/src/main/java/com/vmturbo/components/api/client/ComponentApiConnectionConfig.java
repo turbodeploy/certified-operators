@@ -30,13 +30,22 @@ public class ComponentApiConnectionConfig {
 
     private final String sslKeystorePassword;
 
+    private int restClientConnectionRequestTimeoutMins;
+
+    private int restClientConnectTimeoutMins;
+
+    private int restClientReadTimeoutMins;
+
     protected ComponentApiConnectionConfig(@Nonnull final String host,
                                          final int port,
                                          @Nonnull final String route,
                                          @Nullable final String userName,
                                          @Nullable final String userPassword,
                                          @Nullable final File sslKeystoreFile,
-                                         @Nullable final String sslKeystorePassword) {
+                                         @Nullable final String sslKeystorePassword,
+                                         final int restClientConnectionRequestTimeoutMins,
+                                         final int restClientConnectTimeoutMins,
+                                         final int restClientReadTimeoutMins) {
         this.host = host;
         this.port = port;
         this.route = route;
@@ -44,6 +53,9 @@ public class ComponentApiConnectionConfig {
         this.userPassword = userPassword;
         this.sslKeystoreFile = sslKeystoreFile;
         this.sslKeystorePassword = sslKeystorePassword;
+        this.restClientConnectionRequestTimeoutMins = restClientConnectionRequestTimeoutMins;
+        this.restClientConnectTimeoutMins = restClientConnectTimeoutMins;
+        this.restClientReadTimeoutMins = restClientReadTimeoutMins;
     }
 
     @Nonnull
@@ -95,6 +107,18 @@ public class ComponentApiConnectionConfig {
         return sslKeystorePassword;
     }
 
+    public int getRestClientConnectionRequestTimeoutMins() {
+        return restClientConnectionRequestTimeoutMins;
+    }
+
+    public int getRestClientConnectTimeoutMins() {
+        return restClientConnectTimeoutMins;
+    }
+
+    public int getRestClientReadTimeoutMins() {
+        return restClientReadTimeoutMins;
+    }
+
     public static AddressBuilder newBuilder() {
         return new AddressBuilder();
     }
@@ -132,6 +156,10 @@ public class ComponentApiConnectionConfig {
         private File sslKeystoreFile = null;
         private String sslKeystorePassword = null;
 
+        private int restClientConnectionRequestTimeoutMins;
+        private int restClientConnectTimeoutMins;
+        private int restClientReadTimeoutMins;
+
         protected AbstractBuilder(@Nonnull final String host,
                                   final int port,
                                   @Nonnull final String route) {
@@ -160,6 +188,20 @@ public class ComponentApiConnectionConfig {
             return getSelf();
         }
 
+        public T setRestClientConnectionRequestTimeoutMins(final int restClientConnectionRequestTimeoutMins) {
+            this.restClientConnectionRequestTimeoutMins = restClientConnectionRequestTimeoutMins;
+            return getSelf();
+        }
+
+        public T setRestClientConnectTimeoutMins(final int restClientConnectTimeoutMins) {
+            this.restClientConnectTimeoutMins = restClientConnectTimeoutMins;
+            return getSelf();
+        }
+
+        public T setRestClientReadTimeoutMins(final int restClientReadTimeoutMins) {
+            this.restClientReadTimeoutMins = restClientReadTimeoutMins;
+            return getSelf();
+        }
 
         public String getHost() {
             return host;
@@ -189,6 +231,18 @@ public class ComponentApiConnectionConfig {
             return sslKeystorePassword;
         }
 
+        public int getRestClientConnectionRequestTimeoutMins() {
+            return restClientConnectionRequestTimeoutMins;
+        }
+
+        public int getRestClientConnectTimeoutMins() {
+            return restClientConnectTimeoutMins;
+        }
+
+        public int getRestClientReadTimeoutMins() {
+            return restClientReadTimeoutMins;
+        }
+
         protected abstract T getSelf();
     }
 
@@ -204,6 +258,15 @@ public class ComponentApiConnectionConfig {
             super(host, port, route);
         }
 
+        public Builder setTimeOuts(final int restClientConnectionRequestTimeoutMins,
+                                   final int restClientConnectTimeoutMins,
+                                   final int restClientReadTimeoutMins) {
+            super.setRestClientConnectionRequestTimeoutMins(restClientConnectionRequestTimeoutMins)
+                .setRestClientConnectTimeoutMins(restClientConnectTimeoutMins)
+                .setRestClientReadTimeoutMins(restClientReadTimeoutMins);
+            return getSelf();
+        }
+
         @Override
         protected Builder getSelf() {
             return this;
@@ -211,7 +274,8 @@ public class ComponentApiConnectionConfig {
 
         public ComponentApiConnectionConfig build() {
             return new ComponentApiConnectionConfig(getHost(), getPort(), getRoute(), getUserName(),
-                    getUserPassword(), getSslKeystoreFile(), getSslKeystorePassword());
+                getUserPassword(), getSslKeystoreFile(), getSslKeystorePassword(),
+                getRestClientConnectionRequestTimeoutMins(), getRestClientConnectTimeoutMins(), getRestClientReadTimeoutMins());
         }
     }
 }

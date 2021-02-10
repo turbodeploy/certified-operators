@@ -1,10 +1,10 @@
 package com.vmturbo.components.api.client;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 
@@ -14,7 +14,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.ClientHttpResponse;
-import org.springframework.http.converter.json.GsonHttpMessageConverter;
+import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.web.client.ResponseErrorHandler;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
@@ -22,7 +22,6 @@ import org.springframework.web.client.RestTemplate;
 import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.communication.CommunicationException;
-import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.ComponentRestTemplate;
 
 /**
@@ -35,8 +34,15 @@ public abstract class ComponentRestClient {
 
     protected final String restUri;
 
+    private int restClientConnectionRequestTimeoutMins;
+    private int restClientConnectTimeoutMins;
+    private int restClientReadTimeoutMins;
+
     protected ComponentRestClient(@Nonnull final ComponentApiConnectionConfig connectionConfig) {
         this.restUri = connectionConfig.getUri();
+        this.restClientConnectionRequestTimeoutMins = connectionConfig.getRestClientConnectionRequestTimeoutMins();
+        this.restClientConnectTimeoutMins = connectionConfig.getRestClientConnectTimeoutMins();
+        this.restClientReadTimeoutMins = connectionConfig.getRestClientReadTimeoutMins();
     }
 
     /**
@@ -77,6 +83,12 @@ public abstract class ComponentRestClient {
                                     + response.getStatusCode().getReasonPhrase());
                 }
             });
+
+            HttpComponentsClientHttpRequestFactory httpRequestFactory = new HttpComponentsClientHttpRequestFactory();
+            httpRequestFactory.setConnectionRequestTimeout((int)TimeUnit.MINUTES.toMillis(restClientConnectionRequestTimeoutMins));
+            httpRequestFactory.setConnectTimeout((int)TimeUnit.MINUTES.toMillis(restClientConnectTimeoutMins));
+            httpRequestFactory.setReadTimeout((int)TimeUnit.MINUTES.toMillis(restClientReadTimeoutMins));
+            restTemplate.setRequestFactory(httpRequestFactory);
         }
 
         @Nonnull

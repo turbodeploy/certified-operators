@@ -61,6 +61,15 @@ public class TopologyProcessorClientConfig {
     @Value("${serverGrpcPort}")
     private int topologyProcessorRpcPort;
 
+    @Value("${restClientConnectionRequestTimeoutMins:60}")
+    private int restClientConnectionRequestTimeoutMins;
+
+    @Value("${restClientConnectTimeoutMins:60}")
+    private int restClientConnectTimeoutMins;
+
+    @Value("${restClientReadTimeoutMins:60}")
+    private int restClientReadTimeoutMins;
+
     @Bean(destroyMethod = "shutdownNow")
     protected ExecutorService topologyProcessorClientThreadPool() {
         return Executors.newCachedThreadPool(topologyProcessorClientThreadFactory());
@@ -75,6 +84,8 @@ public class TopologyProcessorClientConfig {
     protected ComponentApiConnectionConfig topologyProcessorClientConnectionConfig() {
         return ComponentApiConnectionConfig.newBuilder()
                 .setHostAndPort(topologyProcessorHost, topologyProcessorPort, topologyProcessorRoute)
+                .setTimeOuts(restClientConnectionRequestTimeoutMins, restClientConnectTimeoutMins,
+                    restClientReadTimeoutMins)
                 .build();
     }
 
