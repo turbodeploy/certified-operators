@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.targets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -116,6 +117,10 @@ public class DerivedTargetParser {
             });
             targetSpec.addAccountValue(accountValue);
         });
+        Optional<Target> parentTarget = targetStore.getTarget(parentTargetId);
+        if (parentTarget.isPresent() && parentTarget.get().getSpec().hasCommunicationBindingChannel()) {
+            targetSpec.setCommunicationBindingChannel(parentTarget.get().getSpec().getCommunicationBindingChannel());
+        }
         targetSpec.setReadOnly(derivedTargetDTO.getReadonly());
         targetSpec.setProbeId(probeId);
         targetSpec.setIsHidden(derivedTargetDTO.getHidden());

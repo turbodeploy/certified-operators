@@ -46,7 +46,7 @@ import com.vmturbo.topology.processor.probes.ProbeStoreListener;
 @Immutable
 public class Target implements ProbeStoreListener {
     private static Logger logger = Logger.getLogger(Target.class);
-    private final static String EMPTY_CHANNEL = "";
+    public final static String EMPTY_CHANNEL = "";
     private final long id;
     private final long probeId;
 
