@@ -24,15 +24,20 @@ import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
-import com.vmturbo.api.component.communication.RepositoryApi.SingleEntityRequest;
+import com.vmturbo.api.dto.entity.EntityUptimeApiDTO;
 import com.vmturbo.api.dto.entityaspect.CloudAspectApiDTO;
-import com.vmturbo.api.dto.entityaspect.EntityAspect;
-import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.common.protobuf.VirtualMachineProtoUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.GetEntityReservedInstanceCoverageResponse;
 import com.vmturbo.common.protobuf.cost.CostMoles.ReservedInstanceUtilizationCoverageServiceMole;
+import com.vmturbo.common.protobuf.cost.EntityUptime.CloudScopeFilter;
+import com.vmturbo.common.protobuf.cost.EntityUptime.EntityUptimeDTO;
+import com.vmturbo.common.protobuf.cost.EntityUptime.GetEntityUptimeByFilterRequest;
+import com.vmturbo.common.protobuf.cost.EntityUptime.GetEntityUptimeByFilterResponse;
+import com.vmturbo.common.protobuf.cost.EntityUptimeMoles.EntityUptimeServiceMole;
+import com.vmturbo.common.protobuf.cost.EntityUptimeServiceGrpc;
+import com.vmturbo.common.protobuf.cost.EntityUptimeServiceGrpc.EntityUptimeServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTO;
@@ -44,8 +49,8 @@ import com.vmturbo.common.protobuf.search.Search.OidList;
 import com.vmturbo.common.protobuf.search.Search.ResponseNode;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
@@ -55,7 +60,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Archite
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo.DriverInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualizationType;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -79,23 +83,28 @@ public class CloudAspectMapperTest {
     private static final String VIRTUALIZATION_TYPE = "HVM";
     private static final String NVME = "Installed";
     private static final double VM_COUPON_CAPACITY = 28.8;
-    private static final double DELTA = 0.001;
+    private static final double DELTA = 0.0001;
     private static final long RESOURCE_GROUP_ID = 1L;
     private static final long VIRTUAL_MACHINE_NO_RG_OID = 2L;
     private static final long VIRTUAL_MACHINE_NULL_RG_RESPONSE_OID = 3L;
     private static final String RESOURCE_GROUP_DISPLAYNAME = "aResourceGroup";
+    private static final Long TOTAL_ANALYZED_DURATION = 500L;
+    private static final Long UPTIME_DURATION = 600L;
+    private static final Double UPTIME_PERCENTAGE = 55.9D;
 
-    private ReservedInstanceUtilizationCoverageServiceMole riCoverageServiceMole =
-            spy(new ReservedInstanceUtilizationCoverageServiceMole());
-    private GroupDTOMoles.GroupServiceMole groupServiceMole =
-            spy(GroupDTOMoles.GroupServiceMole.class);
-    private GrpcTestServer testServer = GrpcTestServer.newServer(riCoverageServiceMole, groupServiceMole);
+    private final ReservedInstanceUtilizationCoverageServiceMole riCoverageServiceMole = spy(
+            new ReservedInstanceUtilizationCoverageServiceMole());
+    private final EntityUptimeServiceMole entityUptimeServiceMole = spy(
+            new EntityUptimeServiceMole());
+    private final GroupDTOMoles.GroupServiceMole groupServiceMole = spy(
+            GroupDTOMoles.GroupServiceMole.class);
+    private final GrpcTestServer testServer = GrpcTestServer.newServer(riCoverageServiceMole,
+            groupServiceMole, entityUptimeServiceMole);
     private final RepositoryApi repositoryApi = mock(RepositoryApi.class);
     private final ExecutorService executorService =  Executors.newCachedThreadPool(new ThreadFactoryBuilder().build());
 
     private CloudAspectMapper cloudAspectMapper;
     private TopologyEntityDTO.Builder topologyEntityBuilder;
-    private ApiPartialEntity.Builder apiPartialEntityBuilder;
 
 
     /**
@@ -109,9 +118,12 @@ public class CloudAspectMapperTest {
         final ReservedInstanceUtilizationCoverageServiceBlockingStub riCoverageService =
                 ReservedInstanceUtilizationCoverageServiceGrpc
                         .newBlockingStub(testServer.getChannel());
-        final GroupServiceGrpc.GroupServiceBlockingStub groupServiceBlockingStub = GroupServiceGrpc.newBlockingStub(
-                testServer.getChannel());
-        cloudAspectMapper = new CloudAspectMapper(repositoryApi, riCoverageService, groupServiceBlockingStub, executorService);
+        final GroupServiceGrpc.GroupServiceBlockingStub groupServiceBlockingStub =
+                GroupServiceGrpc.newBlockingStub(testServer.getChannel());
+        final EntityUptimeServiceBlockingStub entityUptimeServiceBlockingStub =
+                EntityUptimeServiceGrpc.newBlockingStub(testServer.getChannel());
+        cloudAspectMapper = new CloudAspectMapper(repositoryApi, riCoverageService,
+                groupServiceBlockingStub, entityUptimeServiceBlockingStub, executorService);
         topologyEntityBuilder = TopologyEntityDTO.newBuilder()
                 .setOid(VIRTUAL_MACHINE_OID)
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
@@ -127,10 +139,6 @@ public class CloudAspectMapperTest {
                 .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
                         .setProviderEntityType(EntityType.COMPUTE_TIER_VALUE)
                         .setProviderId(COMPUTE_TIER_OID));
-        apiPartialEntityBuilder = ApiPartialEntity.newBuilder()
-                .setOid(VIRTUAL_MACHINE_OID)
-                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                .setEnvironmentType(EnvironmentType.CLOUD);
         MinimalEntity computeTier = MinimalEntity.newBuilder()
                 .setOid(COMPUTE_TIER_OID)
                 .setEntityType(EntityType.COMPUTE_TIER_VALUE)
@@ -215,6 +223,16 @@ public class CloudAspectMapperTest {
                 .putNodes("regionByZone", ResponseNode.newBuilder().build())
                 .putNodes("zone", ResponseNode.newBuilder().putOidMap(VIRTUAL_MACHINE_OID, OidList.newBuilder().addOids(ZONE_OID).build())
                         .putEntities(ZONE_OID, PartialEntity.newBuilder().setMinimal(zone).build()).build()).build());
+        when(entityUptimeServiceMole.getEntityUptimeByFilter(
+                GetEntityUptimeByFilterRequest.newBuilder()
+                        .setFilter(CloudScopeFilter.newBuilder().addEntityOid(VIRTUAL_MACHINE_OID))
+                        .build())).thenReturn(GetEntityUptimeByFilterResponse.newBuilder()
+                .putEntityUptimeByOid(VIRTUAL_MACHINE_OID, EntityUptimeDTO.newBuilder()
+                        .setTotalDurationMs(TOTAL_ANALYZED_DURATION)
+                        .setUptimeDurationMs(UPTIME_DURATION)
+                        .setUptimePercentage(UPTIME_PERCENTAGE)
+                        .build())
+                .build());
     }
 
     /**
@@ -241,6 +259,10 @@ public class CloudAspectMapperTest {
                 aspect.getBusinessAccount().getUuid());
         Assert.assertEquals(BUSINESS_ACCOUT_NAME, aspect.getBusinessAccount().getDisplayName());
         Assert.assertEquals(VMBillingType.RESERVED.name(), aspect.getBillingType());
+        final EntityUptimeApiDTO entityUptime = aspect.getEntityUptime();
+        Assert.assertEquals(UPTIME_DURATION, entityUptime.getUptimeDurationInMilliseconds());
+        Assert.assertEquals(TOTAL_ANALYZED_DURATION, entityUptime.getTotalDurationInMilliseconds());
+        Assert.assertEquals(UPTIME_PERCENTAGE, entityUptime.getUptimePercentage(), DELTA);
     }
 
     /**

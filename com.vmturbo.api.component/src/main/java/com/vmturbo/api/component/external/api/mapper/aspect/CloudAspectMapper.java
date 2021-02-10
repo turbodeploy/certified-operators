@@ -2,11 +2,13 @@ package com.vmturbo.api.component.external.api.mapper.aspect;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.stream.Collectors;
@@ -23,6 +25,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
+import com.vmturbo.api.dto.entity.EntityUptimeApiDTO;
 import com.vmturbo.api.dto.entityaspect.CloudAspectApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
@@ -33,6 +36,10 @@ import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.GetEntityReservedInstanceCoverageRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetEntityReservedInstanceCoverageResponse;
+import com.vmturbo.common.protobuf.cost.EntityUptime.CloudScopeFilter;
+import com.vmturbo.common.protobuf.cost.EntityUptime.EntityUptimeDTO;
+import com.vmturbo.common.protobuf.cost.EntityUptime.GetEntityUptimeByFilterRequest;
+import com.vmturbo.common.protobuf.cost.EntityUptimeServiceGrpc.EntityUptimeServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
@@ -69,6 +76,7 @@ public class CloudAspectMapper extends AbstractAspectMapper {
     private final RepositoryApi repositoryApi;
     private final ReservedInstanceUtilizationCoverageServiceBlockingStub riCoverageService;
     private final GroupServiceGrpc.GroupServiceBlockingStub groupServiceBlockingStub;
+    private final EntityUptimeServiceBlockingStub entityUptimeService;
     private final ExecutorService executorService;
 
     /**
@@ -76,16 +84,19 @@ public class CloudAspectMapper extends AbstractAspectMapper {
      *
      * @param repositoryApi the {@link RepositoryApi}
      * @param riCoverageService service to retrieve entity RI coverage information.
-     * @param executorService service for executing.
+     * @param entityUptimeService the {@link EntityUptimeServiceBlockingStub}
      * @param groupServiceBlockingStub do resource group reverse lookups (member to containing group)
+     * @param executorService service for executing.
      */
     public CloudAspectMapper(@Nonnull final RepositoryApi repositoryApi,
                              @Nonnull final ReservedInstanceUtilizationCoverageServiceBlockingStub riCoverageService,
                              @Nonnull final GroupServiceGrpc.GroupServiceBlockingStub groupServiceBlockingStub,
+                             @Nonnull final EntityUptimeServiceBlockingStub entityUptimeService,
                              @Nonnull final ExecutorService executorService) {
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.riCoverageService = Objects.requireNonNull(riCoverageService);
         this.groupServiceBlockingStub = Objects.requireNonNull(groupServiceBlockingStub);
+        this.entityUptimeService = Objects.requireNonNull(entityUptimeService);
         this.executorService = Objects.requireNonNull(executorService);
     }
 
@@ -150,11 +161,19 @@ public class CloudAspectMapper extends AbstractAspectMapper {
         if (cloudEntities.isEmpty()) {
             return Optional.ofNullable(null);
         }
-        Set<Long> entityIds = cloudEntities.stream().map(TopologyEntityDTO::getOid).collect(Collectors.toSet());
-        Set<Long> entityIdsForRIQuery = cloudEntities.stream().filter(entity -> entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
-                .filter(entity -> entity.getTypeSpecificInfo().getVirtualMachine().getBillingType() != VirtualMachineData.VMBillingType.BIDDING)
-                .map(entity -> entity.getOid())
-                .collect(Collectors.toSet());
+        final Set<Long> entityIds = new HashSet<>();
+        final Set<Long> entityIdsForUptimeQuery = new HashSet<>();
+        final Set<Long> entityIdsForRIQuery = new HashSet<>();
+        cloudEntities.forEach(e -> {
+            entityIds.add(e.getOid());
+            if (e.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
+                entityIdsForUptimeQuery.add(e.getOid());
+                if (e.getTypeSpecificInfo().getVirtualMachine().getBillingType()
+                        != VirtualMachineData.VMBillingType.BIDDING) {
+                    entityIdsForRIQuery.add(e.getOid());
+                }
+            }
+        });
 
         GraphRequest request = GraphRequest.newBuilder().addAllOids(entityIds)
                 .putNodes("account", SearchProtoUtil.node(Type.MINIMAL, TraversalDirection.OWNED_BY, EntityType.BUSINESS_ACCOUNT).build())
@@ -171,6 +190,14 @@ public class CloudAspectMapper extends AbstractAspectMapper {
         Future<Map<Long, MinimalEntity>> templatesF = executorService.submit(() -> repositoryApi.entitiesRequest(templateIds).getMinimalEntities().collect(Collectors.toMap(MinimalEntity::getOid, e -> e)));
         Future<Map<Long, Grouping>> resourceGroupMapF = executorService.submit(() -> retrieveResourceGroupsForEntities(entityIds));
         Future<Map<Long, EntityReservedInstanceCoverage>> riMapF = executorService.submit(() -> getRiCoverageRelatedInformation(entityIdsForRIQuery));
+        Future<Map<Long, EntityUptimeDTO>> uptimeByEntityF =
+                entityIdsForUptimeQuery.isEmpty() ? CompletableFuture.completedFuture(
+                        Collections.emptyMap()) : executorService.submit(
+                        () -> entityUptimeService.getEntityUptimeByFilter(
+                                GetEntityUptimeByFilterRequest.newBuilder()
+                                        .setFilter(CloudScopeFilter.newBuilder()
+                                                .addAllEntityOid(entityIdsForUptimeQuery))
+                                        .build()).getEntityUptimeByOidMap());
 
         Map<Long, EntityAspect> resp = new HashMap<>();
         try {
@@ -179,6 +206,7 @@ public class CloudAspectMapper extends AbstractAspectMapper {
             Map<Long, Grouping> resourceGroupMap = resourceGroupMapF.get();
             Map<Long, MinimalEntity> templateMap = templatesF.get();
             Map<Long, EntityReservedInstanceCoverage> riMap = riMapF.get();
+            Map<Long, EntityUptimeDTO> uptimeByEntity = uptimeByEntityF.get();
             // calls - end
 
             Map<Long, MinimalEntity> regions = SearchProtoUtil.getMapMinimalWithFirst(graphResponse.getNodesOrThrow("region"));
@@ -229,6 +257,10 @@ public class CloudAspectMapper extends AbstractAspectMapper {
                     EntityReservedInstanceCoverage entityRiCoverage = riMap.get(entity.getOid());
                     if (entityRiCoverage != null) {
                         setRiCoverage(entity.getOid(), entityRiCoverage, aspect);
+                    }
+                    final EntityUptimeDTO entityUptime = uptimeByEntity.get(entity.getOid());
+                    if (entityUptime != null) {
+                        setEntityUptime(aspect, entityUptime);
                     }
                 }
             });
@@ -297,6 +329,21 @@ public class CloudAspectMapper extends AbstractAspectMapper {
         final GetEntityReservedInstanceCoverageResponse entityRiCoverageResponse = riCoverageService.getEntityReservedInstanceCoverage(entityRiCoverageRequest);
 
         return entityRiCoverageResponse.getCoverageByEntityIdMap();
+    }
+
+    private void setEntityUptime(@Nonnull final CloudAspectApiDTO cloudAspectApiDTO,
+            @Nonnull final EntityUptimeDTO entityUptime) {
+        final EntityUptimeApiDTO entityUptimeApiDTO = new EntityUptimeApiDTO();
+        if (entityUptime.hasUptimeDurationMs()) {
+            entityUptimeApiDTO.setUptimeDurationInMilliseconds(entityUptime.getUptimeDurationMs());
+        }
+        if (entityUptime.hasTotalDurationMs()) {
+            entityUptimeApiDTO.setTotalDurationInMilliseconds(entityUptime.getTotalDurationMs());
+        }
+        if (entityUptime.hasUptimePercentage()) {
+            entityUptimeApiDTO.setUptimePercentage(entityUptime.getUptimePercentage());
+        }
+        cloudAspectApiDTO.setEntityUptime(entityUptimeApiDTO);
     }
 
     private void setRiCoverage(Long oid, EntityReservedInstanceCoverage entityRiCoverage, CloudAspectApiDTO aspect) {
