@@ -48,7 +48,7 @@ public class TemplateCostStatsSubQuery implements StatsSubQuery {
 
     @Override
     public boolean applicableInContext(StatsQueryContext context) {
-        return context.getInputScope().isPlan();
+        return context.getInputScope().isPlan() && !context.getInputScope().isCloud();
     }
 
     @Override

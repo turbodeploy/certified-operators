@@ -65,7 +65,7 @@ public class PlanRIStatsSubQuery extends AbstractRIStatsSubQuery {
 
     @Override
     public boolean applicableInContext(final StatsQueryContext context) {
-        return context.getInputScope().isPlan();
+        return context.getInputScope().isPlan() && context.getInputScope().isCloud();
     }
 
     @Override
