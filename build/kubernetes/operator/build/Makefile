@@ -1,4 +1,4 @@
-version:=8.0
+version:=8.1
 # Note that this makefile is only used to ensure helm dependency updates are done in the correct
 # order. It always rebuilds everything.
 # This is a temporary workaround until https://github.com/helm/helm/issues/2247 is implemented.
@@ -10,7 +10,4 @@ operator: xl
 xl: prometheus
 	helm dependency update "../helm-charts/xl"
 
-prometheus:
-	helm dependency update "../helm-charts/base/prometheus"
-
-.PHONY: all operator helm prometheus
+.PHONY: all operator
