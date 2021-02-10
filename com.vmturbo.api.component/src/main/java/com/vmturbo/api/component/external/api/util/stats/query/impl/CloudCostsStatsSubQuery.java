@@ -170,6 +170,10 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
 
     @Override
     public boolean applicableInContext(@Nonnull final StatsQueryContext context) {
+        // Use query only for the cloud scope in plan.
+        if (context.getInputScope().isPlan()) {
+            return context.getInputScope().isCloud();
+        }
         // If the query scope is going to be a non-CLOUD global group, we don't need to run
         // this sub-query.
         final Optional<EnvironmentType> globalScopeEnvType = context.getQueryScope().getGlobalScope()

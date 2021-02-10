@@ -201,6 +201,7 @@ public class CloudCostsStatsSubQueryTest {
     public void testApplicableInPlan() {
         final ApiId scope = mock(ApiId.class);
         when(scope.isPlan()).thenReturn(true);
+        when(scope.isCloud()).thenReturn(true);
 
         final StatsQueryContext context = mock(StatsQueryContext.class);
         when(context.getInputScope()).thenReturn(scope);
