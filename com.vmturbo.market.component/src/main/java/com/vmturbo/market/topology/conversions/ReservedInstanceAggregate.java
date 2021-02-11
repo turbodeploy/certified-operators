@@ -81,11 +81,6 @@ public class ReservedInstanceAggregate {
 
     void addConstituentRi(ReservedInstanceData riData,
                           final double couponsUsed) {
-        if (!riKey.isInstanceSizeFlexible() && !constituentRIs.isEmpty()) {
-            logger.error("Attempting to add more than 1 constituent RI to {} which is " +
-                    "not instance size flexible", getDisplayName());
-            return;
-        }
         constituentRIs.add(riData);
         riCouponInfoMap.put(riData.getReservedInstanceBought().getId(), new RICouponInfo(
                 riData.getReservedInstanceBought(), couponsUsed));
