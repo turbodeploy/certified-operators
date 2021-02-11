@@ -27,6 +27,7 @@ import com.vmturbo.common.protobuf.probe.ProbeDTO.ProbePropertyInfo;
 import com.vmturbo.common.protobuf.probe.ProbeDTO.ProbePropertyNameValuePair;
 import com.vmturbo.common.protobuf.probe.ProbeDTO.UpdateOneProbePropertyRequest;
 import com.vmturbo.common.protobuf.probe.ProbeDTO.UpdateProbePropertyTableRequest;
+import com.vmturbo.group.api.SettingsUpdatesReceiver;
 import com.vmturbo.platform.sdk.common.MediationMessage.SetProperties;
 import com.vmturbo.topology.processor.probeproperties.ProbePropertiesTestBase;
 
@@ -35,8 +36,8 @@ import com.vmturbo.topology.processor.probeproperties.ProbePropertiesTestBase;
  */
 public class ProbeRpcServiceProbePropertiesTest extends ProbePropertiesTestBase {
     // construct service
-    private final ProbeRpcService service =
-        new ProbeRpcService(probePropertyStore, mediationServer);
+    private final ProbeRpcService service = new ProbeRpcService(probePropertyStore, mediationServer,
+                    Mockito.mock(SettingsUpdatesReceiver.class), probeStore);
 
     /**
      * Set up mock probes and targets.

@@ -21,7 +21,7 @@ import com.vmturbo.group.api.SettingMessages.SettingNotification;
 /**
  * Class which receives the broadcast for a settings change.
  */
-public class SettingsUpdatesReciever extends ComponentNotificationReceiver<SettingNotification> {
+public class SettingsUpdatesReceiver extends ComponentNotificationReceiver<SettingNotification> {
 
     private final Logger logger = LogManager.getLogger(getClass());
 
@@ -33,7 +33,13 @@ public class SettingsUpdatesReciever extends ComponentNotificationReceiver<Setti
      */
     public static final String SETTINGS_UPDATES_TOPIC = "settings-updates";
 
-    public SettingsUpdatesReciever(@Nonnull final IMessageReceiver<SettingNotification> messageReceiver,
+    /**
+     * Construct an instance.
+     *
+     * @param messageReceiver message receiver
+     * @param executorService executor to invoke listeners in
+     */
+    public SettingsUpdatesReceiver(@Nonnull final IMessageReceiver<SettingNotification> messageReceiver,
                                  @Nonnull final ExecutorService executorService) {
         super(messageReceiver, executorService);
     }

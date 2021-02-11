@@ -69,13 +69,13 @@ public class GroupClientConfig {
     @Bean
     IMessageReceiver<SettingNotification> settingsUpdatesMessageReceiver() {
         return baseKafkaConsumerConfig.kafkaConsumer()
-                .messageReceiver(SettingsUpdatesReciever.SETTINGS_UPDATES_TOPIC,
+                .messageReceiver(SettingsUpdatesReceiver.SETTINGS_UPDATES_TOPIC,
                         SettingNotification::parseFrom);
     }
 
     @Bean
-    public SettingsUpdatesReciever settingsClient() {
-        return new SettingsUpdatesReciever(settingsUpdatesMessageReceiver(),
+    public SettingsUpdatesReceiver settingsClient() {
+        return new SettingsUpdatesReceiver(settingsUpdatesMessageReceiver(),
                 settingsUpdatesThreadPool());
     }
 }
