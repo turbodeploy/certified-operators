@@ -291,7 +291,7 @@ public class RIStatsSubQuery extends AbstractRIStatsSubQuery {
      * @return {@code true} if scope is valid for coverage request
      */
     private boolean isValidScopeForCoverageRequest() {
-        // Only allow non-scoped-observer users.
-        return !(userSessionContext.isUserObserver() && userSessionContext.isUserScoped());
+        // Only allow non-scoped users.
+        return !userSessionContext.isUserScoped();
     }
 }
