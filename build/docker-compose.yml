@@ -1659,6 +1659,28 @@ services:
       JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_WEBSPHERE_MEM_LIMIT_MB}M
 
+  mediation-weblogic:
+    extends:
+      file: common-services.yml
+      service: dev-mediation-component
+    image: turbonomic/com.vmturbo.mediation.weblogic.component:${XL_VERSION}
+    depends_on: *clustermgrdep
+    ports:
+    - "${MEDIATION_WEBLOGIC_PORT}"
+    - "${MEDIATION_WEBLOGIC_DEBUG_PORT}"
+    environment:
+      component_type: mediation-weblogic
+      instance_id: mediation-weblogic-1
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_WEBLOGIC_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_WEBLOGIC_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
+    mem_limit: ${MEDIATION_WEBLOGIC_MEM_LIMIT_MB}M
+
   mediation-jvm:
     extends:
       file: common-services.yml
@@ -1817,7 +1839,7 @@ services:
     extends:
       file: common-services.yml
       service: dev-mediation-component
-    image: turbonomic/com.vmturbo.mediation.newrelic.component
+    image: turbonomic/com.vmturbo.mediation.newrelic.component:${XL_VERSION}
     depends_on: *clustermgrdep
     ports:
       - "${MEDIATION_NEWRELIC_PORT}"
@@ -1839,7 +1861,7 @@ services:
     extends:
       file: common-services.yml
       service: dev-mediation-component
-    image: turbonomic/com.vmturbo.mediation.appinsights.component
+    image: turbonomic/com.vmturbo.mediation.appinsights.component:${XL_VERSION}
     depends_on: *clustermgrdep
     ports:
       - "${MEDIATION_APPINSIGHTS_PORT}"
