@@ -181,8 +181,8 @@ public class BuyRiScopeHandler {
      * @return true if the RI buy should be included, false otherwise.
      */
     public boolean shouldIncludeBuyRiDiscount(@Nonnull final ApiId inputScope) {
-        //only allow non-scoped-observer users.
-        if (UserScopeUtils.isUserObserver() && UserScopeUtils.isUserScoped()) {
+        //only allow non-scoped users.
+        if (UserScopeUtils.isUserScoped()) {
             return false;
         }
         // The buy RI discount should be shown in the realtime market (global) scope and plans.

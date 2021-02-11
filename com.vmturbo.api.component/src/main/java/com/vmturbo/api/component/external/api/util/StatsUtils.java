@@ -99,8 +99,8 @@ public class StatsUtils {
     }
 
     public static boolean isValidScopeForRIBoughtQuery(@Nonnull ApiId scope) {
-        //Only allow non-scoped-observer users.
-        if (UserScopeUtils.isUserObserver() && UserScopeUtils.isUserScoped()) {
+        //Only allow non-scoped users.
+        if (UserScopeUtils.isUserScoped()) {
             return false;
         }
         // Always true for Plans where the entities are Cloud
