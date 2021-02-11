@@ -853,6 +853,12 @@ spec:
                   description: Enable New Relic mediation
                   type: boolean
               type: object
+            weblogic:
+              properties:
+                enabled:
+                  description: Enable Weblogic mediation
+                  type: boolean
+              type: object
             nutanix:
               properties:
                 enabled:

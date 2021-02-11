@@ -229,6 +229,8 @@ netflow:
   enabled: false
 newrelic:
   enabled: false
+weblogic:
+  enabled: false
 nutanix:
   enabled: false
 oneview:
