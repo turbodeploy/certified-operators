@@ -603,7 +603,7 @@ public class ActionModeCalculator {
             if (ActionDTOUtil.NON_DISRUPTIVE_SETTING_COMMODITIES.contains(commType)
                     && resizeAction.getCommodityAttribute() == CommodityAttribute.CAPACITY) {
                 boolean supportsHotReplace = entity.getCommTypesWithHotReplaceList().stream()
-                        .anyMatch(type -> type == commType);
+                        .anyMatch(type -> type.equals(commType));
 
                 // Check hot replace setting enabled.
                 if (supportsHotReplace) {

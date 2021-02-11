@@ -3,9 +3,11 @@ package com.vmturbo.action.orchestrator.store.query;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
@@ -26,6 +28,12 @@ public class MapBackedActionViews implements QueryableActionViews {
      */
     private final Map<Long, ActionView> actions;
 
+    /**
+     * (recommendation id) -> ({@link ActionView}) for the action.
+     * The actions could be of any type (buy RI, market, etc).
+     */
+    private final Map<Long, ActionView> recommendations;
+
     private final Predicate<ActionView> visibilityPredicate;
 
     public MapBackedActionViews(@Nonnull final Map<Long, ActionView> actions) {
@@ -35,6 +43,10 @@ public class MapBackedActionViews implements QueryableActionViews {
     public MapBackedActionViews(@Nonnull final Map<Long, ActionView> actions,
                                 @Nonnull final Predicate<ActionView> visibilityPredicate) {
         this.actions = actions;
+        this.recommendations = actions.entrySet()
+                .stream()
+                .collect(Collectors.toMap(action -> action.getValue().getRecommendationOid(),
+                        Entry::getValue));
         this.visibilityPredicate = visibilityPredicate;
     }
 
@@ -46,8 +58,18 @@ public class MapBackedActionViews implements QueryableActionViews {
     }
 
     @Override
+    public Stream<ActionView> getByRecommendationId(@Nonnull Collection<Long> recommendationIds) {
+        return recommendationIds.stream().map(recommendations::get).filter(Objects::nonNull);
+    }
+
+    @Override
     public Optional<ActionView> get(final long actionId) {
         return Optional.ofNullable(actions.get(actionId));
+    }
+
+    @Override
+    public Optional<ActionView> getByRecommendationId(long recommendationId) {
+        return Optional.ofNullable(recommendations.get(recommendationId));
     }
 
     @Override

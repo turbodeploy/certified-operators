@@ -11,8 +11,6 @@ import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nullable;
 
-import com.google.common.collect.Table.Cell;
-
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -264,8 +262,8 @@ public class ActionAuditSenderTest {
         AuditedActionsUpdate actualUpdate = persistedActionsCaptor.getValue();
         Assert.assertEquals(
             Arrays.asList(
-                new AuditedActionInfo(ACTION1_ID, KAFKA_ONGEN_WORKFLOW_ID, null),
-                new AuditedActionInfo(ACTION2_ID, KAFKA_ONGEN_WORKFLOW_ID, null)
+                new AuditedActionInfo(ACTION1_ID, KAFKA_ONGEN_WORKFLOW_ID, Optional.empty()),
+                new AuditedActionInfo(ACTION2_ID, KAFKA_ONGEN_WORKFLOW_ID, Optional.empty())
             ),
             actualUpdate.getAuditedActions());
         Assert.assertEquals(Collections.emptyList(), actualUpdate.getRecentlyClearedActions());
@@ -293,7 +291,8 @@ public class ActionAuditSenderTest {
         final Action actionAlreadySentToKafka = createAction(ACTION1_ID, KAFKA_ONGEN_WORKFLOW);
         final Action actionNotSentToKafka = createAction(ACTION2_ID, KAFKA_ONGEN_WORKFLOW);
         final Action actionSentToServiceNOW = createAction(ACTION3_ID, SERVICENOW_ONGEN_WORKFLOW);
-        actionAuditSender.sendActionEvents(Arrays.asList(actionAlreadySentToKafka, actionNotSentToKafka, actionSentToServiceNOW));
+        actionAuditSender.sendActionEvents(Arrays.asList(actionAlreadySentToKafka,
+                actionNotSentToKafka, actionSentToServiceNOW));
 
         // only action3 will be send for audit. action1 and action2 were already sent
         Mockito.verify(messageSender, Mockito.times(2)).sendMessage(sentActionEventMessageCaptor.capture());
@@ -307,7 +306,7 @@ public class ActionAuditSenderTest {
             .persistAuditedActionsUpdates(persistedActionsCaptor.capture());
         AuditedActionsUpdate actualUpdate = persistedActionsCaptor.getValue();
         Assert.assertEquals(
-            Arrays.asList(new AuditedActionInfo(ACTION2_ID, KAFKA_ONGEN_WORKFLOW_ID, null)),
+            Arrays.asList(new AuditedActionInfo(ACTION2_ID, KAFKA_ONGEN_WORKFLOW_ID, Optional.empty())),
             actualUpdate.getAuditedActions());
         Assert.assertEquals(Collections.emptyList(), actualUpdate.getRecentlyClearedActions());
         Assert.assertEquals(Collections.emptyList(), actualUpdate.getExpiredClearedActions());
@@ -333,17 +332,17 @@ public class ActionAuditSenderTest {
         final Action actionClearedAndExpired = createAction(ACTION2_ID, KAFKA_ONGEN_WORKFLOW);
         final Action actionJustExpiring = createAction(ACTION3_ID, KAFKA_ONGEN_WORKFLOW);
         final Action actionGoingToServiceNOW = createAction(ACTION4_ID, SERVICENOW_ONGEN_WORKFLOW);
-        final List<Cell<Long, Long, Optional<Long>>> alreadySentActions = Arrays.asList(
-                new FakeCell(actionClearedButNotExpired.getRecommendationOid(),
+        final List<AuditedActionInfo> alreadySentActions = Arrays.asList(
+                new AuditedActionInfo(actionClearedButNotExpired.getRecommendationOid(),
                         KAFKA_ONGEN_WORKFLOW_ID,
                         // still 1 millisecond until expiry, so this action should not be cleared
                         Optional.of(CURRENT_TIME - TimeUnit.MINUTES.toMillis(MINUTES_UNTIL_MARKED_CLEARED) + 1)),
-                new FakeCell(actionClearedAndExpired.getRecommendationOid(),
+                new AuditedActionInfo(actionClearedAndExpired.getRecommendationOid(),
                         KAFKA_ONGEN_WORKFLOW_ID,
                         // still 1 millisecond after expiry, so this action should be cleared
                         Optional.of(CURRENT_TIME - TimeUnit.MINUTES.toMillis(MINUTES_UNTIL_MARKED_CLEARED) - 1)),
                 // actionJustExpiring was sent last cycle, but not this cycle
-                new FakeCell(actionJustExpiring.getRecommendationOid(), KAFKA_ONGEN_WORKFLOW_ID,
+                new AuditedActionInfo(actionJustExpiring.getRecommendationOid(), KAFKA_ONGEN_WORKFLOW_ID,
                         // was recommended in the last market cycle, so no cleared timestamp
                         Optional.empty()));
         when(auditedActionsManager.getAlreadySentActions()).thenReturn(alreadySentActions);
@@ -367,10 +366,10 @@ public class ActionAuditSenderTest {
         AuditedActionsUpdate actualUpdate = persistedActionsCaptor.getValue();
         Assert.assertEquals(Collections.emptyList(), actualUpdate.getAuditedActions());
         Assert.assertEquals(Collections.singletonList(
-                new AuditedActionInfo(ACTION3_ID, KAFKA_ONGEN_WORKFLOW_ID, CURRENT_TIME)),
-                actualUpdate.getRecentlyClearedActions());
+                new AuditedActionInfo(ACTION3_ID, KAFKA_ONGEN_WORKFLOW_ID,
+                        Optional.of(CURRENT_TIME))), actualUpdate.getRecentlyClearedActions());
         Assert.assertEquals(Collections.singletonList(
-                new AuditedActionInfo(ACTION2_ID, KAFKA_ONGEN_WORKFLOW_ID, null)),
+                new AuditedActionInfo(ACTION2_ID, KAFKA_ONGEN_WORKFLOW_ID, Optional.empty())),
                 actualUpdate.getExpiredClearedActions());
     }
 
@@ -411,12 +410,12 @@ public class ActionAuditSenderTest {
         final AuditedActionInfo auditedAction = actualUpdate.getAuditedActions().get(0);
         Assert.assertEquals(ACTION1_ID, auditedAction.getRecommendationId());
         Assert.assertEquals(KAFKA_ONGEN_WORKFLOW_ID, auditedAction.getWorkflowId());
-        Assert.assertNull(auditedAction.getClearedTimestamp());
+        Assert.assertEquals(Optional.empty(), auditedAction.getClearedTimestamp());
 
         Mockito.reset(auditedActionsManager, messageSender);
-        final List<Cell<Long, Long, Optional<Long>>> alreadySentActions =
+        final List<AuditedActionInfo> alreadySentActions =
                 Collections.singletonList(
-                        new FakeCell(actionForAudit.getRecommendationOid(), KAFKA_ONGEN_WORKFLOW_ID,
+                        new AuditedActionInfo(actionForAudit.getRecommendationOid(), KAFKA_ONGEN_WORKFLOW_ID,
                                 Optional.empty()));
 
         when(auditedActionsManager.getAlreadySentActions()).thenReturn(alreadySentActions);
@@ -440,12 +439,12 @@ public class ActionAuditSenderTest {
                 actualUpdate2.getRecentlyClearedActions().get(0);
         Assert.assertEquals(ACTION1_ID, recentlyClearedAction.getRecommendationId());
         Assert.assertEquals(KAFKA_ONGEN_WORKFLOW_ID, recentlyClearedAction.getWorkflowId());
-        Assert.assertNotNull(recentlyClearedAction.getClearedTimestamp());
+        Assert.assertTrue(recentlyClearedAction.getClearedTimestamp().isPresent());
 
         Mockito.reset(auditedActionsManager, messageSender);
-        final List<Cell<Long, Long, Optional<Long>>> alreadySentActions2 =
+        final List<AuditedActionInfo> alreadySentActions2 =
                 Collections.singletonList(
-                        new FakeCell(actionForAudit.getRecommendationOid(), KAFKA_ONGEN_WORKFLOW_ID,
+                        new AuditedActionInfo(actionForAudit.getRecommendationOid(), KAFKA_ONGEN_WORKFLOW_ID,
                                 // still 1 millisecond until expiry, so this action should not be cleared
                                 Optional.of(CURRENT_TIME - MINUTES_UNTIL_MARKED_CLEARED + 1)));
         when(auditedActionsManager.getAlreadySentActions()).thenReturn(alreadySentActions2);
@@ -467,8 +466,44 @@ public class ActionAuditSenderTest {
         final AuditedActionInfo actionWithResetClearedTimestamp =
                 actualUpdate3.getAuditedActions().get(0);
         Assert.assertEquals(ACTION1_ID, actionWithResetClearedTimestamp.getRecommendationId());
-        Assert.assertEquals(KAFKA_ONGEN_WORKFLOW_ID, actionWithResetClearedTimestamp.getWorkflowId());
-        Assert.assertNull(actionWithResetClearedTimestamp.getClearedTimestamp());
+        Assert.assertEquals(KAFKA_ONGEN_WORKFLOW_ID,
+                actionWithResetClearedTimestamp.getWorkflowId());
+        Assert.assertEquals(Optional.empty(),
+                actionWithResetClearedTimestamp.getClearedTimestamp());
+    }
+
+    /**
+     * Tests resending of earlier audited action events.
+     *
+     * @throws Exception if something goes wrong
+     */
+    @Test
+    public void testResendAuditedActions() throws Exception {
+        final Action actionForAudit = createAction(ACTION1_ID, KAFKA_ONGEN_WORKFLOW);
+        when(auditedActionsManager.getAlreadySentActions()).thenReturn(Collections.emptyList());
+        // I. send `actionForAudit` first time
+        actionAuditSender.sendActionEvents(Collections.singletonList(actionForAudit));
+
+        // `actionForAudit` will be send for audit as a new action.
+        Mockito.verify(messageSender, Mockito.times(1))
+                .sendMessage(sentActionEventMessageCaptor.capture());
+        final ActionEvent sendEvent = sentActionEventMessageCaptor.getValue();
+        Assert.assertEquals(actionForAudit.getRecommendationOid(),
+                sendEvent.getActionRequest().getActionId());
+
+        Mockito.reset(auditedActionsManager, messageSender);
+
+        // II. resend `actionForAudit`
+        actionAuditSender.resendActionEvents(Collections.singletonList(actionForAudit));
+        Mockito.verify(messageSender, Mockito.times(1))
+                .sendMessage(sentActionEventMessageCaptor.capture());
+        final ActionEvent reSentEvent = sentActionEventMessageCaptor.getValue();
+        Assert.assertEquals(actionForAudit.getRecommendationOid(),
+                reSentEvent.getActionRequest().getActionId());
+
+        // tests that doing resend we don't modify data in bookkeeping cache
+        Mockito.verify(auditedActionsManager, Mockito.never())
+                .persistAuditedActionsUpdates(Mockito.any(AuditedActionsUpdate.class));
     }
 
     private Action createAction(long oid, @Nullable Workflow workflow) throws
@@ -488,35 +523,5 @@ public class ActionAuditSenderTest {
         when(action.getWorkflow(Mockito.any(), Mockito.any()))
                 .thenReturn(Optional.ofNullable(workflow));
         return action;
-    }
-
-    /**
-     * A fake class so we can mock the cells returned by {@link AuditedActionsManager}.
-     */
-    private static final class FakeCell implements Cell<Long, Long, Optional<Long>> {
-        @Nullable
-        private final Long rowKey;
-        @Nullable
-        private final Long columnKey;
-        @Nullable
-        private final Optional<Long> value;
-
-        FakeCell(@Nullable Long rowKey, @Nullable Long columnKey, @Nullable Optional<Long> value) {
-            this.rowKey = rowKey;
-            this.columnKey = columnKey;
-            this.value = value;
-        }
-
-        public Long getRowKey() {
-            return this.rowKey;
-        }
-
-        public Long getColumnKey() {
-            return this.columnKey;
-        }
-
-        public Optional<Long> getValue() {
-            return this.value;
-        }
     }
 }

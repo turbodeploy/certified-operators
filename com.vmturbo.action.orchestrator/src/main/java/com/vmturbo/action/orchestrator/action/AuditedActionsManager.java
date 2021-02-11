@@ -16,7 +16,6 @@ import javax.annotation.Nonnull;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.Table;
-import com.google.common.collect.Table.Cell;
 
 import org.apache.commons.lang3.time.StopWatch;
 import org.apache.logging.log4j.LogManager;
@@ -179,7 +178,7 @@ public class AuditedActionsManager {
         final Table<Long, Long, Optional<Long>> result = HashBasedTable.create();
         for (AuditedActionInfo auditedActionInfo : auditedActionsInfo) {
             result.put(auditedActionInfo.getRecommendationId(), auditedActionInfo.getWorkflowId(),
-                    Optional.ofNullable(auditedActionInfo.getClearedTimestamp()));
+                    auditedActionInfo.getClearedTimestamp());
         }
         logger.info("Restored bookkeeping cache for {} audited actions from DB in {} ms.",
                 result.size(), stopWatch.getTime(TimeUnit.MILLISECONDS));
@@ -200,10 +199,28 @@ public class AuditedActionsManager {
     /**
      * Get all action that were previously sent for audit.
      *
-     * @return collection of cells with recommendationId, workflowId and cleared timestamp
+     * @return collection of earlier audited actions represented by {@link AuditedActionInfo}s
      */
-    public Collection<Cell<Long, Long, Optional<Long>>> getAlreadySentActions() {
-        return sentActionsToWorkflowCache.cellSet();
+    public Collection<AuditedActionInfo> getAlreadySentActions() {
+        return sentActionsToWorkflowCache.cellSet()
+                .stream()
+                .map(el -> new AuditedActionInfo(el.getRowKey(), el.getColumnKey(), el.getValue()))
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Get all action that were previously sent for audit to certain workflow.
+     *
+     * @param workflowId workflow identifier
+     * @return collection of earlier audited actions in certain workflow represented by
+     * {@link AuditedActionInfo}s
+     */
+    public Collection<AuditedActionInfo> getAlreadySentActions(long workflowId) {
+        return sentActionsToWorkflowCache.cellSet()
+                .stream()
+                .filter(el -> el.getColumnKey() == workflowId)
+                .map(el -> new AuditedActionInfo(el.getRowKey(), el.getColumnKey(), el.getValue()))
+                .collect(Collectors.toList());
     }
 
     /**
@@ -222,10 +239,10 @@ public class AuditedActionsManager {
     private void updateInMemoryCache(@Nonnull final AuditedActionsUpdate batch) {
         batch.addedAuditedActionInfos.forEach(
                 act -> sentActionsToWorkflowCache.put(act.getRecommendationId(),
-                        act.getWorkflowId(), Optional.ofNullable(act.getClearedTimestamp())));
+                        act.getWorkflowId(), act.getClearedTimestamp()));
         batch.recentlyClearedAuditedActionInfos.forEach(
                 act -> sentActionsToWorkflowCache.put(act.getRecommendationId(),
-                        act.getWorkflowId(), Optional.ofNullable(act.getClearedTimestamp())));
+                        act.getWorkflowId(), act.getClearedTimestamp()));
         batch.expiredClearedAuditedActionInfos.forEach(
                 act -> sentActionsToWorkflowCache.remove(act.getRecommendationId(),
                         act.getWorkflowId()));

@@ -94,7 +94,7 @@ public class EntitySeverityRpcService extends EntitySeverityServiceImplBase {
         }
 
         final PaginationParameters paginationParameters = resetPaginationWithDefaultLimit(request);
-        final long skipCount = paginationParameters.hasCursor() ? Long.valueOf(paginationParameters.getCursor()) : 0;
+        final long skipCount = paginationParameters.hasCursor() ? Long.parseLong(paginationParameters.getCursor()) : 0;
         final List<Long> sortedEntityOids;
         if (optionalCache.isPresent()) {
             // Compare entity severity if entity severity cached is present.

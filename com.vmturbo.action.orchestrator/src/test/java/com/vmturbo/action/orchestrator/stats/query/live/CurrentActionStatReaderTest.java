@@ -214,8 +214,12 @@ public class CurrentActionStatReaderTest {
         final ActionView actionView2 = ActionOrchestratorTestUtils.mockActionView(ACTION);
         when(queryInfo1.viewPredicate()).thenReturn(actionInfo -> actionInfo.action() == actionView1);
         when(queryInfo2.viewPredicate()).thenReturn(actionInfo -> actionInfo.action() == actionView2);
-        when(actionStore1.getActionViews()).thenReturn(new MapBackedActionViews(ImmutableMap.of(1L, actionView1)));
-        when(actionStore2.getActionViews()).thenReturn(new MapBackedActionViews(ImmutableMap.of(2L, actionView2)));
+        final MapBackedActionViews actionViews1 =
+                new MapBackedActionViews(ImmutableMap.of(1L, actionView1));
+        final MapBackedActionViews actionViews2 =
+                new MapBackedActionViews(ImmutableMap.of(2L, actionView2));
+        when(actionStore1.getActionViews()).thenReturn(actionViews1);
+        when(actionStore2.getActionViews()).thenReturn(actionViews2);
 
         final GetCurrentActionStatsRequest req = GetCurrentActionStatsRequest.newBuilder()
             .addQueries(query1)
@@ -296,8 +300,9 @@ public class CurrentActionStatReaderTest {
 
         // mock move action: move vm 112 from host 221 to host 222
         ActionView actionView = ActionOrchestratorTestUtils.mockActionView(MOVE_ACTION);
-        when(actionStore.getActionViews()).thenReturn(new MapBackedActionViews(
-            ImmutableMap.of(1111L, actionView)));
+        final MapBackedActionViews actionViews =
+                new MapBackedActionViews(ImmutableMap.of(1111L, actionView));
+        when(actionStore.getActionViews()).thenReturn(actionViews);
 
         final GetCurrentActionStatsRequest req = GetCurrentActionStatsRequest.newBuilder()
                 .addQueries(query1)

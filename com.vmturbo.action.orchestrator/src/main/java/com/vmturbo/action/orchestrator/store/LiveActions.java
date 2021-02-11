@@ -30,11 +30,11 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Maps;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.action.orchestrator.action.AcceptedActionsDAO;
 import com.vmturbo.action.orchestrator.action.Action;
@@ -639,16 +639,33 @@ class LiveActions implements QueryableActionViews {
      * {@inheritDoc}
      */
     @Override
-    public Stream<ActionView> get(@Nonnull final Collection<Long> actionIds) {
+    public Stream<ActionView> get(@Nonnull final Collection<Long> actionInstanceId) {
         // Build up the result set while holding the lock.
-        final List<ActionView> results = new ArrayList<>(actionIds.size());
+        final List<ActionView> results = new ArrayList<>(actionInstanceId.size());
         actionsLock.readLock().lock();
         try {
-            actionIds.stream()
+            actionInstanceId.stream()
                 .map(this::get)
                 .filter(Optional::isPresent)
                 .map(Optional::get)
                 .forEach(results::add);
+        } finally {
+            actionsLock.readLock().unlock();
+        }
+        return results.stream();
+    }
+
+    @Override
+    public Stream<ActionView> getByRecommendationId(@Nonnull Collection<Long> recommendationIds) {
+        // Build up the result set while holding the lock.
+        final List<ActionView> results = new ArrayList<>(recommendationIds.size());
+        actionsLock.readLock().lock();
+        try {
+            recommendationIds.stream()
+                    .map(this::getByRecommendationId)
+                    .filter(Optional::isPresent)
+                    .map(Optional::get)
+                    .forEach(results::add);
         } finally {
             actionsLock.readLock().unlock();
         }
@@ -663,6 +680,11 @@ class LiveActions implements QueryableActionViews {
         return internalGet(actionId, true);
     }
 
+    @Override
+    public Optional<ActionView> getByRecommendationId(long recommendationId) {
+        return internalGetByRecommendationId(recommendationId, true);
+    }
+
     private Optional<ActionView> internalGet(final long actionId,
                                              final boolean throwAccessException) {
         actionsLock.readLock().lock();
@@ -673,6 +695,28 @@ class LiveActions implements QueryableActionViews {
             }
             if (result == null) {
                 result = riActions.get(actionId);
+            }
+
+            if (result != null && checkActionAccess(result, throwAccessException)) {
+                return Optional.of(result);
+            } else {
+                return Optional.empty();
+            }
+        } finally {
+            actionsLock.readLock().unlock();
+        }
+    }
+
+    private Optional<ActionView> internalGetByRecommendationId(final long recommendationId,
+            final boolean throwAccessException) {
+        actionsLock.readLock().lock();
+        try {
+            Action result = recommendationIdToMarketActionMap.get(recommendationId);
+            if (result == null) {
+                result = recommendationIdToAtomicActionMap.get(recommendationId);
+            }
+            if (result == null) {
+                result = recommendationIdToRiActionMap.get(recommendationId);
             }
 
             if (result != null && checkActionAccess(result, throwAccessException)) {

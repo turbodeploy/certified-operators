@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Optional;
 import java.util.TimeZone;
 
 import com.google.common.collect.Sets;
@@ -77,9 +78,9 @@ public class AuditedActionsStoreTest {
     @Test
     public void testPersistingAuditedActions() throws ActionStoreOperationException {
         final AuditedActionInfo auditedAction1 =
-                new AuditedActionInfo(RECOMMENDATION_ID_1, WORKFLOW_ID_1, null);
+                new AuditedActionInfo(RECOMMENDATION_ID_1, WORKFLOW_ID_1, Optional.empty());
         final AuditedActionInfo auditedAction2 =
-                new AuditedActionInfo(RECOMMENDATION_ID_2, WORKFLOW_ID_2, null);
+                new AuditedActionInfo(RECOMMENDATION_ID_2, WORKFLOW_ID_2, Optional.empty());
         final HashSet<AuditedActionInfo> actionsForAudit =
                 Sets.newHashSet(auditedAction1, auditedAction2);
         auditedActionsStore.persistActions(actionsForAudit);
@@ -99,11 +100,12 @@ public class AuditedActionsStoreTest {
     @Test
     public void testPersistingClearedActions() throws ActionStoreOperationException {
         final AuditedActionInfo auditedOnGenAction =
-                new AuditedActionInfo(RECOMMENDATION_ID_1, WORKFLOW_ID_1, null);
+                new AuditedActionInfo(RECOMMENDATION_ID_1, WORKFLOW_ID_1, Optional.empty());
         auditedActionsStore.persistActions(Collections.singletonList(auditedOnGenAction));
 
         final AuditedActionInfo clearedAction =
-                new AuditedActionInfo(RECOMMENDATION_ID_1, WORKFLOW_ID_1, CURRENT_TIME);
+                new AuditedActionInfo(RECOMMENDATION_ID_1, WORKFLOW_ID_1,
+                        Optional.of(CURRENT_TIME));
         auditedActionsStore.persistActions(Collections.singletonList(clearedAction));
 
         final Collection<AuditedActionInfo> auditedActions =
@@ -119,7 +121,7 @@ public class AuditedActionsStoreTest {
                 LocalDateTime.ofInstant(Instant.ofEpochMilli(CURRENT_TIME),
                         TimeZone.getDefault().toZoneId());
         final LocalDateTime clearedTimestampOfAuditedAction =
-                LocalDateTime.ofInstant(Instant.ofEpochMilli(auditedAction.getClearedTimestamp()),
+                LocalDateTime.ofInstant(Instant.ofEpochMilli(auditedAction.getClearedTimestamp().get()),
                         TimeZone.getDefault().toZoneId());
         Assert.assertEquals(clearedTimestamp.getYear(),
                 clearedTimestampOfAuditedAction.getYear());
@@ -144,11 +146,12 @@ public class AuditedActionsStoreTest {
     @Test
     public void testRemovingAuditedActions() throws ActionStoreOperationException {
         final AuditedActionInfo auditedOnGenAction =
-                new AuditedActionInfo(RECOMMENDATION_ID_1, WORKFLOW_ID_1, null);
+                new AuditedActionInfo(RECOMMENDATION_ID_1, WORKFLOW_ID_1, Optional.empty());
         auditedActionsStore.persistActions(Collections.singletonList(auditedOnGenAction));
 
         final AuditedActionInfo clearedAction =
-                new AuditedActionInfo(RECOMMENDATION_ID_1, WORKFLOW_ID_1, CURRENT_TIME);
+                new AuditedActionInfo(RECOMMENDATION_ID_1, WORKFLOW_ID_1,
+                        Optional.of(CURRENT_TIME));
         auditedActionsStore.persistActions(Collections.singletonList(clearedAction));
 
         auditedActionsStore.removeActions(
@@ -168,11 +171,11 @@ public class AuditedActionsStoreTest {
     @Test
     public void testRemovingAuditedActionsRelatedToWorkflow() throws ActionStoreOperationException {
         final AuditedActionInfo auditedAction1 =
-                new AuditedActionInfo(RECOMMENDATION_ID_1, WORKFLOW_ID_1, null);
+                new AuditedActionInfo(RECOMMENDATION_ID_1, WORKFLOW_ID_1, Optional.empty());
         final AuditedActionInfo auditedAction2 =
-                new AuditedActionInfo(RECOMMENDATION_ID_2, WORKFLOW_ID_2, null);
+                new AuditedActionInfo(RECOMMENDATION_ID_2, WORKFLOW_ID_2, Optional.empty());
         final AuditedActionInfo auditedAction3 =
-                new AuditedActionInfo(RECOMMENDATION_ID_3, WORKFLOW_ID_2, null);
+                new AuditedActionInfo(RECOMMENDATION_ID_3, WORKFLOW_ID_2, Optional.empty());
         final HashSet<AuditedActionInfo> actionsForAudit =
                 Sets.newHashSet(auditedAction1, auditedAction2, auditedAction3);
         auditedActionsStore.persistActions(actionsForAudit);

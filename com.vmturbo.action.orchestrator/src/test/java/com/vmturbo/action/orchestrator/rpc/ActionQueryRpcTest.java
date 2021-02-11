@@ -54,8 +54,10 @@ import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFac
 import com.vmturbo.action.orchestrator.action.ActionPaginator.DefaultActionPaginatorFactory;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.PaginatedActionViews;
 import com.vmturbo.action.orchestrator.action.ActionView;
+import com.vmturbo.action.orchestrator.action.AuditedActionsManager;
 import com.vmturbo.action.orchestrator.action.RejectedActionsDAO;
 import com.vmturbo.action.orchestrator.approval.ActionApprovalManager;
+import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
 import com.vmturbo.action.orchestrator.stats.HistoricalActionStatReader;
 import com.vmturbo.action.orchestrator.stats.query.live.CurrentActionStatReader;
 import com.vmturbo.action.orchestrator.store.ActionStore;
@@ -118,6 +120,8 @@ public class ActionQueryRpcTest {
     private final ActionStore actionStore = Mockito.mock(ActionStore.class);
     private final HistoricalActionStatReader historicalStatReader = mock(HistoricalActionStatReader.class);
     private final CurrentActionStatReader liveStatReader = mock(CurrentActionStatReader.class);
+    private final ActionAuditSender actionAuditSender = mock(ActionAuditSender.class);
+    private final AuditedActionsManager auditedActionsManager = mock(AuditedActionsManager.class);
     private final ActionTranslator actionTranslator = ActionOrchestratorTestUtils.passthroughTranslator();
     private final ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
 
@@ -167,8 +171,11 @@ public class ActionQueryRpcTest {
                     userSessionContext,
                     acceptedActionsStore,
                     rejectedActionsStore,
+                    auditedActionsManager,
+                    actionAuditSender,
                     500,
-                    false);
+                    false,
+                    777777L);
         grpcServer = GrpcTestServer.newServer(actionsRpcService);
         grpcServer.start();
 
@@ -183,8 +190,11 @@ public class ActionQueryRpcTest {
             userSessionContext,
             acceptedActionsStore,
             rejectedActionsStore,
-            500,
-        false);
+                auditedActionsManager,
+                actionAuditSender,
+                500,
+                false,
+                777777L);
         IdentityGenerator.initPrefix(0);
         actionOrchestratorServiceClient = ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel());
         grpcServerForFailedTranslation = GrpcTestServer.newServer(actionsRpcServiceWithFailedTranslator);
@@ -645,7 +655,7 @@ public class ActionQueryRpcTest {
     }
 
     @Test
-    public void testGetAllActionCounts() throws Exception {
+    public void testGetAllActionCounts() {
         final int moveActions = 3;
         final int resizeActions = 4;
         final Map<Long, ActionView> actionViewMap = new HashMap<>();
@@ -659,7 +669,7 @@ public class ActionQueryRpcTest {
         LongStream.range(0, resizeActions).map(actionNum -> moveActions + actionNum).forEach(i -> {
             final ActionView actionView = new Action(
                     ActionOrchestratorTestUtils.createResizeRecommendation(i, CommodityType.VMEM),
-                    actionPlanId, actionModeCalculator, 124L);
+                    actionPlanId, actionModeCalculator, i + 1);
             actionViewMap.put(actionView.getId(), actionView);
         });
 
@@ -745,7 +755,7 @@ public class ActionQueryRpcTest {
                 ActionOrchestratorTestUtils.createMoveRecommendation(1, 7, 77, 1, 777, 1),
                 actionPlanId, actionModeCalculator, 234L));
         final ActionView invisibleAction = spy(new Action(ActionOrchestratorTestUtils.createMoveRecommendation(
-                2, 8, 88, 1, 888, 1), actionPlanId, actionModeCalculator, 234L));
+                2, 8, 88, 1, 888, 1), actionPlanId, actionModeCalculator, 235L));
         final MapBackedActionViews actionViews = new MapBackedActionViews(ImmutableMap.of(
                 visibleAction.getId(), visibleAction,
                 invisibleAction.getId(), invisibleAction));
@@ -821,8 +831,9 @@ public class ActionQueryRpcTest {
                 visibleQueuedAction.getId(), visibleQueuedAction,
                 invisibleAction.getId(), invisibleAction);
 
-        when(actionStore.getActionViews()).thenReturn(new MapBackedActionViews(actionViews,
-            view -> view.getId() != invisibleAction.getId()));
+        final MapBackedActionViews mapBackedActionViews = new MapBackedActionViews(actionViews,
+                view -> view.getId() != invisibleAction.getId());
+        when(actionStore.getActionViews()).thenReturn(mapBackedActionViews);
 
         final GetActionCountsByDateResponse response =
                 actionOrchestratorServiceClient.getActionCountsByDate(

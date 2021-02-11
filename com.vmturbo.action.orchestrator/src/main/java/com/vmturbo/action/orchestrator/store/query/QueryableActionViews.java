@@ -29,12 +29,29 @@ public interface QueryableActionViews {
     Stream<ActionView> get(@Nonnull Collection<Long> actionIds);
 
     /**
+     * Get actions by stable IDs. The multi-get version of {@link QueryableActionViews#get(long)}.
+     *
+     * @param recommendationIds the recommendation ids.
+     * @return A stream of {@link ActionView}s that match the ids.
+     */
+    Stream<ActionView> getByRecommendationId(@Nonnull Collection<Long> recommendationIds);
+
+    /**
      * Get an action view by ID.
      *
      * @param actionId The id of the action to retrieve.
      * @return An optional containing the {@link ActionView}, or an empty optional.
      */
     Optional<ActionView> get(final long actionId);
+
+    /**
+     * Get an action view by stable action ID.
+     *
+     * @param recommendationId the recommendation id.
+     * @return An optional containing the {@link ActionView}, or an empty optional.
+     */
+    Optional<ActionView> getByRecommendationId(final long recommendationId);
+
 
     /**
      * TODO (roman, May 23 2019): Port the stats queries ({@link ScopeFilter} and

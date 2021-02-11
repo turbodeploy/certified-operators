@@ -18,8 +18,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import com.google.common.collect.Table.Cell;
-
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -88,8 +86,8 @@ public class AuditedActionsManagerTest {
     @Test
     public void testLoadPersisted() {
         when(auditActionsPersistenceManager.getActions()).thenReturn(Arrays.asList(
-            new AuditedActionInfo(1L, 1L, null),
-            new AuditedActionInfo(1L, 2L, 1000L)
+            new AuditedActionInfo(1L, 1L, Optional.empty()),
+            new AuditedActionInfo(1L, 2L, Optional.of(1000L))
         ));
         // need to create a new instance since the load happens in the constructor
         auditedActionsManager = new AuditedActionsManager(
@@ -103,12 +101,10 @@ public class AuditedActionsManagerTest {
         Assert.assertFalse(auditedActionsManager.isAlreadySent(1L, 3L));
         Assert.assertFalse(auditedActionsManager.isAlreadySent(2L, 1L));
 
-        final Collection<Cell<Long, Long, Optional<Long>>> actualCells =
+        final Collection<AuditedActionInfo> auditedActions =
                 auditedActionsManager.getAlreadySentActions();
-        Assert.assertEquals(2, actualCells.size());
-        final Map<Pair<Long, Long>, Optional<Long>> actualMap = actualCells.stream()
-                .collect(Collectors.toMap(cell -> new Pair<>(cell.getRowKey(), cell.getColumnKey()),
-                        cell -> cell.getValue()));
+        Assert.assertEquals(2, auditedActions.size());
+        final Map<Pair<Long, Long>, Optional<Long>> actualMap = toMap(auditedActions);
         Assert.assertEquals(Optional.empty(), actualMap.get(new Pair<>(1L, 1L)));
         Assert.assertEquals(Optional.of(1000L), actualMap.get(new Pair<>(1L, 2L)));
     }
@@ -122,8 +118,9 @@ public class AuditedActionsManagerTest {
     @Test
     public void testChangingCache() {
         final AuditedActionsUpdate update = new AuditedActionsUpdate();
-        final AuditedActionInfo newAuditedAction = new AuditedActionInfo(1L, 1L, null);
-        final AuditedActionInfo recentlyClearedAuditedAction = new AuditedActionInfo(1L, 2L, 1000L);
+        final AuditedActionInfo newAuditedAction = new AuditedActionInfo(1L, 1L, Optional.empty());
+        final AuditedActionInfo recentlyClearedAuditedAction =
+                new AuditedActionInfo(1L, 2L, Optional.of(1000L));
         update.addAuditedAction(newAuditedAction);
         update.addRecentlyClearedAction(recentlyClearedAuditedAction);
         auditedActionsManager.persistAuditedActionsUpdates(update);
@@ -135,10 +132,10 @@ public class AuditedActionsManagerTest {
         // these two were never added to the cache
         Assert.assertFalse(auditedActionsManager.isAlreadySent(1L, 3L));
         Assert.assertFalse(auditedActionsManager.isAlreadySent(2L, 1L));
-        final Collection<Cell<Long, Long, Optional<Long>>> actualCells =
+        final Collection<AuditedActionInfo> auditedActions =
                 auditedActionsManager.getAlreadySentActions();
-        Assert.assertEquals(2, actualCells.size());
-        Map<Pair<Long, Long>, Optional<Long>> actualMap = toMap(actualCells);
+        Assert.assertEquals(2, auditedActions.size());
+        Map<Pair<Long, Long>, Optional<Long>> actualMap = toMap(auditedActions);
         Assert.assertEquals(Optional.empty(), actualMap.get(new Pair<>(1L, 1L)));
         Assert.assertEquals(Optional.of(1000L), actualMap.get(new Pair<>(1L, 2L)));
 
@@ -164,10 +161,10 @@ public class AuditedActionsManagerTest {
         // these two were never added to the cache
         Assert.assertFalse(auditedActionsManager.isAlreadySent(1L, 3L));
         Assert.assertFalse(auditedActionsManager.isAlreadySent(2L, 1L));
-        final Collection<Cell<Long, Long, Optional<Long>>> afterExpiredCells =
+        final Collection<AuditedActionInfo> afterExpiredActions =
                 auditedActionsManager.getAlreadySentActions();
-        Assert.assertEquals(1, afterExpiredCells.size());
-        Map<Pair<Long, Long>, Optional<Long>> afterExpiredMap = toMap(afterExpiredCells);
+        Assert.assertEquals(1, afterExpiredActions.size());
+        Map<Pair<Long, Long>, Optional<Long>> afterExpiredMap = toMap(afterExpiredActions);
         Assert.assertEquals(Optional.empty(), afterExpiredMap.get(new Pair<>(1L, 1L)));
         Assert.assertFalse(afterExpiredMap.containsKey(new Pair<>(1L, 2L)));
 
@@ -188,9 +185,10 @@ public class AuditedActionsManagerTest {
     @Test
     public void testQueueProcessed() throws Exception {
         final AuditedActionsUpdate update = new AuditedActionsUpdate();
-        final AuditedActionInfo newAuditedAction = new AuditedActionInfo(1L, 1L, null);
-        final AuditedActionInfo recentlyClearedAuditedAction = new AuditedActionInfo(1L, 2L, 1000L);
-        final AuditedActionInfo expiredAction = new AuditedActionInfo(1L, 3L, null);
+        final AuditedActionInfo newAuditedAction = new AuditedActionInfo(1L, 1L, Optional.empty());
+        final AuditedActionInfo recentlyClearedAuditedAction =
+                new AuditedActionInfo(1L, 2L, Optional.of(1000L));
+        final AuditedActionInfo expiredAction = new AuditedActionInfo(1L, 3L, Optional.empty());
         update.addAuditedAction(newAuditedAction);
         update.addRecentlyClearedAction(recentlyClearedAuditedAction);
         update.addExpiredClearedAction(expiredAction);
@@ -219,9 +217,10 @@ public class AuditedActionsManagerTest {
     @Test
     public void testPersistFailed() throws Exception {
         final AuditedActionsUpdate update = new AuditedActionsUpdate();
-        final AuditedActionInfo newAuditedAction = new AuditedActionInfo(1L, 1L, null);
-        final AuditedActionInfo recentlyClearedAuditedAction = new AuditedActionInfo(1L, 2L, 1000L);
-        final AuditedActionInfo expiredAction = new AuditedActionInfo(1L, 3L, null);
+        final AuditedActionInfo newAuditedAction = new AuditedActionInfo(1L, 1L, Optional.empty());
+        final AuditedActionInfo recentlyClearedAuditedAction =
+                new AuditedActionInfo(1L, 2L, Optional.of(1000L));
+        final AuditedActionInfo expiredAction = new AuditedActionInfo(1L, 3L, Optional.empty());
         update.addAuditedAction(newAuditedAction);
         update.addRecentlyClearedAction(recentlyClearedAuditedAction);
         update.addExpiredClearedAction(expiredAction);
@@ -247,9 +246,10 @@ public class AuditedActionsManagerTest {
     @Test
     public void testInterruptDoesNotCrash() throws InterruptedException {
         final AuditedActionsUpdate update = new AuditedActionsUpdate();
-        final AuditedActionInfo newAuditedAction = new AuditedActionInfo(1L, 1L, null);
-        final AuditedActionInfo recentlyClearedAuditedAction = new AuditedActionInfo(1L, 2L, 1000L);
-        final AuditedActionInfo expiredAction = new AuditedActionInfo(1L, 3L, null);
+        final AuditedActionInfo newAuditedAction = new AuditedActionInfo(1L, 1L, Optional.empty());
+        final AuditedActionInfo recentlyClearedAuditedAction =
+                new AuditedActionInfo(1L, 2L, Optional.of(1000L));
+        final AuditedActionInfo expiredAction = new AuditedActionInfo(1L, 3L, Optional.empty());
         update.addAuditedAction(newAuditedAction);
         update.addRecentlyClearedAction(recentlyClearedAuditedAction);
         update.addExpiredClearedAction(expiredAction);
@@ -268,9 +268,10 @@ public class AuditedActionsManagerTest {
     }
 
     private static Map<Pair<Long, Long>, Optional<Long>> toMap(
-            Collection<Cell<Long, Long, Optional<Long>>> cells) {
-        return cells.stream()
-                .collect(Collectors.toMap(cell -> new Pair<>(cell.getRowKey(), cell.getColumnKey()),
-                        cell -> cell.getValue()));
+            Collection<AuditedActionInfo> auditedActions) {
+        return auditedActions.stream()
+                .collect(Collectors.toMap(
+                        action -> new Pair<>(action.getRecommendationId(), action.getWorkflowId()),
+                        AuditedActionInfo::getClearedTimestamp));
     }
 }

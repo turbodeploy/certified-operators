@@ -5,6 +5,7 @@ import static com.vmturbo.action.orchestrator.db.tables.ActionWorkflowBookKeepin
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
@@ -52,8 +53,9 @@ public class AuditActionsStore implements AuditActionsPersistenceManager {
                 final Collection<ActionWorkflowBookKeepingRecord> auditedActionsRecords = new ArrayList<>();
                 actionInfos.forEach(action -> auditedActionsRecords.add(
                         new ActionWorkflowBookKeepingRecord(action.getRecommendationId(),
-                                action.getWorkflowId(), action.getClearedTimestamp() == null ? null
-                                : new Timestamp(action.getClearedTimestamp()))));
+                                action.getWorkflowId(),
+                                !action.getClearedTimestamp().isPresent() ? null
+                                        : new Timestamp(action.getClearedTimestamp().get()))));
 
                 // in jooq 3.14.x can be compressed into DSLContext.batchMerge()
                 final Query[] queries = auditedActionsRecords.stream()
@@ -95,8 +97,8 @@ public class AuditActionsStore implements AuditActionsPersistenceManager {
                 .fetch()
                 .forEach(record -> auditedActions.add(
                         new AuditedActionInfo(record.getActionStableId(), record.getWorkflowId(),
-                                record.getClearedTimestamp() == null ? null
-                                        : record.getClearedTimestamp().getTime())));
+                                record.getClearedTimestamp() == null ? Optional.empty()
+                                        : Optional.of(record.getClearedTimestamp().getTime()))));
         return auditedActions;
     }
 

@@ -2,6 +2,7 @@ package com.vmturbo.action.orchestrator.rpc;
 
 import java.time.Clock;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -10,6 +11,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -21,6 +23,7 @@ import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
+import com.google.common.collect.Sets.SetView;
 import com.google.protobuf.util.JsonFormat;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
@@ -28,6 +31,7 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
+import org.apache.commons.lang3.time.StopWatch;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.exception.DataAccessException;
@@ -38,8 +42,11 @@ import com.vmturbo.action.orchestrator.action.ActionPaginator;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.PaginatedActionViews;
 import com.vmturbo.action.orchestrator.action.ActionView;
+import com.vmturbo.action.orchestrator.action.AuditedActionInfo;
+import com.vmturbo.action.orchestrator.action.AuditedActionsManager;
 import com.vmturbo.action.orchestrator.action.RejectedActionsDAO;
 import com.vmturbo.action.orchestrator.approval.ActionApprovalManager;
+import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
 import com.vmturbo.action.orchestrator.exception.ExecutionInitiationException;
 import com.vmturbo.action.orchestrator.stats.HistoricalActionStatReader;
 import com.vmturbo.action.orchestrator.stats.query.live.CurrentActionStatReader;
@@ -90,6 +97,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.GetHistoricalActionStatsResp
 import com.vmturbo.common.protobuf.action.ActionDTO.MultiActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.RemoveActionsAcceptancesAndRejectionsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.RemoveActionsAcceptancesAndRejectionsResponse;
+import com.vmturbo.common.protobuf.action.ActionDTO.ResendAuditedActionsRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.ResendAuditedActionsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.StateAndModeCount;
 import com.vmturbo.common.protobuf.action.ActionDTO.TopologyContextInfoRequest;
@@ -99,6 +108,7 @@ import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceImplBase;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
+import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.TimeUtil;
 import com.vmturbo.components.api.tracing.Tracing;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -141,6 +151,10 @@ public class ActionsRpcService extends ActionsServiceImplBase {
 
     private final RejectedActionsDAO rejectedActionsStore;
 
+    private final AuditedActionsManager auditedActionsManager;
+
+    private final ActionAuditSender actionAuditSender;
+
     private final int actionPaginationMaxLimit;
 
     /**
@@ -148,6 +162,8 @@ public class ActionsRpcService extends ActionsServiceImplBase {
      * unstable action instance id.
      */
     private final boolean useStableActionIdAsUuid;
+
+    private final long realtimeTopologyContextId;
 
     /**
      * Create a new ActionsRpcService.
@@ -162,10 +178,13 @@ public class ActionsRpcService extends ActionsServiceImplBase {
      * @param userSessionContext the user session context
      * @param acceptedActionsStore dao layer working with accepted actions
      * @param rejectedActionsStore dao layer working with rejected actions
+     * @param auditedActionsManager object responsible for maintaining the book keeping
+     * @param actionAuditSender receives and sends action events for audit
      * @param actionPaginationMaxLimit max number of actions to return in a single pagination page
      * @param useStableActionIdAsUuid flag that enables all action uuids come from the stable
      *                                   recommendation oid instead of the unstable action instance
      *                                   id.
+     * @param realtimeTopologyContextId the ID of the topology context for realtime market analysis
      */
     public ActionsRpcService(@Nonnull final Clock clock,
             @Nonnull final ActionStorehouse actionStorehouse,
@@ -177,8 +196,10 @@ public class ActionsRpcService extends ActionsServiceImplBase {
             @Nonnull final UserSessionContext userSessionContext,
             @Nonnull final AcceptedActionsDAO acceptedActionsStore,
             @Nonnull final RejectedActionsDAO rejectedActionsStore,
-            final int actionPaginationMaxLimit,
-            final boolean useStableActionIdAsUuid) {
+            @Nonnull final AuditedActionsManager auditedActionsManager,
+            @Nonnull final ActionAuditSender actionAuditSender, final int actionPaginationMaxLimit,
+            final boolean useStableActionIdAsUuid,
+            long realtimeTopologyContextId) {
         this.clock = clock;
         this.actionStorehouse = Objects.requireNonNull(actionStorehouse);
         this.actionApprovalManager = Objects.requireNonNull(actionApprovalManager);
@@ -189,8 +210,11 @@ public class ActionsRpcService extends ActionsServiceImplBase {
         this.userSessionContext = Objects.requireNonNull(userSessionContext);
         this.acceptedActionsStore = Objects.requireNonNull(acceptedActionsStore);
         this.rejectedActionsStore = Objects.requireNonNull(rejectedActionsStore);
+        this.auditedActionsManager = Objects.requireNonNull(auditedActionsManager);
+        this.actionAuditSender = Objects.requireNonNull(actionAuditSender);
         this.actionPaginationMaxLimit = actionPaginationMaxLimit;
         this.useStableActionIdAsUuid = useStableActionIdAsUuid;
+        this.realtimeTopologyContextId = realtimeTopologyContextId;
     }
 
     @Override
@@ -681,6 +705,61 @@ public class ActionsRpcService extends ActionsServiceImplBase {
             logger.error("Failed to remove acceptances and rejections for actions associated with "
                     + "policy {}", request.getPolicyId(), e);
             responseObserver.onError(e);
+        }
+    }
+
+    @Override
+    public void resendAuditEvents(ResendAuditedActionsRequest request,
+            StreamObserver<ResendAuditedActionsResponse> responseObserver) {
+        try {
+            if (!request.hasWorkflowId()) {
+                responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(
+                        "Missing required parameter 'workflowId'").asException());
+                return;
+            }
+            final Optional<ActionStore> storeOpt = actionStorehouse.getStore(realtimeTopologyContextId);
+            if (storeOpt.isPresent()) {
+                final StopWatch stopWatch = new StopWatch();
+                final ActionStore liveStore = storeOpt.get();
+                final Collection<AuditedActionInfo> auditedActions =
+                        auditedActionsManager.getAlreadySentActions(request.getWorkflowId());
+                // actions which were sent for ON_GEN audit. We don't need to resend actions with
+                // cleared_timestamp value because it means that they were cleared
+                final Set<Long> actionsToResend = auditedActions.stream()
+                        .filter(el -> !el.getClearedTimestamp().isPresent())
+                        .map(AuditedActionInfo::getRecommendationId)
+                        .collect(Collectors.toSet());
+                // we can resend only actions which are still recommended by market
+                final Set<ActionView> existedActionsToResend = liveStore.getActionViews()
+                        .getByRecommendationId(actionsToResend)
+                        .collect(Collectors.toSet());
+                logger.info("Took {} ms to define {}/{} actual actions which will be resent for "
+                                + "audit",
+                        stopWatch.getTime(TimeUnit.MILLISECONDS), existedActionsToResend.size(),
+                        auditedActions.size());
+                final SetView<Long> notActualActions = Sets.difference(auditedActions.stream()
+                        .map(AuditedActionInfo::getRecommendationId)
+                        .collect(Collectors.toSet()), existedActionsToResend.stream()
+                        .map(ActionView::getRecommendationOid)
+                        .collect(Collectors.toSet()));
+                if (!notActualActions.isEmpty()) {
+                    logger.info(
+                            "Actions ({}) weren't resent for audit because they are not recommended by market.",
+                            notActualActions);
+                }
+                final int resendActionsCount = existedActionsToResend.isEmpty() ? 0
+                        : actionAuditSender.resendActionEvents(existedActionsToResend);
+                responseObserver.onNext(ResendAuditedActionsResponse.newBuilder()
+                        .setAuditedActionsCount(resendActionsCount)
+                        .build());
+                responseObserver.onCompleted();
+            } else {
+                responseObserver.onError(Status.INTERNAL.withDescription(
+                        "Live action store wasn't found. Operation of resending actions will be"
+                                + " skipped").asException());
+            }
+        } catch (DataAccessException | CommunicationException | InterruptedException ex) {
+            responseObserver.onError(ex);
         }
     }
 

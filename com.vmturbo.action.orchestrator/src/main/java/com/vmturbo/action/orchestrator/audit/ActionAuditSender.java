@@ -9,10 +9,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
-import com.google.common.collect.Table.Cell;
-
-import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.commons.lang3.time.StopWatch;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -94,10 +92,43 @@ public class ActionAuditSender {
      */
     public void sendActionEvents(@Nonnull Collection<? extends ActionView> actions)
             throws CommunicationException, InterruptedException {
-        StopWatch stopWatch = new StopWatch();
+        final StopWatch stopWatch = new StopWatch();
         stopWatch.start();
-        final MutableInt auditedActions = new MutableInt(0);
         final AuditedActionsUpdate auditedActionsUpdates = new AuditedActionsUpdate();
+        final int auditedActionsCount =
+                processActionsForAudit(actions, auditedActionsUpdates, false);
+        processCanceledActions(actions, auditedActionsUpdates);
+        // persist all updates of audited actions
+        auditedActionsManager.persistAuditedActionsUpdates(auditedActionsUpdates);
+        stopWatch.stop();
+        logger.info("Took {} to send {} of {} actions for external audit", stopWatch,
+                auditedActionsCount, actions.size());
+    }
+
+    /**
+     * Resends the actions which were audited earlier.
+     *
+     * @param actions list of actions which will be resend for audit
+     * @return number of action which were resent for audit
+     * @throws CommunicationException if communication error occurred while sending
+     * notifications
+     * @throws InterruptedException if current thread has been interrupted
+     */
+    public int resendActionEvents(@Nonnull Collection<? extends ActionView> actions)
+            throws CommunicationException, InterruptedException {
+        final StopWatch stopWatch = new StopWatch();
+        stopWatch.start();
+        final int reAuditedActionsCount = processActionsForAudit(actions, null, true);
+        logger.info("Took {} ms to resend {} actions for external audit",
+                stopWatch.getTime(TimeUnit.MILLISECONDS), reAuditedActionsCount);
+        return reAuditedActionsCount;
+    }
+
+
+    private int processActionsForAudit(@Nonnull Collection<? extends ActionView> actions,
+            @Nullable AuditedActionsUpdate auditedActionsUpdates, boolean allowRepeatedAudit)
+            throws CommunicationException, InterruptedException {
+        int auditedActionsCount = 0;
         for (ActionView action : actions) {
             Optional<WorkflowDTO.Workflow> workflowOptional;
             try {
@@ -108,24 +139,24 @@ public class ActionAuditSender {
                 workflowOptional = Optional.empty();
             }
             if (workflowOptional.isPresent()) {
-                processWorkflow(action, workflowOptional.get(), auditedActions, auditedActionsUpdates);
+                boolean wasActionAudited =
+                        processWorkflow(action, workflowOptional.get(), auditedActionsUpdates,
+                                allowRepeatedAudit);
+                if (wasActionAudited) {
+                    auditedActionsCount++;
+                }
             } else {
                 logger.trace(
                         "Action {} does not have a currently associated workflow. Skip the audit",
                         action::getId);
             }
         }
-        processCanceledActions(actions, auditedActionsUpdates);
-        // persist all updates of audited actions
-        auditedActionsManager.persistAuditedActionsUpdates(auditedActionsUpdates);
-        stopWatch.stop();
-        logger.info("Took {} to send {} of {} actions for external audit",
-            stopWatch, auditedActions, actions.size());
+        return auditedActionsCount;
     }
 
-    private void processWorkflow(@Nonnull ActionView action, @Nonnull Workflow workflow,
-            @Nonnull MutableInt auditedActions,
-            @Nonnull AuditedActionsUpdate auditedActionsUpdates)
+    private boolean processWorkflow(@Nonnull ActionView action, @Nonnull Workflow workflow,
+            @Nullable AuditedActionsUpdate auditedActionsUpdates,
+            boolean allowRepeatedAudit)
             throws CommunicationException, InterruptedException {
         final Optional<ThinTargetInfo> auditTarget = getAuditTarget(workflow);
         if (auditTarget.isPresent()) {
@@ -133,13 +164,15 @@ public class ActionAuditSender {
             // TODO OM-64606 remove this ServiceNow specific logic after changing the ServiceNow app
             //  and having generic audit logic for orchestration targets
             if (auditTargetType.equals(SDKProbeType.SERVICENOW.getProbeType())) {
-                processServiceNowWorkflow(action, workflow, auditedActions);
+                return processServiceNowWorkflow(action, workflow);
             } else {
-                processAuditWorkflow(action, workflow, auditedActions, auditedActionsUpdates);
+                return processAuditWorkflow(action, workflow, auditedActionsUpdates,
+                        allowRepeatedAudit);
             }
         } else {
             logger.error("Failed to get target discovered workflow {}. Audit was skipped.",
                     workflow.getId());
+            return false;
         }
     }
 
@@ -148,42 +181,42 @@ public class ActionAuditSender {
             throws CommunicationException, InterruptedException {
         final Set<Long> currentActions =
                 actions.stream().map(ActionView::getRecommendationOid).collect(Collectors.toSet());
-        final Collection<Cell<Long, Long, Optional<Long>>> alreadySentActions =
+        final Collection<AuditedActionInfo> alreadySentActions =
                 auditedActionsManager.getAlreadySentActions();
-        for (Cell<Long, Long, Optional<Long>> cell : alreadySentActions) {
-            final Long actionOID = cell.getRowKey();
-            final Long workflowId = cell.getColumnKey();
-            final Optional<Long> clearedTimestamp = cell.getValue();
-            if (!currentActions.contains(actionOID)) {
+        for (AuditedActionInfo auditedAction : alreadySentActions) {
+            final long recommendationId = auditedAction.getRecommendationId();
+            final long workflowId = auditedAction.getWorkflowId();
+            final Optional<Long> clearedTimestamp = auditedAction.getClearedTimestamp();
+            if (!currentActions.contains(recommendationId)) {
                 final Long clearedTime;
                 if (!clearedTimestamp.isPresent()) {
                     // persist timestamp when action first time was not recommended after sending
                     // this action earlier for ON_GEN audit
                     clearedTime = clock.millis();
                     auditedActionsUpdates.addRecentlyClearedAction(
-                            new AuditedActionInfo(actionOID, workflowId, clearedTime));
+                            new AuditedActionInfo(recommendationId, workflowId, Optional.of(clearedTime)));
                 } else {
                     clearedTime = clearedTimestamp.get();
                 }
                 if (isClearedCriteriaMet(clearedTime)) {
                     // if earlier audited action is not recommended during certain time and met
                     // cleared criteria, then we send it as CLEARED
-                    sendCanceledAction(actionOID, workflowId);
+                    sendCanceledAction(recommendationId, workflowId);
                     auditedActionsUpdates.addExpiredClearedAction(
-                            new AuditedActionInfo(actionOID, workflowId, null));
+                            new AuditedActionInfo(recommendationId, workflowId, Optional.empty()));
                 }
-            } else if (clearedTimestamp != null && clearedTimestamp.isPresent()) {
+            } else if (clearedTimestamp.isPresent()) {
                 // reset cleared_timestamp, because action which wasn't recommended during certain time is came back
                 auditedActionsUpdates.addAuditedAction(
-                        new AuditedActionInfo(actionOID, workflowId, null));
+                        new AuditedActionInfo(recommendationId, workflowId, Optional.empty()));
             }
         }
     }
 
     private boolean isClearedCriteriaMet(@Nonnull Long clearedTimestamp) {
         final Long currentTime = clock.millis();
-        long clearedDurationMsec = currentTime - clearedTimestamp;
-        return clearedDurationMsec > TimeUnit.MINUTES.toMillis(minsClearedActionsCriteria);
+        long clearedDurationMs = currentTime - clearedTimestamp;
+        return clearedDurationMs > TimeUnit.MINUTES.toMillis(minsClearedActionsCriteria);
     }
 
     private boolean sendCanceledAction(@Nonnull Long recommendationId, @Nonnull Long workflowId)
@@ -210,9 +243,8 @@ public class ActionAuditSender {
         return false;
     }
 
-    private void processServiceNowWorkflow(@Nonnull ActionView action,
-            @Nonnull Workflow workflow, @Nonnull MutableInt auditedActions)
-            throws CommunicationException, InterruptedException {
+    private boolean processServiceNowWorkflow(@Nonnull ActionView action,
+            @Nonnull Workflow workflow) throws CommunicationException, InterruptedException {
         final ActionResponseState oldState;
         final ActionResponseState newState;
         switch (workflow.getWorkflowInfo().getActionPhase()) {
@@ -236,20 +268,19 @@ public class ActionAuditSender {
                 logger.trace("Action {}'s workflow {} ({}) is for phase {}. Skipping audit",
                         action::getId, workflow::getId, () -> workflow.getWorkflowInfo().getName(),
                         () -> workflow.getWorkflowInfo().getActionPhase());
-                return;
+                return false;
         }
 
         final ActionEvent event = getActionEvent(action, workflow, oldState, newState);
         logger.debug("Sending action {} audit event to external audit", action.getId());
         messageSender.sendMessage(event);
-        auditedActions.increment();
+        return true;
     }
 
-    private void processAuditWorkflow(@Nonnull ActionView action, @Nonnull Workflow workflow,
-            @Nonnull MutableInt auditedActions,
-            @Nonnull AuditedActionsUpdate auditedActionsUpdates)
+    private boolean processAuditWorkflow(@Nonnull ActionView action, @Nonnull Workflow workflow,
+            @Nullable AuditedActionsUpdate auditedActionsUpdates, boolean allowRepeatedAudit)
             throws CommunicationException, InterruptedException {
-        if (!isAlreadySent(action.getRecommendationOid(), workflow.getId())) {
+        if (!isAlreadySent(action.getRecommendationOid(), workflow.getId()) || allowRepeatedAudit) {
             final ActionResponseState oldState;
             final ActionResponseState newState;
             switch (workflow.getWorkflowInfo().getActionPhase()) {
@@ -267,17 +298,23 @@ public class ActionAuditSender {
                             action::getId, workflow::getId,
                             () -> workflow.getWorkflowInfo().getName(),
                             () -> workflow.getWorkflowInfo().getActionPhase());
-                    return;
+                    return false;
             }
 
             final ActionEvent event = getActionEvent(action, workflow, oldState, newState);
-            auditedActionsUpdates.addAuditedAction(
-                    new AuditedActionInfo(action.getRecommendationOid(), workflow.getId(), null));
+            // when we resend earlier audited actions we don't need to keep track of audited
+            // action and persist them in bookkeeping cache
+            if (auditedActionsUpdates != null) {
+                auditedActionsUpdates.addAuditedAction(
+                        new AuditedActionInfo(action.getRecommendationOid(), workflow.getId(),
+                                Optional.empty()));
+            }
             logger.debug("Sending action {} audit event to external audit", action.getId());
             messageSender.sendMessage(event);
-            auditedActions.increment();
+            return true;
         } else {
             logger.trace("Action {} was already sent for audit.", action::getId);
+            return false;
         }
     }
 
