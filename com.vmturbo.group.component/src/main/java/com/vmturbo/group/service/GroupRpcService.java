@@ -40,6 +40,7 @@ import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
+import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.CountGroupsResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupRequest;
@@ -86,10 +87,10 @@ import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.group.common.Truncator;
-import com.vmturbo.group.db.tables.pojos.GroupSupplementaryInfo;
 import com.vmturbo.group.group.DiscoveredGroupHash;
 import com.vmturbo.group.group.GroupEnvironment;
 import com.vmturbo.group.group.GroupEnvironmentTypeResolver;
+import com.vmturbo.group.group.GroupSeverityCalculator;
 import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.group.group.IGroupStore.DiscoveredGroup;
 import com.vmturbo.group.group.TemporaryGroupCache;
@@ -142,6 +143,8 @@ public class GroupRpcService extends GroupServiceImplBase {
 
     private final GroupEnvironmentTypeResolver groupEnvironmentTypeResolver;
 
+    private final GroupSeverityCalculator groupSeverityCalculator;
+
     private final long groupLoadTimeoutMs;
 
     /**
@@ -162,6 +165,7 @@ public class GroupRpcService extends GroupServiceImplBase {
      *         this timeout expires, {@link #getGroupsByIds(IGroupStore, List, StreamObserver,
      *         StopWatch, boolean)} will return a error.
      * @param groupEnvironmentTypeResolver utility class for group environment type resolution
+     * @param groupSeverityCalculator utility class for group severity calculation
      */
     public GroupRpcService(@Nonnull final TemporaryGroupCache tempGroupCache,
             @Nonnull final SearchServiceBlockingStub searchServiceRpc,
@@ -175,7 +179,8 @@ public class GroupRpcService extends GroupServiceImplBase {
             GroupMemberCalculator memberCalculator,
             int groupLoadPermits,
             long groupLoadTimeoutSec,
-            @Nonnull GroupEnvironmentTypeResolver groupEnvironmentTypeResolver) {
+            @Nonnull GroupEnvironmentTypeResolver groupEnvironmentTypeResolver,
+            @Nonnull GroupSeverityCalculator groupSeverityCalculator) {
         this.tempGroupCache = Objects.requireNonNull(tempGroupCache);
         this.searchServiceRpc = Objects.requireNonNull(searchServiceRpc);
         this.userSessionContext = Objects.requireNonNull(userSessionContext);
@@ -197,6 +202,7 @@ public class GroupRpcService extends GroupServiceImplBase {
         this.groupLoadTimeoutMs = groupLoadTimeoutSec * 1000;
         this.memberCalculator = memberCalculator;
         this.groupEnvironmentTypeResolver = Objects.requireNonNull(groupEnvironmentTypeResolver);
+        this.groupSeverityCalculator = Objects.requireNonNull(groupSeverityCalculator);
     }
 
     @Override
@@ -831,7 +837,7 @@ public class GroupRpcService extends GroupServiceImplBase {
 
     /**
      * Creates group supplementary info that derive from group members.
-     * These data currently include emptiness, environment type & cloud type.
+     * These data currently include emptiness, environment type & cloud type, severity.
      *
      * @param groupStore group store to use for queries
      * @param groupId the group to update
@@ -856,12 +862,10 @@ public class GroupRpcService extends GroupServiceImplBase {
                                 .filter(Objects::nonNull)
                                 .collect(Collectors.toSet()),
                         ArrayListMultimap.create());
+        // calculate severity based on members severity
+        Severity groupSeverity = groupSeverityCalculator.calculateSeverity(groupEntities);
         // add group info to the database
-        groupStore.createGroupSupplementaryInfo(new GroupSupplementaryInfo(groupId,
-                        isEmpty,
-                        groupEnvironment.getEnvironmentType().getNumber(),
-                        groupEnvironment.getCloudType().getNumber()));
-
+        groupStore.createGroupSupplementaryInfo(groupId, isEmpty, groupEnvironment, groupSeverity);
     }
 
     private void validateCreateGroupRequest(@Nonnull final IGroupStore groupStore,
@@ -951,7 +955,7 @@ public class GroupRpcService extends GroupServiceImplBase {
 
     /**
      * Updates group supplementary info that derive from group members.
-     * These data currently include emptiness, environment type & cloud type.
+     * These data currently include emptiness, environment type & cloud type, severity.
      *
      * @param groupStore group store to use for queries
      * @param groupId the group to update
@@ -975,8 +979,11 @@ public class GroupRpcService extends GroupServiceImplBase {
                                 .filter(Objects::nonNull)
                                 .collect(Collectors.toSet()),
                         ArrayListMultimap.create());
+        // calculate severity based on members severity
+        Severity groupSeverity = groupSeverityCalculator.calculateSeverity(groupEntities);
         // add record to the database
-        groupStore.updateSingleGroupSupplementaryInfo(groupId, groupEntities.isEmpty(), groupEnvironment);
+        groupStore.updateSingleGroupSupplementaryInfo(groupId, groupEntities.isEmpty(),
+                groupEnvironment, groupSeverity);
     }
 
     /**

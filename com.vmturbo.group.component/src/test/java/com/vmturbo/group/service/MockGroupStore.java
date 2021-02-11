@@ -20,6 +20,7 @@ import com.google.common.collect.Table;
 import org.apache.commons.collections4.CollectionUtils;
 import org.junit.Assert;
 
+import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetPaginatedGroupsResponse;
@@ -72,15 +73,15 @@ public class MockGroupStore implements IGroupStore {
         groups.put(oid, createdGroup);
     }
 
-    /**
-     * Mock for {@link IGroupStore#createGroupSupplementaryInfo}.
-     * Stores supplementary info for groups.
-     *
-     * @param group supplementary info for the group to store.
-     */
-    @Override
-    public void createGroupSupplementaryInfo(GroupSupplementaryInfo group) {
-        groupSupplementaryInfoMap.putIfAbsent(group.getGroupId(), group);
+     @Override
+    public void createGroupSupplementaryInfo(long groupId, boolean isEmpty,
+             @Nonnull GroupEnvironment groupEnvironment, @Nonnull Severity severity) {
+        groupSupplementaryInfoMap.putIfAbsent(groupId, new GroupSupplementaryInfo(
+                groupId,
+                isEmpty,
+                groupEnvironment.getEnvironmentType().getNumber(),
+                groupEnvironment.getCloudType().getNumber(),
+                severity.getNumber()));
     }
 
     @Nonnull
@@ -99,15 +100,30 @@ public class MockGroupStore implements IGroupStore {
 
     @Override
     public void updateSingleGroupSupplementaryInfo(long groupId, boolean isEmpty,
-            GroupEnvironment groupEnvironment) {
+            GroupEnvironment groupEnvironment, Severity severity) {
         groupSupplementaryInfoMap.put(groupId, new GroupSupplementaryInfo(groupId, isEmpty,
                 groupEnvironment.getEnvironmentType().getNumber(),
-                groupEnvironment.getCloudType().getNumber()));
+                groupEnvironment.getCloudType().getNumber(),
+                severity.getNumber()));
     }
 
     @Override
     public void updateBulkGroupSupplementaryInfo(Collection<GroupSupplementaryInfo> groups) {
         groups.forEach(g -> groupSupplementaryInfoMap.put(g.getGroupId(), g));
+    }
+
+    @Override
+    public int updateBulkGroupsSeverity(Collection<GroupSupplementaryInfo> groups) {
+        int result = 0;
+        for (GroupSupplementaryInfo current : groups) {
+            GroupSupplementaryInfo gsi = groupSupplementaryInfoMap.get(current.getGroupId());
+            if (gsi != null) {
+                gsi.setSeverity(current.getSeverity());
+                groupSupplementaryInfoMap.replace(current.getGroupId(), gsi);
+                result++;
+            }
+        }
+        return result;
     }
 
     @Override

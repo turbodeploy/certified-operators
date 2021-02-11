@@ -1,6 +1,8 @@
 package com.vmturbo.action.orchestrator.api;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -44,6 +46,9 @@ public class EntitySeverityClientCache implements EntitySeverityListener {
 
     @GuardedBy("lock")
     private final Long2ObjectOpenHashMap<SeverityBreakdown> severityBreakdowns = new Long2ObjectOpenHashMap<>();
+
+    private final List<EntitySeverityClientCacheUpdateListener> cacheUpdateListeners =
+            Collections.synchronizedList(new ArrayList<>());
 
     /**
      * Get the total number of severities in the cache.
@@ -236,6 +241,8 @@ public class EntitySeverityClientCache implements EntitySeverityListener {
             lock.writeLock().unlock();
         }
         logger.info("Processed entity severity refresh with {} entities.", cnt);
+        cacheUpdateListeners.forEach(
+                EntitySeverityClientCacheUpdateListener::onEntitySeverityClientCacheRefresh);
     }
 
     private void insertSeverityBreakdowns(Map<Long, EntitySeverityNotification.SeverityBreakdown> severityBreakdowns) {
@@ -273,6 +280,8 @@ public class EntitySeverityClientCache implements EntitySeverityListener {
                 () -> severityUpdate.stream()
                         .mapToLong(EntitiesWithSeverity::getOidsCount)
                         .count());
+        cacheUpdateListeners.forEach(l ->
+                l.onEntitySeverityClientCacheUpdate(severityUpdate, breakdownUpdate));
     }
 
     /**
@@ -358,5 +367,15 @@ public class EntitySeverityClientCache implements EntitySeverityListener {
             return result == 0 ? Long.compare(id1, id2) : result;
         };
         return ascending ? ret : ret.reversed();
+    }
+
+    /**
+     * Add a listener for cache updates/refreshes.
+     *
+     * @param listener The {@link EntitySeverityClientCacheUpdateListener}.
+     */
+    public void addEntitySeverityClientCacheUpdateListener(
+            @Nonnull EntitySeverityClientCacheUpdateListener listener) {
+        cacheUpdateListeners.add(listener);
     }
 }

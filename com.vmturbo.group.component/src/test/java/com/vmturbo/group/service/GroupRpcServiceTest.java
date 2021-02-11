@@ -11,6 +11,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyLong;
+import static org.mockito.Matchers.anySet;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
@@ -65,6 +66,7 @@ import org.springframework.jdbc.BadSqlGrammarException;
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessScopeException;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
+import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.common.CloudTypeEnum.CloudType;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
@@ -128,6 +130,7 @@ import com.vmturbo.group.group.GroupDAO.DiscoveredGroupIdImpl;
 import com.vmturbo.group.group.GroupEnvironment;
 import com.vmturbo.group.group.GroupEnvironmentTypeResolver;
 import com.vmturbo.group.group.GroupMembersPlain;
+import com.vmturbo.group.group.GroupSeverityCalculator;
 import com.vmturbo.group.group.IGroupStore.DiscoveredGroup;
 import com.vmturbo.group.group.ProtobufMessageMatcher;
 import com.vmturbo.group.group.TemporaryGroupCache;
@@ -156,6 +159,8 @@ public class GroupRpcServiceTest {
     private TemporaryGroupCache temporaryGroupCache = mock(TemporaryGroupCache.class);
     private final GroupEnvironmentTypeResolver groupEnvironmentTypeResolver =
             mock(GroupEnvironmentTypeResolver.class);
+    private final GroupSeverityCalculator groupSeverityCalculator =
+            mock(GroupSeverityCalculator.class);
 
     private GroupRpcService groupRpcService;
 
@@ -235,7 +240,8 @@ public class GroupRpcServiceTest {
                 placementPolicyUpdater,
                 groupMemberCalculatorSpy,
                 2, 120,
-                groupEnvironmentTypeResolver);
+                groupEnvironmentTypeResolver,
+                groupSeverityCalculator);
         when(temporaryGroupCache.getGrouping(anyLong())).thenReturn(Optional.empty());
         when(temporaryGroupCache.deleteGrouping(anyLong())).thenReturn(Optional.empty());
         MockitoAnnotations.initMocks(this);
@@ -1694,6 +1700,7 @@ public class GroupRpcServiceTest {
         Mockito.when(groupEnvironmentTypeResolver
                 .getEnvironmentAndCloudTypeForGroup(anyLong(), any(), any())).thenReturn(
                         new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD));
+        Mockito.when(groupSeverityCalculator.calculateSeverity(anySet())).thenReturn(Severity.MINOR);
 
         groupRpcService.createGroup(groupRequest, mockObserver);
         verify(groupStoreDAO).createGroup(eq(groupingOid), eq(origin), eq(group), any(),
@@ -1759,6 +1766,7 @@ public class GroupRpcServiceTest {
         Mockito.when(groupEnvironmentTypeResolver
                 .getEnvironmentAndCloudTypeForGroup(anyLong(), any(), any())).thenReturn(
                         new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD));
+        Mockito.when(groupSeverityCalculator.calculateSeverity(anySet())).thenReturn(Severity.MINOR);
         groupRpcService.createGroup(groupRequest, mockObserver);
         HashSet<Long> idAList = new HashSet<>(Collections.singletonList(idA));
         HashSet<Long> idBList = new HashSet<>(Collections.singletonList(idB));
@@ -2139,6 +2147,7 @@ public class GroupRpcServiceTest {
         Mockito.when(groupEnvironmentTypeResolver
                 .getEnvironmentAndCloudTypeForGroup(anyLong(), any(), any())).thenReturn(
                         new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD));
+        Mockito.when(groupSeverityCalculator.calculateSeverity(anySet())).thenReturn(Severity.MINOR);
 
         given(groupStoreDAO
                         .updateGroup(eq(groupingOid), eq(group), eq(expectedTypes),

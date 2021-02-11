@@ -12,6 +12,7 @@ import javax.annotation.concurrent.Immutable;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Table;
 
+import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.GroupFilters;
@@ -52,9 +53,13 @@ public interface IGroupStore {
      * is required.
      * Currently they include emptiness, environment and cloud type.
      *
-     * @param group a collection with the characteristics of the group to be inserted.
+     * @param groupId group's uuid.
+     * @param isEmpty whether the group is empty.
+     * @param groupEnvironment group's environment (environment + cloud type)
+     * @param severity group's severity.
      */
-    void createGroupSupplementaryInfo(GroupSupplementaryInfo group);
+    void createGroupSupplementaryInfo(long groupId, boolean isEmpty,
+            @Nonnull GroupEnvironment groupEnvironment, @Nonnull Severity severity);
 
     /**
      * Returns the group type for the given group.
@@ -118,12 +123,13 @@ public interface IGroupStore {
      * been updated), so a different call is required.
      * Currently they include emptiness, environment and cloud type.
      *
-     * @param groupId group's id
+     * @param groupId group's uuid
      * @param isEmpty whether the group is currently empty or not
      * @param groupEnvironment wrapper for environment and cloud type of the group
+     * @param groupSeverity group's severity
      */
     void updateSingleGroupSupplementaryInfo(long groupId, boolean isEmpty,
-            GroupEnvironment groupEnvironment);
+            GroupEnvironment groupEnvironment, Severity groupSeverity);
 
     /**
      * Updates GroupSupplementaryInfo data in bulk.
@@ -131,6 +137,14 @@ public interface IGroupStore {
      * @param groups a collection with information for each group to be updated.
      */
     void updateBulkGroupSupplementaryInfo(Collection<GroupSupplementaryInfo> groups);
+
+    /**
+     * Updates groups' severity data in bulk.
+     *
+     * @param groups a collection with the severity for each group to be updated.
+     * @return the number of updated groups
+     */
+    int updateBulkGroupsSeverity(Collection<GroupSupplementaryInfo> groups);
 
     /**
      * Returns the next page of groups, conforming to the request specified.

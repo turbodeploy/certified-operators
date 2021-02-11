@@ -10,6 +10,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 
+import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
 import com.vmturbo.group.GroupComponentDBConfig;
 import com.vmturbo.group.IdentityProviderConfig;
 import com.vmturbo.group.flyway.V1_11_Callback;
@@ -20,7 +21,8 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription.Top
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 @Configuration
-@Import({IdentityProviderConfig.class,
+@Import({ActionOrchestratorClientConfig.class,
+        IdentityProviderConfig.class,
         GroupComponentDBConfig.class,
         GroupPaginationConfig.class,
         TopologyProcessorClientConfig.class})
@@ -28,6 +30,9 @@ public class GroupConfig {
 
     @Value("${tempGroupExpirationTimeMins:30}")
     private int tempGroupExpirationTimeMins;
+
+    @Autowired
+    private ActionOrchestratorClientConfig aoClientConfig;
 
     @Autowired
     private IdentityProviderConfig identityProviderConfig;
@@ -86,5 +91,15 @@ public class GroupConfig {
     @Bean
     public GroupEnvironmentTypeResolver groupEnvironmentTypeResolver() {
         return new GroupEnvironmentTypeResolver(thinTargetCache(), groupStore());
+    }
+
+    /**
+     * Calculates severity for groups.
+     *
+     * @return the {@link GroupSeverityCalculator}.
+     */
+    @Bean
+    public GroupSeverityCalculator groupSeverityCalculator() {
+        return new GroupSeverityCalculator(aoClientConfig.entitySeverityClientCache());
     }
 }

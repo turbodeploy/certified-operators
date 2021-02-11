@@ -8,8 +8,10 @@ import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
@@ -21,8 +23,10 @@ import it.unimi.dsi.fastutil.longs.LongSet;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
+import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.common.CloudTypeEnum.CloudType;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.memory.MemoryMeasurer;
@@ -38,8 +42,10 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.pipeline.Pipeline.StageResult;
 import com.vmturbo.components.common.pipeline.Pipeline.Status;
+import com.vmturbo.group.db.tables.pojos.GroupSupplementaryInfo;
 import com.vmturbo.group.group.GroupEnvironment;
 import com.vmturbo.group.group.GroupEnvironmentTypeResolver;
+import com.vmturbo.group.group.GroupSeverityCalculator;
 import com.vmturbo.group.pipeline.Stages.StoreSupplementaryGroupInfoStage;
 import com.vmturbo.group.pipeline.Stages.UpdateGroupMembershipCacheStage;
 import com.vmturbo.group.service.CachingMemberCalculator;
@@ -56,6 +62,8 @@ public class StagesTest {
     final CachingMemberCalculator memberCache = mock(CachingMemberCalculator.class);
     final GroupEnvironmentTypeResolver groupEnvironmentTypeResolver =
             mock(GroupEnvironmentTypeResolver.class);
+    private final GroupSeverityCalculator groupSeverityCalculator =
+            mock(GroupSeverityCalculator.class);
     private SearchServiceMole searchServiceMole;
     private GrpcTestServer testServer;
     private MockTransactionProvider transactionProvider;
@@ -114,7 +122,7 @@ public class StagesTest {
                 SearchServiceGrpc.newBlockingStub(testServer.getChannel());
         final StoreSupplementaryGroupInfoStage stage =
                 new StoreSupplementaryGroupInfoStage(memberCache, searchServiceRpc,
-                        groupEnvironmentTypeResolver, groupStoreMock);
+                        groupEnvironmentTypeResolver, groupSeverityCalculator, groupStoreMock);
         // GIVEN
         final long groupUuid1 = 1;
         final long groupUuid2 = 2;
@@ -167,18 +175,53 @@ public class StagesTest {
                 eq(group1entitiesWithEnvType),
                 eq(ArrayListMultimap.create()))).thenReturn(
                         new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD));
+        when(groupSeverityCalculator.calculateSeverity(group1entities)).thenReturn(Severity.NORMAL);
         when(groupEnvironmentTypeResolver.getEnvironmentAndCloudTypeForGroup(eq(groupUuid2),
                 eq(group2entitiesWithEnvType),
                 eq(ArrayListMultimap.create()))).thenReturn(
-                        new GroupEnvironment(EnvironmentType.ON_PREM, CloudType.UNKNOWN_CLOUD));
+                        new GroupEnvironment(EnvironmentType.HYBRID, CloudType.AWS));
+        when(groupSeverityCalculator.calculateSeverity(group2entities)).thenReturn(Severity.CRITICAL);
         when(memberCache.getGroupMembers(groupStoreMock, Collections.singleton(groupUuid2), true))
                 .thenReturn(group2entities);
         // WHEN
         Status status = stage.passthrough(input);
 
         // THEN
-        verify(groupStoreMock, times(1)).updateBulkGroupSupplementaryInfo(Mockito.any());
+        ArgumentCaptor<Collection> captor = ArgumentCaptor.forClass(Collection.class);
+        // verify that even though we have multiple groups, there is only one (bulk) update
+        verify(groupStoreMock, times(1))
+                .updateBulkGroupSupplementaryInfo(captor.capture());
         Assert.assertEquals(Status.success().getType(), status.getType());
+        // validate the arguments passed to updateBulkGroupSupplementaryInfo
+        Assert.assertEquals(2, captor.getValue().size());
+        Iterator<GroupSupplementaryInfo> it = captor.getValue().iterator();
+        // group1
+        validateGroupSupplementaryInfo(it.next(), groupUuid1, false,
+                EnvironmentType.ON_PREM.getNumber(), CloudType.UNKNOWN_CLOUD.getNumber(),
+                Severity.NORMAL.getNumber());
+        // group2
+        validateGroupSupplementaryInfo(it.next(), groupUuid2, false,
+                EnvironmentType.HYBRID.getNumber(), CloudType.AWS.getNumber(),
+                Severity.CRITICAL.getNumber());
+    }
+
+    /**
+     * Utility function to validate the values inside a {@link GroupSupplementaryInfo}.
+     *
+     * @param gsi the {@link GroupSupplementaryInfo} to validate.
+     * @param groupId expected group id.
+     * @param empty expected emptiness state.
+     * @param envType expected environment type.
+     * @param cloudType expected cloud type.
+     * @param severity expected severity.
+     */
+    private void validateGroupSupplementaryInfo(GroupSupplementaryInfo gsi, long groupId,
+            boolean empty, int envType, int cloudType, int severity) {
+        Assert.assertEquals(groupId, gsi.getGroupId().longValue());
+        Assert.assertEquals(empty, gsi.getEmpty());
+        Assert.assertEquals(envType, gsi.getEnvironmentType().intValue());
+        Assert.assertEquals(cloudType, gsi.getCloudType().intValue());
+        Assert.assertEquals(severity, gsi.getSeverity().intValue());
     }
 
     /**
