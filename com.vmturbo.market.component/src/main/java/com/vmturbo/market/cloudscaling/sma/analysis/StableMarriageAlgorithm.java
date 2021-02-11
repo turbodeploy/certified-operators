@@ -183,6 +183,8 @@ public class StableMarriageAlgorithm {
         // get all the matches that involve RIs. Group together the ASG.
         Map<String, Set<SMAMatch>> matchByASG = new HashMap<>();
         Set<SMAMatch> nonASGMatch = new HashSet();
+        Map<Long, Float> leftoverCoupons = new HashMap<>();
+        Map<Long, SMAReservedInstance> riKeyOidToSMAReservedInstance = new HashMap<>();
         for (SMAMatch smaMatch : outputContext.getMatches()) {
             String groupName = smaMatch.getVirtualMachine().getGroupName();
             if (groupName.equals(SMAUtils.NO_GROUP_ID)) {
@@ -200,6 +202,13 @@ public class StableMarriageAlgorithm {
                         .computeSaving(smaMatch.getVirtualMachine(),
                                 new HashMap<>(), smaMatch.getDiscountedCoupons());
                 if (saving < SMAUtils.EPSILON) {
+                    float current_leftover = leftoverCoupons.getOrDefault(smaMatch
+                            .getReservedInstance().getRiKeyOid(),0f);
+                    current_leftover += smaMatch.getDiscountedCoupons();
+                    leftoverCoupons.put(smaMatch.getReservedInstance().getRiKeyOid(),
+                            current_leftover);
+                    riKeyOidToSMAReservedInstance.put(smaMatch.getReservedInstance().getRiKeyOid(),
+                            smaMatch.getReservedInstance());
                     smaMatch.setReservedInstance(null);
                     smaMatch.setDiscountedCoupons(0);
                     smaMatch.setTemplate(smaMatch.getVirtualMachine().getNaturalTemplate());
@@ -230,7 +239,15 @@ public class StableMarriageAlgorithm {
                                     new HashMap<>(), smaMatch.getDiscountedCoupons());
                 }
                 if (saving < SMAUtils.EPSILON) {
+                    SMAReservedInstance coveredRI = matchWithCoverage.get().getReservedInstance();
+                    riKeyOidToSMAReservedInstance.put(coveredRI.getRiKeyOid(),
+                            coveredRI);
                     for (SMAMatch smaMatch : smaMatches) {
+                        float current_leftover = leftoverCoupons.getOrDefault(coveredRI
+                                .getRiKeyOid(),0f);
+                        current_leftover += smaMatch.getDiscountedCoupons();
+                        leftoverCoupons.put(coveredRI.getRiKeyOid(),
+                                current_leftover);
                         smaMatch.setReservedInstance(null);
                         smaMatch.setDiscountedCoupons(0);
                         smaMatch.setTemplate(smaMatch.getVirtualMachine().getNaturalTemplate());
@@ -238,6 +255,83 @@ public class StableMarriageAlgorithm {
                 }
             }
         }
+        allocateLeftOverCoupons(outputContext, leftoverCoupons, riKeyOidToSMAReservedInstance);
+    }
+
+    /**
+     * Allocate the coupons relinquished in moveUncoveredVMBackToNaturalTemplate stage.
+     * @param outputContext the output context of interest.
+     * @param leftoverCoupons map from Ri to coupons that are left after moveUncoveredVMBackToNaturalTemplate
+     */
+    private static void allocateLeftOverCoupons(SMAOutputContext outputContext,
+                                                Map<Long, Float> leftoverCoupons,
+                                                Map<Long, SMAReservedInstance> riKeyOidToSMAReservedInstance) {
+        // first allocate coupons to the VMs which are already partially covered by this RI. Thus we dont
+        // generate a new action.
+        for (SMAMatch smaMatch : outputContext.getMatches()) {
+            if (smaMatch.getReservedInstance() != null) {
+                float current_coupons = smaMatch.getDiscountedCoupons();
+                float coupons_required = smaMatch.getTemplate().getCoupons()
+                        - smaMatch.getDiscountedCoupons();
+                float coupons_leftover = leftoverCoupons.getOrDefault(smaMatch
+                        .getReservedInstance().getRiKeyOid(), 0f);
+                if (coupons_required > SMAUtils.EPSILON && coupons_leftover > SMAUtils.EPSILON) {
+                    float coupons_swapped = Math.min(coupons_required, coupons_leftover);
+                    smaMatch.setDiscountedCoupons(current_coupons + coupons_swapped);
+                    leftoverCoupons.put(smaMatch.getReservedInstance().getRiKeyOid(),
+                            coupons_leftover - coupons_swapped);
+                }
+            }
+        }
+        // if still coupons are left over allocate them to the VMs that are still in the same template.
+        // This will be ok since we are anyway recommending the VM to be moved to this RI.
+        for (SMAMatch smaMatch : outputContext.getMatches()) {
+            if (smaMatch.getReservedInstance() == null) {
+                float coupons_required = smaMatch.getTemplate().getCoupons();
+                Optional<SMAReservedInstance> riWithCouponsLeft = findDiscountableRI(smaMatch,
+                        riKeyOidToSMAReservedInstance, leftoverCoupons);
+                float coupons_leftover = riWithCouponsLeft.isPresent()
+                        ? leftoverCoupons.get(riWithCouponsLeft.get().getRiKeyOid())
+                        : 0f;
+                if (coupons_required > SMAUtils.EPSILON && coupons_leftover > SMAUtils.EPSILON) {
+                        float coupons_swapped = Math.min(coupons_required, coupons_leftover);
+                        smaMatch.setDiscountedCoupons(coupons_swapped);
+                        smaMatch.setReservedInstance(riWithCouponsLeft.get());
+                        leftoverCoupons.put(riWithCouponsLeft.get().getRiKeyOid(),
+                                coupons_leftover - coupons_swapped);
+                }
+            }
+        }
+    }
+
+    /**
+     * Find the RI that can discount an undiscounted VM while staying at the current template.
+     * @param smaMatch the match which is currently not associated with any RI
+     * @param riKeyOidToSMAReservedInstance the map from ri key oid to SMAReservedInstance
+     * @param leftoverCoupons map from Ri to coupons that are left after moveUncoveredVMBackToNaturalTemplate
+     * @return an RI with leftover coupons that can discount the vm in smaMatch
+     */
+    private static Optional<SMAReservedInstance> findDiscountableRI(SMAMatch smaMatch,
+                                           Map<Long, SMAReservedInstance> riKeyOidToSMAReservedInstance,
+                                           Map<Long, Float> leftoverCoupons) {
+        for (SMAReservedInstance reservedInstance : riKeyOidToSMAReservedInstance.values()) {
+            if (leftoverCoupons.get(reservedInstance.getRiKeyOid()) < SMAUtils.EPSILON) {
+                continue;
+            }
+            if (reservedInstance.isIsf()) {
+                if (smaMatch.getTemplate().getFamily().equals(reservedInstance.getTemplate().getFamily())
+                        && smaMatch.getVirtualMachine().mayBeCoveredByRI(reservedInstance)) {
+                    return Optional.of(reservedInstance);
+                }
+            } else {
+                if (smaMatch.getTemplate().getOid() == reservedInstance.getTemplate().getOid()
+                        && smaMatch.getVirtualMachine().mayBeCoveredByRI(reservedInstance)
+                        && smaMatch.getVirtualMachine().zoneCompatible(reservedInstance, new HashMap<>())) {
+                    return Optional.of(reservedInstance);
+                }
+            }
+        }
+        return Optional.empty();
     }
 
     /**
