@@ -1,10 +1,10 @@
 package com.vmturbo.extractor.models;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+
 import java.io.IOException;
-import java.io.PipedReader;
-import java.io.PipedWriter;
-import java.io.PrintWriter;
-import java.io.Reader;
+import java.io.PipedInputStream;
+import java.io.PipedOutputStream;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.Collection;
@@ -25,6 +25,7 @@ import com.google.common.annotations.VisibleForTesting;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
+import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 import org.postgresql.copy.CopyManager;
 import org.postgresql.jdbc.PgConnection;
@@ -135,7 +136,7 @@ public class DslRecordSink implements Consumer<Record> {
      * <p>We use the high-speed Postgres COPY statement, sending records in CSV format.</p>
      */
     class RecordWriter {
-        private final PrintWriter writer;
+        private final PipedOutputStream outputStream;
         private final Collection<Column<?>> columns;
         private final Future<InsertResults> future;
         private int recordSentCount = 0;
@@ -143,12 +144,20 @@ public class DslRecordSink implements Consumer<Record> {
 
         RecordWriter(Collection<Column<?>> columns, ExecutorService pool) throws IOException {
             this.columns = columns;
-            final PipedReader reader = new PipedReader();
-            this.writer = new PrintWriter(new PipedWriter(reader));
+            final PipedInputStream inputStream = new PipedInputStream();
+            this.outputStream = new PipedOutputStream(inputStream);
             this.future = pool.submit(() -> {
                 final String stmt = String.format("COPY \"%s\" FROM STDIN WITH CSV",
                         getWriteTableName());
-                return writeData(stmt, dsl, reader);
+                try {
+                    return writeData(stmt, dsl, inputStream);
+                } catch (DataAccessException e) {
+                    // close reader side stream so the writer side got terminated with IOException
+                    // rather than waiting forever
+                    inputStream.close();
+                    // rethrow to terminate the reader thread
+                    throw e;
+                }
             });
         }
 
@@ -157,10 +166,11 @@ public class DslRecordSink implements Consumer<Record> {
          *
          * @param copySql SQL for copy operation
          * @param dsl     {@link DSLContext} for DB access
-         * @param reader  a {@link Reader} from which data for the operation can be read
+         * @param inputStream  a {@link PipedInputStream} from which data for the operation can be read
          * @return a {@link Future} that will report results when we're finished
+         * @throws DataAccessException database issue when executing the transactional logic
          */
-        private InsertResults writeData(String copySql, DSLContext dsl, Reader reader) {
+        private InsertResults writeData(String copySql, DSLContext dsl, PipedInputStream inputStream) throws DataAccessException {
             long start = System.nanoTime();
             final AtomicLong recordCount = new AtomicLong(0L);
             dsl.transaction(trans -> DSL.using(trans).connection(transConn -> {
@@ -168,7 +178,7 @@ public class DslRecordSink implements Consumer<Record> {
                 try {
                     // execute the copy operation, with data coming from our reader
                     final CopyManager copier = new CopyManager(transConn.unwrap(PgConnection.class));
-                    recordCount.set(copier.copyIn(copySql, reader));
+                    recordCount.set(copier.copyIn(copySql, inputStream));
                 } catch (Exception e) {
                     logger.error("Failed performing copy to table {}", getWriteTableName(), e);
                     // rethrow to rollback transaction
@@ -199,11 +209,18 @@ public class DslRecordSink implements Consumer<Record> {
             }
         }
 
-        public void write(final Record record) {
+        /**
+         * Attempt to write the given record to db.
+         *
+         * @param record the record to write
+         * @throws IOException if there is any issue with db
+         */
+        public void write(final Record record) throws IOException {
             final String csv = record.toCSVRow(columns);
-            writer.println(csv);
+            outputStream.write(csv.getBytes(UTF_8));
+            outputStream.write(System.lineSeparator().getBytes(UTF_8));
             if (++recordSentCount % 1000 == 0) {
-                logger.debug("Wrote {} records to {}", recordSentCount, getWriteTableName());
+                logger.debug("Tried to write {} records to {}", recordSentCount, getWriteTableName());
             }
         }
 
@@ -226,17 +243,17 @@ public class DslRecordSink implements Consumer<Record> {
         @VisibleForTesting
         void close() {
             try {
-                if (writer != null) {
+                if (outputStream != null) {
                     // this will cause the COPY operation to hit EOF on its reader and complete its
                     // operation with the DB
-                    writer.close();
+                    outputStream.close();
                 }
                 // await completion and report results
                 if (future != null) {
                     InsertResults result = future.get(config.insertTimeoutSeconds(), TimeUnit.SECONDS);
                     logger.info("Wrote {} records to table {}", result.getRecordCount(), getWriteTableName());
                 }
-            } catch (TimeoutException | InterruptedException | ExecutionException e) {
+            } catch (TimeoutException | InterruptedException | ExecutionException | IOException e) {
                 logger.error("Failed to complete writing to table {}", getWriteTableName(), e);
             }
             this.closed = true;

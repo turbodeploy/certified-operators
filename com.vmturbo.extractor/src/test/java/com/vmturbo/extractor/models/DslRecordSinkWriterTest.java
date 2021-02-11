@@ -8,16 +8,26 @@ import static com.vmturbo.extractor.util.RecordTestUtil.createMetricRecordMap;
 import static com.vmturbo.extractor.util.RecordTestUtil.createRecordByName;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.spy;
 
 import java.sql.SQLException;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import org.jooq.DSLContext;
+import org.jooq.TransactionalRunnable;
+import org.jooq.exception.DataAccessException;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
@@ -90,7 +100,7 @@ public class DslRecordSinkWriterTest {
     public void before() throws UnsupportedDialectException, SQLException, InterruptedException {
         final DbEndpoint endpoint = dbConfig.ingesterEndpoint();
         endpointRule.addEndpoints(endpoint);
-        this.dsl = endpoint.dslContext();
+        this.dsl = spy(endpoint.dslContext());
         final ScheduledExecutorService pool = Executors.newSingleThreadScheduledExecutor();
         this.metricSink = new DslRecordSink(dsl, METRIC_TABLE, config, pool);
     }
@@ -115,5 +125,31 @@ public class DslRecordSinkWriterTest {
         Map<String, Object> fromDb = dsl.fetchOne(String.format("SELECT * FROM \"%s\" WHERE %s",
                 table.getName(), conditions)).intoMap();
         assertThat(fromDb, mapMatchesLaxly(data));
+    }
+
+    /**
+     * Verify that the main ingestion thread is not blocked if postgres reading thread is
+     * terminated due to db issues.
+     *
+     * @throws InterruptedException if current thread is interrupted
+     * @throws TimeoutException if the test can not finish within given time
+     * @throws ExecutionException if exception when getting the result of the task
+     */
+    @Test
+    public void testMainIngestionThreadNotBlocked()
+            throws InterruptedException, TimeoutException, ExecutionException {
+        final ScheduledExecutorService pool = Executors.newSingleThreadScheduledExecutor();
+        // mock the main thread task
+        Future<?> future = pool.submit(() -> {
+            // mock that reading thread throws exception
+            doThrow(new DataAccessException("foo")).when(dsl).transaction(any(TransactionalRunnable.class));
+            // ensure it exceeds the default buffer size (1024) in PipedInputStream
+            IntStream.range(0, 50).forEach(id -> {
+                metricSink.accept(createRecordByName(METRIC_TABLE, metricData1));
+            });
+            metricSink.accept(null);
+        });
+        // it should not wait forever (finish within 1 minute)
+        future.get(1, TimeUnit.MINUTES);
     }
 }
