@@ -24,7 +24,7 @@ public class ReservedInstanceKey {
     private final long regionId;
     private final long zoneId;
     private final String family;
-    private final long riBoughtId;
+    private final long tierId;
     private final boolean instanceSizeFlexible;
     private final boolean platformFlexible;
     private final Set<Long> scopedAccounts;
@@ -83,11 +83,7 @@ public class ReservedInstanceKey {
         this.family = family;
         this.zoneId = riBoughtInfo.getAvailabilityZoneId();
         this.instanceSizeFlexible = riSpec.getSizeFlexible();
-        if (!instanceSizeFlexible) {
-            this.riBoughtId = riData.getReservedInstanceBought().getId();
-        } else {
-            this.riBoughtId = -1L;
-        }
+        this.tierId = riSpec.getTierId();
         // If the RI is shared, then it is applicable across the billing family, hence the
         // accountScopeId is set to the billingFamilyId. Otherwise the RI is applicable only to the
         // owning account and the accountScopeId is set to the owning account's id.
@@ -104,8 +100,9 @@ public class ReservedInstanceKey {
         if (isInstanceSizeFlexible()) {
             return Objects.hash(tenancy, os, regionId, family, zoneId, scopedAccounts);
         } else {
-            return Objects.hash(riBoughtId);
+            return Objects.hash(tenancy, os, regionId, tierId, zoneId, scopedAccounts);
         }
+
     }
 
     @Override
@@ -120,9 +117,10 @@ public class ReservedInstanceKey {
             return false;
         }
 
-        // In case of instance size flexible operating systems, compares the tenancy, os,
-        // region, zone, family to check if 2 RIAggregates are the same. Otherwise checks if
-        // the RIBoughtIds are the same.
+        // Compare operating systems, compares the tenancy, os,
+        // region, zone to check if 2 RIAggregates are the same.
+        // In case of instance size flexible check family. Otherwise checks if
+        // the tierId are the same.
         ReservedInstanceKey other = (ReservedInstanceKey)obj;
         if (isInstanceSizeFlexible()) {
             return this.tenancy == other.tenancy &&
@@ -132,15 +130,20 @@ public class ReservedInstanceKey {
                     this.zoneId == other.zoneId &&
                     Objects.equals(scopedAccounts, other.scopedAccounts);
         } else {
-            return this.riBoughtId == other.riBoughtId;
+            return this.tenancy == other.tenancy &&
+                    this.os == other.os &&
+                    this.regionId == other.regionId &&
+                    this.tierId == other.tierId &&
+                    this.zoneId == other.zoneId &&
+                    Objects.equals(scopedAccounts, other.scopedAccounts);
         }
     }
 
     @Override
     public String toString() {
         return "ReservedInstanceKey{" + "tenancy=" + tenancy + ", os=" + os + ", regionId=" +
-                regionId + ", zoneId=" + zoneId + ", family='" + family + '\'' + ", riBoughtId=" +
-                riBoughtId + ", instanceSizeFlexible=" + instanceSizeFlexible +
+                regionId + ", zoneId=" + zoneId + ", family='" + family + '\'' + ", tierId=" +
+                tierId + ", instanceSizeFlexible=" + instanceSizeFlexible +
                 ", accountScopeId=" + StringUtils.join(scopedAccounts, "|") + ", shared=" + shared + '}';
     }
 
