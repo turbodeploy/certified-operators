@@ -871,6 +871,103 @@ public class ProvisionBySupplyTest {
     }
 
     /**
+     * Test provision by supply with a max replicas constraint, and with some replica missing
+     * SLO metrics.
+     *
+     * <p>One service consume three apps, each hosted by a container.
+     * The service requests 20000(ms) response time from app1.
+     * App1 sells 300(ms) response time, requests 515(MHz) VCPU, 256(MB) memory. The provider
+     * container sells 575(MHz) VCPU, 65536(MB) memory.
+     * App2 is the peer of App1 (i.e., share the same Application commodity key), but does not
+     * sell SLO commodity.
+     * App3 is a sidecar app, and is not a peer of App1 or App2.
+     *
+     * <p>The app has a max desired util of 0.75 and min desired util 0f 0.65.
+     * The app has a policy of minReplicas=1, and maxReplicas=3.
+     * The response time commodity has MM1Distribution with one dependent VCPU commodity of default
+     * elasticity 1.0, and a default stop condition of 20%.
+     *
+     */
+    @Test
+    public void testProvisionBySupplyWithMaxReplicasAndMissingSLOMetric() {
+        Economy e = new Economy();
+        final int minReplicas = 1;
+        final int maxReplicas = 3;
+        Basket bAppContainer = new Basket(TestUtils.VCPU, TestUtils.VMEM);
+        Basket bSvcAppWithSLO = new Basket(TestUtils.RESPONSE_TIME, TestUtils.APPLICATION);
+        Basket bSvcAppWithoutSLO = new Basket(TestUtils.APPLICATION);
+        Basket bSvcSidecarApp = new Basket(TestUtils.SIDECAR_APPLICATION);
+        // Container hosting app with SLO
+        Trader cntAppWithSLO = TestUtils.createTrader(e, TestUtils.CONTAINER_TYPE, Collections.singletonList(0L),
+                Arrays.asList(TestUtils.VCPU, TestUtils.VMEM),
+                new double[]{575, 65536}, true, false);
+        cntAppWithSLO.setDebugInfoNeverUseInCode("containerWithSLO");
+        // Container hosting app without SLO
+        Trader cntAppWithoutSLO = TestUtils.createTrader(e, TestUtils.CONTAINER_TYPE, Collections.singletonList(0L),
+                Arrays.asList(TestUtils.VCPU, TestUtils.VMEM),
+                new double[]{575, 65536}, true, false);
+        cntAppWithoutSLO.setDebugInfoNeverUseInCode("containerWithoutSLO");
+        // Container hosting sidecar app
+        Trader cntSidecarApp = TestUtils.createTrader(e, TestUtils.CONTAINER_TYPE, Collections.singletonList(0L),
+                Arrays.asList(TestUtils.VCPU, TestUtils.VMEM),
+                new double[]{575, 65536}, true, false);
+        cntSidecarApp.setDebugInfoNeverUseInCode("containerSidecar");
+        // Application with SLO
+        Trader appWithSLO = TestUtils.createTrader(e, TestUtils.APP_TYPE, Collections.singletonList(0L),
+                Arrays.asList(TestUtils.RESPONSE_TIME, TestUtils.APPLICATION),
+                new double[]{300, 1E22}, true, false);
+        appWithSLO.setDebugInfoNeverUseInCode("appWithSLO");
+        appWithSLO.getSettings()
+                .setProviderMustClone(true)
+                .setMaxDesiredUtil(0.75)
+                .setMaxDesiredUtil(0.65)
+                .setMinReplicas(minReplicas)
+                .setMaxReplicas(maxReplicas);
+        Optional.ofNullable(appWithSLO.getCommoditySold(bSvcAppWithSLO.get(0)).getSettings().getUpdatingFunction())
+                .filter(UpdatingFunctionFactory::isMM1DistributionFunction)
+                .map(MM1Distribution.class::cast).ifPresent(uf -> uf.setMinDecreasePct(0.2F));
+        ShoppingList slAppWithSLOContainer = e.addBasketBought(appWithSLO, bAppContainer);
+        TestUtils.moveSlOnSupplier(e, slAppWithSLOContainer, cntAppWithSLO, new double[]{515, 256});
+        // Application without SLO
+        Trader appWithoutSLO = TestUtils.createTrader(e, TestUtils.APP_TYPE, Collections.singletonList(0L),
+                Collections.singletonList(TestUtils.APPLICATION),
+                new double[]{1E22}, true, false);
+        appWithoutSLO.setDebugInfoNeverUseInCode("appWithoutSLO");
+        appWithoutSLO.getSettings().setProviderMustClone(true);
+        ShoppingList slAppWithoutSLOContainer = e.addBasketBought(appWithoutSLO, bAppContainer);
+        TestUtils.moveSlOnSupplier(e, slAppWithoutSLOContainer, cntAppWithoutSLO, new double[]{50, 64});
+        // Sidecar Application
+        Trader appSidecar = TestUtils.createTrader(e, TestUtils.APP_TYPE, Collections.singletonList(0L),
+                Collections.singletonList(TestUtils.SIDECAR_APPLICATION),
+                new double[]{1E22}, true, false);
+        appSidecar.setDebugInfoNeverUseInCode("appSidecar");
+        appSidecar.getSettings().setProviderMustClone(true);
+        ShoppingList slSidecarAppContainer = e.addBasketBought(appSidecar, bAppContainer);
+        TestUtils.moveSlOnSupplier(e, slSidecarAppContainer, cntSidecarApp, new double[]{50, 64});
+        // Service
+        Trader svc = TestUtils.createTrader(e, TestUtils.SERVICE_TYPE, Collections.singletonList(0L),
+                Collections.emptyList(), new double[]{}, true, true);
+        svc.setDebugInfoNeverUseInCode("service");
+        ShoppingList slSvcAppWithSLO = e.addBasketBought(svc, bSvcAppWithSLO);
+        TestUtils.moveSlOnSupplier(e, slSvcAppWithSLO, appWithSLO, new double[]{2000});
+        ShoppingList slSvcAppWithoutSLO = e.addBasketBought(svc, bSvcAppWithoutSLO);
+        TestUtils.moveSlOnSupplier(e, slSvcAppWithoutSLO, appWithoutSLO, new double[]{0});
+        ShoppingList slSvcSidecarApp = e.addBasketBought(svc, bSvcSidecarApp);
+        TestUtils.moveSlOnSupplier(e, slSvcSidecarApp, appSidecar, new double[]{0});
+        // Populate market
+        e.populateMarketsWithSellersAndMergeConsumerCoverage();
+        Ledger ledger = new Ledger(e);
+        List<Action> actions = Provision.provisionDecisions(e, ledger);
+        final long numOfClonedApps = actions.stream()
+                .map(Action::getActionTarget)
+                .filter(target -> target.getType() == TestUtils.APP_TYPE)
+                .count();
+        // The expected number of cloned application is 1, plus the original model app and the
+        // app that does not sell SLO metric, we reach the maxReplicas of 3.
+        assertEquals(1, numOfClonedApps);
+    }
+
+    /**
      * Case: Two containers on one pm, each container hosts one app.Both containers sell
      * 100 VCPU and buy 100 CPU from pm. The pm sells only 250 CPU.
      *
