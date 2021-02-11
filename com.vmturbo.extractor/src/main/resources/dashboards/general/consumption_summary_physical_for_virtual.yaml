@@ -295,12 +295,16 @@ panels:
           AND m.type = 'STORAGE_AMOUNT'
           AND e.oid = m.entity_oid
           AND e.type = 'VIRTUAL_MACHINE'
+      ), entity_timestamp_aggregation AS (
+        SELECT time, entity_oid, sum(value) as value
+        FROM metrics_data
+        GROUP BY time, entity_oid
       ), daily_avg_metrics as (
         SELECT
           date_trunc('day', m.time) as "time",
           m.entity_oid,
           avg(m.value) as value
-          FROM metrics_data m
+          FROM entity_timestamp_aggregation m
           ${GroupClause:raw}
         GROUP BY 1, 2
       )
@@ -409,12 +413,16 @@ panels:
           AND m.type = 'STORAGE_ACCESS'
           AND e.oid = m.entity_oid
           AND e.type = 'VIRTUAL_MACHINE'
+      ), entity_timestamp_aggregation AS (
+        SELECT time, entity_oid, sum(value) as value
+        FROM metrics_data
+        GROUP BY time, entity_oid
       ), daily_avg_metrics as (
         SELECT
           date_trunc('day', m.time) as "time",
           m.entity_oid,
           avg(m.value) as value
-          FROM metrics_data m
+          FROM entity_timestamp_aggregation m
           ${GroupClause:raw}
         GROUP BY 1, 2
       )
@@ -542,20 +550,24 @@ panels:
     rawQuery: true
     rawSql: |-
       WITH metrics_data AS (
-        SELECT m.entity_oid, e.name as entity_name, m.consumed as value, m.type as metric_type
+        SELECT m.entity_oid, e.name as entity_name, m.consumed as value, m.type as metric_type, m.time
         FROM metric m
         JOIN entity e ON (e.oid = m.entity_oid)
         ${GroupClause:raw}
         WHERE m.time  BETWEEN $__timeFrom() AND $__timeTo()
           AND m.type IN ('CPU', 'MEM', 'STORAGE_AMOUNT')
           AND e.type = 'VIRTUAL_MACHINE'
+      ), entity_timestamp_aggregation AS (
+         SELECT entity_oid, entity_name, sum(value) as value, metric_type
+         FROM metrics_data
+         GROUP BY time, entity_oid, entity_name, metric_type
       )
       SELECT
         m.entity_name as "VM Name",
         avg(m.value) FILTER (WHERE m.metric_type = 'MEM') AS "Mem",
         avg(m.value) FILTER (WHERE m.metric_type = 'CPU') AS "CPU",
         avg(m.value) FILTER (WHERE m.metric_type = 'STORAGE_AMOUNT') AS "Storage"
-      FROM metrics_data m
+      FROM entity_timestamp_aggregation m
       GROUP BY m.entity_oid, m.entity_name
       ORDER BY m.entity_name
     refId: A
