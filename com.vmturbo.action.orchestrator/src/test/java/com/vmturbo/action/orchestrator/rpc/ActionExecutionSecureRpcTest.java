@@ -46,6 +46,7 @@ import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
 import com.vmturbo.action.orchestrator.action.AtomicActionSpecsCache;
+import com.vmturbo.action.orchestrator.action.AuditedActionsManager;
 import com.vmturbo.action.orchestrator.action.RejectedActionsDAO;
 import com.vmturbo.action.orchestrator.approval.ActionApprovalManager;
 import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
@@ -162,6 +163,9 @@ public class ActionExecutionSecureRpcTest {
 
     private final EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
 
+    private final ActionAuditSender actionAuditSender = mock(ActionAuditSender.class);
+    private final AuditedActionsManager auditedActionsManager = mock(AuditedActionsManager.class);
+
     private final Clock clock = new MutableFixedClock(1_000_000);
 
     private final UserSessionContext userSessionContext = mock(UserSessionContext.class);
@@ -185,8 +189,11 @@ public class ActionExecutionSecureRpcTest {
         userSessionContext,
         acceptedActionsStore,
         rejectedActionsStore,
+        auditedActionsManager,
+        actionAuditSender,
         500,
-        false);
+        false,
+        777777L);
     private ActionsServiceBlockingStub actionOrchestratorServiceClient;
     private ActionsServiceBlockingStub actionOrchestratorServiceClientWithInterceptor;
     private ActionStore actionStoreSpy;

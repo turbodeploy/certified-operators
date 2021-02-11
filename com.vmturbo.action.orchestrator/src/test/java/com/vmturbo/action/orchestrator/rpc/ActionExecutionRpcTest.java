@@ -43,15 +43,14 @@ import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
 import com.vmturbo.action.orchestrator.action.AtomicActionSpecsCache;
+import com.vmturbo.action.orchestrator.action.AuditedActionsManager;
 import com.vmturbo.action.orchestrator.action.RejectedActionsDAO;
 import com.vmturbo.action.orchestrator.approval.ActionApprovalManager;
-import com.vmturbo.action.orchestrator.approval.ActionApprovalSender;
 import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
 import com.vmturbo.action.orchestrator.execution.ActionAutomationManager;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTargetInfo;
-import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ExecutionStartException;
 import com.vmturbo.action.orchestrator.execution.ImmutableActionTargetInfo;
 import com.vmturbo.action.orchestrator.execution.ProbeCapabilityCache;
@@ -126,6 +125,8 @@ public class ActionExecutionRpcTest {
     private final ActionHistoryDao actionHistoryDao = mock(ActionHistoryDao.class);
     private final ActionExecutionListener actionExecutionListener =
         Mockito.mock(ActionExecutionListener.class);
+    private final ActionAuditSender actionAuditSender = mock(ActionAuditSender.class);
+    private final AuditedActionsManager auditedActionsManager = mock(AuditedActionsManager.class);
 
     private final ActionExecutor actionExecutor = mock(ActionExecutor.class);
     private final ProbeCapabilityCache probeCapabilityCache = mock(ProbeCapabilityCache.class);
@@ -196,8 +197,11 @@ public class ActionExecutionRpcTest {
             userSessionContext,
             acceptedActionsStore,
             rejectedActionsStore,
+            auditedActionsManager,
+            actionAuditSender,
             500,
-            false);
+            false,
+            777777L);
         grpcServer = GrpcTestServer.newServer(actionsRpcService, settingPolicyServiceMole,
                 supplyChainServiceMole, repositoryServiceMole);
         grpcServer.start();
@@ -578,8 +582,11 @@ public class ActionExecutionRpcTest {
                     userSessionContext,
                     acceptedActionsStore,
                     rejectedActionsStore,
+                    auditedActionsManager,
+                    actionAuditSender,
                     500,
-                    false);
+                    false,
+                    777777L);
         final GrpcTestServer grpcServer = GrpcTestServer.newServer(actionsRpcService,
                 supplyChainServiceMole, repositoryServiceMole);
         grpcServer.start();

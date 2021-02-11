@@ -2133,6 +2133,20 @@ message RemoveActionsAcceptancesAndRejectionsRequest {
 message RemoveActionsAcceptancesAndRejectionsResponse {
 }
 
+// Request message for resending audited actions.
+message ResendAuditedActionsRequest {
+    // The ID of the workflow.
+    // Actions earlier audited with the workflow will be resent for audit again if they still
+    // recommended by market and have this associated workflow.
+    optional int64 workflow_id = 1;
+}
+
+// Response message for resending audited actions.
+message ResendAuditedActionsResponse {
+    // The number of actions which were resent.
+    optional int32 audited_actions_count = 1;
+}
+
 // A service responsible for getting information about accepting actions and getting action information.
 service ActionsService {
     // Accepts an action, queueing it for execution.
@@ -2202,4 +2216,9 @@ service ActionsService {
 
     // Removes acceptance and rejection for all actions which associated with certain policy.
     rpc RemoveActionsAcceptancesAndRejections (RemoveActionsAcceptancesAndRejectionsRequest) returns (RemoveActionsAcceptancesAndRejectionsResponse);
+
+    // Resends actual actions from earlier audited actions associated with certain workflow.
+    // This call don't affect the data in audit bookkeeping cache and it works only for
+    // orchestration targets using internal bookkeeping mechanism (02/10/2021 only ActionStreamKafka)
+    rpc ResendAuditEvents (ResendAuditedActionsRequest) returns (ResendAuditedActionsResponse);
 }

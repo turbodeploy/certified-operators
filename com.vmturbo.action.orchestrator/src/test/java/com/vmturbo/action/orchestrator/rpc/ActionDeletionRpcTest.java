@@ -18,8 +18,10 @@ import org.mockito.Mockito;
 
 import com.vmturbo.action.orchestrator.action.AcceptedActionsDAO;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
+import com.vmturbo.action.orchestrator.action.AuditedActionsManager;
 import com.vmturbo.action.orchestrator.action.RejectedActionsDAO;
 import com.vmturbo.action.orchestrator.approval.ActionApprovalManager;
+import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
 import com.vmturbo.action.orchestrator.stats.HistoricalActionStatReader;
 import com.vmturbo.action.orchestrator.stats.query.live.CurrentActionStatReader;
 import com.vmturbo.action.orchestrator.store.ActionStore;
@@ -46,6 +48,9 @@ public class ActionDeletionRpcTest {
     private final CurrentActionStatReader liveStatReader = mock(CurrentActionStatReader.class);
     private final AcceptedActionsDAO acceptedActionsStore = Mockito.mock(AcceptedActionsDAO.class);
     private final RejectedActionsDAO rejectedActionsStore = Mockito.mock(RejectedActionsDAO.class);
+    private final ActionAuditSender actionAuditSender = Mockito.mock(ActionAuditSender.class);
+    private final AuditedActionsManager auditedActionsManager =
+            Mockito.mock(AuditedActionsManager.class);
 
     private final long topologyContextId = 3;
 
@@ -80,8 +85,11 @@ public class ActionDeletionRpcTest {
             userSessionContext,
             acceptedActionsStore,
             rejectedActionsStore,
+            auditedActionsManager,
+            actionAuditSender,
             500,
-            false);
+            false,
+            777777L);
         grpcServer = GrpcTestServer.newServer(actionsRpcService);
         grpcServer.start();
         actionOrchestratorServiceClient = ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel());

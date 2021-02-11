@@ -12,9 +12,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -23,10 +27,14 @@ import io.grpc.Status;
 import io.grpc.StatusException;
 import io.grpc.stub.StreamObserver;
 
+import org.hamcrest.CoreMatchers;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.Mockito;
+import org.mockito.MockitoAnnotations;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.AcceptedActionsDAO;
@@ -37,15 +45,19 @@ import com.vmturbo.action.orchestrator.action.ActionPaginator;
 import com.vmturbo.action.orchestrator.action.ActionSchedule;
 import com.vmturbo.action.orchestrator.action.ActionTranslation;
 import com.vmturbo.action.orchestrator.action.ActionView;
+import com.vmturbo.action.orchestrator.action.AuditedActionInfo;
+import com.vmturbo.action.orchestrator.action.AuditedActionsManager;
 import com.vmturbo.action.orchestrator.action.RejectedActionsDAO;
 import com.vmturbo.action.orchestrator.action.TestActionBuilder;
 import com.vmturbo.action.orchestrator.approval.ActionApprovalManager;
+import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
 import com.vmturbo.action.orchestrator.exception.ExecutionInitiationException;
 import com.vmturbo.action.orchestrator.stats.HistoricalActionStatReader;
 import com.vmturbo.action.orchestrator.stats.query.live.CurrentActionStatReader;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.LiveActionStore;
+import com.vmturbo.action.orchestrator.store.query.QueryableActionViews;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.action.ActionDTO;
@@ -58,6 +70,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByDateResponse.Builder;
+import com.vmturbo.common.protobuf.action.ActionDTO.ResendAuditedActionsRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.ResendAuditedActionsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 
 /**
@@ -88,12 +102,18 @@ public class ActionsRpcServiceTest {
     private ActionStore actionStore;
     private ActionsRpcService actionsRpcService;
     private ActionsRpcService actionsByImpactOidRpcService;
+    private ActionAuditSender actionAuditSender;
+    private AuditedActionsManager auditedActionsManager;
+
+    @Captor
+    private ArgumentCaptor<Collection<? extends ActionView>> actionsCaptor;
 
     /**
      * Setups the environment for test.
      */
     @Before
     public void setup() {
+        MockitoAnnotations.initMocks(this);
         actionStorehouse = mock(ActionStorehouse.class);
         actionApprovalManager = mock(ActionApprovalManager.class);
         actionTranslator = mock(ActionTranslator.class);
@@ -104,6 +124,8 @@ public class ActionsRpcServiceTest {
         acceptedActionsStore = mock(AcceptedActionsDAO.class);
         rejectedActionsStore = mock(RejectedActionsDAO.class);
         actionStore = mock(ActionStore.class);
+        actionAuditSender = Mockito.mock(ActionAuditSender.class);
+        auditedActionsManager = Mockito.mock(AuditedActionsManager.class);
         actionsRpcService = new ActionsRpcService(
             null,
             actionStorehouse,
@@ -115,8 +137,11 @@ public class ActionsRpcServiceTest {
             userSessionContext,
             acceptedActionsStore,
             rejectedActionsStore,
-            10,
-            false);
+                auditedActionsManager,
+                actionAuditSender,
+                10,
+                false,
+                777777L);
         actionsByImpactOidRpcService = new ActionsRpcService(
             null,
             actionStorehouse,
@@ -128,10 +153,12 @@ public class ActionsRpcServiceTest {
             userSessionContext,
             acceptedActionsStore,
             rejectedActionsStore,
-            10,
-            true);
+                auditedActionsManager,
+                actionAuditSender,
+                10,
+                true,
+                777777L);
         when(actionStorehouse.getStore(CONTEXT_ID)).thenReturn(Optional.of(actionStore));
-
     }
 
     @Test
@@ -334,6 +361,75 @@ public class ActionsRpcServiceTest {
         actionsRpcService.getAction(getActionRequest, observer);
         // actionByStableId should be sent to approval manager for execution
         assertEquals(actionByLegacyId, actionArgumentCaptor.getValue());
+    }
+
+    /**
+     * Tests that {@link ActionsRpcService#resendAuditEvents(ResendAuditedActionsRequest, StreamObserver)}
+     * triggers resending only of actual actions from audited bookkeeping cache.
+     *
+     * @throws Exception if something goes wrong
+     */
+    @Test
+    public void testResendAuditedActions() throws Exception {
+        // ARRANGE
+        final long actualActionStableId = 1L;
+        final long clearedActionStableId = 2L;
+        final long auditWorkflowId = 3L;
+        final AuditedActionInfo auditedAction =
+                new AuditedActionInfo(actualActionStableId, auditWorkflowId, Optional.empty());
+        final AuditedActionInfo auditedAndClearedAction =
+                new AuditedActionInfo(clearedActionStableId, auditWorkflowId,
+                        Optional.of(System.currentTimeMillis()));
+        Mockito.when(auditedActionsManager.getAlreadySentActions(auditWorkflowId))
+                .thenReturn(Arrays.asList(auditedAction, auditedAndClearedAction));
+        final StreamObserver<ResendAuditedActionsResponse> observer =
+                Mockito.mock(StreamObserver.class);
+        final ResendAuditedActionsRequest resendActionsRequest =
+                ResendAuditedActionsRequest.newBuilder().setWorkflowId(auditWorkflowId).build();
+        final ActionView actualActionMock = new Action(
+                ActionOrchestratorTestUtils.createMoveRecommendation(actualActionStableId), 19,
+                actionModeCalculator, actualActionStableId);
+        final QueryableActionViews actionViews = Mockito.mock(QueryableActionViews.class);
+        Mockito.when(actionStore.getActionViews()).thenReturn(actionViews);
+        Mockito.when(actionViews.getByRecommendationId(Collections.singleton(actualActionStableId)))
+                .thenReturn(Stream.of(actualActionMock));
+        Mockito.when(actionAuditSender.resendActionEvents(
+                Mockito.eq(Collections.singleton(actualActionMock)))).thenReturn(1);
+
+        // ACT
+        actionsRpcService.resendAuditEvents(resendActionsRequest, observer);
+
+        // ASSERT
+        Mockito.verify(observer)
+                .onNext(Mockito.eq(ResendAuditedActionsResponse.newBuilder()
+                        .setAuditedActionsCount(1)
+                        .build()));
+        Mockito.verify(observer).onCompleted();
+        Mockito.verify(actionAuditSender)
+                .resendActionEvents(Collections.singleton(actualActionMock));
+    }
+
+    /**
+     * Test case when resend request has missed workflow id.
+     */
+    @Test
+    public void testFailedResendAuditedActions() {
+        // ARRANGE
+        final StreamObserver<ResendAuditedActionsResponse> observer =
+                Mockito.mock(StreamObserver.class);
+        final ResendAuditedActionsRequest resendActionsRequestWithMissedWorkflow =
+                ResendAuditedActionsRequest.newBuilder().build();
+        final ArgumentCaptor<Throwable> exceptionCaptor = ArgumentCaptor.forClass(Throwable.class);
+
+        // ACT
+        actionsRpcService.resendAuditEvents(resendActionsRequestWithMissedWorkflow, observer);
+
+        // ASSERT
+        Mockito.verify(observer).onError(exceptionCaptor.capture());
+        Assert.assertThat(exceptionCaptor.getValue().getMessage(),
+                CoreMatchers.containsString("Missing required parameter 'workflowId"));
+        Mockito.verify(observer, Mockito.never()).onNext(Mockito.any());
+        Mockito.verify(observer, Mockito.never()).onCompleted();
     }
 
     private Action executableMoveAction(

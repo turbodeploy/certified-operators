@@ -619,7 +619,7 @@ public class Action implements ActionView {
                 .getValue();
             try {
                 // the value of the Workflow Setting denotes the ID of the Workflow to apply
-                final long workflowId = Long.valueOf(workflowIdString);
+                final long workflowId = Long.parseLong(workflowIdString);
                 return Optional.of(workflowStore.fetchWorkflow(workflowId)
                         .orElseThrow(() -> new WorkflowStoreException(
                                 "Workflow not found, id: " + workflowIdString)));

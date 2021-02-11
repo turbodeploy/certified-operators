@@ -230,7 +230,7 @@ public class PersistentWorkflowIdentityStore implements PersistentIdentityStore<
         public WorkflowHeader(@Nonnull final IdentityMatchingAttributes attrs, final long id)
                 throws NumberFormatException, IdentityStoreException {
             this.id = id;
-            this.targetId = Long.valueOf(Objects.requireNonNull(attrs.getMatchingAttribute(WORKFLOW_TARGET_ID)
+            this.targetId = Long.parseLong(Objects.requireNonNull(attrs.getMatchingAttribute(WORKFLOW_TARGET_ID)
                     .getAttributeValue()));
             this.externalName = Objects.requireNonNull(attrs.getMatchingAttribute(WORKFLOW_NAME)
                     .getAttributeValue());

@@ -13,6 +13,7 @@ import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFac
 import com.vmturbo.action.orchestrator.action.ActionPaginator.DefaultActionPaginatorFactory;
 import com.vmturbo.action.orchestrator.approval.ActionApprovalManager;
 import com.vmturbo.action.orchestrator.approval.ExternalActionApprovalManager;
+import com.vmturbo.action.orchestrator.audit.AuditCommunicationConfig;
 import com.vmturbo.action.orchestrator.execution.ActionExecutionConfig;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.notifications.NotificationsConfig;
@@ -78,6 +79,9 @@ public class RpcConfig {
     @Autowired
     private NotificationsConfig notificationsConfig;
 
+    @Autowired
+    private AuditCommunicationConfig auditCommunicationConfig;
+
     @Value("${actionPaginationDefaultLimit:100}")
     private int actionPaginationDefaultLimit;
 
@@ -115,8 +119,11 @@ public class RpcConfig {
             userSessionConfig.userSessionContext(),
             actionStoreConfig.acceptedActionsStore(),
             actionStoreConfig.rejectedActionsStore(),
+            auditCommunicationConfig.auditedActionsManager(),
+            auditCommunicationConfig.actionAuditSender(),
             actionPaginationMaxLimit,
-            useStableActionIdAsUuid);
+            useStableActionIdAsUuid,
+            topologyProcessorConfig.realtimeTopologyContextId());
     }
 
     /**
