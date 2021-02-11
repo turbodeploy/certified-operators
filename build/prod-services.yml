@@ -842,6 +842,17 @@ services:
       instance_id: mediation-newrelic-1
     restart: always
 
+  mediation-weblogic-prod:
+    extends:
+      file: common-services.yml
+      service: prod-mediation-component
+    image: turbonomic/com.vmturbo.mediation.weblogic.component
+    environment:
+      consul_host: consul
+      component_type: mediation-weblogic
+      instance_id: mediation-weblogic-1
+    restart: always
+
   mediation-udt-prod:
     extends:
       file: common-services.yml
