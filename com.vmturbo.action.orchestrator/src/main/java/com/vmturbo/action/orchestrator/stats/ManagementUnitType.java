@@ -33,7 +33,6 @@ public enum ManagementUnitType {
      */
     RESOURCE_GROUP(4);
 
-
     private final int numericValue;
 
     private final static ManagementUnitType[] types = ManagementUnitType.values();

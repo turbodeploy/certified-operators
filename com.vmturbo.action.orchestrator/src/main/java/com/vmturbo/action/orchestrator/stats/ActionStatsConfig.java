@@ -16,6 +16,7 @@ import com.vmturbo.action.orchestrator.stats.HistoricalActionStatReader.Combined
 import com.vmturbo.action.orchestrator.stats.aggregator.BusinessAccountActionAggregator.BusinessAccountActionAggregatorFactory;
 import com.vmturbo.action.orchestrator.stats.aggregator.ClusterActionAggregator.ClusterActionAggregatorFactory;
 import com.vmturbo.action.orchestrator.stats.aggregator.GlobalActionAggregator.GlobalAggregatorFactory;
+import com.vmturbo.action.orchestrator.stats.aggregator.PropagatedActionAggregator.PropagatedActionAggregatorFactory;
 import com.vmturbo.action.orchestrator.stats.aggregator.ResourceGroupActionAggregator.ResourceGroupActionAggregatorFactory;
 import com.vmturbo.action.orchestrator.stats.groups.ActionGroupStore;
 import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroupStore;
@@ -113,6 +114,16 @@ public class ActionStatsConfig {
         return new GlobalAggregatorFactory();
     }
 
+    /**
+     * Factory for propagated aggregators.
+     *
+     * @return The {@link PropagatedActionAggregatorFactory}.
+     */
+    @Bean
+    public PropagatedActionAggregatorFactory propagatedActionsAggregatorFactory() {
+        return new PropagatedActionAggregatorFactory(involvedEntitiesExpander());
+    }
+
     @Bean
     public StatsActionViewFactory snapshotFactory() {
         return new StatsActionViewFactory();
@@ -168,7 +179,8 @@ public class ActionStatsConfig {
                 mgmtUnitSubgroupStore(),
                 snapshotFactory(),
                 Arrays.asList(globalAggregatorFactory(), clusterAggregatorFactory(),
-                    businessAccountActionAggregatorFactory(), resourceGroupActionAggregatorFactory()),
+                    businessAccountActionAggregatorFactory(), resourceGroupActionAggregatorFactory(),
+                              propagatedActionsAggregatorFactory()),
                 globalConfig.actionOrchestratorClock(),
                 rollupConfig.rollupScheduler(),
                 rollupConfig.cleanupScheduler());
