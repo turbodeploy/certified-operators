@@ -156,6 +156,9 @@ public class SMATest {
         // vm2 scaling down and remaining in the same family will not lose the coupon coverage.
         testExactResult("2vm1ripostprocessingwithinfamily1.json");
 
+        // subroutine to utilize unused coupons.
+        testExactResult("2vm1ripostprocessingunusedcoupons.json");
+
 
 
     }
