@@ -447,7 +447,6 @@
                 <module>../com.vmturbo.mediation.netapp.component</module>
                 <module>../com.vmturbo.mediation.netflow.component</module>
                 <module>../com.vmturbo.mediation.newrelic.component</module>
-                <module>../com.vmturbo.mediation.weblogic.component</module>
                 <module>../com.vmturbo.mediation.nutanix.component</module>
                 <module>../com.vmturbo.mediation.appinsights.component</module>
                 <module>../com.vmturbo.mediation.oneview.component</module>
@@ -810,13 +809,6 @@
             <id>mediation-newrelic</id>
             <modules>
                 <module>../com.vmturbo.mediation.newrelic.component</module>
-            </modules>
-        </profile>
-
-        <profile>
-            <id>mediation-weblogic</id>
-            <modules>
-                <module>../com.vmturbo.mediation.weblogic.component</module>
             </modules>
         </profile>
 
