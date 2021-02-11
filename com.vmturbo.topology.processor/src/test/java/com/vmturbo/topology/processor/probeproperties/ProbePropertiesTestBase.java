@@ -3,11 +3,11 @@ package com.vmturbo.topology.processor.probeproperties;
 import java.util.Map;
 import java.util.Optional;
 
-import org.mockito.Mockito;
-import org.mockito.Spy;
-
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+
+import org.mockito.Mockito;
+import org.mockito.Spy;
 
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.kvstore.MapKeyValueStore;
@@ -25,8 +25,9 @@ public class ProbePropertiesTestBase {
     protected final ProbeStore probeStore = Mockito.mock(ProbeStore.class);
     protected final TargetStore targetStore = Mockito.mock(TargetStore.class);
     protected final KeyValueStore keyValueStore = new MapKeyValueStore();
-    protected final KVBackedProbePropertyStore
-        probePropertyStore = new KVBackedProbePropertyStore(probeStore, targetStore, keyValueStore);
+    protected final KVBackedProbePropertyStore probePropertyStore =
+                    new KVBackedProbePropertyStore(probeStore, targetStore, keyValueStore,
+                                    Mockito.mock(GlobalProbePropertiesSettingsLoader.class));
 
     @Spy
     protected final RemoteMediationServer mediationServer = Mockito.mock(RemoteMediationServer.class);

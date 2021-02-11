@@ -10,16 +10,20 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
-
-import com.vmturbo.platform.sdk.common.util.SDKProbeType;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableMap;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import com.vmturbo.group.api.SettingMessages.SettingNotification;
 import com.vmturbo.kvstore.KeyValueStore;
+import com.vmturbo.mediation.common.PropertyKeyName;
+import com.vmturbo.mediation.common.PropertyKeyName.PropertyKeyType;
 import com.vmturbo.platform.sdk.common.MediationMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.SetProperties;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.probes.ProbeException;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.targets.Target;
@@ -43,15 +47,8 @@ import com.vmturbo.topology.processor.targets.TargetStoreException;
  * alphanumeric characters, dots, and underscores.
  */
 public class KVBackedProbePropertyStore implements ProbePropertyStore {
-    private final ProbeStore probeStore;
-    private final TargetStore targetStore;
-    private final KeyValueStore kvStore;
-
     private static final String PROBE_PROPERTY_PREFIX = "probeproperties/";
-    private static final String PROBE_SPECIFIC_PREFIX = "probe.";
-    private static final String TARGET_SPECIFIC_PREFIX = "target.";
-
-    private final Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger();
 
     /**
      * This maps probe names to maps of probe properties that are hard-coded, i.e., they are
@@ -70,6 +67,11 @@ public class KVBackedProbePropertyStore implements ProbePropertyStore {
             .put(SDKProbeType.AZURE.getProbeType(), ImmutableMap.of("probe.Azure.save.cost.usage.report", "false"))
             .build();
 
+    private final ProbeStore probeStore;
+    private final TargetStore targetStore;
+    private final KeyValueStore kvStore;
+    private final GlobalProbePropertiesSettingsLoader globalPropertiesLoader;
+
     /**
      * Create a probe property store.  Access to a probe store and a target store is given, so that
      * it is possible to make sanity checks (existence of probes and targets, correct probe / target
@@ -78,14 +80,17 @@ public class KVBackedProbePropertyStore implements ProbePropertyStore {
      * @param probeStore probe store.
      * @param targetStore target store.
      * @param kvStore key value store where probe properties will be persisted.
+     * @param globalPropertiesLoader accessor for the policies that need to be passed to probes as properties
      */
     public KVBackedProbePropertyStore(
             @Nonnull ProbeStore probeStore,
             @Nonnull TargetStore targetStore,
-            @Nonnull KeyValueStore kvStore) {
+            @Nonnull KeyValueStore kvStore,
+            @Nonnull GlobalProbePropertiesSettingsLoader globalPropertiesLoader) {
         this.probeStore = Objects.requireNonNull(probeStore);
         this.targetStore = Objects.requireNonNull(targetStore);
         this.kvStore = Objects.requireNonNull(kvStore);
+        this.globalPropertiesLoader = globalPropertiesLoader;
     }
 
     @Override
@@ -188,11 +193,14 @@ public class KVBackedProbePropertyStore implements ProbePropertyStore {
                 resultBuilder.putAllProperties(hardCodedPropertiesForProbe);
             }
 
+            // add properties that have global setting counterparts
+            resultBuilder.putAllProperties(globalPropertiesLoader.getProbeProperties());
+
             // add probe properties - note that they get priority over hard-coded ones
             getProbeSpecificProbeProperties(probeId)
                 .forEach(keyValuePair ->
                     resultBuilder.putProperties(
-                        transformToMediationPropertyKey(true, probeName, keyValuePair.getKey()),
+                        transformToMediationPropertyKey(PropertyKeyType.PROBE, probeName, keyValuePair.getKey()),
                         keyValuePair.getValue()));
         }
 
@@ -213,9 +221,11 @@ public class KVBackedProbePropertyStore implements ProbePropertyStore {
             }
             getTargetSpecificProbeProperties(target.getProbeId(), targetId)
                 .forEach(keyValuePair ->
-                    resultBuilder.putProperties(
-                        transformToMediationPropertyKey(false, targetIdFieldValue, keyValuePair.getKey()),
-                        keyValuePair.getValue()));
+                            resultBuilder.putProperties(
+                                            transformToMediationPropertyKey(PropertyKeyType.TARGET,
+                                                            targetIdFieldValue,
+                                                            keyValuePair.getKey()),
+                                            keyValuePair.getValue()));
         }
 
         return resultBuilder.build();
@@ -258,6 +268,11 @@ public class KVBackedProbePropertyStore implements ProbePropertyStore {
         kvStore.removeKeysWithPrefix(kvStoreKey);
     }
 
+    @Override
+    public boolean updatePropertiesOnSettingsChange(@Nonnull SettingNotification settingChange) {
+        return globalPropertiesLoader.updateProbeProperties(settingChange);
+    }
+
     /**
      * Transform a probe property key to a key that conforms to the conventions of
      * communication between the topology processor and the mediation clients.  The mediation probe
@@ -265,27 +280,23 @@ public class KVBackedProbePropertyStore implements ProbePropertyStore {
      * <ul>
      *     <li>{@code "probe."} if this is a probe-specific probe property</li>
      *     <li>{@code "target."} if this is a target-specific probe property</li>
+     *     <li>{@code "global."} if this is property that applies to all targets</li>
      * </ul>
      * The second part is the name of the probe or the name of the target, followed by a dot.
      * The third part is the name of the probe property.
      *
-     * @param isProbeSpecific whether this a probe specific probe property.
+     * @param keyType whether this a probe/target/global specific probe property.
      * @param probeOrTargetName probe or target name.
      * @param probePropertyName probe property name.
      * @return mediation key.
      */
     @Nonnull
-    private String transformToMediationPropertyKey(
-            boolean isProbeSpecific,
-            @Nonnull String probeOrTargetName,
-            @Nonnull String probePropertyName) {
-        return
-            new StringBuilder()
-                .append(isProbeSpecific ? PROBE_SPECIFIC_PREFIX : TARGET_SPECIFIC_PREFIX)
-                .append(probeOrTargetName)
-                .append(".")
-                .append(probePropertyName)
-                .toString();
+    private static String transformToMediationPropertyKey(
+                    @Nonnull PropertyKeyType keyType,
+                    @Nonnull String probeOrTargetName,
+                    @Nonnull String probePropertyName) {
+        PropertyKeyName pkn = new PropertyKeyName(keyType, probeOrTargetName, probePropertyName);
+        return pkn.toString();
     }
 
     private void validateProbeId(long probeId) throws ProbeException {

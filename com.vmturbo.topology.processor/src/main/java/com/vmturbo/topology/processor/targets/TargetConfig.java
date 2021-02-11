@@ -1,6 +1,11 @@
 package com.vmturbo.topology.processor.targets;
 
 import java.util.Objects;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadFactory;
+
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -8,6 +13,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.identity.store.CachingIdentityStore;
@@ -20,6 +26,7 @@ import com.vmturbo.topology.processor.KVConfig;
 import com.vmturbo.topology.processor.TopologyProcessorDBConfig;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
 import com.vmturbo.topology.processor.entity.EntityConfig;
+import com.vmturbo.topology.processor.probeproperties.GlobalProbePropertiesSettingsLoader;
 import com.vmturbo.topology.processor.probeproperties.KVBackedProbePropertyStore;
 import com.vmturbo.topology.processor.probeproperties.ProbePropertyStore;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
@@ -28,8 +35,8 @@ import com.vmturbo.topology.processor.probes.ProbeConfig;
  * Configuration for the target package.
  */
 @Configuration
-@Import({ProbeConfig.class, KVConfig.class, TopologyProcessorDBConfig.class, GroupClientConfig.class,
-        RepositoryClientConfig.class, SecureKeyValueStoreConfig.class})
+@Import({ProbeConfig.class, KVConfig.class, TopologyProcessorDBConfig.class,
+    GroupClientConfig.class, RepositoryClientConfig.class, SecureKeyValueStoreConfig.class})
 public class TargetConfig {
 
     @Value("${identityGeneratorPrefix:1}")
@@ -58,6 +65,11 @@ public class TargetConfig {
 
     @Autowired
     private EntityConfig entityConfig;
+
+    @Value("${globalProbeSettingsLoadRetryIntervalSec:10}")
+    private long globalProbeSettingsLoadRetryIntervalSec;
+    @Value("${globalProbeSettingsLoadTimeoutSec:3}")
+    private long globalProbeSettingsLoadTimeoutSec;
 
     @Bean
     public TargetStore targetStore() {
@@ -115,6 +127,22 @@ public class TargetConfig {
                 entityConfig.entityStore());
     }
 
+    @Bean(destroyMethod = "shutdownNow")
+    public ScheduledExecutorService globalSettingsLoadingThreadpool() {
+        final ThreadFactory threadFactory =
+                new ThreadFactoryBuilder().setNameFormat("global-settings-loader").build();
+        return Executors.newScheduledThreadPool(1, threadFactory);
+    }
+
+    @Bean
+    public GlobalProbePropertiesSettingsLoader globalProbePropertiesSettingsLoader() {
+        return new GlobalProbePropertiesSettingsLoader(
+                        SettingServiceGrpc.newBlockingStub(groupClientConfig.groupChannel()),
+                        globalSettingsLoadingThreadpool(),
+                        globalProbeSettingsLoadRetryIntervalSec,
+                        globalProbeSettingsLoadTimeoutSec);
+    }
+
     /**
      * Per-probe and per-target properties to deliver to probe instasnces.
      *
@@ -125,7 +153,8 @@ public class TargetConfig {
         return new KVBackedProbePropertyStore(
                 Objects.requireNonNull(probeConfig.probeStore()),
                 Objects.requireNonNull(targetStore()),
-                Objects.requireNonNull(kvConfig.keyValueStore()));
+                Objects.requireNonNull(kvConfig.keyValueStore()),
+                globalProbePropertiesSettingsLoader());
     }
 
 }

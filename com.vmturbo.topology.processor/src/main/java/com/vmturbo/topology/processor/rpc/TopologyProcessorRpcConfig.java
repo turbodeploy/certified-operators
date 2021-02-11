@@ -12,6 +12,7 @@ import com.vmturbo.common.protobuf.probe.ProbeDTOREST.ProbeRpcServiceController;
 import com.vmturbo.common.protobuf.topology.DiscoveredGroupREST.DiscoveredGroupServiceController;
 import com.vmturbo.common.protobuf.topology.StitchingREST.StitchingJournalServiceController;
 import com.vmturbo.common.protobuf.topology.TopologyDTOREST;
+import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.kvstore.KeyValueStoreConfig;
 import com.vmturbo.topology.processor.ClockConfig;
 import com.vmturbo.topology.processor.communication.SdkServerConfig;
@@ -42,7 +43,8 @@ import com.vmturbo.topology.processor.topology.TopologyRpcService;
     TargetConfig.class,
     StitchingConfig.class,
     SdkServerConfig.class,
-    OperationConfig.class
+    OperationConfig.class,
+    GroupClientConfig.class
 })
 public class TopologyProcessorRpcConfig {
 
@@ -78,6 +80,9 @@ public class TopologyProcessorRpcConfig {
 
     @Autowired
     private SdkServerConfig sdkServerConfig;
+
+    @Autowired
+    private GroupClientConfig groupClientConfig;
 
     @Value("${waitForBroadcastTimeoutMin:60}")
     private long waitForBroadcastTimeoutMin;
@@ -151,7 +156,9 @@ public class TopologyProcessorRpcConfig {
     @Bean
     public ProbeRpcService probeService() {
         return new ProbeRpcService(targetConfig.probePropertyStore(),
-            sdkServerConfig.remoteMediation());
+            sdkServerConfig.remoteMediation(),
+            groupClientConfig.settingsClient(),
+            probeConfig.probeStore());
     }
 
     @Bean

@@ -19,7 +19,7 @@ import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.group.GroupComponentDBConfig;
 import com.vmturbo.group.IdentityProviderConfig;
 import com.vmturbo.group.api.SettingMessages.SettingNotification;
-import com.vmturbo.group.api.SettingsUpdatesReciever;
+import com.vmturbo.group.api.SettingsUpdatesReceiver;
 import com.vmturbo.group.group.GroupConfig;
 import com.vmturbo.group.schedule.ScheduleConfig;
 import com.vmturbo.plan.orchestrator.api.impl.PlanGarbageDetector;
@@ -110,7 +110,7 @@ public class SettingConfig {
     @Bean
     public IMessageSender<SettingNotification> settingMessageSender() {
         return baseKafkaProducerConfig.kafkaMessageSender()
-                .messageSender(SettingsUpdatesReciever.SETTINGS_UPDATES_TOPIC);
+                .messageSender(SettingsUpdatesReceiver.SETTINGS_UPDATES_TOPIC);
     }
 
 

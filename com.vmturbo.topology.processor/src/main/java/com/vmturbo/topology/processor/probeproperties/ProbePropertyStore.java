@@ -10,6 +10,7 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.group.api.SettingMessages.SettingNotification;
 import com.vmturbo.platform.sdk.common.MediationMessage.SetProperties;
 import com.vmturbo.topology.processor.probes.ProbeException;
 import com.vmturbo.topology.processor.targets.TargetStoreException;
@@ -151,6 +152,14 @@ public interface ProbePropertyStore {
             throws ProbeException, TargetStoreException {
         return buildSetPropertiesMessageForProbe(Collections.singleton(probeId));
     }
+
+    /**
+     * React to the global policies change.
+     *
+     * @param settingChange change in the global policies values
+     * @return true if settings change requires probe properties update
+     */
+    boolean updatePropertiesOnSettingsChange(@Nonnull SettingNotification settingChange);
 
     /**
      * Identifies a specific probe property.

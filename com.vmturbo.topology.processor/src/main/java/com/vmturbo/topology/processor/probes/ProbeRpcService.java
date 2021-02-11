@@ -12,6 +12,7 @@ import javax.annotation.Nonnull;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
+import org.apache.commons.collections.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -34,6 +35,10 @@ import com.vmturbo.common.protobuf.probe.ProbeDTO.UpdateProbePropertyTableReques
 import com.vmturbo.common.protobuf.probe.ProbeDTO.UpdateProbePropertyTableResponse;
 import com.vmturbo.common.protobuf.probe.ProbeRpcServiceGrpc.ProbeRpcServiceImplBase;
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.group.api.SettingsUpdatesReceiver;
+import com.vmturbo.group.api.SettingMessages.SettingNotification;
+import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
+import com.vmturbo.group.api.SettingsListener;
 import com.vmturbo.topology.processor.communication.RemoteMediationServer;
 import com.vmturbo.topology.processor.probeproperties.ProbePropertyStore;
 import com.vmturbo.topology.processor.probeproperties.ProbePropertyStore.ProbePropertyKey;
@@ -43,9 +48,10 @@ import com.vmturbo.topology.processor.targets.TargetStoreException;
 /**
  * Service for getting probe information and handling probe properties.
  */
-public class ProbeRpcService extends ProbeRpcServiceImplBase {
+public class ProbeRpcService extends ProbeRpcServiceImplBase implements SettingsListener {
     private final ProbePropertyStore probePropertyStore;
     private final RemoteMediationServer mediationServer;
+    private final ProbeStore probeStore;
     private final Logger logger = LogManager.getLogger();
 
     /**
@@ -54,11 +60,17 @@ public class ProbeRpcService extends ProbeRpcServiceImplBase {
      *
      * @param probePropertyStore probe/target property store
      * @param mediationServer mediation service.
+     * @param settingsUpdate provides notifications for settings changes
+     * @param probeStore probe store
      */
     public ProbeRpcService(@Nonnull ProbePropertyStore probePropertyStore,
-            @Nonnull RemoteMediationServer mediationServer) {
+                    @Nonnull RemoteMediationServer mediationServer,
+                    @Nonnull SettingsUpdatesReceiver settingsUpdate,
+                    @Nonnull ProbeStore probeStore) {
         this.mediationServer = Objects.requireNonNull(mediationServer);
         this.probePropertyStore = probePropertyStore;
+        this.probeStore = probeStore;
+        settingsUpdate.addSettingsListener(this);
     }
 
     @Override
@@ -286,6 +298,38 @@ public class ProbeRpcService extends ProbeRpcServiceImplBase {
         // send void response
         response.onNext(DeleteProbePropertyResponse.newBuilder().build());
         response.onCompleted();
+    }
+
+    @Override
+    public void onSettingsUpdated(SettingNotification settingChange) {
+        if (probePropertyStore.updatePropertiesOnSettingsChange(settingChange)) {
+            // all probes should be notified
+            logger.info("Global probe properties have changed, broadcasting to all probes");
+            for (Map.Entry<Long, ProbeInfo> id2info : probeStore.getProbes().entrySet()) {
+                long probeId = id2info.getKey();
+                String probeType = id2info.getValue().getProbeType();
+                try {
+                    try {
+                        // to avoid errors on unregistered/not currently connected probes
+                        if (CollectionUtils.isEmpty(probeStore.getTransport(probeId))) {
+                            continue;
+                        }
+                    } catch (ProbeException e) {
+                        // not an error
+                        continue;
+                    }
+                    // TODO this is inefficient if multiple different probes run in the same container
+                    // however mediation server does not expose per-transport operations
+                    logger.debug("Updating properties for {}", probeType);
+                    mediationServer.sendSetPropertiesRequest(
+                                    probeId,
+                                    probePropertyStore.buildSetPropertiesMessageForProbe(probeId));
+                } catch (InterruptedException | ProbeException | CommunicationException
+                                | TargetStoreException e) {
+                    logger.error("Failed to update probe properties for " + probeType, e);
+                }
+            }
+        }
     }
 
     private void sendProbePropertyMediationMessageForProbe(long probeId)
