@@ -3,6 +3,7 @@ package com.vmturbo.group.pipeline;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -23,6 +24,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.util.StopWatch;
 
+import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.common.CloudTypeEnum;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
@@ -38,6 +40,7 @@ import com.vmturbo.components.common.pipeline.Stage;
 import com.vmturbo.group.db.tables.pojos.GroupSupplementaryInfo;
 import com.vmturbo.group.group.GroupEnvironment;
 import com.vmturbo.group.group.GroupEnvironmentTypeResolver;
+import com.vmturbo.group.group.GroupSeverityCalculator;
 import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.group.service.CachingMemberCalculator;
 import com.vmturbo.group.service.CachingMemberCalculator.RegroupingResult;
@@ -89,9 +92,9 @@ public class Stages {
     }
 
     /**
-     * This stage stores supplementary group info (such as environment/cloud type and emptiness) in
-     * the database. It must be run after the group membership cache has been updated, in order to
-     * use it to efficiently calculate the various info that derive from members.
+     * This stage stores supplementary group info (such as environment/cloud type) in the database.
+     * It must be run after the group membership cache has been updated, in order to use it to
+     * efficiently calculate the various info that derive from members.
      */
     public static class StoreSupplementaryGroupInfoStage extends
             PassthroughStage<LongSet, GroupInfoUpdatePipelineContext> {
@@ -102,6 +105,8 @@ public class Stages {
 
         private final GroupEnvironmentTypeResolver groupEnvironmentTypeResolver;
 
+        private final GroupSeverityCalculator severityCalculator;
+
         private final IGroupStore groupStore;
 
         /**
@@ -110,15 +115,18 @@ public class Stages {
          * @param memberCache group membership cache.
          * @param searchServiceRpc gRPC service for requests to repository.
          * @param groupEnvironmentTypeResolver utility class to get group environment.
+         * @param severityCalculator calculates severity for groups.
          * @param groupStore used to store the updated info to the database.
          */
         public StoreSupplementaryGroupInfoStage(@Nonnull CachingMemberCalculator memberCache,
                 @Nonnull final SearchServiceBlockingStub searchServiceRpc,
                 @Nonnull final GroupEnvironmentTypeResolver groupEnvironmentTypeResolver,
+                @Nonnull final GroupSeverityCalculator severityCalculator,
                 @Nonnull final IGroupStore groupStore) {
             this.memberCache = memberCache;
             this.searchServiceRpc = searchServiceRpc;
             this.groupEnvironmentTypeResolver = groupEnvironmentTypeResolver;
+            this.severityCalculator = severityCalculator;
             this.groupStore = groupStore;
         }
 
@@ -134,9 +142,11 @@ public class Stages {
                         + "be updated.");
             }
             Multimap<Long, Long> discoveredGroups = groupStore.getDiscoveredGroupsWithTargets();
-            long[] groupCountsByEnvironmentType =
-                    new long[EnvironmentTypeEnum.EnvironmentType.values().length];
-            long[] groupCountsByCloudType = new long[CloudTypeEnum.CloudType.values().length];
+            Map<EnvironmentTypeEnum.EnvironmentType, Long> groupCountsByEnvironmentType =
+                    new EnumMap<>(EnvironmentTypeEnum.EnvironmentType.class);
+            Map<CloudTypeEnum.CloudType, Long> groupCountsByCloudType =
+                    new EnumMap<>(CloudTypeEnum.CloudType.class);
+            Map<Severity, Long> groupCountsBySeverity = new EnumMap<>(Severity.class);
             // iterate over all groups and calculate supplementary info
             Collection<GroupSupplementaryInfo> groupsToInsert = new ArrayList<>();
             stopWatch.start("calculateAndIngestDataToDatabase");
@@ -145,7 +155,6 @@ public class Stages {
                     // get group's members
                     Set<Long> groupEntities = memberCache.getGroupMembers(groupStore,
                             Collections.singleton(groupId), true);
-                    boolean isEmpty = groupEntities.size() == 0;
                     // calculate environment type based on members' environment type
                     GroupEnvironment groupEnvironment =
                             groupEnvironmentTypeResolver.getEnvironmentAndCloudTypeForGroup(groupId,
@@ -154,14 +163,21 @@ public class Stages {
                                             .filter(Objects::nonNull)
                                             .collect(Collectors.toSet()),
                                     discoveredGroups);
-                    groupCountsByEnvironmentType[groupEnvironment.getEnvironmentType()
-                            .getNumber()]++;
-                    groupCountsByCloudType[groupEnvironment.getCloudType().getNumber()]++;
+                    // calculate severity based on members' severity
+                    Severity groupSeverity = severityCalculator.calculateSeverity(groupEntities);
+                    // increment counts
+                    // try to insert 1. if a value is already there, add 1 to it
+                    groupCountsByEnvironmentType.merge(
+                            groupEnvironment.getEnvironmentType(), 1L, Long::sum);
+                    groupCountsByCloudType.merge(groupEnvironment.getCloudType(), 1L, Long::sum);
+                    groupCountsBySeverity.merge(groupSeverity, 1L, Long::sum);
+                    boolean isEmpty = groupEntities.size() == 0;
                     groupsToInsert.add(new GroupSupplementaryInfo(groupId, isEmpty,
                             groupEnvironment.getEnvironmentType().getNumber(),
-                            groupEnvironment.getCloudType().getNumber()));
+                            groupEnvironment.getCloudType().getNumber(),
+                            groupSeverity.getNumber()));
                 }
-                // remove old entries and add all records to the database in a batch
+                // update database records in a batch
                 groupStore.updateBulkGroupSupplementaryInfo(groupsToInsert);
             } catch (StoreOperationException e) {
                 return Status.failed("Exception caught: " + e.getMessage());
@@ -171,7 +187,7 @@ public class Stages {
                         + stopWatch.getLastTaskTimeMillis() + " ms.");
             }
             return Status.success(successSummary(groupCountsByEnvironmentType,
-                    groupCountsByCloudType));
+                    groupCountsByCloudType, groupCountsBySeverity));
         }
 
         /**
@@ -212,38 +228,32 @@ public class Stages {
         }
 
         /**
-         * Creates a small summary of the stage, reporting group counts by environment & cloud type.
+         * Creates a small summary of the stage, reporting group counts by environment & cloud type
+         * and severity.
          *
          * @param groupCountsByEnvironmentType group counts broken down by environment type.
          * @param groupCountsByCloudType group counts broken down by cloud type.
+         * @param groupCountsBySeverity group counts broken down by severity.
          * @return the constructed string message.
          */
-        private String successSummary(long[] groupCountsByEnvironmentType,
-                long[] groupCountsByCloudType) {
+        private String successSummary(
+                Map<EnvironmentTypeEnum.EnvironmentType, Long> groupCountsByEnvironmentType,
+                Map<CloudTypeEnum.CloudType, Long> groupCountsByCloudType,
+                Map<Severity, Long> groupCountsBySeverity) {
             StringBuilder result = new StringBuilder();
-            result.append("Group counts by type:\n")
+            result.append("Group counts by category:\n")
                     .append("  Environment type:\n");
-            for (int i = 0; i < EnvironmentTypeEnum.EnvironmentType.values().length; ++i) {
-                if (EnvironmentTypeEnum.EnvironmentType.forNumber(i) == null) {
-                    continue;
-                }
-                result.append("      ")
-                        .append(EnvironmentTypeEnum.EnvironmentType.forNumber(i).toString())
-                        .append(" : ")
-                        .append(groupCountsByEnvironmentType[i])
-                        .append("\n");
-            }
+            groupCountsByEnvironmentType.forEach((environmentType, count) -> {
+                result.append("    ").append(environmentType).append(" : ").append(count).append("\n");
+            });
             result.append("  Cloud type:\n");
-            for (int i = 0; i < CloudTypeEnum.CloudType.values().length; ++i) {
-                if (CloudTypeEnum.CloudType.forNumber(i) == null) {
-                    continue;
-                }
-                result.append("      ")
-                        .append(CloudTypeEnum.CloudType.forNumber(i).toString())
-                        .append(" : ")
-                        .append(groupCountsByCloudType[i])
-                        .append("\n");
-            }
+            groupCountsByCloudType.forEach((cloudType, count) -> {
+                result.append("    ").append(cloudType).append(" : ").append(count).append("\n");
+            });
+            result.append("  Severity:\n");
+            groupCountsBySeverity.forEach((severity, count) -> {
+                result.append("    ").append(severity).append(" : ").append(count).append("\n");
+            });
             return result.toString();
         }
     }

@@ -40,7 +40,6 @@ message OrderBy {
     enum GroupOrderBy {
         GROUP_NAME = 1;
         GROUP_SEVERITY = 2;
-        GROUP_COST = 3;
     }
 
     // The ordering parameters for entity stats requests.

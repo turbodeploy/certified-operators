@@ -134,6 +134,20 @@ public class CachingMemberCalculator implements GroupMemberCalculator, GroupUpda
     }
 
     /**
+     * Returns the uuids of the groups that currently exist in cache.
+     *
+     * @return the uuids of the cache's current groups.
+     */
+    public LongSet getCachedGroupIds() {
+        lock.readLock().lock();
+        try {
+            return new LongOpenHashSet(groupToType.keySet());
+        } finally {
+            lock.readLock().unlock();
+        }
+    }
+
+    /**
      * Perform regrouping, clearing the cache and recalculating group members for all groups.
      *
      * @return a summary of the result. Includes a flag on whether regrouping was successful, and in

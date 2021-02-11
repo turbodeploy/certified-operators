@@ -67,6 +67,7 @@ import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 import org.springframework.util.StopWatch;
 
+import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
@@ -217,7 +218,7 @@ public class GroupDAO implements IGroupStore {
         /**
          * The cursor for the next page. Empty if that was the last page.
          *
-         * <p>TODO: In the future we could consider replacing the numeric cursor with seek
+         * <p>In the future we could consider replacing the numeric cursor with seek
          * pagination, if it proves to have a significant performance difference.</p>
          */
         private final Optional<String> nextCursor;
@@ -237,16 +238,20 @@ public class GroupDAO implements IGroupStore {
     }
 
     /**
-     * Creates a new entry with the characteristics of the group that are not stored in grouping
-     * table, for the group provided.
+     * {@inheritDoc}
      *
-     * @param group the characteristics of the group to be inserted.
+     * <p>Those data are not stored in grouping table but in a separate one.
      */
-    public void createGroupSupplementaryInfo(GroupSupplementaryInfo group) {
+    @Override
+    public void createGroupSupplementaryInfo(long groupId, boolean isEmpty,
+            @Nonnull GroupEnvironment groupEnvironment, @Nonnull Severity severity) {
         dslContext.insertInto(GROUP_SUPPLEMENTARY_INFO)
                 .set(dslContext.newRecord(GROUP_SUPPLEMENTARY_INFO,
-                        new GroupSupplementaryInfo(group.getGroupId(), group.getEmpty(),
-                                group.getEnvironmentType(), group.getCloudType())))
+                        new GroupSupplementaryInfo(groupId,
+                                isEmpty,
+                                groupEnvironment.getEnvironmentType().getNumber(),
+                                groupEnvironment.getCloudType().getNumber(),
+                                severity.getNumber())))
                 .execute();
     }
 
@@ -256,7 +261,7 @@ public class GroupDAO implements IGroupStore {
      * @param groups a collection with information for each group to be inserted.
      */
     public void updateBulkGroupSupplementaryInfo(Collection<GroupSupplementaryInfo> groups) {
-        // create insert statements for the new records
+        // create upsert statements
         final Collection<Query> upserts = new ArrayList<>();
         groups.forEach(group -> {
             upserts.add(dslContext.insertInto(GROUP_SUPPLEMENTARY_INFO)
@@ -264,10 +269,37 @@ public class GroupDAO implements IGroupStore {
                     .onDuplicateKeyUpdate()
                     .set(GROUP_SUPPLEMENTARY_INFO.EMPTY, group.getEmpty())
                     .set(GROUP_SUPPLEMENTARY_INFO.ENVIRONMENT_TYPE, group.getEnvironmentType())
-                    .set(GROUP_SUPPLEMENTARY_INFO.CLOUD_TYPE, group.getCloudType()));
+                    .set(GROUP_SUPPLEMENTARY_INFO.CLOUD_TYPE, group.getCloudType())
+                    .set(GROUP_SUPPLEMENTARY_INFO.SEVERITY, group.getSeverity()));
         });
-        // insert new records
+        // update records
         dslContext.batch(upserts).execute();
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>If a group doesn't have a record in GROUP_SUPPLEMENTARY_INFO table already, we skip it;
+     * it will be updated after next topology broadcast.
+     */
+    @Override
+    public int updateBulkGroupsSeverity(Collection<GroupSupplementaryInfo> groups) {
+        // create update statements
+        final Collection<Query> updates = new ArrayList<>();
+        groups.forEach(group -> {
+            updates.add(dslContext.update(GROUP_SUPPLEMENTARY_INFO)
+                    .set(GROUP_SUPPLEMENTARY_INFO.SEVERITY, group.getSeverity())
+                    .where(GROUP_SUPPLEMENTARY_INFO.GROUP_ID.eq(group.getGroupId())));
+        });
+        // update records
+        final int[] updatedRows = dslContext.batch(updates).execute();
+        int result = 0;
+        for (int updatedRow : updatedRows) {
+            if (updatedRow > 0) {
+                result++;
+            }
+        }
+        return result;
     }
 
     @Override
@@ -1104,15 +1136,17 @@ public class GroupDAO implements IGroupStore {
     }
 
     @Override
-    public void updateSingleGroupSupplementaryInfo(long groupId,
-            boolean isEmpty,
-            GroupEnvironment groupEnvironment) {
+    public void updateSingleGroupSupplementaryInfo(final long groupId,
+            final boolean isEmpty,
+            final GroupEnvironment groupEnvironment,
+            final Severity groupSeverity) {
         dslContext.update(GROUP_SUPPLEMENTARY_INFO)
                 .set(GROUP_SUPPLEMENTARY_INFO.EMPTY, isEmpty)
                 .set(GROUP_SUPPLEMENTARY_INFO.ENVIRONMENT_TYPE,
                         groupEnvironment.getEnvironmentType().getNumber())
                 .set(GROUP_SUPPLEMENTARY_INFO.CLOUD_TYPE,
                         groupEnvironment.getCloudType().getNumber())
+                .set(GROUP_SUPPLEMENTARY_INFO.SEVERITY, groupSeverity.getNumber())
                 .where(GROUP_SUPPLEMENTARY_INFO.GROUP_ID.eq(groupId))
                 .execute();
     }
@@ -1222,11 +1256,26 @@ public class GroupDAO implements IGroupStore {
      */
     private OrderField<?> createOrderByClause(PaginationParameters paginationParams,
             final boolean ascendingOrder) {
-        // Ordering by SEVERITY and COST not supported yet (will be added at a later stage
-        // of pagination work; see OM-63092)
-        return ascendingOrder
-                ? GROUPING.DISPLAY_NAME.asc()
-                : GROUPING.DISPLAY_NAME.desc();
+        // Ordering by COST not supported yet (will be added at a later stage of pagination work;
+        // see OM-63107)
+        // default is name
+        if (paginationParams == null || !paginationParams.hasOrderBy()
+                || !paginationParams.getOrderBy().hasGroupSearch()) {
+            return ascendingOrder
+                    ? GROUPING.DISPLAY_NAME.asc()
+                    : GROUPING.DISPLAY_NAME.desc();
+        }
+        switch (paginationParams.getOrderBy().getGroupSearch()) {
+            case GROUP_SEVERITY:
+                return ascendingOrder
+                        ? GROUP_SUPPLEMENTARY_INFO.SEVERITY.asc()
+                        : GROUP_SUPPLEMENTARY_INFO.SEVERITY.desc();
+            case GROUP_NAME:
+            default:
+                return ascendingOrder
+                        ? GROUPING.DISPLAY_NAME.asc()
+                        : GROUPING.DISPLAY_NAME.desc();
+        }
     }
 
     /**
@@ -1401,6 +1450,9 @@ public class GroupDAO implements IGroupStore {
             conditions.add(GROUP_SUPPLEMENTARY_INFO.ENVIRONMENT_TYPE.eq(EnvironmentType.CLOUD_VALUE)
                             .and(GROUP_SUPPLEMENTARY_INFO.CLOUD_TYPE.eq(
                                     filter.getCloudType().getNumber())));
+        }
+        if (filter.hasSeverity()) {
+            conditions.add(GROUP_SUPPLEMENTARY_INFO.SEVERITY.eq(filter.getSeverity().getNumber()));
         }
         return combineConditions(conditions, Condition::and);
     }

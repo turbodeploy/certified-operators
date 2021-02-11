@@ -11,6 +11,7 @@ import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockin
 import com.vmturbo.components.common.pipeline.Pipeline.PipelineDefinition;
 import com.vmturbo.group.group.GroupDAO;
 import com.vmturbo.group.group.GroupEnvironmentTypeResolver;
+import com.vmturbo.group.group.GroupSeverityCalculator;
 import com.vmturbo.group.pipeline.Stages.StoreSupplementaryGroupInfoStage;
 import com.vmturbo.group.pipeline.Stages.UpdateGroupMembershipCacheStage;
 import com.vmturbo.group.service.CachingMemberCalculator;
@@ -30,21 +31,26 @@ public class GroupInfoUpdatePipelineFactory {
 
     private final GroupDAO groupDAO;
 
+    private final GroupSeverityCalculator severityCalculator;
+
     /**
      * Constructor.
      * @param memberCache group membership cache.
      * @param searchServiceRpc gRPC service for requests to repository.
      * @param groupEnvironmentTypeResolver utility class to get group environment.
      * @param groupDAO for queries to group db.
+     * @param severityCalculator utility class for group severity calculation.
      */
     public GroupInfoUpdatePipelineFactory(@Nonnull CachingMemberCalculator memberCache,
             @Nonnull final SearchServiceBlockingStub searchServiceRpc,
             @Nonnull final GroupEnvironmentTypeResolver groupEnvironmentTypeResolver,
-            @Nonnull final GroupDAO groupDAO) {
+            @Nonnull final GroupDAO groupDAO,
+            @Nonnull final GroupSeverityCalculator severityCalculator) {
         this.memberCache = memberCache;
         this.searchServiceRpc = searchServiceRpc;
         this.groupEnvironmentTypeResolver = groupEnvironmentTypeResolver;
         this.groupDAO = groupDAO;
+        this.severityCalculator = severityCalculator;
     }
 
     /**
@@ -61,6 +67,6 @@ public class GroupInfoUpdatePipelineFactory {
                 .<GroupInfoUpdatePipelineInput, LongSet, GroupInfoUpdatePipelineContext>newBuilder(context)
                 .addStage(new UpdateGroupMembershipCacheStage(memberCache))
                 .finalStage(new StoreSupplementaryGroupInfoStage(memberCache, searchServiceRpc,
-                        groupEnvironmentTypeResolver, groupDAO)));
+                        groupEnvironmentTypeResolver, severityCalculator, groupDAO)));
     }
 }

@@ -3,6 +3,7 @@ package group;
 
 option java_package = "com.vmturbo.common.protobuf.group";
 
+import "action/ActionDTO.proto";
 import "common/EnvironmentTypeEnum.proto";
 import "common/CloudTypeEnum.proto";
 import "common/Pagination.proto";
@@ -232,6 +233,9 @@ message GroupFilter {
         DYNAMIC = 2;
         BOTH = 3;
     }
+
+    // Return only groups with the specified severity
+    optional .action.Severity severity = 15;
 }
 
 message MemberType {
