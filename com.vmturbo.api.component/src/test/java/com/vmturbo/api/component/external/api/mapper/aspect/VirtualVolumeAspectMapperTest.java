@@ -10,6 +10,7 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
@@ -91,15 +92,20 @@ public class VirtualVolumeAspectMapperTest {
 
     // aws
     private final Long vmId1 = 11L;
+    private final Long onPremVmId1 = 111L;
+    private final Long onPremVmNoDisksId1 = 222L;
     private final Long volumeId1 = 21L;
     private final Long volumeId2 = 22L;
     private final Long storageTierId1 = 31L;
     private final Long zoneId1 = 41L;
     private final Long regionId1 = 51L;
     private final String vmName1 = "testVM1";
+    private final String onPremVmName1 = "onPremVM1";
     private final String volumeName1 = "vol-123";
     private final String volumeName2 = "vol-234";
     private final String storageTierName1 = "GP2";
+    private final Long onPremVolumeId = 1000L;
+    private final String onPremVolumeName = "onPremVolume";
 
     // azure
     private final Long azureVmId = 12L;
@@ -137,6 +143,8 @@ public class VirtualVolumeAspectMapperTest {
     private static final Long sizeFile2 = 4000L;
     private static final Long timeFile1 = 300L;
     private static final Long timeFile2 = 400L;
+
+    private static final Long onPremStorageId = 2500L;
 
     private static final String[] wastedFiles = { pathFile1, pathFile2 };
     private static final String[] wastedFiles2 = { "file5", "file6" };
@@ -347,6 +355,64 @@ public class VirtualVolumeAspectMapperTest {
         .setEntityType(EntityType.STORAGE_VALUE)
         .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
             .setStorage(StorageInfo.getDefaultInstance())
+            .build())
+        .build();
+
+
+    private static final double onPremStorageAccessUsed = 50;
+    private static final double onPremStorageAmountUsed = 100;
+    private final TopologyEntityDTO onPremVm = TopologyEntityDTO.newBuilder()
+        .setOid(onPremVmId1)
+        .setDisplayName(onPremVmName1)
+        .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+        .addConnectedEntityList(ConnectedEntity.newBuilder()
+            .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION)
+            .setConnectedEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+            .setConnectedEntityId(onPremVolumeId)
+            .build())
+        .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+            .setProviderEntityType(EntityType.STORAGE_VALUE)
+            .setProviderId(onPremStorageId)
+            .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                .setCommodityType(CommodityType.newBuilder().setType(
+                    CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE).build())
+                .setUsed(onPremStorageAccessUsed)
+                .build())
+            .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                .setCommodityType(CommodityType.newBuilder().setType(
+                    CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE).build())
+                .setUsed(onPremStorageAmountUsed)
+                .build())
+            .build())
+        .build();
+
+    private final TopologyEntityDTO onPremVmNoDisks = TopologyEntityDTO.newBuilder()
+        .setOid(onPremVmNoDisksId1)
+        .setDisplayName(onPremVmName1)
+        .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+        .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+            .setProviderEntityType(EntityType.STORAGE_VALUE)
+            .setProviderId(onPremStorageId)
+            .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                .setCommodityType(CommodityType.newBuilder().setType(
+        CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE).build())
+        .setUsed(onPremStorageAccessUsed)
+                .build())
+        .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                .setCommodityType(CommodityType.newBuilder().setType(
+        CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE).build())
+        .setUsed(onPremStorageAmountUsed)
+                .build())
+        .build())
+        .build();
+
+    private final TopologyEntityDTO onPremVolume = TopologyEntityDTO.newBuilder()
+        .setOid(onPremVolumeId)
+        .setDisplayName(onPremVolumeName)
+        .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+        .addConnectedEntityList(ConnectedEntity.newBuilder()
+            .setConnectedEntityType(EntityType.STORAGE_VALUE)
+            .setConnectedEntityId(onPremStorageId)
             .build())
         .build();
 
@@ -789,6 +855,81 @@ public class VirtualVolumeAspectMapperTest {
         assertEquals(virtualVolumeDisplayName, volumeAspect.getDisplayName());
 
         assertEquals(String.valueOf(vmId1), volumeAspect.getAttachedVirtualMachine().getUuid());
+    }
+
+    /**
+     * Test map on-prem virtual machine mapping with virtual volume analysis off.
+     *
+     * @throws Exception on exceptions occurred
+     */
+    @Test
+    public void testMapOnPremVm() throws Exception {
+
+        doReturn(ApiTestUtils.mockSearchFullReq(Lists.newArrayList(onPremVm))).when(repositoryApi)
+            .newSearchRequest(SearchProtoUtil.neighborsOfType(onPremVolumeId,
+                TraversalDirection.PRODUCES, ApiEntityType.VIRTUAL_MACHINE));
+        doReturn(ApiTestUtils.mockSearchFullReq(Collections.emptyList())).when(repositoryApi)
+            .newSearchRequest(SearchProtoUtil.neighborsOfType(onPremVolumeId,
+                TraversalDirection.OWNED_BY, ApiEntityType.BUSINESS_ACCOUNT));
+        doReturn(ApiTestUtils.mockSearchReq(Collections.emptyList())).when(repositoryApi)
+            .newSearchRequest(SearchParameters.newBuilder().setStartingFilter(SearchProtoUtil
+                .entityTypeFilter(ApiEntityType.REGION.apiStr())).build());
+        doReturn(ApiTestUtils.mockSearchMinReq(Collections.emptyList())).when(repositoryApi)
+            .newSearchRequest(SearchParameters.newBuilder().setStartingFilter(SearchProtoUtil
+                .entityTypeFilter(ApiEntityType.STORAGE_TIER.apiStr())).build());
+        doReturn(ApiTestUtils.mockMultiFullEntityReq(ImmutableList.of(onPremVm))).when(repositoryApi)
+            .entitiesRequest(eq(Sets.newHashSet(onPremVmId1)));
+        doReturn(ApiTestUtils.mockMultiFullEntityReq(ImmutableList.of(onPremVolume))).when(repositoryApi)
+            .entitiesRequest(eq(Sets.newHashSet(onPremVolumeId)));
+
+        final VirtualDisksAspectApiDTO aspect = (VirtualDisksAspectApiDTO)volumeAspectMapper.mapEntitiesToAspect(
+            Lists.newArrayList(onPremVm));
+
+        assertEquals(1, aspect.getVirtualDisks().size());
+
+        final VirtualDiskApiDTO virtualDiskApiDTO = aspect.getVirtualDisks().get(0);
+        assertEquals(String.valueOf(onPremVolumeId), virtualDiskApiDTO.getUuid());
+        assertEquals(onPremVolumeName, virtualDiskApiDTO.getDisplayName());
+        List<StatApiDTO> stats = virtualDiskApiDTO.getStats();
+        assertEquals(5, stats.size());
+
+        assertEquals(5, stats.size());
+        final java.util.Optional<StatApiDTO> statApiDTOStorageAccess = stats.stream().filter(
+            stat -> stat.getName().equals("StorageAccess")).findFirst();
+        assertTrue(statApiDTOStorageAccess.isPresent());
+        assertEquals(onPremStorageAccessUsed, statApiDTOStorageAccess.get().getValues().getAvg().doubleValue(), DELTA);
+        final java.util.Optional<StatApiDTO> statApiDTOStorageAmount = stats.stream().filter(
+            stat -> stat.getName().equals("StorageAmount")).findFirst();
+        assertTrue(statApiDTOStorageAmount.isPresent());
+        assertEquals(onPremStorageAmountUsed, statApiDTOStorageAmount.get().getValues().getAvg().doubleValue(), DELTA);
+        assertEquals(CommodityTypeUnits.STORAGE_AMOUNT.getUnits(), statApiDTOStorageAmount.get().getUnits());
+
+    }
+
+    /**
+     * Test map on-prem virtual machine mapping with no virtual volumes.
+     *
+     * @throws Exception on exceptions occurred
+     */
+    @Test
+    public void testMapOnPremVmNoDisks() throws Exception {
+
+        doReturn(ApiTestUtils.mockSearchReq(Collections.emptyList())).when(repositoryApi)
+            .newSearchRequest(SearchParameters.newBuilder().setStartingFilter(SearchProtoUtil
+                .entityTypeFilter(ApiEntityType.REGION.apiStr())).build());
+        doReturn(ApiTestUtils.mockSearchMinReq(Collections.emptyList())).when(repositoryApi)
+            .newSearchRequest(SearchParameters.newBuilder().setStartingFilter(SearchProtoUtil
+                .entityTypeFilter(ApiEntityType.STORAGE_TIER.apiStr())).build());
+        doReturn(ApiTestUtils.mockMultiFullEntityReq(ImmutableList.of(onPremVmNoDisks))).when(repositoryApi)
+            .entitiesRequest(eq(Sets.newHashSet(onPremVmNoDisksId1)));
+        doReturn(ApiTestUtils.mockMultiFullEntityReq(Collections.emptyList())).when(repositoryApi)
+            .entitiesRequest(eq((Collections.emptySet())));
+
+        final VirtualDisksAspectApiDTO aspect = (VirtualDisksAspectApiDTO)volumeAspectMapper.mapEntitiesToAspect(
+            Lists.newArrayList(onPremVmNoDisks));
+
+        assertNull(aspect);
+
     }
 
     private static final TopologyEntityDTO volume4 = TopologyEntityDTO.newBuilder()
