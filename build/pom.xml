@@ -425,6 +425,7 @@
                 <module>../com.vmturbo.mediation.database.oracle.component</module>
                 <module>../com.vmturbo.mediation.tomcat.component</module>
                 <module>../com.vmturbo.mediation.websphere.component</module>
+                <module>../com.vmturbo.mediation.weblogic.component</module>
                 <module>../com.vmturbo.mediation.instana.component</module>
                 <module>../com.vmturbo.mediation.jvm.component</module>
                 <module>../com.vmturbo.mediation.datadog.component</module>
@@ -809,6 +810,13 @@
             <id>mediation-newrelic</id>
             <modules>
                 <module>../com.vmturbo.mediation.newrelic.component</module>
+            </modules>
+        </profile>
+
+        <profile>
+            <id>mediation-weblogic</id>
+            <modules>
+                <module>../com.vmturbo.mediation.weblogic.component</module>
             </modules>
         </profile>
 
@@ -1277,6 +1285,7 @@
                 <module>../com.vmturbo.mediation.database.oracle.component</module>
                 <module>../com.vmturbo.mediation.tomcat.component</module>
                 <module>../com.vmturbo.mediation.websphere.component</module>
+                <module>../com.vmturbo.mediation.weblogic.component</module>
                 <module>../com.vmturbo.mediation.instana.component</module>
                 <module>../com.vmturbo.mediation.jvm.component</module>
                 <module>../com.vmturbo.mediation.datadog.component</module>
