@@ -60,6 +60,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ResizeExplanatio
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ScaleExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
@@ -1617,7 +1618,10 @@ public class ActionInterpreter {
     }
 
     private Optional<ChangeProviderExplanation.Builder> getConistentScalingExplanationForCloud(MoveTO moveTO) {
-        if (moveTO.hasScalingGroupId()) {
+        ShoppingListInfo slInfo = shoppingListOidToInfos.get(moveTO.getShoppingListToMove());
+        TopologyEntityDTO originalTrader = slInfo != null ? originalTopology.get(slInfo.getBuyerId()) : null;
+        if (moveTO.hasScalingGroupId() && originalTrader != null
+                && originalTrader.getEnvironmentType() == EnvironmentTypeEnum.EnvironmentType.CLOUD) {
             return Optional.of(ChangeProviderExplanation.newBuilder().setCompliance(
                 Compliance.newBuilder().setIsCsgCompliance(true)));
         }
@@ -1630,7 +1634,7 @@ public class ActionInterpreter {
             Congestion.Builder congestionBuilder = ChangeProviderExplanation.Congestion.newBuilder()
                     .addAllCongestedCommodities(commTypes2ReasonCommodities(congestedCommodityTypes
                         .stream().map(CommodityTypeWithLookup::commodityType).collect(Collectors.toSet())));
-            logger.debug("CongestedCommodities from tracker for buyer:{}, seller: {} : [{}]",
+            logger.debug("CongestedCommodities from tracker for buyer: {}, seller: {} : [{}]",
                     actionTargetId, sellerId,
                     congestedCommodityTypes.stream().map(type -> type.toString()).collect(Collectors.joining()));
             return Optional.of(ChangeProviderExplanation.newBuilder().setCongestion(

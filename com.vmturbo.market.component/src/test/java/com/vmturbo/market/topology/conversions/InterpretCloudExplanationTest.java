@@ -34,6 +34,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Efficiency;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.Builder;
@@ -335,8 +336,8 @@ public class InterpretCloudExplanationTest {
     }
 
     /**
-     * This test checks if the number of commodities in an action explanation is based on the fact that
-     * actual capacity value is smaller (or underutilized) in projectedTopology compared to originalTopology.
+     * This test checks if the action generated initially is based on efficiency and then subsequently when the same
+     * action is interpreted on a cloud entity, the action is explained as compliance.
      */
     @Test
     public void testInterpretCSgCompliance() {
@@ -352,6 +353,7 @@ public class InterpretCloudExplanationTest {
         Builder vmemSoldCommodity = CommoditySoldDTO.newBuilder()
             .setCommodityType(CommodityType.newBuilder().setType(VMEM_VALUE));
         Map<Long, ProjectedTopologyEntity> projectedTopologyMap = new HashMap<>();
+        Map<Long, TopologyEntityDTO> originalTopologyMap = new HashMap<>();
 
         TopologyEntityDTO topologyEntityDTO = TopologyEntityDTO.newBuilder()
             .setOid(VM1_OID)
@@ -365,14 +367,24 @@ public class InterpretCloudExplanationTest {
             .build();
 
         projectedTopologyMap.put(VM1_OID, projectedTopology);
+        originalTopologyMap.put(VM1_OID, topologyEntityDTO);
         ai = spy(new ActionInterpreter(commodityConverter, shoppingListInfoMap,
-            cloudTc, Maps.newHashMap(), oidToTraderTOMap, commoditiesResizeTracker, riCoverageCalculator, tierExcluder,
+            cloudTc, originalTopologyMap, oidToTraderTOMap, commoditiesResizeTracker, riCoverageCalculator, tierExcluder,
             Suppliers.memoize(() -> commodityIndex), null));
 
         MoveTO csgMoveTO = move.getMove().toBuilder().setScalingGroupId("testScalingGroup").build();
 
         doReturn(Optional.of(interpretedMoveAction)).when(ai).interpretMoveAction(csgMoveTO, projectedTopologyMap, originalCloudTopology);
         List<Action> actions = ai.interpretAction(move.toBuilder().setMove(csgMoveTO).build(), projectedTopologyMap, originalCloudTopology, projectedCosts, topologyCostCalculator);
+        // assert that we have an efficiency explanation since we dont know this is a cloud entity
+        assertTrue(actions.get(0).getExplanation().getMove().getChangeProviderExplanation(0).hasEfficiency());
+        // repopulate the originalTopologyMap with EnvironmentType
+        TopologyEntityDTO clonedEntityDTO = TopologyEntityDTO.newBuilder(topologyEntityDTO)
+                .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.CLOUD).build();
+        originalTopologyMap.put(VM1_OID, clonedEntityDTO);
+        // repopulate actions
+        actions = ai.interpretAction(move.toBuilder().setMove(csgMoveTO).build(), projectedTopologyMap, originalCloudTopology, projectedCosts, topologyCostCalculator);
+        // assert that we have an compliance explanation for cloud entity
         assertTrue(actions.get(0).getExplanation().getMove().getChangeProviderExplanation(0).getCompliance().getIsCsgCompliance());
     }
 
