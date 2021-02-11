@@ -436,6 +436,10 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
         // Map of volume ID to volume entities on the projected topology
         // there may be less projected volumes than source ones
         final Map<Long, Long> projVolumeIdToVmId = collectVolumesOfVms(projectedVms);
+        // Inverse map so that projected volumes can be accessed by vm ID later on
+        final Map<Long, Set<Long>> projVmIdToVolumeId = projVolumeIdToVmId.entrySet().stream()
+            .collect(Collectors.groupingBy(Map.Entry::getValue,
+                Collectors.mapping(Map.Entry::getKey, Collectors.toSet())));
         final Map<Long, TopologyEntityDTO> projectedVolumes = requestEntities(projVolumeIdToVmId.keySet(),
                         topologyContextId, true);
 
@@ -509,35 +513,90 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
             final Long vmId = vmIdToVm.getKey();
             final TopologyEntityDTO vm = vmIdToVm.getValue();
             // VM migrated to cloud should buy storage commodities from VV only
-            final Collection<CommoditiesBoughtFromProvider> virtualDiskCommBoughts =
+            final Collection<CommoditiesBoughtFromProvider> commsBoughtFromStorageOrVV =
                             vm.getCommoditiesBoughtFromProvidersList().stream()
                                             .filter(commList -> STORAGE_PROVIDER_TYPES
                                                             .contains(commList
                                                                             .getProviderEntityType()))
                                             .collect(Collectors.toList());
-            final List<VirtualDiskApiDTO> virtualDiskApiDTOs =
-                            new ArrayList<>(virtualDiskCommBoughts.size());
-            for (CommoditiesBoughtFromProvider cbfp : virtualDiskCommBoughts) {
-                final long volId = cbfp.getProviderId();
-                final TopologyEntityDTO projectedVolume = projectedVolumes.get(volId);
-                if (Objects.isNull(projectedVolume)) {
-                    // This condition is only hit by VDI VMs (connected to desktop pools)
-                    continue;
+            final Set<Long> projectedVolIds = projVmIdToVolumeId.get(vmId);
+            if (CollectionUtils.isNotEmpty(projectedVolIds)) {
+                final List<VirtualDiskApiDTO> virtualDiskApiDTOs = new ArrayList<>(projectedVolIds.size());
+                for (final long volId : projectedVolIds) {
+                    final TopologyEntityDTO projectedVolume = projectedVolumes.get(volId);
+                    Collection<CommodityBoughtDTO> projectedBoughtCommodities = new HashSet<>();
+                    // Note that on-prem VM will not buy commodities from virtual volume if virtual
+                    // volume analysis is turned off.
+                    // In that case we pass commodities bought from storage.
+                    final CommoditiesBoughtFromProvider commBoughtFromVol = commsBoughtFromStorageOrVV
+                        .stream()
+                        .filter(commBought -> volId == commBought.getProviderId()).findFirst()
+                        .orElse(null);
+                    if (commBoughtFromVol != null) {
+                        projectedBoughtCommodities = commBoughtFromVol.getCommodityBoughtList();
+                    } else {
+                        for (final CommoditiesBoughtFromProvider cbfp : getStorageCommoditiesBought(
+                            commsBoughtFromStorageOrVV, projectedVolume)) {
+                            projectedBoughtCommodities.addAll(cbfp.getCommodityBoughtList());
+                        }
+                    }
+                    final Collection<StatApiDTO> costStats = volIdToCostStatsMap.get(volId);
+                    final Collection<CommodityBoughtDTO> sourceBoughtCommodities = volumeIdToSourceBoughtCommodities
+                        .getOrDefault(volId, Collections.emptySet());
+                    final VirtualDiskApiDTO virtualDiskApiDTO = createVirtualDiskApiDTO(vm,
+                        projectedVolume,
+                        sourceBoughtCommodities,
+                        projectedBoughtCommodities,
+                        volumeIdToSourceSoldCommodities.getOrDefault(volId, Collections.emptyList()),
+                        costStats, regionByVolumeId, storageTierByVolumeId,
+                        projectedVolumes.size() == 1);
+                    virtualDiskApiDTOs.add(virtualDiskApiDTO);
                 }
-                final Collection<StatApiDTO> costStats = volIdToCostStatsMap.get(volId);
-                final Collection<CommodityBoughtDTO> sourceBoughtCommodities = volumeIdToSourceBoughtCommodities
-                                .getOrDefault(volId, Collections.emptySet());
-                final VirtualDiskApiDTO virtualDiskApiDTO = createVirtualDiskApiDTO(vm, projectedVolume,
-                                sourceBoughtCommodities,
-                                cbfp.getCommodityBoughtList(),
-                                volumeIdToSourceSoldCommodities.getOrDefault(volId, Collections.emptyList()),
-                                costStats, regionByVolumeId, storageTierByVolumeId,
-                                projectedVolumes.size() == 1);
-                virtualDiskApiDTOs.add(virtualDiskApiDTO);
+                virtualDisksByVmId.put(vmId, virtualDiskApiDTOs);
             }
-            virtualDisksByVmId.put(vmId, virtualDiskApiDTOs);
         }
         return virtualDisksByVmId;
+    }
+
+    /**
+     * Get storages connected to the provided on-prem virtual volume.
+     *
+     * @param virtualVolume on-prem virtual volume
+     * @return connected on-prem storage, or null if none found
+     */
+    @Nonnull
+    private static Set<ConnectedEntity> getConnectedStorageProviders(
+        @Nonnull final TopologyEntityDTO virtualVolume) {
+        return virtualVolume.getConnectedEntityListList().stream()
+            .filter(ce -> STORAGE_PROVIDER_TYPES
+                .contains(ce.getConnectedEntityType()))
+                .collect(Collectors.toSet());
+    }
+
+    /**
+     * Get storage commodities bought for the specified volume.
+     *
+     * @param storageCommBought commodities bought from storage providers
+     * @param volume volume
+     * @return storage commodities bought by the volume or empty collection if none found
+     */
+    @Nonnull
+    private static Collection<CommoditiesBoughtFromProvider> getStorageCommoditiesBought(
+        @Nonnull Collection<CommoditiesBoughtFromProvider> storageCommBought,
+        @Nonnull final TopologyEntityDTO volume) {
+        final Collection<CommoditiesBoughtFromProvider> retSet = new HashSet<>();
+        final Set<ConnectedEntity> connectedStorages = getConnectedStorageProviders(volume);
+        if (CollectionUtils.isNotEmpty(connectedStorages)) {
+            final Set<Long> connectedStorageIds = connectedStorages.stream()
+                .map(ConnectedEntity::getConnectedEntityId)
+                .collect(Collectors.toSet());
+            storageCommBought.forEach(cbfp -> {
+                if (connectedStorageIds.contains(cbfp.getProviderId())) {
+                    retSet.add(cbfp);
+                }
+            });
+        }
+        return retSet;
     }
 
     @Nonnull
