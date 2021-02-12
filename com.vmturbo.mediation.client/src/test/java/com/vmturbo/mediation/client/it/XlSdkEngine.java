@@ -35,6 +35,7 @@ import org.springframework.web.context.ContextLoaderListener;
 import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
 
 import com.vmturbo.components.api.test.IntegrationTestServer;
+import com.vmturbo.components.common.ComponentStatusNotifierConfig;
 import com.vmturbo.components.common.ConsulRegistrationConfig;
 import com.vmturbo.mediation.client.it.AbstractIntegrationTest.ContextConfiguration;
 import com.vmturbo.mediation.common.ProbeInstanceRegistry;
@@ -111,6 +112,8 @@ public class XlSdkEngine implements ISdkEngine {
         environment.setProperty("consul_port", "0");
         environment.setProperty("consul_host", "consul");
         environment.setProperty(ConsulRegistrationConfig.ENABLE_CONSUL_REGISTRATION, "false");
+        environment.setProperty(ConsulRegistrationConfig.ENABLE_CONSUL_MIGRATION, "false");
+        environment.setProperty(ComponentStatusNotifierConfig.ENABLE_COMPONENT_STATUS_NOTIFICATION, "false");
         environment.setProperty("standalone", "true");
         environment.setProperty("connRetryIntervalSeconds", "1");
 
@@ -289,6 +292,8 @@ public class XlSdkEngine implements ISdkEngine {
                     webSocketServer.getServerURI(SdkServerConfig.REMOTE_MEDIATION_PATH).toString());
             environment.setProperty("instances." + instanceId + ".identityGeneratorPrefix", "0");
             environment.setProperty(ConsulRegistrationConfig.ENABLE_CONSUL_REGISTRATION, "false");
+            environment.setProperty(ConsulRegistrationConfig.ENABLE_CONSUL_MIGRATION, "false");
+            environment.setProperty(ComponentStatusNotifierConfig.ENABLE_COMPONENT_STATUS_NOTIFICATION, "false");
             environment.setProperty("standalone", "true");
             environment.setProperty("connRetryIntervalSeconds", "1");
             testServer =

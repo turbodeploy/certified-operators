@@ -40,6 +40,7 @@ import org.springframework.web.context.support.AnnotationConfigWebApplicationCon
 
 import com.vmturbo.components.api.test.IntegrationTestServer;
 import com.vmturbo.components.common.BaseVmtComponentConfig;
+import com.vmturbo.components.common.ComponentStatusNotifierConfig;
 import com.vmturbo.components.common.ConsulRegistrationConfig;
 import com.vmturbo.components.common.migration.MigrationFramework;
 import com.vmturbo.mediation.client.MediationComponentConfig;
@@ -97,8 +98,9 @@ public abstract class AbstractIntegrationTest {
 
         @Primary
         @Bean
-        public MigrationFramework migrationFramework() {
-            return Mockito.mock(MigrationFramework.class);
+        public Optional<MigrationFramework> migrationFramework() {
+            final MigrationFramework migrationFramework = Mockito.mock(MigrationFramework.class);
+            return Optional.of(migrationFramework);
         }
     }
 
@@ -151,6 +153,8 @@ public abstract class AbstractIntegrationTest {
         environment.setProperty("consul_port", "0");
         environment.setProperty("consul_host", "consul");
         environment.setProperty(ConsulRegistrationConfig.ENABLE_CONSUL_REGISTRATION, "false");
+        environment.setProperty(ConsulRegistrationConfig.ENABLE_CONSUL_MIGRATION, "false");
+        environment.setProperty(ComponentStatusNotifierConfig.ENABLE_COMPONENT_STATUS_NOTIFICATION, "false");
         environment.setProperty("standalone", "true");
         environment.setProperty("clustermgr_port", "0");
         environment.setProperty("connRetryIntervalSeconds", "10");
@@ -322,6 +326,8 @@ public abstract class AbstractIntegrationTest {
             environment.setProperty(TestMediationCommonConfig.FIELD_TEST_NAME,
                     testName.getMethodName());
             environment.setProperty(ConsulRegistrationConfig.ENABLE_CONSUL_REGISTRATION, "false");
+            environment.setProperty(ConsulRegistrationConfig.ENABLE_CONSUL_MIGRATION, "false");
+            environment.setProperty(ComponentStatusNotifierConfig.ENABLE_COMPONENT_STATUS_NOTIFICATION, "false");
             environment.setProperty("consul_host", "consul");
             environment.setProperty("consul_port", "0");
             environment.setProperty("spring.application.name", "the-component");
