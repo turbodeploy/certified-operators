@@ -43,15 +43,17 @@ public class ActionOrchestratorNotificationSender extends
      * If the sending of a notification fails for any reason the notification does not get re-sent.
      *
      * @param actionPlan The {@link ActionPlan} protobuf objects describing the actions to execute.
+     * @param actionStoreSize The size of the action store for current action plan.
      */
-    public void notifyActionsUpdated(@Nonnull final ActionPlan actionPlan)
+    public void notifyActionsUpdated(@Nonnull final ActionPlan actionPlan, int actionStoreSize)
             throws CommunicationException, InterruptedException {
 
         final ActionOrchestratorNotification serverMessage =
                 createNewMessage()
                         .setActionsUpdated(ActionsUpdated.newBuilder()
                                 .setActionPlanId(actionPlan.getId())
-                                .setActionPlanInfo(actionPlan.getInfo()))
+                                .setActionPlanInfo(actionPlan.getInfo())
+                                .setActionCount(actionStoreSize))
                         .build();
         sendMessage(sender, serverMessage);
     }
