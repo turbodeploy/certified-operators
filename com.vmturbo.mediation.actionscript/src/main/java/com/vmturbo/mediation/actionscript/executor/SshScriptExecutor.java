@@ -112,7 +112,8 @@ class SshScriptExecutor implements RemoteCommand<CompletionInfo> {
                 // and monitor it so we can update progress with latest output periodically
                 ProgressOutputUpdater progressOutputUpdater = new ProgressOutputUpdater(
                     actionScriptExecutor.getProgressTracker(), stdoutHandler,
-                    actionScriptExecutor.getProgressOutputUpdateIntervalSeconds());
+                    actionScriptExecutor.getProgressOutputUpdateIntervalSeconds(),
+                    actionScriptExecutor.getProgressKeepAliveIntervalSeconds());
                 // create pipe and handler for stderr
                 PipedOutputStream stderr = new PipedOutputStream();
                 OutputHandler stderrHandler = new OutputHandler(stderr, actionScriptExecutor.getMaxOutputLines(), STDERR_NAME);
