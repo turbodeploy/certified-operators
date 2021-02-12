@@ -4,7 +4,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -22,7 +21,7 @@ import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
-import com.vmturbo.topology.processor.actions.data.PolicyRetriever;
+import com.vmturbo.topology.processor.actions.data.GroupAndPolicyRetriever;
 import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.probes.ProbeStore;
@@ -39,8 +38,8 @@ public class ProvisionContext extends AbstractActionExecutionContext {
                             @Nonnull final EntityRetriever entityRetriever,
                             @Nonnull final TargetStore targetStore,
                             @Nonnull final ProbeStore probeStore,
-                            @Nonnull final PolicyRetriever policyRetriever) {
-        super(request, dataManager, entityStore, entityRetriever, targetStore, probeStore, policyRetriever);
+                            @Nonnull final GroupAndPolicyRetriever groupAndPolicyRetriever) {
+        super(request, dataManager, entityStore, entityRetriever, targetStore, probeStore, groupAndPolicyRetriever);
     }
 
     /**

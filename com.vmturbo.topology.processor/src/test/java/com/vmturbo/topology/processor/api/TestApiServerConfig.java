@@ -25,6 +25,7 @@ import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 import org.springframework.web.socket.server.standard.ServerEndpointExporter;
 
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyDTOMoles;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
@@ -53,7 +54,7 @@ import com.vmturbo.topology.processor.TestIdentityStore;
 import com.vmturbo.topology.processor.TestProbeStore;
 import com.vmturbo.topology.processor.actions.ActionExecutionRpcService;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
-import com.vmturbo.topology.processor.actions.data.PolicyRetriever;
+import com.vmturbo.topology.processor.actions.data.GroupAndPolicyRetriever;
 import com.vmturbo.topology.processor.actions.data.context.ActionExecutionContextFactory;
 import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
@@ -472,6 +473,16 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
     }
 
     /**
+     * Bean which can be used to interact with group rpc service in group-component.
+     *
+     * @return a new GroupServiceBlockingStub
+     */
+    @Bean
+    public GroupServiceGrpc.GroupServiceBlockingStub groupServiceBlockingStub() {
+        return GroupServiceGrpc.newBlockingStub(grpcTestServer().getChannel());
+    }
+
+    /**
      * Bean which can be used to interact with workflow rpc service in AO.
      *
      * @return a new WorkflowServiceBlockingStub
@@ -488,7 +499,8 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
      */
     @Bean
     public ActionDataManager actionDataManager() {
-        return new ActionDataManager(searchServiceBlockingStub(), topologyToSdkEntityConverter(), false);
+        return new ActionDataManager(searchServiceBlockingStub(), topologyToSdkEntityConverter(),
+            entityRetriever(), groupAndPolicyRetriever(), false, false);
     }
 
     @Bean
@@ -517,8 +529,8 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
      * @return the policy retriever object.
      */
     @Bean
-    public PolicyRetriever policyRetriever() {
-        return new PolicyRetriever(policyServiceBlockingStub());
+    public GroupAndPolicyRetriever groupAndPolicyRetriever() {
+        return new GroupAndPolicyRetriever(groupServiceBlockingStub(), policyServiceBlockingStub());
     }
 
     /**
@@ -534,7 +546,7 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
     @Bean
     public ActionExecutionContextFactory actionExecutionContextFactory() {
         return new ActionExecutionContextFactory(actionDataManager(), entityRepository(),
-                entityRetriever(), targetStore(), probeStore(), policyRetriever());
+                entityRetriever(), targetStore(), probeStore(), groupAndPolicyRetriever());
     }
 
     @Bean

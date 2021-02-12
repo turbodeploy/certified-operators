@@ -26,7 +26,7 @@ import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionApprovalResponse;
 import com.vmturbo.platform.sdk.common.MediationMessage.GetActionStateResponse;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
-import com.vmturbo.topology.processor.actions.data.PolicyRetriever;
+import com.vmturbo.topology.processor.actions.data.GroupAndPolicyRetriever;
 import com.vmturbo.topology.processor.actions.data.context.ActionExecutionContextFactory;
 import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClient;
@@ -135,12 +135,19 @@ public class ActionsConfig {
     @Value("${useStableActionIdAsUuid:false}")
     private boolean useStableActionIdAsUuid;
 
+    /**
+     * If true, the cluster information of entities involved in the action is sent as a part of
+     * action message sent to the probe.
+     */
+    @Value("${populateActionClusterInfo:false}")
+    private boolean populateActionClusterInfo;
+
     @Bean
     public ActionDataManager actionDataManager() {
         return new ActionDataManager(
                 SearchServiceGrpc.newBlockingStub(repositoryConfig.repositoryChannel()),
-                topologyToSdkEntityConverter(),
-                useStableActionIdAsUuid);
+                topologyToSdkEntityConverter(), entityRetriever(),  groupAndPolicyRetriever(),
+                useStableActionIdAsUuid, populateActionClusterInfo);
     }
 
     @Bean
@@ -175,8 +182,9 @@ public class ActionsConfig {
      * @return the bean created.
      */
     @Bean
-    public PolicyRetriever policyRetriever() {
-        return new PolicyRetriever(groupConfig.policyRpcService());
+    public GroupAndPolicyRetriever groupAndPolicyRetriever() {
+        return new GroupAndPolicyRetriever(groupConfig.groupServiceBlockingStub(),
+            groupConfig.policyRpcService());
     }
 
     @Bean
@@ -186,7 +194,7 @@ public class ActionsConfig {
                 entityRetriever(),
                 targetConfig.targetStore(),
                 probeConfig.probeStore(),
-                policyRetriever());
+                groupAndPolicyRetriever());
     }
 
     @Bean

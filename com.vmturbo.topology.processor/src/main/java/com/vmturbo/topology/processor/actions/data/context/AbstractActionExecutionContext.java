@@ -11,6 +11,8 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.base.Stopwatch;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -40,7 +42,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.MediationMessage;
 import com.vmturbo.topology.processor.actions.data.EntityRetrievalException;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
-import com.vmturbo.topology.processor.actions.data.PolicyRetriever;
+import com.vmturbo.topology.processor.actions.data.GroupAndPolicyRetriever;
 import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.entity.Entity.PerTargetInfo;
 import com.vmturbo.topology.processor.entity.EntityStore;
@@ -108,7 +110,7 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
     /**
      * Retrieves policies required for action execution.
      */
-    protected final PolicyRetriever policyRetriever;
+    protected final GroupAndPolicyRetriever groupAndPolicyRetriever;
 
     /**
      * A list of {@link ActionItemDTO} to send to the probe for action execution.
@@ -137,7 +139,7 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
                                              @Nonnull final EntityRetriever entityRetriever,
                                              @Nonnull final TargetStore targetStore,
                                              @Nonnull final ProbeStore probeStore,
-                                             @Nonnull final PolicyRetriever policyRetriever) {
+                                             @Nonnull final GroupAndPolicyRetriever groupAndPolicyRetriever) {
         Objects.requireNonNull(request);
 
         logger.info("Action instance ID = {} and Action Stable ID = {}",
@@ -160,7 +162,7 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
         this.actionType = Objects.requireNonNull(request.getActionType());
         this.explanation = request.getExplanation();
         this.actionSpec = request.getActionSpec();
-        this.policyRetriever = Objects.requireNonNull(policyRetriever);
+        this.groupAndPolicyRetriever = Objects.requireNonNull(groupAndPolicyRetriever);
     }
 
     @Nonnull
@@ -248,10 +250,12 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
 
     private void buildActionItems() throws ContextCreationException {
         // Build the action items, the primary data carrier to the probe for action execution
+        Stopwatch stopwatch = Stopwatch.createStarted();
         List<ActionItemDTO.Builder> actionItemBuilders = initActionItemBuilders();
         actionItems = actionItemBuilders.stream()
                 .map(Builder::build)
                 .collect(Collectors.toList());
+        logger.debug("Converting action with id {} to SDK message took {}", actionId, stopwatch);
     }
 
     /**
@@ -667,7 +671,7 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
     protected String getActionRiskDescription() {
         try {
             return RiskUtil.createRiskDescription(actionSpec,
-                policyRetriever::retrievePolicy,
+                groupAndPolicyRetriever::retrievePolicy,
                 oid -> entityRetriever.retrieveTopologyEntity(oid)
                     .map(TopologyDTO.TopologyEntityDTO::getDisplayName)
                     .orElse(null));

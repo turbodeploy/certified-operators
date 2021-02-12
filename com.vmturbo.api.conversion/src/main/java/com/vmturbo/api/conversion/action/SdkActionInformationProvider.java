@@ -9,12 +9,14 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.conversion.entity.EntityTypeMapping;
+import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.action.ActionExecutionCharacteristicApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.policy.PolicyApiDTO;
@@ -26,6 +28,7 @@ import com.vmturbo.api.enums.ActionReversibility;
 import com.vmturbo.api.enums.ActionState;
 import com.vmturbo.api.enums.ActionType;
 import com.vmturbo.api.enums.EntityState;
+import com.vmturbo.platform.common.builders.SDKConstants;
 import com.vmturbo.platform.common.dto.ActionExecution;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
 import com.vmturbo.platform.common.dto.CommonDTO;
@@ -141,13 +144,23 @@ public class SdkActionInformationProvider implements ActionInformationProvider {
 
     @Override
     public ServiceEntityApiDTO getTarget() {
-        return convertSdkEntityToApi(getPrimaryAction().getTargetSE());
+        final ActionExecution.ActionItemDTO actionItemDTO = getPrimaryAction();
+        final String clusterId = getContextValue(actionItemDTO,
+            SDKConstants.CURRENT_HOST_CLUSTER_ID);
+        final String clusterName = getContextValue(actionItemDTO,
+            SDKConstants.CURRENT_HOST_CLUSTER_DISPLAY_NAME);
+        return convertSdkEntityToApi(actionItemDTO.getTargetSE(), clusterId, clusterName);
     }
 
     @Override
     public Optional<ServiceEntityApiDTO> getCurrentEntity() {
-        if (getPrimaryAction().hasCurrentSE()) {
-            return Optional.of(convertSdkEntityToApi(getPrimaryAction().getCurrentSE()));
+        final ActionExecution.ActionItemDTO actionItemDTO = getPrimaryAction();
+        if (actionItemDTO.hasCurrentSE()) {
+            final String clusterId = getContextValue(actionItemDTO, SDKConstants.CURRENT_HOST_CLUSTER_ID);
+            final String clusterName = getContextValue(actionItemDTO,
+                SDKConstants.CURRENT_HOST_CLUSTER_DISPLAY_NAME);
+            return Optional.of(convertSdkEntityToApi(getPrimaryAction().getCurrentSE(), clusterId,
+                clusterName));
         } else {
             return Optional.empty();
         }
@@ -155,8 +168,13 @@ public class SdkActionInformationProvider implements ActionInformationProvider {
 
     @Override
     public Optional<ServiceEntityApiDTO> getNewEntity() {
+        final ActionExecution.ActionItemDTO actionItemDTO = getPrimaryAction();
         if (getPrimaryAction().hasNewSE()) {
-            return Optional.of(convertSdkEntityToApi(getPrimaryAction().getNewSE()));
+            final String clusterId = getContextValue(actionItemDTO, SDKConstants.NEW_HOST_CLUSTER_ID);
+            final String clusterName = getContextValue(actionItemDTO,
+                SDKConstants.NEW_HOST_CLUSTER_DISPLAY_NAME);
+            return Optional.of(convertSdkEntityToApi(getPrimaryAction().getNewSE(), clusterId,
+                clusterName));
         } else {
             return Optional.empty();
         }
@@ -236,7 +254,19 @@ public class SdkActionInformationProvider implements ActionInformationProvider {
         }
     }
 
-    private static ServiceEntityApiDTO convertSdkEntityToApi(CommonDTO.EntityDTO entityDTO) {
+    @Nullable
+    private static String getContextValue(@Nonnull ActionExecution.ActionItemDTO actionItemDTO,
+                                          @Nonnull String key) {
+        return actionItemDTO.getContextDataList()
+            .stream()
+            .filter(c -> key.equals(c.getContextKey()))
+            .map(CommonDTO.ContextData::getContextValue)
+            .findAny().orElse(null);
+    }
+
+    private static ServiceEntityApiDTO convertSdkEntityToApi(@Nonnull CommonDTO.EntityDTO entityDTO,
+                                                             @Nullable String clusterId,
+                                                             @Nullable String clusterName) {
         final ServiceEntityApiDTO converted = new ServiceEntityApiDTO();
         converted.setUuid(String.valueOf(entityDTO.getTurbonomicInternalId()));
         converted.setDisplayName(entityDTO.getDisplayName());
@@ -244,6 +274,18 @@ public class SdkActionInformationProvider implements ActionInformationProvider {
         converted.setState(mapSdkStateToApiState(entityDTO).name());
         converted.setDiscoveredBy(getEntityTargetApiDto(entityDTO));
         converted.setVendorIds(getVendorIds(entityDTO));
+
+        if (clusterId != null || clusterName != null) {
+            BaseApiDTO baseApiDTO = new BaseApiDTO();
+            if (clusterId != null) {
+                baseApiDTO.setUuid(clusterId);
+            }
+            if (clusterName != null) {
+                baseApiDTO.setDisplayName(clusterName);
+            }
+            baseApiDTO.setClassName("Cluster");
+            converted.setConnectedEntities(Collections.singletonList(baseApiDTO));
+        }
         return converted;
     }
 
