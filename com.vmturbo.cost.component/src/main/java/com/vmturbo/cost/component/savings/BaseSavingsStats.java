@@ -19,7 +19,7 @@ abstract class BaseSavingsStats {
     protected final long timestamp;
 
     /**
-     * Type of stats, e.g CUMULATIVE_REALIZED_SAVINGS.
+     * Type of stats, e.g REALIZED_SAVINGS.
      */
     protected final EntitySavingsStatsType type;
 

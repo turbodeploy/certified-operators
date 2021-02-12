@@ -189,22 +189,22 @@ public class SqlEntitySavingsStoreTest {
                 TimeUtil.localDateTimeToMilli(timeExact1PM, clock),
                 TimeUtil.localDateTimeToMilli(timeExact2PM, clock),
                 entitiesByType);
-        // 1 stats sets of 8 stats types, aggregated for both VMs, both 1PM, for 1-2 PM range.
-        assertEquals(8, statsReadBack.size());
+        // 1 stats sets of 4 stats types, aggregated for both VMs, both 1PM, for 1-2 PM range.
+        assertEquals(4, statsReadBack.size());
 
         statsReadBack = store.getHourlyStats(allStatsTypes,
                 TimeUtil.localDateTimeToMilli(timeExact2PM, clock),
                 TimeUtil.localDateTimeToMilli(timeExact3PM, clock),
                 entitiesByType);
-        // 1 stats sets of 8 stats types, aggregated for both VMs, for 2-3 PM range.
-        assertEquals(8, statsReadBack.size());
+        // 1 stats sets of 4 stats types, aggregated for both VMs, for 2-3 PM range.
+        assertEquals(4, statsReadBack.size());
 
         statsReadBack = store.getHourlyStats(allStatsTypes,
                 TimeUtil.localDateTimeToMilli(timeExact3PM, clock),
                 TimeUtil.localDateTimeToMilli(timeExact4PM, clock),
                 entitiesByType);
-        // 1 stats sets of 8 stats types, aggregated for both VMs, both 3PM, for 3-4 PM range.
-        assertEquals(8, statsReadBack.size());
+        // 1 stats sets of 4 stats types, aggregated for both VMs, both 3PM, for 3-4 PM range.
+        assertEquals(4, statsReadBack.size());
         checkStatsValues(statsReadBack, vm1Id, timeExact3PM, 50, vm2Id);
 
         // Verify data for 1 VM.
@@ -213,8 +213,8 @@ public class SqlEntitySavingsStoreTest {
                 TimeUtil.localDateTimeToMilli(timeExact3PM, clock),
                 TimeUtil.localDateTimeToMilli(timeExact4PM, clock),
                 entitiesByType);
-        // 1 stats sets of 8 stats types, for the 1 VM, both 3PM, for 3-4 PM range.
-        assertEquals(8, statsReadBack.size());
+        // 1 stats sets of 4 stats types, for the 1 VM, both 3PM, for 3-4 PM range.
+        assertEquals(4, statsReadBack.size());
         checkStatsValues(statsReadBack, vm1Id, timeExact3PM, 50, null);
     }
 
@@ -276,22 +276,6 @@ public class SqlEntitySavingsStoreTest {
         statsType = EntitySavingsStatsType.MISSED_INVESTMENTS;
         hourlyStats.add(new EntitySavingsStats(vmId, timestamp,
                 statsType, getDummyValue(statsType, multiple, vmId)));
-
-        statsType = EntitySavingsStatsType.CUMULATIVE_REALIZED_SAVINGS;
-        hourlyStats.add(new EntitySavingsStats(vmId, timestamp,
-                statsType, getDummyValue(statsType, multiple, vmId)));
-
-        statsType = EntitySavingsStatsType.CUMULATIVE_MISSED_SAVINGS;
-        hourlyStats.add(new EntitySavingsStats(vmId, timestamp,
-                statsType, getDummyValue(statsType, multiple, vmId)));
-
-        statsType = EntitySavingsStatsType.CUMULATIVE_REALIZED_INVESTMENTS;
-        hourlyStats.add(new EntitySavingsStats(vmId, timestamp,
-                statsType, getDummyValue(statsType, multiple, vmId)));
-
-        statsType = EntitySavingsStatsType.CUMULATIVE_MISSED_INVESTMENTS;
-        hourlyStats.add(new EntitySavingsStats(vmId, timestamp,
-                statsType, getDummyValue(statsType, multiple, vmId)));
     }
 
     /**
@@ -337,14 +321,6 @@ public class SqlEntitySavingsStoreTest {
                 return realizedInvestments + multiple * vmId;
             case MISSED_INVESTMENTS:
                 return missedInvestments + multiple * vmId;
-            case CUMULATIVE_REALIZED_SAVINGS:
-                return realizedSavings * multiple * vmId;
-            case CUMULATIVE_MISSED_SAVINGS:
-                return missedSavings * multiple * vmId;
-            case CUMULATIVE_REALIZED_INVESTMENTS:
-                return realizedInvestments * multiple * vmId;
-            case CUMULATIVE_MISSED_INVESTMENTS:
-                return missedInvestments * multiple * vmId;
         }
         return 0d;
     }
