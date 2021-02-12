@@ -35,7 +35,7 @@ import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.actions.ActionExecutionTestUtils;
 import com.vmturbo.topology.processor.actions.data.EntityRetrievalException;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
-import com.vmturbo.topology.processor.actions.data.PolicyRetriever;
+import com.vmturbo.topology.processor.actions.data.GroupAndPolicyRetriever;
 import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.entity.Entity;
 import com.vmturbo.topology.processor.entity.EntityStore;
@@ -59,7 +59,7 @@ public class ChangeProviderContextTest {
 
     private final ProbeStore probeStoreMock = Mockito.mock(ProbeStore.class);
 
-    private PolicyRetriever policyRetrieverMock = Mockito.mock(PolicyRetriever.class);
+    private GroupAndPolicyRetriever groupAndPolicyRetrieverMock = Mockito.mock(GroupAndPolicyRetriever.class);
 
     private final int targetId = 2;
 
@@ -78,7 +78,7 @@ public class ChangeProviderContextTest {
                 entityRetrieverMock,
                 targetStoreMock,
                 probeStoreMock,
-                policyRetrieverMock);
+                groupAndPolicyRetrieverMock);
         Mockito.when(targetStoreMock.getProbeTypeForTarget(targetId))
             .thenReturn(Optional.of(SDKProbeType.VCENTER));
         final Target target = Mockito.mock(Target.class);

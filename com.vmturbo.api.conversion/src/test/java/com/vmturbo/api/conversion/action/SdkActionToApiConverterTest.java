@@ -5,9 +5,11 @@ import static org.junit.Assert.assertThat;
 
 import java.time.OffsetDateTime;
 import java.util.Collections;
+import java.util.List;
 
 import org.junit.Test;
 
+import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionExecutionCharacteristicApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
@@ -16,6 +18,7 @@ import com.vmturbo.api.enums.ActionDisruptiveness;
 import com.vmturbo.api.enums.ActionReversibility;
 import com.vmturbo.api.enums.ActionState;
 import com.vmturbo.api.enums.ActionType;
+import com.vmturbo.platform.common.builders.SDKConstants;
 import com.vmturbo.platform.common.dto.ActionExecution;
 import com.vmturbo.platform.common.dto.CommonDTO;
 
@@ -54,6 +57,10 @@ public class SdkActionToApiConverterTest {
     private static final long STORAGE_TIER_2_UUID = 5329509L;
     private static final String STORAGE_TIER_2_DISPLAY_NAME = "MANAGED_PREMIUM";
     private static final String STORAGE_TIER_2_LOCAL_NAME = "azure::ST::MANAGED_PREMIUM";
+    private static final String CLUSTER_1_ID = "3001";
+    private static final String CLUSTER_2_ID = "3002";
+    private static final String CLUSTER_1_DISPLAY_NAME = "Cluster 1";
+    private static final String CLUSTER_2_DISPLAY_NAME = "Cluster 2";
 
     private static final ActionExecution.ActionExecutionDTO MOVE_ACTION_PERFORMANCE =
         ActionExecution.ActionExecutionDTO.newBuilder()
@@ -66,6 +73,18 @@ public class SdkActionToApiConverterTest {
           .addActionItem(ActionExecution.ActionItemDTO.newBuilder()
             .setActionType(ActionExecution.ActionItemDTO.ActionType.MOVE)
             .setUuid(String.valueOf(ACTION_UUID))
+            .addContextData(CommonDTO.ContextData.newBuilder()
+                .setContextKey(SDKConstants.CURRENT_HOST_CLUSTER_ID)
+                .setContextValue(CLUSTER_1_ID).build())
+            .addContextData(CommonDTO.ContextData.newBuilder()
+                .setContextKey(SDKConstants.CURRENT_HOST_CLUSTER_DISPLAY_NAME)
+                .setContextValue(CLUSTER_1_DISPLAY_NAME).build())
+            .addContextData(CommonDTO.ContextData.newBuilder()
+                .setContextKey(SDKConstants.NEW_HOST_CLUSTER_ID)
+                .setContextValue(CLUSTER_2_ID).build())
+            .addContextData(CommonDTO.ContextData.newBuilder()
+                .setContextKey(SDKConstants.NEW_HOST_CLUSTER_DISPLAY_NAME)
+                .setContextValue(CLUSTER_2_DISPLAY_NAME).build())
             .setTargetSE(CommonDTO.EntityDTO.newBuilder()
               .setEntityType(CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE)
               .setId("Test1")
@@ -287,6 +306,25 @@ public class SdkActionToApiConverterTest {
         assertThat(risk.getSubCategory(), is("PERFORMANCE_ASSURANCE"));
         assertThat(risk.getDescription(), is(MOVE_RISK_DESC));
         assertThat(risk.getSeverity(), is("CRITICAL"));
+
+        // assert cluster
+        List<BaseApiDTO> targetCluster = apiMessage.getTarget().getConnectedEntities();
+        assertThat(targetCluster.size(), is(1));
+        assertThat(targetCluster.get(0).getUuid(), is(CLUSTER_1_ID));
+        assertThat(targetCluster.get(0).getDisplayName(), is(CLUSTER_1_DISPLAY_NAME));
+        assertThat(targetCluster.get(0).getClassName(), is("Cluster"));
+
+        List<BaseApiDTO> currentEntityCluster = apiMessage.getCurrentEntity().getConnectedEntities();
+        assertThat(currentEntityCluster.size(), is(1));
+        assertThat(currentEntityCluster.get(0).getUuid(), is(CLUSTER_1_ID));
+        assertThat(currentEntityCluster.get(0).getDisplayName(), is(CLUSTER_1_DISPLAY_NAME));
+        assertThat(currentEntityCluster.get(0).getClassName(), is("Cluster"));
+
+        List<BaseApiDTO> newEntityCluster = apiMessage.getNewEntity().getConnectedEntities();
+        assertThat(newEntityCluster.size(), is(1));
+        assertThat(newEntityCluster.get(0).getUuid(), is(CLUSTER_2_ID));
+        assertThat(newEntityCluster.get(0).getDisplayName(), is(CLUSTER_2_DISPLAY_NAME));
+        assertThat(newEntityCluster.get(0).getClassName(), is("Cluster"));
 
     }
 

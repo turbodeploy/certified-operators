@@ -51,7 +51,7 @@ import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.actions.data.EntityRetrievalException;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
-import com.vmturbo.topology.processor.actions.data.PolicyRetriever;
+import com.vmturbo.topology.processor.actions.data.GroupAndPolicyRetriever;
 import com.vmturbo.topology.processor.actions.data.context.ActionExecutionContextFactory;
 import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.entity.Entity;
@@ -77,7 +77,7 @@ public class ActionExecutionRpcServiceTest {
 
     private EntityRetriever entityRetriever = Mockito.mock(EntityRetriever.class);
 
-    private PolicyRetriever policyRetrieverMock = Mockito.mock(PolicyRetriever.class);
+    private GroupAndPolicyRetriever groupAndPolicyRetrieverMock = Mockito.mock(GroupAndPolicyRetriever.class);
 
     private final TargetStore targetStoreMock = Mockito.mock(TargetStore.class);
 
@@ -85,7 +85,7 @@ public class ActionExecutionRpcServiceTest {
 
     private ActionExecutionContextFactory actionExecutionContextFactory =
             new ActionExecutionContextFactory(actionDataManager, entityStore, entityRetriever,
-                    targetStoreMock, probeStoreMock, policyRetrieverMock);
+                    targetStoreMock, probeStoreMock, groupAndPolicyRetrieverMock);
 
     private ActionExecutionRpcService actionExecutionBackend = new ActionExecutionRpcService(
             operationManager, actionExecutionContextFactory, false);

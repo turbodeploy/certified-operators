@@ -20,7 +20,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.VCpuData;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.VMemData;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
-import com.vmturbo.topology.processor.actions.data.PolicyRetriever;
+import com.vmturbo.topology.processor.actions.data.GroupAndPolicyRetriever;
 import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.probes.ProbeStore;
@@ -39,9 +39,9 @@ public class ResizeContext extends AbstractActionExecutionContext {
                          @Nonnull final EntityRetriever entityRetriever,
                          @Nonnull final TargetStore targetStore,
                          @Nonnull final ProbeStore probeStore,
-                         @Nonnull final PolicyRetriever policyRetriever) {
+                         @Nonnull final GroupAndPolicyRetriever groupAndPolicyRetriever) {
         super(request, dataManager, entityStore, entityRetriever, targetStore, probeStore,
-            policyRetriever);
+            groupAndPolicyRetriever);
     }
 
     /**

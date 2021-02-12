@@ -48,7 +48,7 @@ import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
-import com.vmturbo.topology.processor.actions.data.PolicyRetriever;
+import com.vmturbo.topology.processor.actions.data.GroupAndPolicyRetriever;
 import com.vmturbo.topology.processor.actions.data.context.ActionExecutionContextFactory;
 import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.api.util.ImmutableThinProbeInfo;
@@ -141,7 +141,7 @@ public class ActionAuditServiceTest {
         final ActionDataManager actionDataManagerMock = Mockito.mock(ActionDataManager.class);
         final EntityStore entityStoreMock = Mockito.mock(EntityStore.class);
         final EntityRetriever entityRetriever = Mockito.mock(EntityRetriever.class);
-        final PolicyRetriever policyRetriever = Mockito.mock(PolicyRetriever.class);
+        final GroupAndPolicyRetriever groupAndPolicyRetriever = Mockito.mock(GroupAndPolicyRetriever.class);
         final TopologyEntityDTO vmTopology = TopologyEntityDTO
                 .newBuilder()
                 .setOid(ENTITY_ID)
@@ -163,7 +163,7 @@ public class ActionAuditServiceTest {
         Mockito.when(topologyToSdkEntityConverter.convertToEntityDTO(vmTopology)).thenReturn(vm);
         Mockito.when(entityStoreMock.getEntity(ENTITY_ID)).thenReturn(Optional.of(vmEntity));
         this.contextFactory = new ActionExecutionContextFactory(actionDataManagerMock,
-                entityStoreMock, entityRetriever, targetStore, probeStore, policyRetriever);
+                entityStoreMock, entityRetriever, targetStore, probeStore, groupAndPolicyRetriever);
         identityProvider = Mockito.mock(IdentityProvider.class);
         Mockito.when(identityProvider.generateOperationId()).thenAnswer(
                 invocation -> counter.getAndIncrement());

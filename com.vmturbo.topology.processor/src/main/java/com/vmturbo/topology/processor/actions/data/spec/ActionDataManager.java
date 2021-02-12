@@ -11,6 +11,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.platform.common.dto.CommonDTO.ContextData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.topology.processor.actions.data.EntityRetriever;
+import com.vmturbo.topology.processor.actions.data.GroupAndPolicyRetriever;
 import com.vmturbo.topology.processor.conversions.TopologyToSdkEntityConverter;
 
 /**
@@ -32,12 +34,17 @@ public class ActionDataManager {
      *
      * @param searchServiceRpc an interface for making remote calls to the Search service.
      * @param topologyToSdkEntityConverter The input topology-to-sdk entity converter instance.
+     * @param entityRetriever the object used for retrieving entities.
+     * @param groupAndPolicyRetriever the object used for retrieving groups and policies.
      * @param useStableActionIdAsUuid Flag set to true if the stable action OID is in use, false otherwise.
+     * @param populateClusterInfo If set as true, populate the cluster info for the action.
      */
     public ActionDataManager(@Nonnull final SearchServiceBlockingStub searchServiceRpc,
                              @Nonnull final TopologyToSdkEntityConverter topologyToSdkEntityConverter,
-                             boolean useStableActionIdAsUuid)
-    {
+                             @Nonnull final EntityRetriever entityRetriever,
+                             @Nonnull final GroupAndPolicyRetriever groupAndPolicyRetriever,
+                             boolean useStableActionIdAsUuid,
+                             boolean populateClusterInfo) {
         Objects.requireNonNull(searchServiceRpc);
         Objects.requireNonNull(topologyToSdkEntityConverter);
 
@@ -51,8 +58,8 @@ public class ActionDataManager {
         // Create a spec for host provision
         allDataRequirements.add(new DataRequirementSpecBuilder()
                 .addMatchCriteria(actionInfo -> actionInfo.hasProvision())
-                .addMatchCriteria(actionInfo -> EntityType.PHYSICAL_MACHINE.getNumber() ==
-                        actionInfo.getProvision().getEntityToClone().getType())
+                .addMatchCriteria(actionInfo -> EntityType.PHYSICAL_MACHINE.getNumber()
+                        == actionInfo.getProvision().getEntityToClone().getType())
                 .addDataRequirement("clusterDisplayName", actionInfo ->
                         getClusterNameForAction(actionInfo))
                 .build());
@@ -66,11 +73,17 @@ public class ActionDataManager {
         VolumeScaleSpecFactory volumeScaleSpecFactory
                 = new VolumeScaleSpecFactory(searchServiceRpc);
         allDataRequirements.add(volumeScaleSpecFactory.getVolumeScaleSpec());
+
+        if (populateClusterInfo) {
+            allDataRequirements.add(new EntityClusterDataSpec(
+                entityRetriever, groupAndPolicyRetriever
+            ));
+        }
     }
 
     /**
-     * Retrieves additional context data used for action execution
-     * Data will be retrieved only for special cases that match the provided actionInfo
+     * Retrieves additional context data used for action execution. Data will be retrieved only
+     * for special cases that match the provided actionInfo.
      *
      * @param actionInfo action information, used to determine which special cases to apply
      * @return a list of additional context data used for action execution

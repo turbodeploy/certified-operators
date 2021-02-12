@@ -26,7 +26,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.MediationMessage;
 import com.vmturbo.topology.processor.actions.ActionExecutionTestUtils;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
-import com.vmturbo.topology.processor.actions.data.PolicyRetriever;
+import com.vmturbo.topology.processor.actions.data.GroupAndPolicyRetriever;
 import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.entity.Entity;
 import com.vmturbo.topology.processor.entity.EntityStore;
@@ -51,7 +51,7 @@ public class ActionExecutionContextTest {
 
     private final ProbeStore probeStoreMock = Mockito.mock(ProbeStore.class);
 
-    private PolicyRetriever policyRetrieverMock = Mockito.mock(PolicyRetriever.class);
+    private GroupAndPolicyRetriever groupAndPolicyRetrieverMock = Mockito.mock(GroupAndPolicyRetriever.class);
 
     // Builds the class under test
     private ActionExecutionContextFactory actionExecutionContextFactory;
@@ -72,7 +72,7 @@ public class ActionExecutionContextTest {
                 entityRetrieverMock,
                 targetStoreMock,
                 probeStoreMock,
-                policyRetrieverMock);
+                groupAndPolicyRetrieverMock);
     }
 
     /**

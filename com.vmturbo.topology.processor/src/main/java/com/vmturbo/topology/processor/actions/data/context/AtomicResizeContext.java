@@ -18,7 +18,7 @@ import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
-import com.vmturbo.topology.processor.actions.data.PolicyRetriever;
+import com.vmturbo.topology.processor.actions.data.GroupAndPolicyRetriever;
 import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.probes.ProbeStore;
@@ -39,7 +39,7 @@ public class AtomicResizeContext extends AbstractActionExecutionContext {
      * @param entityRetriever entity retriever
      * @param targetStore the target store.
      * @param probeStore the probe store.
-     * @param policyRetriever the policy retriever.
+     * @param groupAndPolicyRetriever the policy retriever.
      */
     public AtomicResizeContext(@Nonnull final ActionExecution.ExecuteActionRequest request,
                                @Nonnull final ActionDataManager dataManager,
@@ -47,9 +47,9 @@ public class AtomicResizeContext extends AbstractActionExecutionContext {
                                @Nonnull final EntityRetriever entityRetriever,
                                @Nonnull final TargetStore targetStore,
                                @Nonnull final ProbeStore probeStore,
-                               @Nonnull final PolicyRetriever policyRetriever) {
+                               @Nonnull final GroupAndPolicyRetriever groupAndPolicyRetriever) {
         super(request, dataManager, entityStore, entityRetriever, targetStore, probeStore,
-            policyRetriever);
+            groupAndPolicyRetriever);
     }
 
     @Override

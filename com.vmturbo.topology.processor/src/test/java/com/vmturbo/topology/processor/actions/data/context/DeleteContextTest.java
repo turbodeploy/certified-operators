@@ -34,7 +34,7 @@ import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.actions.ActionExecutionTestUtils;
 import com.vmturbo.topology.processor.actions.data.EntityRetrievalException;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
-import com.vmturbo.topology.processor.actions.data.PolicyRetriever;
+import com.vmturbo.topology.processor.actions.data.GroupAndPolicyRetriever;
 import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.entity.Entity;
 import com.vmturbo.topology.processor.entity.EntityStore;
@@ -58,7 +58,7 @@ public class DeleteContextTest {
 
     private final ProbeStore probeStoreMock = mock(ProbeStore.class);
 
-    private PolicyRetriever policyRetrieverMock = Mockito.mock(PolicyRetriever.class);
+    private GroupAndPolicyRetriever groupAndPolicyRetrieverMock = Mockito.mock(GroupAndPolicyRetriever.class);
 
     private final int awsTargetId = 2;
 
@@ -76,7 +76,7 @@ public class DeleteContextTest {
             entityRetrieverMock,
             targetStoreMock,
             probeStoreMock,
-            policyRetrieverMock);
+            groupAndPolicyRetrieverMock);
 
         // Setup for AWS Probe
         when(targetStoreMock.getProbeTypeForTarget(awsTargetId)).thenReturn(Optional.of(SDKProbeType.AWS));
@@ -191,7 +191,7 @@ public class DeleteContextTest {
         destinationEntity.setHostedBy(awsTargetId, sourceEntityId);
 
         DeleteContext context = new DeleteContext(request, actionDataManagerMock,
-            entityStoreMock, entityRetrieverMock, targetStoreMock, probeStoreMock, policyRetrieverMock);
+            entityStoreMock, entityRetrieverMock, targetStoreMock, probeStoreMock, groupAndPolicyRetrieverMock);
 
         long result = context.getPrimaryEntityId();
         assertEquals(destinationEntityId, result);
