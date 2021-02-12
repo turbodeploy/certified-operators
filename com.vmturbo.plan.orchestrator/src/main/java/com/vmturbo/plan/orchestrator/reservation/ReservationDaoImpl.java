@@ -310,9 +310,10 @@ public class ReservationDaoImpl implements ReservationDao {
     @Nonnull
     @Override
     public ReservationDTO.Reservation deleteReservationById(final long id) throws NoSuchObjectException {
+        ReservationDTO.Reservation reservation;
         synchronized (reservationBlockingLock) {
             try {
-                ReservationDTO.Reservation reservation = dsl.transactionResult(configuration -> {
+                reservation = dsl.transactionResult(configuration -> {
                     final DSLContext transactionDsl = DSL.using(configuration);
                     final ReservationDTO.Reservation insideReservation = getReservationById(id)
                             .orElseThrow(() ->
@@ -320,8 +321,6 @@ public class ReservationDaoImpl implements ReservationDao {
                     transactionDsl.deleteFrom(RESERVATION).where(RESERVATION.ID.eq(id)).execute();
                     return insideReservation;
                 });
-                listeners.forEach(listener -> listener.onReservationDeleted(reservation));
-                return reservation;
             } catch (DataAccessException e) {
                 if (e.getCause() instanceof NoSuchObjectException) {
                     throw (NoSuchObjectException)e.getCause();
@@ -332,6 +331,8 @@ public class ReservationDaoImpl implements ReservationDao {
                 reservationBlockingLock.notifyAll();
             }
         }
+        listeners.forEach(listener -> listener.onReservationDeleted(reservation));
+        return reservation;
     }
 
     /**
