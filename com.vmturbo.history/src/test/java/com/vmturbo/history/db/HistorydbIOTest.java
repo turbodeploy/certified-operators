@@ -80,6 +80,7 @@ import com.vmturbo.history.schema.abstraction.tables.VmStatsLatest;
 import com.vmturbo.history.stats.DbTestConfig;
 import com.vmturbo.history.stats.live.TimeRange;
 import com.vmturbo.platform.common.dto.CommonDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.sql.utils.DbCleanupRule;
 
 /**
@@ -566,6 +567,290 @@ public class HistorydbIOTest {
         // we don't have any more results, so the next cursor should now be empty
         assertFalse(nextPageInfo.getNextCursor().isPresent());
         assertEquals(2, nextPageInfo.getTotalRecordCount().get().longValue());
+    }
+
+    /**
+     * Tests that in a table that has entities with orderBy commodity,
+     * and entities without orderBy commodity and no requested set of
+     * ids is given and there is a requested timeframe.
+     * The cursors and entities returned by subsequent calls to getNextPage are correct.
+     * Expected return order:
+     *                             **************************
+     *        Entities that        *  uuid: 2, VCPU: 10     *
+     *        have the orderBy     *  uuid: 6, VCPU: 16     *
+     *        commodity            *                        *
+     *      ---------------------- **************************
+     *        Entities that        *  uuid: 1               *
+     *        don't have the       *  uuid: 15              *
+     *        orderBy commodity    **************************
+     *
+     *
+     *
+     *      @throws VmtDbException on db error
+     */
+
+    @Test
+    public void testGetNextPageWithoutRequestedIdSet() throws VmtDbException {
+        // setup
+        final String entityUuid1 = "1";
+        final String entityUuid2 = "2";
+        final String entityUuid6 = "6";
+
+        final String entityUuid15 = "15";
+        final double entityValue1 = 1.01;
+        final double entityValue2 = 10.0;
+        final double entityValue6 = 16.0;
+        final double entityValue15 = 1.03;
+        final double capacity = 1.0;
+        final int paginationLimit = 1;
+        CommonDTO.EntityDTO.EntityType type = EntityDTO.EntityType.VIRTUAL_MACHINE;
+        final Stats.EntityStatsScope entityStatsScope = Stats.EntityStatsScope.newBuilder().setEntityType(type.getNumber())
+                .build();
+        EntityStatsPaginationParams paginationParams = new EntityStatsPaginationParams(
+                paginationLimit,
+                paginationLimit,
+                VCPU,
+                PaginationParameters.newBuilder().setAscending(true).build());
+        final Table<?> table =
+                VIRTUAL_MACHINE_ENTITY_TYPE.getTimeFrameTable(TimeFrame.LATEST).get();
+        Connection conn = historydbIO.connection();
+        Timestamp timestamp = new Timestamp(10000L);
+        historydbIO.using(conn).insertInto(table,
+                getTimestampField(table, SNAPSHOT_TIME),
+                getStringField(table, UUID),
+                getStringField(table, PROPERTY_TYPE),
+                getStringField(table, PROPERTY_SUBTYPE),
+                getDoubleField(table, AVG_VALUE),
+                getDoubleField(table, CAPACITY),
+                getRelationTypeField(table, RELATION))
+                .values(timestamp, entityUuid1, PRICE_INDEX, PRICE_INDEX, entityValue1, capacity,
+                        RelationType.METRICS)
+                .values(timestamp, entityUuid2, VCPU, USED, entityValue2, capacity,
+                        RelationType.COMMODITIES)
+                .values(timestamp, entityUuid6, VCPU, USED, entityValue6, capacity,
+                        RelationType.COMMODITIES)
+                .values(timestamp, entityUuid15, PRICE_INDEX, PRICE_INDEX, entityValue15, capacity,
+                        RelationType.METRICS)
+                .execute();
+
+        TimeRange timeRange = Mockito.mock(TimeRange.class);
+        when(timeRange.getMostRecentSnapshotTime()).thenReturn(timestamp);
+        when(timeRange.getTimeFrame()).thenReturn(TimeFrame.LATEST);
+        when(timeRange.getLatestPriceIndexTimeStamp()).thenReturn(Optional.empty());
+
+        // 1st call
+        NextPageInfo nextPageInfo = historydbIO.getNextPage(entityStatsScope, timeRange,
+                paginationParams,
+                VIRTUAL_MACHINE_ENTITY_TYPE,
+                StatsFilter.newBuilder().build());
+        boolean cursorShouldHaveValue = true;
+        validateNextPageValues(nextPageInfo, entityUuid2, cursorShouldHaveValue, entityValue2, 4);
+        SeekPaginationCursor cursor =
+                SeekPaginationCursor.parseCursor(nextPageInfo.getNextCursor().get());
+        // For each subsequent call, use the cursor returned from the previous call
+
+        // 2nd call
+        paginationParams = new EntityStatsPaginationParams(paginationLimit, paginationLimit, VCPU,
+                PaginationParameters.newBuilder()
+                        .setCursor(cursor.toCursorString().get())
+                        .setAscending(true)
+                        .build());
+        nextPageInfo = historydbIO.getNextPage(entityStatsScope, timeRange,
+                paginationParams, VIRTUAL_MACHINE_ENTITY_TYPE, StatsFilter.newBuilder().build());
+        validateNextPageValues(nextPageInfo, entityUuid6, cursorShouldHaveValue, entityValue6, 4);
+        cursor =  SeekPaginationCursor.parseCursor(nextPageInfo.getNextCursor().get());
+
+
+        cursorShouldHaveValue = false;
+        // 3nd call
+        paginationParams = new EntityStatsPaginationParams(paginationLimit, paginationLimit, VCPU,
+                PaginationParameters.newBuilder()
+                        .setCursor(cursor.toCursorString().get())
+                        .setAscending(true)
+                        .build());
+
+        nextPageInfo = historydbIO.getNextPage(entityStatsScope, timeRange,
+                paginationParams, VIRTUAL_MACHINE_ENTITY_TYPE, StatsFilter.newBuilder().build());
+        validateNextPageValues(nextPageInfo, entityUuid1, cursorShouldHaveValue, 0.0, 4);
+        cursor =  SeekPaginationCursor.parseCursor(nextPageInfo.getNextCursor().get());
+
+        // 4nd call
+        paginationParams = new EntityStatsPaginationParams(paginationLimit, paginationLimit, VCPU,
+                PaginationParameters.newBuilder()
+                        .setCursor(cursor.toCursorString().get())
+                        .setAscending(true)
+                        .build());
+
+        nextPageInfo = historydbIO.getNextPage(entityStatsScope, timeRange,
+                paginationParams, VIRTUAL_MACHINE_ENTITY_TYPE, StatsFilter.newBuilder().build());
+        assertEquals(1, nextPageInfo.getEntityOids().size());
+        assertEquals(entityUuid15, nextPageInfo.getEntityOids().get(0));
+        // we don't have any more results, so the next cursor should now be empty
+        assertFalse(nextPageInfo.getNextCursor().isPresent());
+        assertEquals(4, nextPageInfo.getTotalRecordCount().get().longValue());
+
+    }
+
+
+
+    /**
+     * Tests that in a table that has only entities without the orderBy commodity,
+     * but in addition, stats are requested for entities that dont have stats in table
+     * for requested time frame.
+     * The cursors returned by subsequent calls to getNextPage are correct.
+     * Expected return order:
+     *                        **************************
+     *   Entities that        *  uuid: 2, VCPU: 10     *
+     *   have the orderBy     *  uuid: 6, VCPU: 16     *
+     *   commodity            *                        *
+     * ---------------------- **************************
+     *   Entities that        *  uuid: 1               *
+     *   don't have the       *  uuid: 11 non existent *
+     *   orderBy commodity    *  uuid: 12 non existent *
+     *   OR dont have stats   *  uuid: 15              *
+     *                        **************************
+     * @throws VmtDbException on db error
+     */
+    @Test
+    public void testGetNextPageWithEntitiesThatDontHaveTheOrderByCommodityAndDontExistInStatistics() throws VmtDbException {
+
+        // setup
+        final String entityUuid1 = "1";
+        final String entityUuid2 = "2";
+        final String entityUuid6 = "6";
+
+        final String entityUuid11 = "11";
+        final String entityUuid12 = "12";
+        final String entityUuid15 = "15";
+        final double entityValue1 = 1.01;
+        final double entityValue2 = 10.0;
+        final double entityValue6 = 16.0;
+        final double entityValue15 = 1.03;
+        final double capacity = 1.0;
+        final int paginationLimit = 1;
+        final Stats.EntityStatsScope entityStatsScope = Stats.EntityStatsScope.newBuilder()
+                .setEntityList(Stats.EntityStatsScope.EntityList.newBuilder()
+                        .addEntities(1)
+                        .addEntities(2)
+                        .addEntities(6)
+                        .addEntities(11)
+                        .addEntities(12)
+                        .addEntities(15))
+                .build();
+        EntityStatsPaginationParams paginationParams = new EntityStatsPaginationParams(
+                paginationLimit,
+                paginationLimit,
+                VCPU,
+                PaginationParameters.newBuilder().setAscending(true).build());
+        final Table<?> table =
+                VIRTUAL_MACHINE_ENTITY_TYPE.getTimeFrameTable(TimeFrame.LATEST).get();
+        Connection conn = historydbIO.connection();
+        Timestamp timestamp = new Timestamp(10000L);
+        historydbIO.using(conn).insertInto(table,
+                getTimestampField(table, SNAPSHOT_TIME),
+                getStringField(table, UUID),
+                getStringField(table, PROPERTY_TYPE),
+                getStringField(table, PROPERTY_SUBTYPE),
+                getDoubleField(table, AVG_VALUE),
+                getDoubleField(table, CAPACITY),
+                getRelationTypeField(table, RELATION))
+                .values(timestamp, entityUuid1, PRICE_INDEX, PRICE_INDEX, entityValue1, capacity,
+                        RelationType.METRICS)
+                .values(timestamp, entityUuid2, VCPU, USED, entityValue2, capacity,
+                        RelationType.COMMODITIES)
+                .values(timestamp, entityUuid6, VCPU, USED, entityValue6, capacity,
+                        RelationType.COMMODITIES)
+                .values(timestamp, entityUuid15, PRICE_INDEX, PRICE_INDEX, entityValue15, capacity,
+                        RelationType.METRICS)
+                .execute();
+
+        TimeRange timeRange = Mockito.mock(TimeRange.class);
+        when(timeRange.getMostRecentSnapshotTime()).thenReturn(timestamp);
+        when(timeRange.getTimeFrame()).thenReturn(TimeFrame.LATEST);
+        when(timeRange.getLatestPriceIndexTimeStamp()).thenReturn(Optional.empty());
+        // 1st call
+        NextPageInfo nextPageInfo = historydbIO.getNextPage(entityStatsScope, timeRange,
+                paginationParams,
+                VIRTUAL_MACHINE_ENTITY_TYPE,
+                StatsFilter.newBuilder().build());
+        boolean cursorShouldHaveValue = true;
+        validateNextPageValues(nextPageInfo, entityUuid2, cursorShouldHaveValue, entityValue2,  6);
+        SeekPaginationCursor cursor =
+                SeekPaginationCursor.parseCursor(nextPageInfo.getNextCursor().get());
+        // For each subsequent call, use the cursor returned from the previous call
+
+        // 2nd call
+        paginationParams = new EntityStatsPaginationParams(paginationLimit, paginationLimit, VCPU,
+                PaginationParameters.newBuilder()
+                        .setCursor(cursor.toCursorString().get())
+                        .setAscending(true)
+                        .build());
+        nextPageInfo = historydbIO.getNextPage(entityStatsScope, timeRange,
+                paginationParams, VIRTUAL_MACHINE_ENTITY_TYPE, StatsFilter.newBuilder().build());
+        validateNextPageValues(nextPageInfo, entityUuid6, cursorShouldHaveValue, entityValue6, 6);
+        cursor =  SeekPaginationCursor.parseCursor(nextPageInfo.getNextCursor().get());
+
+
+        cursorShouldHaveValue = false;
+        // 3nd call
+        paginationParams = new EntityStatsPaginationParams(paginationLimit, paginationLimit, VCPU,
+                PaginationParameters.newBuilder()
+                        .setCursor(cursor.toCursorString().get())
+                        .setAscending(true)
+                        .build());
+
+        nextPageInfo = historydbIO.getNextPage(entityStatsScope, timeRange,
+                paginationParams, VIRTUAL_MACHINE_ENTITY_TYPE, StatsFilter.newBuilder().build());
+        validateNextPageValues(nextPageInfo,  entityUuid1,  cursorShouldHaveValue, 0.0, 6);
+        cursor =  SeekPaginationCursor.parseCursor(nextPageInfo.getNextCursor().get());
+
+        //4nd call
+        paginationParams = new EntityStatsPaginationParams(paginationLimit, paginationLimit, VCPU,
+                PaginationParameters.newBuilder()
+                        .setCursor(cursor.toCursorString().get())
+                        .setAscending(true)
+                        .build());
+
+        nextPageInfo = historydbIO.getNextPage(entityStatsScope, timeRange,
+                paginationParams, VIRTUAL_MACHINE_ENTITY_TYPE, StatsFilter.newBuilder().build());
+        validateNextPageValues(nextPageInfo,  entityUuid11,  cursorShouldHaveValue,  0.0,  6);
+        cursor =  SeekPaginationCursor.parseCursor(nextPageInfo.getNextCursor().get());
+
+        // 5th call
+        paginationParams = new EntityStatsPaginationParams(paginationLimit, paginationLimit, VCPU,
+                PaginationParameters.newBuilder()
+                        .setCursor(cursor.toCursorString().get())
+                        .setAscending(true)
+                        .build());
+
+        nextPageInfo = historydbIO.getNextPage(entityStatsScope, timeRange,
+                paginationParams, VIRTUAL_MACHINE_ENTITY_TYPE, StatsFilter.newBuilder().build());
+        validateNextPageValues(nextPageInfo,  entityUuid12,  cursorShouldHaveValue,  0.0,  6);
+        cursor =  SeekPaginationCursor.parseCursor(nextPageInfo.getNextCursor().get());
+
+        // 6th call
+        paginationParams = new EntityStatsPaginationParams(paginationLimit, paginationLimit, VCPU,
+                PaginationParameters.newBuilder()
+                        .setCursor(cursor.toCursorString().get())
+                        .setAscending(true)
+                        .build());
+
+        nextPageInfo = historydbIO.getNextPage(entityStatsScope, timeRange,
+                paginationParams, VIRTUAL_MACHINE_ENTITY_TYPE, StatsFilter.newBuilder().build());
+
+        paginationParams = new EntityStatsPaginationParams(paginationLimit, paginationLimit, VCPU,
+                PaginationParameters.newBuilder()
+                        .setCursor(cursor.toCursorString().get())
+                        .setAscending(true)
+                        .build());
+        nextPageInfo = historydbIO.getNextPage(entityStatsScope, timeRange,
+                paginationParams, VIRTUAL_MACHINE_ENTITY_TYPE, StatsFilter.newBuilder().build());
+        assertEquals(1, nextPageInfo.getEntityOids().size());
+        assertEquals(entityUuid15, nextPageInfo.getEntityOids().get(0));
+        // we don't have any more results, so the next cursor should now be empty
+        assertFalse(nextPageInfo.getNextCursor().isPresent());
+        assertEquals(6, nextPageInfo.getTotalRecordCount().get().longValue());
+
     }
 
     /**

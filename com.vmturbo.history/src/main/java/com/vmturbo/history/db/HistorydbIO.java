@@ -871,11 +871,25 @@ public class HistorydbIO extends BasedbIO {
             // than the page limit, append to the end the entities that don't have it. If it is
             // exactly equal to page limit, check to see if there are entities that don't have the
             // orderBy commodity, in which case we must to add the cursor to the response.
-            final Result<Record1<String>> entitiesWithoutOrderByCommodity =
-                    fetchEntitiesThatDontHaveTheOrderByCommodity(conn, aggregatedStats,
-                            allUuidsInScope, paginationParams.getLimit(), seekPaginationCursor,
-                            cursorExistsInAggregatedStatsTable, nextPageIds.size());
-            nextPageIds.addAll(entitiesWithoutOrderByCommodity.getValues(scopedUuidField));
+            List<String> entitiesWithoutOrderByCommodity = requestedIdSet.isEmpty()
+                    ? getFromAllUuidTable(conn,
+                        aggregatedStats,
+                        allUuidsInScope,
+                        paginationParams.getLimit(),
+                        seekPaginationCursor,
+                        cursorExistsInAggregatedStatsTable,
+                        nextPageIds.size())
+                    : getEntitiesFromRequestedIdSet(conn,
+                             aggregatedStats,
+                             allUuidsInScope,
+                             requestedIdSet,
+                            paginationParams.getLimit(),
+                             seekPaginationCursor,
+                             cursorExistsInAggregatedStatsTable,
+                            nextPageIds.size());
+
+            nextPageIds.addAll(entitiesWithoutOrderByCommodity);
+
             if (nextPageIds.size() > paginationParams.getLimit()) {
                 // If there are more results, we trim the last result (since that goes beyond
                 // the page limit).
@@ -1046,7 +1060,7 @@ public class HistorydbIO extends BasedbIO {
      * (page size - currentResultsCount + 1), where exceeding the page size by 1 indicates that
      * there are more entities left to be retrieved in subsequent calls.
      */
-    private Result<Record1<String>> fetchEntitiesThatDontHaveTheOrderByCommodity(Connection conn,
+    private List<String> getFromAllUuidTable(Connection conn,
             final Table<Record3<String, BigDecimal, BigDecimal>> aggregatedStats,
             final Table<Record1<String>> allUuidsInScope,
             final int paginationLimit,
@@ -1076,7 +1090,59 @@ public class HistorydbIO extends BasedbIO {
                 .where(conditionsForEntitiesWithoutSortCommodity)
                 .orderBy(scopedUuidField.asc())
                 .limit(paginationLimit - currentResultsCount + 1)
-                .fetch();
+                .fetch().getValues(scopedUuidField);
+    }
+
+
+
+    private List<String> getEntitiesFromRequestedIdSet( Connection conn, final Table<Record3<String, BigDecimal, BigDecimal>> aggregatedStats,
+            final Table<Record1<String>> allUuidsInScope,
+            final Set<String> requestedIdSet,
+            final int paginationLimit,
+            final SeekPaginationCursor seekPaginationCursor,
+            final boolean cursorExistsInAggregatedStatsTable,
+            final int currentResultsCount ) {
+
+        List<String> allOrderByUuids = (List<String>)using(conn).select(getStringField(aggregatedStats, UUID))
+                .from(aggregatedStats)
+                .fetch()
+                .getValues(getStringField(aggregatedStats, UUID));
+
+        ArrayList<String> differences = new ArrayList<>(requestedIdSet);
+        differences.removeAll(allOrderByUuids);
+
+        // Early return
+        if (differences.isEmpty()) {
+            return differences;
+        }
+
+        Collections.sort(differences);
+
+        // Add pagination conditions.
+        // If the cursor from the previous request points to an entity that has the orderBy
+        // commodity, then do not apply it to the entities that don't have the orderBy commodity
+        // (since they are in a different "table" and we must begin fetching them from the top)
+        int pageStartIndex = 0;
+        if (seekPaginationCursor.lastId.isPresent() && !cursorExistsInAggregatedStatsTable ) {
+            int cursorFoundIndex = differences.indexOf(seekPaginationCursor.lastId.get());
+            if (cursorFoundIndex != -1 ) {
+                 pageStartIndex = cursorFoundIndex + 1;
+            }
+        }
+        int entitiesWithoutOrderByCount = differences.size();
+        /* we request plus one entities to acquire knowledge if
+         * there are more entities to respond, which means we
+         * need to return cursor.
+        */
+        int pageEndIndex =  pageStartIndex + paginationLimit - currentResultsCount + 1;
+        if (entitiesWithoutOrderByCount < pageEndIndex ) {
+            pageEndIndex = entitiesWithoutOrderByCount;
+        }
+
+        return differences.subList(
+                pageStartIndex,
+                pageEndIndex);
+
     }
 
     @Nonnull
