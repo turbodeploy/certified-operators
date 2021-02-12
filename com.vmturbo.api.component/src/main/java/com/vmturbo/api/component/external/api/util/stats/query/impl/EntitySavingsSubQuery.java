@@ -137,6 +137,7 @@ public class EntitySavingsSubQuery implements StatsSubQuery {
         statValueApiDTO.setMin(value);
         statValueApiDTO.setTotal(value);
         statApiDTO.setValues(statValueApiDTO);
+        statApiDTO.setUnits("$");
 
         return statApiDTO;
     }
