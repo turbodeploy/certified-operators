@@ -1,0 +1,25 @@
+syntax = "proto2";
+package com.vmturbo.platform.analysis.protobuf;
+
+import "EconomyDTOs.proto";
+
+// The protobuf object to represent the reservation economy cache.
+message EconomyCacheDTO {
+    // A list of TopologyDTO's commodity type to TraderTO's commodity specification mapping.
+    repeated CommTypeEntry commTypeEntry = 1;
+
+    // A list of TraderTOs.
+    repeated TraderTO traders = 2;
+
+    // The entry contains a commodity's type, key and its commodity specification.
+    message CommTypeEntry {
+        // The integer representing commodity type.
+        optional int32 comm_type = 1;
+
+        // The key of commodity.
+        optional string key = 2;
+
+        // The corresponding commoditySpecification type.
+        optional int32 comm_spec_type = 3;
+    }
+}

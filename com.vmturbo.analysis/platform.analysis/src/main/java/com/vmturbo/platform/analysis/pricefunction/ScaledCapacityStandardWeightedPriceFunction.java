@@ -36,6 +36,7 @@ public class ScaledCapacityStandardWeightedPriceFunction implements PriceFunctio
      * @return the price that will be charged for 100% of the capacity for a particular commodity
      *          sold by a seller
      */
+    @Override
     public double unitPrice(double normalizedUtilization, ShoppingList shoppingList, Trader seller, CommoditySold cs,
                             UnmodifiableEconomy e) {
         return PriceFunctionFactory.isInvalid((normalizedUtilization / scale_))
@@ -53,4 +54,8 @@ public class ScaledCapacityStandardWeightedPriceFunction implements PriceFunctio
         return PriceFunctionFactory.createScaledCapacityStandardWeightedPriceFunction(weight, this.scale_);
     }
 
+    @Override
+    public double[] getParams() {
+        return new double[] { this.weight_, this.scale_ };
+    }
 }

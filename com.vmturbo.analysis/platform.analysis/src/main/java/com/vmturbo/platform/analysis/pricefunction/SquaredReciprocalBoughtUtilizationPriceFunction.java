@@ -30,6 +30,7 @@ public class SquaredReciprocalBoughtUtilizationPriceFunction implements PriceFun
      * @return the price that will be charged for 100% of the capacity for a particular commodity
      *          sold by a seller
      */
+    @Override
     public double unitPrice(double normalizedUtilization, ShoppingList shoppingList, Trader seller, CommoditySold cs,
                             UnmodifiableEconomy e) {
         // if shopping list is passed, disregard u
@@ -51,5 +52,10 @@ public class SquaredReciprocalBoughtUtilizationPriceFunction implements PriceFun
         } else {
             return Math.min(weight_ / util / util, PriceFunctionFactory.MAX_UNIT_PRICE);
         }
+    }
+
+    @Override
+    public double[] getParams() {
+        return new double[] { this.weight_ };
     }
 }

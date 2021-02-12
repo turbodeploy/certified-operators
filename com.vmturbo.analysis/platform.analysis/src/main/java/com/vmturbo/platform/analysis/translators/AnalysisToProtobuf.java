@@ -12,15 +12,18 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.BiMap;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
+import com.vmturbo.commons.analysis.UpdateFunction;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ActionImpl;
 import com.vmturbo.platform.analysis.actions.Activate;
@@ -49,8 +52,19 @@ import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
 import com.vmturbo.platform.analysis.ede.QuoteMinimizer;
 import com.vmturbo.platform.analysis.ledger.PriceStatement;
 import com.vmturbo.platform.analysis.ledger.PriceStatement.TraderPriceStatement;
+import com.vmturbo.platform.analysis.pricefunction.ConstantPriceFunction;
+import com.vmturbo.platform.analysis.pricefunction.ExternalPriceFunction;
+import com.vmturbo.platform.analysis.pricefunction.FiniteStandardWeightedPriceFunction;
+import com.vmturbo.platform.analysis.pricefunction.IgnoreUtilizationPriceFunction;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunctionFactory;
+import com.vmturbo.platform.analysis.pricefunction.QuoteFunction;
+import com.vmturbo.platform.analysis.pricefunction.QuoteFunctionFactory;
+import com.vmturbo.platform.analysis.pricefunction.ScaledCapacityStandardWeightedPriceFunction;
+import com.vmturbo.platform.analysis.pricefunction.SquaredReciprocalBoughtUtilizationPriceFunction;
+import com.vmturbo.platform.analysis.pricefunction.StandardWeightedPriceFunction;
+import com.vmturbo.platform.analysis.pricefunction.StepPriceFunction;
+import com.vmturbo.platform.analysis.pricefunction.StepPriceFunctionForCloud;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActivateTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.Compliance;
@@ -81,18 +95,40 @@ import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults.NewShoppingListToBuyerEntry;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderStateTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.Constant;
+import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.FiniteStandardWeighted;
+import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.IgnoreUtilization;
+import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.ScaledCapacityStandardWeighted;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.StandardWeighted;
+import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.SquaredReciprocalBought;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.Step;
+import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.StepForCloud;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessagePayload;
+import com.vmturbo.platform.analysis.protobuf.QuoteFunctionDTOs.QuoteFunctionDTO;
+import com.vmturbo.platform.analysis.protobuf.QuoteFunctionDTOs.QuoteFunctionDTO.RiskBased;
+import com.vmturbo.platform.analysis.protobuf.QuoteFunctionDTOs.QuoteFunctionDTO.SumOfCommodity;
+import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO;
+import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO.Average;
+import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO.Delta;
+import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO.ExternalUpdateFunction;
+import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO.IgnoreConsumption;
+import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO.Max;
+import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO.Min;
+import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO.MM1Distribution;
+import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO.ProjectSecond;
+import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO.StandardDistribution;
+import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO.UpdateCoupon;
+
 import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.updatingfunction.UpdatingFunction;
+import com.vmturbo.platform.analysis.updatingfunction.UpdatingFunctionFactory;
 
 /**
  * A class containing methods to convert java classes used by analysis to Protobuf messages.
@@ -122,14 +158,29 @@ public final class AnalysisToProtobuf {
         // Warning: converting price functions to TOs is not properly supported!
         PriceFunctionTO.Builder builder = PriceFunctionTO.newBuilder();
 
-        if (input == PriceFunctionFactory.createStandardWeightedPriceFunction(1.0)) {
-            builder.setStandardWeighted(StandardWeighted.newBuilder().setWeight(1.0f));
-        } else if (input == PriceFunctionFactory.createConstantPriceFunction(0.0)) {
-            builder.setConstant(Constant.newBuilder().setValue(0.0f));
-        } else if (input == PriceFunctionFactory.createConstantPriceFunction(27.0f)) {
-            builder.setConstant(Constant.newBuilder().setValue(27.0f));
-        } else if (input == PriceFunctionFactory.createStepPriceFunction(1.0, 0.0, 20000.0)) {
-            builder.setStep(Step.newBuilder().setStepAt(1.0f).setPriceBelow(0.0f).setPriceAbove(20000.0f));
+        if (input instanceof StandardWeightedPriceFunction) {
+            builder.setStandardWeighted(StandardWeighted.newBuilder().setWeight((float)input.getParams()[0]));
+        } else if (input instanceof StepPriceFunctionForCloud) {
+            builder.setStepForCloud(StepForCloud.newBuilder());
+        } else if (input instanceof StepPriceFunction) {
+            builder.setStep(Step.newBuilder().setStepAt((float)input.getParams()[0])
+                    .setPriceBelow((float)input.getParams()[1])
+                    .setPriceAbove((float)input.getParams()[2]));
+        } else if (input instanceof ConstantPriceFunction) {
+            builder.setConstant(Constant.newBuilder().setValue((float)input.getParams()[0]));
+        } else if (input instanceof IgnoreUtilizationPriceFunction) {
+            builder.setIgnoreUtilization(IgnoreUtilization.newBuilder());
+        } else if (input instanceof ScaledCapacityStandardWeightedPriceFunction) {
+            builder.setScaledCapacityStandardWeighted(ScaledCapacityStandardWeighted.newBuilder()
+                    .setWeight((float)input.getParams()[0]).setScale((float)input.getParams()[1]));
+        } else if (input instanceof ExternalPriceFunction) {
+            builder.setExternalPriceFunction(PriceFunctionTO.ExternalPriceFunction.newBuilder());
+        } else if (input instanceof FiniteStandardWeightedPriceFunction) {
+            builder.setFiniteStandardWeighted(FiniteStandardWeighted.newBuilder()
+                    .setWeight((float)input.getParams()[0]));
+        } else if (input instanceof SquaredReciprocalBoughtUtilizationPriceFunction) {
+            builder.setSquaredReciprocalBought(SquaredReciprocalBought.newBuilder()
+                    .setWeight((float)input.getParams()[0]));
         }
 
         return builder.build();
@@ -182,7 +233,54 @@ public final class AnalysisToProtobuf {
             .setCapacityUpperBound((float)input.getCapacityUpperBound())
             .setCapacityIncrement((float)input.getCapacityIncrement())
             .setUtilizationUpperBound((float)input.getUtilizationUpperBound())
-            .setPriceFunction(priceFunctionTO(input.getPriceFunction())).build();
+            .setPriceFunction(priceFunctionTO(input.getPriceFunction()))
+            .setUpdateFunction(updateFunctionTO(input.getUpdatingFunction()))
+            .build();
+    }
+
+    /**
+     * Converts a {@link UpdatingFunction} to a {@link UpdatingFunctionTO}. 
+     *
+     * @param input The {@link UpdatingFunction} to convert.
+     * @return The resulting {@link UpdatingFunctionTO}.
+     */
+    public static UpdatingFunctionTO updateFunctionTO(@PolyRead UpdatingFunction updatingFunction) {
+        if (updatingFunction == null) {
+            return UpdatingFunctionTO.getDefaultInstance();
+        } else if (updatingFunction == UpdatingFunctionFactory.STANDARD_DISTRIBUTION) {
+            return UpdatingFunctionTO.newBuilder()
+                    .setStandardDistribution(UpdatingFunctionTO.StandardDistribution.newBuilder())
+                    .build();
+        } else if (updatingFunction == UpdatingFunctionFactory.MAX_COMM) {
+            return UpdatingFunctionTO.newBuilder().setMax(UpdatingFunctionTO.Max.newBuilder()).build();
+        } else if (updatingFunction == UpdatingFunctionFactory.RETURN_BOUGHT_COMM) {
+            return UpdatingFunctionTO.newBuilder().setProjectSecond(UpdatingFunctionTO
+                    .ProjectSecond.newBuilder()).build();
+        } else if (updatingFunction == UpdatingFunctionFactory.MIN_COMM) {
+            return UpdatingFunctionTO.newBuilder().setMin(UpdatingFunctionTO.Min.newBuilder()).build();
+        } else if (updatingFunction == UpdatingFunctionFactory.ADD_COMM) {
+            return UpdatingFunctionTO.newBuilder().setDelta(UpdatingFunctionTO.Delta.newBuilder()).build();
+        } else if (updatingFunction == UpdatingFunctionFactory.AVG_COMMS) {
+            return UpdatingFunctionTO.newBuilder().setAvgAdd(UpdatingFunctionTO.Average
+                    .newBuilder()).build();
+        } else if (updatingFunction == UpdatingFunctionFactory.IGNORE_CONSUMPTION) {
+            return UpdatingFunctionTO.newBuilder().setIgnoreConsumption(
+                    UpdatingFunctionTO.IgnoreConsumption.newBuilder()).build();
+        } else if (updatingFunction == UpdatingFunctionFactory.EXTERNAL_UPDATING_FUNCTION) {
+            return UpdatingFunctionTO.newBuilder().setExternalUpdate(
+                    UpdatingFunctionTO.ExternalUpdateFunction.newBuilder()).build();
+        } else if (UpdatingFunctionFactory.isMM1DistributionFunction(updatingFunction)) {
+            // NOTE: currently give a dummy updatingFunctionTO because it is not used anywhere yet.
+            return UpdatingFunctionTO.newBuilder().setMm1Distribution(UpdatingFunctionTO
+                    .MM1Distribution.newBuilder()).build();
+        } else if (updatingFunction.equals(UpdatingFunctionFactory
+                    .createCouponUpdatingFunction(CostDTO.newBuilder().build()))) {
+            // NOTE: currently give a dummy updatingFunctionTO because it is not used anywhere yet.
+            return UpdatingFunctionTO.newBuilder().setUpdateCoupon(UpdatingFunctionTO
+                    .UpdateCoupon.newBuilder()).build();
+        } else {
+            return UpdatingFunctionTO.getDefaultInstance();
+        }
     }
 
     /**
@@ -264,7 +362,37 @@ public final class AnalysisToProtobuf {
                 .setMinDesiredUtilization((float)input.getMinDesiredUtil())
                 .setMaxDesiredUtilization((float)input.getMaxDesiredUtil())
                 .setGuaranteedBuyer(input.isGuaranteedBuyer())
-                .setCanAcceptNewCustomers(input.canAcceptNewCustomers()).build();
+                .setCanAcceptNewCustomers(input.canAcceptNewCustomers())
+                .setCanSimulateAction(input.isCanSimulateAction())
+                .setIsEligibleForResizeDown(input.isEligibleForResizeDown())
+                .setQuoteFactor((float)input.getQuoteFactor())
+                .setMoveCostFactor((float)input.getMoveCostFactor())
+                .setQuoteFunction(quoteFunctionDTO(input.getQuoteFunction()))
+                .setProviderMustClone(input.isProviderMustClone())
+                .setDaemon(input.isDaemon())
+                .setRateOfResize(input.getRateOfResize())
+                .setConsistentScalingFactor(input.getConsistentScalingFactor())
+                .setMinReplicas(input.getMinReplicas())
+                .setMaxReplicas(input.getMaxReplicas())
+                .build();
+    }
+
+    /**
+     * Converts a {@link QuoteFunction} instance to a {@link QuoteFunctionDTO} instance.
+     *
+     * @param quoteFunction The {@link QuoteFunction} instance to convert.
+     * @return The result {@linnk QuoteFunctionDTO}.
+     */
+    private static QuoteFunctionDTO quoteFunctionDTO(QuoteFunction quoteFunction) {
+        QuoteFunctionDTO functionDTO;
+        if (quoteFunction.equals(QuoteFunctionFactory.sumOfCommodityQuoteFunction())) {
+            functionDTO = QuoteFunctionDTO.newBuilder()
+                    .setSumOfCommodity(SumOfCommodity.getDefaultInstance()).build();
+        } else {
+            functionDTO = QuoteFunctionDTO.newBuilder()
+                    .setRiskBased(RiskBased.getDefaultInstance()).build();
+        }
+        return functionDTO;
     }
 
     /**

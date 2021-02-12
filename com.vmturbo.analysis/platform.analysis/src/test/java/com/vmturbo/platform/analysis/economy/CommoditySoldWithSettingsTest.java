@@ -273,9 +273,9 @@ public final class CommoditySoldWithSettingsTest {
     @SuppressWarnings("unused") // it is used reflectively
     private static Object[] parametersForTestGetSetPriceFunction() {
         return new Object[]{
-            PriceFunctionFactory.createPriceFunction((x, sl, seller, commSold, economy) -> x * x),
-            PriceFunctionFactory.createPriceFunction((x, sl, seller, commSold, economy) -> 1 / ((1 - x) * (1 - x))),
-            PriceFunctionFactory.createPriceFunction((x, sl, seller, commSold, economy) -> 1 / x)
+            PriceFunctionFactory.createConstantPriceFunction(0),
+            PriceFunctionFactory.createStandardWeightedPriceFunction(0.7),
+            PriceFunctionFactory.createFiniteStandardWeightedPriceFunction(0.7)
         };
     }
 
