@@ -492,7 +492,7 @@ public class PlanProjectedRICoverageAndUtilStore implements MultiStoreDiagnosabl
             conditions = conditions.and(table.field(REGION_ID, Long.class).in(regions));
         }
         final Result<Record> records =
-                        context.select(ReservedInstanceUtil.createSelectFieldsForPlanRIUtilizationCoverage(table))
+                        context.select(ReservedInstanceUtil.createSelectFieldsForPlanRIUtilizationCoverage(table, false))
                                         .from(table)
                                         .where(conditions)
                                         .fetch();

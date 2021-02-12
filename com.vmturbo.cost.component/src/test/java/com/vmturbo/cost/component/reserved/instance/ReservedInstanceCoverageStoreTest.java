@@ -93,7 +93,7 @@ public class ReservedInstanceCoverageStoreTest {
         reservedInstanceBoughtStore = new SQLReservedInstanceBoughtStore(dsl,
                 new DefaultIdentityProvider(0), reservedInstanceCostCalculator, priceTableStore,
                 entityReservedInstanceMappingStore, accountRIMappingStore, new BusinessAccountHelper());
-        reservedInstanceCoverageStore = new ReservedInstanceCoverageStore(dsl);
+        reservedInstanceCoverageStore = new ReservedInstanceCoverageStore(dsl, true, 1f);
     }
 
     @Test

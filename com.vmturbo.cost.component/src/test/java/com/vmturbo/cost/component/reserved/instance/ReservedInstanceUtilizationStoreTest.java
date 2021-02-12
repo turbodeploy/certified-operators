@@ -170,7 +170,7 @@ public class ReservedInstanceUtilizationStoreTest {
                 entityReservedInstanceMappingStore, accountRIMappingStore, new BusinessAccountHelper());
 
         reservedInstanceUtilizationStore = new ReservedInstanceUtilizationStore(dsl,
-                reservedInstanceBoughtStore, reservedInstanceSpecStore);
+                reservedInstanceBoughtStore, reservedInstanceSpecStore, true, 1f);
         insertDefaultReservedInstanceSpec();
     }
 

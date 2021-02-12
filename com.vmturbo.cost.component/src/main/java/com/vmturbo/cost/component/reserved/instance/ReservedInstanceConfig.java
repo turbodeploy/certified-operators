@@ -124,6 +124,22 @@ public class ReservedInstanceConfig {
     @Autowired
     private SupplementalRICoverageAnalysisFactory supplementalRICoverageAnalysisFactory;
 
+    // OM-66854 - normalization with consider the sample count of each data point within the
+    // down-sampled RI coverage/utilization tables (rollup tables). If this is disabled, the behavior
+    // will revert to considering each data point within a time bucket as having equal weight for
+    // averaging purposes, skewing the average towards short-lived entities.
+    @Value("${normalizeCouponSamples:true}")
+    private boolean normalizeCouponSamples;
+
+    // OM-66854 - normalizes the total coupon capacity and used value for down-sampled data to
+    // coupon hours. Without this normalization, the total statistic will represent a total at whatever
+    // the sample rate is (typically 10 minutes), which may not be useful. This is somewhat of a hack
+    // and the default assumes a 10 minute broadcast interval. It is not guaranteed to always be accurate
+    // given there may be manual topology broadcasts and/or broadcasts may not occur at a precise
+    // 10 minute interval.
+    @Value("${couponNormalizationFactor:6}")
+    private float couponNormalizationFactor;
+
     @Bean
     public ReservedInstanceBoughtStore reservedInstanceBoughtStore() {
         if (ignoreReservedInstanceInventory) {
@@ -170,12 +186,17 @@ public class ReservedInstanceConfig {
     public ReservedInstanceUtilizationStore reservedInstanceUtilizationStore() {
         return new ReservedInstanceUtilizationStore(databaseConfig.dsl(),
                 reservedInstanceBoughtStore(),
-                reservedInstanceSpecConfig.reservedInstanceSpecStore());
+                reservedInstanceSpecConfig.reservedInstanceSpecStore(),
+                normalizeCouponSamples,
+                couponNormalizationFactor);
     }
 
     @Bean
     public ReservedInstanceCoverageStore reservedInstanceCoverageStore() {
-        return new ReservedInstanceCoverageStore(databaseConfig.dsl());
+        return new ReservedInstanceCoverageStore(
+                databaseConfig.dsl(),
+                normalizeCouponSamples,
+                couponNormalizationFactor);
     }
 
     /**
