@@ -190,6 +190,40 @@ public class ReservedInstanceBoughtFilterTest {
         testAndVerifyCondition(testFilter, USED_ZONE_CLAUSE);
     }
 
+    /**
+        * Tests the generate condition for no filters.
+        */
+    @Test
+    public void testNoFilterTypeCondition() {
+
+        final Connection conn = mock(Connection.class);
+        DSLContext ctx = new DefaultDSLContext(conn, SQLDialect.MARIADB);
+        ctx.settings().setRenderFormatted(true);
+        ctx.settings().setRenderKeywordStyle(RenderKeywordStyle.UPPER);
+        ReservedInstanceBoughtFilter testFilter =
+                                                ReservedInstanceBoughtFilter.newBuilder()
+                                                                .build();
+        final List<Condition> conditions =
+                                         ImmutableList.copyOf(testFilter.generateConditions(ctx));
+        final List<String> conditionStrings = conditions.stream()
+                        .map(Condition::toString)
+                        .map(s -> s.replaceAll("\\s", ""))
+                        .collect(ImmutableList.toImmutableList());
+
+        // Asset that none of the filters is set, hence all global RIs should be retrieved.
+        Assert.assertFalse(conditionStrings.contains(USED_PURCHASED_ACCOUNT_CLAUSE
+                        .replaceAll("\\s", "")));
+        Assert.assertFalse(conditionStrings.contains(USED_ACCOUNT_CLAUSE
+                                                     .replaceAll("\\s", "")));
+        Assert.assertFalse(conditionStrings.contains(USED_REGION_CLAUSE
+                                                     .replaceAll("\\s", "")));
+        Assert.assertFalse(conditionStrings.contains(USED_ZONE_CLAUSE
+                                                     .replaceAll("\\s", "")));
+        Assert.assertFalse(conditionStrings.contains(USED_UNDISCOVERED_ACCOUNT_CLAUSE
+                                                     .replaceAll("\\s", "")));
+
+    }
+
     private void testAndVerifyCondition(final ReservedInstanceBoughtFilter testFilter,
                                         final String expectedClause) {
         final Connection conn = mock(Connection.class);
