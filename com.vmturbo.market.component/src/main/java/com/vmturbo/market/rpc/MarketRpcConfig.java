@@ -8,19 +8,15 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Import;
 
 import com.vmturbo.common.protobuf.market.InitialPlacementREST.InitialPlacementServiceController;
 import com.vmturbo.common.protobuf.market.MarketDebugREST.MarketDebugServiceController;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
-import com.vmturbo.market.MarketDBConfig;
 import com.vmturbo.market.reservations.InitialPlacementFinder;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientConfig;
-import com.vmturbo.platform.analysis.protobuf.ActionDTOs.InitialPlacement;
 
 @Configuration
-@Import({MarketDBConfig.class, PlanOrchestratorClientConfig.class})
 public class MarketRpcConfig {
 
     @Value("${realtimeTopologyContextId}")
@@ -37,9 +33,6 @@ public class MarketRpcConfig {
 
     @Autowired
     private PlanOrchestratorClientConfig planClientConfig;
-
-    @Autowired
-    private MarketDBConfig dbConfig;
 
     @Bean
     public Optional<MarketDebugRpcService> marketDebugRpcService() {
@@ -65,8 +58,8 @@ public class MarketRpcConfig {
 
     @Bean
     public InitialPlacementFinder getInitialPlacementFinder() {
-        return new InitialPlacementFinder(dbConfig.dsl(), getReservationService(),
-                prepareReservationCache, maxRetry);
+        return new InitialPlacementFinder(getExecutorService(),
+                getReservationService(), prepareReservationCache, maxRetry);
     }
 
     @Bean
@@ -84,10 +77,8 @@ public class MarketRpcConfig {
      * Fetch existing reservations from plan orchestrator once market component starts.
      */
     @Bean
-    public void constructEconomyCachesFromDB() {
-        getExecutorService().submit(() -> {
-            getInitialPlacementFinder().restoreEconomyCaches(maxRequestReservationTimeoutInSeconds);
-        });
+    public void getExistingReservationsFromPO() {
+        getInitialPlacementFinder().queryExistingReservations(maxRequestReservationTimeoutInSeconds);
     }
 
     /**

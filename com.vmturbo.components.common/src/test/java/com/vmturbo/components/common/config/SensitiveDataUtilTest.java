@@ -34,7 +34,7 @@ public class SensitiveDataUtilTest {
                         "readonlyPassword", "dbRootPassword", "actionDbPassword", "authDbPassword",
                         "costDbPassword", "groupComponentDbPassword", "historyDbPassword",
                         "clustermgrDbPassword", "planDbPassword", "topologyProcessorDbPassword",
-                        "repositoryDbPassword", "intersightClientSecret", "marketDbPassword");
+                        "repositoryDbPassword", "intersightClientSecret");
         assertEquals(sensitiveKeySet, getSensitiveKey());
     }
 }

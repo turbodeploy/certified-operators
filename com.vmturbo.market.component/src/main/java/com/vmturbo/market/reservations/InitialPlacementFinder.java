@@ -25,7 +25,6 @@ import io.grpc.StatusRuntimeException;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jooq.DSLContext;
 
 import com.vmturbo.common.protobuf.market.InitialPlacement.GetProvidersOfExistingReservationsResponse;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer;
@@ -100,43 +99,19 @@ public class InitialPlacementFinder {
     /**
      * Constructor.
      *
-     * @param dsl the data base context.
+     * @param executorService the executorService.
      * @param stub reservation rpc service blocking stub.
      * @param prepareReservationCache whether economy caches should be built.
      * @param maxRetry The max number of retry if findInitialPlacement failed.
      */
-    public InitialPlacementFinder(@Nonnull DSLContext dsl,
+    public InitialPlacementFinder(@Nonnull ExecutorService executorService,
             @Nonnull final ReservationServiceBlockingStub stub,
             final boolean prepareReservationCache, int maxRetry) {
-        economyCaches = new EconomyCaches(dsl);
+        economyCaches = new EconomyCaches();
+        this.executorService = executorService;
         this.blockingStub = stub;
         this.prepareReservationCache = prepareReservationCache;
         this.maxRetry = maxRetry;
-    }
-
-    /**
-     * Loads the historical economy cache from database. Fetch the latest reservation decisions
-     * from plan orchestrator. Reconstruct the economy cache with latest reservations.
-     *
-     * @param maxRequestTimeout the max retrying time that is allowed to query plan orchestrator.
-     */
-    public void restoreEconomyCaches(final long maxRequestTimeout) {
-        synchronized (reservationLock) {
-            // If the reservation feature is enabled, then load data from table.
-            if (shouldConstructEconomyCache()) {
-                // Load the BLOB persisted in table and build an economy with reservation buyers,
-                // hosts and storages.
-                economyCaches.loadHistoricalEconomyCache();
-                // Get the list reservation from plan orchestrator.
-                queryExistingReservations(maxRequestTimeout);
-                if (economyCaches.getState().isReservationReceived()
-                        && economyCaches.getState().isHistoricalCacheReceived()) {
-                    // Clear all previous reservations and apply the latest reservation buyers
-                    // coming from plan orchestrator.
-                    economyCaches.restoreHistoricalEconomyCache(buyerPlacements, existingReservations);
-                }
-            }
-        }
     }
 
     /**
@@ -402,42 +377,41 @@ public class InitialPlacementFinder {
      * @param timeOut the max timeout allowed to retry the query.
      */
     public void queryExistingReservations(final long timeOut) {
-        if (economyCaches.getState().isReservationReceived()) {
-            return;
-        }
-        GetBuyersOfExistingReservationsRequest request =
-                GetBuyersOfExistingReservationsRequest.newBuilder().build();
+        GetBuyersOfExistingReservationsRequest request = GetBuyersOfExistingReservationsRequest
+                .newBuilder().build();
         List<InitialPlacementBuyer> existingBuyers = new ArrayList();
-        try {
-            logger.info(logPrefix + "Trying to get a list of existing reservation buyers from"
-                    + " plan orchestrator.");
-            GetBuyersOfExistingReservationsResponse response = RetriableOperation
-                    .newOperation(() -> blockingStub.getBuyersOfExistingReservations(request))
-                    .retryOnException(e -> e instanceof StatusRuntimeException)
-                    .backoffStrategy(curTry -> 120000) // wait 2 min between retries
-                    .run(timeOut, TimeUnit.SECONDS);
-            List<InitialPlacementBuyer> reservationBuyers = new ArrayList();
-            reservationBuyers.addAll(response.getInitialPlacementBuyerList());
-            existingBuyers.addAll(reservationBuyers);
-            populateExistingReservationBuyers(existingBuyers);
-        } catch (Exception e) {
-            if (e instanceof InterruptedException) {
-                // Reset interrupt status.
-                Thread.currentThread().interrupt();
-                logger.error(logPrefix + "Trying to fetch the reservations from plan orchestrator but"
-                                + " thread is interrupted", e);
-            } else if (e instanceof RetriableOperationFailedException | e instanceof TimeoutException) {
-                logger.error(logPrefix + "Trying to fetch the reservations from plan orchestrator but"
-                                + " grpc call failed  with multiple retries", e);
-            } else if (e instanceof StatusRuntimeException) {
-                logger.error(logPrefix + "Trying to fetch the reservations from plan orchestrator"
-                        + " but grpc call failed  with status error {}", ((StatusRuntimeException)e).getStatus());
-            } else {
-                logger.error(logPrefix + "Trying to fetch the reservations from plan orchestrator for {}"
-                                + " minutes but still failed. Please make sure the plan orchestrator is up and"
-                                + " running.", timeOut, e);
+        executorService.submit(() -> {
+            try {
+                logger.info(logPrefix + "Trying to get a list of existing reservation buyers from plan orchestrator.");
+                GetBuyersOfExistingReservationsResponse response = RetriableOperation.newOperation(() ->
+                        blockingStub.getBuyersOfExistingReservations(request))
+                        .retryOnException(e -> e instanceof StatusRuntimeException)
+                        .backoffStrategy(curTry -> 120000) // wait 2 min between retries
+                        .run(timeOut, TimeUnit.SECONDS);
+
+                List<InitialPlacementBuyer> reservationBuyers = new ArrayList();
+                reservationBuyers.addAll(response.getInitialPlacementBuyerList());
+                existingBuyers.addAll(reservationBuyers);
+                populateExistingReservationBuyers(existingBuyers);
+            } catch (Exception e) {
+                if (e instanceof InterruptedException) {
+                    // Reset interrupt status.
+                    Thread.currentThread().interrupt();
+                    logger.error(logPrefix + "Trying to fetch the reservations from plan orchestrator but"
+                            + " thread is interrupted", e);
+                } else if (e instanceof RetriableOperationFailedException | e instanceof TimeoutException) {
+                    logger.error(logPrefix + "Trying to fetch the reservations from plan orchestrator but"
+                            + " grpc call failed  with multiple retries", e);
+                } else if (e instanceof StatusRuntimeException) {
+                    logger.error(logPrefix + "Trying to fetch the reservations from plan orchestrator but grpc call"
+                            + " failed  with status error {}", ((StatusRuntimeException)e).getStatus());
+                } else {
+                    logger.error(logPrefix + "Trying to fetch the reservations from plan orchestrator for {}"
+                            + " minutes but still failed. Please make sure the plan orchestrator is up and"
+                            + " running.", timeOut, e);
+                }
             }
-        }
+        });
     }
 
     /**
@@ -469,6 +443,7 @@ public class InitialPlacementFinder {
             // Set state to ready once reservations are received from PO and real time economy is ready.
             economyCaches.getState().setReservationReceived(true);
             logger.info(logPrefix + "Economy caches state is set to RESERVATION_RECEIVED");
+
         }
     }
 
