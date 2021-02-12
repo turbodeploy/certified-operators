@@ -8,7 +8,6 @@
 # source <xl workspace>/com.vmturbo.voltron/bin/voltron setup_autocomplete
 #
 setup_autocomplete() {
-   compopt +o default
    local cur prev
 
    cur=${COMP_WORDS[COMP_CWORD]}
@@ -16,24 +15,11 @@ setup_autocomplete() {
 
    case ${COMP_CWORD} in
      1)
-       COMPREPLY=($(compgen -W "grpc restore_topology restore_groups restore_cost send_topology set_broadcast_interval help" -- ${cur}));;
+       COMPREPLY=($(compgen -W "grpc restore_topology restore_groups restore_cost send_topology set_broadcast_interval get_topology help broadcast" -- ${cur}));;
      2)
        case ${prev} in
             grpc)
                 COMPREPLY=($(compgen -W "ls call type parse help" -- ${cur}))
-                ;;
-            restore_topology)
-                compopt -o default;COMPREPLY=()
-                ;;
-            restore_cost)
-                compopt -o default;COMPREPLY=()
-                ;;
-            restore_groups)
-                compopt -o default;COMPREPLY=()
-                ;;
-            *)
-                COMPREPLY=()
-                ;;
         esac
         ;;
      *)
@@ -49,6 +35,8 @@ print_help() {
    echo "voltron restore_groups         ...    ; Load groups from a ZIP file."
    echo "voltron restore_cost           ...    ; Load cost diags from a ZIP file."
    echo "voltron send_topology          ...    ; Broadcast topology."
+   echo "voltron broadcast              ...    ; Broadcast topology (alias for send_topology)."
+   echo "voltron get_topology           ...    ; Broadcast and return topology. Redirect output to a file to save. Requires grpc_cli."
    echo "voltron set_broadcast_interval ...    ; Set broadcast schedule."
    echo "voltron help                   ...    ; Print this message"
    echo "To set the HTTP port, set the HTTP_PORT environment variable: HTTP_PORT=8081 voltron send_topology"
@@ -114,6 +102,13 @@ restore_topology() {
   fi
 }
 
+get_topology() {
+  command -v grpc_cli >/dev/null 2>&1 || { echo >&2 "Please install grpc_cli \(brew install grpc\)."; exit 1; }
+
+  echo >&2 "Broadcasting and returning topology. To save, redirect output to a file."
+  grpc_cli call localhost:${GRPC_PORT} topology.TopologyService.BroadcastAndReturnTopology ''
+}
+
 
 if [ "$#" -lt 1 ]
 then
@@ -159,10 +154,14 @@ restore_cost)
   restore_cost ${@:2};;
 send_topology)
   send_topology;;
+broadcast)
+  send_topology;;
+get_topology)
+  get_topology;;
 set_broadcast_interval)
   set_broadcast_interval ${@:2};;
 setup_autocomplete)
-  complete -F setup_autocomplete voltron;;
+  complete -o bashdefault -o default -F setup_autocomplete voltron;;
 esac
 
 
