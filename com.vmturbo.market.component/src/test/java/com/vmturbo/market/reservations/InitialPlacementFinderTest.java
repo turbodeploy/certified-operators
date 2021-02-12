@@ -14,17 +14,17 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 import com.google.common.collect.Table;
 
+import org.jooq.DSLContext;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer.InitialPlacementCommoditiesBoughtFromProvider;
@@ -69,7 +69,6 @@ public class InitialPlacementFinderTest {
     private static final double quantity = 20;
     private static final long reservationId = 90000L;
     private static final BiMap<TopologyDTO.CommodityType, Integer> commTypeToSpecMap = HashBiMap.create();
-    private ExecutorService executorService = Executors.newSingleThreadExecutor();
     private final  ReservationServiceMole testReservationService = spy(new ReservationServiceMole());
     private  ReservationServiceBlockingStub reservationServiceBlockingStub;
 
@@ -100,7 +99,7 @@ public class InitialPlacementFinderTest {
      */
     @Test
     public void testConstructTraderTOs() {
-        InitialPlacementFinder pf = new InitialPlacementFinder(executorService, reservationServiceBlockingStub,
+        InitialPlacementFinder pf = new InitialPlacementFinder(Mockito.mock(DSLContext.class), reservationServiceBlockingStub,
                 true, 1);
         pf.updateCachedEconomy(getOriginalEconomy(), commTypeToSpecMap, true);
         TraderTO vmTO = (TraderTO)InitialPlacementUtils.constructTraderTO(
@@ -120,7 +119,7 @@ public class InitialPlacementFinderTest {
      */
     @Test
     public void testConstructTraderTOsWithException() {
-        InitialPlacementFinder pf = new InitialPlacementFinder(executorService, reservationServiceBlockingStub,
+        InitialPlacementFinder pf = new InitialPlacementFinder(Mockito.mock(DSLContext.class), reservationServiceBlockingStub,
                 true, 1);
         pf.updateCachedEconomy(getOriginalEconomy(), commTypeToSpecMap, true);
         // Create Trader with invalid commodity Type 1000.
@@ -136,7 +135,7 @@ public class InitialPlacementFinderTest {
      */
     @Test
     public void testBuyersToBeDeleted() {
-        InitialPlacementFinder pf = new InitialPlacementFinder(executorService,
+        InitialPlacementFinder pf = new InitialPlacementFinder(Mockito.mock(DSLContext.class),
                 reservationServiceBlockingStub, true, 1);
         pf.existingReservations.put(1L, new ArrayList(Arrays.asList(getTradersToPlace(vmID, pmSlOid,
                 PM_TYPE, MEM_TYPE, 10))));
@@ -155,7 +154,7 @@ public class InitialPlacementFinderTest {
      */
     @Test
     public void testFindPlacement() {
-        InitialPlacementFinder pf = new InitialPlacementFinder(executorService,
+        InitialPlacementFinder pf = new InitialPlacementFinder(Mockito.mock(DSLContext.class),
                 reservationServiceBlockingStub, true, 1);
         // Create both economy caches using same economy.
         Economy originalEconomy = getOriginalEconomy();
@@ -187,7 +186,7 @@ public class InitialPlacementFinderTest {
      */
     @Test
     public void testInitialPlacementFinderResultWithFailureInfo() {
-        InitialPlacementFinder pf = new InitialPlacementFinder(executorService,
+        InitialPlacementFinder pf = new InitialPlacementFinder(Mockito.mock(DSLContext.class),
                 reservationServiceBlockingStub, true, 0);
         Economy originalEconomy = getOriginalEconomy();
         pf.updateCachedEconomy(originalEconomy, commTypeToSpecMap, true);
@@ -211,7 +210,7 @@ public class InitialPlacementFinderTest {
      */
     @Test
     public void testInitialPlacementFinderResultWithFailureInfoOnOverFlowEconomy() {
-        InitialPlacementFinder pf = new InitialPlacementFinder(executorService,
+        InitialPlacementFinder pf = new InitialPlacementFinder(Mockito.mock(DSLContext.class),
                 reservationServiceBlockingStub, true, 0);
         Economy originalEconomy = getOverflowEconomy();
         pf.updateCachedEconomy(originalEconomy, commTypeToSpecMap, true);
@@ -353,7 +352,7 @@ public class InitialPlacementFinderTest {
      */
     @Test
     public void testReservationPartialSuccess() {
-        InitialPlacementFinder pf = new InitialPlacementFinder(executorService,
+        InitialPlacementFinder pf = new InitialPlacementFinder(Mockito.mock(DSLContext.class),
                 reservationServiceBlockingStub, true, 1);
         Economy originalEconomy = getOriginalEconomy();
         // Create both economy caches using same economy.
@@ -392,7 +391,7 @@ public class InitialPlacementFinderTest {
      */
     @Test
     public void testReservationDeletionAndAdd() {
-        InitialPlacementFinder pf = new InitialPlacementFinder(executorService,
+        InitialPlacementFinder pf = new InitialPlacementFinder(Mockito.mock(DSLContext.class),
                 reservationServiceBlockingStub, true, 1);
         Economy originalEconomy = getOriginalEconomy();
         pf.economyCaches.getState().setReservationReceived(true);
@@ -421,7 +420,7 @@ public class InitialPlacementFinderTest {
      */
     @Test
     public void testQueryExistingReservations() throws InterruptedException {
-        InitialPlacementFinder pf = new InitialPlacementFinder(executorService,
+        InitialPlacementFinder pf = new InitialPlacementFinder(Mockito.mock(DSLContext.class),
                 reservationServiceBlockingStub, true, 1);
         List<InitialPlacementBuyer> buyers = new ArrayList(Arrays.asList(getTradersToPlace(vmID,
                 pmSlOid, PM_TYPE, MEM_TYPE, 100)));
