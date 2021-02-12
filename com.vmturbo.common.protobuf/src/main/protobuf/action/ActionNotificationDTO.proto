@@ -57,6 +57,9 @@ message ActionsUpdated {
 
     optional UpdateFailure updateFailure = 4;
 
+    // Number of actions recorded in the action orchestrator when processing the plan.
+    optional int32 action_count = 5;
+
     message UpdateFailure {
         optional string error_message = 1;
     }
