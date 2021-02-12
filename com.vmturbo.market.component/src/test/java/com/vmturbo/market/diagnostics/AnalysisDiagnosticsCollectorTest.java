@@ -38,7 +38,9 @@ import com.google.gson.Gson;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.DSLContext;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer;
 import com.vmturbo.common.protobuf.plan.ReservationDTOMoles.ReservationServiceMole;
@@ -170,7 +172,7 @@ public class AnalysisDiagnosticsCollectorTest {
         }
         ReservationServiceBlockingStub reservationServiceBlockingStub =
                 ReservationServiceGrpc.newBlockingStub(grpcServer.getChannel());
-        InitialPlacementFinder pf = new InitialPlacementFinder(executorService,
+        InitialPlacementFinder pf = new InitialPlacementFinder(Mockito.mock(DSLContext.class),
                 reservationServiceBlockingStub,
                 true, 1);
         BiMap<CommodityType, Integer> realtimeCachedCommTypeMap = HashBiMap.create();
