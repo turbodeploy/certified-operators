@@ -57,6 +57,7 @@ import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.Prerequisite;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
@@ -64,10 +65,12 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.memory.MemoryMeasurer;
 import com.vmturbo.common.protobuf.memory.MemoryMeasurer.MemoryMeasurement;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.identity.IdentityService;
@@ -543,6 +546,8 @@ public class LiveActionStore implements ActionStore {
                     // Need to make a copy because it's not safe to iterate otherwise.
                     actions.copy().values().stream())
                     .filter(VISIBILITY_PREDICATE));
+
+            updateActionMetricsDescriptor();
 
             final int deletedActions =
                 entitiesWithNewStateCache.clearActionsAndUpdateCache(sourceTopologyInfo.getTopologyId());
@@ -1039,6 +1044,78 @@ public class LiveActionStore implements ActionStore {
         entitiesWithNewStateCache.updateHostsWithNewState(entitiesWithNewState);
     }
 
+    /**
+     * Generate a descriptor string for the action and push to the metrics end point.
+     */
+    private void updateActionMetricsDescriptor() {
+        // Reset the values in the Gauge.
+        Metrics.ACTION_COUNTS_GAUGE.getLabeledMetrics().forEach((key, val) -> val.setData(0.0));
+        actions.copy().values().stream()
+            // filter out invisible actions, same as what we do in LiveActions#get(ActionQueryFilter)
+            // only visible actions are shown in UI
+            .filter(VISIBILITY_PREDICATE)
+            .forEach(this::updateActionMetricsDescriptor);
+    }
+
+    /**
+     * Generate a descriptor string for the action and push to the metrics end point.
+     *
+     * @param action record the given action
+     */
+    private void updateActionMetricsDescriptor(final Action action) {
+        ActionInfo ai = action.getRecommendation().getInfo();
+        String actionSeverity  = action.getActionSeverity().name();
+        String actionCategory  = action.getActionCategory().name();
+        String actionState  = action.getState().name();
+        ActionEntity actionTarget = null;
+        String entityType = null;
+        String env = null;
+        switch (ai.getActionTypeCase()) {
+            case MOVE:
+                actionTarget = ai.getMove().getTarget();
+                break;
+            case RECONFIGURE:
+                actionTarget = ai.getReconfigure().getTarget();
+                break;
+            case PROVISION:
+                actionTarget = ai.getProvision().getEntityToClone();
+                break;
+            case RESIZE:
+                actionTarget = ai.getResize().getTarget();
+                break;
+            case ACTIVATE:
+                actionTarget = ai.getActivate().getTarget();
+                break;
+            case DEACTIVATE:
+                actionTarget = ai.getDeactivate().getTarget();
+                break;
+            case DELETE:
+                actionTarget = ai.getDelete().getTarget();
+                break;
+            case BUYRI:
+                actionTarget = ai.getBuyRi().getComputeTier();
+                break;
+            case SCALE:
+                actionTarget = ai.getScale().getTarget();
+                break;
+            case ALLOCATE:
+                actionTarget = ai.getAllocate().getTarget();
+                break;
+            case ATOMICRESIZE:
+                actionTarget = ai.getAtomicResize().getExecutionTarget();
+                break;
+            default:
+                env = EnvironmentType.UNKNOWN_ENV.name();
+                entityType = EntityType.UNKNOWN.name();
+        }
+        if (actionTarget != null) {
+            env = actionTarget.getEnvironmentType().name();
+            entityType = EntityType.forNumber(actionTarget.getType()).name();
+        }
+        Metrics.ACTION_COUNTS_GAUGE.labels(action.getTranslationResultOrOriginal().getInfo().getActionTypeCase().name(),
+            entityType, env, actionCategory, actionSeverity, actionState).increment();
+    }
+
     private static class Metrics {
         private static final DataMetricGauge SUPPORT_LEVELS = DataMetricGauge.builder()
             .withName("ao_live_action_support_level_gauge")
@@ -1051,6 +1128,16 @@ public class LiveActionStore implements ActionStore {
             .withHelp("Time taken to calculate support levels in the live action store.")
             .build()
             .register();
-    }
 
+        /**
+         * Specifies action count gauge.
+         */
+        private static final DataMetricGauge ACTION_COUNTS_GAUGE = DataMetricGauge.builder()
+            .withName(StringConstants.METRICS_TURBO_PREFIX + "current_actions")
+            .withHelp("Number of actions in the action orchestrator live store.")
+            .withLabelNames("type", "entity_type", "environment", "category",
+                "severity", "state")
+            .build()
+            .register();
+    }
 }
