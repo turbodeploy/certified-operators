@@ -63,13 +63,21 @@ public class ReservedInstanceUtilizationStore implements MultiStoreDiagnosable {
 
     private final LatestReservedInstanceUtilizationDiagsHelper latestReservedInstanceUtilizationDiagsHelper;
 
+    private final boolean normalizeRollupSamples;
+
+    private final float sampleNormalizationFactor;
+
     public ReservedInstanceUtilizationStore(
             @Nonnull final DSLContext dsl,
             @Nonnull final ReservedInstanceBoughtStore reservedInstanceBoughtStore,
-            @Nonnull final ReservedInstanceSpecStore reservedInstanceSpecStore) {
+            @Nonnull final ReservedInstanceSpecStore reservedInstanceSpecStore,
+            boolean normalizeRollupSamples,
+            float sampleNormalizationFactor) {
         this.dsl = dsl;
         this.reservedInstanceBoughtStore = reservedInstanceBoughtStore;
         this.reservedInstanceSpecStore = reservedInstanceSpecStore;
+        this.normalizeRollupSamples = normalizeRollupSamples;
+        this.sampleNormalizationFactor = sampleNormalizationFactor;
         this.reservedInstanceUtilizationByHourDiagsHelper = new ReservedInstanceUtilizationByHourDiagsHelper(dsl);
         this.reservedInstanceUtilizationByDayDiagsHelper = new ReservedInstanceUtilizationByDayDiagsHelper(dsl);
         this.reservedInstanceUtilizationByMonthDiagsHelper = new ReservedInstanceUtilizationByMonthDiagsHelper(dsl);
@@ -124,13 +132,13 @@ public class ReservedInstanceUtilizationStore implements MultiStoreDiagnosable {
     public List<ReservedInstanceStatsRecord> getReservedInstanceUtilizationStatsRecords(
             @Nonnull final ReservedInstanceUtilizationFilter filter) {
         final Table<?> table = filter.getTableName();
-        final Result<Record> records = dsl.select(createSelectFieldsForRIUtilizationCoverage(table))
+        final Result<Record> records = dsl.select(createSelectFieldsForRIUtilizationCoverage(table, normalizeRollupSamples))
                 .from(table)
                 .where(filter.generateConditions(dsl))
                 .groupBy(table.field(SNAPSHOT_TIME))
                 .fetch();
         return records.stream()
-                .map(ReservedInstanceUtil::convertRIUtilizationCoverageRecordToRIStatsRecord)
+                .map(r -> ReservedInstanceUtil.convertRIUtilizationCoverageRecordToRIStatsRecord(r, sampleNormalizationFactor))
                 .collect(Collectors.toList());
     }
 

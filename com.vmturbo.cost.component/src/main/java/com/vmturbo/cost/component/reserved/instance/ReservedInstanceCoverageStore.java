@@ -59,8 +59,16 @@ public class ReservedInstanceCoverageStore implements MultiStoreDiagnosable {
 
     private final LatestReservedInstanceCoverageDiagsHelper latestReservedInstanceCoverageDiagsHelper;
 
-    public ReservedInstanceCoverageStore(@Nonnull final DSLContext dsl) {
+    private final boolean normalizeRollupSamples;
+
+    private final float sampleNormalizationFactor;
+
+    public ReservedInstanceCoverageStore(@Nonnull final DSLContext dsl,
+                                         boolean normalizeRollupSamples,
+                                         float sampleNormalizationFactor) {
         this.dsl = dsl;
+        this.normalizeRollupSamples = normalizeRollupSamples;
+        this.sampleNormalizationFactor = sampleNormalizationFactor;
         this.reservedInstancesCoverageByHourDiagsHelper = new ReservedInstancesCoverageByHourDiagsHelper(dsl);
         this.reservedInstancesCoverageByDayDiagsHelper = new ReservedInstancesCoverageByDayDiagsHelper(dsl);
         this.reservedInstancesCoverageByMonthDiagsHelper = new ReservedInstancesCoverageByMonthDiagsHelper(dsl);
@@ -96,13 +104,13 @@ public class ReservedInstanceCoverageStore implements MultiStoreDiagnosable {
     public List<ReservedInstanceStatsRecord> getReservedInstanceCoverageStatsRecords(
             @Nonnull final ReservedInstanceCoverageFilter filter) {
         final Table<?> table = filter.getTableName();
-        final Result<Record> records = dsl.select(createSelectFieldsForRIUtilizationCoverage(table))
+        final Result<Record> records = dsl.select(createSelectFieldsForRIUtilizationCoverage(table, normalizeRollupSamples))
                 .from(table)
                 .where(filter.generateConditions(dsl))
                 .groupBy(table.field(SNAPSHOT_TIME))
                 .fetch();
         return records.stream()
-                .map(ReservedInstanceUtil::convertRIUtilizationCoverageRecordToRIStatsRecord)
+                .map(r -> ReservedInstanceUtil.convertRIUtilizationCoverageRecordToRIStatsRecord(r, sampleNormalizationFactor))
                 .collect(Collectors.toList());
     }
 
