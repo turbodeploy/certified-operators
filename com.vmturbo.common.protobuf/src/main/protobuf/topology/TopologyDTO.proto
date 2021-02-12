@@ -210,7 +210,9 @@ message TypeSpecificInfo {
         optional ScalingPenalty scale_penalty = 10;
         message ScalingPenalty {
            optional float penalty = 1;
-           repeated common_dto.EntityDTO.ScalingPenaltyReason reason = 2;
+           // deprecated from a single value in 8.0.7, 8.1.0 to a list.
+           optional common_dto.EntityDTO.ScalingPenaltyReason reason = 2 [deprecated = true];
+           repeated common_dto.EntityDTO.ScalingPenaltyReason reasons = 3;
            }
      }
 

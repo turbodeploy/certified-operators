@@ -85,7 +85,7 @@ public class ComputeTierInfoMapper extends TypeSpecificInfoMapper {
         }
         if (ctData.hasScalePenalty()) {
                 computeTierInfoBuilder.setScalePenalty(ScalingPenalty.newBuilder()
-                        .addAllReason(ctData.getScalePenalty().getReasonList())
+                        .addAllReasons(ctData.getScalePenalty().getReasonsList())
                         .setPenalty(ctData.getScalePenalty().getPenalty())
                         .build());
         }
