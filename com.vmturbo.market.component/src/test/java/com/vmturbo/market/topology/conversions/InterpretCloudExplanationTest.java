@@ -12,6 +12,8 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
@@ -27,10 +29,12 @@ import com.google.common.collect.Maps;
 
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
+import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Efficiency;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
@@ -46,6 +50,7 @@ import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.OnDemandMarketTier;
+import com.vmturbo.market.topology.RiDiscountedMarketTier;
 import com.vmturbo.market.topology.conversions.ActionInterpreter.CalculatedSavings;
 import com.vmturbo.market.topology.conversions.CommoditiesResizeTracker.CommodityTypeWithLookup;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
@@ -53,6 +58,7 @@ import com.vmturbo.platform.analysis.protobuf.ActionDTOs.Congestion;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveExplanation;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.Context;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -151,6 +157,82 @@ public class InterpretCloudExplanationTest {
                 CommoditySoldDTO.newBuilder().setCommodityType(VMEM).setCapacity(4000))).build());
 
         IdentityGenerator.initPrefix(5L);
+    }
+
+    /**
+     * Test interpreting move action with RI coverage change.
+     * Skip action if the difference between originalRICoverage and projectedRICoverage is smaller than 0.01
+     *
+     * <p>There are two test cases:
+     * Test case 1: originalRICoverage = 0.001, projectedRICoverage = 0.002, difference = 0.001, skip this action
+     * Test case 2: originalRICoverage = 0.01, projectedRICoverage = 0.02, difference = 0.01, keep this action
+     */
+    @Test
+    public void testInterpretRICoverageChange() {
+        Mockito.reset(ai);
+
+        final TopologyEntityDTO tier = TopologyEntityDTO.newBuilder().setOid(1000L)
+            .setEntityType(EntityType.COMPUTE_TIER_VALUE).build();
+        final TopologyEntityDTO region = TopologyEntityDTO.newBuilder().setOid(1001L)
+            .setEntityType(EntityType.REGION_VALUE).build();
+        final RiDiscountedMarketTier marketTier = new RiDiscountedMarketTier(tier, region, mock(ReservedInstanceAggregate.class));
+
+        final ActionTO move = ActionTO.newBuilder().setMove(MoveTO.newBuilder()
+            .setMoveContext(Context.newBuilder().setRegionId(region.getOid()))
+            .setShoppingListToMove(SL_TO_MOVE)
+            .setSource(MARKET_TIER1_OID)
+            .setDestination(MARKET_TIER2_OID)
+            .setMoveExplanation(
+                MoveExplanation.newBuilder().setCongestion(Congestion.getDefaultInstance()).build()))
+            .setImportance(0)
+            .setIsNotExecutable(false)
+            .build();
+
+        when(cloudTc.getMarketTier(MARKET_TIER1_OID)).thenReturn(marketTier);
+        when(cloudTc.getSourceOrDestinationTierFromMoveTo(move.getMove(), VM1_OID, true)).thenReturn(Optional.of(tier.getOid()));
+        when(cloudTc.getSourceOrDestinationTierFromMoveTo(move.getMove(), VM1_OID, false)).thenReturn(Optional.of(tier.getOid()));
+        originalTopology.put(tier.getOid(), tier);
+        originalTopology.put(region.getOid(), region);
+        originalTopology.put(VM1_OID, TopologyEntityDTO.newBuilder().setOid(VM1_OID)
+            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE).build());
+        projectedTopology.put(tier.getOid(), ProjectedTopologyEntity.newBuilder().setEntity(tier).build());
+
+        // Test case 1: originalRICoverage = 0.001, projectedRICoverage = 0.002
+        // difference = 0.001, skip this action
+        when(cloudTc.getRiCoverageForEntity(VM1_OID)).thenReturn(Optional.of(
+            EntityReservedInstanceCoverage.newBuilder().setEntityId(VM1_OID)
+                .putCouponsCoveredByRi(1L, 0.001)
+                .setEntityCouponCapacity(16).build()));
+        when(riCoverageCalculator.getProjectedRICoverageForEntity(VM1_OID)).thenReturn(
+            EntityReservedInstanceCoverage.newBuilder().setEntityId(VM1_OID)
+                .putCouponsCoveredByRi(1L, 0.002)
+                .setEntityCouponCapacity(16).build());
+
+        List<Action> actions = ai.interpretAction(move, projectedTopology, originalCloudTopology, projectedCosts, topologyCostCalculator);
+
+        verify(ai, times(1))
+            .interpretMoveAction(move.getMove(), projectedTopology, originalCloudTopology);
+        assertTrue(actions.isEmpty());
+
+        // Test case 2: originalRICoverage = 0.01, projectedRICoverage = 0.02
+        // difference = 0.01, keep this action
+        when(cloudTc.getRiCoverageForEntity(VM1_OID)).thenReturn(Optional.of(
+            EntityReservedInstanceCoverage.newBuilder().setEntityId(VM1_OID)
+                .putCouponsCoveredByRi(1L, 0.01)
+                .setEntityCouponCapacity(16).build()));
+        when(riCoverageCalculator.getProjectedRICoverageForEntity(VM1_OID)).thenReturn(
+            EntityReservedInstanceCoverage.newBuilder().setEntityId(VM1_OID)
+                .putCouponsCoveredByRi(1L, 0.02)
+                .setEntityCouponCapacity(16).build());
+
+        actions = ai.interpretAction(move, projectedTopology, originalCloudTopology, projectedCosts, topologyCostCalculator);
+
+        assertEquals(1, actions.size());
+        assertEquals(1, actions.get(0).getInfo().getMove().getChangesList().size());
+        assertEquals(ChangeProvider.newBuilder()
+            .setSource(ai.createActionEntity(tier.getOid(), projectedTopology))
+            .setDestination(ai.createActionEntity(tier.getOid(), projectedTopology)).build(),
+            actions.get(0).getInfo().getMove().getChangesList().get(0));
     }
 
     /**

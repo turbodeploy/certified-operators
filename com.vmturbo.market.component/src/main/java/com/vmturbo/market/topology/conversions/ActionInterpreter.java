@@ -76,6 +76,7 @@ import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.journal.CostJournal.CostSourceFilter;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
+import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.SingleRegionMarketTier;
 import com.vmturbo.market.topology.conversions.CommoditiesResizeTracker.CommodityLookupType;
@@ -1064,12 +1065,10 @@ public class ActionInterpreter {
                 final double projectedRICoverage = getTotalRiCoverage(
                         projectedRICoverageCalculator.getProjectedRICoverageForEntity(targetOid));
                 generateTierAction = !areEqual(originalRICoverage, projectedRICoverage);
-                if (generateTierAction) {
-                    logger.debug("Accounting action for {} (OID: {}). " +
-                                    "Original RI coverage: {}, projected RI coverage: {}.",
-                            target.getDisplayName(), target.getOid(),
-                            originalRICoverage, projectedRICoverage);
-                }
+                logger.debug((generateTierAction ? "" : "Skipping") + "Accounting action for {} (OID: {}). " +
+                        "Original RI coverage: {}, projected RI coverage: {}.",
+                    target.getDisplayName(), target.getOid(),
+                    originalRICoverage, projectedRICoverage);
             } else {
                 generateTierAction = destTier != sourceTier;
             }
@@ -1138,7 +1137,7 @@ public class ActionInterpreter {
     }
 
     private static boolean areEqual(final double d1, final double d2) {
-        return Math.abs(d1 - d2) <= 0.0001;
+        return Math.abs(d1 - d2) <= SMAUtils.BIG_EPSILON;
     }
 
     @Nonnull
@@ -1922,7 +1921,7 @@ public class ActionInterpreter {
         return createActionEntity(targetEntityId, projectedTopology);
     }
 
-    private ActionEntity createActionEntity(final long id,
+    ActionEntity createActionEntity(final long id,
                             @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology) {
         final TopologyEntityDTO projectedEntity = projectedTopology.get(id).getEntity();
         return ActionEntity.newBuilder()
