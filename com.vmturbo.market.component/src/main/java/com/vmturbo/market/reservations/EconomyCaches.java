@@ -22,6 +22,7 @@ import com.google.common.collect.HashBiMap;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.DSLContext;
 
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
@@ -32,6 +33,7 @@ import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
 import com.vmturbo.platform.analysis.ede.Placement;
+import com.vmturbo.platform.analysis.protobuf.EconomyCacheDTOs.EconomyCacheDTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
 import com.vmturbo.platform.analysis.updatingfunction.UpdatingFunctionFactory;
@@ -52,6 +54,12 @@ public class EconomyCaches {
      * prefix for initial placement log messages.
      */
     private final String logPrefix = "FindInitialPlacement: ";
+
+    /**
+     * The db writer and reader of economy caches.
+     */
+    @VisibleForTesting
+    protected EconomyCachePersistence economyCachePersistence;
 
     /**
      * The clock to record the reservation update time.
@@ -205,16 +213,18 @@ public class EconomyCaches {
     }
 
     /**
-     * set economy caches. This is mostly for testing purposes.
+     * Set economy caches. This is mostly for testing purposes.
+     *
      * @param historicalCachedCommTypeMap the historicalCachedCommTypeMap.
      * @param realtimeCachedCommTypeMap the realtimeCachedCommTypeMap.
      * @param historicalCachedEconomy the historicalCachedEconomy.
      * @param realtimeCachedEconomy the realtimeCachedEconomy.
      */
-    public void setEconomiesAndCachedCommType(BiMap<CommodityType, Integer> historicalCachedCommTypeMap,
-                                              BiMap<CommodityType, Integer> realtimeCachedCommTypeMap,
-                                              Economy historicalCachedEconomy,
-                                              Economy realtimeCachedEconomy) {
+    public void setEconomiesAndCachedCommType(
+            BiMap<CommodityType, Integer> historicalCachedCommTypeMap,
+            BiMap<CommodityType, Integer> realtimeCachedCommTypeMap,
+            Economy historicalCachedEconomy,
+            Economy realtimeCachedEconomy) {
         this.historicalCachedCommTypeMap = historicalCachedCommTypeMap;
         this.realtimeCachedCommTypeMap = realtimeCachedCommTypeMap;
         this.historicalCachedEconomy = historicalCachedEconomy;
@@ -225,8 +235,53 @@ public class EconomyCaches {
 
     /**
      * Constructor.
+     *
+     * @param dsl the data base context.
      */
-    public EconomyCaches() {}
+    public EconomyCaches(@Nonnull DSLContext dsl) {
+        this.economyCachePersistence = new EconomyCachePersistence(dsl);
+    }
+
+    /**
+     * Load the economy caches from database when market component started. The economy cache
+     * contains host, storage and placed reservation buyers.
+     * NOTE: currently only the historical economy cache is persisted. Real time economy cache
+     * can be restored broadcast.
+     */
+    public void loadHistoricalEconomyCache() {
+        try {
+            if (historicalCachedEconomy == null || !state.isHistoricalCacheReceived()) {
+                Optional<EconomyCacheDTO> historicalDTO = economyCachePersistence.loadEconomyCacheDTO(true);
+                Optional<BiMap<CommodityType, Integer>> loadedCommMap = InitialPlacementUtils
+                        .reconstructCommTypeMap(historicalDTO);
+                Optional<Economy> loadedEconomy = InitialPlacementUtils.reconstructEconomyCache(historicalDTO);
+                if (loadedEconomy.isPresent() && loadedCommMap.isPresent()) {
+                    historicalCachedCommTypeMap = loadedCommMap.get();
+                    historicalCachedEconomy = loadedEconomy.get();
+                    state.setHistoricalCacheReceived(true);
+                    logger.info(logPrefix + " Historical economy cache is successfully loaded from database.");
+                }
+                // Make the real time cache invalid in case there is a real time comes before the historical
+                // cache is built. Then this newly built historical will miss the latest access comm because
+                // access gets updated by real time.
+                state.setRealtimeCacheReceived(false);
+            }
+        } catch (Exception ex) {
+            logger.error(logPrefix + "Waiting for one more day to build historical economy cache. "
+                    + "Loading from database throws exception: ", ex);
+            // Reset economies and maps to initial state.
+            clearHistoricalCachedEconomy();
+        }
+    }
+
+    /**
+     * Sets historical cached economy to null and clear its comm type map.
+     */
+    private void clearHistoricalCachedEconomy() {
+        historicalCachedEconomy = null;
+        state.setHistoricalCacheReceived(false);
+        historicalCachedCommTypeMap.clear();
+    }
 
     /**
      * Returns the economy caches state.
@@ -290,6 +345,7 @@ public class EconomyCaches {
             updateHistoricalCachedEconomy(realtimeCachedEconomy, realtimeCachedCommTypeMap,
                     buyerOidToPlacement, existingReservations);
         }
+
     }
 
     /**
@@ -347,10 +403,9 @@ public class EconomyCaches {
         logger.info(logPrefix + "Historical economy cache is ready now.");
         logger.info(logPrefix + "Historical reservation cache update time : " + historicalCacheStartUpdateTime
                 .until(historicalCacheEndUpdateTime, ChronoUnit.SECONDS) + " seconds");
+        economyCachePersistence.saveEconomyCache(historicalCachedEconomy, historicalCachedCommTypeMap, true);
         return newResult;
     }
-
-
 
     /**
      * Add existing reservation buyers to the economy and apply its impact on providers' utilization.
@@ -461,6 +516,41 @@ public class EconomyCaches {
         }
 
         return buyerOidToPlacement;
+    }
+
+    /**
+     * Remove all previous reservation buyers from historical economy cache and apply the latest
+     * reservation buyers to it.
+     *
+     * @param buyerOidToPlacement a map of buyer oid to its placement decisions.
+     * @param existingReservations a map of existing reservations by oid.
+     */
+    public void restoreHistoricalEconomyCache(
+            @Nonnull final Map<Long, List<InitialPlacementDecision>> buyerOidToPlacement,
+            @Nonnull final Map<Long, List<InitialPlacementBuyer>> existingReservations) {
+        if (historicalCachedEconomy == null || !state.isHistoricalCacheReceived()) {
+            return;
+        }
+        try {
+            // Filter all reservation buyers already placed in the economy cache.
+            Set<Long> buyingTraders = historicalCachedEconomy.getTraders().stream()
+                    .filter(t -> !InitialPlacementUtils.PROVIDER_ENTITY_TYPES.contains(t.getType()) )
+                    .map(t -> t.getOid())
+                    .collect(Collectors.toSet());
+            removeDeletedTraders(historicalCachedEconomy, buyingTraders);
+            historicalCachedEconomy.getTopology().getModifiableShoppingListOids().clear();
+            // Adds latest reservation buyers fetched from plan orchestrator.
+            if (!existingReservations.isEmpty() && !buyerOidToPlacement.isEmpty()) {
+                addExistingReservationEntities(historicalCachedEconomy, historicalCachedCommTypeMap,
+                        buyerOidToPlacement, existingReservations);
+                logger.info(logPrefix + "Historical economy cache added reservation entities oid {}",
+                        buyerOidToPlacement.keySet());
+            }
+        } catch (Exception ex) {
+            logger.error(logPrefix + "Waiting for one more day to build historical economy cache. "
+                    + "Restoring it with latest reservations buyers throws exception: ", ex);
+            clearHistoricalCachedEconomy();
+        }
     }
 
     /**
@@ -773,5 +863,6 @@ public class EconomyCaches {
         }
         return traderIdToPlacement;
     }
+
 }
 

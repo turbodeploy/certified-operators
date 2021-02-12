@@ -13,6 +13,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.collect.BiMap;
+import com.google.common.collect.HashBiMap;
 import com.google.common.collect.ImmutableSet;
 
 import org.apache.logging.log4j.LogManager;
@@ -33,6 +34,8 @@ import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommodityBoughtTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
+import com.vmturbo.platform.analysis.protobuf.EconomyCacheDTOs.EconomyCacheDTO;
+import com.vmturbo.platform.analysis.protobuf.EconomyCacheDTOs.EconomyCacheDTO.CommTypeEntry;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderStateTO;
@@ -40,6 +43,7 @@ import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.analysis.protobuf.QuoteFunctionDTOs.QuoteFunctionDTO;
 import com.vmturbo.platform.analysis.protobuf.QuoteFunctionDTOs.QuoteFunctionDTO.SumOfCommodity;
 import com.vmturbo.platform.analysis.topology.Topology;
+import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
 import com.vmturbo.platform.analysis.utilities.InfiniteQuoteExplanation;
 import com.vmturbo.platform.analysis.utilities.InfiniteQuoteExplanation.CommodityBundle;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -67,7 +71,7 @@ public final class InitialPlacementUtils {
     /**
      * The provider types to be included in economy cache.
      */
-    private static final Set<Integer> PROVIDER_ENTITY_TYPES = ImmutableSet.of(EntityType.PHYSICAL_MACHINE_VALUE,
+    public static final Set<Integer> PROVIDER_ENTITY_TYPES = ImmutableSet.of(EntityType.PHYSICAL_MACHINE_VALUE,
             EntityType.STORAGE_VALUE);
 
     /**
@@ -649,5 +653,52 @@ public final class InitialPlacementUtils {
             }
         }
         return accessCommoditiesByTraderOid;
+    }
+
+    /**
+     * Construct the economy based on {@link EconomyCacheDTO}.
+     *
+     * @param economyCacheDTO the serialized economy cache object loaded from table.
+     * @return economy the economy reconstructed.
+     */
+    public static Optional<Economy> reconstructEconomyCache(Optional<EconomyCacheDTO> economyCacheDTO) {
+        // The table does not have a DTO persisted.
+        if (!economyCacheDTO.isPresent()) {
+            return Optional.empty();
+        }
+        // Build economy by adding traderTOs from economyCacheDTO.
+        Topology topology = new Topology();
+        for (TraderTO traderTO : economyCacheDTO.get().getTradersList()) {
+            ProtobufToAnalysis.addTrader(topology, traderTO);
+        }
+        // EconomyForTesting returns the modifiable economy instead of unmodifiable economy.
+        return Optional.of(topology.getEconomyForTesting());
+    }
+
+    /**
+     * Construct the commodity type to specification map based on {@link EconomyCacheDTO}.
+     *
+     * @param economyCacheDTO the serialized economy cache object loaded from table.
+     * @return the commodity type to commodity specification type mapping
+     */
+    public static Optional<BiMap<CommodityType, Integer>> reconstructCommTypeMap(
+            Optional<EconomyCacheDTO> economyCacheDTO) {
+        // The table does not have a DTO persisted.
+        if (!economyCacheDTO.isPresent()) {
+            return Optional.empty();
+        }
+        // Populate commodity type to commodity specification mapping.
+        BiMap<CommodityType, Integer> commTypeBiMap = HashBiMap.create();
+        for (CommTypeEntry entry : economyCacheDTO.get().getCommTypeEntryList()) {
+            CommodityType commodityType;
+            if (entry.hasKey()) {
+                commodityType = CommodityType.newBuilder().setType(entry.getCommType())
+                        .setKey(entry.getKey()).build();
+            } else {
+                commodityType = CommodityType.newBuilder().setType(entry.getCommType()).build();
+            }
+            commTypeBiMap.put(commodityType, entry.getCommSpecType());
+        }
+        return Optional.of(commTypeBiMap);
     }
 }
