@@ -50,14 +50,63 @@ public class PriceFunctionFactoryTest {
         PriceFunction pf3b = PriceFunctionFactory.createStandardWeightedPriceFunction(const2);
         assertNotSame(pf3b, pf3a);
 
-        PriceFunction uod = (u, sl, seller, commSold, economy) -> u * u;
+        PriceFunction uod = PriceFunctionFactory.createConstantPriceFunction(0.1);
         PriceFunction pf4a = PriceFunctionFactory.createPriceFunction(uod);
         PriceFunction pf4b = PriceFunctionFactory.createPriceFunction(uod);
         assertSame(pf4a, pf4b);
 
-        PriceFunction pf4c = PriceFunctionFactory.createPriceFunction((u, sl, seller, commSold, economy) -> u * u);
+        PriceFunction pf4c = new ConstantPriceFunction(0.1);
         // although the function is the same, these are two distinct instances
         assertNotSame(pf4b, pf4c);
+    }
+
+    /**
+     * Test to make sure that the existing price functions return with expected params. If there
+     * a new parameter is provided to any price function in the constructor, the
+     * PriceFunction.getParams() and AnalysisToProtobuf.priceFunction() methods should be updated.
+     */
+    @Test
+    public void testGetParams() {
+        PriceFunction constant = PriceFunctionFactory.createConstantPriceFunction(0.1);
+        assertTrue(constant.getParams().length == 1);
+        assertEquals(0.1, constant.getParams()[0], 0.00001);
+
+        PriceFunction externalPriceFunction = PriceFunctionFactory.createExternalPriceFunction();
+        assertTrue(externalPriceFunction.getParams().length == 0);
+
+        PriceFunction finiteStandardWeighted = PriceFunctionFactory
+                .createFiniteStandardWeightedPriceFunction(0.7);
+        assertTrue(finiteStandardWeighted.getParams().length == 1);
+        assertEquals(0.7, finiteStandardWeighted.getParams()[0], 0.00001);
+
+        PriceFunction ignoreUtil = PriceFunctionFactory.createIgnoreUtilizationPriceFunction();
+        assertTrue(ignoreUtil.getParams().length == 0);
+
+        PriceFunction scaledCapacity = PriceFunctionFactory
+                .createScaledCapacityStandardWeightedPriceFunction(0.7, 1.2);
+        assertTrue(scaledCapacity.getParams().length == 2);
+        assertEquals(0.7, scaledCapacity.getParams()[0], 0.00001);
+        assertEquals(1.2, scaledCapacity.getParams()[1], 0.00001);
+
+        PriceFunction squaredReciprocal = PriceFunctionFactory
+                .createSquaredReciprocalBoughtUtilizationPriceFunction(0.5);
+        assertTrue(squaredReciprocal.getParams().length == 1);
+        assertEquals(0.5, squaredReciprocal.getParams()[0], 0.00001);
+
+        PriceFunction standardWeighted = PriceFunctionFactory
+                .createStandardWeightedPriceFunction(0.6);
+        assertTrue(standardWeighted.getParams().length == 1);
+        assertEquals(0.6, standardWeighted.getParams()[0], 0.00001);
+
+        PriceFunction step = PriceFunctionFactory
+                        .createStepPriceFunction(0.5, 0, 1);
+        assertTrue(step.getParams().length == 3);
+        assertEquals(0.5, step.getParams()[0], 0.00001);
+        assertEquals(0, step.getParams()[1], 0.00001);
+        assertEquals(1, step.getParams()[2], 0.00001);
+
+        PriceFunction stepForCloud = PriceFunctionFactory.createStepPriceFunctionForCloud();
+        assertEquals(11.11, stepForCloud.getParams()[0], 0.00001);
     }
 
     /**
@@ -157,7 +206,7 @@ public class PriceFunctionFactoryTest {
         };
     }
 
-    private static final PriceFunction uod = (u, sl, seller, commSold, economy) -> 0.7 + u + u * u;
+    private static final PriceFunction uod = PriceFunctionFactory.createConstantPriceFunction(1);
     private static final PriceFunction pfCustom = PriceFunctionFactory.createPriceFunction(uod);
 
     /**

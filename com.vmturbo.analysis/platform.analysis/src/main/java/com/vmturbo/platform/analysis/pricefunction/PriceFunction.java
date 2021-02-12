@@ -37,4 +37,11 @@ public interface PriceFunction extends Serializable {
     default PriceFunction updatePriceFunctionWithWeight(double weight) {
         return this;
     }
+
+    /**
+     * Returns the input parameter associated with the {@link PriceFunction}.
+     *
+     * @return an array of input parameters. The order follows the order of input arguments in constructor.
+     */
+    double[] getParams();
 }

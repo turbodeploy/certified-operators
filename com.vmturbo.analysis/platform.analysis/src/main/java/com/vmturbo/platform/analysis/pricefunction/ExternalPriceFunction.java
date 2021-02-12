@@ -27,6 +27,7 @@ public class ExternalPriceFunction implements PriceFunction {
      * @return the price that will be charged for 100% of the capacity for a particular commodity
      *          sold by a seller
      */
+    @Override
     public double unitPrice(double normalizedUtilization, ShoppingList shoppingList, Trader seller, CommoditySold cs,
                             UnmodifiableEconomy e) {
         double price = 0d;
@@ -54,5 +55,10 @@ public class ExternalPriceFunction implements PriceFunction {
             price = price * cs.getEffectiveCapacity();
         }
         return price;
+    }
+
+    @Override
+    public double[] getParams() { // Returns a dummy array because no input param.
+        return new double[0];
     }
 }

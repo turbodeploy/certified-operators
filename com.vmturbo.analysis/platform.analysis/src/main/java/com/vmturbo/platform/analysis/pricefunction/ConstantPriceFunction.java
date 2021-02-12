@@ -31,8 +31,14 @@ public class ConstantPriceFunction implements PriceFunction {
      * @return the price that will be charged for 100% of the capacity for a particular commodity
      *          sold by a seller
      */
+    @Override
     public double unitPrice(double normalizedUtilization, ShoppingList shoppingList, Trader seller, CommoditySold cs,
                             UnmodifiableEconomy e) {
         return PriceFunctionFactory.isInvalid(normalizedUtilization) ? Double.POSITIVE_INFINITY : constant_;
+    }
+
+    @Override
+    public double[] getParams() {
+        return new double[] { this.constant_ };
     }
 }
