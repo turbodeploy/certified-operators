@@ -257,9 +257,8 @@ public class CostFunctionFactory {
                         seller.getDebugInfoNeverUseInCode(),
                         cbtpResourceBundle.getCostTupleListList());
             }
-            return new CostUnavailableQuote(seller, buyerContext.getRegionId(),
-                    buyerContext.getBalanceAccount().getId(),
-                    buyerContext.getBalanceAccount().getPriceId());
+            return CostFunctionFactoryHelper.getNoCostMutableQuote(seller, buyer,
+                    buyerContext.getRegionId(), buyerContext.getBalanceAccount());
         }
 
         Trader destTP = findMatchingTpForCalculatingCost(economy, seller, buyer);
@@ -547,10 +546,9 @@ public class CostFunctionFactory {
         final long regionIdBought = context.getRegionId();
         final BalanceAccount balanceAccount = context.getBalanceAccount();
         if (balanceAccount == null) {
-            logger.warn("Business account is not found on seller: {}, for shopping list: {}, return " +
-                            "infinity compute quote", seller.getDebugInfoNeverUseInCode(),
+            logger.warn("Business account is not found on seller for shopping list: {}",
                     sl.getDebugInfoNeverUseInCode());
-            return new CostUnavailableQuote(seller, regionIdBought, null, null);
+            return CostFunctionFactoryHelper.getNoCostMutableQuote(seller, sl, regionIdBought, null);
         }
         final long accountId = costTable.hasAccountId(balanceAccount.getPriceId()) ?
                 balanceAccount.getPriceId() : balanceAccount.getId();
@@ -577,11 +575,10 @@ public class CostFunctionFactory {
             // this region for any license for the template. In this case, we will return an infinite
             // quote rather than looking up the cheapest region as we don't want to support inter-region
             // moves.
-            logger.debug("Cost for region {} and license key {} not found in seller {}. Returning infinite"
-                    + " cost for this template.", regionIdBought, licenseTypeKey,
+            logger.debug("Cost for region {} and license key {} not found in seller {},",
+                    regionIdBought, licenseTypeKey,
                     sl.getDebugInfoNeverUseInCode());
-            return new CostUnavailableQuote(seller, regionIdBought, balanceAccount.getId(),
-                    balanceAccount.getPriceId());
+            return CostFunctionFactoryHelper.getNoCostMutableQuote(seller, sl, regionIdBought, balanceAccount);
         }
 
         final Long regionId = costTuple.getRegionId();

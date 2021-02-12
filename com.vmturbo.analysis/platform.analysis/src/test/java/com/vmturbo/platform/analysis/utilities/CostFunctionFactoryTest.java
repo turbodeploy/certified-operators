@@ -266,6 +266,7 @@ public class CostFunctionFactoryTest {
         final ShoppingList shoppingList = TestUtils.createAndPlaceShoppingList(economy,
                 Collections.singletonList(TestUtils.ST_AMT), buyerVm, new double[] {500},
                 new double[] {500}, storageTier);
+        shoppingList.move(buyerVm);
         final Map<CommoditySpecification, Double> commQuantityMap = new HashMap<>();
         commQuantityMap.put(TestUtils.ST_AMT, 500d);
 

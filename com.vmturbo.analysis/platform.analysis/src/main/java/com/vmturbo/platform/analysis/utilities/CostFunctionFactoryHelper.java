@@ -684,11 +684,12 @@ public class CostFunctionFactoryHelper {
                 commQuantityMap, commHistoricalQuantityMap, priceDataMap, appendPenalty);
         Double cost = costAccountPair.first;
         Long chosenAccountId = costAccountPair.second;
-        // If no pricing was found for commodities in basket, then return infinite quote for seller.
+         // If no pricing was found for commodities in basket, then return infinite quote for seller.
+         // except if seller is the supplier then return 0 cost.
         if (cost == Double.MAX_VALUE) {
             logger.debug("No (cheapest) cost found for storage {} in region {}, account {}.",
                     seller.getDebugInfoNeverUseInCode(), regionId, balanceAccount);
-            return new CostUnavailableQuote(seller, regionId, balanceAccountId, priceId);
+            return getNoCostMutableQuote(seller, sl, regionId, balanceAccount);
         }
         return new CommodityCloudQuote(seller, cost, regionId, chosenAccountId, commodityContext);
     }
@@ -812,5 +813,32 @@ public class CostFunctionFactoryHelper {
         }
         return cost;
 
+    }
+
+    /**
+     * Helper method to return either 0 cost if seller and buyer's supplier is same. Otherwise infinite cost.
+     *
+     * @param seller         {@link Trader} that the buyer matched to.
+     * @param sl             sl is the {@link ShoppingList} that is requesting price.
+     * @param regionIdBought id for the region.
+     * @param balanceAccount {@link BalanceAccount} in the current context.
+     * @return {@link MutableQuote} with 0 or positive infinite cost.
+     */
+    @Nonnull
+    protected static MutableQuote getNoCostMutableQuote(@Nonnull final Trader seller,
+                                                        @Nonnull final ShoppingList sl,
+                                                        final long regionIdBought,
+                                                        @Nullable final BalanceAccount balanceAccount) {
+        final Long balanceId = balanceAccount == null ? null : balanceAccount.getId();
+        final Long priceId = balanceAccount == null ? null : balanceAccount.getPriceId();
+        if (seller == sl.getSupplier()) {
+            logger.debug("Cost tuple not found for : {}. Returning 0 cost as seller is same as supplier", seller);
+            return new CommodityCloudQuote(seller,
+                    0.0d, regionIdBought, balanceId, null);
+        } else {
+            logger.debug(" Returning infinite cost for this seller. {}", seller.getDebugInfoNeverUseInCode());
+            return new CostUnavailableQuote(seller, regionIdBought, balanceId,
+                    priceId);
+        }
     }
 }
