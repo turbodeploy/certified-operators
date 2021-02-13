@@ -169,6 +169,42 @@ interface EntityEventsJournal {
         Optional<EntityPriceChange> getEntityPriceChange();
 
         /**
+         * Return a sorting code for a SavingsEvent.  The events sort from high to low:
+         * - ActionEvent RECOMMENDATION_ADDED
+         * - ActionEvent EXECUTION_SUCCESS
+         * - ActionEvent RECOMMENDATION_REMOVED
+         * - Any TopologyEvent
+         *
+         * @param event event used to generate code
+         * @return a sorting code
+         */
+        default int getSortingPriority(SavingsEvent event) {
+            if (event.hasActionEvent()) {
+                return event.getActionEvent().get().getEventType().getSortingPriority();
+            }
+            if (event.hasTopologyEvent()) {
+                return 1;
+            }
+            return 0;
+        }
+
+        /**
+         * Compares this SavingsEvent to another.  Descending sort.
+         * @param other the SavingsEvent to compare to
+         * @return positive if other sorts higher, lower if other sorts lower, zero if equal.
+         */
+        default int compare(SavingsEvent other) {
+            int thisCode = getSortingPriority(this);
+            int otherCode = getSortingPriority(other);
+            int result = otherCode - thisCode;
+            if (result != 0) {
+                return result;
+            }
+            // If the events that we are about are equal, fall back to a hash compare.
+            return other.hashCode() - hashCode();
+        }
+
+        /**
          * Creates a new builder.
          */
         class Builder extends ImmutableSavingsEvent.Builder {}
@@ -207,17 +243,33 @@ interface EntityEventsJournal {
             /**
              * A new action recommendation was detected, trigger for missed savings.
              */
-            RECOMMENDATION_ADDED,
+            RECOMMENDATION_ADDED(4),
 
             /**
              * A existing action recommendation is no longer detected, stops missed savings.
              */
-            RECOMMENDATION_REMOVED,
+            RECOMMENDATION_REMOVED(2),
 
             /**
              * Action executed successfully, trigger for realized savings.
              */
-            EXECUTION_SUCCESS
+            EXECUTION_SUCCESS(3);
+
+            private final int sortingPriority;
+
+            /**
+             * Get the sorting priority for the event. Higher priority events sort before lower
+             * priority events. This is used when two events have the same timestamp.
+             *
+             * @param sortingPriority ordering for the event.
+             */
+            ActionEventType(int sortingPriority) {
+                this.sortingPriority = sortingPriority;
+            }
+
+            public int getSortingPriority() {
+                return this.sortingPriority;
+            }
         }
     }
 }

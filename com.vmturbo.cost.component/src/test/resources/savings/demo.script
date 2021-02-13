@@ -1,0 +1,17 @@
+# Invoke with:
+#   ./generate-test-data.py --drop --sql demo.script | mysql -uroot -pvmturbo --host=10.10.170.244
+
+# uuid PT_Consistent_Scaling_VM_1 73694609002109
+start 2-9 17:00
+
+0 0:00 resize   PT_Consistent_Scaling_VM_1 6.00 4.00
+0 0:00 execute  PT_Consistent_Scaling_VM_1 6.00 4.00
+
+0 9:00 resize  PT_Consistent_Scaling_VM_1 4.00 1.00
+0 9:00 execute PT_Consistent_Scaling_VM_1 4.00 1.00
+
+0 11:00 power PT_Consistent_Scaling_VM_1 off
+0 18:00 power PT_Consistent_Scaling_VM_1 on
+
+1 0:00 stop
+
