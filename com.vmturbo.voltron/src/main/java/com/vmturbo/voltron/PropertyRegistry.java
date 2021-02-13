@@ -65,6 +65,7 @@ class PropertyRegistry {
         props.put("historyDbPassword", "vmturbo");
         props.put("planDbPassword", "vmturbo");
         props.put("topologyProcessorDbPassword", "vmturbo");
+        props.put("marketDbPassword", "vmturbo");
 
         props.put("serverHttpPort", voltronConfiguration.getServerHttpPort());
         props.put("serverGrpcPort", voltronConfiguration.getServerGrpcPort());

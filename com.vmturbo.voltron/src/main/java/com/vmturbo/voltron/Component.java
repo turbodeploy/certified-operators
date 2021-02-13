@@ -37,6 +37,7 @@ import com.vmturbo.group.GroupComponent;
 import com.vmturbo.history.HistoryComponent;
 import com.vmturbo.history.schema.abstraction.Vmtdb;
 import com.vmturbo.market.MarketComponent;
+import com.vmturbo.market.component.db.Market;
 import com.vmturbo.mediation.client.MediationComponentMain;
 import com.vmturbo.plan.orchestrator.PlanOrchestratorComponent;
 import com.vmturbo.plan.orchestrator.db.Plan;
@@ -76,7 +77,7 @@ public enum Component {
      * The market.
      */
     MARKET("market", "com.vmturbo.market.component", MarketComponent.class,
-            Optional.empty()),
+            Optional.of(Market.MARKET)),
 
     /**
      * The action orchestrator.
