@@ -12,6 +12,11 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
+import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
+import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
+import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
+import com.vmturbo.cost.api.CostClientConfig;
 import com.vmturbo.cost.component.CostComponentGlobalConfig;
 import com.vmturbo.cost.component.CostDBConfig;
 
@@ -21,7 +26,8 @@ import com.vmturbo.cost.component.CostDBConfig;
  */
 @Configuration
 @Import({ActionOrchestratorClientConfig.class,
-        CostComponentGlobalConfig.class})
+        CostComponentGlobalConfig.class,
+        CostClientConfig.class})
 public class EntitySavingsConfig {
 
     private final Logger logger = LogManager.getLogger();
@@ -34,6 +40,9 @@ public class EntitySavingsConfig {
 
     @Autowired
     private CostComponentGlobalConfig costComponentGlobalConfig;
+
+    @Autowired
+    private CostClientConfig costClientConfig;
 
     /**
      * Chunk size configuration.
@@ -52,6 +61,12 @@ public class EntitySavingsConfig {
      */
     @Value("${entitySavingsEventLogRetentionHours:2400}")
     private Long entitySavingsEventLogRetentionHours;
+
+    /**
+     * Real-Time Context Id.
+     */
+    @Value("${realtimeTopologyContextId}")
+    private long realtimeTopologyContextId;
 
     @Autowired
     private ActionOrchestratorClientConfig aoClientConfig;
@@ -88,13 +103,24 @@ public class EntitySavingsConfig {
     }
 
     /**
+     * Get the realtime topology contextId.
+     *
+     * @return the realtime topology contextId
+     */
+    @Bean
+    public long realtimeTopologyContextId() {
+        return realtimeTopologyContextId;
+    }
+
+    /**
      * Action listener: Listen for action events and insert records in event journal.
      *
      * @return singleton instance of action listener
      */
     @Bean
     public ActionListener actionListener() {
-        ActionListener actionListener = new ActionListener(entityEventsJournal());
+        ActionListener actionListener = new ActionListener(entityEventsJournal(), actionsService(),
+                                                   costService(), realtimeTopologyContextId);
         if (isEnabled()) {
             logger.info("Registering action listener with AO to receive action events.");
             // Register listener with the action orchestrator to receive action events.
@@ -156,6 +182,26 @@ public class EntitySavingsConfig {
     public EntitySavingsStore entitySavingsStore() {
         return new SqlEntitySavingsStore(databaseConfig.dsl(), costComponentGlobalConfig.clock(),
                 persistEntityCostChunkSize);
+    }
+
+    /**
+     * Gets Actions information.
+     *
+     * @return ActionsServiceBlockingStub.
+     */
+    @Bean
+    public ActionsServiceBlockingStub actionsService() {
+        return ActionsServiceGrpc.newBlockingStub(aoClientConfig.actionOrchestratorChannel());
+    }
+
+    /**
+     * Gets Cost information.
+     *
+     * @return CostServiceBlockingStub.
+     */
+    @Bean
+    public CostServiceBlockingStub costService() {
+        return CostServiceGrpc.newBlockingStub(costClientConfig.costChannel());
     }
 
     /**
