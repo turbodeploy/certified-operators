@@ -3,7 +3,6 @@ package com.vmturbo.cost.component.savings;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -33,10 +32,15 @@ class InMemoryEntityEventsJournal implements EntityEventsJournal {
      * Creates a new instance. There should be just one instance of this in the system.
      */
     InMemoryEntityEventsJournal() {
-        // Keys we sort by timestamp (long). Values (SavingsEvent) we sort by their hashcode,
-        // we only care about values not getting overwritten, ordering of events having the
-        // exact same timestamp is irrelevant.
-        events = TreeMultimap.create(Long::compareTo, Comparator.comparingInt(Object::hashCode));
+        // Keys are sorted by timestamp. In the event that events have the same timestamp,
+        // the values (SavingsEvents) are sorted according to a sorting priority. The sorting
+        // priority is:
+        //   - ActionEvent RECOMMENDATION_ADDED
+        //   - ActionEvent EXECUTION_SUCCESS
+        //   - ActionEvent RECOMMENDATION_REMOVED
+        //   - Any TopologyEvent
+        //   - All other events, including ActionEvents not listed above.
+        events = TreeMultimap.create(Long::compareTo, SavingsEvent::compare);
     }
 
     @Override
@@ -65,8 +69,10 @@ class InMemoryEntityEventsJournal implements EntityEventsJournal {
         final List<SavingsEvent> returnEvents = new ArrayList<>();
         journalLock.writeLock().lock();
         try {
-            final Set<Long> keysSince = new HashSet<>(events.keySet().tailSet(startTime));
-            keysSince.forEach(keyTimestamp -> returnEvents.addAll(events.removeAll(keyTimestamp)));
+            final Set<Long> keysSince = events.keySet().tailSet(startTime);
+            keysSince.forEach(keyTimestamp -> returnEvents.addAll(events.get(keyTimestamp)));
+            // Cannot iterate over the multimap's live key set.
+            (new HashSet<>(keysSince)).forEach(events::removeAll);
         } finally {
             journalLock.writeLock().unlock();
         }
@@ -79,7 +85,9 @@ class InMemoryEntityEventsJournal implements EntityEventsJournal {
         journalLock.writeLock().lock();
         try {
             final Set<Long> keysBetween = new HashSet<>(events.keySet().subSet(startTime, endTime));
-            keysBetween.forEach(keyTimestamp -> returnEvents.addAll(events.removeAll(keyTimestamp)));
+            keysBetween.forEach(keyTimestamp -> returnEvents.addAll(events.get(keyTimestamp)));
+            // Cannot iterate over the multimap's live key set.
+            (new HashSet<>(keysBetween)).forEach(events::removeAll);
         } finally {
             journalLock.writeLock().unlock();
         }

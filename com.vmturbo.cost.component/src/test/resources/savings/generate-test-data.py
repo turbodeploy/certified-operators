@@ -57,6 +57,8 @@ import sys
 import argparse
 from time import time
 from datetime import datetime
+from subprocess import check_output
+import tempfile
 
 # Definitions from the protobuf files
 # BCTODO compile the protobuf files for these definitions.
@@ -90,6 +92,7 @@ TIER_TO_COST = {
 args = None
 vm_to_uuid_map = {}
 sql_output = []
+event_output = []
 base_timestamp = 0
 
 
@@ -232,6 +235,7 @@ class EntityState:
 
         def generate_entry(entry_type, amount):
             global sql_output
+            global event_output
             if amount != 0:
                 if args.sql:
                     sql_output += [
@@ -341,6 +345,34 @@ def roundup(value, multiple):
     return int((value + multiple - 1) / multiple) * multiple
 
 
+def generate_event_output(event):
+    # If there's no vm_name, then it's not an event that needs to be injected.
+    if not event.get_entity_name():
+        return
+    header = '{"timestamp": %s, "uuid": %s, "eventType": ' % (event.timestamp, get_uuid(
+        event.get_entity_name()))
+    params = None
+    event_type = event.event
+    if event_type == 'remove':
+        params = '"ENTITY_REMOVED"'
+    elif event_type == 'power':
+        params = '"POWER_STATE", "state": "%s"' %\
+            ('true' if event.get_state() == 'on' else 'false')
+    elif event_type == 'resize':
+        params = '"RESIZE_RECOMMENDATION", "sourceTier": %s, "destTier": %s' % (
+            event.get_source_tier(), event.get_dest_tier())
+    elif event_type == 'change':
+        params = '"PROVIDER_CHANGE", "sourceTier": %s, "destTier": %s' % (event.get_source_tier(),
+                                                                            event.get_dest_tier())
+    elif event_type == 'execute':
+        params = '"RESIZE_EXECUTED", "sourceTier": %s, "destTier": %s' % (event.get_source_tier(),
+                                                                            event.get_dest_tier())
+
+    # Ignored events: create, start, stop, nop, uuid
+    if params:
+        return header + params + '}'
+
+
 # New method that is event-driven
 # - parse events and send events to the related entity as they are parsed.
 # - As each top of hour processing pass is encountered, call process_events().
@@ -367,6 +399,10 @@ def parse_script(filename):
                 process_events(last_processing_time, internal_state)
                 last_processing_time += ONE_HOUR_IN_MS
             logging.debug("EVENT: (%d) %s" % (event.timestamp, line.strip()))
+            if args.events:
+                injected_event = generate_event_output(event)
+                if injected_event:
+                    event_output.append(injected_event)
             handlers[event.event](event, internal_state)
             if last_processing_time is None:
                 last_processing_time = roundup(event.timestamp, ONE_HOUR_IN_MS)
@@ -430,6 +466,8 @@ def handle_stop(_unused_event, _unused_internal_state):
     logging.debug("Handling stop event")
     if args.sql:
         flush_sql()
+    if args.events:
+        flush_events()
     sys.exit(0)
 
 
@@ -502,6 +540,10 @@ def common_resize_handler(event, internal_state, require_previous_recommendation
     resize executions."""
     logging.debug("Handling execute event")
     entity_state = internal_state.get_entity(event)
+    if not entity_state and not require_previous_recommendation:
+        # This is an action execution, so it's okay that we haven't seen this entity yet.
+        # Create state for it and continue
+        entity_state = internal_state.create_entity(event, EntityType.VIRTUAL_MACHINE)
     entity_state.end_segment(event.timestamp)  # Flush previous accumulation
     if entity_state:
         rec = entity_state.current_recommendation
@@ -559,6 +601,10 @@ def parse_arguments():
     parser.add_argument('--csv2', help='generate CSV output with mnemonic entry types', action='store_true')
     parser.add_argument('--sql', help='generate SQL output', action='store_true')
     parser.add_argument('--drop', help='drop table before generating SQL output', action='store_true')
+    parser.add_argument('--events', help='generate events', action='store_true')
+    parser.add_argument('--inject', help='inject events into cost component (must '
+                                         'have kubectl installed and pointing to your instance)',
+                        action='store_true')
     parser.add_argument('--verbose', help='generate verbose/debug output', action='store_true')
     return parser.parse_args()
 
@@ -581,10 +627,34 @@ def flush_sql():
               % ','.join(sql_output[offset:offset+SQL_INSERT_CHUNK_SIZE]))
 
 
+def kubectl(command):
+  return str(check_output(['kubectl'] + command.split())).split('\\n')
+
+
+def flush_events():
+    events = '[' + ','.join(event_output) + ']'
+    if args.inject:
+        # find cost component
+        result = kubectl('get pods')
+        for line in result:
+          if line.startswith('cost-'):
+            pod_name = line.split()[0]
+            tf = tempfile.NamedTemporaryFile(delete=True)
+            tf.write(events.encode('utf-8'))
+            tf.flush()
+            kubectl('cp %s %s:/tmp/injected-events.json' % (tf.name, pod_name))
+            kubectl('exec %s -- touch /tmp/injected-events.json.available' % pod_name)
+            return
+        logging.error('Cannot find cost component - not injecting events')
+    else:
+        print(events)
+
+
 def main():
     global args
     args = parse_arguments()
-    args.csv = args.csv or args.csv2  # csv2 implies csv
+    args.csv = args.csv or args.csv2          # csv2 implies csv
+    args.events = args.events or args.inject  # inject implies events
     for mapping in args.__dict__['entity=uuid']:
         f = mapping.split('=')
         vm_to_uuid_map[f[0]] = f[1]

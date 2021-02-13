@@ -1,0 +1,42 @@
+# This is the scenario for the complicated graph that has been giving me headaches, and serves as the reference
+# scenario for developing algorithm 2.
+
+uuid vm-a 73694609002109
+
+# Start at $8, then scale to 10, 12, 10, 16, 12, 6, 10, 2, 8, 4, 14, 6
+
+start 2-8 14:00
+0  2:00 execute vm-a 8  10
+0  3:30 resize vm-a 10 12
+0  4:00 execute vm-a 10 12
+0  5:45 resize vm-a 12 10
+0  6:00 execute vm-a 12 10
+0  8:00 execute vm-a 10 16
+0 10:00 execute vm-a 16 12
+0 11:00 execute vm-a 12  6
+0 11:20 resize vm-a  6 10
+0 12:00 execute vm-a  6 10
+0 14:00 execute vm-a 10  2
+0 15:00 execute vm-a  2  8
+0 17:00 execute vm-a  8  4
+0 19:00 execute vm-a  4 14
+0 22:00 execute vm-a 14  6
+1 0:00 stop
+
+This is how it looks on the graph.  Note that there is no active/inactive action logic.
+This is a simple high watermark implementation:
+
+Action		Sav	Inv
+8 -> 10		0	2	WM
+10 -> 12	0	4	WM
+12 -> 10	2	2
+10 -> 16	0	8	WM
+16 -> 12	4	4
+12 -> 6		10	0
+6 -> 10		6	4
+10 -> 2		14	0
+2 -> 8		6	10
+8 -> 4		2	12
+4 -> 14		12	2
+14 -> 6		4	10
+

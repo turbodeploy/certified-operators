@@ -1,0 +1,19 @@
+# WARNING: Modifying this test will cause this EventInjectorTest.testJournalPopulation
+#          test to fail.  Be sure to update the expected events list in that test after
+#          this script is changed.
+
+start 2-9 17:00
+
+0 0:00 resize   PT_Consistent_Scaling_VM_1 6.00 4.00
+0 0:00 execute  PT_Consistent_Scaling_VM_1 6.00 4.00
+
+0 9:00 resize  PT_Consistent_Scaling_VM_1 4.00 1.00
+0 9:00 execute PT_Consistent_Scaling_VM_1 4.00 1.00
+
+0 11:00 power PT_Consistent_Scaling_VM_1 off
+0 18:00 power PT_Consistent_Scaling_VM_1 on
+
+0 19:00 change PT_Consistent_Scaling_VM_1 1.00 1.50
+0 19:30 remove PT_Consistent_Scaling_VM_1
+
+1 0:00 stop

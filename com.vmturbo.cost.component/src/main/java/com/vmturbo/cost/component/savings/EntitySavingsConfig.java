@@ -167,4 +167,16 @@ public class EntitySavingsConfig {
     public EntityEventsJournal entityEventsJournal() {
         return new InMemoryEntityEventsJournal();
     }
+
+    /**
+     * Starts the event injector.
+     *
+     * @return the EventInjector instance.
+     */
+    @Bean
+    public EventInjector eventInjector() {
+        EventInjector injector = new EventInjector(entitySavingsTracker(), entityEventsJournal());
+        injector.start();
+        return injector;
+    }
 }
