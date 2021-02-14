@@ -1,6 +1,7 @@
 package com.vmturbo.components.crypto;
 
 import static com.vmturbo.components.crypto.CryptoFacility.CHARSET_CRYPTO;
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 
 import java.io.UnsupportedEncodingException;
@@ -83,6 +84,42 @@ public class CryptoFacilityTest {
     }
 
     /**
+     * Verify supporting encrypting/decrypting using a provided encryption key.
+     *
+     * <p>This is necessary only when using the master key to encrypt/decrypt the internal, per-
+     * component key.</p>
+     */
+    @Test
+    public void testMasterKey() {
+        // Prepare
+        final String masterKey = BaseEncoding.base64().encode(CryptoFacility.getRandomBytes(32));
+        final byte[] encryptionKeyToStore = CryptoFacility.getRandomBytes(32);
+        // Act
+        final byte[] ciphertext = CryptoFacility.encrypt(masterKey, encryptionKeyToStore);
+        final byte[] result = CryptoFacility.decrypt(null, masterKey, ciphertext);
+        // Verify
+        assertArrayEquals(encryptionKeyToStore, result);
+    }
+
+    /**
+     * Verify supporting encrypting/decrypting using a provided encryption key.
+     *
+     * <p>This is necessary only when using the master key to encrypt/decrypt the internal, per-
+     * component key.</p>
+     */
+    @Test
+    public void testMasterKeyWithSplitKey() {
+        // Prepare
+        final String masterKey = BaseEncoding.base64().encode(CryptoFacility.getRandomBytes(32));
+        final byte[] encryptionKeyToStore = CryptoFacility.getRandomBytes(32);
+        // Act
+        final byte[] ciphertext = CryptoFacility.encrypt(VALUE, encryptionKeyToStore, 2, masterKey);
+        final byte[] result = CryptoFacility.decrypt(VALUE, masterKey, ciphertext);
+        // Verify
+        assertArrayEquals(encryptionKeyToStore, result);
+    }
+
+    /**
      * Verify exception is thrown with random cipher text.
      */
     @Test(expected = SecurityException.class)
@@ -92,11 +129,9 @@ public class CryptoFacilityTest {
 
     /**
      * Verify supporting key/value case, if wrong key is provided exception is thrown.
-     *
-     * @throws Exception if failing to encrypt and decrypt.
      */
     @Test(expected = SecurityException.class)
-    public void testCryptoSubjectWrongSubject() throws Exception {
+    public void testCryptoSubjectWrongSubject() {
         String data = (new Date()).toString();
         String ciphertext = CryptoFacility.encrypt(VALUE, data);
         assertEquals(data, CryptoFacility.decrypt("subjectBad", ciphertext));

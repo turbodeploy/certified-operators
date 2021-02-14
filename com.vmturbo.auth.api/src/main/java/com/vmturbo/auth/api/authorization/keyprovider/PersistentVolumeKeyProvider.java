@@ -19,6 +19,11 @@ import com.vmturbo.kvstore.IPublicKeyStore;
  */
 public class PersistentVolumeKeyProvider extends AbstractKeyProvider {
 
+    /**
+     * The keystore data file name.
+     */
+    protected static final String VMT_PRIVATE_KEY_FILE = "vmt_helper_kv.inout";
+
     private final Path keyDir;
 
     private final Path encryptionFilePath;

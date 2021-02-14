@@ -32,6 +32,7 @@ import com.vmturbo.components.common.migration.MigrationController;
 import com.vmturbo.components.common.migration.MigrationFramework;
 import com.vmturbo.components.common.tracing.TracingManager;
 import com.vmturbo.components.common.utils.EnvironmentUtils;
+import com.vmturbo.components.crypto.CryptoFacility;
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.kvstore.KeyValueStoreConfig;
 
@@ -58,6 +59,24 @@ public class BaseVmtComponentConfig {
      */
     @Value("${" + ENABLE_CONSUL_MIGRATION + ":true}")
     private Boolean enableConsulMigration;
+
+    /**
+     * The name of the feature flag controlling whether externally-supplied secrets are used.
+     */
+    public static final String ENABLE_EXTERNAL_SECRETS_FLAG = "enableExternalSecrets";
+
+    /**
+     * If true, use Kubernetes secrets to read in the sensitive Auth data (like encryption keys and
+     * private/public key pairs). If false, this data will be read from (legacy) persistent volumes.
+     *
+     * <p>Note: This feature flag is exposed in a static way to avoid having to refactor the
+     * many static methods that already exist in {@link CryptoFacility}. This is expected to be a
+     * short-lived situation, until enabling external secrets becomes the default.</p>
+     */
+    @Value("${" + ENABLE_EXTERNAL_SECRETS_FLAG + ":false}")
+    public void setEnableExternalSecretsStatic(boolean enableExternalSecrets){
+        CryptoFacility.ENABLE_EXTERNAL_SECRETS = enableExternalSecrets;
+    }
 
     /**
      * Required to fill @{...} @Value annotations referencing

@@ -25,11 +25,6 @@ public abstract class AbstractKeyProvider implements KeyProvider {
     private static final Logger logger = LogManager.getLogger();
 
     /**
-     * The keystore data file name.
-     */
-    protected static final String VMT_PRIVATE_KEY_FILE = "vmt_helper_kv.inout";
-
-    /**
      * The charset for the passwords.
      */
     protected static final String CHARSET_CRYPTO = "UTF-8";

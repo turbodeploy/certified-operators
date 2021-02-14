@@ -38,14 +38,26 @@ import com.vmturbo.components.common.utils.EnvironmentUtils;
 public class CryptoFacility {
 
     /**
+     * If true, use Kubernetes secrets to read in a master encryption key, used to encrypt the
+     * internal, per-component encryption keys and store them encrypted (currently in Consul).
+     * If false, this data will be read from (legacy) persistent volumes.
+     *
+     * <p>Note: This feature flag is exposed in a static way to avoid having to refactor the
+     * many static methods that already exist in this class. This is expected to be a short-lived
+     * situation, until enabling external secrets becomes the default.</p>
+     */
+    public static boolean ENABLE_EXTERNAL_SECRETS = false;
+
+    /**
+     * When set (i.e. not null), used to provide the encryption key needed to encrypt/decrypt sensitive
+     * data. When null, legacy logic will be used to read the encryption key from a file.
+     */
+    public static IEncryptionKeyProvider encryptionKeyProvider;
+
+    /**
      * Default encryption key length is version 2 which is 256 bits.
      */
     static final Integer DEFAULT_KEY_LENGTH_VERSION = 2;
-
-    /**
-     * The name of the feature flag controlling whether externally-supplied secrets are used.
-     */
-    private static final String ENABLE_EXTERNAL_SECRETS = "enableExternalSecrets";
 
     /**
      * The key location property.
@@ -170,13 +182,36 @@ public class CryptoFacility {
     public static @Nonnull String decrypt(final @Nullable String keySplitValue,
                                           final @Nonnull String ciphertext)
             throws SecurityException {
+        return decrypt(keySplitValue, null, ciphertext);
+    }
+
+    /**
+     * Decrypts the given string using AES algorithm with authenticated block cipher method.
+     *
+     * @param keySplitValue The user-specified portion of the PBKDF2 salt used to derive a
+     *                      split key from the site secret. The value provided
+     *                      constitutes the part of the salt utilized by the PBKDF2 algorithm,
+     *                      but isn't stored stored with the encrypted data.
+     * @param encryptionKey The base64-encoded encryption key to use. If null, a default encryption
+     *                      key will be used. This should only be provided when the master key is
+     *                      being used to decrypt the per-component encryption key. This is necessary
+     *                      because the per-component encryption key cannot be used to decrypt itself.
+     *                      Any other usage of this parameter is discouraged.
+     * @param ciphertext    The string to decrypt.
+     * @return The decrypted string.
+     * @throws SecurityException In the case of any error decrypting the ciphertext.
+     */
+    public static @Nonnull String decrypt(final @Nullable String keySplitValue,
+                                          final @Nullable String encryptionKey,
+                                          final @Nonnull String ciphertext)
+        throws SecurityException {
         // Be a little defensive here.
         if (ciphertext == null) {
             throw new SecurityException("Null ciphertext.");
         }
         try {
             final byte[] cipherData = BaseEncoding.base64().decode(ciphertext);
-            return new String(decrypt(keySplitValue, cipherData), CHARSET_CRYPTO);
+            return new String(decrypt(keySplitValue, encryptionKey, cipherData), CHARSET_CRYPTO);
         } catch (UnsupportedEncodingException e) {
             throw new RuntimeException("Unable to decode.", e);
         }
@@ -194,6 +229,29 @@ public class CryptoFacility {
      * @throws SecurityException In the case of any error decrypting the cipher data.
      */
     public static @Nonnull byte[] decrypt(final @Nullable String keySplitValue,
+                                          final @Nonnull byte[] cipherdata)
+        throws SecurityException {
+        return decrypt(keySplitValue, null, cipherdata);
+    }
+
+    /**
+     * Decrypts the given string using AES algorithm with authenticated block cipher method.
+     *
+     * @param keySplitValue The user-specified portion of the PBKDF2 salt used to derive a
+     *                      split key from the site secret. The value provided
+     *                      constitutes the part of the salt utilized by the PBKDF2 algorithm,
+     *                      but isn't stored stored with the encrypted data.
+     * @param encryptionKey The base64-encoded encryption key to use. If null, a default encryption
+     *                      key will be used. This should only be provided when the master key is
+     *                      being used to decrypt the per-component encryption key. This is necessary
+     *                      because the per-component encryption key cannot be used to decrypt itself.
+     *                      Any other usage of this parameter is discouraged.
+     * @param cipherdata    The ciphered bytes to decrypt.
+     * @return The decrypted bytes.
+     * @throws SecurityException In the case of any error decrypting the cipher data.
+     */
+    public static @Nonnull byte[] decrypt(final @Nullable String keySplitValue,
+                                          final @Nullable String encryptionKey,
                                           final @Nonnull byte[] cipherdata)
             throws SecurityException {
         // Be a little defensive here.
@@ -226,7 +284,7 @@ public class CryptoFacility {
             byte[] cipherBytes = new byte[length];
             buff.get(cipherBytes);
 
-            SecretKey key = getDerivedKey(keySplitValue, salt, version);
+            SecretKey key = getDerivedKey(keySplitValue, salt, version, encryptionKey);
             GCMParameterSpec spec = new GCMParameterSpec(GCM_TAG_LENGTH, nonce);
             cipher.init(Cipher.DECRYPT_MODE, key, spec);
             return cipher.doFinal(cipherBytes);
@@ -256,27 +314,43 @@ public class CryptoFacility {
      *                      but isn't stored stored with the encrypted data.
      * @param salt          The salt.
      * @param version       Encryption key length version
+     * @param encryptionKey The base64-encoded encryption key to use. If null, a default encryption
+     *                      key will be used. This should only be provided when the master key is
+     *                      being used to encrypt or decrypt the per-component encryption key. This
+     *                      is necessary because the per-component encryption key cannot be used to
+     *                      encrypt or decrypt itself. Any other usage of this parameter is discouraged.
      * @return The derived site secret.
      */
     private static SecretKey getDerivedKey(final String keySplitValue,
             final @Nonnull byte[] salt,
-            final int version) {
-        // In case there is no seed, use the direct key.
-        if (keySplitValue == null) {
-            return new SecretKeySpec(getEncryptionKeyForVMTurboInstance(version), KEYSPEC_ALGORITHM);
-        }
-
+            final int version,
+            final @Nullable String encryptionKey) {
         try {
+            final byte[] encryptionKeyBytes;
+            final String siteSecret;
+            if (encryptionKey == null) {
+                // Retrieve the default site secret, since a specific encryption key was not passed in
+                encryptionKeyBytes = getEncryptionKeyForVMTurboInstance(version);
+                siteSecret = BaseEncoding.base64().encode(encryptionKeyBytes);
+            } else {
+                // Use the encryption key that was passed in
+                encryptionKeyBytes = BaseEncoding.base64().decode(encryptionKey);
+                siteSecret = encryptionKey;
+            }
+
+            // In case there is no seed, use the direct key.
+            if (keySplitValue == null) {
+                return new SecretKeySpec(encryptionKeyBytes, KEYSPEC_ALGORITHM);
+            }
+
             // Convert the site secret to string using Base64.
             byte[] seedData = keySplitValue.getBytes(CHARSET_CRYPTO);
             byte[] finalSalt = new byte[seedData.length + salt.length];
             System.arraycopy(seedData, 0, finalSalt, 0, seedData.length);
             System.arraycopy(salt, 0, finalSalt, seedData.length, salt.length);
-            byte[] siteSecretBytes = getEncryptionKeyForVMTurboInstance(version);
-            String siteSecret = BaseEncoding.base64().encode(siteSecretBytes);
             KeySpec specs = new PBEKeySpec(siteSecret.toCharArray(),
-                                           finalSalt, PBKDF2_ITERATIONS,
-                    AES_VERSION_KEY_CONFIG_MAP.get(version).keyLength);
+                finalSalt, PBKDF2_ITERATIONS,
+                AES_VERSION_KEY_CONFIG_MAP.get(version).keyLength);
             SecretKeyFactory kf = SecretKeyFactory.getInstance(PBKDF2_DERIVATION_ALGORITHM);
             return new SecretKeySpec(kf.generateSecret(specs).getEncoded(), KEYSPEC_ALGORITHM);
         } catch (NoSuchAlgorithmException
@@ -305,7 +379,24 @@ public class CryptoFacility {
      * @throws SecurityException In the case of any error decrypting the ciphertext.
      */
     public static byte[] encrypt(final @Nonnull byte[] bytes) throws SecurityException {
-        return encrypt(null, bytes, DEFAULT_KEY_LENGTH_VERSION);
+        return encrypt(null, bytes);
+    }
+
+    /**
+     * Encrypts the given bytearray using authenticated block cipher method.
+     *
+     * @param encryptionKey The base64-encoded encryption key to use. If null, a default encryption
+     *                      key will be used. This should only be provided when the master key is
+     *                      being used to encrypt the per-component encryption key. This is necessary
+     *                      because the per-component encryption key cannot be used to encrypt itself.
+     *                      Any other usage of this parameter is discouraged.
+     * @param bytes - The bytearray to encrypt
+     * @return The encrypted bytearray or null if an error occurred
+     * @throws SecurityException In the case of any error decrypting the ciphertext.
+     */
+    public static byte[] encrypt(final @Nullable String encryptionKey,
+                                 final @Nonnull byte[] bytes) throws SecurityException {
+        return encrypt(null, bytes, DEFAULT_KEY_LENGTH_VERSION, encryptionKey);
     }
 
     /**
@@ -348,9 +439,35 @@ public class CryptoFacility {
             final @Nonnull byte[] bytes,
             final int version)
             throws SecurityException {
+        return encrypt(keySplitValue, bytes, version, null);
+    }
+
+    /**
+     * Encrypts the given bytearray using authenticated block cipher method.
+     *
+     * @param keySplitValue The user-specified portion of the PBKDF2 salt used to derive a
+     *                      split key from the site secret. The value provided
+     *                      constitutes the part of the salt utilized by the PBKDF2 algorithm,
+     *                      but isn't stored stored with the encrypted data.
+     * @param bytes     The bytearray to encrypt.
+     * @param version   The key length.
+     * @param encryptionKey The base64-encoded encryption key to use. If null, a default encryption
+     *                      key will be used. This should only be provided when the master key is
+     *                      being used to encrypt the per-component encryption key. This is necessary
+     *                      because the per-component encryption key cannot be used to encrypt itself.
+     *                      Any other usage of this parameter is discouraged.
+     * @return The encrypted string or null if an error occurred
+     * @throws SecurityException In the case of any error decrypting the ciphertext.
+     */
+    @VisibleForTesting
+    static byte[] encrypt(final @Nullable String keySplitValue,
+                          final @Nonnull byte[] bytes,
+                          final int version,
+                          final @Nullable String encryptionKey)
+        throws SecurityException {
         try {
             byte[] salt = getRandomBytes(PKCS5_SALT_LENGTH);
-            SecretKey key = getDerivedKey(keySplitValue, salt, version);
+            SecretKey key = getDerivedKey(keySplitValue, salt, version, encryptionKey);
             Cipher cipher = Cipher.getInstance(CIPHER_ALGORITHM);
 
             byte[] nonce = getRandomBytes(cipher.getBlockSize());
@@ -381,6 +498,11 @@ public class CryptoFacility {
      * @return The encryption key that is stored in the dedicated docker volume.
      */
     private static synchronized byte[] getEncryptionKeyForVMTurboInstance(final int version) {
+        // When the encryption key provide is set, prefer this over local key management
+        if (ENABLE_EXTERNAL_SECRETS && encryptionKeyProvider != null) {
+            return BaseEncoding.base64().decode(encryptionKeyProvider.getEncryptionKey());
+        }
+
         if (encryptionKeyMap.containsKey(version)) {
             return encryptionKeyMap.get(version);
         }
@@ -408,11 +530,7 @@ public class CryptoFacility {
 
             // We don't have the file or it is of the wrong length.
             // If this happens with Kubernetes secrets in use, we'll just have to log an error
-            final boolean enableExternalSecrets =
-                EnvironmentUtils.getOptionalEnvProperty(ENABLE_EXTERNAL_SECRETS)
-                    .map(Boolean::valueOf)
-                    .orElse(false);
-            if (enableExternalSecrets) {
+            if (ENABLE_EXTERNAL_SECRETS) {
                 final String errorMessage = "Externally-supplied encryption key is not available "
                 + "although external secrets are enabled. Please check that the encryption key "
                 + "secret is populated.";
