@@ -859,6 +859,12 @@ spec:
                   description: Enable Weblogic mediation
                   type: boolean
               type: object
+            websphere:
+              properties:
+                enabled:
+                  description: Enable WebSphere mediation
+                  type: boolean
+              type: object
             nutanix:
               properties:
                 enabled:

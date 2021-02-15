@@ -39,7 +39,7 @@ spec:
       - name: {{ .Chart.Name }}
 {{- if .Values.global }}
   {{- if .Values.global.customImageNames }}
-        image: {{ template "jvm_image" . }}
+        image: {{ template "websphere_image" . }}
   {{- else }}
         image: {{ template "image" . }}
   {{- end }}
@@ -78,9 +78,9 @@ spec:
           name: turbo-volume
           readOnly: true
         - mountPath: /tmp
-          name: mediation-jvm-tmpfs0
+          name: mediation-websphere-tmpfs0
         - mountPath: /etc/targets
-          name: jvm-secrets
+          name: websphere-secrets
           readOnly: true
 {{- if .Values.global }}
   {{- if .Values.global.registry }}
@@ -113,11 +113,11 @@ spec:
         configMap:
           name: global-properties-{{ .Release.Name }}
           optional: true
-      - name: mediation-jvm-tmpfs0
+      - name: mediation-websphere-tmpfs0
         emptyDir: {}
-      - name: jvm-secrets
+      - name: websphere-secrets
         secret:
-          secretName: "jvm"
+          secretName: "websphere"
           optional: true
   selector:
     matchLabels:
@@ -135,11 +135,11 @@ metadata:
     app.kubernetes.io/managed-by: {{ .Release.Service }}
 spec:
   ports:
-  - name: http-mediation-jvm
+  - name: http-mediation-websphere
     port: 8080
 {{- if .Values.global }}
   {{- if or .Values.debug .Values.global.debug }}
-  - name: tcp-mediation-jvm-debug
+  - name: tcp-mediation-websphere-debug
     port: 8000
   {{- end -}}
 {{- end }}

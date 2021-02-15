@@ -313,6 +313,10 @@ dependencies:
     repository: file://../probes/mediation-weblogic
     version: 0.1.0
     condition: weblogic.enabled
+  - name: mediation-websphere
+    repository: file://../probes/mediation-websphere
+    version: 0.1.0
+    condition: websphere.enabled
   - name: mediation-nutanix
     repository: file://../probes/mediation-nutanix
     version: 0.1.0
