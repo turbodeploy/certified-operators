@@ -92,7 +92,7 @@ public class ModelDefinitions {
     /** ENTITY_TABLE. */
     public static final Table ENTITY_TABLE = Table.named("entity")
             .withColumns(ENTITY_OID_AS_OID, ENTITY_TYPE_ENUM, ENTITY_NAME,
-                    ENVIRONMENT_TYPE_ENUM, ENTITY_STATE_ENUM, ATTRS, FIRST_SEEN, LAST_SEEN)
+                    ENVIRONMENT_TYPE_ENUM, ATTRS, FIRST_SEEN, LAST_SEEN)
             .build();
 
     /** SCOPE_TABLE. */
@@ -102,10 +102,9 @@ public class ModelDefinitions {
 
     /** METRIC_TABLE. */
     public static final Table METRIC_TABLE = Table.named("metric")
-            .withColumns(TIME, ENTITY_OID, ENTITY_HASH, COMMODITY_TYPE,
-                    COMMODITY_CURRENT, COMMODITY_CAPACITY, COMMODITY_UTILIZATION, COMMODITY_CONSUMED,
-                    COMMODITY_PROVIDER,
-                    COMMODITY_KEY)
+            .withColumns(TIME, ENTITY_OID, COMMODITY_TYPE, COMMODITY_PROVIDER, COMMODITY_KEY,
+                    COMMODITY_CURRENT, COMMODITY_CAPACITY,
+                    COMMODITY_UTILIZATION, COMMODITY_CONSUMED)
             .build();
 
     /** REPORTING_MODEL. */

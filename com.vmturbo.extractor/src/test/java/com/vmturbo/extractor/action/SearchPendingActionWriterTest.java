@@ -86,8 +86,6 @@ public class SearchPendingActionWriterTest {
     private ExtractorDbConfig dbConfig;
 
     private WriterConfig writerConfig = ImmutableWriterConfig.builder()
-            .lastSeenUpdateIntervalMinutes(1)
-            .lastSeenAdditionalFuzzMinutes(1)
             .insertTimeoutSeconds(10)
             .build();
 
@@ -294,9 +292,8 @@ public class SearchPendingActionWriterTest {
         final Map<Long, Record> recordsByEntity = searchActionReplacerCapture.stream()
                 .collect(Collectors.toMap(record -> record.get(ENTITY_OID_AS_OID),
                         record -> record));
-        expectedCountByEntity.forEach((id, count) -> {
-            assertThat(recordsByEntity.get(id).get(NUM_ACTIONS), is(count));
-        });
+        expectedCountByEntity.forEach((id, count) ->
+                assertThat(recordsByEntity.get(id).get(NUM_ACTIONS), is(count)));
     }
 
     /**
@@ -391,16 +388,15 @@ public class SearchPendingActionWriterTest {
 
         // mock that related entities are FULLY calculated
         final Map<Long, Map<Integer, Set<Long>>> entityToRelated = new HashMap<>();
-        Stream.of(businessApp1, businessTransaction1, service1, app1, vm1, host1).forEach(oid -> {
-            entityToRelated.put(oid, ImmutableMap.<Integer, Set<Long>>builder()
-                    .put(EntityType.BUSINESS_APPLICATION_VALUE, Sets.newHashSet(businessApp1))
-                    .put(EntityType.BUSINESS_TRANSACTION_VALUE, Sets.newHashSet(businessTransaction1))
-                    .put(EntityType.SERVICE_VALUE, Sets.newHashSet(service1))
-                    .put(EntityType.APPLICATION_COMPONENT_VALUE, Sets.newHashSet(app1))
-                    .put(EntityType.VIRTUAL_MACHINE_VALUE, Sets.newHashSet(vm1))
-                    .put(EntityType.PHYSICAL_MACHINE_VALUE, Sets.newHashSet(host1))
-                    .build());
-        });
+        Stream.of(businessApp1, businessTransaction1, service1, app1, vm1, host1).forEach(oid ->
+                entityToRelated.put(oid, ImmutableMap.<Integer, Set<Long>>builder()
+                        .put(EntityType.BUSINESS_APPLICATION_VALUE, Sets.newHashSet(businessApp1))
+                        .put(EntityType.BUSINESS_TRANSACTION_VALUE, Sets.newHashSet(businessTransaction1))
+                        .put(EntityType.SERVICE_VALUE, Sets.newHashSet(service1))
+                        .put(EntityType.APPLICATION_COMPONENT_VALUE, Sets.newHashSet(app1))
+                        .put(EntityType.VIRTUAL_MACHINE_VALUE, Sets.newHashSet(vm1))
+                        .put(EntityType.PHYSICAL_MACHINE_VALUE, Sets.newHashSet(host1))
+                        .build()));
         doReturn(new SupplyChain(entityToRelated, true)).when(dataProvider).getSupplyChain();
         actionWriter = spy(new SearchPendingActionWriter(dataProvider, endpoint, writerConfig, pool));
         doReturn(searchActionReplacerSink).when(actionWriter).getSearchActionReplacerSink(any(DSLContext.class));

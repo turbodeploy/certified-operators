@@ -60,8 +60,6 @@ public class ActionWriterFactoryTest {
     private ExtractorDbConfig dbConfig;
 
     private WriterConfig writerConfig = ImmutableWriterConfig.builder()
-            .lastSeenUpdateIntervalMinutes(1)
-            .lastSeenAdditionalFuzzMinutes(1)
             .insertTimeoutSeconds(10)
             .build();
 

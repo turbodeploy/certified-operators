@@ -1,5 +1,6 @@
 package com.vmturbo.extractor.models;
 
+import java.time.OffsetDateTime;
 import java.util.Set;
 
 import com.google.common.collect.ImmutableSet;
@@ -15,6 +16,14 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 public class Constants {
     private Constants() {
     }
+
+    /** Valid DB timestamp value that's far in the future, treated as infinity (and beyond!).
+     *
+     * <p>We're specifying a day before end of 9999, since Postgres doesn't deal with larger years.
+     * The one-day gap ensures if jOOQ uses this value in a literal and expresses it in local
+     * time zone it won't get bumped into year-10000 in that literal.</p>
+     */
+    public static final OffsetDateTime MAX_TIMESTAMP = OffsetDateTime.parse("9999-12-31T00:00:00Z");
 
     /**
      * Default whitelisted commodity types for reporting.

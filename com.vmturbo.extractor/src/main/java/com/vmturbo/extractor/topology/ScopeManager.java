@@ -1,10 +1,12 @@
 package com.vmturbo.extractor.topology;
 
+import static com.vmturbo.extractor.models.Constants.MAX_TIMESTAMP;
 import static com.vmturbo.extractor.models.ModelDefinitions.SCOPED_OID;
+import static com.vmturbo.extractor.models.ModelDefinitions.SCOPED_TYPE;
+import static com.vmturbo.extractor.models.ModelDefinitions.SCOPE_FINISH;
 import static com.vmturbo.extractor.models.ModelDefinitions.SCOPE_START;
 import static com.vmturbo.extractor.models.ModelDefinitions.SCOPE_TABLE;
 import static com.vmturbo.extractor.models.ModelDefinitions.SEED_OID;
-import static com.vmturbo.extractor.schema.Tables.ENTITY;
 import static com.vmturbo.extractor.schema.Tables.SCOPE;
 
 import java.sql.Connection;
@@ -22,6 +24,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import it.unimi.dsi.fastutil.ints.Int2IntMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.ints.IntCollection;
@@ -36,14 +39,14 @@ import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 import org.jooq.Field;
 import org.jooq.Record2;
-import org.jooq.Record5;
-import org.jooq.Select;
 import org.jooq.Table;
 import org.jooq.conf.ParamType;
 import org.jooq.impl.DSL;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.components.common.utils.DataPacks.DataPack;
 import com.vmturbo.extractor.models.Column;
+import com.vmturbo.extractor.models.Constants;
 import com.vmturbo.extractor.models.DslRecordSink;
 import com.vmturbo.extractor.models.Table.Record;
 import com.vmturbo.extractor.models.Table.TableWriter;
@@ -94,17 +97,10 @@ import com.vmturbo.sql.utils.jooq.JooqUtil.TempTable;
 public class ScopeManager {
     private static final Logger logger = LogManager.getLogger();
 
-    /** valid DB timestamp value that's far in the future.
-     *
-     * <p>We're specifying a day before end of 9999, since Postgres doesn't deal with larger years.
-     * The one-day gap ensures if jOOQ uses this value in a literal and expresses it in local
-     * time zone it won't get bumped into year-10000 in that literal.</p>
-     */
-    public static final OffsetDateTime MAX_TIMESTAMP = OffsetDateTime.parse("9999-12-31T00:00:00Z");
     static final OffsetDateTime EPOCH_TIMESTAMP = OffsetDateTime.ofInstant(Instant.EPOCH, ZoneOffset.UTC);
 
     private final DbEndpoint db;
-    private final EntityIdManager entityIdManager;
+    private final DataPack<Long> oidPack;
     private final ExecutorService pool;
     private final WriterConfig config;
 
@@ -118,15 +114,14 @@ public class ScopeManager {
 
     /**
      * Create a new instance.
-     *
-     * @param entityIdManager entity id manager
+     *  @param oidPack entity id manager
      * @param db              DB endpoint (may not yet be initialized)a
      * @param config          ingester config
      * @param pool            thread pool
      */
     public ScopeManager(
-            EntityIdManager entityIdManager, DbEndpoint db, WriterConfig config, ExecutorService pool) {
-        this.entityIdManager = entityIdManager;
+            DataPack<Long> oidPack, DbEndpoint db, WriterConfig config, ExecutorService pool) {
+        this.oidPack = oidPack;
         this.db = db;
         this.pool = pool;
         this.config = config;
@@ -177,9 +172,9 @@ public class ScopeManager {
      * @param scopedOids iids of entities/groups/... to add to the seed entity's scope
      */
     public void addInCurrentScope(long seedOid, boolean symmetric, long... scopedOids) {
-        final int seedIid = entityIdManager.toIid(seedOid);
+        final int seedIid = oidPack.toIndex(seedOid);
         for (final long scopedOid : scopedOids) {
-            final int scopedIid = entityIdManager.toIid(scopedOid);
+            final int scopedIid = oidPack.toIndex(scopedOid);
             addScope(currentScope, seedIid, scopedIid);
             if (symmetric) {
                 addScope(currentScope, scopedIid, seedIid);
@@ -194,8 +189,14 @@ public class ScopeManager {
     /**
      * Call when all scope info for current topology, and it's time to update the persisted scope
      * data.
+     *
+     * <p>This operation requires knowledge of the {@link EntityType} of each entity or pseudo-
+     * entity (e.g. group) appearing in the topology. These are supplied in the form of integers
+     * which are the ordinals of the {@link EntityType} enum members.</p>
+     *
+     * @param entityTypes map of iids to {@link EntityType} ordinals
      */
-    public void finishTopology() {
+    public void finishTopology(Int2IntMap entityTypes) {
         logger.info("Scope is complete for {}", currentTimestamp);
         trim(currentScope); // scope map is complete, so this is a good time to optimize
         try (TableWriter scopeInserter = getScopeInsertWriter();
@@ -207,7 +208,7 @@ public class ScopeManager {
             IntStream.concat(priorIids, currentIids).distinct()
                     .forEach(scopedIid ->
                             // handle every entity that appeared in this or prior topology
-                            finishScopingEntity(scopedIid, scopeInserter, scopeUpdater));
+                            finishScopingEntity(scopedIid, scopeInserter, scopeUpdater, entityTypes));
             // update the "0/0" record's finish date to be the current timestamp, for restoration
             // following  a restart. We use an upsert because on very first cycle there will be no
             // record.
@@ -248,14 +249,15 @@ public class ScopeManager {
 
     private LongSet getScopingSeeds(Int2ObjectMap<IntSet> scope, long oid) {
         IntSet iids = scope != null
-                ? scope.getOrDefault(entityIdManager.toIid(oid), IntSets.EMPTY_SET)
+                ? scope.getOrDefault(oidPack.toIndex(oid), IntSets.EMPTY_SET)
                 : IntSets.EMPTY_SET;
-        return iids.stream().mapToLong(entityIdManager::toOid)
+        return iids.stream().mapToLong(oidPack::fromIndex)
                 .collect(LongOpenHashSet::new, LongOpenHashSet::add, LongOpenHashSet::addAll);
     }
 
     private TableWriter getScopeInsertWriter() {
-        return SCOPE_TABLE.open(new ScopeInserterSink(), "Scope Inserter", logger);
+        return SCOPE_TABLE.open(new DslRecordSink(dsl, SCOPE_TABLE, config, pool),
+                "Scope Inserter", logger);
     }
 
     private TableWriter getScopeUpdateWriter() {
@@ -269,14 +271,16 @@ public class ScopeManager {
      * @param scopedIid     iid of scoped entity
      * @param scopeInserter where to send newly appearing entities
      * @param scopeUpdater  where to send updates for dropped entities
+     * @param entityTypes   entity type map
      */
     private void finishScopingEntity(
-            int scopedIid, TableWriter scopeInserter, TableWriter scopeUpdater) {
+            int scopedIid, TableWriter scopeInserter, TableWriter scopeUpdater,
+            Int2IntMap entityTypes) {
         if (currentScope.containsKey(scopedIid)) {
             if (!priorScope.containsKey(scopedIid)) {
-                finishNewEntity(scopedIid, scopeInserter);
+                finishNewEntity(scopedIid, scopeInserter, entityTypes);
             } else {
-                finishOverlappingEntity(scopedIid, scopeInserter, scopeUpdater);
+                finishOverlappingEntity(scopedIid, scopeInserter, scopeUpdater, entityTypes);
             }
         } else if (priorScope.containsKey(scopedIid)) {
             finishDroppedEntity(scopedIid, scopeUpdater);
@@ -288,14 +292,18 @@ public class ScopeManager {
      *
      * @param scopedIid     iid of new scoped entity
      * @param scopeInserter where to send new records for insertion
+     * @param entityTypes   entity types map
      */
-    private void finishNewEntity(final int scopedIid, TableWriter scopeInserter) {
-        long scopedOid = entityIdManager.toOid(scopedIid);
+    private void finishNewEntity(final int scopedIid, TableWriter scopeInserter,
+            Int2IntMap entityTypes) {
+        long scopedOid = oidPack.fromIndex(scopedIid);
         currentScope.get(scopedIid).forEach((IntConsumer)seedIid -> {
             try (Record r = scopeInserter.open()) {
-                r.set(SEED_OID, entityIdManager.toOid(seedIid));
+                r.set(SEED_OID, oidPack.fromIndex(seedIid));
                 r.set(SCOPED_OID, scopedOid);
+                r.set(SCOPED_TYPE, EntityType.values()[entityTypes.get(scopedIid)]);
                 r.set(SCOPE_START, currentTimestamp);
+                r.set(SCOPE_FINISH, MAX_TIMESTAMP);
             }
         });
     }
@@ -311,10 +319,12 @@ public class ScopeManager {
      * @param scopedIid     iid of scoped entity
      * @param scopeInserter where to send new `scope` records
      * @param scopeUpdater  where to send existing `scope` record updates
+     * @param entityTypes   entity types map
      */
     private void finishOverlappingEntity(
-            final int scopedIid, TableWriter scopeInserter, TableWriter scopeUpdater) {
-        long scopedOid = entityIdManager.toOid(scopedIid);
+            final int scopedIid, TableWriter scopeInserter, TableWriter scopeUpdater,
+            Int2IntMap entityTypes) {
+        long scopedOid = oidPack.fromIndex(scopedIid);
         final IntSet priorSet = priorScope.getOrDefault(scopedIid, IntSets.EMPTY_SET);
         final IntSet currentSet = currentScope.getOrDefault(scopedIid, IntSets.EMPTY_SET);
         boolean debugEnabled = logger.isDebugEnabled();
@@ -328,7 +338,7 @@ public class ScopeManager {
                 if (!currentSet.contains(seedIid)) {
                     // entity dropped out of the topology... tie off its record in DB
                     try (Record r = scopeUpdater.open()) {
-                        r.set(SEED_OID, entityIdManager.toOid(seedIid));
+                        r.set(SEED_OID, oidPack.fromIndex(seedIid));
                         r.set(SCOPED_OID, scopedOid);
                     }
                     if (debugEnabled) {
@@ -338,9 +348,11 @@ public class ScopeManager {
             } else if (currentSet.contains(seedIid)) {
                 // new entity (or reappearance of an old entity) requires a new record
                 try (Record r = scopeInserter.open()) {
-                    r.set(SEED_OID, entityIdManager.toOid(seedIid));
+                    r.set(SEED_OID, oidPack.fromIndex(seedIid));
                     r.set(SCOPED_OID, scopedOid);
+                    r.set(SCOPED_TYPE, EntityType.values()[entityTypes.get(scopedIid)]);
                     r.set(SCOPE_START, currentTimestamp);
+                    r.set(SCOPE_FINISH, MAX_TIMESTAMP);
                 }
                 if (debugEnabled) {
                     adds.add(seedIid);
@@ -367,10 +379,10 @@ public class ScopeManager {
      * @param scopeUpdater where to send updates to existing records
      */
     private void finishDroppedEntity(final int scopedIid, TableWriter scopeUpdater) {
-        long scopedOid = entityIdManager.toOid(scopedIid);
+        long scopedOid = oidPack.fromIndex(scopedIid);
         priorScope.get(scopedIid).forEach((IntConsumer)seedIid -> {
             try (Record r = scopeUpdater.open()) {
-                r.set(SEED_OID, entityIdManager.toOid(seedIid));
+                r.set(SEED_OID, oidPack.fromIndex(seedIid));
                 r.set(SCOPED_OID, scopedOid);
             }
         });
@@ -404,8 +416,8 @@ public class ScopeManager {
                              .where(SCOPE.FINISH.ge(MAX_TIMESTAMP))
                              .stream()) {
             stream.forEach(r -> {
-                int seedIid = entityIdManager.toIid(r.value1());
-                int scopedIid = entityIdManager.toIid(r.value2());
+                int seedIid = oidPack.toIndex(r.value1());
+                int scopedIid = oidPack.toIndex(r.value2());
                 addScope(priorScope, seedIid, scopedIid);
             });
         }
@@ -425,78 +437,9 @@ public class ScopeManager {
     // utility used in debug logging
     private List<Long> toOidList(IntCollection iids) {
         return iids.stream()
-                .map(entityIdManager::toOid)
+                .map(oidPack::fromIndex)
                 .sorted()
                 .collect(Collectors.toList());
-    }
-
-    /**
-     * Record sink to insert new records into the `scope` table.
-     *
-     * <p>Posted records will be missing their scoped entity types, we write records to a temp
-     * table and then copy everything to `scopes`, joining the temp table against `entity` to obtain
-     * scoped entity types.</p>
-     *
-     * <p>Records also have their `start` and `finish` timestamps set to the current topology
-     * timestamp and `MAX_TIMESTAMP` respectively.</p>
-     */
-    private class ScopeInserterSink extends DslRecordSink {
-        private TempTable<?> tempTable;
-
-        ScopeInserterSink() {
-            super(dsl, SCOPE_TABLE, config, pool);
-        }
-
-        /**
-         * Create the temp table with the fields we need.
-         *
-         * @param transConn database connection on which COPY will execute
-         */
-        @Override
-        protected List<String> getPreCopyHookSql(final Connection transConn) {
-            Field<?>[] fields = new Field[]{SCOPE.SEED_OID, SCOPE.SCOPED_OID, SCOPE.START};
-            this.tempTable = new TempTable<>((Table<?>)null, getWriteTableName(), fields);
-            try (DSLContext transDsl = DSL.using(transConn)) {
-                final String sql = transDsl.createTemporaryTable(tempTable.table()).columns(fields)
-                        .getSQL(ParamType.INLINED);
-                return Collections.singletonList(sql);
-            }
-        }
-
-        /**
-         * After all records have been posted to the temp table, we enrich them with scoped entity
-         * type as well as start and finish timestamps while copying them into the real `scopes`
-         * table.
-         *
-         * @param transConn database connection on which COPY operation executed (still open)
-         */
-        @Override
-        protected List<String> getPostCopyHookSql(final Connection transConn) {
-            final Select<Record5<Long, Long, EntityType, OffsetDateTime, OffsetDateTime>> selectStmt;
-            selectStmt = DSL.select(
-                    tempTable.field(SCOPE.SEED_OID),
-                    tempTable.field(SCOPE.SCOPED_OID),
-                    ENTITY.TYPE.as(SCOPE.SCOPED_TYPE),
-                    tempTable.field(SCOPE.START),
-                    DSL.inline(MAX_TIMESTAMP).as(SCOPE.FINISH)
-            ).from(tempTable.table()).innerJoin(ENTITY)
-                    .on(ENTITY.OID.eq(tempTable.field(SCOPE.SCOPED_OID)));
-            final String sql = DSL.using(transConn, dsl.configuration().settings())
-                    .insertInto(SCOPE, SCOPE.SEED_OID, SCOPE.SCOPED_OID, SCOPE.SCOPED_TYPE, SCOPE.START, SCOPE.FINISH)
-                    .select(selectStmt)
-                    .getSQL(ParamType.INLINED);
-            return Collections.singletonList(sql);
-        }
-
-        @Override
-        protected Collection<Column<?>> getRecordColumns() {
-            return Arrays.asList(SEED_OID, SCOPED_OID, SCOPE_START);
-        }
-
-        @Override
-        protected String getWriteTableName() {
-            return super.getWriteTableName() + "_inserts";
-        }
     }
 
     /**
@@ -504,7 +447,7 @@ public class ScopeManager {
      * active in the current topology.
      *
      * <p>Records with matching oids and with their current `finish` timestamp set to our special
-     * {@link #MAX_TIMESTAMP} value have their `finish` timestamps set to the prior topology's
+     * {@link Constants#MAX_TIMESTAMP} value have their `finish` timestamps set to the prior topology's
      * timestamp.
      */
     private class ScopeUpdaterSink extends DslRecordSink {

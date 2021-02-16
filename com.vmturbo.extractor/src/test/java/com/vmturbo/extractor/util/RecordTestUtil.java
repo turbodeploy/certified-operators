@@ -7,7 +7,6 @@ import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_KEY;
 import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_PROVIDER;
 import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_TYPE;
 import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_UTILIZATION;
-import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_HASH;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_OID;
 import static com.vmturbo.extractor.models.ModelDefinitions.TIME;
 import static org.mockito.Matchers.any;
@@ -15,6 +14,7 @@ import static org.mockito.Mockito.doAnswer;
 
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -28,6 +28,7 @@ import com.google.common.collect.ImmutableSet;
 import org.apache.commons.lang3.tuple.Pair;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
+import org.jooq.EnumType;
 
 import com.vmturbo.extractor.models.Column;
 import com.vmturbo.extractor.models.Table;
@@ -94,7 +95,6 @@ public class RecordTestUtil {
      *
      * @param time         time value
      * @param oid          entity oid value
-     * @param hash         entity hash value
      * @param type         commodity type value
      * @param commodityKey commodity key value
      * @param current      current used value (sold commodity metric)
@@ -105,13 +105,12 @@ public class RecordTestUtil {
      * @return a map representing the record data
      */
     public static Map<String, Object> createMetricRecordMap(
-            final OffsetDateTime time, final long oid, final Long hash, final MetricType type,
+            final OffsetDateTime time, final long oid, final MetricType type,
             final String commodityKey, final Double current, final Double capacity, final Double utilization,
             final Double consumed, final Long provider) {
         return ImmutableList.<Pair<String, Object>>of(
                 Pair.of(TIME.getName(), time),
                 Pair.of(ENTITY_OID.getName(), oid),
-                Pair.of(ENTITY_HASH.getName(), hash),
                 Pair.of(COMMODITY_TYPE.getName(), type),
                 Pair.of(COMMODITY_KEY.getName(), commodityKey),
                 Pair.of(COMMODITY_CURRENT.getName(), current),
@@ -152,18 +151,14 @@ public class RecordTestUtil {
         }
 
         MapMatchesLaxly(Map<?, ?> expected, K... wild) {
-            this.expected = stripNullValues(expected);
-            this.wild = ImmutableSet.<K>builder().add(wild).build();
+            this.expected = enumToString(stripNullValues(expected));
+            this.wild = ImmutableSet.<K>builder().addAll(Arrays.asList(wild)).build();
         }
 
         @Override
         public boolean matches(final Object item) {
-            boolean matches = item instanceof Map && expected.equals(stripWild(stripNullValues((Map<?, ?>)item)));
-            if (!matches) {
-                return matches;
-            } else {
-                return matches;
-            }
+            final Map<?, ?> normalizedActual = enumToString(stripWild(stripNullValues((Map<?, ?>)item)));
+            return item instanceof Map && expected.equals(normalizedActual);
         }
 
         @Override
@@ -172,6 +167,18 @@ public class RecordTestUtil {
                     "Map is expected to include, in any order "
                             + "and perhaps with additional null-valued entries: {%s}",
                     expected.toString()));
+        }
+
+        private Map<?, ?> enumToString(Map<?, ?> map) {
+            return map.entrySet().stream()
+                    .map(entry -> {
+                        if (entry.getValue() instanceof EnumType) {
+                            return Pair.of(entry.getKey(), ((EnumType)entry.getValue()).getLiteral());
+                        } else {
+                            return Pair.of(entry.getKey(), entry.getValue());
+                        }
+                    })
+                    .collect(Collectors.toMap(Pair::getKey, Pair::getValue));
         }
 
         private Map<?, ?> stripNullValues(Map<?, ?> map) {

@@ -24,6 +24,8 @@ import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
+import com.vmturbo.components.common.utils.DataPacks.DataPack;
+import com.vmturbo.components.common.utils.DataPacks.LongDataPack;
 import com.vmturbo.extractor.ExtractorDbConfig;
 import com.vmturbo.extractor.ExtractorGlobalConfig;
 import com.vmturbo.extractor.ExtractorGlobalConfig.ExtractorFeatureFlags;
@@ -74,22 +76,6 @@ public class TopologyListenerConfig {
     private ExtractorGlobalConfig extractorGlobalConfig;
 
     /**
-     * How often we update last-seen timestamps for entities whose hash values have not changed.
-     *
-     * <p>The last-seen timestamps need not be precise, so to optimize ingestion performance we
-     * only update the values occasionally.</p>
-     */
-    @Value("${lastSeenUpdateIntervalMinutes:360}")
-    private int lastSeenUpdateIntervalMinutes;
-
-    /**
-     * Fuzz factor added to last-seen timestamp estimates to provide added tolerance for delayed
-     * ingestions.
-     */
-    @Value("${lastSeenAdditionalFuzzMinutes:60}")
-    private int lastSeenAdditionalFuzzMinutes;
-
-    /**
      * Max time to wait for results of COPY FROM command that streams data to postgres, after all
      * records have been sent.
      */
@@ -130,8 +116,6 @@ public class TopologyListenerConfig {
     @Bean
     public WriterConfig writerConfig() {
         return ImmutableWriterConfig.builder()
-                .lastSeenUpdateIntervalMinutes(lastSeenUpdateIntervalMinutes)
-                .lastSeenAdditionalFuzzMinutes(lastSeenAdditionalFuzzMinutes)
                 .insertTimeoutSeconds(insertTimeoutSeconds)
                 .addAllReportingCommodityWhitelist(getReportingCommodityWhitelist())
                 .unaggregatedCommodities(Constants.UNAGGREGATED_KEYED_COMMODITY_TYPES)
@@ -202,7 +186,7 @@ public class TopologyListenerConfig {
         }
         if (featureFlags.isReportingEnabled()) {
             retFactories.add(() -> new EntityMetricWriter(dbEndpoint, entityHashManager(),
-                    scopeManager(), entityIdManager(), pool()));
+                    scopeManager(), oidPack(), pool()));
             retFactories.add(historicalAttributeWriterFactory());
         }
         if (featureFlags.isExtractionEnabled()) {
@@ -231,7 +215,7 @@ public class TopologyListenerConfig {
      */
     @Bean
     public EntityHashManager entityHashManager() {
-        return new EntityHashManager(writerConfig());
+        return new EntityHashManager(oidPack(), writerConfig());
     }
 
     /**
@@ -241,7 +225,7 @@ public class TopologyListenerConfig {
      */
     @Bean
     public ScopeManager scopeManager() {
-        return new ScopeManager(entityIdManager(),
+        return new ScopeManager(oidPack(),
                 dbConfig.ingesterEndpoint(), writerConfig(), pool());
     }
 
@@ -251,8 +235,8 @@ public class TopologyListenerConfig {
      * @return entity id manager
      */
     @Bean
-    public EntityIdManager entityIdManager() {
-        return new EntityIdManager();
+    public DataPack<Long> oidPack() {
+        return new LongDataPack();
     }
 
     /**
