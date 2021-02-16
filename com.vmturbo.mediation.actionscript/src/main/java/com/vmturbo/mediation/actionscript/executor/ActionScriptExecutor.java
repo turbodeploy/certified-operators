@@ -100,11 +100,19 @@ public class ActionScriptExecutor {
     }
 
     // minimum interval between progress updates that only report new output
-    private static final int PROGRESS_OUTPUT_UPDATE_INTERVAL_SECONDS_DEFAULT = 60;
+    private static final int PROGRESS_OUTPUT_UPDATE_INTERVAL_SECONDS_DEFAULT = 15;
+    // the interval that keep alive message should be sent to mediation
+    private static final int PROGRESS_KEEP_ALIVE_INTERVAL_SECONDS_DEFAULT = 15;
     private int progressOutputUpdateIntervalSeconds = PROGRESS_OUTPUT_UPDATE_INTERVAL_SECONDS_DEFAULT;
+
+    private int progressKeepAliveIntervalSeconds = PROGRESS_KEEP_ALIVE_INTERVAL_SECONDS_DEFAULT;
 
     int getProgressOutputUpdateIntervalSeconds() {
         return progressOutputUpdateIntervalSeconds;
+    }
+
+    int getProgressKeepAliveIntervalSeconds() {
+        return progressKeepAliveIntervalSeconds;
     }
 
     // ActionScriptProbeAccount value from target that defined the executing action script
