@@ -15,6 +15,7 @@ import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.DAT
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.PHYSICAL_MACHINE;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -47,10 +48,13 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
+import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.common.utils.MultiStageTimer;
 import com.vmturbo.extractor.ExtractorDbConfig;
+import com.vmturbo.extractor.export.ExportUtils;
 import com.vmturbo.extractor.models.Column.JsonString;
 import com.vmturbo.extractor.models.DslRecordSink;
 import com.vmturbo.extractor.models.DslReplaceRecordSink;
@@ -95,6 +99,9 @@ public class SearchEntityWriterTest {
     private static final TopologyEntityDTO vm = mkEntity(VIRTUAL_MACHINE).toBuilder()
             .addCommoditySoldList(soldCommodityWithPercentile(CommodityType.VCPU, 300, 1000, 0.25))
             .addCommoditySoldList(soldCommodityWithPercentile(CommodityType.VMEM, 1024, 4096, 0.25))
+            .setTags(Tags.newBuilder()
+                    .putTags("foo", TagValuesDTO.newBuilder().addValues("a").build())
+                    .putTags("bar", TagValuesDTO.newBuilder().addValues("b").addValues("c").build()))
             .build();
 
     private static final TopologyEntityDTO pm = mkEntity(PHYSICAL_MACHINE).toBuilder()
@@ -164,6 +171,8 @@ public class SearchEntityWriterTest {
                     : (Map<String, Object>)mapper.readValue(jsonString.toString(), Map.class);
             // verify common fields for entity
             verifyCommonFields(record, entityByOid.get(oid));
+            // no tags since it will be handled separately for search
+            assertThat(attrs.get(ExportUtils.TAGS_JSON_KEY_NAME), is(nullValue()));
 
             // verify entity specific fields
             if (oid == vm.getOid()) {

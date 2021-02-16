@@ -68,8 +68,6 @@ import com.vmturbo.extractor.models.Table.Record;
 import com.vmturbo.extractor.models.Table.TableWriter;
 import com.vmturbo.extractor.patchers.GroupPrimitiveFieldsOnGroupingPatcher;
 import com.vmturbo.extractor.patchers.PrimitiveFieldsOnTEDPatcher;
-import com.vmturbo.extractor.patchers.TagsPatchers.EntityTagsPatcher;
-import com.vmturbo.extractor.patchers.TagsPatchers.GroupTagsPatcher;
 import com.vmturbo.extractor.schema.enums.EntityType;
 import com.vmturbo.extractor.schema.enums.MetricType;
 import com.vmturbo.extractor.search.EnumUtils.CommodityTypeUtils;
@@ -113,11 +111,9 @@ public class EntityMetricWriter extends TopologyWriterBase {
      * List of wasted files records by storage oid.
      */
     private final Long2ObjectMap<List<Record>> wastedFileRecordsByStorageId = new Long2ObjectOpenHashMap<>();
-    private final PrimitiveFieldsOnTEDPatcher tedPatcher = new PrimitiveFieldsOnTEDPatcher(true);
-    private final EntityTagsPatcher entityTagsPatcher = new EntityTagsPatcher();
+    private final PrimitiveFieldsOnTEDPatcher tedPatcher = new PrimitiveFieldsOnTEDPatcher(true, true);
     private final GroupPrimitiveFieldsOnGroupingPatcher groupPatcher =
-            new GroupPrimitiveFieldsOnGroupingPatcher();
-    private final GroupTagsPatcher groupTagsPatcher = new GroupTagsPatcher();
+            new GroupPrimitiveFieldsOnGroupingPatcher(true);
     private final DataPack<Long> oidPack;
     private final ScopeManager scopeManager;
     private DSLContext dsl;
@@ -165,9 +161,6 @@ public class EntityMetricWriter extends TopologyWriterBase {
         PartialRecordInfo rec = new PartialRecordInfo(e.getOid(), e.getEntityType(), entityRecord, attrs);
         // populate record with data from entity dto per metadata rules
         tedPatcher.patch(rec, e);
-        // TODO remove entityTagsPatcher and its use here when tags are handled by metadata
-        // capture tag data (not yet handled by metadata
-        entityTagsPatcher.patch(rec, e);
         rec.finalizeAttrs();
         // supply chain will be added during finish processing
         entityRecords.add(entityRecord);
@@ -518,7 +511,6 @@ public class EntityMetricWriter extends TopologyWriterBase {
                     final PartialRecordInfo rec = new PartialRecordInfo(
                             group.getId(), group.getDefinition().getType().getNumber(), r, new HashMap<>());
                     groupPatcher.patch(rec, group);
-                    groupTagsPatcher.patch(rec, group);
                     rec.finalizeAttrs();
                     entityRecords.add(r);
                 });

@@ -2,6 +2,7 @@ package com.vmturbo.extractor.export;
 
 import java.util.Optional;
 
+import com.vmturbo.extractor.patchers.PrimitiveFieldsOnTEDPatcher;
 import com.vmturbo.extractor.topology.DataProvider;
 import com.vmturbo.extractor.topology.SupplyChainEntity;
 import com.vmturbo.extractor.topology.fetcher.SupplyChainFetcher.SupplyChain;
@@ -13,12 +14,13 @@ import com.vmturbo.topology.graph.TopologyGraph;
 public class DataExtractionFactory {
 
     /**
-     * Create an instance of {@link AttrsExtractor}.
+     * Create an instance of {@link PrimitiveFieldsOnTEDPatcher} which is capable of extracting
+     * attrs from an entity.
      *
-     * @return an instance of {@link AttrsExtractor}
+     * @return an instance of {@link PrimitiveFieldsOnTEDPatcher}
      */
-    public AttrsExtractor newAttrsExtractor() {
-        return new AttrsExtractor();
+    public PrimitiveFieldsOnTEDPatcher newAttrsExtractor() {
+        return new PrimitiveFieldsOnTEDPatcher(true, true);
     }
 
     /**

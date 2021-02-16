@@ -1,5 +1,6 @@
 package com.vmturbo.extractor.topology;
 
+import static com.vmturbo.extractor.models.ModelDefinitions.ATTRS;
 import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_CAPACITY;
 import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_CONSUMED;
 import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_CURRENT;
@@ -65,6 +66,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSetMultimap;
@@ -83,6 +85,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
+import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
+import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -91,6 +95,7 @@ import com.vmturbo.components.common.utils.DataPacks.DataPack;
 import com.vmturbo.components.common.utils.DataPacks.LongDataPack;
 import com.vmturbo.components.common.utils.MultiStageTimer;
 import com.vmturbo.extractor.ExtractorDbConfig;
+import com.vmturbo.extractor.export.ExportUtils;
 import com.vmturbo.extractor.models.DslRecordSink;
 import com.vmturbo.extractor.models.DslUpdateRecordSink;
 import com.vmturbo.extractor.models.DslUpsertRecordSink;
@@ -128,6 +133,7 @@ public class EntityMetricWriterTest {
     private List<Record> metricInsertCapture;
     private List<Record> wastedFileReplacerCapture;
     private WriterConfig config;
+    private static final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
      * Set up for tests.
@@ -214,7 +220,11 @@ public class EntityMetricWriterTest {
     public void testIngesterFlow() throws InterruptedException, SQLException, UnsupportedDialectException, IOException {
         final Consumer<TopologyEntityDTO> entityConsumer = writer.startTopology(
                 info, ExtractorTestUtil.config, timer);
-        final TopologyEntityDTO vm = mkEntity(VIRTUAL_MACHINE);
+        final TopologyEntityDTO vm = mkEntity(VIRTUAL_MACHINE).toBuilder()
+                .setTags(Tags.newBuilder()
+                        .putTags("foo", TagValuesDTO.newBuilder().addValues("a").build())
+                        .putTags("bar", TagValuesDTO.newBuilder().addValues("b").addValues("c").build()))
+                .build();
         entityConsumer.accept(vm);
         final TopologyEntityDTO pm = mkEntity(PHYSICAL_MACHINE);
         entityConsumer.accept(pm);
@@ -224,9 +234,16 @@ public class EntityMetricWriterTest {
         assertThat(metricInsertCapture, is(empty()));
         // We had two entities total
         assertThat(entitiesUpsertCapture.size(), is(2));
-        final List<Long> upsertedIds = entitiesUpsertCapture.stream().map(r -> r.get(ENTITY_OID_AS_OID))
-                .collect(Collectors.toList());
-        assertThat(upsertedIds, containsInAnyOrder(vm.getOid(), pm.getOid()));
+        final Map<Long, Record> recordMap = entitiesUpsertCapture.stream()
+                .collect(Collectors.toMap(r -> r.get(ENTITY_OID_AS_OID), r -> r));
+        assertThat(recordMap.keySet(), containsInAnyOrder(vm.getOid(), pm.getOid()));
+        // tags
+        Map<String, List<String>> tags = (Map<String, List<String>>)objectMapper.readValue(
+                recordMap.get(vm.getOid()).get(ATTRS).toString(), Map.class)
+                .get(ExportUtils.TAGS_JSON_KEY_NAME);
+        assertThat(tags.keySet(), containsInAnyOrder("foo", "bar"));
+        assertThat(tags.get("foo"), containsInAnyOrder("a"));
+        assertThat(tags.get("bar"), containsInAnyOrder("b", "c"));
         // We only had one topology, so no need to do any last-seen updates
         assertThat(entitiesUpdateCapture, is(empty()));
     }
