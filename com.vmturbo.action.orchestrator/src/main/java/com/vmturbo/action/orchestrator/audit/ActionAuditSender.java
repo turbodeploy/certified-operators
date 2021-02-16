@@ -52,7 +52,6 @@ public class ActionAuditSender {
 
     private final Clock clock;
 
-
     /**
      * Constructs action audit sender.
      *
@@ -83,6 +82,71 @@ public class ActionAuditSender {
     }
 
     /**
+     * Sends audits for completed actions to their appropriate destination. Clears any book keeping
+     * for that action if there is any. This is separate from sendOnGenerationEvents because the
+     * book keeping there is different.
+     *
+     * @param action the action that completes.
+     * @throws CommunicationException if communication error occurred while sending
+     *         notifications
+     * @throws InterruptedException if current thread has been interrupted while blocking.
+     */
+    public void sendAfterExecutionEvents(@Nonnull ActionView action)
+        throws CommunicationException, InterruptedException {
+        Optional<WorkflowDTO.Workflow> workflowOptional;
+        try {
+            workflowOptional = action.getWorkflow(workflowStore, action.getState());
+        } catch (WorkflowStoreException e) {
+            logger.warn("Failed to fetch workflow for action {}. Audit AFTER_EXEC will be skipped.",
+                action.getId());
+            workflowOptional = Optional.empty();
+        }
+        if (workflowOptional.isPresent()) {
+            final Workflow workflow = workflowOptional.get();
+            switch (workflow.getWorkflowInfo().getActionPhase()) {
+                case AFTER_EXECUTION: {
+                    logger.debug("Found action event for action {} with AFTER_EXEC workflow {}",
+                        action::getId, workflow::getId);
+
+                    final ActionResponseState newState;
+                    if (action.getState() == ActionState.SUCCEEDED) {
+                        newState = ActionResponseState.SUCCEEDED;
+                    } else if (action.getState() == ActionState.FAILED) {
+                        newState = ActionResponseState.FAILED;
+                    } else {
+                        logger.error(
+                            "For action {}: unsupported action with state {} for after exec ",
+                            action, action.getState());
+                        break;
+                    }
+
+                    final ActionEvent event = getActionEvent(action, workflow, ActionResponseState.IN_PROGRESS, newState);
+                    logger.debug("Sending action {} audit AFTER_EXEC event to external audit", action.getId());
+                    messageSender.sendMessage(event);
+
+                    // TODO OM-64606 remove this ServiceNow specific logic after changing the
+                    //      ServiceNow app and having generic audit logic for orchestration targets
+                    if (!Optional.of(SDKProbeType.SERVICENOW.getProbeType()).equals(getProbeType(workflow))) {
+                        final AuditedActionsUpdate update = new AuditedActionsUpdate();
+                        update.addRemovedActionRecommendationOid(action.getRecommendationOid());
+                        auditedActionsManager.persistAuditedActionsUpdates(update);
+                    }
+                    break;
+                }
+                default:
+                    logger.trace("Action {}'s workflow {} ({}) is for phase {}. Skipping audit AFTER_EXEC",
+                        action::getId, workflow::getId, () -> workflow.getWorkflowInfo().getName(),
+                        () -> workflow.getWorkflowInfo().getActionPhase());
+                    return;
+            }
+        } else {
+            logger.trace(
+                "Action {} does not have a currently associated workflow. Skip the audit AFTER_EXEC",
+                action::getId);
+        }
+    }
+
+    /**
      * Receives new actions.
      *
      * @param actions new actions received.
@@ -90,7 +154,7 @@ public class ActionAuditSender {
      *         notifications
      * @throws InterruptedException if current thread has been interrupted
      */
-    public void sendActionEvents(@Nonnull Collection<? extends ActionView> actions)
+    public void sendOnGenerationEvents(@Nonnull Collection<? extends ActionView> actions)
             throws CommunicationException, InterruptedException {
         final StopWatch stopWatch = new StopWatch();
         stopWatch.start();
@@ -124,7 +188,6 @@ public class ActionAuditSender {
         return reAuditedActionsCount;
     }
 
-
     private int processActionsForAudit(@Nonnull Collection<? extends ActionView> actions,
             @Nullable AuditedActionsUpdate auditedActionsUpdates, boolean allowRepeatedAudit)
             throws CommunicationException, InterruptedException {
@@ -134,7 +197,7 @@ public class ActionAuditSender {
             try {
                 workflowOptional = action.getWorkflow(workflowStore, action.getState());
             } catch (WorkflowStoreException e) {
-                logger.warn("Failed to fetch workflow for action {}. Audit will be skipped.",
+                logger.warn("Failed to fetch workflow for action {}. Audit ON_GEN will be skipped.",
                         action.getId());
                 workflowOptional = Optional.empty();
             }
@@ -158,12 +221,11 @@ public class ActionAuditSender {
             @Nullable AuditedActionsUpdate auditedActionsUpdates,
             boolean allowRepeatedAudit)
             throws CommunicationException, InterruptedException {
-        final Optional<ThinTargetInfo> auditTarget = getAuditTarget(workflow);
-        if (auditTarget.isPresent()) {
-            final String auditTargetType = auditTarget.get().probeInfo().type();
+        Optional<String> probeTypeOpt = getProbeType(workflow);
+        if (probeTypeOpt.isPresent()) {
             // TODO OM-64606 remove this ServiceNow specific logic after changing the ServiceNow app
             //  and having generic audit logic for orchestration targets
-            if (auditTargetType.equals(SDKProbeType.SERVICENOW.getProbeType())) {
+            if (SDKProbeType.SERVICENOW.getProbeType().equals(probeTypeOpt.get())) {
                 return processServiceNowWorkflow(action, workflow);
             } else {
                 return processAuditWorkflow(action, workflow, auditedActionsUpdates,
@@ -174,6 +236,11 @@ public class ActionAuditSender {
                     workflow.getId());
             return false;
         }
+    }
+
+    private Optional<String> getProbeType(Workflow workflow) {
+        final Optional<ThinTargetInfo> auditTarget = getAuditTarget(workflow);
+        return auditTarget.map(thinTargetInfo -> thinTargetInfo.probeInfo().type());
     }
 
     private void processCanceledActions(@Nonnull Collection<? extends ActionView> actions,
@@ -249,19 +316,10 @@ public class ActionAuditSender {
         final ActionResponseState newState;
         switch (workflow.getWorkflowInfo().getActionPhase()) {
             case ON_GENERATION: {
-                logger.debug("Found action event for {} to have and onGeneration action phase {}",
+                logger.debug("Found action event for action {} with ON_GEN workflow {}",
                         action::getId, workflow::getId);
                 oldState = ActionResponseState.PENDING_ACCEPT;
                 newState = ActionResponseState.PENDING_ACCEPT;
-                break;
-            }
-            case AFTER_EXECUTION: {
-                logger.debug("Found action event for {} to have and afterExecution action phase {}",
-                        action::getId, workflow::getId);
-                oldState = ActionResponseState.IN_PROGRESS;
-                newState = action.getState() == ActionState.SUCCEEDED
-                        ? ActionResponseState.SUCCEEDED
-                        : ActionResponseState.FAILED;
                 break;
             }
             default:
@@ -286,7 +344,7 @@ public class ActionAuditSender {
             switch (workflow.getWorkflowInfo().getActionPhase()) {
                 case ON_GENERATION: {
                     logger.debug(
-                            "Found action event for {} to have and onGeneration action phase {}",
+                        "Found action event for action {} with ON_GEN workflow {}",
                             action::getId, workflow::getId);
                     oldState = ActionResponseState.PENDING_ACCEPT;
                     newState = ActionResponseState.PENDING_ACCEPT;

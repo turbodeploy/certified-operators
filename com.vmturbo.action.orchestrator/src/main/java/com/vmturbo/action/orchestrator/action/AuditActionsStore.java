@@ -72,7 +72,7 @@ public class AuditActionsStore implements AuditActionsPersistenceManager {
     }
 
     @Override
-    public void removeActions(@Nonnull Collection<Pair<Long, Long>> actionsToRemove)
+    public void removeActionWorkflows(@Nonnull Collection<Pair<Long, Long>> actionsToRemove)
             throws ActionStoreOperationException {
         try {
             dslContext.transaction(configuration -> {
@@ -87,6 +87,22 @@ public class AuditActionsStore implements AuditActionsPersistenceManager {
             });
         } catch (DataAccessException ex) {
             throw new ActionStoreOperationException("Failed to remove expired audited actions", ex);
+        }
+    }
+
+    @Override
+    public void removeActionsByRecommendationOid(@Nonnull Collection<Long> recommendationOids)
+        throws ActionStoreOperationException {
+        try {
+            dslContext.transaction(configuration -> {
+                final DSLContext context = DSL.using(configuration);
+                context.deleteFrom(ACTION_WORKFLOW_BOOK_KEEPING)
+                    .where(ACTION_WORKFLOW_BOOK_KEEPING.ACTION_STABLE_ID.in(recommendationOids))
+                    .execute();
+            });
+        } catch (DataAccessException ex) {
+            throw new ActionStoreOperationException(
+                "Failed remove audited actions by recommendation oid", ex);
         }
     }
 

@@ -266,8 +266,7 @@ public class ActionStateUpdaterTest {
                 2244L);
         verify(acceptedActionsStore, Mockito.never()).deleteAcceptedAction(
                 externalApprovalAction.getRecommendationOid());
-        Mockito.verify(actionAuditSender).sendActionEvents(Collections.singleton(
-                externalApprovalAction));
+        Mockito.verify(actionAuditSender).sendAfterExecutionEvents(externalApprovalAction);
         verify(actionStateUpdatesSender).sendMessage(ActionResponse.newBuilder()
                 .setProgress(100)
                 .setResponseDescription(success.getSuccessDescription())
@@ -516,8 +515,7 @@ public class ActionStateUpdaterTest {
             serializedAction.getAssociatedAccountId(),
             serializedAction.getAssociatedResourceGroupId(),
                 2244L);
-        Mockito.verify(actionAuditSender).sendActionEvents(Collections.singleton(
-                externalApprovalAction));
+        Mockito.verify(actionAuditSender).sendAfterExecutionEvents(externalApprovalAction);
         verify(actionStateUpdatesSender).sendMessage(ActionResponse.newBuilder()
                 .setProgress(100)
                 .setResponseDescription(failure.getErrorDescription())

@@ -28,6 +28,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 
+import com.google.common.collect.Streams;
 import org.apache.commons.collections4.SetUtils;
 import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.logging.log4j.LogManager;
@@ -530,8 +531,10 @@ public class LiveActionStore implements ActionStore {
 
             // Creating the atomic action DTOs and action views, the process above is repeated
             // Any previously created atomic actions that are not re-generated will be removed
+            List<Action> translatedAtomicActionsToAdded = new ArrayList<>();
             populateAtomicActions(planId, aggregatedActions, mergedActionViews,
-                                        lastExecutedRecommendationsTracker, snapshot);
+                lastExecutedRecommendationsTracker, snapshot,
+                translatedAtomicActionsToAdded);
 
             // Record the action stats.
             // TODO (roman, Nov 15 2018): For actions completed since the last snapshot, it may make
@@ -555,16 +558,22 @@ public class LiveActionStore implements ActionStore {
             // Get actions for audit. Don't use directly translatedActionsToAdd because it could
             // contain actions that were merged (during populating atomic actions) and as a result
             // some of initially recommended actions were removed.
-            final List<ActionView> actionsForAudit = translatedActionsToAdd.stream()
+            final List<ActionView> actionsForAudit =
+                Streams.concat(translatedActionsToAdd.stream(),
+                        // The atomic actions will not appear in translatedActionsToAdd.
+                        // populateAtomicActions places them in translatedAtomicActionsToAdded
+                        translatedAtomicActionsToAdded.stream())
                     .map(action -> actions.get(action.getId()))
                     .filter(Optional::isPresent)
                     .map(Optional::get)
                     .collect(Collectors.toList());
+            // We need to call auditOnGeneration once so that the book keeping can determine what
+            // is new and what needs to be cleared by comparing what was provided in the last cycle.
+            // As a result, this should not be called multiple times per market cycle.
             auditOnGeneration(actionsForAudit);
             if (deletedActions > 0) {
                 severityCache.refresh(this);
             }
-
         }
 
         if (logger.isDebugEnabled()) {
@@ -578,9 +587,9 @@ public class LiveActionStore implements ActionStore {
     private void auditOnGeneration(@Nonnull Collection<? extends ActionView> newActions)
             throws InterruptedException {
         try {
-            if (!newActions.isEmpty()) {
-                actionAuditSender.sendActionEvents(newActions);
-            }
+            // Even if the list is empty, we need ActionAuditSender to update it's book keeping.
+            // Previously there was an optimization that checked if the list was non-empty.
+            actionAuditSender.sendOnGenerationEvents(newActions);
         } catch (CommunicationException e) {
             logger.warn(
                     "Failed sending audit event \"on generation event\" for actions " + newActions,
@@ -786,15 +795,16 @@ public class LiveActionStore implements ActionStore {
      *                                              recently executed actions used in the call
      *                                              to set support levels for the atomic actions
      * @param snapshot  {@link EntitiesAndSettingsSnapshot}
-     * @throws InterruptedException if current thread has been interrupted
+     * @param translatedActionsToAdded used as a return value to track the translated actions that
+     *                                 come from atomic actions.
      * @return true if the atomic actions are updated without any errors
      */
     private boolean populateAtomicActions(long planId,
                                           Map<Long, AggregatedAction> aggregatedActions,
                                           Map<Long, Action> mergedActionViews,
                                           RecommendationTracker lastExecutedRecommendationsTracker,
-                                          EntitiesAndSettingsSnapshot snapshot)
-            throws InterruptedException {
+                                          EntitiesAndSettingsSnapshot snapshot,
+                                          List<Action> translatedActionsToAdded) {
         // First create the action DTOs for the atomic actions
         List<AtomicActionResult> atomicActionResults = atomicActionFactory.atomicActions(aggregatedActions);
 
@@ -897,10 +907,9 @@ public class LiveActionStore implements ActionStore {
         // with the "normal" action case.
         final Stream<Action> translatedReadyActions =
                 actionTranslator.translate(actionsToTranslate.stream(), snapshot);
-        final List<Action> translatedActionsToAdd = new ArrayList<>();
-        translatedReadyActions.forEach(translatedActionsToAdd::add);
+        translatedReadyActions.forEach(translatedActionsToAdded::add);
 
-        actions.updateAtomicActions(atomicActionsToRemove, translatedActionsToAdd,
+        actions.updateAtomicActions(atomicActionsToRemove, translatedActionsToAdded,
                                     mergedActionViews.values(), snapshot);
 
 
@@ -914,8 +923,6 @@ public class LiveActionStore implements ActionStore {
                     action.receive(new NotRecommendedEvent(planId));
 
                 });
-        // send atomic actions for audit
-        auditOnGeneration(translatedActionsToAdd);
 
         return true;
     }

@@ -154,7 +154,7 @@ public class AuditedActionsStoreTest {
                         Optional.of(CURRENT_TIME));
         auditedActionsStore.persistActions(Collections.singletonList(clearedAction));
 
-        auditedActionsStore.removeActions(
+        auditedActionsStore.removeActionWorkflows(
                 Collections.singletonList(Pair.create(RECOMMENDATION_ID_1, WORKFLOW_ID_1)));
 
         final Collection<AuditedActionInfo> auditedActions =

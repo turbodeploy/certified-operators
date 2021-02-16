@@ -162,12 +162,15 @@ public class AuditedActionsManager {
             logger.trace("No actions to persist.");
         }
         if (!batch.expiredClearedAuditedActionInfos.isEmpty()) {
-            auditActionsPersistenceManager.removeActions(batch.expiredClearedAuditedActionInfos.stream()
+            auditActionsPersistenceManager.removeActionWorkflows(batch.expiredClearedAuditedActionInfos.stream()
                     .map(auditedActionInfo -> new Pair<>(auditedActionInfo.getRecommendationId(),
                             auditedActionInfo.getWorkflowId()))
                     .collect(Collectors.toList()));
         } else {
             logger.trace("No actions to remove.");
+        }
+        if (!batch.removedActionRecommendationOids.isEmpty()) {
+            auditActionsPersistenceManager.removeActionsByRecommendationOid(batch.removedActionRecommendationOids);
         }
     }
 
@@ -246,6 +249,13 @@ public class AuditedActionsManager {
         batch.expiredClearedAuditedActionInfos.forEach(
                 act -> sentActionsToWorkflowCache.remove(act.getRecommendationId(),
                         act.getWorkflowId()));
+        batch.removedActionRecommendationOids.forEach(
+                // We can clear everything related to this action oid by getting the row map and
+                // clearing the map returned by row(). This removes all entries with the rowKey from
+                // the table.
+                // https://guava.dev/releases/19.0/api/docs/com/google/common/collect/HashBasedTable.html#row(R)
+                // > Changes to the returned map will update the underlying table, and vice versa.
+                recommendationOid -> sentActionsToWorkflowCache.row(recommendationOid).clear());
     }
 
     /**
@@ -257,6 +267,7 @@ public class AuditedActionsManager {
         private final List<AuditedActionInfo> addedAuditedActionInfos;
         private final List<AuditedActionInfo> recentlyClearedAuditedActionInfos;
         private final List<AuditedActionInfo> expiredClearedAuditedActionInfos;
+        private final List<Long> removedActionRecommendationOids;
 
         /**
          * Constructor of {@link AuditedActionsUpdate}.
@@ -265,6 +276,7 @@ public class AuditedActionsManager {
             this.addedAuditedActionInfos = new ArrayList<>();
             this.recentlyClearedAuditedActionInfos = new ArrayList<>();
             this.expiredClearedAuditedActionInfos = new ArrayList<>();
+            this.removedActionRecommendationOids = new ArrayList<>();
         }
 
         /**
@@ -300,6 +312,16 @@ public class AuditedActionsManager {
         }
 
         /**
+         * Adds the recommendation oid of an action that needs to be removed from book keeping.
+         *
+         * @param recommendationOid the recommendation oid of an action that needs to be removed
+         *                          from book keeping.
+         */
+        public void addRemovedActionRecommendationOid(final long recommendationOid) {
+            removedActionRecommendationOids.add(recommendationOid);
+        }
+
+        /**
          * Returns the new actions accumulated so far.
          *
          * @return the new actions accumulated so far.
@@ -326,12 +348,22 @@ public class AuditedActionsManager {
             return expiredClearedAuditedActionInfos;
         }
 
+        /**
+         * Returns the recommendation oid of an action that needs to be removed from book keeping.
+         *
+         * @return the recommendation oid of an action that needs to be removed from book keeping.
+         */
+        public List<Long> getRemovedActionRecommendationOid() {
+            return removedActionRecommendationOids;
+        }
+
         @Override
         public String toString() {
             return "AuditedActionsUpdate{"
                 + "addedAuditedActionInfos=" + addedAuditedActionInfos
                 + ", recentlyClearedAuditedActionInfos=" + recentlyClearedAuditedActionInfos
                 + ", expiredClearedAuditedActionInfos=" + expiredClearedAuditedActionInfos
+                + ", removedActionRecommendationOids=" + removedActionRecommendationOids
                 + '}';
         }
     }
