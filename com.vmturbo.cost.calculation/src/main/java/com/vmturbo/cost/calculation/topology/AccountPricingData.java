@@ -1,26 +1,40 @@
 package com.vmturbo.cost.calculation.topology;
 
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.SortedSet;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSortedSet;
 import com.google.common.collect.Lists;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.immutables.value.Value.Default;
+import org.immutables.value.Value.Immutable;
+import org.immutables.value.Value.Style;
+import org.immutables.value.Value.Style.ImplementationVisibility;
+
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
+import com.vmturbo.components.common.utils.OptionalUtils;
 import com.vmturbo.cost.calculation.DiscountApplicator;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.LicensePriceTuple;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
+import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList;
 import com.vmturbo.platform.sdk.common.PricingDTO.LicensePriceEntry;
 import com.vmturbo.platform.sdk.common.PricingDTO.LicensePriceEntry.LicensePrice;
+import com.vmturbo.platform.sdk.common.PricingDTO.Price;
 
 /**
  * A class representing the Pricing Data for a particular account.
@@ -30,15 +44,21 @@ import com.vmturbo.platform.sdk.common.PricingDTO.LicensePriceEntry.LicensePrice
  */
 public class AccountPricingData<T> {
 
+    private static final Comparator<LicensePrice> LICENSE_PRICE_COMPARATOR =
+            Comparator.comparing(LicensePrice::getNumberOfCores)
+                    .thenComparing(LicensePrice::hashCode);
+
+    private static final Logger logger = LogManager.getLogger();
+
     private final DiscountApplicator<T> discountApplicator;
 
     private final PriceTable priceTable;
 
     //List of licensePrice is sorted by number of cores.
-    private final Map<LicenseIdentifier, List<LicensePrice>> onDemandLicensePrices;
+    private final Map<LicenseIdentifier, SortedLicensePriceEntry> onDemandLicensePrices;
 
     //List of licensePrice is sorted by number of cores.
-    private final Map<LicenseIdentifier, List<LicensePrice>> reservedLicensePrices;
+    private final Map<LicenseIdentifier, SortedLicensePriceEntry> reservedLicensePrices;
 
     private final Long accountPricingDataOid;
 
@@ -64,20 +84,38 @@ public class AccountPricingData<T> {
     /**
      * Collector to group prices by {@link LicenseIdentifier} and sort prices by number of cores.
      */
-    private static final Collector<LicensePriceEntry, ?, Map<LicenseIdentifier, List<LicensePrice>>>
+    private static final Collector<LicensePriceEntry, ?, Map<LicenseIdentifier, SortedLicensePriceEntry>>
             PRICE_COLLECTOR = Collectors.toMap(
-            licensePriceEntry -> new LicenseIdentifier(licensePriceEntry.getOsType(),
-                    licensePriceEntry.getBurstableCPU()), value -> value.getLicensePricesList()
-                    .stream()
-                    .sorted(Comparator.comparingInt(LicensePrice::getNumberOfCores))
-                    .collect(ImmutableList.toImmutableList()),
+            licensePriceEntry -> LicenseIdentifier.of(licensePriceEntry.getOsType(), licensePriceEntry.getBurstableCPU()),
+            entry -> SortedLicensePriceEntry.builder()
+                    // entry.getBaseOsType() will return the default enum of UNKNOWN_OS. In order to avoid
+                    // spurious lookups of base rates, first check whether base OS type is set.
+                    .baseOSType(entry.hasBaseOsType()
+                            ? Optional.of(entry.getBaseOsType())
+                            : Optional.empty())
+                    .licensePrices(ImmutableSortedSet.orderedBy(LICENSE_PRICE_COMPARATOR)
+                            .addAll(entry.getLicensePricesList())
+                            .build())
+                    .build(),
             // if there are duplicate OS types then merge their price lists
-            (list1, list2) -> {
-                List<LicensePrice> list3 = Lists.newLinkedList();
-                list3.addAll(list1);
-                list3.addAll(list2);
-                list3.sort(Comparator.comparingInt(LicensePrice::getNumberOfCores));
-                return ImmutableList.copyOf(list3);
+            (sortedEntryA, sortedEntryB) -> {
+                if (sortedEntryA.baseOSType().equals(sortedEntryB.baseOSType())) {
+                    return SortedLicensePriceEntry.builder()
+                            .baseOSType(sortedEntryA.baseOSType())
+                            .licensePrices(ImmutableSortedSet.orderedBy(LICENSE_PRICE_COMPARATOR)
+                                    .addAll(sortedEntryA.licensePrices())
+                                    .addAll(sortedEntryB.licensePrices())
+                                    .build())
+                            .build();
+
+                } else {
+                    // Log a warning - there is no contextual data available, in order to indicate
+                    // the conflicting price, given this is only available in the LicensePriceEntry.
+                    // However, this is preferable to not addressing potential conflicts, which would
+                    // invalidate all license pricing data.
+                    logger.warn("Duplicate conflicting license price entries found");
+                    return SortedLicensePriceEntry.EMPTY_LICENSE_PRICE_ENTRY;
+                }
             });
 
     /**
@@ -110,8 +148,8 @@ public class AccountPricingData<T> {
      * @param burstableCPU if a license support burstableCPU.
      * @return the matching license price
      */
-    private Optional<LicensePrice> getExplicitLicensePrice(OSType os, int numCores,
-            boolean burstableCPU) {
+    private Optional<CurrencyAmount> getExplicitLicensePrice(OSType os, int numCores,
+                                                             boolean burstableCPU) {
         return getLicensePrice(onDemandLicensePrices, os, numCores, burstableCPU);
     }
 
@@ -125,8 +163,8 @@ public class AccountPricingData<T> {
      * @param burstableCPU if a license support burstableCPU.
      * @return the matching license price
      */
-    public Optional<LicensePrice> getReservedLicensePrice(OSType os, int numCores,
-            final boolean burstableCPU) {
+    public Optional<CurrencyAmount> getReservedLicensePrice(OSType os, int numCores,
+                                                   final boolean burstableCPU) {
         return getLicensePrice(reservedLicensePrices, os, numCores, burstableCPU);
     }
 
@@ -141,13 +179,36 @@ public class AccountPricingData<T> {
      * @param burstableCPU if a license support burstableCPU.
      * @return the matching license price
      */
-    private Optional<LicensePrice> getLicensePrice(Map<LicenseIdentifier, List<LicensePrice>> mapping,
+    private Optional<CurrencyAmount> getLicensePrice(Map<LicenseIdentifier, SortedLicensePriceEntry> mapping,
             OSType os, int numCores, final boolean burstableCPU) {
-        List<LicensePrice> prices = mapping.get(new LicenseIdentifier(os, burstableCPU));
-        if (prices == null) {
+
+        SortedLicensePriceEntry licensePriceEntry = mapping.get(LicenseIdentifier.of(os, burstableCPU));
+        if (licensePriceEntry == null) {
             return Optional.empty();
         }
-        return prices.stream().filter(s -> s.getNumberOfCores() >= numCores).findFirst();
+
+        final Optional<CurrencyAmount> price = licensePriceEntry.licensePrices()
+                .stream()
+                .filter(s -> s.getNumberOfCores() >= numCores)
+                .map(LicensePrice::getPrice)
+                .map(Price::getPriceAmount)
+                .findFirst();
+
+        final Optional<CurrencyAmount> basePrice = licensePriceEntry.baseOSType()
+                .flatMap(baseOsType -> getLicensePrice(mapping, baseOsType, numCores, burstableCPU));
+
+        return OptionalUtils.reduce(AccountPricingData::mergeCurrencyAmounts, price, basePrice);
+    }
+
+    private static CurrencyAmount mergeCurrencyAmounts(@Nonnull CurrencyAmount ammountA,
+                                                @Nonnull CurrencyAmount ammountB) {
+
+        Preconditions.checkArgument(ammountA.getCurrency() == ammountB.getCurrency());
+
+        return CurrencyAmount.newBuilder()
+                .setCurrency(ammountA.getCurrency())
+                .setAmount(ammountA.getAmount() + ammountB.getAmount())
+                .build();
     }
 
     /**
@@ -216,11 +277,10 @@ public class AccountPricingData<T> {
         // add the price of the license itself as the explicit price
         getExplicitLicensePrice(os, numOfCores, burstableCPU)
                 .ifPresent(licenseExplicitPrice -> licensePrice
-                        .setExplicitOnDemandLicensePrice(licenseExplicitPrice.getPrice()
-                                .getPriceAmount().getAmount()));
+                        .setExplicitOnDemandLicensePrice(licenseExplicitPrice.getAmount()));
         getReservedLicensePrice(os, numOfCores, burstableCPU)
                 .ifPresent(reservedLicensePrice -> licensePrice
-                        .setReservedInstanceLicensePrice(reservedLicensePrice.getPrice().getPriceAmount().getAmount()));
+                        .setReservedInstanceLicensePrice(reservedLicensePrice.getAmount()));
 
         return licensePrice;
     }
@@ -275,39 +335,43 @@ public class AccountPricingData<T> {
     /**
      * Used to identify {@link com.vmturbo.platform.sdk.common.PricingDTOREST.LicensePriceEntry.LicensePrice}.
      */
-    private static class LicenseIdentifier {
-        private final OSType osType;
-        private final boolean burstableCPU;
+    @Style(visibility = ImplementationVisibility.PACKAGE,
+            allParameters = true,
+            typeImmutable = "*Tuple")
+    @Immutable(lazyhash = true, builder = false)
+    interface LicenseIdentifier {
 
-        private LicenseIdentifier(final OSType osType, final boolean burstableCPU) {
-            this.osType = osType;
-            this.burstableCPU = burstableCPU;
+        OSType getOsType();
+
+        boolean isBurstableCPU();
+
+        @Nonnull
+        static LicenseIdentifier of(@Nonnull OSType osType,
+                                    boolean isBurstableCPU) {
+            return LicenseIdentifierTuple.of(osType, isBurstableCPU);
         }
 
-        @Override
-        public boolean equals(Object other) {
-            if (other == this) {
-                return true;
-            }
-            if (!(other instanceof LicenseIdentifier)) {
-                return false;
-            }
-            return ((LicenseIdentifier)other).getOsType().equals(this.getOsType()) &&
-                    ((LicenseIdentifier)other).isBurstableCPU() == this.isBurstableCPU();
+    }
+
+    @Style(visibility = ImplementationVisibility.PACKAGE,
+            overshadowImplementation = true)
+    @Immutable
+    interface SortedLicensePriceEntry {
+
+        SortedLicensePriceEntry EMPTY_LICENSE_PRICE_ENTRY = SortedLicensePriceEntry.builder().build();
+
+        Optional<OSType> baseOSType();
+
+        @Default
+        default SortedSet<LicensePrice> licensePrices() {
+            return Collections.emptySortedSet();
         }
 
-        @Override
-        public int hashCode() {
-            return Objects.hash(osType, burstableCPU);
+        static Builder builder() {
+            return new Builder();
         }
 
-        public OSType getOsType() {
-            return osType;
-        }
-
-        public boolean isBurstableCPU() {
-            return burstableCPU;
-        }
+        class Builder extends ImmutableSortedLicensePriceEntry.Builder {}
     }
 
 }
