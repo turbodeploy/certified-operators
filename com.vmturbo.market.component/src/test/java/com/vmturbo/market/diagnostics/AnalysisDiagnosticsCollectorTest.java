@@ -20,10 +20,12 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -33,6 +35,7 @@ import com.google.common.base.Stopwatch;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Maps;
 import com.google.common.collect.Table;
 import com.google.gson.Gson;
 
@@ -74,12 +77,16 @@ import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.Deactivate;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.Market;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
+import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ede.Ede;
 import com.vmturbo.platform.analysis.ede.ReplayActions;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.analysis.protobuf.SerializationDTOs.TraderDiagsTO;
 import com.vmturbo.platform.analysis.topology.Topology;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Unit test which restores analysis diags.
@@ -347,6 +354,118 @@ public class AnalysisDiagnosticsCollectorTest {
             ImmutableList.copyOf(replayDeactivateActions));
         when(analysis.getReplayActions()).thenReturn(restoredReplayActions);
         return analysis;
+    }
+
+    /**
+     * Get economy stats from the unzipped analysis diags.
+     * Steps to run this unit test:
+     * 1. Unzip your analysis diags,
+     * 2. Change the variable unzippedAnalysisDiagsLocation.
+     * 3. Run the unit test.
+     */
+    @Test
+    public void testGetEconomyStatsFromAnalysiDiags() {
+        IdentityGenerator.initPrefix(9L);
+        restoreAnalysisMembers(unzippedAnalysisDiagsLocation);
+        assertFalse(traderTOs.isEmpty());
+        assertTrue(analysisConfig.isPresent());
+        assertTrue(topologyInfo.isPresent());
+        assertFalse(commSpecsToAdjustOverhead.isEmpty());
+
+        Topology topology = TopologyEntitiesHandler.createTopology(traderTOs, topologyInfo.get(),
+            commSpecsToAdjustOverhead);
+        Economy economy = topology.getEconomyForTesting();
+        economy.composeMarketSubsetForPlacement();
+
+        logger.info("Total number of traders in economy = {}", economy.getTraders().size());
+        logger.info("----------------------------------------------------------");
+        Map<Integer, Set<Trader>> tradersByType = Maps.newHashMap();
+        economy.getTraders().forEach(t ->
+            tradersByType.computeIfAbsent(t.getType(), type -> new HashSet<>()).add(t));
+        tradersByType.entrySet().stream()
+            .sorted((e1, e2) -> Integer.compare(e2.getValue().size(), e1.getValue().size()))
+            .forEach(e -> logger.info("Number of {}S = {}", EntityType.forNumber(e.getKey()), e.getValue().size()));
+        Map<Integer, Set<Trader>> shopTogetherTradersByType = Maps.newHashMap();
+        for (Trader t : economy.getTraders()) {
+            if (t.getSettings().isShopTogether()) {
+                shopTogetherTradersByType.computeIfAbsent(t.getType(), type -> new HashSet<>()).add(t);
+            }
+        }
+        logger.info("----------------------------------------------------------");
+        shopTogetherTradersByType.entrySet().stream()
+            .sorted((e1, e2) -> Integer.compare(e2.getValue().size(), e1.getValue().size()))
+            .forEach(e -> logger.info("Number of Shop Together {}S = {}", EntityType.forNumber(e.getKey()), e.getValue().size()));
+        logger.info("----------------------------------------------------------");
+        Set<ShoppingList> sls = economy.getMarkets().stream().map(m -> m.getBuyers())
+            .flatMap(List::stream).collect(Collectors.toSet());
+        long movableSlsCount = sls.stream().filter(ShoppingList::isMovable).count();
+        logger.info("Total number of shopping lists = {}", sls.size());
+        logger.info("Total number of movable shopping lists = {}", movableSlsCount);
+        logger.info("----------------------------------------------------------");
+        Map<Integer, Set<ShoppingList>> shoppingListsByType = Maps.newHashMap();
+        sls.forEach(sl -> shoppingListsByType.computeIfAbsent(sl.getBuyer().getType(), type -> new HashSet<>()).add(sl));
+        shoppingListsByType.entrySet().stream()
+            .sorted((e1, e2) -> Integer.compare(e2.getValue().size(), e1.getValue().size()))
+            .forEach(e -> logger.info("Number of shopping lists for {}S = {}", EntityType.forNumber(e.getKey()), e.getValue().size()));
+        logger.info("----------------------------------------------------------");
+        logger.info("Number of markets = {}", economy.getMarkets().size());
+        logger.info("Number of markets for placement = {}", economy.getMarketsForPlacement().size());
+        logger.info("----------------------------------------------------------");
+        Set<Long> cliquesInMarketsForPlacement = economy.getMarketsForPlacement().stream().map(m -> m.getCliques().keySet())
+            .flatMap(Set::stream).collect(Collectors.toSet());
+        logger.info("Number of cliques in markets for placement = {}", cliquesInMarketsForPlacement.size());
+        Set<Long> allCliques = economy.getMarkets().stream().map(m -> m.getCliques().keySet())
+            .flatMap(Set::stream).collect(Collectors.toSet());
+        logger.info("Total number of cliques in all markets = {}", allCliques.size());
+        logger.info("----------------------------------------------------------");
+        List<Integer> marketCliques = economy.getMarketsForPlacement().stream()
+            .filter(m -> m.getCliques().size() > 0).map(m -> m.getCliques().size()).collect(Collectors.toList());
+        logger.info("Max number of cliques in any market for placement = {}", marketCliques.stream().mapToInt(Integer::intValue).max().orElse(0));
+        logger.info("Min number of cliques in any market for placement = {}", marketCliques.stream().mapToInt(Integer::intValue).min().orElse(0));
+        logger.info("Avg number of cliques in a market for placement = {}", marketCliques.stream().mapToInt(Integer::intValue).average().orElse(0));
+        logger.info("----------------------------------------------------------");
+        Set<Trader> hosts = tradersByType.get(EntityType.PHYSICAL_MACHINE_VALUE);
+        List<Integer> cliquesOfHosts = hosts.stream().map(h -> h.getCliques().size()).collect(Collectors.toList());
+        logger.info("Max number of cliques any host is part of = {}", cliquesOfHosts.stream().mapToInt(Integer::intValue).max().orElse(0));
+        logger.info("Min number of cliques any host is part of = {}", cliquesOfHosts.stream().mapToInt(Integer::intValue).min().orElse(0));
+        logger.info("Avg number of cliques a host is part of = {}", cliquesOfHosts.stream().mapToInt(Integer::intValue).average().orElse(0));
+        logger.info("----------------------------------------------------------");
+        Set<Trader> storages = tradersByType.get(EntityType.STORAGE_VALUE);
+        List<Integer> cliquesOfStorages = storages.stream().map(s -> s.getCliques().size()).collect(Collectors.toList());
+        logger.info("Max number of cliques any storage is part of = {}", cliquesOfStorages.stream().mapToInt(Integer::intValue).max().orElse(0));
+        logger.info("Min number of cliques any storage is part of = {}", cliquesOfStorages.stream().mapToInt(Integer::intValue).min().orElse(0));
+        logger.info("Avg number of cliques a storage is part of = {}", cliquesOfStorages.stream().mapToInt(Integer::intValue).average().orElse(0));
+        logger.info("----------------------------------------------------------");
+        logger.info("Max number of markets any host sells in = {}", hosts.stream().mapToInt(h -> economy.getMarketsAsSeller(h).size()).max().orElse(0));
+        logger.info("Min number of markets any host sells in = {}", hosts.stream().mapToInt(h -> economy.getMarketsAsSeller(h).size()).min().orElse(0));
+        logger.info("Avg number of markets a host sells in = {}", hosts.stream().mapToInt(h -> economy.getMarketsAsSeller(h).size()).average().orElse(0));
+        logger.info("----------------------------------------------------------");
+        logger.info("Max number of markets any storage sells in = {}", storages.stream().mapToInt(s -> economy.getMarketsAsSeller(s).size()).max().orElse(0));
+        logger.info("Min number of markets any storage sells in = {}", storages.stream().mapToInt(s -> economy.getMarketsAsSeller(s).size()).min().orElse(0));
+        logger.info("Avg number of markets a storage sells in = {}", storages.stream().mapToInt(s -> economy.getMarketsAsSeller(s).size()).average().orElse(0));
+        logger.info("----------------------------------------------------------");
+        Map<Long, Set<Trader>> cliqueToHosts = Maps.newHashMap();
+        Map<Long, Set<Trader>> cliqueToStorages = Maps.newHashMap();
+        for (Market market : economy.getMarketsForPlacement()) {
+            market.getCliques().forEach((clique, traders) -> {
+                for (Trader t : traders) {
+                    if (t.getType() == EntityType.PHYSICAL_MACHINE_VALUE) {
+                        cliqueToHosts.computeIfAbsent(clique, k -> new HashSet<>()).add(t);
+                    } else if (t.getType() == EntityType.STORAGE_VALUE) {
+                        cliqueToStorages.computeIfAbsent(clique, k -> new HashSet<>()).add(t);
+                    }
+                }
+            });
+        }
+        List<Integer> numHostsInEachClique = cliqueToHosts.entrySet().stream().map(e -> e.getValue().size()).collect(Collectors.toList());
+        List<Integer> numStoragesInEachClique = cliqueToStorages.entrySet().stream().map(e -> e.getValue().size()).collect(Collectors.toList());
+        logger.info("Max number of Hosts in any clique = {}", numHostsInEachClique.stream().mapToInt(Integer::intValue).max().orElse(0));
+        logger.info("Min number of Hosts in any clique = {}", numHostsInEachClique.stream().mapToInt(Integer::intValue).min().orElse(0));
+        logger.info("Avg number of Hosts in a clique = {}", numHostsInEachClique.stream().mapToInt(Integer::intValue).average().orElse(0));
+        logger.info("----------------------------------------------------------");
+        logger.info("Max number of Storages in any clique = {}", numStoragesInEachClique.stream().mapToInt(Integer::intValue).max().orElse(0));
+        logger.info("Min number of Storages in any clique = {}", numStoragesInEachClique.stream().mapToInt(Integer::intValue).min().orElse(0));
+        logger.info("Avg number of Storages in a clique = {}", numStoragesInEachClique.stream().mapToInt(Integer::intValue).average().orElse(0));
     }
 
     /**
