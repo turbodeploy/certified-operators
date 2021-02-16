@@ -452,8 +452,18 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
         @Override
         public void apply(@Nonnull E entity, @Nonnull TraversalMode traversalMode, int depth,
                 @Nonnull Queue<TraversalState> frontier) {
-            entity.getAggregatedAndOwnedEntities().stream().filter(e -> e.getEntityType() == EntityType.CLOUD_COMMITMENT_VALUE)
-                    .forEach(s -> frontier.add(new TraversalState(entity.getOid(), s.getOid(), TraversalMode.STOP, depth + 1)));
+            entity.getOwner().ifPresent(owner ->
+                owner.getAggregatedAndOwnedEntities().stream()
+                    .filter(e -> e.getEntityType() == EntityType.CLOUD_COMMITMENT_VALUE)
+                    .forEach(aggregatedOrOwnedByOwner ->
+                        frontier.add(new TraversalState(entity.getOid(),
+                            aggregatedOrOwnedByOwner.getOid(), TraversalMode.STOP, depth + 1))
+                    )
+            );
+            entity.getAggregatedAndOwnedEntities().stream()
+                .filter(e -> e.getEntityType() == EntityType.CLOUD_COMMITMENT_VALUE)
+                .forEach(s -> frontier.add(new TraversalState(entity.getOid(), s.getOid(),
+                    TraversalMode.STOP, depth + 1)));
         }
 
         @Override
