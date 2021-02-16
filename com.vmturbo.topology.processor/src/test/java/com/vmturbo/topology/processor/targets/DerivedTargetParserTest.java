@@ -5,8 +5,10 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -271,6 +273,39 @@ public class DerivedTargetParserTest {
         assertEquals(1, targetStore.getAll().size());
         derivedTargetParser.instantiateDerivedTargets(parentTargetID1, Collections.emptyList());
         assertEquals(1, targetStore.getAll().size());
+    }
+
+    /**
+     * Test that derived targets are properly created with the same communication binding channel
+     * of the parent target
+     *
+     * @throws DuplicateTargetException when targetStore does.
+     * @throws InvalidTargetException when targetStore does.
+     * @throws IdentityStoreException when targetStore does.
+     */
+    @Test
+    public void testInstantiateDerivedTargetsWithChannel()
+        throws DuplicateTargetException, InvalidTargetException, IdentityStoreException {
+        final String communicationBindingChannel = "channel-1";
+        Target parent = targetStore.createTarget(TargetSpec.newBuilder()
+            .addAccountValue(TopologyProcessorDTO.AccountValue.newBuilder()
+                .setKey(addressField)
+                .setStringValue(parentAddress))
+            .addAccountValue(TopologyProcessorDTO.AccountValue.newBuilder()
+                .setKey(userNameField)
+                .setStringValue(usernameValue1))
+            .setProbeId(probeID1)
+            .setCommunicationBindingChannel(communicationBindingChannel)
+            .build());
+        derivedTargetParser.instantiateDerivedTargets(parent.getId(), Collections.singletonList(dto1));
+
+
+        List<Long> derivedTargetIds =
+            new ArrayList<>(targetStore.getDerivedTargetIds(parent.getId()));
+
+        assertEquals(1, derivedTargetIds.size());
+        Assert.assertEquals(communicationBindingChannel,
+            targetStore.getTarget(derivedTargetIds.get(0)).get().getSpec().getCommunicationBindingChannel());
     }
 
     /**
