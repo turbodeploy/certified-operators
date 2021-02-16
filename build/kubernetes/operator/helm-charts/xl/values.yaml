@@ -231,6 +231,8 @@ newrelic:
   enabled: false
 weblogic:
   enabled: false
+websphere:
+  enabled: false
 nutanix:
   enabled: false
 oneview:
