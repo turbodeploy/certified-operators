@@ -22,6 +22,9 @@ import java.util.concurrent.Executors;
 
 import javax.annotation.Nonnull;
 
+import it.unimi.dsi.fastutil.ints.Int2IntMap;
+import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap;
+
 import org.jooq.DSLContext;
 import org.jooq.InsertValuesStep5;
 import org.junit.Before;
@@ -37,7 +40,10 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.components.common.utils.DataPacks.DataPack;
+import com.vmturbo.components.common.utils.DataPacks.LongDataPack;
 import com.vmturbo.extractor.ExtractorDbConfig;
+import com.vmturbo.extractor.models.Constants;
 import com.vmturbo.extractor.schema.ExtractorDbBaseConfig;
 import com.vmturbo.extractor.schema.enums.EntityType;
 import com.vmturbo.extractor.schema.tables.records.EntityRecord;
@@ -67,7 +73,7 @@ public class ScopeManagerTest {
     @Rule
     @ClassRule
     public static DbEndpointTestRule endpointRule = new DbEndpointTestRule("extractor");
-    private final EntityIdManager entityIdManager = new EntityIdManager();
+    private final DataPack<Long> oidPack = new LongDataPack();
 
     /**
      * Set up for tests.
@@ -83,7 +89,7 @@ public class ScopeManagerTest {
         final ExecutorService pool = Executors.newSingleThreadExecutor();
         final WriterConfig config = mock(WriterConfig.class);
         doReturn(10).when(config).insertTimeoutSeconds();
-        this.scopeManager = new ScopeManager(entityIdManager, endpoint, config, pool);
+        this.scopeManager = new ScopeManager(oidPack, endpoint, config, pool);
         this.dsl = endpoint.dslContext();
     }
 
@@ -152,15 +158,16 @@ public class ScopeManagerTest {
     public void testMultiCycleScopes() throws UnsupportedDialectException, InterruptedException, SQLException {
         OffsetDateTime t1 = OffsetDateTime.now();
         setupEntities(100L, 101L, 200L, 201L, 300L);
+        Int2IntMap types = getEntityTypes();
         // topology 1
         scopeManager.startTopology(TopologyInfo.newBuilder().setCreationTime(t1.toInstant().toEpochMilli()).build());
         scopeManager.addInCurrentScope(1L, 100L, 101L);
         scopeManager.addInCurrentScope(2L, 200L);
-        scopeManager.finishTopology();
+        scopeManager.finishTopology(types);
         Set<ScopeRecord> records = fetchScopeRecords(t1.getOffset());
         assertThat(records.size(), is(4));
-        checkPersisted(records, t1, ScopeManager.MAX_TIMESTAMP, 1L, 100L, 101L);
-        checkPersisted(records, t1, ScopeManager.MAX_TIMESTAMP, 2L, 200L);
+        checkPersisted(records, t1, Constants.MAX_TIMESTAMP, 1L, 100L, 101L);
+        checkPersisted(records, t1, Constants.MAX_TIMESTAMP, 2L, 200L);
         checkPersisted(records, ScopeManager.EPOCH_TIMESTAMP, t1, 0L, 0L);
         // topology 2: drop 1/101, add 2/201 and 3/300
         OffsetDateTime t2 = t1.plus(10, ChronoUnit.MINUTES);
@@ -168,29 +175,29 @@ public class ScopeManagerTest {
         scopeManager.addInCurrentScope(1L, 100L);
         scopeManager.addInCurrentScope(2L, 200L, 201L);
         scopeManager.addInCurrentScope(3L, 300L);
-        scopeManager.finishTopology();
+        scopeManager.finishTopology(types);
         records = fetchScopeRecords(t1.getOffset());
         assertThat(records.size(), is(6));
-        checkPersisted(records, t1, ScopeManager.MAX_TIMESTAMP, 1L, 100L);
+        checkPersisted(records, t1, Constants.MAX_TIMESTAMP, 1L, 100L);
         checkPersisted(records, t1, t1, 1L, 101L);
-        checkPersisted(records, t1, ScopeManager.MAX_TIMESTAMP, 2L, 200L);
-        checkPersisted(records, t2, ScopeManager.MAX_TIMESTAMP, 2L, 201L);
-        checkPersisted(records, t2, ScopeManager.MAX_TIMESTAMP, 3L, 300L);
+        checkPersisted(records, t1, Constants.MAX_TIMESTAMP, 2L, 200L);
+        checkPersisted(records, t2, Constants.MAX_TIMESTAMP, 2L, 201L);
+        checkPersisted(records, t2, Constants.MAX_TIMESTAMP, 3L, 300L);
         checkPersisted(records, ScopeManager.EPOCH_TIMESTAMP, t2, 0L, 0L);
         // topology 3: drop 1/100, re-add 1/101, and all of entity 2
         OffsetDateTime t3 = t1.plus(20, ChronoUnit.MINUTES);
         scopeManager.startTopology(TopologyInfo.newBuilder().setCreationTime(t3.toInstant().toEpochMilli()).build());
         scopeManager.addInCurrentScope(1L, 101L);
         scopeManager.addInCurrentScope(3L, 300L);
-        scopeManager.finishTopology();
+        scopeManager.finishTopology(types);
         records = fetchScopeRecords(t1.getOffset());
         assertThat(records.size(), is(7));
         checkPersisted(records, t1, t2, 1L, 100L);
         checkPersisted(records, t1, t1, 1L, 101L);
-        checkPersisted(records, t3, ScopeManager.MAX_TIMESTAMP, 1L, 101L);
+        checkPersisted(records, t3, Constants.MAX_TIMESTAMP, 1L, 101L);
         checkPersisted(records, t1, t2, 2L, 200L);
         checkPersisted(records, t2, t2, 2L, 201L);
-        checkPersisted(records, t2, ScopeManager.MAX_TIMESTAMP, 3L, 300L);
+        checkPersisted(records, t2, Constants.MAX_TIMESTAMP, 3L, 300L);
         checkPersisted(records, ScopeManager.EPOCH_TIMESTAMP, t3, 0L, 0L);
     }
 
@@ -207,9 +214,9 @@ public class ScopeManagerTest {
             } else {
                 r.setStart(r.getStart().withOffsetSameInstant(zone));
             }
-            if (r.getFinish().isEqual(ScopeManager.MAX_TIMESTAMP)) {
+            if (r.getFinish().isEqual(Constants.MAX_TIMESTAMP)) {
                 // another fixed value with UTC
-                r.setFinish(ScopeManager.MAX_TIMESTAMP);
+                r.setFinish(Constants.MAX_TIMESTAMP);
             } else {
                 r.setFinish(r.getFinish().withOffsetSameInstant(zone));
             }
@@ -222,7 +229,7 @@ public class ScopeManagerTest {
         insert = dsl.insertInto(SCOPE,
                 SCOPE.SEED_OID, SCOPE.SCOPED_OID, SCOPE.SCOPED_TYPE, SCOPE.START, SCOPE.FINISH);
         for (final long scopeOid : scopeOids) {
-            insert.values(oid, scopeOid, EntityType.VIRTUAL_MACHINE, time, ScopeManager.MAX_TIMESTAMP);
+            insert.values(oid, scopeOid, EntityType.VIRTUAL_MACHINE, time, Constants.MAX_TIMESTAMP);
         }
         insert.execute();
     }
@@ -234,6 +241,14 @@ public class ScopeManagerTest {
             insert.values(oid, "x", EntityType.VIRTUAL_MACHINE, OffsetDateTime.now(), OffsetDateTime.now());
         }
         insert.execute();
+    }
+
+    private Int2IntMap getEntityTypes() {
+        Int2IntMap result = new Int2IntOpenHashMap();
+        dsl.select(ENTITY.OID, ENTITY.TYPE).from(ENTITY).fetch()
+                .forEach(r -> result.put(oidPack.toIndex(r.get(0, Long.class)),
+                        r.get(1, EntityType.class).ordinal()));
+        return result;
     }
 
     private void checkPersisted(Set<ScopeRecord> records,

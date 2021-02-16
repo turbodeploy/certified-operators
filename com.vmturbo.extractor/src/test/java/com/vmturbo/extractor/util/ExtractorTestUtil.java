@@ -38,8 +38,6 @@ public class ExtractorTestUtil {
                             .map(CommodityType::getNumber)
                             .collect(Collectors.toList()))
             .insertTimeoutSeconds(60)
-            .lastSeenAdditionalFuzzMinutes(10)
-            .lastSeenUpdateIntervalMinutes(20)
             .unaggregatedCommodities(Constants.UNAGGREGATED_KEYED_COMMODITY_TYPES)
             .build();
 

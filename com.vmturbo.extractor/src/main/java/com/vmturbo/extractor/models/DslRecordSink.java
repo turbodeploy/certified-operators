@@ -17,6 +17,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
@@ -147,8 +148,11 @@ public class DslRecordSink implements Consumer<Record> {
             final PipedInputStream inputStream = new PipedInputStream();
             this.outputStream = new PipedOutputStream(inputStream);
             this.future = pool.submit(() -> {
-                final String stmt = String.format("COPY \"%s\" FROM STDIN WITH CSV",
-                        getWriteTableName());
+                final String colNames = columns.stream()
+                        .map(c -> "\"" + c.getName() + "\"")
+                        .collect(Collectors.joining(","));
+                final String stmt = String.format("COPY \"%s\" (%s) FROM STDIN WITH CSV",
+                        getWriteTableName(), colNames);
                 try {
                     return writeData(stmt, dsl, inputStream);
                 } catch (DataAccessException e) {

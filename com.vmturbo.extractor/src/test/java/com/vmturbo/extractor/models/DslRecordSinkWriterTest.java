@@ -1,6 +1,6 @@
 package com.vmturbo.extractor.models;
 
-import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_HASH;
+import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_OID;
 import static com.vmturbo.extractor.models.ModelDefinitions.METRIC_TABLE;
 import static com.vmturbo.extractor.models.ModelDefinitions.TIME;
 import static com.vmturbo.extractor.util.RecordTestUtil.MapMatchesLaxly.mapMatchesLaxly;
@@ -65,8 +65,6 @@ public class DslRecordSinkWriterTest {
                             .map(CommodityType::getNumber)
                             .collect(Collectors.toList()))
             .insertTimeoutSeconds(60)
-            .lastSeenAdditionalFuzzMinutes(10)
-            .lastSeenUpdateIntervalMinutes(10)
             .unaggregatedCommodities(Constants.UNAGGREGATED_KEYED_COMMODITY_TYPES)
             .build();
 
@@ -84,9 +82,9 @@ public class DslRecordSinkWriterTest {
     public static DbEndpointTestRule endpointRule = new DbEndpointTestRule("extractor");
 
     private final Map<String, Object> metricData1 = createMetricRecordMap(
-            OffsetDateTime.now(), 1L, 100L, MetricType.CPU, null, null, null, 1.0, 1.0, 2L);
+            OffsetDateTime.now(), 1L, MetricType.CPU, null, null, null, 1.0, 1.0, 2L);
     private final Map<String, Object> metricData2 = createMetricRecordMap(
-            OffsetDateTime.now(), 2L, 200L, MetricType.MEM, null, 1.0, 1.0, null, null, null);
+            OffsetDateTime.now(), 2L, MetricType.MEM, null, null, 1.0, 1.0, null, null);
 
 
     /**
@@ -114,8 +112,8 @@ public class DslRecordSinkWriterTest {
         metricSink.accept(createRecordByName(METRIC_TABLE, metricData2));
         metricSink.accept(null);
         assertThat(dsl.fetchValue("SELECT count(*) FROM metric"), is(2L));
-        checkRecord(METRIC_TABLE, metricData1, TIME, ENTITY_HASH);
-        checkRecord(METRIC_TABLE, metricData2, TIME, ENTITY_HASH);
+        checkRecord(METRIC_TABLE, metricData1, TIME, ENTITY_OID);
+        checkRecord(METRIC_TABLE, metricData2, TIME, ENTITY_OID);
     }
 
     private void checkRecord(final Table table, final Map<String, Object> data, Column<?>... keys) {

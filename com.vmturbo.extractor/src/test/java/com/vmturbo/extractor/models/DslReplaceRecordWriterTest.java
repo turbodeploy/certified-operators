@@ -59,8 +59,6 @@ public class DslReplaceRecordWriterTest {
                             .map(CommodityType::getNumber)
                             .collect(Collectors.toList()))
             .insertTimeoutSeconds(60)
-            .lastSeenAdditionalFuzzMinutes(10)
-            .lastSeenUpdateIntervalMinutes(10)
             .build();
 
     private DslReplaceRecordSink replaceRecordSink;

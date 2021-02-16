@@ -22,7 +22,6 @@ import com.vmturbo.extractor.schema.enums.EntityState;
 import com.vmturbo.extractor.schema.enums.EntityType;
 import com.vmturbo.extractor.schema.enums.EnvironmentType;
 import com.vmturbo.extractor.schema.enums.Severity;
-import com.vmturbo.extractor.topology.ScopeManager;
 
 /**
  * Tests for the {@link ColType} class, covering hash and csv functionality.
@@ -249,7 +248,7 @@ public class ColTypeTest {
                 OffsetDateTime.MIN.plus(1, ChronoUnit.DAYS),
                 OffsetDateTime.MAX.minus(1, ChronoUnit.DAYS),
                 OffsetDateTime.ofInstant(Instant.EPOCH, ZoneOffset.UTC),
-                ScopeManager.MAX_TIMESTAMP,
+                Constants.MAX_TIMESTAMP,
                 OffsetDateTime.now()}) {
             final OffsetDateTime actual = (OffsetDateTime)ColType.OFFSET_DATE_TIME.fromBytes(
                     ColType.OFFSET_DATE_TIME.toBytes(value));

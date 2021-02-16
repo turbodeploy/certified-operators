@@ -46,6 +46,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -86,6 +87,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
+import com.vmturbo.components.common.utils.DataPacks.DataPack;
+import com.vmturbo.components.common.utils.DataPacks.LongDataPack;
 import com.vmturbo.components.common.utils.MultiStageTimer;
 import com.vmturbo.extractor.ExtractorDbConfig;
 import com.vmturbo.extractor.models.DslRecordSink;
@@ -167,17 +170,21 @@ public class EntityMetricWriterTest {
         this.metricInsertCapture = captureSink(metricInserterSink, false);
         DslRecordSink wastedFileReplacerSink = mock(DslRecordSink.class);
         this.wastedFileReplacerCapture = captureSink(wastedFileReplacerSink, false);
-        final EntityIdManager entityIdManager = new EntityIdManager();
-        this.writer = spy(new EntityMetricWriter(endpoint, new EntityHashManager(config),
-                mock(ScopeManager.class), entityIdManager,
+        final DataPack<Long> oidPack = new LongDataPack();
+        final EntityHashManager entityHashManager = new EntityHashManager(new LongDataPack(), config);
+        entityHashManager.injectPriorTopology();
+        this.writer = spy(new EntityMetricWriter(endpoint,
+                entityHashManager,
+                mock(ScopeManager.class), oidPack,
                 Executors.newSingleThreadScheduledExecutor()));
         doReturn(entitiesUpserterSink).when(writer).getEntityUpsertSink(
-                any(DSLContext.class), any(), any());
-        doReturn(entitiesUpdaterSink).when(writer).getEntityUpdaterSink(
-                any(DSLContext.class), any(), any(), any());
-        doReturn(metricInserterSink).when(writer).getMetricInserterSink(any(DSLContext.class));
-        doReturn(Stream.empty()).when(dataProvider).getAllGroups();
-        doReturn(wastedFileReplacerSink).when(writer).getWastedFileReplacerSink(any(DSLContext.class));
+                any(), any());
+        doReturn(entitiesUpdaterSink).when(writer).getEntityUpdaterSink(any(), any(), any());
+        doReturn(metricInserterSink).when(writer).getMetricInserterSink();
+        // note that EntityMetricWriter consumes groups multiple times, so we need to
+        // construct a new stream each time.
+        doAnswer(i -> Stream.empty()).when(dataProvider).getAllGroups();
+        doReturn(wastedFileReplacerSink).when(writer).getWastedFileReplacerSink();
         LongSet relatedEntities = new LongOpenHashSet();
         doReturn(relatedEntities).when(dataProvider).getRelatedEntities(anyLong());
     }
@@ -253,13 +260,13 @@ public class EntityMetricWriterTest {
         assertThat(metricInsertCapture.size(), is(3));
         Iterator<Record> records = metricInsertCapture.iterator();
         assertThat(records.next().asMap(), mapMatchesLaxly(
-                createMetricRecordMap(null, vm.getOid(), null, MetricType.CPU, null, null, null, null, 3.0, pm.getOid()),
+                createMetricRecordMap(null, vm.getOid(), MetricType.CPU, null, null, null, null, 3.0, pm.getOid()),
                 TIME.getName(), ENTITY_HASH.getName()));
         assertThat(records.next().asMap(), mapMatchesLaxly(
-                createMetricRecordMap(null, vm.getOid(), null, MetricType.MEM, "a", null, null, null, 1.0, pm.getOid()),
+                createMetricRecordMap(null, vm.getOid(), MetricType.MEM, "a", null, null, null, 1.0, pm.getOid()),
                 TIME.getName(), ENTITY_HASH.getName()));
         assertThat(records.next().asMap(), mapMatchesLaxly(
-                createMetricRecordMap(null, vm.getOid(), null, MetricType.MEM, "b", null, null, null, 2.0, pm.getOid()),
+                createMetricRecordMap(null, vm.getOid(), MetricType.MEM, "b", null, null, null, 2.0, pm.getOid()),
                 TIME.getName(), ENTITY_HASH.getName()));
     }
 
@@ -293,14 +300,14 @@ public class EntityMetricWriterTest {
         assertThat(metricInsertCapture.size(), is(3));
         Iterator<Record> records = metricInsertCapture.iterator();
         assertThat(records.next().asMap(), mapMatchesLaxly(
-                        createMetricRecordMap(null, vm.getOid(), null, MetricType.CPU, null, null, null, null, null, pm.getOid()),
-                        TIME.getName(), ENTITY_HASH.getName()));
+                createMetricRecordMap(null, vm.getOid(), MetricType.CPU, null, null, null, null, null, pm.getOid()),
+                TIME.getName(), ENTITY_HASH.getName()));
         assertThat(records.next().asMap(), mapMatchesLaxly(
-                        createMetricRecordMap(null, vm.getOid(), null, MetricType.MEM, "a", null, null, null, null, pm.getOid()),
-                        TIME.getName(), ENTITY_HASH.getName()));
+                createMetricRecordMap(null, vm.getOid(), MetricType.MEM, "a", null, null, null, null, pm.getOid()),
+                TIME.getName(), ENTITY_HASH.getName()));
         assertThat(records.next().asMap(), mapMatchesLaxly(
-                        createMetricRecordMap(null, vm.getOid(), null, MetricType.MEM, "b", null, null, null, null, pm.getOid()),
-                        TIME.getName(), ENTITY_HASH.getName()));
+                createMetricRecordMap(null, vm.getOid(), MetricType.MEM, "b", null, null, null, null, pm.getOid()),
+                TIME.getName(), ENTITY_HASH.getName()));
     }
 
     /**
@@ -331,13 +338,13 @@ public class EntityMetricWriterTest {
         assertThat(metricInsertCapture.size(), is(3));
         Iterator<Record> records = metricInsertCapture.iterator();
         assertThat(records.next().asMap(), mapMatchesLaxly(
-                createMetricRecordMap(null, pm.getOid(), null, MetricType.CPU, null, 3.0, 30.0, 0.1, null, null),
+                createMetricRecordMap(null, pm.getOid(), MetricType.CPU, null, 3.0, 30.0, 0.1, null, null),
                 TIME.getName(), ENTITY_HASH.getName()));
         assertThat(records.next().asMap(), mapMatchesLaxly(
-                createMetricRecordMap(null, pm.getOid(), null, MetricType.MEM, "a", 1.0, 10.0, 0.1, null, null),
+                createMetricRecordMap(null, pm.getOid(), MetricType.MEM, "a", 1.0, 10.0, 0.1, null, null),
                 TIME.getName(), ENTITY_HASH.getName()));
         assertThat(records.next().asMap(), mapMatchesLaxly(
-                createMetricRecordMap(null, pm.getOid(), null, MetricType.MEM, "b", 2.0, 20.0, 0.1, null, null),
+                createMetricRecordMap(null, pm.getOid(), MetricType.MEM, "b", 2.0, 20.0, 0.1, null, null),
                 TIME.getName(), ENTITY_HASH.getName()));
     }
 
@@ -369,14 +376,14 @@ public class EntityMetricWriterTest {
         assertThat(metricInsertCapture.size(), is(3));
         Iterator<Record> records = metricInsertCapture.iterator();
         assertThat(records.next().asMap(), mapMatchesLaxly(
-                        createMetricRecordMap(null, pm.getOid(), null, MetricType.CPU, null, null, null, null, null, null),
-                        TIME.getName(), ENTITY_HASH.getName()));
+                createMetricRecordMap(null, pm.getOid(), MetricType.CPU, null, null, null, null, null, null),
+                TIME.getName(), ENTITY_HASH.getName()));
         assertThat(records.next().asMap(), mapMatchesLaxly(
-                        createMetricRecordMap(null, pm.getOid(), null, MetricType.MEM, "a", null, null, null, null, null),
-                        TIME.getName(), ENTITY_HASH.getName()));
+                createMetricRecordMap(null, pm.getOid(), MetricType.MEM, "a", null, null, null, null, null),
+                TIME.getName(), ENTITY_HASH.getName()));
         assertThat(records.next().asMap(), mapMatchesLaxly(
-                        createMetricRecordMap(null, pm.getOid(), null, MetricType.MEM, "b", null, null, null, null, null),
-                        TIME.getName(), ENTITY_HASH.getName()));
+                createMetricRecordMap(null, pm.getOid(), MetricType.MEM, "b", null, null, null, null, null),
+                TIME.getName(), ENTITY_HASH.getName()));
     }
 
     /**
@@ -408,16 +415,16 @@ public class EntityMetricWriterTest {
         assertThat(metricInsertCapture.size(), is(4));
         Iterator<Record> records = metricInsertCapture.iterator();
         assertThat(records.next().asMap(), mapMatchesLaxly(
-                        createMetricRecordMap(null, pm.getOid(), null, MetricType.CPU, null, 2.0, 4.0, 0.5, null, null),
+                        createMetricRecordMap(null, pm.getOid(), MetricType.CPU, null, 2.0, 4.0, 0.5, null, null),
                         TIME.getName(), ENTITY_HASH.getName()));
         assertThat(records.next().asMap(), mapMatchesLaxly(
-                        createMetricRecordMap(null, pm.getOid(), null, MetricType.MEM, "a", 3.0, null, null, null, null),
+                        createMetricRecordMap(null, pm.getOid(), MetricType.MEM, "a", 3.0, null, null, null, null),
                         TIME.getName(), ENTITY_HASH.getName()));
         assertThat(records.next().asMap(), mapMatchesLaxly(
-                        createMetricRecordMap(null, pm.getOid(), null, MetricType.MEM, "b", null, null, null, null, null),
+                        createMetricRecordMap(null, pm.getOid(), MetricType.MEM, "b", null, null, null, null, null),
                         TIME.getName(), ENTITY_HASH.getName()));
         assertThat(records.next().asMap(), mapMatchesLaxly(
-                        createMetricRecordMap(null, pm.getOid(), null, MetricType.MEM, "c", null, 3.0, null, null, null),
+                        createMetricRecordMap(null, pm.getOid(), MetricType.MEM, "c", null, 3.0, null, null, null),
                         TIME.getName(), ENTITY_HASH.getName()));
     }
 
