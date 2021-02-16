@@ -39,6 +39,7 @@ import com.vmturbo.extractor.patchers.GroupAggregatedCommoditiesPatcher;
 import com.vmturbo.extractor.patchers.GroupMemberFieldPatcher;
 import com.vmturbo.extractor.patchers.GroupPrimitiveFieldsOnGroupingPatcher;
 import com.vmturbo.extractor.patchers.GroupRelatedEntitiesPatcher;
+import com.vmturbo.extractor.patchers.PrimitiveFieldsNotOnTEDPatcher;
 import com.vmturbo.extractor.patchers.PrimitiveFieldsOnTEDPatcher;
 import com.vmturbo.extractor.patchers.RelatedEntitiesPatcher;
 import com.vmturbo.extractor.patchers.RelatedGroupsPatcher;
@@ -70,7 +71,7 @@ public class SearchEntityWriter extends TopologyWriterBase {
      */
     private static final List<EntityRecordPatcher<TopologyEntityDTO>> ENTITY_PATCHERS_FOR_FIELDS_ON_TED =
             ImmutableList.of(
-                    new PrimitiveFieldsOnTEDPatcher(),
+                    new PrimitiveFieldsOnTEDPatcher(false, false),
                     new CommoditiesPatcher()
             );
 
@@ -80,6 +81,7 @@ public class SearchEntityWriter extends TopologyWriterBase {
      */
     private static final List<EntityRecordPatcher<DataProvider>> ENTITY_PATCHERS_FOR_FIELDS_NOT_ON_TED =
             ImmutableList.of(
+                    new PrimitiveFieldsNotOnTEDPatcher(),
                     new RelatedEntitiesPatcher(),
                     new RelatedGroupsPatcher()
                     // todo: add cost and more
@@ -91,7 +93,7 @@ public class SearchEntityWriter extends TopologyWriterBase {
      */
     private static final List<EntityRecordPatcher<Grouping>> GROUP_PATCHERS_FOR_FIELDS_ON_GROUPING =
             ImmutableList.of(
-                    new GroupPrimitiveFieldsOnGroupingPatcher()
+                    new GroupPrimitiveFieldsOnGroupingPatcher(false)
             );
 
     /**
@@ -312,6 +314,15 @@ public class SearchEntityWriter extends TopologyWriterBase {
          */
         public void putAttrs(final String key, final Object value) {
             attrs.put(key, value);
+        }
+
+        /**
+         * Add all attrs in the given map.
+         *
+         * @param attrsMap attrs to add
+         */
+        public void putAllAttrs(final Map<String, Object> attrsMap) {
+            attrs.putAll(attrsMap);
         }
     }
 

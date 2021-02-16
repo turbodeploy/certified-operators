@@ -44,6 +44,8 @@ import org.junit.Test;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
+import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.common.utils.MultiStageTimer;
@@ -171,6 +173,9 @@ public class DataExtractionWriterTest {
                         Triplet.with(STORAGE_ACCESS, "", 300.0),
                         Triplet.with(STORAGE_AMOUNT, "", 1024.0)
                 ))
+                .setTags(Tags.newBuilder()
+                        .putTags("foo", TagValuesDTO.newBuilder().addValues("a").build())
+                        .putTags("bar", TagValuesDTO.newBuilder().addValues("b").addValues("c").build()))
                 .build();
 
         // mock supply chain
@@ -225,10 +230,14 @@ public class DataExtractionWriterTest {
 
         // verify type specific info
         Map<String, Object> vmAttrs = vmEntity.getAttrs();
-        assertThat(vmAttrs.size(), is(3));
+        assertThat(vmAttrs.size(), is(4));
         assertThat(vmAttrs.get("num_cpus"), is(12));
         assertThat(vmAttrs.get("guest_os_type"), is(OSType.LINUX));
         assertThat(vmAttrs.get("connected_networks"), is(Lists.newArrayList("net1")));
+        assertThat(vmAttrs.get(ExportUtils.TAGS_JSON_KEY_NAME), is(ImmutableMap.of(
+                "foo", Lists.newArrayList("a"),
+                "bar", Lists.newArrayList("b", "c")
+        )));
 
         Map<String, Object> pmAttrs = pmEntity.getAttrs();
         assertThat(pmAttrs.size(), is(4));

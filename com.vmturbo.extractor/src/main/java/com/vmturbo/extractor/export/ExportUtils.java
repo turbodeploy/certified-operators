@@ -2,7 +2,11 @@ package com.vmturbo.extractor.export;
 
 import java.io.IOException;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import javax.annotation.Nullable;
 
@@ -12,6 +16,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.extractor.schema.enums.MetricType;
 import com.vmturbo.extractor.schema.json.export.ExportedObject;
 import com.vmturbo.extractor.search.EnumUtils.CommodityTypeUtils;
@@ -41,6 +46,11 @@ public class ExportUtils {
         // serialize all fields even through no getter defined or private
         objectMapper.setVisibility(PropertyAccessor.FIELD, Visibility.ANY);
     }
+
+    /**
+     * JSON key for tags values in attrs.
+     */
+    public static final String TAGS_JSON_KEY_NAME = "tags";
 
     /**
      * Private constructor to avoid creating new instance.
@@ -126,5 +136,20 @@ public class ExportUtils {
      */
     public static Collection<ExportedObject> fromBytes(byte[] bytes) throws IOException {
         return objectMapper.readValue(bytes, new TypeReference<Collection<ExportedObject>>() {});
+    }
+
+    /**
+     * Convert given {@link Tags} to a map from tag key to tag values list.
+     *
+     * @param tags {@link Tags}
+     * @return map from tag key to tag values list
+     */
+    public static Map<String, List<String>> tagsToMap(Tags tags) {
+        Map<String, List<String>> map = new HashMap<>();
+        tags.getTagsMap().forEach((key, values) -> {
+            map.computeIfAbsent(key, t -> new ArrayList<>())
+                    .addAll(values.getValuesList());
+        });
+        return map;
     }
 }

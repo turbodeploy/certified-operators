@@ -16,6 +16,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.common.utils.MultiStageTimer;
+import com.vmturbo.extractor.patchers.PrimitiveFieldsOnTEDPatcher;
 import com.vmturbo.extractor.schema.json.export.Entity;
 import com.vmturbo.extractor.schema.json.export.ExportedObject;
 import com.vmturbo.extractor.search.EnumUtils.EntityStateUtils;
@@ -37,7 +38,7 @@ public class DataExtractionWriter extends TopologyWriterBase {
     private final ExtractorKafkaSender extractorKafkaSender;
     private final DataExtractionFactory dataExtractionFactory;
     private final MetricsExtractor metricsExtractor;
-    private final AttrsExtractor attrsExtractor;
+    private final PrimitiveFieldsOnTEDPatcher attrsExtractor;
     private String formattedTopologyCreationTime;
 
     /**

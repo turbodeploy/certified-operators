@@ -27,7 +27,6 @@ import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.GroupType;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.SelectionCriteriaCase;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.VirtualVolumeData.AttachmentState;
@@ -134,13 +133,9 @@ public enum SearchMetadataMapping {
             entity.getTypeSpecificInfo().getVirtualMachine().getNumCpus())),
 
     PRIMITIVE_VENDOR_ID("attrs", "vendor_id", Type.TEXT, null,
-            entity -> conditionallySet(entity.getOrigin().hasDiscoveryOrigin(), entity.getOrigin()
-                    .getDiscoveryOrigin()
-                    .getDiscoveredTargetDataMap()
-                    .values()
-                    .stream()
-                    .map(PerTargetEntityInformation::getVendorId)
-                    .findFirst())),
+            entity -> entity.getOrigin().getDiscoveryOrigin().getDiscoveredTargetDataMap().values().stream()
+                    .map(perTargetEntityInformation -> (Object) perTargetEntityInformation.getVendorId())
+                    .findFirst()),
 
     PRIMITIVE_IS_EPHEMERAL_VOLUME("attrs", "is_ephemeral_volume", Type.BOOLEAN, ImmutableSet.of(EntityType.VirtualVolume)),
 
