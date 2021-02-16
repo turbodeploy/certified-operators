@@ -256,8 +256,15 @@ public class CachingTargetStore implements TargetStore, ProbeStoreListener {
                         // If the target already exists, update it and the existing derived targets.
                         try {
                             addDerivedTargetParent(parentTargetId, oldId, Optional.of(spec));
+                            Optional<Target> parentTarget = this.getTarget(parentTargetId);
+                            Optional<String> communicationBindingChannel =
+                                Optional.of(Target.EMPTY_CHANNEL);
+                            if (parentTarget.isPresent() && parentTarget.get().getSpec().hasCommunicationBindingChannel()) {
+                                communicationBindingChannel =
+                                    Optional.of(parentTarget.get().getSpec().getCommunicationBindingChannel());
+                            }
                             updateTarget(oldId, spec.getAccountValueList(),
-                                Optional.ofNullable(spec.getCommunicationBindingChannel()));
+                                communicationBindingChannel);
                             existingDerivedTargetIds.remove(oldId);
                         } catch (InvalidTargetException | TargetNotFoundException |
                             IdentityStoreException | IdentifierConflictException e) {
@@ -537,6 +544,18 @@ public class CachingTargetStore implements TargetStore, ProbeStoreListener {
             identityStore.updateItemAttributes(ImmutableMap.of(targetId, retTarget.getSpec()));
             targetsById.put(targetId, retTarget);
             targetDao.store(retTarget);
+            // After the target has been updated correctly update the derived targets
+            if (shouldUpdateCommunicationChannel(communicationBindingChannel,
+                oldTarget.getSpec())) {
+                List<TargetSpec> derivedTargetsToUpdate =
+                    getDerivedTargetIds(targetId).stream()
+                        .map(this::getTarget)
+                        .filter(Optional::isPresent)
+                        .map(Optional::get)
+                        .map(Target::getSpec)
+                        .collect(Collectors.toList());
+                createOrUpdateDerivedTargets(derivedTargetsToUpdate, targetId);
+            }
         }
 
         logger.info("Updated target '{}' ({}) for probe {}", retTarget.getDisplayName(), targetId,
