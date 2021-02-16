@@ -86,11 +86,7 @@ public class LocalCostDataProvider implements CloudCostDataProvider {
                 = localCostPricingResolver.getAccountPricingDataByBusinessAccount(cloudTopo);
         final Map<Long, ReservedInstanceBought> riBoughtById =
             riBoughtStore.getReservedInstanceBoughtByFilter(ReservedInstanceBoughtFilter
-                        .newBuilder()
-                        .cloudScopeTuples(
-                        repositoryClient.getEntityOidsByTypeForRIQuery(topoInfo.getScopeSeedOidsList(),
-                                    realtimeTopologyContextId, this.supplyChainServiceBlockingStub))
-                    .build()).stream()
+                        .newBuilder().build()).stream()
                 .collect(Collectors.toMap(ReservedInstanceBought::getId, Function.identity()));
         final Map<Long, ReservedInstanceSpec> riSpecById = riSpecStore.getAllReservedInstanceSpec().stream()
                 .collect(Collectors.toMap(ReservedInstanceSpec::getId, Function.identity()));
