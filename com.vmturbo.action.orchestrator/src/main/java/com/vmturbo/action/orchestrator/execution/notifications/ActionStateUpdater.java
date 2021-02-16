@@ -1,6 +1,5 @@
 package com.vmturbo.action.orchestrator.execution.notifications;
 
-import java.util.Collections;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Stream;
@@ -236,7 +235,7 @@ public class ActionStateUpdater implements ActionExecutionListener {
     private void notifySystemAboutSuccessfulActionExecution(@Nonnull ActionSuccess actionSuccess,
             @Nonnull Action action) {
         try {
-            auditSender.sendActionEvents(Collections.singleton(action));
+            auditSender.sendAfterExecutionEvents(action);
             notificationSender.notifyActionSuccess(actionSuccess.toBuilder()
                 .setActionSpec(actionTranslator.translateToSpec(action))
                 .build());
@@ -371,7 +370,7 @@ public class ActionStateUpdater implements ActionExecutionListener {
     private void notifySystemAboutFailedActionExecution(@Nonnull Action action,
             @Nonnull ActionFailure actionFailure, @Nonnull String errorDescription) {
         try {
-            auditSender.sendActionEvents(Collections.singleton(action));
+            auditSender.sendAfterExecutionEvents(action);
             notificationSender.notifyActionFailure(actionFailure.toBuilder()
                 .setActionSpec(actionTranslator.translateToSpec(action))
                 .build());

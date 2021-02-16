@@ -201,7 +201,7 @@ public class AuditedActionsManagerTest {
         verify(auditActionsPersistenceManager)
             .persistActions(eq(Arrays.asList(newAuditedAction, recentlyClearedAuditedAction)));
         verify(auditActionsPersistenceManager)
-            .removeActions(eq(Arrays.asList(Pair.create(
+            .removeActionWorkflows(eq(Arrays.asList(Pair.create(
                 expiredAction.getRecommendationId(), expiredAction.getWorkflowId()))));
 
         // when finished, it should schedule another run of the runnable

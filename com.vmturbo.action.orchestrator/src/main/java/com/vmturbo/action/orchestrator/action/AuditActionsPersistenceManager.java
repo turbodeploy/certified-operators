@@ -25,14 +25,27 @@ public interface AuditActionsPersistenceManager {
             throws ActionStoreOperationException;
 
     /**
-     * Remove audited actions. The cleared criteria has been satisfied.
+     * Remove audited actions by action oid and workflow oid pairs. An example usecase is when
+     * the cleared criteria of the audits was satisfied so we need to remove them.
      *
      * @param actionsToRemove pairs of audited actions with associated workflows that we
      * need to remove. The first value is the action oid, the second is the workflow oid.
      * @throws ActionStoreOperationException if store operation failed
      */
-    void removeActions(@Nonnull Collection<Pair<Long, Long>> actionsToRemove)
+    void removeActionWorkflows(@Nonnull Collection<Pair<Long, Long>> actionsToRemove)
             throws ActionStoreOperationException;
+
+    /**
+     * Remove audited actions by recommendation oid because those actions with the provided
+     * recommendation oids completed execution. If there are multiple workflow oids for the
+     * action oid, they will all be removed.
+     *
+     * @param recommendationOids the recommendation oids of the action to remove from the book
+     *                           keeping database.
+     * @throws ActionStoreOperationException if the store operation failed.
+     */
+    void removeActionsByRecommendationOid(@Nonnull Collection<Long> recommendationOids)
+        throws ActionStoreOperationException;
 
     /**
      * Get all actions that we already persisted.

@@ -1,5 +1,8 @@
 package com.vmturbo.action.orchestrator.audit;
 
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
@@ -23,6 +26,7 @@ import org.mockito.MockitoAnnotations;
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
+import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.action.AuditedActionInfo;
 import com.vmturbo.action.orchestrator.action.AuditedActionsManager;
 import com.vmturbo.action.orchestrator.action.AuditedActionsManager.AuditedActionsUpdate;
@@ -56,7 +60,9 @@ public class ActionAuditSenderTest {
 
     private static final long ACTION_PLAN_ID = 1001L;
     private static final long KAFKA_ONGEN_WORKFLOW_ID = 2001L;
-    private static final long SERVICENOW_ONGEN_WORKFLOW_ID = 2002L;
+    private static final long KAFKA_AFTEREXEC_WORKFLOW_ID = 2002L;
+    private static final long SERVICENOW_ONGEN_WORKFLOW_ID = 2003L;
+    private static final long SERVICENOW_AFTEREXEC_WORKFLOW_ID = 2004L;
     private static final long WORKFLOW_ID3 = 2003L;
     private static final long KAFKA_TARGET_ID = 3001L;
     private static final long SERVICENOW_TARGET_ID = 3002L;
@@ -127,7 +133,19 @@ public class ActionAuditSenderTest {
             .setTargetId(KAFKA_TARGET_ID))
         .build();
 
+    private static final Workflow KAFKA_AFTEREXEC_WORKFLOW = Workflow.newBuilder().setId(KAFKA_AFTEREXEC_WORKFLOW_ID).setWorkflowInfo(
+        WorkflowInfo.newBuilder()
+            .setActionPhase(ActionPhase.AFTER_EXECUTION)
+            .setTargetId(KAFKA_TARGET_ID))
+        .build();
+
     private static final Workflow SERVICENOW_ONGEN_WORKFLOW = Workflow.newBuilder().setId(SERVICENOW_ONGEN_WORKFLOW_ID).setWorkflowInfo(
+        WorkflowInfo.newBuilder()
+            .setActionPhase(ActionPhase.ON_GENERATION)
+            .setTargetId(SERVICENOW_TARGET_ID))
+        .build();
+
+    private static final Workflow SERVICENOW_AFTEREXEC_WORKFLOW = Workflow.newBuilder().setId(SERVICENOW_AFTEREXEC_WORKFLOW_ID).setWorkflowInfo(
         WorkflowInfo.newBuilder()
             .setActionPhase(ActionPhase.AFTER_EXECUTION)
             .setTargetId(SERVICENOW_TARGET_ID))
@@ -176,7 +194,7 @@ public class ActionAuditSenderTest {
         when(action2.getState()).thenReturn(ActionState.SUCCEEDED);
         final Action action3 = createAction(ACTION3_ID, workflow3);
         final Action action4 = createAction(ACTION4_ID, null);
-        actionAuditSender.sendActionEvents(Arrays.asList(action1, action2, action3, action4));
+        actionAuditSender.sendOnGenerationEvents(Arrays.asList(action1, action2, action3, action4));
         Mockito.verify(messageSender, Mockito.times(2)).sendMessage(sentActionEventMessageCaptor.capture());
 
         final ActionEvent event1 = sentActionEventMessageCaptor.getAllValues().get(0);
@@ -188,8 +206,8 @@ public class ActionAuditSenderTest {
         final ActionEvent event2 = sentActionEventMessageCaptor.getAllValues().get(1);
         Assert.assertEquals(SERVICENOW_TARGET_ID, event2.getActionRequest().getTargetId());
         Assert.assertEquals(action2.getRecommendationOid(), event2.getActionRequest().getActionId());
-        Assert.assertEquals(ActionResponseState.IN_PROGRESS, event2.getOldState());
-        Assert.assertEquals(ActionResponseState.SUCCEEDED, event2.getNewState());
+        Assert.assertEquals(ActionResponseState.PENDING_ACCEPT, event2.getOldState());
+        Assert.assertEquals(ActionResponseState.PENDING_ACCEPT, event2.getNewState());
     }
 
     /**
@@ -204,7 +222,7 @@ public class ActionAuditSenderTest {
         final Action action1 = createAction(ACTION1_ID, KAFKA_ONGEN_WORKFLOW);
         final Action action2 = createAction(ACTION2_ID, KAFKA_ONGEN_WORKFLOW);
         final Action action3 = createAction(ACTION3_ID, SERVICENOW_ONGEN_WORKFLOW);
-        actionAuditSender.sendActionEvents(Arrays.asList(action1, action2));
+        actionAuditSender.sendOnGenerationEvents(Arrays.asList(action1, action2));
         Mockito.verify(messageSender, Mockito.times(2)).sendMessage(sentActionEventMessageCaptor.capture());
 
         final ActionEvent event1 = sentActionEventMessageCaptor.getAllValues().get(0);
@@ -216,7 +234,7 @@ public class ActionAuditSenderTest {
                 event2.getActionRequest().getActionId());
 
         Mockito.reset(messageSender);
-        actionAuditSender.sendActionEvents(Arrays.asList(action1, action2, action3));
+        actionAuditSender.sendOnGenerationEvents(Arrays.asList(action1, action2, action3));
         // all actions will be send for ServiceNow audit
         Mockito.verify(messageSender, Mockito.times(3)).sendMessage(sentActionEventMessageCaptor.capture());
 
@@ -243,7 +261,11 @@ public class ActionAuditSenderTest {
         final Action action1 = createAction(ACTION1_ID, KAFKA_ONGEN_WORKFLOW);
         final Action action2 = createAction(ACTION2_ID, KAFKA_ONGEN_WORKFLOW);
         final Action action3 = createAction(ACTION3_ID, SERVICENOW_ONGEN_WORKFLOW);
-        actionAuditSender.sendActionEvents(Arrays.asList(action1, action2, action3));
+        final Action action4 = createAction(ACTION4_ID, SERVICENOW_AFTEREXEC_WORKFLOW);
+        actionAuditSender.sendOnGenerationEvents(Arrays.asList(action1, action2, action3, action4));
+
+        // Only 3 actions because the 4th action is AFTEREXEC. AFTEREXEC needs to come through
+        // Action sendAfterExecutionEvents instead of sendOnGenerationEvents.
         Mockito.verify(messageSender, Mockito.times(3)).sendMessage(sentActionEventMessageCaptor.capture());
 
         final ActionEvent event1 = sentActionEventMessageCaptor.getAllValues().get(0);
@@ -291,7 +313,7 @@ public class ActionAuditSenderTest {
         final Action actionAlreadySentToKafka = createAction(ACTION1_ID, KAFKA_ONGEN_WORKFLOW);
         final Action actionNotSentToKafka = createAction(ACTION2_ID, KAFKA_ONGEN_WORKFLOW);
         final Action actionSentToServiceNOW = createAction(ACTION3_ID, SERVICENOW_ONGEN_WORKFLOW);
-        actionAuditSender.sendActionEvents(Arrays.asList(actionAlreadySentToKafka,
+        actionAuditSender.sendOnGenerationEvents(Arrays.asList(actionAlreadySentToKafka,
                 actionNotSentToKafka, actionSentToServiceNOW));
 
         // only action3 will be send for audit. action1 and action2 were already sent
@@ -346,7 +368,7 @@ public class ActionAuditSenderTest {
                         // was recommended in the last market cycle, so no cleared timestamp
                         Optional.empty()));
         when(auditedActionsManager.getAlreadySentActions()).thenReturn(alreadySentActions);
-        actionAuditSender.sendActionEvents(Collections.singletonList(actionGoingToServiceNOW));
+        actionAuditSender.sendOnGenerationEvents(Collections.singletonList(actionGoingToServiceNOW));
 
         // action3 will be send for audit as a new action.
         // action1 will be send as CLEARED actions
@@ -393,7 +415,7 @@ public class ActionAuditSenderTest {
         final Action actionForAudit = createAction(ACTION1_ID, KAFKA_ONGEN_WORKFLOW);
         when(auditedActionsManager.getAlreadySentActions()).thenReturn(Collections.emptyList());
         // I. send `actionForAudit` first time
-        actionAuditSender.sendActionEvents(Collections.singletonList(actionForAudit));
+        actionAuditSender.sendOnGenerationEvents(Collections.singletonList(actionForAudit));
 
         // `actionForAudit` will be send for audit as a new action.
         Mockito.verify(messageSender, Mockito.times(1))
@@ -423,7 +445,7 @@ public class ActionAuditSenderTest {
         // II. `actionForAudit` is not recommended now, but we audited it before, so we need to
         // update cleared_timestamp for it (without sending it as CLEARED, because don't met
         // cleared criteria)
-        actionAuditSender.sendActionEvents(Collections.emptyList());
+        actionAuditSender.sendOnGenerationEvents(Collections.emptyList());
 
         // don't send any actions for audit
         Mockito.verify(messageSender, Mockito.times(0))
@@ -451,7 +473,7 @@ public class ActionAuditSenderTest {
         when(auditedActionsManager.isAlreadySent(ACTION1_ID, KAFKA_ONGEN_WORKFLOW_ID)).thenReturn(true);
         // III. `actionForAudit` is come back before meeting CLEARED criteria, so we don't send
         // it as CLEARED and reset cleared_timestamp
-        actionAuditSender.sendActionEvents(Collections.singletonList(actionForAudit));
+        actionAuditSender.sendOnGenerationEvents(Collections.singletonList(actionForAudit));
 
         // don't send any actions for audit (`actionForAudit` was already sent for ON_GEN audit
         // and it shouldn't be send as CLEARED)
@@ -482,7 +504,7 @@ public class ActionAuditSenderTest {
         final Action actionForAudit = createAction(ACTION1_ID, KAFKA_ONGEN_WORKFLOW);
         when(auditedActionsManager.getAlreadySentActions()).thenReturn(Collections.emptyList());
         // I. send `actionForAudit` first time
-        actionAuditSender.sendActionEvents(Collections.singletonList(actionForAudit));
+        actionAuditSender.sendOnGenerationEvents(Collections.singletonList(actionForAudit));
 
         // `actionForAudit` will be send for audit as a new action.
         Mockito.verify(messageSender, Mockito.times(1))
@@ -506,8 +528,75 @@ public class ActionAuditSenderTest {
                 .persistAuditedActionsUpdates(Mockito.any(AuditedActionsUpdate.class));
     }
 
-    private Action createAction(long oid, @Nullable Workflow workflow) throws
-            WorkflowStoreException {
+    /**
+     * Calling {@link ActionAuditSender#sendAfterExecutionEvents(ActionView)} should not send
+     * on-gen action workflows.
+     *
+     * @throws Exception exceptions should not be thrown.
+     */
+    @Test
+    public void testCallAfterExecWithOnGen() throws Exception {
+        final Action kafkaOnGenAction = createAction(ACTION1_ID, KAFKA_ONGEN_WORKFLOW);
+        final Action serviceNowOnGenAction = createAction(ACTION2_ID, SERVICENOW_ONGEN_WORKFLOW);
+
+        actionAuditSender.sendAfterExecutionEvents(kafkaOnGenAction);
+        actionAuditSender.sendAfterExecutionEvents(serviceNowOnGenAction);
+        verify(auditedActionsManager, times(0)).persistAuditedActionsUpdates(any());
+        verify(messageSender, times(0)).sendMessage(any());
+    }
+
+    /**
+     * Calling {@link ActionAuditSender#sendAfterExecutionEvents(ActionView)} should send messages
+     * to topology processor. However, only non-servicenow workflows should handle book keeping.
+     *
+     * @throws Exception exceptions should not be thrown.
+     */
+    @Test
+    public void testAfterExec() throws Exception {
+        final Action kafkaAfterExecAction = createAction(ACTION1_ID, KAFKA_AFTEREXEC_WORKFLOW, ActionState.SUCCEEDED);
+        final Action serviceNowAfterExecAction = createAction(ACTION2_ID, SERVICENOW_AFTEREXEC_WORKFLOW, ActionState.FAILED);
+        final Action unsupportedActionState = createAction(ACTION3_ID, KAFKA_AFTEREXEC_WORKFLOW, null);
+
+        actionAuditSender.sendAfterExecutionEvents(kafkaAfterExecAction);
+        actionAuditSender.sendAfterExecutionEvents(serviceNowAfterExecAction);
+        actionAuditSender.sendAfterExecutionEvents(unsupportedActionState);
+
+        // serviceNowAfterExecAction not included because it's not supported by book keeping yet
+        // unsupportedActionState not included because it's not in an after exec state
+        verify(auditedActionsManager, times(1))
+            .persistAuditedActionsUpdates(persistedActionsCaptor.capture());
+        Assert.assertEquals(Arrays.asList(kafkaAfterExecAction.getRecommendationOid()),
+            persistedActionsCaptor.getValue().getRemovedActionRecommendationOid());
+
+        // unsupportedActionState not included because it's not in an after exec state
+        verify(messageSender, times(2))
+            .sendMessage(sentActionEventMessageCaptor.capture());
+        ActionEvent kafkaActionSent = sentActionEventMessageCaptor.getAllValues().get(0);
+        Assert.assertEquals(kafkaAfterExecAction.getRecommendationOid(),
+            kafkaActionSent.getActionRequest().getActionId());
+        Assert.assertEquals(ActionResponseState.IN_PROGRESS,
+            kafkaActionSent.getOldState());
+        Assert.assertEquals(ActionResponseState.SUCCEEDED,
+            kafkaActionSent.getNewState());
+        ActionEvent serviceNowActionSent = sentActionEventMessageCaptor.getAllValues().get(1);
+        Assert.assertEquals(serviceNowAfterExecAction.getRecommendationOid(),
+            serviceNowActionSent.getActionRequest().getActionId());
+        Assert.assertEquals(ActionResponseState.IN_PROGRESS,
+            serviceNowActionSent.getOldState());
+        Assert.assertEquals(ActionResponseState.FAILED,
+            serviceNowActionSent.getNewState());
+    }
+
+    private Action createAction(
+        long oid,
+        @Nullable Workflow workflow) throws WorkflowStoreException {
+        return createAction(oid, workflow, null);
+    }
+
+    private Action createAction(
+            long oid,
+            @Nullable Workflow workflow,
+            @Nullable ActionState state) throws WorkflowStoreException {
         final ActionDTO.Action actionDTO = ActionDTO.Action.newBuilder().setId(oid).setInfo(
                 ActionInfo.newBuilder()
                         .setDelete(Delete.newBuilder().setTarget(ActionEntity.newBuilder()
@@ -522,6 +611,9 @@ public class ActionAuditSenderTest {
         action.getActionTranslation().setTranslationSuccess(actionDTO);
         when(action.getWorkflow(Mockito.any(), Mockito.any()))
                 .thenReturn(Optional.ofNullable(workflow));
+        if (state != null) {
+            when(action.getState()).thenReturn(state);
+        }
         return action;
     }
 }
