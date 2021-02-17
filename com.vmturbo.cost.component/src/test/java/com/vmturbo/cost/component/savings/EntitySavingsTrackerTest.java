@@ -38,6 +38,9 @@ import com.vmturbo.cost.component.savings.EntityEventsJournal.SavingsEvent;
 import com.vmturbo.cost.component.savings.EntityStateCache.EntityState;
 import com.vmturbo.cost.component.savings.EntityStateCache.SavingsInvestments;
 
+/**
+ * Verify operation of the entity savings tracker.
+ */
 public class EntitySavingsTrackerTest {
     private static EntitySavingsStore entitySavingsStore;
 
@@ -224,14 +227,14 @@ public class EntitySavingsTrackerTest {
             SavingsInvestments realized = new SavingsInvestments();
             realized.setSavings(realizedSavings);
             realized.setInvestments(realizedInvestments);
-            state.setRealized(realized);
+            state.setRealized(realized, 1L);
         }
 
         if (missedSavings != 0 || missedInvestments != 0) {
             SavingsInvestments missed = new SavingsInvestments();
             missed.setSavings(missedSavings);
             missed.setInvestments(missedInvestments);
-            state.setMissed(missed);
+            state.setMissed(missed, 1L);
         }
         return state;
     }

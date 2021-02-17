@@ -69,10 +69,6 @@ class EntitySavingsStatsType:
     REALIZED_INVESTMENTS = 2
     MISSED_SAVINGS = 3
     MISSED_INVESTMENTS = 4
-    CUMULATIVE_REALIZED_SAVINGS = 5
-    CUMULATIVE_REALIZED_INVESTMENTS = 6
-    CUMULATIVE_MISSED_SAVINGS = 7
-    CUMULATIVE_MISSED_INVESTMENTS = 8
 
 
 class EntityType:
@@ -206,13 +202,6 @@ class EntityState:
         self.periodic_missed_savings = 0.00
         self.periodic_missed_investment = 0.00
 
-        # These are the values that are written to the savings table. The periodic values
-        # are calculated based on the previous cumulative values and the current accumulator.
-        self.cumulative_savings = 0.00
-        self.cumulative_investment = 0.00
-        self.cumulative_missed_savings = 0.00
-        self.cumulative_missed_investment = 0.00
-
     def end_segment(self, timestamp):
         """Close out the current segment in preparation for a transition"""
         segment_length = (timestamp - self.segment_start) / ONE_HOUR_IN_MS
@@ -225,10 +214,6 @@ class EntityState:
     def end_period(self, timestamp):
         """Close out the current interval.  This resets periodic values and prepares for the next interval."""
         self.end_segment(timestamp)
-        self.cumulative_savings += self.periodic_savings
-        self.cumulative_investment += self.periodic_investment
-        self.cumulative_missed_savings += self.periodic_missed_savings
-        self.cumulative_missed_investment += self.periodic_missed_investment
 
         # Output the savings record
         tstr = datetime.fromtimestamp(timestamp / 1000.0).strftime("%Y-%m-%d %H:%M:%S")
@@ -236,7 +221,7 @@ class EntityState:
         def generate_entry(entry_type, amount):
             global sql_output
             global event_output
-            if amount != 0:
+            if args.emit_zero_entries or amount != 0:
                 if args.sql:
                     sql_output += [
                         "(%s,'%s',%d,%f)" % (self.uuid, tstr, entry_type, amount)]
@@ -246,13 +231,9 @@ class EntityState:
                     print("%s,%s,%s,%f" % (self.uuid, tstr, et, amount))
 
         generate_entry(EntitySavingsStatsType.REALIZED_SAVINGS, self.periodic_savings)
-        generate_entry(EntitySavingsStatsType.CUMULATIVE_REALIZED_SAVINGS, self.cumulative_savings)
         generate_entry(EntitySavingsStatsType.REALIZED_INVESTMENTS, self.periodic_investment)
-        generate_entry(EntitySavingsStatsType.CUMULATIVE_REALIZED_INVESTMENTS, self.cumulative_investment)
         generate_entry(EntitySavingsStatsType.MISSED_SAVINGS, self.periodic_missed_savings)
-        generate_entry(EntitySavingsStatsType.CUMULATIVE_MISSED_SAVINGS, self.cumulative_missed_savings)
         generate_entry(EntitySavingsStatsType.MISSED_INVESTMENTS, self.periodic_missed_investment)
-        generate_entry(EntitySavingsStatsType.CUMULATIVE_MISSED_INVESTMENTS, self.cumulative_missed_investment)
 
         self.previous_savings = self.current_savings
         self.previous_investment = self.current_investment
@@ -545,26 +526,25 @@ def common_resize_handler(event, internal_state, require_previous_recommendation
         # Create state for it and continue
         entity_state = internal_state.create_entity(event, EntityType.VIRTUAL_MACHINE)
     entity_state.end_segment(event.timestamp)  # Flush previous accumulation
-    if entity_state:
-        rec = entity_state.current_recommendation
-        if entity_state.current_recommendation:
-            # BCTODO in the code, this is dangerous if we are processing an action from before the feature was enabled
-            if require_previous_recommendation:
-                if rec.source_tier != event.get_source_tier() or rec.dest_tier != event.get_dest_tier():
-                    # There's a current recommendation, but it doesn't match this resize, so ignore it
-                    return
-            # Back out missed savings/investment incurred by this recommendation.
-            entity_state.current_missed_savings -= entity_state.current_recommendation.get_savings()
-            entity_state.current_missed_investment -= entity_state.current_recommendation.get_investment()
-            entity_state.current_recommendation = None
-        elif require_previous_recommendation:
-            # No active resize action, so ignore this.
-            return
-        delta = get_cost(event.get_dest_tier()) - get_cost(event.get_source_tier())
-        if delta < 0:
-            entity_state.current_savings = entity_state.previous_savings - delta
-        else:
-            entity_state.current_investment = delta + entity_state.previous_investment
+    rec = entity_state.current_recommendation
+    if entity_state.current_recommendation:
+        # BCTODO in the code, this is dangerous if we are processing an action from before the feature was enabled
+        if require_previous_recommendation:
+            if rec.source_tier != event.get_source_tier() or rec.dest_tier != event.get_dest_tier():
+                # There's a current recommendation, but it doesn't match this resize, so ignore it
+                return
+        # Back out missed savings/investment incurred by this recommendation.
+        entity_state.current_missed_savings -= entity_state.current_recommendation.get_savings()
+        entity_state.current_missed_investment -= entity_state.current_recommendation.get_investment()
+        entity_state.current_recommendation = None
+    elif require_previous_recommendation:
+        # No active resize action, so ignore this.
+        return
+    delta = get_cost(event.get_dest_tier()) - get_cost(event.get_source_tier())
+    if delta < 0:
+        entity_state.current_savings = entity_state.previous_savings - delta
+    else:
+        entity_state.current_investment = delta + entity_state.previous_investment
 
 
 handlers = {
@@ -605,6 +585,7 @@ def parse_arguments():
     parser.add_argument('--inject', help='inject events into cost component (must '
                                          'have kubectl installed and pointing to your instance)',
                         action='store_true')
+    parser.add_argument('--emit-zero-entries', help='Generate zero value periodic rows', action='store_true')
     parser.add_argument('--verbose', help='generate verbose/debug output', action='store_true')
     return parser.parse_args()
 
