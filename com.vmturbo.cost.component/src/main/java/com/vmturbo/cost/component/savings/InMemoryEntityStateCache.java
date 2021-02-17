@@ -22,23 +22,8 @@ class InMemoryEntityStateCache implements EntityStateCache {
     }
 
     @Nullable
-    public EntityState getEntityState(long entityOid, long segmentStart, boolean createIfNotFound) {
-        EntityState entityState = stateMap.get(entityOid);
-        if (entityState == null && createIfNotFound) {
-            entityState = new EntityState(entityOid);
-            setEntityState(entityState);
-        }
-        return entityState;
-    }
-
-    @Nullable
     public EntityState getEntityState(long entityOid) {
-        return getEntityState(entityOid, 0L, false);
-    }
-
-    @Override
-    public void removeInactiveState() {
-        stateMap.entrySet().removeIf(entry -> !entry.getValue().isActive());
+        return stateMap.get(entityOid);
     }
 
     @Nullable

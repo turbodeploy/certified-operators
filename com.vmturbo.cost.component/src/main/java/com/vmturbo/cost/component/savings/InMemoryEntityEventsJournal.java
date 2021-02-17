@@ -84,7 +84,7 @@ class InMemoryEntityEventsJournal implements EntityEventsJournal {
         final List<SavingsEvent> returnEvents = new ArrayList<>();
         journalLock.writeLock().lock();
         try {
-            final Set<Long> keysBetween = events.keySet().subSet(startTime, endTime);
+            final Set<Long> keysBetween = new HashSet<>(events.keySet().subSet(startTime, endTime));
             keysBetween.forEach(keyTimestamp -> returnEvents.addAll(events.get(keyTimestamp)));
             // Cannot iterate over the multimap's live key set.
             (new HashSet<>(keysBetween)).forEach(events::removeAll);
@@ -107,27 +107,12 @@ class InMemoryEntityEventsJournal implements EntityEventsJournal {
         try {
             if (!events.isEmpty()) {
                 // Get the least time that is greater than 0.
-                oldestEventTime = events.keySet().first();
+                oldestEventTime = events.keySet().higher(0L);
             }
         } finally {
             journalLock.readLock().unlock();
         }
         return oldestEventTime;
-    }
-
-    @Nullable
-    public Long getNewestEventTime() {
-        Long newestEventTime = null;
-        journalLock.readLock().lock();
-        try {
-            if (!events.isEmpty()) {
-                // Get the least time that is greater than 0.
-                newestEventTime = events.keySet().last();
-            }
-        } finally {
-            journalLock.readLock().unlock();
-        }
-        return newestEventTime;
     }
 
     @Override

@@ -83,15 +83,6 @@ interface EntityEventsJournal {
     Long getOldestEventTime();
 
     /**
-     * Returns the event current in the journal with the newset available time. Can return null
-     * if journal is empty.
-     *
-     * @return Timestamp of newest event, or null if no events present currently.
-     */
-    @Nullable
-    Long getNewestEventTime();
-
-    /**
      * Gets current count of events in the store.
      *
      * @return Number of outstanding events.
