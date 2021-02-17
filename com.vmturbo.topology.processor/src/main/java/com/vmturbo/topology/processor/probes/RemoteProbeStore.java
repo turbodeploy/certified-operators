@@ -152,23 +152,26 @@ public class RemoteProbeStore implements ProbeStore {
         Objects.requireNonNull(probeInfo, "Probe info should not be null");
         Objects.requireNonNull(transport, "Transport should not be null");
 
+        boolean probeExists;
+        long probeId;
         synchronized (dataLock) {
-            final long probeId;
             try {
                 probeId = identityProvider_.getProbeId(probeInfo);
             } catch (IdentityProviderException e) {
-                throw new ProbeException("Failed to get ID for probe configuration received from " +
-                    transport, e);
+                throw new ProbeException(
+                        "Failed to get ID for probe configuration received from " + transport, e);
             }
 
-            logger.debug("Adding endpoint to probe type map: " + transport + " " + probeInfo.getProbeType());
-            final boolean probeExists = probes.containsKey(probeId);
+            logger.debug("Adding endpoint to probe type map: " + transport + " "
+                    + probeInfo.getProbeType());
+            probeExists = probes.containsKey(probeId);
             try {
                 // Store the probeInfo in Consul
                 storeProbeInfo(probeId, probeInfo);
             } catch (InvalidProtocolBufferException e) {
                 logger.error("Invalid probeInfo {}", probeInfo);
-                throw new ProbeException("Failed to persist probe info in Consul. Probe ID: " + probeId);
+                throw new ProbeException(
+                        "Failed to persist probe info in Consul. Probe ID: " + probeId);
             }
 
             try {
@@ -176,7 +179,8 @@ public class RemoteProbeStore implements ProbeStore {
                         JsonFormat.printer().print(probeInfo));
             } catch (InvalidProtocolBufferException e) {
                 logger.error("Invalid probeInfo {}", probeInfo);
-                throw new ProbeException("Failed to persist probe info in Consul. Probe ID: " + probeId);
+                throw new ProbeException(
+                        "Failed to persist probe info in Consul. Probe ID: " + probeId);
             }
 
             probes.put(probeId, transport);
@@ -187,22 +191,17 @@ public class RemoteProbeStore implements ProbeStore {
             actionMergeSpecsRepository.setPoliciesForProbe(probeId, probeInfo);
 
             if (probeExists) {
-                logger.info("Connected probe " + probeId +
-                        " type=" + probeInfo.getProbeType() +
-                        " category=" + probeInfo.getProbeCategory()
-                );
+                logger.info("Connected probe " + probeId + " type=" + probeInfo.getProbeType()
+                        + " category=" + probeInfo.getProbeCategory());
             } else {
-                logger.info("Registered new probe " + probeId +
-                        " type=" + probeInfo.getProbeType() +
-                        " category=" + probeInfo.getProbeCategory()
-                );
+                logger.info("Registered new probe " + probeId + " type=" + probeInfo.getProbeType()
+                        + " category=" + probeInfo.getProbeCategory());
             }
-
-            // notify listeners
-            listeners.forEach(listener -> listener.onProbeRegistered(probeId, probeInfo));
-
-            return probeExists;
         }
+        // notify listeners - to avoid deadlocks, this is done without holding a lock
+        listeners.forEach(listener -> listener.onProbeRegistered(probeId, probeInfo));
+
+        return probeExists;
     }
 
     /**
