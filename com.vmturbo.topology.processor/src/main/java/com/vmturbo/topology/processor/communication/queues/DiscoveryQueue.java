@@ -148,6 +148,7 @@ public class DiscoveryQueue implements IDiscoveryQueue {
     public Collection<IDiscoveryQueueElement> flush() {
         List<IDiscoveryQueueElement> retVal = Lists.newArrayList(innerQ.iterator());
         innerQ.clear();
+        targetIdMap.clear();
         return retVal;
     }
 }
