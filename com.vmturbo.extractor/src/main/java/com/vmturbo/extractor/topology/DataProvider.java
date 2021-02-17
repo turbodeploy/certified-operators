@@ -24,17 +24,21 @@ import it.unimi.dsi.fastutil.longs.LongSet;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
+import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.components.common.utils.MultiStageTimer;
 import com.vmturbo.extractor.schema.enums.Severity;
 import com.vmturbo.extractor.search.SearchMetadataUtils;
+import com.vmturbo.extractor.topology.fetcher.ClusterStatsFetcherFactory;
 import com.vmturbo.extractor.topology.fetcher.DataFetcher;
 import com.vmturbo.extractor.topology.fetcher.GroupFetcher;
 import com.vmturbo.extractor.topology.fetcher.GroupFetcher.GroupData;
 import com.vmturbo.extractor.topology.fetcher.SupplyChainFetcher;
 import com.vmturbo.extractor.topology.fetcher.SupplyChainFetcher.SupplyChain;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.topology.graph.TopologyGraph;
 
 /**
@@ -44,7 +48,7 @@ import com.vmturbo.topology.graph.TopologyGraph;
 public class DataProvider {
 
     private final GroupServiceBlockingStub groupService;
-
+    private final StatsHistoryServiceBlockingStub historyService;
     // commodity values cached for use later in finish stage
     private final Long2ObjectMap<Int2DoubleMap> entityToCommodityUsed = new Long2ObjectArrayMap<>();
     private final Long2ObjectMap<Int2DoubleMap> entityToCommodityCapacity = new Long2ObjectArrayMap<>();
@@ -53,9 +57,24 @@ public class DataProvider {
     private volatile GroupData groupData;
     private volatile SupplyChain supplyChain;
     private volatile TopologyGraph<SupplyChainEntity> graph;
+    private List<EntityStats> clusterStats;
 
-    DataProvider(GroupServiceBlockingStub groupService) {
+    private final ClusterStatsFetcherFactory clusterStatsFetcherFactory;
+
+    /**
+     * This interval represents how much we backfill headroom properties. This time range should
+     * strictly be less or equal to the retention policy of the metric table.
+     * If we insert data that is not in the active chunk, but that belongs to an already
+     * compressed chunk, we will end up with an exception during the data insertion.
+     */
+    private final int headroomMaxBackfillingDays = 2;
+
+    DataProvider(GroupServiceBlockingStub groupService,
+                 StatsHistoryServiceBlockingStub historyService, DbEndpoint dbEndpoint, final int headroomCheckInterval) {
         this.groupService = groupService;
+        this.historyService = historyService;
+        this.clusterStatsFetcherFactory = new ClusterStatsFetcherFactory(historyService,
+            dbEndpoint, headroomMaxBackfillingDays, headroomCheckInterval);
     }
 
     private final Long2ObjectMap<Boolean> virtualVolumeToEphemeral = new Long2ObjectOpenHashMap<>();
@@ -126,19 +145,20 @@ public class DataProvider {
 
     /**
      * Fetch data from other components.
-     *
      * @param timer a {@link MultiStageTimer} to collect overall timing information
      * @param graph The topology graph contains all entities and relations between entities.
      * @param requireFullSupplyChain whether or not to require full supply chain for all entities
+     * @param topologyCreationTime the creation time of the topology currently being ingested
      */
     public void fetchData(@Nonnull MultiStageTimer timer,
                           @Nonnull TopologyGraph<SupplyChainEntity> graph,
-                          boolean requireFullSupplyChain) {
+                          boolean requireFullSupplyChain, final long topologyCreationTime) {
         this.graph = graph;
         // prepare all needed fetchers
         final List<DataFetcher<?>> dataFetchers = ImmutableList.of(
-                new GroupFetcher(groupService, timer, this::setGroupData),
-                new SupplyChainFetcher(graph, timer, this::setSupplyChain, requireFullSupplyChain)
+            new GroupFetcher(groupService, timer, this::setGroupData),
+            new SupplyChainFetcher(graph, timer, this::setSupplyChain, requireFullSupplyChain),
+            clusterStatsFetcherFactory.getClusterStatsFetcher(this::setClusterStats, topologyCreationTime)
                 // todo: add more fetchers for cost, etc
         );
         // run all fetchers in parallel
@@ -163,6 +183,10 @@ public class DataProvider {
         this.supplyChain = supplyChain;
     }
 
+    private void setClusterStats(List<EntityStats> clusterStats) {
+        this.clusterStats = clusterStats;
+    }
+
     /**
      * Get all groups.
      *
@@ -181,6 +205,15 @@ public class DataProvider {
      */
     public GroupData getGroupData() {
         return groupData;
+    }
+
+    /**
+     * Get the cluster stats.
+     *
+     * @return List of {@link EntityStats} containing stats for clusters
+     */
+    public List<EntityStats> getClusterStats() {
+        return clusterStats;
     }
 
     /**
