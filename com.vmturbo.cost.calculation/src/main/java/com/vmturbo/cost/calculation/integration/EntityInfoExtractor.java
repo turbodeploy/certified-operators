@@ -134,6 +134,7 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
     @Nonnull
     Optional<ComputeTierConfig> getComputeTierConfig(@Nonnull ENTITY_CLASS entity);
 
+
     /**
      * A wrapper class around the compute configuration of an entity.
      */

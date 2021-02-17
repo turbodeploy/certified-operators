@@ -3,10 +3,13 @@ package com.vmturbo.cost.calculation.journal;
 import static com.vmturbo.trax.Trax.trax;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -21,6 +24,8 @@ import javax.annotation.concurrent.Immutable;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.HashBasedTable;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Table;
 import com.google.common.collect.Table.Cell;
 
@@ -33,12 +38,14 @@ import com.vmturbo.common.protobuf.cost.Cost.CostSource;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost.ComponentCost;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
+import com.vmturbo.common.protobuf.cost.CostREST;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.CloudCostCalculator.DependentCostLookup;
 import com.vmturbo.cost.calculation.DiscountApplicator;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
 import com.vmturbo.cost.calculation.journal.entry.OnDemandJournalEntry;
+import com.vmturbo.cost.calculation.journal.entry.EntityUptimeDiscountJournalEntry;
 import com.vmturbo.cost.calculation.journal.entry.QualifiedJournalEntry;
 import com.vmturbo.cost.calculation.journal.entry.RIDiscountJournalEntry;
 import com.vmturbo.cost.calculation.journal.entry.RIJournalEntry;
@@ -120,6 +127,7 @@ public class CostJournal<ENTITY_CLASS> {
 
     private final DependentCostLookup<ENTITY_CLASS> dependentCostLookup;
 
+
     private CostJournal(@Nonnull final ENTITY_CLASS entity,
                         @Nonnull final EntityInfoExtractor<ENTITY_CLASS> infoExtractor,
                         @Nonnull final DiscountApplicator<ENTITY_CLASS> discountApplicator,
@@ -139,7 +147,9 @@ public class CostJournal<ENTITY_CLASS> {
             // Note - this should "block" other operations on the map until the calculation is done.
             synchronized (finalCostsByCategoryAndSource) {
                 logger.trace("Summing price entries.");
+
                 costEntries.forEach((category, priceEntries) -> {
+                    //Collections.sort(priceEntries, Builder.journalEntryComparator);
                     for (final QualifiedJournalEntry<ENTITY_CLASS> entry: priceEntries) {
                         TraxNumber cost = entry.calculateHourlyCost(infoExtractor, discountApplicator, this::getHourlyCostFilterEntries);
                         final CostSource costSource = entry.getCostSource().orElse(CostSource.UNCLASSIFIED);
@@ -498,6 +508,9 @@ public class CostJournal<ENTITY_CLASS> {
 
         private final DependentCostLookup<ENTITY_CLASS_> dependentCostLookup;
 
+        final static Comparator journalEntryComparator = new JournalEntryComparator();
+
+
         private Builder(@Nonnull final ENTITY_CLASS_ entity,
                         @Nonnull final EntityInfoExtractor<ENTITY_CLASS_> infoExtractor,
                         @Nonnull final ENTITY_CLASS_ region,
@@ -540,10 +553,33 @@ public class CostJournal<ENTITY_CLASS> {
                         category, amount, infoExtractor.getName(payee), infoExtractor.getId(payee), price);
             }
             Preconditions.checkArgument(category != CostCategory.RI_COMPUTE);
-            final Set<QualifiedJournalEntry<ENTITY_CLASS_>> prices = costEntries.computeIfAbsent(category, k -> new TreeSet<>());
+            final Set<QualifiedJournalEntry<ENTITY_CLASS_>> prices =
+                    costEntries.computeIfAbsent(category, k -> new TreeSet<>(journalEntryComparator));
             prices.add(new OnDemandJournalEntry<>(payee, price, amount, category, Optional.of(CostSource.ON_DEMAND_RATE)));
             return this;
         }
+
+
+
+        /**
+         * Record the entity uptime discount.
+         * @param entityUptimeDiscountValue The uptime discount values to be factored.
+         *
+         * @return Builder containing the RI Discount journal entry.
+         */
+        @Nonnull
+        public Builder<ENTITY_CLASS_>  addUptimeDiscountToAllCategories(@Nonnull final TraxNumber entityUptimeDiscountValue) {
+            Arrays.stream(CostCategory.values()).forEach(category -> {
+                // TODO
+                if (CostCategory.IP != category) {
+                    final Set<QualifiedJournalEntry<ENTITY_CLASS_>> prices
+                            = costEntries.computeIfAbsent(category, k -> new TreeSet<>(journalEntryComparator));
+                    prices.add(new EntityUptimeDiscountJournalEntry<>(category, entityUptimeDiscountValue));
+                }
+            });
+            return  this;
+        }
+
 
         /**
          * Record the RI discounted cost.
@@ -559,7 +595,8 @@ public class CostJournal<ENTITY_CLASS> {
                 @Nonnull final CostCategory category,
                 @Nonnull final ReservedInstanceData riData,
                 @Nonnull final TraxNumber riBoughtPercentage) {
-            final Set<QualifiedJournalEntry<ENTITY_CLASS_>> prices = costEntries.computeIfAbsent(category, k -> new TreeSet<>());
+            final Set<QualifiedJournalEntry<ENTITY_CLASS_>> prices =
+                    costEntries.computeIfAbsent(category, k -> new TreeSet<>(journalEntryComparator));
             prices.add(new RIDiscountJournalEntry<>(riData, riBoughtPercentage, category, CostSource.RI_INVENTORY_DISCOUNT, false));
             return this;
         }
@@ -579,7 +616,8 @@ public class CostJournal<ENTITY_CLASS> {
                 @Nonnull final CostCategory category,
                 @Nonnull final ReservedInstanceData riData,
                 @Nonnull final TraxNumber riBoughtPercentage) {
-            final Set<QualifiedJournalEntry<ENTITY_CLASS_>> prices = costEntries.computeIfAbsent(category, k -> new TreeSet<>());
+            final Set<QualifiedJournalEntry<ENTITY_CLASS_>> prices =
+                    costEntries.computeIfAbsent(category, k -> new TreeSet<>(journalEntryComparator));
             prices.add(new RIDiscountJournalEntry<>(
                     riData,
                     riBoughtPercentage,
@@ -609,7 +647,7 @@ public class CostJournal<ENTITY_CLASS> {
             final Optional<CostSource> costSource =
                     isBuyRI ? Optional.of(CostSource.BUY_RI_DISCOUNT) :
                             Optional.of(CostSource.RI_INVENTORY_DISCOUNT);
-            costEntries.computeIfAbsent(category, k -> new TreeSet<>())
+            costEntries.computeIfAbsent(category, k -> new TreeSet<>(journalEntryComparator))
                     .add(new ReservedLicenseJournalEntry<>(price, riData, riBoughtPercentage,
                             category, costSource));
             return this;
@@ -645,7 +683,7 @@ public class CostJournal<ENTITY_CLASS> {
                         payee.getReservedInstanceBought().getId(), couponsCovered, hourlyCost);
             }
             final Set<QualifiedJournalEntry<ENTITY_CLASS_>> prices =
-                    costEntries.computeIfAbsent(CostCategory.RI_COMPUTE, k -> new TreeSet<>());
+                    costEntries.computeIfAbsent(CostCategory.RI_COMPUTE, k -> new TreeSet<>(journalEntryComparator));
             prices.add(new RIJournalEntry<>(payee, couponsCovered,  hourlyCost, CostCategory.RI_COMPUTE, null));
             return this;
         }
@@ -658,6 +696,34 @@ public class CostJournal<ENTITY_CLASS> {
                     costEntries,
                     childCosts,
                     dependentCostLookup);
+        }
+
+
+        private static class JournalEntryComparator implements Comparator<QualifiedJournalEntry> {
+
+            private final Map<String, Integer> journalEntryOrderMap =
+                    ImmutableMap.<String, Integer>builder()
+                            .put(OnDemandJournalEntry.class.getName(), 0)
+                            .put(RIJournalEntry.class.getName(), 1)
+                            .put(ReservedLicenseJournalEntry.class.getName(), 2)
+                            .put(RIDiscountJournalEntry.class.getName(), 3)
+                            .put(EntityUptimeDiscountJournalEntry.class.getName(), 4)
+                            .build();
+
+            @Override
+            public int compare(final QualifiedJournalEntry entry1,
+                               final QualifiedJournalEntry entry2) {
+                Integer order1 = journalEntryOrderMap.getOrDefault(entry1.getClass().getName(),
+                         Integer.MIN_VALUE);
+                Integer order2 = journalEntryOrderMap.getOrDefault(entry2.getClass().getName(),
+                        Integer.MIN_VALUE);
+                if (order1.compareTo(order2) == 0) {
+                    return  entry1.compareTo(entry2);
+
+                } else {
+                    return order1.compareTo(order2);
+                }
+            }
         }
     }
 }
