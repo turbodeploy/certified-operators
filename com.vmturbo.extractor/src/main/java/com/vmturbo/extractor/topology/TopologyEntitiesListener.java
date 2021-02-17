@@ -203,8 +203,7 @@ public class TopologyEntitiesListener implements EntitiesListener {
                 if (!writers.isEmpty()) {
                     final boolean requireFullSupplyChain = writers.stream()
                             .anyMatch(ITopologyWriter::requireFullSupplyChain);
-                    dataProvider.fetchData(timer, graphBuilder.build(), requireFullSupplyChain,
-                        topologyInfo.getCreationTime());
+                    dataProvider.fetchData(timer, graphBuilder.build(), requireFullSupplyChain);
                 }
 
                 for (final ITopologyWriter writer : writers) {

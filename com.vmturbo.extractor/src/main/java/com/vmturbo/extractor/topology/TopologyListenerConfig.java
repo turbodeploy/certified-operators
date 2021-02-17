@@ -23,8 +23,6 @@ import org.springframework.context.annotation.Import;
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
-import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
-import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
 import com.vmturbo.components.common.utils.DataPacks.DataPack;
 import com.vmturbo.components.common.utils.DataPacks.LongDataPack;
@@ -40,7 +38,6 @@ import com.vmturbo.extractor.search.SearchEntityWriter;
 import com.vmturbo.extractor.topology.ITopologyWriter.TopologyWriterFactory;
 import com.vmturbo.extractor.topology.attributes.HistoricalAttributeWriterFactory;
 import com.vmturbo.group.api.GroupClientConfig;
-import com.vmturbo.history.component.api.impl.HistoryClientConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
@@ -55,7 +52,6 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription.Top
 @Import({
         TopologyProcessorClientConfig.class,
         GroupClientConfig.class,
-        HistoryClientConfig.class,
         ActionOrchestratorClientConfig.class,
         ExtractorDbConfig.class,
         ExtractorGlobalConfig.class,
@@ -69,9 +65,6 @@ public class TopologyListenerConfig {
 
     @Autowired
     private GroupClientConfig groupClientConfig;
-
-    @Autowired
-    private HistoryClientConfig historyClientConfig;
 
     @Autowired
     private ActionOrchestratorClientConfig actionClientConfig;
@@ -101,12 +94,6 @@ public class TopologyListenerConfig {
      */
     @Value("${historicalAttributeMaxUpdateIntervalHrs:24}")
     private long historicalAttributeMaxUpdateIntervalHrs;
-
-    /**
-     * Interval at which we will check for cluster headroom props.
-     */
-    @Value("${headroomCheckIntervalHrs:6}")
-    private int headroomCheckIntervalHrs;
 
     /**
      * Create an instance of our topology listener.
@@ -182,16 +169,6 @@ public class TopologyListenerConfig {
     @Bean
     public GroupServiceBlockingStub groupServiceBlockingStub() {
         return GroupServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
-    }
-
-    /**
-     * Create a history service endpoint.
-     *
-     * @return service endpoint
-     */
-    @Bean
-    public StatsHistoryServiceBlockingStub statsHistoryServiceBlockingStub() {
-        return StatsHistoryServiceGrpc.newBlockingStub(historyClientConfig.historyChannel());
     }
 
     /**
@@ -280,8 +257,7 @@ public class TopologyListenerConfig {
      */
     @Bean
     public DataProvider dataProvider() {
-        return new DataProvider(groupServiceBlockingStub(), statsHistoryServiceBlockingStub(),
-            dbConfig.ingesterEndpoint(),  headroomCheckIntervalHrs);
+        return new DataProvider(groupServiceBlockingStub());
     }
 
     /**

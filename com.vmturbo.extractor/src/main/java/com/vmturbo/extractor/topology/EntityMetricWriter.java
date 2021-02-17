@@ -1,10 +1,6 @@
 package com.vmturbo.extractor.topology;
 
 import static com.vmturbo.common.protobuf.topology.TopologyDTOUtil.QX_VCPU_BASE_COEFFICIENT;
-import static com.vmturbo.common.protobuf.utils.StringConstants.CPU_HEADROOM;
-import static com.vmturbo.common.protobuf.utils.StringConstants.MEM_HEADROOM;
-import static com.vmturbo.common.protobuf.utils.StringConstants.STORAGE_HEADROOM;
-import static com.vmturbo.common.protobuf.utils.StringConstants.TOTAL_HEADROOM;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_OID_AS_OID;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_TABLE;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_TYPE_ENUM;
@@ -41,8 +37,6 @@ import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableMap.Builder;
 
 import it.unimi.dsi.fastutil.ints.Int2IntMap;
 import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap;
@@ -56,7 +50,6 @@ import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
-import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -102,13 +95,6 @@ public class EntityMetricWriter extends TopologyWriterBase {
      * Matches ready queue commodity like: Q16_VCPU, QN_VCPU.
      */
     public static final Pattern QX_VCPU_PATTERN = Pattern.compile("Q.*_VCPU");
-
-    private static final ImmutableMap<String, MetricType> propsToDbType = new Builder<String,
-        MetricType>()
-        .put(CPU_HEADROOM, MetricType.CPU_HEADROOM)
-        .put(MEM_HEADROOM, MetricType.MEM_HEADROOM)
-        .put(STORAGE_HEADROOM, MetricType.STORAGE_HEADROOM)
-        .put(TOTAL_HEADROOM, MetricType.TOTAL_HEADROOM).build();
 
     // configurations for upsert and update operations for entity table
     private static final ImmutableList<Column<?>> upsertConflicts = ImmutableList.of(ENTITY_OID_AS_OID);
@@ -469,7 +455,6 @@ public class EntityMetricWriter extends TopologyWriterBase {
              TableWriter wastedFileReplacer = WASTED_FILE_TABLE.open(
                      getWastedFileReplacerSink(), "Wasted File Replacer", logger)) {
             writeEntityRecords(dataProvider, entitiesUpserter);
-            writeClusterStats(dataProvider);
             writeMetricRecords(metricInserter);
             writeWastedFileRecords(wastedFileReplacer, dataProvider);
         }
@@ -535,48 +520,9 @@ public class EntityMetricWriter extends TopologyWriterBase {
         logger.info("Upserting entity records for topology {}", topologyLabel);
         entityHashManager.open(topologyInfo, dsl);
         entityRecords.stream()
-            .filter(entityHashManager::processEntity)
-            .forEach(tableWriter::accept);
+                .filter(entityHashManager::processEntity)
+                .forEach(tableWriter::accept);
         entityHashManager.close();
-    }
-
-    private void writeClusterStats(final DataProvider dataProvider) {
-        logger.info("Creating metric records for cluster properties");
-        dataProvider.getClusterStats()
-            .forEach(entityStats -> {
-                final long oid = entityStats.getOid();
-                logger.debug("Creating record for cluster {}", entityStats.getOid());
-                entityStats.getStatSnapshotsList().forEach(snapshot -> snapshot.getStatRecordsList().forEach(record -> {
-                    if (propsToDbType.containsKey(record.getName())) {
-                        Record clusterRecord = createClusterRecord(oid, record,
-                            snapshot.getSnapshotDate());
-                        metricRecords.add(clusterRecord);
-                    } else {
-                        logger.error("Cluster property type {} can't be translated into a "
-                            + "metric type", record.getName());
-                    }
-                }));
-            });
-    }
-
-    private Record createClusterRecord(long oid, StatRecord record, long date) {
-        Record r = new Record(ModelDefinitions.METRIC_TABLE);
-        Double capacity = record.hasCapacity() ? (double)record.getCapacity().getAvg() : null;
-        Double current = record.hasCapacity() && record.hasUsed()
-                ? capacity - (double)record.getUsed().getAvg() : null;
-        Double utilization = null;
-        if (capacity != null && current != null) {
-            utilization = capacity == 0 ? 0 : current / capacity;
-        }
-        r.set(ModelDefinitions.COMMODITY_TYPE, propsToDbType.get(record.getName()));
-        r.set(ModelDefinitions.ENTITY_OID, oid);
-        r.set(ModelDefinitions.COMMODITY_KEY, record.hasStatKey() ? record.getStatKey() : null);
-        r.set(ModelDefinitions.COMMODITY_CAPACITY, capacity);
-        r.set(ModelDefinitions.COMMODITY_CURRENT, current);
-        r.set(ModelDefinitions.COMMODITY_UTILIZATION,
-            utilization);
-        r.set(TIME, new Timestamp(date));
-        return r;
     }
 
     private void updateScope(long oid, DataProvider dataProvider) {
@@ -603,11 +549,7 @@ public class EntityMetricWriter extends TopologyWriterBase {
         final Timestamp time = new Timestamp(topologyInfo.getCreationTime());
         metricRecords.forEach(record -> {
             try (Record r = tableWriter.open(record)) {
-                // For some metrics, such as headroom, we want to preserve their original
-                // timestamp and not overwrite it with the topology creation time
-                if (r.get(TIME) == null) {
-                    r.set(TIME, time);
-                }
+                r.set(TIME, time);
             }
         });
     }

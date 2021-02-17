@@ -277,9 +277,5 @@ public class DiscoveryQueueTest {
         assertThat(deletedElements,
                 containsInAnyOrder(discoveryQueueElement1, discoveryQueueElement2));
         assertTrue(discoveryQueue.isEmpty());
-        // now make sure when you add a new element with the same target as one of the elements
-        // you just deleted, it gets added.
-        final IDiscoveryQueueElement addedElement = discoveryQueue.add(discoveryQueueElement4);
-        assertEquals(discoveryQueueElement4, addedElement);
     }
 }

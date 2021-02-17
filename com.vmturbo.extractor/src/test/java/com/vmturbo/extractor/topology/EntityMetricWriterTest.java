@@ -1,11 +1,9 @@
 package com.vmturbo.extractor.topology;
 
-import static com.vmturbo.common.protobuf.utils.StringConstants.CPU_HEADROOM;
 import static com.vmturbo.extractor.models.ModelDefinitions.ATTRS;
 import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_CAPACITY;
 import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_CONSUMED;
 import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_CURRENT;
-import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_KEY;
 import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_PROVIDER;
 import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_TYPE;
 import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_UTILIZATION;
@@ -56,7 +54,6 @@ import static org.mockito.Mockito.spy;
 
 import java.io.IOException;
 import java.sql.SQLException;
-import java.sql.Timestamp;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
@@ -78,7 +75,6 @@ import com.google.common.collect.Multimap;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import it.unimi.dsi.fastutil.longs.LongSet;
 
-import org.apache.commons.lang3.tuple.Pair;
 import org.javatuples.Quartet;
 import org.javatuples.Triplet;
 import org.jooq.DSLContext;
@@ -89,12 +85,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
-import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
-import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
-import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
-import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
-import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -121,7 +111,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.VirtualVolumeFileDescriptor;
-import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
@@ -427,15 +416,15 @@ public class EntityMetricWriterTest {
                     throws UnsupportedDialectException, InterruptedException, SQLException, IOException {
         // set up for CPU and MEM, with the latter unaggregated when sold by a PM
         setupWriterAndSinks(ImmutableList.of(CPU_VALUE, MEM_VALUE),
-            Collections.singletonMap(MEM, PHYSICAL_MACHINE));
+                            Collections.singletonMap(MEM, PHYSICAL_MACHINE));
 
         // process a pm selling CPU and MEM, each with multiple commodity keys
         final TopologyEntityDTO pm = mkEntity(PHYSICAL_MACHINE).toBuilder()
-            .addAllCommoditySoldList(soldCommodities(
-                Quartet.with(CPU, "a", 2.0, 4.0), Quartet.with(CPU, "b", null, null),
-                Quartet.with(MEM, "a", 3.0, null), Quartet.with(MEM, "b", null, null),
-                Quartet.with(MEM, "c", null, 3.0)
-            )).build();
+                        .addAllCommoditySoldList(soldCommodities(
+                                        Quartet.with(CPU, "a", 2.0, 4.0), Quartet.with(CPU, "b", null, null),
+                                        Quartet.with(MEM, "a", 3.0, null), Quartet.with(MEM, "b", null, null),
+                                        Quartet.with(MEM, "c", null, 3.0)
+                        )).build();
         int n = EntitiesProcessor.of(writer, info, config).process(pm).finish(dataProvider);
         // processed one entity
         assertThat(n, is(1));
@@ -454,111 +443,6 @@ public class EntityMetricWriterTest {
         assertThat(records.next().asMap(), mapMatchesLaxly(
                         createMetricRecordMap(null, pm.getOid(), MetricType.MEM, "c", null, 3.0, null, null, null),
                         TIME.getName(), ENTITY_HASH.getName()));
-    }
-
-    /**
-     * Check that cluster properties result in correct metric records.
-     *
-     * @throws UnsupportedDialectException if endpoint is misconfigured
-     * @throws InterruptedException        if interrupted
-     * @throws SQLException                if there's a db problem
-     * @throws IOException                 if an IO error
-     */
-    public void testClusterMetrics() throws UnsupportedDialectException, InterruptedException,
-            SQLException, IOException {
-        final double used = 10.0;
-        final double capacity = 20.0;
-        final double current = capacity - used;
-        final String key = "key";
-        final long oid = 12345L;
-
-        final Grouping cluster =
-            Grouping.newBuilder().setDefinition(GroupDefinition.newBuilder()
-                .setType(GroupType.COMPUTE_HOST_CLUSTER).build())
-                .setId(oid).build();
-        final Timestamp time = new Timestamp(System.currentTimeMillis());
-        final StatSnapshot statSnapshot = StatSnapshot.newBuilder()
-            .setSnapshotDate(time.toInstant().toEpochMilli())
-            .addStatRecords(StatRecord.newBuilder().setName(CPU_HEADROOM).setUsed(StatValue.newBuilder().setAvg((float)used))
-                .setCapacity(StatValue.newBuilder().setAvg((float)capacity).build()).setStatKey(key).build())
-            .build();
-
-        List<EntityStats> entityStats = Collections.singletonList(EntityStats.newBuilder()
-            .setOid(oid)
-            .addStatSnapshots(statSnapshot).build());
-
-        doReturn(entityStats).when(dataProvider).getClusterStats();
-        doReturn(Stream.of(cluster)).when(dataProvider).getAllGroups();
-
-        EntitiesProcessor.of(writer, info, config).finish(dataProvider);
-        assertThat(metricInsertCapture.size(), is(statSnapshot.getStatRecordsCount()));
-        Iterator<Record> records = metricInsertCapture.iterator();
-
-        Map<String, Object>  expectedValues = ImmutableList.<Pair<String, Object>>of(
-            Pair.of(TIME.getName(), time),
-            Pair.of(ENTITY_OID.getName(), oid),
-            Pair.of(COMMODITY_TYPE.getName(), MetricType.CPU_HEADROOM),
-            Pair.of(COMMODITY_KEY.getName(), key),
-            Pair.of(COMMODITY_CURRENT.getName(), capacity - used),
-            Pair.of(COMMODITY_CAPACITY.getName(), capacity),
-            Pair.of(COMMODITY_UTILIZATION.getName(), current / capacity),
-            Pair.of(COMMODITY_CONSUMED.getName(), null),
-            Pair.of(COMMODITY_PROVIDER.getName(), null))
-            .stream()
-            .filter(pair -> pair.getRight() != null)
-            .collect(Collectors.toMap(Pair::getLeft, Pair::getRight));
-        assertThat(records.next().asMap(), mapMatchesLaxly(expectedValues));
-    }
-
-    /**
-     * Check that cluster properties result in correct metric records.
-     *
-     * @throws UnsupportedDialectException if endpoint is misconfigured
-     * @throws InterruptedException        if interrupted
-     * @throws SQLException                if there's a db problem
-     * @throws IOException                 if an IO error
-     */
-    public void testNullClusterMetrics() throws UnsupportedDialectException, InterruptedException,
-        SQLException, IOException {
-        final String key = "key";
-        final long oid = 12345L;
-
-        final Grouping cluster =
-            Grouping.newBuilder().setDefinition(GroupDefinition.newBuilder()
-                .setType(GroupType.COMPUTE_HOST_CLUSTER).build())
-                .setId(oid).build();
-        final Timestamp time = new Timestamp(System.currentTimeMillis());
-        final StatSnapshot statSnapshot = StatSnapshot.newBuilder()
-            .setSnapshotDate(time.toInstant().toEpochMilli())
-            .addStatRecords(StatRecord.newBuilder().setName(CPU_HEADROOM).setUsed(StatValue.newBuilder())
-                .setCapacity(StatValue.newBuilder()))
-            .build();
-
-        List<EntityStats> entityStats = Collections.singletonList(EntityStats.newBuilder()
-            .setOid(oid)
-            .addStatSnapshots(statSnapshot).build());
-
-        doReturn(entityStats).when(dataProvider).getClusterStats();
-        doReturn(Stream.of(cluster)).when(dataProvider).getAllGroups();
-
-        EntitiesProcessor.of(writer, info, config).finish(dataProvider);
-        assertThat(metricInsertCapture.size(), is(statSnapshot.getStatRecordsCount()));
-        Iterator<Record> records = metricInsertCapture.iterator();
-
-        Map<String, Object>  expectedValues = ImmutableList.<Pair<String, Object>>of(
-            Pair.of(TIME.getName(), time),
-            Pair.of(ENTITY_OID.getName(), oid),
-            Pair.of(COMMODITY_TYPE.getName(), MetricType.CPU_HEADROOM),
-            Pair.of(COMMODITY_KEY.getName(), key),
-            Pair.of(COMMODITY_CURRENT.getName(), null),
-            Pair.of(COMMODITY_CAPACITY.getName(), null),
-            Pair.of(COMMODITY_UTILIZATION.getName(), null),
-            Pair.of(COMMODITY_CONSUMED.getName(), null),
-            Pair.of(COMMODITY_PROVIDER.getName(), null))
-            .stream()
-            .filter(pair -> pair.getRight() != null)
-            .collect(Collectors.toMap(Pair::getLeft, Pair::getRight));
-        assertThat(records.next().asMap(), mapMatchesLaxly(expectedValues));
     }
 
     /**
