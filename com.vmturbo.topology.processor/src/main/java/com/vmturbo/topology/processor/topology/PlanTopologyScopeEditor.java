@@ -29,6 +29,9 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import com.google.common.collect.Streams;
 
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -38,8 +41,6 @@ import gnu.trove.list.array.TLongArrayList;
 import gnu.trove.list.linked.TLongLinkedList;
 import gnu.trove.set.TLongSet;
 import gnu.trove.set.hash.TLongHashSet;
-import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
-import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
@@ -65,7 +66,6 @@ import com.vmturbo.topology.graph.TopologyGraphCreator;
 import com.vmturbo.topology.graph.TopologyGraphEntity;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
-import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineContext;
 
 /**
  * Class to build a list of entities to be included in a plan based on a list of seed entities.
@@ -542,8 +542,8 @@ public class PlanTopologyScopeEditor {
             providersExpanded.add(traderOid);
             // build list of potential sellers for the commodities this Trader buys; omit Traders already expanded
             // also omit traders of the type pulled in as seed members
-            final Set<TopologyEntity> potentialSellers = getPotentialSellers(index, buyer.getTopologyEntityDtoBuilder()
-                            .getCommoditiesBoughtFromProvidersList().stream());
+            final Set<TopologyEntity> potentialSellers = getPotentialSellers(topology, index,
+                buyer.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList().stream());
             logger.trace("Adding potential sellers as associated entities for {}:{} - {}",
                 () -> traderOid, () -> buyer.getDisplayName(),
                 () -> potentialSellers.stream().map(TopologyEntity::getOid).map(String::valueOf)
@@ -657,19 +657,44 @@ public class PlanTopologyScopeEditor {
     /**
      * Returns a set of potential providers.
      *
+     * @param topology The topology.
      * @param index contains the mapping of commodity to sellers.
      * @param commBoughtFromProviders list of {@link CommoditiesBoughtFromProvider}
      * @return list of potential sellers selling the list of commoditiesBought.
      */
-    private Set<TopologyEntity> getPotentialSellers(@Nonnull final InvertedIndex<TopologyEntity,
-            TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider> index,
+    private Set<TopologyEntity> getPotentialSellers(@Nonnull final TopologyGraph<TopologyEntity> topology,
+                                                    @Nonnull final InvertedIndex<TopologyEntity,
+                                                        TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider> index,
                        @Nonnull final Stream<CommoditiesBoughtFromProvider> commBoughtFromProviders) {
         // vCenter PMs buy latency and iops with active=false from underlying DSs.
         // Bring in only providers for baskets with atleast 1 active commodity
         return commBoughtFromProviders
             .filter(cbp -> cbp.getCommodityBoughtList().stream().anyMatch(CommodityBoughtDTO::getActive))
-            .flatMap(index::getSatisfyingSellers)
+            .flatMap(bought -> getSatisfyingSellers(topology, bought, index))
             .collect(Collectors.toSet());
+    }
+
+    /**
+     * Find the satisfying sellers for a particular set of commodities bought from a provider..
+     *
+     * @param commoditiesBought The {@link CommoditiesBoughtFromProvider} whose satisfying sellers should be found.
+     * @param topology The topology.
+     * @param index contains the mapping of commodity to sellers.
+     * @return list of potential sellers selling the list of commoditiesBought.
+     */
+    private Stream<TopologyEntity> getSatisfyingSellers(@Nonnull final TopologyGraph<TopologyEntity> topology,
+                                                        @Nonnull final CommoditiesBoughtFromProvider commoditiesBought,
+                                                        @Nonnull final InvertedIndex<TopologyEntity,
+                                                            CommoditiesBoughtFromProvider> index) {
+        // If the commodities are immovable, the only possible provider for them is the current provider.
+        if (commoditiesBought.hasMovable() && !commoditiesBought.getMovable()) {
+            return topology.getEntity(commoditiesBought.getProviderId())
+                .map(Stream::of)
+                .orElse(Stream.empty());
+        } else {
+            // Search the inverted index for the satisfying sellers.
+            return index.getSatisfyingSellers(commoditiesBought);
+        }
     }
 
     private static boolean discoveredBy(@Nonnull TopologyEntity topologyEntity,
