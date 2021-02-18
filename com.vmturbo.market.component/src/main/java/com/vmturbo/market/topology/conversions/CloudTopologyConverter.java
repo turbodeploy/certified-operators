@@ -82,7 +82,7 @@ public class CloudTopologyConverter {
     private final Map<TopologyEntityDTO, TopologyEntityDTO> azToRegionMap;
     private final Set<TopologyEntityDTO> businessAccounts;
     private final CloudCostData<TopologyEntityDTO> cloudCostData;
-    private Map<Long, AccountPricingData> accountPricingDataByBusinessAccountOid = new HashMap<>();
+    private Map<Long, AccountPricingData<TopologyEntityDTO>> accountPricingDataByBusinessAccountOid = new HashMap<>();
     private final CloudTopology<TopologyEntityDTO> cloudTopology;
 
     /**
@@ -142,7 +142,7 @@ public class CloudTopologyConverter {
         List<TraderTO.Builder> traderTOBuilders = new ArrayList<>();
         List<TraderTO.Builder> computeMarketTierBuilders = new ArrayList<>();
         logger.info("Beginning creation of market tier trader TOs");
-        Set<AccountPricingData> uniqueAccountPricingData = ImmutableSet.copyOf(accountPricingDataByBusinessAccountOid.values());
+        Set<AccountPricingData<TopologyEntityDTO>> uniqueAccountPricingData = ImmutableSet.copyOf(accountPricingDataByBusinessAccountOid.values());
         for (Entry<Long, TopologyEntityDTO> entry : checkNotNull(topology.entrySet())) {
             TopologyEntityDTO entity = entry.getValue();
             TierConverter converter = converterMap.get(entity.getEntityType());

@@ -66,7 +66,7 @@ public class ComputeTierConverter implements TierConverter {
     public Map<TraderTO.Builder, MarketTier> createMarketTierTraderTOs(
             @Nonnull TopologyEntityDTO computeTier,
             @Nonnull Map<Long, TopologyEntityDTO> topology,
-            @Nonnull Set<TopologyEntityDTO> businessAccounts, @Nonnull Set<AccountPricingData> uniqueAccountPricingData) {
+            @Nonnull Set<TopologyEntityDTO> businessAccounts, @Nonnull Set<AccountPricingData<TopologyEntityDTO>> uniqueAccountPricingData) {
         Map<TraderTO.Builder, MarketTier> traderTOs = new HashMap<>();
         List<TopologyEntityDTO> connectedRegions = TopologyDTOUtil.getConnectedEntitiesOfType(
                 computeTier, EntityType.REGION_VALUE, topology);

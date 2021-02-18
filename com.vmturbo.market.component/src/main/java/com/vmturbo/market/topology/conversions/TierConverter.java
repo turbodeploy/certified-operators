@@ -22,5 +22,5 @@ public interface TierConverter {
      */
     Map<TraderTO.Builder, MarketTier> createMarketTierTraderTOs(
             TopologyEntityDTO tier, Map<Long, TopologyEntityDTO> topology,
-            Set<TopologyEntityDTO> businessAccounts, Set<AccountPricingData> uniqueAccountPricingData);
+            Set<TopologyEntityDTO> businessAccounts, Set<AccountPricingData<TopologyEntityDTO>> uniqueAccountPricingData);
 }

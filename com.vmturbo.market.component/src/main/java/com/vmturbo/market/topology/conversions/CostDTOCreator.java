@@ -92,7 +92,7 @@ public class CostDTOCreator {
      * @return CostDTO
      */
     public CostDTO createCostDTO(TopologyEntityDTO tier, List<TopologyEntityDTO> regions,
-            Set<AccountPricingData> uniqueAccountPricingData) {
+            Set<AccountPricingData<TopologyEntityDTO>> uniqueAccountPricingData) {
         if (tier.getEntityType() == EntityType.COMPUTE_TIER_VALUE) {
             return createComputeTierCostDTO(tier, regions, uniqueAccountPricingData);
         } else {
@@ -110,7 +110,7 @@ public class CostDTOCreator {
      * @return CostDTO
      */
     public CostDTO createComputeTierCostDTO(TopologyEntityDTO tier, List<TopologyEntityDTO> regions,
-                                            Set<AccountPricingData> uniqueAccountPricingData) {
+                                            Set<AccountPricingData<TopologyEntityDTO>> uniqueAccountPricingData) {
         ComputeTierCostDTO.Builder computeTierDTOBuilder = ComputeTierCostDTO.newBuilder();
         for (AccountPricingData accountPricingData : uniqueAccountPricingData) {
             for (TopologyEntityDTO region: regions) {
@@ -209,7 +209,7 @@ public class CostDTOCreator {
      */
     @VisibleForTesting
     CostDTO createDatabaseTierCostDTO(TopologyEntityDTO tier, List<TopologyEntityDTO> regions,
-                                             Set<AccountPricingData> uniqueAccountPricingData) {
+                                             Set<AccountPricingData<TopologyEntityDTO>> uniqueAccountPricingData) {
         DatabaseTierCostDTO.Builder dbTierDTOBuilder = DatabaseTierCostDTO.newBuilder();
         for (AccountPricingData accountPricingData : uniqueAccountPricingData) {
             for (TopologyEntityDTO region: regions) {
@@ -316,7 +316,7 @@ public class CostDTOCreator {
      * @return The CBTP cost dto.
      */
     CostDTO createCbtpCostDTO(final ReservedInstanceKey reservedInstanceKey,
-                              Map<Long, AccountPricingData> accountPricingDataByBusinessAccountOid,
+                              Map<Long, AccountPricingData<TopologyEntityDTO>> accountPricingDataByBusinessAccountOid,
                               TopologyEntityDTO region,
                               Set<TopologyEntityDTO> computeTiersInScope,
                               final Set<Long> applicableBusinessAccounts) {
@@ -372,7 +372,7 @@ public class CostDTOCreator {
      */
     @Nonnull
     private Set<CostDTOs.CostDTO.CostTuple> createCbtpCostTuples(final ReservedInstanceKey riKey,
-                                                                 final AccountPricingData accountPricingData,
+                                                                 final AccountPricingData<TopologyEntityDTO> accountPricingData,
                                                                  final TopologyEntityDTO region,
                                                                  final Set<TopologyEntityDTO> computeTiersInScope) {
 
@@ -474,7 +474,7 @@ public class CostDTOCreator {
      * @return CostDTO
      */
     public CostDTO createStorageTierCostDTO(TopologyEntityDTO tier, List<TopologyEntityDTO> connectedRegions,
-                                            Set<AccountPricingData> uniqueAccountPricingData) {
+                                            Set<AccountPricingData<TopologyEntityDTO>> uniqueAccountPricingData) {
         CostDTO.StorageTierCostDTO.Builder storageDTO =  StorageTierCostDTO.newBuilder();
         // Mapping from commodityType to StorageResourceCost builder.
         Map<CommodityType, StorageTierCostDTO.StorageResourceCost.Builder> commType2ResourceCostBuilderMap
