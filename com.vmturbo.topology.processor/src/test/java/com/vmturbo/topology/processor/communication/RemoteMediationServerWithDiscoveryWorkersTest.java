@@ -62,7 +62,7 @@ public class RemoteMediationServerWithDiscoveryWorkersTest {
 
     private static final long target2Id = 2020L;
 
-    private static final long verify_timeout_millis = 1000L;
+    private static final long verify_timeout_millis = 10000L;
 
     private Target target1 = mock(Target.class);
 
