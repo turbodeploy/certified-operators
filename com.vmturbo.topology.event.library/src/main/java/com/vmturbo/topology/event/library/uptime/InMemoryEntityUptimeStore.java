@@ -23,6 +23,8 @@ public class InMemoryEntityUptimeStore implements EntityUptimeStore {
 
     private final CloudScopeStore cloudScopeStore;
 
+    private final EntityUptime defaultUptime;
+
     private final ReadWriteLock uptimeDataLock = new ReentrantReadWriteLock();
 
     private TimeInterval uptimeWindow = TimeInterval.EPOCH;
@@ -33,9 +35,13 @@ public class InMemoryEntityUptimeStore implements EntityUptimeStore {
      * Constructs a new in-memory entity uptime store.
      * @param cloudScopeStore The {@link CloudScopeStore}, used to resolve entities in scope
      *                        of a query.
+     * @param defaultUptime The default uptime to return, in the event the store does not have an uptime
+     *                      calculation for a specific entity. This value may be null.
      */
-    public InMemoryEntityUptimeStore(@Nonnull CloudScopeStore cloudScopeStore) {
+    public InMemoryEntityUptimeStore(@Nonnull CloudScopeStore cloudScopeStore,
+                                     @Nullable EntityUptime defaultUptime) {
         this.cloudScopeStore = Objects.requireNonNull(cloudScopeStore);
+        this.defaultUptime = defaultUptime;
     }
 
     /**
@@ -97,7 +103,7 @@ public class InMemoryEntityUptimeStore implements EntityUptimeStore {
     public EntityUptime getEntityUptime(final long entityOid) {
         uptimeDataLock.readLock().lock();
         try {
-            return entityUptimeMap.getOrDefault(entityOid, EntityUptime.UNKNOWN_DEFAULT_TO_ALWAYS_ON);
+            return entityUptimeMap.getOrDefault(entityOid, defaultUptime);
         } finally {
             uptimeDataLock.readLock().unlock();
         }
@@ -109,6 +115,6 @@ public class InMemoryEntityUptimeStore implements EntityUptimeStore {
     @Nullable
     @Override
     public EntityUptime getDefaultUptime() {
-        return EntityUptime.UNKNOWN_DEFAULT_TO_ALWAYS_ON;
+        return defaultUptime;
     }
 }

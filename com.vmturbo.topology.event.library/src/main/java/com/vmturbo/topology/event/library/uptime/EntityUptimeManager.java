@@ -64,6 +64,8 @@ public class EntityUptimeManager implements TopologyEventUpdateListener {
 
     private final boolean cacheUptimeCalculations;
 
+    private final boolean isUptimeEnabled;
+
     private final Object uptimeCalculationLock = new Object();
 
     private Map<Long, CachedEntityUptime> cachedUptimeMap = Collections.EMPTY_MAP;
@@ -80,13 +82,15 @@ public class EntityUptimeManager implements TopologyEventUpdateListener {
      * @param cacheUptimeCalculations Whether uptime calculations should be cached, in order to only
      *                                calculate the net new uptime on each successive topology uptime
      *                                calculation.
+     * @param isUptimeEnabled Indicates whether topology uptime should be calculated.
      */
     public EntityUptimeManager(@Nonnull TopologyEventProvider eventProvider,
                                @Nonnull EntityUptimeCalculator uptimeCalculator,
                                @Nonnull EntityUptimeStore entityUptimeStore,
                                @Nonnull Duration windowDuration,
                                @Nonnull BoundedDuration calculationInterval,
-                               boolean cacheUptimeCalculations) {
+                               boolean cacheUptimeCalculations,
+                               boolean isUptimeEnabled) {
 
         this.eventProvider = Objects.requireNonNull(eventProvider);
         this.uptimeCalculator = Objects.requireNonNull(uptimeCalculator);
@@ -94,6 +98,7 @@ public class EntityUptimeManager implements TopologyEventUpdateListener {
         this.windowDuration = Objects.requireNonNull(windowDuration);
         this.calculationInterval = Objects.requireNonNull(calculationInterval);
         this.cacheUptimeCalculations = cacheUptimeCalculations;
+        this.isUptimeEnabled = isUptimeEnabled;
 
         eventProvider.registerUpdateListener(this);
     }
@@ -131,7 +136,8 @@ public class EntityUptimeManager implements TopologyEventUpdateListener {
                     .truncatedTo(calculationInterval.unit())
                     .minus(calculationInterval.duration());
 
-            if (currentUptimeWindow.endTime().isBefore(targetEndTime) || forceRecalculation) {
+            if (isUptimeEnabled
+                    && (currentUptimeWindow.endTime().isBefore(targetEndTime) || forceRecalculation)) {
 
                 try (DataMetricTimer timer = TOTAL_UPTIME_CALCULATION_DURATION_SUMMARY.startTimer()) {
                     final TimeInterval newUptimeWindow = TimeInterval.builder()
@@ -163,8 +169,12 @@ public class EntityUptimeManager implements TopologyEventUpdateListener {
                     logger.error("Error calculating entity uptime", e);
                 }
             } else {
-                logger.debug("Skipping entity uptime update (Current Uptime Window={}, Target End Time={})",
-                        currentUptimeWindow, targetEndTime);
+                if (isUptimeEnabled) {
+                    logger.debug("Skipping entity uptime update (Current Uptime Window={}, Target End Time={})",
+                            currentUptimeWindow, targetEndTime);
+                } else {
+                    logger.info("Skipping uptime calculation. Entity uptime is disabled.");
+                }
             }
         }
     }
@@ -193,8 +203,14 @@ public class EntityUptimeManager implements TopologyEventUpdateListener {
 
     private Map<Long, EntityUptime> calculateFullUptime(@Nonnull TimeInterval uptimeWindow) {
 
+        // Pull in all topology event records - we want to pull in events prior to the uptime window
+        // to be able to infer the power state at the start of the uptime window.
+        final TimeInterval eventWindow = TimeInterval.builder()
+                .startTime(Instant.EPOCH)
+                .endTime(Instant.now())
+                .build();
         final TopologyEvents topologyEvents = eventProvider.getTopologyEvents(
-                uptimeWindow, TopologyEventFilter.ALL);
+                eventWindow, TopologyEventFilter.ALL);
 
         return topologyEvents.ledgers().values().stream()
                 .map(eventLedger -> {

@@ -35,6 +35,9 @@ public class EntityUptimeSpringConfig {
     @Autowired
     private TopologyEventProvider topologyEventProvider;
 
+    @Value("${entityUptime.isEnabled:false}")
+    boolean isUptimeEnabled;
+
     @Value("${entityUptime.uptimeFromCreation:true}")
     boolean uptimeFromCreation;
 
@@ -57,7 +60,9 @@ public class EntityUptimeSpringConfig {
     @Bean
     @Nonnull
     public EntityUptimeStore entityUptimeStore() {
-        return new InMemoryEntityUptimeStore(cloudScopeStore);
+        return new InMemoryEntityUptimeStore(
+                cloudScopeStore,
+                isUptimeEnabled ? EntityUptime.UNKNOWN_DEFAULT_TO_ALWAYS_ON : null);
     }
 
     /**
@@ -95,7 +100,8 @@ public class EntityUptimeSpringConfig {
                         .amount(uptimeIntervalAmount)
                         .unit(ChronoUnit.valueOf(uptimeIntervalUnit))
                         .build(),
-                cachedUptimeCalculation);
+                cachedUptimeCalculation,
+                isUptimeEnabled);
     }
 
     /**
