@@ -1,5 +1,8 @@
 package com.vmturbo.extractor.grafana;
 
+import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.text.DateFormat;
 import java.util.Map;
 import java.util.Optional;
 import java.util.StringJoiner;
@@ -9,12 +12,15 @@ import java.util.function.Supplier;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Stopwatch;
 
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.Record;
+import org.jooq.Result;
 
 import com.vmturbo.components.common.RequiresDataInitialization;
 import com.vmturbo.components.common.utils.BuildProperties;
@@ -25,8 +31,10 @@ import com.vmturbo.extractor.grafana.model.DashboardSpec.UpsertDashboardRequest;
 import com.vmturbo.extractor.grafana.model.DashboardVersion;
 import com.vmturbo.extractor.grafana.model.DatasourceInput;
 import com.vmturbo.extractor.grafana.model.Folder;
+import com.vmturbo.extractor.grafana.model.FolderInput;
 import com.vmturbo.extractor.grafana.model.Role;
 import com.vmturbo.extractor.grafana.model.UserInput;
+import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.sql.utils.DbEndpointConfig;
 
@@ -42,6 +50,9 @@ public class Grafanon implements RequiresDataInitialization {
 
     private static final String COMMIT_MSG_DELIMITER = ":";
 
+    @VisibleForTesting
+    static final String REPORTS_V1_FOLDER_UUID = "reports_v1";
+
     private static final Logger logger = LogManager.getLogger();
 
     private final GrafanonConfig grafanonConfig;
@@ -52,16 +63,20 @@ public class Grafanon implements RequiresDataInitialization {
 
     private final ExtractorFeatureFlags extractorFeatureFlags;
 
+    protected final DbEndpoint dbEndpoint;
+
     private CompletableFuture<RefreshSummary> initilizationResult = new CompletableFuture<>();
 
     Grafanon(@Nonnull final GrafanonConfig grafanonConfig,
             @Nonnull final DashboardsOnDisk dashboardsOnDisk,
             @Nonnull final GrafanaClient grafanaClient,
-            @Nonnull final ExtractorFeatureFlags extractorFeatureFlags) {
+            @Nonnull final ExtractorFeatureFlags extractorFeatureFlags,
+            @Nonnull final DbEndpoint dbEndpoint) {
         this.grafanonConfig = grafanonConfig;
         this.dashboardsOnDisk = dashboardsOnDisk;
         this.grafanaClient = grafanaClient;
         this.extractorFeatureFlags = extractorFeatureFlags;
+        this.dbEndpoint = dbEndpoint;
     }
 
     @Nonnull
@@ -105,6 +120,25 @@ public class Grafanon implements RequiresDataInitialization {
     }
 
     /**
+     * Returns stringified timestamp of migration V1.14 execution time.
+     * @return timestamp of migration V1.14
+     */
+    @Nonnull
+    @VisibleForTesting
+    String getMigrationV14TimeStamp() {
+        String query = "select installed_on from extractor.schema_version where version = '1.14' limit 1";
+        Optional<Result<Record>> results = executeRawQuery(query);
+        if (results.isPresent()) {
+            //We have limited the query to only return 1 result with 1 column
+            Timestamp timestamp = (Timestamp)results.get().get(0).get(0);
+            return DateFormat.getDateTimeInstance().format(timestamp);
+        } else {
+            logger.info("No results for extractor migration V1.14 found");
+        }
+        return "";
+    }
+
+    /**
      * Refresh the Grafana configuration. This will attempt to bring the Grafana server up to date
      * with the most recent data sources, dashboards, and folders.
      *
@@ -128,10 +162,18 @@ public class Grafanon implements RequiresDataInitialization {
         } catch (UnsupportedDialectException e) {
             throw new IllegalArgumentException("Invalid endpoint configuration.", e);
         }
+        final String v14TimestampMigration = getMigrationV14TimeStamp();
         final Map<String, Long> existingDashboardsByUid = grafanaClient.dashboardIdsByUid();
         final Map<String, Folder> existingFolders = grafanaClient.foldersByUid();
         dashboardsOnDisk.visit((folderData) -> {
-            Optional<Folder> folder = folderData.getFolderSpec().map(folderInput -> {
+            Optional<FolderInput> folderInputOptional = folderData.getFolderSpec();
+            if (skipFolder(folderInputOptional)) {
+                folderInputOptional.ifPresent(folderInput ->
+                          logger.info("Skipping folder uuid:", folderInput.getUid()));
+                return;
+            }
+            Optional<Folder> folder = folderInputOptional.map(folderInput -> {
+                addTimestampToReportsV1FolderTitle(folderInput, v14TimestampMigration);
                 Folder upsertedFolder = grafanaClient.upsertFolder(folderInput, existingFolders, refreshSummary);
                 folderData.getPermissions().ifPresent(permissions -> {
                     grafanaClient.setFolderPermissions(folderInput.getUid(), permissions, refreshSummary);
@@ -142,6 +184,69 @@ public class Grafanon implements RequiresDataInitialization {
                 processDashboard(uid, dashboardSpec, folder, existingDashboardsByUid, refreshSummary);
             });
         });
+    }
+
+    /**
+     * Tests folderInput to see if desired behavior is to ignore uploading folder and dashboards.
+     * @param folderInputOptional folder of focus
+     * @return true if folder generation should be skipped
+     */
+    @VisibleForTesting
+    boolean skipFolder(Optional<FolderInput> folderInputOptional) {
+        if (!folderInputOptional.isPresent()) {
+            return false;
+        }
+        return skipFolderV1(folderInputOptional.get());
+    }
+
+    /**
+     * Returns true if no data in entity_old table.
+     *
+     * <p>We will not have data in entity_old table on fresh installs and won't
+     * require the old reports folder to be generated.</p>
+     * @param folderInput folderinput of focus
+     * @return true if folder should be skipped
+     */
+    private boolean skipFolderV1(FolderInput folderInput) {
+        if (!folderInput.getUid().equals(REPORTS_V1_FOLDER_UUID)) {
+            return false;
+        }
+        String query = "select * from entity_old limit 1";
+        Optional<Result<Record>> results = executeRawQuery(query);
+        return !results.isPresent();
+    }
+
+    /**
+     * Executes rawSql query.
+     * @param query to execute.
+     * @return results if query returned any else, empty optional
+     */
+    private Optional<Result<Record>> executeRawQuery(String query) {
+        try {
+            Result<Record> results =  dbEndpoint.dslContext().fetch(query);
+            return results.isEmpty() ? Optional.empty() : Optional.of(results);
+        } catch (UnsupportedDialectException | SQLException e) {
+            logger.error("Error executing query", e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            logger.error("Error executing query", e);
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * Adds timestamp on title for grafana folder 'reports_v1'.
+     *
+     * @param folderInput current folder data
+     * @param migrationTimestamp timestamp to note in reports title
+     */
+    @VisibleForTesting
+    void addTimestampToReportsV1FolderTitle(@Nonnull final FolderInput folderInput, String migrationTimestamp) {
+        if (folderInput.getUid().equals(REPORTS_V1_FOLDER_UUID)) {
+            String title = folderInput.getTitle();
+            String formattedTitle = String.format(title, migrationTimestamp);
+            folderInput.setTitle(formattedTitle);
+        }
     }
 
     private void processDashboard(@Nonnull final String uid,

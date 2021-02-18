@@ -28,6 +28,7 @@ import com.vmturbo.extractor.ExtractorGlobalConfig.ExtractorFeatureFlags;
 import com.vmturbo.extractor.grafana.Grafanon.GrafanonConfig;
 import com.vmturbo.extractor.grafana.client.GrafanaClient;
 import com.vmturbo.extractor.grafana.client.GrafanaClientConfig;
+import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.DbEndpointCompleter;
 import com.vmturbo.sql.utils.DbEndpointConfig;
 
@@ -56,10 +57,10 @@ public class GrafanaConfigurationIT {
     private GrafanaClient grafanaClient;
     private Grafanon grafanon;
     private DashboardsOnDisk dashboardsOnDisk;
+    private DbEndpoint dbendpointMock;
 
     /**
      * Common code to run before the test. Initializes all the dependencies.
-     *
      */
     @Before
     public void setup() {
@@ -91,7 +92,8 @@ public class GrafanaConfigurationIT {
 
         ExtractorFeatureFlags extractorFeatureFlags = mock(ExtractorFeatureFlags.class);
         when(extractorFeatureFlags.isReportingEnabled()).thenReturn(true);
-        grafanon = new Grafanon(config, dashboardsOnDisk, grafanaClient, extractorFeatureFlags);
+        dbendpointMock = mock(DbEndpoint.class);
+        grafanon = new Grafanon(config, dashboardsOnDisk, grafanaClient, extractorFeatureFlags, dbendpointMock);
     }
 
     /**
