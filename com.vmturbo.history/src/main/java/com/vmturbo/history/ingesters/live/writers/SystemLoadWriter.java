@@ -545,7 +545,7 @@ public class SystemLoadWriter extends TopologyWriterBase implements MemReporter 
                 return true;
             }
         } catch (SQLException | DataAccessException e) {
-            logger.error("Failed to write system log data", e);
+            logger.error("Failed to write system load data", e);
         }
         return false;
     }
