@@ -62,6 +62,7 @@
 /com.vmturbo.priceindex.api/ @review/XL @review/Analytics
 /com.vmturbo.proactive.loader/    @review/Telemetry
 /com.vmturbo.proactivesupport/    @review/Telemetry
+/com.vmturbo.prometheus.config.manager/    @review/Telemetry
 /com.vmturbo.reports.api/ @review/XL @review/Reporting
 /com.vmturbo.reports.templates/  @review/XL @review/Reporting
 /com.vmturbo.repository.api/  @review/XL
@@ -87,9 +88,10 @@
 /protoc-spring-rest/ @review/XL @review/Platform
 /syslog/ @review/XL @review/Platform
 /zookeeper/  @review/XL @review/Platform
+/build/kubernetes/operator/helm-charts/base/prometheus/    @review/Telemetry
 
 #
-# Special section for build related changed that overrides any matches above.
+# Special section for build related changes that overrides any matches above.
 #
 /versioning/  @review/build
 /build/ @review/build @review/XL
