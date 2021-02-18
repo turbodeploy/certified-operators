@@ -354,6 +354,7 @@ public class AggregatingDiscoveryQueueImpl implements AggregatingDiscoveryQueue 
 
     private void handleDeletedDiscoveries(
             @Nonnull Collection<IDiscoveryQueueElement> deletedElements) {
+        logger.debug("Deleting queue elements {}", () -> deletedElements);
         Iterator<IDiscoveryQueueElement> iterator = deletedElements.iterator();
         // To properly clean up the queue, call each queued discovery and force it to fail
         // with a probe exception. This will ensure OperationManager does the proper cleanup.
@@ -374,6 +375,7 @@ public class AggregatingDiscoveryQueueImpl implements AggregatingDiscoveryQueue 
     public void handleTransportRemoval(
             @Nonnull ITransport<MediationServerMessage, MediationClientMessage> transport,
             @Nonnull Set<Long> probesSupported) {
+        logger.debug("Removing Transport {}", () -> transport);
         Collection<IDiscoveryQueueElement> deletedElements = new ArrayList<>();
         synchronized (this) {
             transportByTargetId.values().removeIf(transport::equals);
