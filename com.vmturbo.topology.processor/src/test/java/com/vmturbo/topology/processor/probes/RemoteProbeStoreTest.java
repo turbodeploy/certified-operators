@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.probes;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
@@ -11,6 +12,11 @@ import static org.mockito.Mockito.when;
 
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.ImmutableMap;
 
@@ -22,6 +28,7 @@ import org.junit.rules.ExpectedException;
 import org.mockito.Mockito;
 
 import com.vmturbo.communication.ITransport;
+import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
@@ -101,6 +108,55 @@ public class RemoteProbeStoreTest {
 
         store.registerNewProbe(probeInfo, transport);
         verify(listener).onProbeRegistered(1234L, probeInfo);
+    }
+
+    /**
+     * Test that registerNewProbe notifies listeners without holding the datalock.
+     *
+     * @throws IdentityProviderException if idProvider.getProbeId throws it.
+     * @throws InterruptedException if CountDownLatch.await throws it.
+     * @throws ExecutionException if ScheduledFuture.get() throws it.
+     */
+    @Test
+    public void testRegisterNewProbeNotifiesWithoutLock()
+            throws IdentityProviderException, InterruptedException, ExecutionException {
+        final CountDownLatch listenerCalled = new CountDownLatch(1);
+        final CountDownLatch completeListener = new CountDownLatch(1);
+        final SetOnce<Boolean> latchOccurredBeforeTimeout = new SetOnce<>();
+
+        ProbeStoreListener listener = new ProbeStoreListener() {
+            @Override
+            public void onProbeRegistered(long probeId, ProbeInfo probe) {
+                listenerCalled.countDown();
+                try {
+                    latchOccurredBeforeTimeout.trySetValue(completeListener.await(10L, TimeUnit.SECONDS));
+                } catch (InterruptedException e) {
+                    latchOccurredBeforeTimeout.trySetValue(false);
+                }
+            }
+        };
+        store.addListener(listener);
+        when(idProvider.getProbeId(probeInfo)).thenReturn(1234L);
+
+        // register the probe on another thread
+        final ScheduledFuture<Boolean> future = Executors.newSingleThreadScheduledExecutor().schedule(() -> {
+            try {
+                store.registerNewProbe(probeInfo, transport);
+                return latchOccurredBeforeTimeout.getValue().get();
+            } catch (ProbeException e) {
+                fail("Probe Exception registering probe: " + e);
+                return false;
+            }
+        }, 0L, TimeUnit.SECONDS);
+
+        // wait for the listener to be notified
+        final boolean received = listenerCalled.await(10L, TimeUnit.SECONDS);
+        assertTrue(received);
+        // check that we can make a call that requires the store's datalock while a listener is
+        // still processing
+        assertEquals(probeInfo, store.getProbe(1234L).get());
+        completeListener.countDown();
+        assertTrue("Lock was held while notifying listeners.", future.get());
     }
 
     @Test
