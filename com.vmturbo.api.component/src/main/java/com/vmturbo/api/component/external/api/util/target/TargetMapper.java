@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.util.target;
 
+import static com.vmturbo.common.protobuf.topology.UIMapping.getUserFacingCategoryString;
 import static com.vmturbo.common.protobuf.utils.StringConstants.COMMUNICATION_BINDING_CHANNEL;
 
 import java.time.OffsetDateTime;
@@ -15,7 +16,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
@@ -78,18 +78,6 @@ public class TargetMapper {
      */
     @VisibleForTesting
     static final String UNKNOWN_TARGET_STATUS = "UNKNOWN";
-
-    /**
-     * This is currently required because the SDK probes have the category field inconsistently cased.
-     */
-    private static final ImmutableBiMap<String, String> USER_FACING_CATEGORY_MAP = ImmutableBiMap
-            .<String, String>builder()
-            .put("STORAGE", "Storage")
-            .put("HYPERVISOR", "Hypervisor")
-            .put("FABRIC", "Fabric")
-            .put("ORCHESTRATOR", "Orchestrator")
-            .put("HYPERCONVERGED", "Hyperconverged")
-            .build();
 
     private static final ZoneOffset ZONE_OFFSET = OffsetDateTime.now().getOffset();
 
@@ -331,17 +319,5 @@ public class TargetMapper {
             default:
                 throw new RuntimeException("Unrecognized account field value type: " + type);
         }
-    }
-
-    /**
-     * Probe category strings as defined by the difference probe_conf.xml are not consistent
-     * regarding uppercase/lowercase, etc. This maps the known problem category strings into
-     * more user-friendly names.
-     *
-     * @param category the probe category
-     * @return a user-friendly string for the probe category (for the problem categories we know of).
-     */
-    private String getUserFacingCategoryString(final String category) {
-        return USER_FACING_CATEGORY_MAP.getOrDefault(category, category);
     }
 }
