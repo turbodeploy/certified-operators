@@ -52,7 +52,7 @@ public class EntitySavingsTracker {
         this.entitySavingsStore = Objects.requireNonNull(entitySavingsStore);
         this.entityEventsJournal = Objects.requireNonNull(entityEventsJournal);
         this.entityStateCache = Objects.requireNonNull(entityStateCache);
-        this.savingsCalculator = new SavingsCalculator();
+        this.savingsCalculator = new SavingsCalculator(entityStateCache);
     }
 
     /**
@@ -60,6 +60,16 @@ public class EntitySavingsTracker {
      * being tracked.
      */
     void processEvents() {
+        processEvents(getCurrentTime());
+    }
+
+    /**
+     * Process events posted to the internal state of each entity whose savings/investments are
+     * being tracked.  Processing will stop at the supplied time.
+     *
+     * @param end current time in milliseconds indicating when to stop generating savings entries.
+     */
+    void processEvents(long end) {
         logger.debug("Processing savings/investment.");
 
         Calendar periodStartTime = getPeriodStartTime();
@@ -74,8 +84,6 @@ public class EntitySavingsTracker {
         periodEndTime.setTime(periodStartTime.getTime());
         periodEndTime.add(Calendar.HOUR_OF_DAY, 1);
 
-        final long now = getCurrentTime();
-
         // There should not be any events before period start time left in the journal.
         // If for some reasons old events are left in the journal, remove them.
         List<SavingsEvent> events =
@@ -85,7 +93,7 @@ public class EntitySavingsTracker {
                     events.size(), periodStartTime);
         }
 
-        while (periodEndTime.getTimeInMillis() < now) {
+        while (periodEndTime.getTimeInMillis() < end) {
             logger.debug("Entity Savings Tracker is processing events between {} and {}",
                     formatDateTime(periodStartTime), formatDateTime(periodEndTime));
 
@@ -98,10 +106,9 @@ public class EntitySavingsTracker {
                 logger.debug("There are no events in this period.");
             } else {
                 logger.debug("Entity Savings Tracker retrieved {} events from events journal.", events.size());
-
-                // Invoke calculator
-                savingsCalculator.calculate(events, entityStateCache, startTime, endTime);
             }
+            // Invoke calculator
+            savingsCalculator.calculate(events, startTime, endTime);
 
             try {
                 // create stats records from state map for this period.
@@ -112,6 +119,9 @@ public class EntitySavingsTracker {
                 // Stop processing and don't update the last period end time.
                 break;
             }
+            // We delete inactive entity state after the stats for the entity have been flushed
+            // a final time.
+            entityStateCache.removeInactiveState();
 
             // Save the period end time so we won't need to get it from DB next time the tracker runs.
             lastPeriodEndTime = periodEndTime;
@@ -181,25 +191,17 @@ public class EntitySavingsTracker {
             long entityId = state.getEntityId();
             SavingsInvestments realized = state.getRealized();
             if (realized != null) {
-                if (realized.hasSavings()) {
-                    stats.add(new EntitySavingsStats(entityId, statTime,
-                            EntitySavingsStatsType.REALIZED_SAVINGS, realized.getSavings()));
-                }
-                if (realized.hasInvestments()) {
-                    stats.add(new EntitySavingsStats(entityId, statTime,
-                            EntitySavingsStatsType.REALIZED_INVESTMENTS, realized.getInvestments()));
-                }
+                stats.add(new EntitySavingsStats(entityId, statTime,
+                        EntitySavingsStatsType.REALIZED_SAVINGS, realized.getSavings()));
+                stats.add(new EntitySavingsStats(entityId, statTime,
+                        EntitySavingsStatsType.REALIZED_INVESTMENTS, realized.getInvestments()));
             }
             SavingsInvestments missed = state.getMissed();
             if (missed != null) {
-                if (missed.hasSavings()) {
-                    stats.add(new EntitySavingsStats(entityId, statTime,
-                            EntitySavingsStatsType.MISSED_SAVINGS, missed.getSavings()));
-                }
-                if (missed.hasInvestments()) {
-                    stats.add(new EntitySavingsStats(entityId, statTime,
-                            EntitySavingsStatsType.MISSED_INVESTMENTS, missed.getInvestments()));
-                }
+                stats.add(new EntitySavingsStats(entityId, statTime,
+                        EntitySavingsStatsType.MISSED_SAVINGS, missed.getSavings()));
+                stats.add(new EntitySavingsStats(entityId, statTime,
+                        EntitySavingsStatsType.MISSED_INVESTMENTS, missed.getInvestments()));
             }
         });
 
