@@ -112,7 +112,7 @@ public class SQLCloudScopeStoreTest {
         // Setup topology info
         final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
                 .setTopologyId(1)
-                .setCreationTime(Instant.ofEpochMilli(123).toEpochMilli())
+                .setCreationTime(Instant.ofEpochMilli(12312312).toEpochMilli())
                 .build();
 
 

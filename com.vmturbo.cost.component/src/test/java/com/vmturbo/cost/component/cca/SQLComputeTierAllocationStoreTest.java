@@ -108,7 +108,7 @@ public class SQLComputeTierAllocationStoreTest {
         Setup topology info
          */
 
-    final Instant baselineCreationTime = Instant.ofEpochMilli(123);
+    final Instant baselineCreationTime = Instant.ofEpochMilli(123012);
     final TopologyInfo baselineTopologyInfo = TopologyInfo.newBuilder()
             .setTopologyId(1)
             .setCreationTime(baselineCreationTime.toEpochMilli())
