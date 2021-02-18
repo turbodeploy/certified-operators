@@ -1,5 +1,9 @@
 package com.vmturbo.topology.processor.entity;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+
 import java.util.HashMap;
 import java.util.Optional;
 
@@ -37,10 +41,10 @@ public class EntityValidatorTest {
     public ExpectedException expectedException = ExpectedException.none();
 
     @Test
-    public void testNoCommodities() throws Exception {
+    public void testNoCommodities() {
         final Optional<EntityValidationFailure> error =
             entityValidator.validateSingleEntity(entityBuilder(), true);
-        Assert.assertFalse(error.isPresent());
+        assertFalse(error.isPresent());
     }
 
     @Test
@@ -49,7 +53,7 @@ public class EntityValidatorTest {
             entityValidator.validateSingleEntity(
                 entityBuilder().addCommoditiesBoughtFromProviders(
                     boughtFromProvider(goodCommodityBought())), true);
-        Assert.assertFalse(error.isPresent());
+        assertFalse(error.isPresent());
     }
 
     @Test
@@ -58,21 +62,21 @@ public class EntityValidatorTest {
             entityValidator.validateSingleEntity(
                 entityBuilder().addCommoditiesBoughtFromProviders(
                     boughtFromProvider(badCommodityBought())), true);
-        Assert.assertTrue(error.isPresent());
+        assertTrue(error.isPresent());
     }
 
     @Test
     public void testGoodCommoditySold() {
         final Optional<EntityValidationFailure> error = entityValidator.validateSingleEntity(
                 entityBuilder().addCommoditySoldList(goodCommoditySold()), true);
-        Assert.assertFalse(error.isPresent());
+        assertFalse(error.isPresent());
     }
 
     @Test
     public void testBadCommoditySold() {
         final Optional<EntityValidationFailure> error = entityValidator.validateSingleEntity(
             entityBuilder().addCommoditySoldList(badCommoditySold()), true);
-        Assert.assertTrue(error.isPresent());
+        assertTrue(error.isPresent());
     }
 
     @Test
@@ -81,7 +85,7 @@ public class EntityValidatorTest {
                 entityBuilder()
                     .addCommoditySoldList(badCommoditySold())
                     .addCommoditiesBoughtFromProviders(boughtFromProvider(badCommodityBought())), true);
-        Assert.assertTrue(error.isPresent());
+        assertTrue(error.isPresent());
     }
 
     @Test
@@ -90,10 +94,10 @@ public class EntityValidatorTest {
             .addCommoditySoldList(badCommoditySold());
         entityValidator
             .processIllegalCommodityValues(teBuilder, Optional.empty(), buildGraph(teBuilder));
-        Assert.assertFalse(teBuilder.getCommoditySoldList(0).hasCapacity());
-        Assert.assertFalse(teBuilder.getAnalysisSettings().getControllable());
-        Assert.assertTrue(teBuilder.getCommoditySoldList(0).getUsed() >= 0);
-        Assert.assertFalse(teBuilder.getCommoditySoldList(0).hasPeak());
+        assertFalse(teBuilder.getCommoditySoldList(0).hasCapacity());
+        assertFalse(teBuilder.getAnalysisSettings().getControllable());
+        assertTrue(teBuilder.getCommoditySoldList(0).getUsed() >= 0);
+        assertFalse(teBuilder.getCommoditySoldList(0).hasPeak());
     }
 
     @Test
@@ -102,8 +106,8 @@ public class EntityValidatorTest {
             .addCommoditySoldList(naNCommoditySoldCapacity());
         entityValidator
             .processIllegalCommodityValues(teBuilder, Optional.empty(), buildGraph(teBuilder));
-        Assert.assertFalse(teBuilder.getCommoditySoldList(0).hasCapacity());
-        Assert.assertFalse(teBuilder.getAnalysisSettings().getControllable());
+        assertFalse(teBuilder.getCommoditySoldList(0).hasCapacity());
+        assertFalse(teBuilder.getAnalysisSettings().getControllable());
     }
 
     @Test
@@ -112,9 +116,9 @@ public class EntityValidatorTest {
             .addCommoditySoldList(naNCommoditySoldCapacityAndUsed());
         entityValidator
             .processIllegalCommodityValues(teBuilder, Optional.empty(), buildGraph(teBuilder));
-        Assert.assertFalse(teBuilder.getCommoditySoldList(0).hasCapacity());
-        Assert.assertFalse(teBuilder.getAnalysisSettings().getControllable());
-        Assert.assertTrue(teBuilder.getCommoditySoldList(0).getUsed() == 0);
+        assertFalse(teBuilder.getCommoditySoldList(0).hasCapacity());
+        assertFalse(teBuilder.getAnalysisSettings().getControllable());
+        assertEquals(0, teBuilder.getCommoditySoldList(0).getUsed(), 0.0);
     }
 
     @Test
@@ -123,8 +127,8 @@ public class EntityValidatorTest {
             .addCommoditySoldList(zeroCapacityCommoditySold());
         entityValidator
             .processIllegalCommodityValues(teBuilder, Optional.empty(), buildGraph(teBuilder));
-        Assert.assertFalse(teBuilder.getCommoditySoldList(0).hasCapacity());
-        Assert.assertFalse(teBuilder.getAnalysisSettings().getControllable());
+        assertFalse(teBuilder.getCommoditySoldList(0).hasCapacity());
+        assertFalse(teBuilder.getAnalysisSettings().getControllable());
     }
 
     @Test
@@ -133,8 +137,8 @@ public class EntityValidatorTest {
             entityBuilder().addCommoditySoldList(noCapacityCommoditySold());
         entityValidator
             .processIllegalCommodityValues(teBuilder, Optional.empty(), buildGraph(teBuilder));
-        Assert.assertFalse(teBuilder.getCommoditySoldList(0).hasCapacity());
-        Assert.assertFalse(teBuilder.getAnalysisSettings().getControllable());
+        assertFalse(teBuilder.getCommoditySoldList(0).hasCapacity());
+        assertFalse(teBuilder.getAnalysisSettings().getControllable());
     }
 
     @Test
@@ -143,9 +147,9 @@ public class EntityValidatorTest {
             .addCommoditiesBoughtFromProviders(boughtFromProvider(badCommodityBought()));
         entityValidator
             .processIllegalCommodityValues(teBuilder, Optional.empty(), buildGraph(teBuilder));
-        Assert.assertTrue(
+        assertTrue(
             teBuilder.getCommoditiesBoughtFromProviders(0).getCommodityBought(0).getUsed() >= 0);
-        Assert.assertFalse(
+        assertFalse(
             teBuilder.getCommoditiesBoughtFromProviders(0).getCommodityBought(0).hasPeak());
     }
 
@@ -155,14 +159,12 @@ public class EntityValidatorTest {
             .addCommoditiesBoughtFromProviders(boughtFromProvider(naNCommodityBought()));
         final Optional<EntityValidationFailure> failure = entityValidator
             .validateSingleEntity(teBuilder, false);
-        Assert.assertTrue(failure.isPresent());
-        Assert.assertTrue(failure.get().toString().contains("NaN"));
+        assertTrue(failure.isPresent());
+        assertTrue(failure.get().toString().contains("NaN"));
         entityValidator
             .processIllegalCommodityValues(teBuilder, Optional.empty(), buildGraph(teBuilder));
-        Assert.assertTrue(
-            teBuilder.getCommoditiesBoughtFromProviders(0).getCommodityBought(0).getUsed() == 0);
-        Assert.assertTrue(
-            teBuilder.getCommoditiesBoughtFromProviders(0).getCommodityBought(0).getPeak() == 0);
+        assertEquals(0, teBuilder.getCommoditiesBoughtFromProviders(0).getCommodityBought(0).getUsed(), 0.0);
+        assertEquals(0, teBuilder.getCommoditiesBoughtFromProviders(0).getCommodityBought(0).getPeak(), 0.0);
     }
 
     /**
@@ -200,9 +202,9 @@ public class EntityValidatorTest {
 
         entityValidator
             .processIllegalCommodityValues(pm.getEntityBuilder(), Optional.empty(), graph);
-        Assert.assertFalse(pm.getEntityBuilder().getAnalysisSettings().getControllable());
-        Assert.assertTrue(vm.getEntityBuilder().getAnalysisSettings().getControllable());
-        Assert.assertFalse(storage.getEntityBuilder().getAnalysisSettings().getControllable());
+        assertFalse(pm.getEntityBuilder().getAnalysisSettings().getControllable());
+        assertTrue(vm.getEntityBuilder().getAnalysisSettings().getControllable());
+        assertFalse(storage.getEntityBuilder().getAnalysisSettings().getControllable());
     }
 
     @Test
@@ -233,14 +235,14 @@ public class EntityValidatorTest {
             .addCommoditySoldList(badCommoditySold()));
         entityValidator.validateTopologyEntities(buildGraph(te), false);
         final Builder result = te.getEntityBuilder();
-        Assert.assertEquals(0,
+        assertEquals(0,
             result.getCommoditiesBoughtFromProviders(0).getCommodityBought(0).getPeak(), 0);
-        Assert.assertEquals(0,
+        assertEquals(0,
             result.getCommoditiesBoughtFromProviders(0).getCommodityBought(0).getUsed(), 0);
-        Assert.assertEquals(0, result.getCommoditySoldList(0).getPeak(), 0);
-        Assert.assertEquals(0, result.getCommoditySoldList(0).getUsed(), 0);
-        Assert.assertFalse(result.getCommoditySoldList(0).hasCapacity());
-        Assert.assertFalse(result.getAnalysisSettings().getControllable());
+        assertEquals(0, result.getCommoditySoldList(0).getPeak(), 0);
+        assertEquals(0, result.getCommoditySoldList(0).getUsed(), 0);
+        assertFalse(result.getCommoditySoldList(0).hasCapacity());
+        assertFalse(result.getAnalysisSettings().getControllable());
     }
 
     /**
@@ -255,10 +257,10 @@ public class EntityValidatorTest {
             .addCommoditySoldList(badCommoditySold()));
         ev.validateTopologyEntities(buildGraph(te), false);
         final Builder result = te.getEntityBuilder();
-        Assert.assertEquals(0, result.getCommoditySoldList(0).getPeak(), 0);
-        Assert.assertEquals(0, result.getCommoditySoldList(0).getUsed(), 0);
-        Assert.assertFalse(result.getCommoditySoldList(0).hasCapacity());
-        Assert.assertFalse(result.getAnalysisSettings().getControllable());
+        assertEquals(0, result.getCommoditySoldList(0).getPeak(), 0);
+        assertEquals(0, result.getCommoditySoldList(0).getUsed(), 0);
+        assertFalse(result.getCommoditySoldList(0).hasCapacity());
+        assertFalse(result.getAnalysisSettings().getControllable());
     }
 
     /**
@@ -277,10 +279,10 @@ public class EntityValidatorTest {
                         .addCommoditySoldList(badCommoditySold()));
         ev.validateTopologyEntities(buildGraph(te2), false);
         final Builder result = te2.getEntityBuilder();
-        Assert.assertEquals(0, result.getCommoditySoldList(0).getPeak(), 0);
-        Assert.assertEquals(0, result.getCommoditySoldList(0).getUsed(), 0);
-        Assert.assertTrue(result.getCommoditySoldList(0).hasCapacity());
-        Assert.assertTrue(result.getAnalysisSettings().getControllable());
+        assertEquals(0, result.getCommoditySoldList(0).getPeak(), 0);
+        assertEquals(0, result.getCommoditySoldList(0).getUsed(), 0);
+        assertTrue(result.getCommoditySoldList(0).hasCapacity());
+        assertTrue(result.getAnalysisSettings().getControllable());
     }
 
     /**
@@ -300,10 +302,10 @@ public class EntityValidatorTest {
                         .setClonedFromEntity(te1.getEntityBuilder());
         ev.validateTopologyEntities(buildGraph(te2), true);
         final Builder result = te2.getEntityBuilder();
-        Assert.assertEquals(0, result.getCommoditySoldList(0).getPeak(), 0);
-        Assert.assertEquals(0, result.getCommoditySoldList(0).getUsed(), 0);
-        Assert.assertTrue(result.getCommoditySoldList(0).hasCapacity());
-        Assert.assertTrue(result.getAnalysisSettings().getControllable());
+        assertEquals(0, result.getCommoditySoldList(0).getPeak(), 0);
+        assertEquals(0, result.getCommoditySoldList(0).getUsed(), 0);
+        assertTrue(result.getCommoditySoldList(0).hasCapacity());
+        assertTrue(result.getAnalysisSettings().getControllable());
     }
 
     /**
@@ -321,10 +323,10 @@ public class EntityValidatorTest {
                         .addCommoditySoldList(badCommoditySold()));
         ev.validateTopologyEntities(buildGraph(te2), false);
         final Builder result = te2.getEntityBuilder();
-        Assert.assertEquals(0, result.getCommoditySoldList(0).getPeak(), 0);
-        Assert.assertEquals(0, result.getCommoditySoldList(0).getUsed(), 0);
-        Assert.assertFalse(result.getCommoditySoldList(0).hasCapacity());
-        Assert.assertFalse(result.getAnalysisSettings().getControllable());
+        assertEquals(0, result.getCommoditySoldList(0).getPeak(), 0);
+        assertEquals(0, result.getCommoditySoldList(0).getUsed(), 0);
+        assertFalse(result.getCommoditySoldList(0).hasCapacity());
+        assertFalse(result.getAnalysisSettings().getControllable());
     }
 
     private TopologyEntityDTO.Builder entityBuilder() {

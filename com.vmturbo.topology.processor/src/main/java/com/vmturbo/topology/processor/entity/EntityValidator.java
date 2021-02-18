@@ -14,12 +14,12 @@ import javax.annotation.concurrent.ThreadSafe;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.Level;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.commons.utils.DuplicateSuppressingLogger;
 import com.vmturbo.platform.common.builders.SDKConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -32,7 +32,8 @@ import com.vmturbo.topology.graph.TopologyGraph;
  */
 @ThreadSafe
 public class EntityValidator {
-    private static final Logger logger = LogManager.getLogger();
+    private static final DuplicateSuppressingLogger logger =
+        new DuplicateSuppressingLogger(DuplicateSuppressingLogger.getLogger());
     private final boolean oldValuesCacheEnabled;
     /**
      * All non-access commodity capacities seen during the last live pipeline processing.
@@ -58,15 +59,16 @@ public class EntityValidator {
                                      @Nonnull final CommoditySoldDTO.Builder original,
                                      @Nonnull final String property,
                                      final double illegalAmount) {
-        // This has to be at warning level so that the root causes of missing capacities can be investigated.
-        logger.warn("Entity {} with name {} of type {} is selling {} commodity {} with illegal {} {}",
-                entityId,
-                entityName,
-                EntityType.forNumber(entityType),
-                original.getActive() ? "active" : "non-active",
-                CommodityType.forNumber(original.getCommodityType().getType()),
-                property,
-                illegalAmount);
+        // This has to be at warning level so that the root causes of missing capacities can be
+        // investigated.
+        logger.warn("Entity {} with name {} of type {} is selling {} commodity {} with illegal "
+                + property + " {}.",
+            entityId,
+            entityName,
+            EntityType.forNumber(entityType),
+            original.getActive() ? "active" : "non-active",
+            CommodityType.forNumber(original.getCommodityType().getType()),
+            illegalAmount);
     }
 
     private void logCommodityBoughtReplacement(final long entityId, @Nonnull final String entityName,
@@ -75,13 +77,16 @@ public class EntityValidator {
                                                @Nonnull final String property,
                                                final double illegalAmount, final long providerId,
                                                final int providerType) {
-        // TODO changed from warn to trace to reduce logging load - does it need more visibility?
-        logger.trace("Entity {} with name {} of type {} is buying {} commodity {} with illegal " +
-                "{} {} from entity {} of type {}", entityId, entityName,
+        // This has to be at warning level so that the root causes of missing capacities can be
+        // investigated.
+        logger.warn("Entity {} with name {} of type {} is buying {} commodity {} with illegal "
+                + property + " {} from entity {} of type {}.",
+            entityId,
+            entityName,
             EntityType.forNumber(entityType),
             original.getActive() ? "active" : "non-active",
             CommodityType.forNumber(original.getCommodityType().getType()),
-            property, illegalAmount, providerId,
+            illegalAmount, providerId,
             EntityType.forNumber(providerType)
         );
     }
@@ -125,8 +130,8 @@ public class EntityValidator {
                                 commodityBought.getUsed(), providerId, providerType);
                             commodityBought.setUsed(0);
                         }
-                })
-        );
+                    })
+            );
 
         entity.getCommoditySoldListBuilderList().forEach(commoditySold -> {
             double used = commoditySold.getUsed();
@@ -155,11 +160,10 @@ public class EntityValidator {
                                 .getCommoditiesBoughtFromProvidersList()
                                 .stream()
                                 .filter(grouping -> grouping.getProviderId() == entity.getOid())
-                                .filter(grouping -> grouping.getCommodityBoughtList().stream()
+                                .anyMatch(grouping -> grouping.getCommodityBoughtList().stream()
                                     .map(CommodityBoughtDTO::getCommodityType)
                                     .anyMatch(boughtCommType -> boughtCommType.equals(commoditySold.getCommodityType()))
-                                )
-                                .findFirst().isPresent();
+                                );
                         if (shouldMarkConsumerControllableFalse) {
                             consumer.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder().setControllable(false);
                             if (logger.isTraceEnabled()) {
@@ -175,19 +179,17 @@ public class EntityValidator {
                     logger.trace("The consumers of {}|{} for which controllable was set to false are - {}.",
                         id, name, controllableFalseEntities.toString());
                 } else {
-                    logger.warn("Setting capacity value for oid " + id
-                                    + ", commodity "
-                                    + commoditySold.getCommodityType()
-                                    + " to previous value "
-                                    + oldCapacity);
+                    logger.warn(
+                        "Setting capacity value for oid {}, commodity {} to previous value {}.",
+                        id, commoditySold.getCommodityType(), oldCapacity);
                     commoditySold.setCapacity(oldCapacity);
                 }
             }
             if (Double.isNaN(used)) {
                 commoditySold.setUsed(0);
-                logger.warn("Setting used value for " + EntityType.forNumber(type)
-                                + CommodityType.forNumber(commoditySold.getCommodityType().getType())
-                                + " from NaN to 0");
+                logger.warn("Setting used value for {}{} from NaN to 0.",
+                    EntityType.forNumber(type),
+                    CommodityType.forNumber(commoditySold.getCommodityType().getType()));
             }
             if (commoditySold.getPeak() < 0) {
                 // Negative peak values are illegal, but we sometimes get them.
@@ -344,6 +346,7 @@ public class EntityValidator {
      */
     public void validateTopologyEntities(@Nonnull final TopologyGraph<TopologyEntity> entityGraph, boolean isPlan)
                                                             throws EntitiesValidationException {
+        logger.clearMessageCounters();
         final List<EntityValidationFailure> validationFailures = new ArrayList<>();
         Map<SoldCommodityReference, Double> newCapacities = isPlan || !oldValuesCacheEnabled ? null : new HashMap<>();
         entityGraph.entities().forEach(entity -> {
@@ -356,7 +359,7 @@ public class EntityValidator {
                 final Optional<EntityValidationFailure> errorAfterReplacement =
                     validateSingleEntity(entity.getTopologyEntityDtoBuilder(), false);
                 if (errorAfterReplacement.isPresent()) {
-                    logger.error("Errors validating entity {}:\n{}", entity.getOid(),
+                    logger.error("Errors validating entity {}:\n{}.", entity.getOid(),
                         error.get().errorMessage);
                     validationFailures.add(error.get());
                 }
@@ -376,6 +379,7 @@ public class EntityValidator {
                 });
             }
         });
+        logger.logSuppressedMessageCounts(Level.WARN);
 
         if (newCapacities != null) {
             synchronized (this) {
