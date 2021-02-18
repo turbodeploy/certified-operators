@@ -7,8 +7,10 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletionService;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -84,6 +86,9 @@ public class BulkInserter<InT extends Record, OutT extends Record> implements Bu
     // records received but not yet submitted for insertion.
     private final List<OutT> pendingRecords;
 
+    // stashes all scheduled batches as tasks.
+    private final Set<Future<BatchStats>> executingBatches;
+
     // max number of records to be written in a batch. When pending records grows to this size,
     // it is flushed.
     private final int batchSize;
@@ -147,6 +152,7 @@ public class BulkInserter<InT extends Record, OutT extends Record> implements Bu
         this.batchCompletionService = batchCompletionService;
         this.inserterStats = new BulkInserterStats(key, inTable, outTable);
         this.pendingRecords = new ArrayList<>(batchSize);
+        this.executingBatches = ConcurrentHashMap.newKeySet();
     }
 
     public Table<InT> getInTable() {
@@ -195,8 +201,15 @@ public class BulkInserter<InT extends Record, OutT extends Record> implements Bu
         // no longer locking the pending insertions queue... submit new batch
         try {
             final InsertTask task = new InsertTask(dbInserter, thisBatchNo, batch);
-            batchCompletionService.submit(task, this::handleBatchCompletion);
+            batchCompletionService.submit(task, executingBatches::add, this::handleBatchCompletion);
             pendingExecutions.incrementAndGet();
+
+            // wait for all tasks to be handled
+            synchronized (executingBatches) {
+                while (awaitCompletion && !executingBatches.isEmpty()) {
+                    executingBatches.wait();
+                }
+            }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
@@ -216,6 +229,10 @@ public class BulkInserter<InT extends Record, OutT extends Record> implements Bu
         if (future.isDone()) {
             try {
                 final BatchStats batchStats = future.get();
+                executingBatches.remove(future);
+                synchronized (executingBatches) {
+                    executingBatches.notifyAll();
+                }
                 inserterStats.updateForBatch(batchStats);
             } catch (ExecutionException | RuntimeException e) {
                 inserterStats.failedBatch();

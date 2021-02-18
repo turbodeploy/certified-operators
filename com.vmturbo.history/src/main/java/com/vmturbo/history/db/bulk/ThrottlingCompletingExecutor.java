@@ -68,18 +68,20 @@ public class ThrottlingCompletingExecutor<T> {
      * once it has completed.</p>
      *
      * @param task    the {@link Callable} to be executed
+     * @param beforeExecute the {@link Consumer} that prepares the {@link Future} to be handled
      * @param handler the {@link Consumer} to receive the {@link Future} upon completion
      *                We use a future here to allow the handler to catch any exceptions.
      * @throws InterruptedException if interrutped
      */
-    public void submit(Callable<T> task, Consumer<Future<T>> handler) throws InterruptedException {
+    public void submit(Callable<T> task, Consumer<Future<T>> beforeExecute, Consumer<Future<T>> handler) throws InterruptedException {
         semaphore.acquire();
         synchronized (this) {
+            final CompletableFuture<T> f = new CompletableFuture<>();
+            beforeExecute.accept(f);
             if (!closed) {
                 threadPool.execute(() -> {
                     // Wrap the result of calling the task in a future that will get passed back
                     // to the handler.
-                    final CompletableFuture<T> f = new CompletableFuture<>();
                     try {
                         T result = task.call();
                         f.complete(result);
