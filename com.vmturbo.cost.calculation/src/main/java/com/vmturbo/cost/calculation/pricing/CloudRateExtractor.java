@@ -55,7 +55,6 @@ import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList;
 import com.vmturbo.platform.sdk.common.PricingDTO.DatabaseTierPriceList;
 import com.vmturbo.platform.sdk.common.PricingDTO.DatabaseTierPriceList.DatabaseTierConfigPrice;
-import com.vmturbo.platform.sdk.common.PricingDTO.LicensePriceEntry.LicensePrice;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price.Unit;
 import com.vmturbo.platform.sdk.common.PricingDTO.StorageTierPriceList;
@@ -146,7 +145,7 @@ public class CloudRateExtractor {
      */
     @Nonnull
     public ComputePriceBundle getComputePriceBundle(final TopologyEntityDTO tier, final long regionId,
-            final AccountPricingData accountPricingData) {
+            final AccountPricingData<TopologyEntityDTO> accountPricingData) {
         long tierId = tier.getOid();
         final ComputePriceBundle.Builder priceBuilder = ComputePriceBundle.newBuilder();
 
@@ -209,7 +208,7 @@ public class CloudRateExtractor {
      */
     @Nonnull
     public DatabasePriceBundle getDatabasePriceBundle(final long tierId, final long regionId,
-            final AccountPricingData accountPricingData) {
+            final AccountPricingData<TopologyEntityDTO> accountPricingData) {
         final DatabasePriceBundle.Builder priceBuilder = DatabasePriceBundle.newBuilder();
         if (accountPricingData == null || accountPricingData.getPriceTable() == null) {
             logger.error("No account pricing data found for business account oid {}");
@@ -246,7 +245,7 @@ public class CloudRateExtractor {
     }
 
     private void addDbTierPricesToPriceTable(DatabaseTierPriceList dbTierPrices, long tierId,
-            AccountPricingData accountPricingData,
+            AccountPricingData<TopologyEntityDTO> accountPricingData,
             DatabasePriceBundle.Builder priceBuilder) {
         final DatabaseTierConfigPrice dbTierBasePrice = dbTierPrices.getBasePrice();
         final DatabaseEdition dbEdition = dbTierBasePrice.getDbEdition();
@@ -307,7 +306,8 @@ public class CloudRateExtractor {
     }
 
     @Nullable
-    OnDemandPriceTable getOnDemandPriceTable(final long tierId, final long regionId, AccountPricingData accountPricingData) {
+    OnDemandPriceTable getOnDemandPriceTable(final long tierId, final long regionId,
+                                             @Nonnull AccountPricingData<TopologyEntityDTO> accountPricingData) {
         if (!cloudTopology.getEntity(tierId).isPresent()) {
             logger.error("Tier {} not found in topology. Returning empty price bundle.", tierId);
             return null;
@@ -334,7 +334,8 @@ public class CloudRateExtractor {
      *         the tier or region are not found in the price table, returns an empty price bundle.
      */
     @Nonnull
-    public StoragePriceBundle getStoragePriceBundle(final long tierId, final long regionId, final AccountPricingData accountPricingData) {
+    public StoragePriceBundle getStoragePriceBundle(final long tierId, final long regionId,
+                                                    @Nonnull AccountPricingData<TopologyEntityDTO> accountPricingData) {
         final StoragePriceBundle.Builder priceBuilder = StoragePriceBundle.newBuilder();
         if (accountPricingData == null || accountPricingData.getPriceTable() == null) {
             logger.error("No account pricing data found to generate StoragePriceBundle.");
@@ -484,7 +485,8 @@ public class CloudRateExtractor {
      *
      * @return A set of core based license price bundles.
      */
-    public Set<CoreBasedLicensePriceBundle> getReservedLicensePriceBundles(@Nonnull AccountPricingData accountPricingData,
+    public Set<CoreBasedLicensePriceBundle> getReservedLicensePriceBundles(
+            @Nonnull AccountPricingData<TopologyEntityDTO> accountPricingData,
             @Nonnull TopologyEntityDTO tier) {
 
 
@@ -508,12 +510,10 @@ public class CloudRateExtractor {
 
                             final OSType osType = OS_TYPE_MAP.get(licenseCommodityType.getKey());
 
-                            final Optional<LicensePrice> reservedLicensePrice =
+                            final Optional<CurrencyAmount> reservedLicensePrice =
                                     accountPricingData.getReservedLicensePrice(osType, numCores, burstableCPU);
 
-                            final Optional<Double> discountedPrice = reservedLicensePrice.map(LicensePrice::getPrice)
-                                    .map(Price::getPriceAmount)
-                                    .map(CurrencyAmount::getAmount)
+                            final Optional<Double> discountedPrice = reservedLicensePrice.map(CurrencyAmount::getAmount)
                                     .map(fullPrice -> fullPrice * discount);
 
 

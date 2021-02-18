@@ -191,14 +191,14 @@ public class CostDTOCreatorTest {
     @Test
     public void testComputeResourceDependency() {
         final TopologyEntityDTO tier = getTestComputeTier();
-        Map<Long, AccountPricingData> accountPricingDatabyBusinessAccountMap = new HashMap<>();
+        Map<Long, AccountPricingData<TopologyEntityDTO>> accountPricingDatabyBusinessAccountMap = new HashMap<>();
         CostDTOCreator costDTOCreator = new CostDTOCreator(converter, marketCloudRateExtractor);
         AccountPricingData accountPricingData = mock(AccountPricingData.class);
         for (TopologyEntityDTO region: REGIONS) {
             when(marketCloudRateExtractor.getComputePriceBundle(tier, region.getOid(), accountPricingData)).thenReturn(ComputePriceBundle.newBuilder().build());
         }
         accountPricingDatabyBusinessAccountMap.put(BA_ID, accountPricingData);
-        HashSet<AccountPricingData> uniqueAccountPricingData = new HashSet<>(accountPricingDatabyBusinessAccountMap.values());
+        HashSet<AccountPricingData<TopologyEntityDTO>> uniqueAccountPricingData = new HashSet<>(accountPricingDatabyBusinessAccountMap.values());
         CostDTO costDTO = costDTOCreator.createComputeTierCostDTO(tier, REGIONS, uniqueAccountPricingData);
         Assert.assertEquals(1, costDTO.getComputeTierCost().getComputeResourceDepedencyCount());
         ComputeResourceDependency dependency = costDTO.getComputeTierCost().getComputeResourceDepedency(0);
@@ -255,7 +255,7 @@ public class CostDTOCreatorTest {
         when(marketCloudRateExtractor.getDatabasePriceBundle(DB_TIER_ID, DB_TIER_REGION_ID,
                 accountPricingData)).thenReturn(databasePriceBundle);
         CostDTOCreator costDTOCreator = new CostDTOCreator(converter, marketCloudRateExtractor);
-        Set<AccountPricingData> accountPricingDataSet = new HashSet<>();
+        Set<AccountPricingData<TopologyEntityDTO>> accountPricingDataSet = new HashSet<>();
         accountPricingDataSet.add(accountPricingData);
         List<TopologyEntityDTO> regions = new ArrayList<>();
         final CommodityType licenseType = CommodityType.newBuilder()
@@ -301,7 +301,7 @@ public class CostDTOCreatorTest {
      */
     @Test
     public void createdDatabaseTierCostDTONoStorageOptions() {
-        AccountPricingData accountPricingData = Mockito.mock(AccountPricingData.class);
+        AccountPricingData<TopologyEntityDTO> accountPricingData = Mockito.mock(AccountPricingData.class);
         List<StorageOption> storageOptions = new ArrayList<>();
         DatabasePriceBundle databasePriceBundle = DatabasePriceBundle.newBuilder().addPrice(0,
                 DatabaseEngine.SQLSERVER, DatabaseEdition.STANDARD, DeploymentType.MULTI_AZ,
@@ -309,7 +309,7 @@ public class CostDTOCreatorTest {
         when(marketCloudRateExtractor.getDatabasePriceBundle(DB_TIER_ID, DB_TIER_REGION_ID,
                 accountPricingData)).thenReturn(databasePriceBundle);
         CostDTOCreator costDTOCreator = new CostDTOCreator(converter, marketCloudRateExtractor);
-        Set<AccountPricingData> accountPricingDataSet = new HashSet<>();
+        Set<AccountPricingData<TopologyEntityDTO>> accountPricingDataSet = new HashSet<>();
         accountPricingDataSet.add(accountPricingData);
         List<TopologyEntityDTO> regions = new ArrayList<>();
         final CommodityType licenseType = CommodityType.newBuilder().setKey(

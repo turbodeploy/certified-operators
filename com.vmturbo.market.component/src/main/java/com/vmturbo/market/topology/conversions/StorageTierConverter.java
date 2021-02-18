@@ -57,7 +57,7 @@ public class StorageTierConverter implements TierConverter {
             @Nonnull TopologyEntityDTO storageTier,
             @Nonnull Map<Long, TopologyEntityDTO> topology,
             @Nonnull Set<TopologyEntityDTO> businessAccounts,
-            @Nonnull Set<AccountPricingData> uniqueAccountPricingData) {
+            @Nonnull Set<AccountPricingData<TopologyEntityDTO>> uniqueAccountPricingData) {
         Map<TraderTO.Builder, MarketTier> traderTOs = new HashMap<>();
         List<TopologyEntityDTO> connectedRegions = TopologyDTOUtil.getConnectedEntitiesOfType(
                 storageTier, EntityType.REGION_VALUE, topology);

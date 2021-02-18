@@ -91,9 +91,9 @@ public class ReservedInstanceConverterTest {
             TIER_ID, mockComputeTier(),
             TIER_ID_2, mockComputeTier(TIER_ID_2, false));
 
-    private AccountPricingData accountPricingData = mock(AccountPricingData.class);
+    private AccountPricingData<TopologyEntityDTO> accountPricingData = mock(AccountPricingData.class);
     private CloudRateExtractor marketCloudRateExtractor = mock(CloudRateExtractor.class);
-    private Map<Long, AccountPricingData> accountPricingDataByBusinessAccountMap;
+    private Map<Long, AccountPricingData<TopologyEntityDTO>> accountPricingDataByBusinessAccountMap;
     private Set<CoreBasedLicensePriceBundle> reservedLicenseBundle = ImmutableSet.of(
             ImmutableCoreBasedLicensePriceBundle
                     .builder()
@@ -443,7 +443,7 @@ public class ReservedInstanceConverterTest {
 
     private List<TraderTO> createMarketTierTraderTOs(boolean isf, boolean zonal,
                                                      boolean includeRiWithBadRegion) {
-        final CloudCostData cloudCostData = mock(CloudCostData.class);
+        final CloudCostData<TopologyEntityDTO> cloudCostData = mock(CloudCostData.class);
         final List<ReservedInstanceData> riDataList = new ArrayList<>();
         riDataList.add(createRiData(isf, zonal, TIER_ID, REGION_ID, ZONE_ID, RI_BOUGHT_ID, false));
         if (includeRiWithBadRegion) {
@@ -464,7 +464,7 @@ public class ReservedInstanceConverterTest {
     }
 
     private List<TraderTO> createMarketTierTraderTOs(final List<ReservedInstanceData> riDataList) {
-        final CloudCostData cloudCostData = mock(CloudCostData.class);
+        final CloudCostData<TopologyEntityDTO> cloudCostData = mock(CloudCostData.class);
         when(cloudCostData.getExistingRiBought()).thenReturn(riDataList);
         when(cloudCostData.getCurrentRiCoverage()).thenReturn(getRiCoverageMap());
         return converter.createMarketTierTraderTOs(cloudCostData,

@@ -62,9 +62,9 @@ public class ReservedInstanceConverter extends ComputeTierConverter {
     }
 
     public Map<TraderTO.Builder, MarketTier> createMarketTierTraderTOs(
-            @Nonnull CloudCostData cloudCostData,
+            @Nonnull CloudCostData<TopologyEntityDTO> cloudCostData,
             @Nonnull Map<Long, TopologyEntityDTO> topology,
-            Map<Long, AccountPricingData> accountPricingDataByBusinessAccountOid) {
+            Map<Long, AccountPricingData<TopologyEntityDTO>> accountPricingDataByBusinessAccountOid) {
 
         ReservedInstanceAggregator aggregator = new ReservedInstanceAggregator(cloudCostData,
                 topology, cloudTopology);
