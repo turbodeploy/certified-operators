@@ -782,7 +782,7 @@ public enum EntitySettingSpecs {
     DBMemUtilization("dbmemUtilization", "DBMem Utilization",
             Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS),
             SettingTiebreaker.SMALLER, EnumSet.of(EntityType.DATABASE_SERVER),
-            numeric(20f, 100f, 80f), true),
+            numeric(20f, 100f, 100f), true),
 
     IgnoreDirectories("ignoreDirectories", "Directories to ignore",
         Collections.emptyList(),
