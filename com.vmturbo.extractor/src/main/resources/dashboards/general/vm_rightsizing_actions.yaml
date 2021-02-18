@@ -112,7 +112,6 @@ panels:
             JOIN scope s ON s.seed_oid = g.oid
             JOIN entity e ON s.scoped_oid = e.oid AND s.scoped_type = 'VIRTUAL_MACHINE'
             WHERE g."type" = 'COMPUTE_CLUSTER'
-             AND e.state = 'POWERED_ON'
              AND e.environment = 'ON_PREM'
              AND (e.first_seen, e.last_seen) overlaps ($__timeFrom(),$__timeTo())
              AND g.oid IN (SELECT * FROM unnest(ARRAY[$VMGroup]::bigint[]))
