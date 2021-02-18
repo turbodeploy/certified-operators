@@ -42,6 +42,7 @@ public class SavingsCalculatorTest {
      * Ensure that the algorithm is generating the correct savings entries.
      *
      * @throws FileNotFoundException if the test events file cannot be opened.
+     * @throws ParseException if the events file contains invalid JSON.
      */
     @Test
     public void calculate() throws FileNotFoundException, ParseException {
