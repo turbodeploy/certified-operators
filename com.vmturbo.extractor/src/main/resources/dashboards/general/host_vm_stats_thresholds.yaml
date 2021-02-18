@@ -67,7 +67,7 @@ panels:
       select DATE(metric."time") as "time", metric."type" as metric, avg(utilization)
       from metric
       join entity e on
-          e.type = 'PHSYSICAL_MACHINE'
+          e.type = 'PHYSICAL_MACHINE'
           and e.oid = metric.entity_oid
       where
           ($__timeFrom(),$__timeTo()) OVERLAPS (e.first_seen, e.last_seen)
