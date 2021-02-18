@@ -113,7 +113,6 @@ panels:
           JOIN scope s ON (e.oid = s.seed_oid)
           JOIN entity c ON (c.oid = s.scoped_oid)
         WHERE e.type = 'VIRTUAL_MACHINE'
-          AND e.state = 'POWERED_ON'
           AND c.type = 'COMPUTE_CLUSTER'
           AND (s.start, s.finish) OVERLAPS ($__timeFrom(), $__timeTo()))
       SELECT max(cluster_name) AS "Cluster name",
@@ -245,7 +244,6 @@ panels:
           JOIN scope s ON (e.oid = s.seed_oid)
           JOIN entity c ON (c.oid = s.scoped_oid)
         WHERE e.type = 'VIRTUAL_MACHINE'
-          AND e.state = 'POWERED_ON'
           AND c.type = 'COMPUTE_CLUSTER'
           AND (s.start, s.finish) OVERLAPS ($__timeFrom(), $__timeTo()))
       SELECT max(cluster_name) AS "Cluster name",
@@ -324,7 +322,6 @@ panels:
           JOIN scope s ON (e.oid = s.seed_oid)
           JOIN entity c ON (c.oid = s.scoped_oid)
         WHERE e.type = 'VIRTUAL_MACHINE'
-          AND e.state = 'POWERED_ON'
           AND c.type = 'COMPUTE_CLUSTER'
           AND (s.start, s.finish) OVERLAPS ($__timeFrom(), $__timeTo())),
       vm_peaks AS (
