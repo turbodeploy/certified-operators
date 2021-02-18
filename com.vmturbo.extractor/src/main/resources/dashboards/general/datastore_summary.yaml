@@ -379,7 +379,7 @@ panels:
             FROM
                 metric m
             JOIN scope s ON
-                m.entity_oid = s.seed_oid
+                m.entity_oid = s.scoped_oid
                 AND m.time BETWEEN s.start AND s.finish
             JOIN entity e ON
                 m.entity_oid = e.oid
@@ -390,7 +390,7 @@ panels:
                 -- conditions involving dashboard vars
                 AND m.time BETWEEN timestamptz $__timeFrom() AND $__timeTo()
                 AND ($__timeFrom(),$__timeTo()) OVERLAPS (s.start, s.finish)
-                AND s.scoped_oid = ${Datastore:raw} + 0
+                AND s.seed_oid = ${Datastore:raw} + 0
             GROUP BY m.time, e.oid, e.name, m.type, m.consumed
           )
           SELECT
@@ -482,7 +482,7 @@ panels:
             type: macro
     timeFrom:
     timeShift:
-    title: Wasted Files on Datastore + 0
+    title: Wasted Files on Datastore
     type: table
 refresh: false
 schemaVersion: 25
