@@ -164,7 +164,7 @@ public class SQLComputeTierAllocationStore extends SQLCloudScopedStore implement
                                          int batchInsertSize,
                                          int batchStreamSize) {
 
-        super(dslContext);
+        super(dslContext, batchInsertSize);
 
         this.topologyInfoTracker = Objects.requireNonNull(topologyInfoTracker);
         this.listenerPool = Objects.requireNonNull(listenerPool);
@@ -370,7 +370,8 @@ public class SQLComputeTierAllocationStore extends SQLCloudScopedStore implement
                         allocation.accountOid(),
                         allocation.regionOid(),
                         allocation.availabilityZoneOid(),
-                        allocation.serviceProviderOid()))
+                        allocation.serviceProviderOid(),
+                        recordTimestamp))
                 .collect(ImmutableSet.toImmutableSet());
 
         try {

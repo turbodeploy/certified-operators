@@ -96,6 +96,7 @@ public class EntityUptimeManagerTest {
                 entityUptimeStore,
                 windowDuration,
                 calculationInterval,
-                cacheUptime);
+                cacheUptime,
+                true);
     }
 }

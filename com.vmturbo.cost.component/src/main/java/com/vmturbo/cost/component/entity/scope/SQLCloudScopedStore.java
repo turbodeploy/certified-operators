@@ -1,11 +1,16 @@
 package com.vmturbo.cost.component.entity.scope;
 
 import java.io.IOException;
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.Objects;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
+
+import com.google.common.base.Stopwatch;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Iterables;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -27,9 +32,13 @@ public abstract class SQLCloudScopedStore implements CloudScopedStore {
 
     protected final DSLContext dslContext;
 
+    protected final int batchInsertionSize;
 
-    protected SQLCloudScopedStore(@Nonnull DSLContext dslContext) {
+
+    protected SQLCloudScopedStore(@Nonnull DSLContext dslContext,
+                                  int batchInsertionSize) {
         this.dslContext = Objects.requireNonNull(dslContext);
+        this.batchInsertionSize = batchInsertionSize;
     }
 
 
@@ -37,7 +46,8 @@ public abstract class SQLCloudScopedStore implements CloudScopedStore {
                                                             long accountOid,
                                                             long regionOid,
                                                             Optional<Long> availabilityZoneOid,
-                                                            long serviceProviderOid) {
+                                                            long serviceProviderOid,
+                                                            @Nonnull LocalDateTime recordCreationTime) {
 
         final EntityCloudScopeRecord cloudScopeRecord = new EntityCloudScopeRecord();
 
@@ -46,6 +56,7 @@ public abstract class SQLCloudScopedStore implements CloudScopedStore {
         cloudScopeRecord.setRegionOid(regionOid);
         availabilityZoneOid.ifPresent(cloudScopeRecord::setAvailabilityZoneOid);
         cloudScopeRecord.setServiceProviderOid(serviceProviderOid);
+        cloudScopeRecord.setCreationTime(recordCreationTime);
 
         return cloudScopeRecord;
     }
@@ -53,17 +64,20 @@ public abstract class SQLCloudScopedStore implements CloudScopedStore {
     protected void insertCloudScopeRecords(
             @Nonnull Collection<EntityCloudScopeRecord> cloudScopeRecords) throws IOException {
 
-        logger.info("Storing {} entity cloud scope records", cloudScopeRecords.size());
+        logger.info("Storing {} entity cloud scope records", cloudScopeRecords::size);
 
-        dslContext.loadInto(Tables.ENTITY_CLOUD_SCOPE)
-                .batchAll()
-                .onDuplicateKeyUpdate()
-                .loadRecords(cloudScopeRecords)
-                .fields(Tables.ENTITY_CLOUD_SCOPE.ENTITY_OID,
-                        Tables.ENTITY_CLOUD_SCOPE.ACCOUNT_OID,
-                        Tables.ENTITY_CLOUD_SCOPE.REGION_OID,
-                        Tables.ENTITY_CLOUD_SCOPE.AVAILABILITY_ZONE_OID,
-                        Tables.ENTITY_CLOUD_SCOPE.SERVICE_PROVIDER_OID)
-                .execute();
+        final Stopwatch recordInsertionTimer = Stopwatch.createStarted();
+        Iterables.partition(cloudScopeRecords, batchInsertionSize).forEach(scopeRecordsBatch ->
+            dslContext.batch(scopeRecordsBatch.stream()
+                    .map(record -> dslContext.insertInto(Tables.ENTITY_CLOUD_SCOPE)
+                            .set(record)
+                            .onDuplicateKeyUpdate()
+                            .set(Tables.ENTITY_CLOUD_SCOPE.ACCOUNT_OID, record.getAccountOid())
+                            .set(Tables.ENTITY_CLOUD_SCOPE.REGION_OID, record.getRegionOid())
+                            .set(Tables.ENTITY_CLOUD_SCOPE.AVAILABILITY_ZONE_OID, record.getAvailabilityZoneOid())
+                            .set(Tables.ENTITY_CLOUD_SCOPE.SERVICE_PROVIDER_OID, record.getServiceProviderOid()))
+                    .collect(ImmutableSet.toImmutableSet())).execute());
+
+        logger.info("Stored {} entity cloud scope records in {}", cloudScopeRecords::size, recordInsertionTimer::elapsed);
     }
 }

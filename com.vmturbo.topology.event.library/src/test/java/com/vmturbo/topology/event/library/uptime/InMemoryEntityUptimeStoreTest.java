@@ -30,7 +30,7 @@ public class InMemoryEntityUptimeStoreTest {
 
     @Before
     public void setup() {
-        entityUptimeStore = new InMemoryEntityUptimeStore(cloudScopeStore);
+        entityUptimeStore = new InMemoryEntityUptimeStore(cloudScopeStore, EntityUptime.UNKNOWN_DEFAULT_TO_ALWAYS_ON);
     }
 
     @Test
