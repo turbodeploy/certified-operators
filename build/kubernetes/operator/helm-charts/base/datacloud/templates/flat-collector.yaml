@@ -1,3 +1,4 @@
+{{- if .Values.flat.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -11,6 +12,10 @@ spec:
   replicas: 1
   strategy:
     type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Chart.Name }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
   template:
     metadata:
 {{- if .Values.global }}
@@ -37,32 +42,41 @@ spec:
 {{- end }}
       containers:
       - name: {{ .Chart.Name }}
-        image: {{ template "image" . }}
+        image: {{ template "datacloud.flatImage" . }}
         imagePullPolicy: {{ template "pullPolicy" . }}
+        {{- if eq (include "datacloud.authType" .) "apikey" }}
         envFrom:
         - secretRef:
-            name: {{ .Values.sevone.transport.sevone_auth_secret | quote }}
-            optional: true
+            name: {{ include "datacloud.apikeySecret" . | quote }}
+        {{- end }}
         env:
         - name: TURBO_KAFKA_HOSTS
-          value: "{{ .Values.collector.kafka.host }}:{{ .Values.collector.kafka.port }}"
+          value: "{{ .Values.kafka.host }}:{{ .Values.kafka.port }}"
         - name: TURBO_KAFKA_VERSION
-          value: {{ .Values.collector.kafka.version | quote }}
+          value: {{ .Values.kafka.version | quote }}
         - name: TURBO_KAFKA_TOPOLOGY_TOPIC
-          value: "{{ .Release.Namespace }}.{{ .Values.collector.kafka.topics.topology }}"
+          value: "{{ .Release.Namespace }}.{{ .Values.kafka.topics.topology }}"
         - name: TURBO_ENABLE_ACTION_LOGS
-          value: {{ .Values.collector.api.action.enable | quote }}
+          value: {{ .Values.api.action.enable | quote }}
         - name: TURBONOMIC_ACTION_GRPC_ADDRESS
-          value: "{{ .Values.collector.api.action.host }}:{{ .Values.collector.api.action.port }}"
+          value: "{{ .Values.api.action.host }}:{{ .Values.api.action.port }}"
         - name: TURBONOMIC_GROUP_GRPC_ADDRESS
-          value: "{{ .Values.collector.api.group.host }}:{{ .Values.collector.api.group.port }}"
+          value: "{{ .Values.api.group.host }}:{{ .Values.api.group.port }}"
         - name: TURBONOMIC_CONSUMER_GROUP_ID
-          value: {{ .Values.collector.kafka.client_id | quote }}
-        {{- range $name, $value := .Values.sevone.transport.settings }}
-        - name: "SEVONE_{{ $name }}"
-          value: {{ $value | quote }}
-        {{- end }}
-        {{- range $name, $value := .Values.sevone.env }}
+          value: {{ .Values.kafka.client_id | quote }}
+        - name: SEVONE_DE_HOST
+          value: {{ include "datacloud.host" . | quote }}
+        - name: SEVONE_DE_PROJECT_ID
+          value: {{ include "datacloud.projectID" . | quote }}
+        - name: SEVONE_GRPC_PORT
+          value: 443
+        - name: SEVONE_PERSIST
+          value: none
+        - name: SEVONE_TRANSPORT
+          value: de-grpc
+        - name: SEVONE_LOG_LEVEL
+          value: {{ .Values.log_level | quote }}
+        {{- range $name, $value := include "datacloud.env" . | fromYaml  }}
         - name: {{ $name | quote }}
           value: {{ $value | quote }}
         {{- end }}
@@ -70,9 +84,9 @@ spec:
         - name: SEVONE_GRPC_CERT
           value: "/usr/share/pki/sevone/tls.crt"
 {{- end }}
-{{- if .Values.sevone.service_account_credentials_secret }}
+{{- if eq (include "datacloud.authType" .) "service_account" }}
         - name: COLLECTOR_SERVICE_ACCOUNT_CREDENTIALS_FILE
-          value: "/credentials.json"
+          value: /credentials.json
 {{- end }}
         ports:
           - containerPort: 2112
@@ -104,10 +118,10 @@ spec:
             - name: sevone-tls
               mountPath: /usr/share/pki/sevone
             {{- end }}
-            {{- if .Values.sevone.service_account_credentials_secret }}
+            {{- if eq (include "datacloud.authType" .) "service_account" }}
             - name: service-account-credentials
               mountPath: /credentials.json
-              subPath: credentials.json
+              subPath: {{ include "datacloud.saSecretKey" $ }}
             {{- end }}
 {{- if .Values.global }}
   {{- if .Values.global.registry }}
@@ -151,12 +165,9 @@ spec:
           - key: {{ .Values.sevone.tls_cert_secret_key }}
             path: tls.crt
 {{- end }}
-{{- if .Values.sevone.service_account_credentials_secret }}
+{{- if eq (include "datacloud.authType" .) "service_account" }}
       - name: service-account-credentials
         secret:
-          secretName: {{ .Values.sevone.service_account_credentials_secret }}
+          secretName: {{ include "datacloud.saSecret" . | quote }}
 {{- end }}
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: {{ .Chart.Name }}
-      app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}
