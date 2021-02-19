@@ -3,7 +3,8 @@ package com.vmturbo.extractor.action;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Clock;
-import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -27,11 +28,9 @@ import com.vmturbo.extractor.models.ActionModel.PendingAction;
 import com.vmturbo.extractor.models.DslReplaceRecordSink;
 import com.vmturbo.extractor.models.Table.Record;
 import com.vmturbo.extractor.models.Table.TableWriter;
-import com.vmturbo.extractor.topology.SupplyChainEntity;
 import com.vmturbo.extractor.topology.WriterConfig;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
-import com.vmturbo.topology.graph.TopologyGraph;
 
 /**
  * Write action data related to reporting.
@@ -39,7 +38,7 @@ import com.vmturbo.topology.graph.TopologyGraph;
 class ReportPendingActionWriter implements IActionWriter {
     private static final Logger logger = LogManager.getLogger();
 
-    private final Map<Long, Record> pendingActionRecords = new HashMap<>();
+    private final List<ActionSpec> pendingActions = new ArrayList<>();
 
     /**
      * System clock.
@@ -75,8 +74,6 @@ class ReportPendingActionWriter implements IActionWriter {
 
     private final TypeInfoCase actionPlanType;
 
-    private final TopologyGraph<SupplyChainEntity> topologyGraph;
-
     private final Map<TypeInfoCase, Long> lastActionWrite;
 
     ReportPendingActionWriter(@Nonnull final Clock clock,
@@ -84,7 +81,6 @@ class ReportPendingActionWriter implements IActionWriter {
             @Nonnull final DbEndpoint dbEndpoint,
             @Nonnull final WriterConfig writerConfig,
             @Nonnull final ActionConverter actionConverter,
-            @Nonnull final TopologyGraph<SupplyChainEntity> topologyGraph,
             final long actionWritingIntervalMillis,
             @Nonnull final TypeInfoCase actionPlanType,
             @Nonnull final Map<TypeInfoCase, Long> lastActionWrite) {
@@ -96,25 +92,23 @@ class ReportPendingActionWriter implements IActionWriter {
         this.actionWritingIntervalMillis = actionWritingIntervalMillis;
         this.actionPlanType = actionPlanType;
         this.lastActionWrite = lastActionWrite;
-        this.topologyGraph = topologyGraph;
     }
 
     @Override
     public void recordAction(ActionOrchestratorAction aoAction) {
-        final ActionSpec actionSpec = aoAction.getActionSpec();
-        Record actionSpecRecord = actionConverter.makePendingActionRecord(actionSpec, topologyGraph);
-        if (actionSpecRecord != null) {
-            // Actions that are not in READY state don't go into the pending actions table.
-            if (aoAction.getActionSpec().getActionState() == ActionState.READY) {
-                pendingActionRecords.put(aoAction.getActionId(), actionSpecRecord);
-            }
+        // Actions that are not in READY state don't go into the pending actions table.
+        if (aoAction.getActionSpec().getActionState() == ActionState.READY) {
+            pendingActions.add(aoAction.getActionSpec());
         }
     }
 
     @Override
     public void write(MultiStageTimer timer)
             throws UnsupportedDialectException, InterruptedException, SQLException {
-        logger.debug("Retrieved and mapped {} action records", pendingActionRecords.size());
+        timer.start("Convert actions to records");
+        final List<Record> records = actionConverter.makePendingActionRecords(pendingActions);
+        logger.debug("Retrieved {} action specs, mapped to {} action records.",
+                pendingActions.size(), records.size());
         // Done fetching, time to start retching.
         timer.start("Write action data for reporting");
         final long millis = clock.millis();
@@ -123,20 +117,20 @@ class ReportPendingActionWriter implements IActionWriter {
              TableWriter actionSpecReplacer = ActionModel.PendingAction.TABLE.open(
                      getPendingActionReplacerSink(dsl),
                      "Action Spec Replacer", logger)) {
-            pendingActionRecords.forEach((specId, record) -> {
+            records.forEach(record -> {
                 try (Record r = actionSpecReplacer.open(record)) {
                     // Nothing to change in the record.
                 }
             });
 
-            logger.debug("Finished writing {} action records", pendingActionRecords.size());
+            logger.debug("Finished writing {} action records", records.size());
         }
         timer.stop();
 
         // update state
         lastActionWrite.put(actionPlanType, millis);
         logger.info("Successfully wrote {} actions. Next update in {} minutes",
-                pendingActionRecords.size(),
+                records.size(),
                 TimeUnit.MILLISECONDS.toMinutes(millis + actionWritingIntervalMillis - clock.millis()));
     }
 

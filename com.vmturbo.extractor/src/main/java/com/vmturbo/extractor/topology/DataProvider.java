@@ -53,6 +53,7 @@ public class DataProvider {
     private final Long2ObjectMap<Int2DoubleMap> entityToCommodityUsed = new Long2ObjectArrayMap<>();
     private final Long2ObjectMap<Int2DoubleMap> entityToCommodityCapacity = new Long2ObjectArrayMap<>();
 
+
     // data cached until next cycle
     private volatile GroupData groupData;
     private volatile SupplyChain supplyChain;

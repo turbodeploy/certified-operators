@@ -17,6 +17,8 @@ public class CommodityChange {
     // target is set for nested actions inside atomic resize, since it's different from main target
     private ActionEntity target;
 
+    private CommodityPercentileChange percentileChange;
+
     public Float getFrom() {
         return from;
     }
@@ -55,5 +57,13 @@ public class CommodityChange {
 
     public void setTarget(ActionEntity target) {
         this.target = target;
+    }
+
+    public CommodityPercentileChange getPercentileChange() {
+        return percentileChange;
+    }
+
+    public void setPercentileChange(CommodityPercentileChange percentileChange) {
+        this.percentileChange = percentileChange;
     }
 }
