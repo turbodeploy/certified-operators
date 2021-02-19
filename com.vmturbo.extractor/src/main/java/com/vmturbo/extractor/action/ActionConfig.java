@@ -1,5 +1,6 @@
 package com.vmturbo.extractor.action;
 
+import java.time.Clock;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
@@ -27,7 +28,6 @@ import com.vmturbo.extractor.ExtractorDbConfig;
 import com.vmturbo.extractor.ExtractorGlobalConfig;
 import com.vmturbo.extractor.topology.TopologyListenerConfig;
 import com.vmturbo.group.api.GroupClientConfig;
-import com.vmturbo.history.component.api.impl.HistoryClientConfig;
 
 /**
  * Configuration for action ingestion for reporting.
@@ -39,7 +39,6 @@ import com.vmturbo.history.component.api.impl.HistoryClientConfig;
         ExtractorDbConfig.class,
         TopologyListenerConfig.class,
         ExtractorGlobalConfig.class,
-        HistoryClientConfig.class,
 })
 public class ActionConfig {
 
@@ -78,20 +77,13 @@ public class ActionConfig {
     private long actionExtractionIntervalMins;
 
     /**
-     * The extractor will cache policy information for this long after retrieving it from the group
-     * component to populate action descriptions.
-     */
-    @Value("${cachedPolicyUpdateIntervalMins:10}")
-    private long cachedPolicyUpdateIntervalMins;
-
-    /**
      * See {@link ActionAttributeExtractor}.
      *
      * @return The {@link ActionAttributeExtractor}.
      */
     @Bean
     public ActionAttributeExtractor actionAttributeExtractor() {
-        return new ActionAttributeExtractor(topologyListenerConfig.percentileActionDecorator());
+        return new ActionAttributeExtractor();
     }
 
     /**
@@ -104,21 +96,7 @@ public class ActionConfig {
         ObjectMapper objectMapper = new ObjectMapper();
         // serialize all fields even through no getter defined or private
         objectMapper.setVisibility(PropertyAccessor.FIELD, Visibility.ANY);
-        return new ActionConverter(actionAttributeExtractor(), cachingPolicyFetcher(),
-                topologyListenerConfig.dataProvider(),
-                topologyListenerConfig.dataExtractionFactory(),
-                objectMapper);
-    }
-
-    /**
-     * Fetches policy, caching them to avoid fetching multiple times.
-     *
-     * @return The {@link CachingPolicyFetcher}.
-     */
-    @Bean
-    public CachingPolicyFetcher cachingPolicyFetcher() {
-        return new CachingPolicyFetcher(policyService(), globalConfig.clock(),
-                cachedPolicyUpdateIntervalMins, TimeUnit.MINUTES);
+        return new ActionConverter(actionAttributeExtractor(), objectMapper);
     }
 
     /**
@@ -181,7 +159,9 @@ public class ActionConfig {
                 extractorDbConfig.ingesterEndpoint(), completedActionExecutor(),
                 topologyListenerConfig.writerConfig(), topologyListenerConfig.pool(),
                 actionConverter(), topologyListenerConfig.dataProvider(), globalConfig.featureFlags(),
-                topologyListenerConfig.extractorKafkaSender(), globalConfig.clock());
+                topologyListenerConfig.extractorKafkaSender(),
+                topologyListenerConfig.dataExtractionFactory(),
+                actionWriterFactory(), clock());
         actionClientConfig.actionOrchestratorClient().addListener(completedActionWriter);
         return completedActionWriter;
     }
@@ -207,7 +187,7 @@ public class ActionConfig {
     @Bean
     public ActionWriterFactory actionWriterFactory() {
         return new ActionWriterFactory(
-                globalConfig.clock(),
+                clock(),
                 actionConverter(),
                 extractorDbConfig.ingesterEndpoint(),
                 TimeUnit.MINUTES.toMillis(actionMetricsWritingIntervalMins),
@@ -215,6 +195,19 @@ public class ActionConfig {
                 topologyListenerConfig.pool(),
                 topologyListenerConfig.dataProvider(),
                 topologyListenerConfig.extractorKafkaSender(),
-                TimeUnit.MINUTES.toMillis(actionExtractionIntervalMins));
+                topologyListenerConfig.dataExtractionFactory(),
+                TimeUnit.MINUTES.toMillis(actionExtractionIntervalMins),
+                policyService()
+        );
+    }
+
+    /**
+     * An instance of {@link Clock}.
+     *
+     * @return {@link Clock}
+     */
+    @Bean
+    public Clock clock() {
+        return Clock.systemUTC();
     }
 }

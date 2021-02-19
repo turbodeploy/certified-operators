@@ -4,13 +4,10 @@ import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_CAPACITY;
 import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_CONSUMED;
 import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_CURRENT;
 import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_KEY;
-import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_PEAK_CONSUMED;
-import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_PEAK_CURRENT;
 import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_PROVIDER;
 import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_TYPE;
 import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_UTILIZATION;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_OID;
-import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_TYPE_ENUM;
 import static com.vmturbo.extractor.models.ModelDefinitions.TIME;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -36,7 +33,6 @@ import org.jooq.EnumType;
 import com.vmturbo.extractor.models.Column;
 import com.vmturbo.extractor.models.Table;
 import com.vmturbo.extractor.models.Table.Record;
-import com.vmturbo.extractor.schema.enums.EntityType;
 import com.vmturbo.extractor.schema.enums.MetricType;
 
 /**
@@ -106,16 +102,12 @@ public class RecordTestUtil {
      * @param utilization  current utilization value (sold commodity metric)
      * @param consumed     current consumed value (bought commodity metric)
      * @param provider     providing entity (bought commodity metric)
-     * @param peakCurrent  peak of current used value (sold commodity metric)
-     * @param peakConsumed peak of current consumed value (bought commodity metric)
-     * @param entityType   type of the entity the oid is referring to
      * @return a map representing the record data
      */
-    public static Map<String, Object> createMetricRecordMap(final OffsetDateTime time,
-            final long oid, final MetricType type, final String commodityKey, final Double current,
-            final Double capacity, final Double utilization, final Double consumed,
-            final Long provider, final Double peakCurrent, final Double peakConsumed,
-            final EntityType entityType) {
+    public static Map<String, Object> createMetricRecordMap(
+            final OffsetDateTime time, final long oid, final MetricType type,
+            final String commodityKey, final Double current, final Double capacity, final Double utilization,
+            final Double consumed, final Long provider) {
         return ImmutableList.<Pair<String, Object>>of(
                 Pair.of(TIME.getName(), time),
                 Pair.of(ENTITY_OID.getName(), oid),
@@ -125,10 +117,7 @@ public class RecordTestUtil {
                 Pair.of(COMMODITY_CAPACITY.getName(), capacity),
                 Pair.of(COMMODITY_UTILIZATION.getName(), utilization),
                 Pair.of(COMMODITY_CONSUMED.getName(), consumed),
-                Pair.of(COMMODITY_PROVIDER.getName(), provider),
-                Pair.of(COMMODITY_PEAK_CURRENT.getName(), peakCurrent),
-                Pair.of(COMMODITY_PEAK_CONSUMED.getName(), peakConsumed),
-                Pair.of(ENTITY_TYPE_ENUM.getName(), entityType))
+                Pair.of(COMMODITY_PROVIDER.getName(), provider))
                 .stream()
                 .filter(pair -> pair.getRight() != null)
                 .collect(Collectors.toMap(Pair::getLeft, Pair::getRight));

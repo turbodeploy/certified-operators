@@ -7,7 +7,7 @@ import static com.vmturbo.common.protobuf.utils.StringConstants.STORAGE_HEADROOM
 import static com.vmturbo.common.protobuf.utils.StringConstants.TOTAL_HEADROOM;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_OID_AS_OID;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_TABLE;
-import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_TYPE_AS_TYPE_ENUM;
+import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_TYPE_ENUM;
 import static com.vmturbo.extractor.models.ModelDefinitions.FILE_PATH;
 import static com.vmturbo.extractor.models.ModelDefinitions.FILE_SIZE;
 import static com.vmturbo.extractor.models.ModelDefinitions.METRIC_TABLE;
@@ -113,7 +113,7 @@ public class EntityMetricWriter extends TopologyWriterBase {
     // configurations for upsert and update operations for entity table
     private static final ImmutableList<Column<?>> upsertConflicts = ImmutableList.of(ENTITY_OID_AS_OID);
     private static final ImmutableList<Column<?>> upsertUpdates = ImmutableList.of(
-            ModelDefinitions.ENTITY_NAME, ModelDefinitions.ENTITY_TYPE_AS_TYPE_ENUM, ModelDefinitions.ENVIRONMENT_TYPE_ENUM,
+            ModelDefinitions.ENTITY_NAME, ModelDefinitions.ENTITY_TYPE_ENUM, ModelDefinitions.ENVIRONMENT_TYPE_ENUM,
             ModelDefinitions.ATTRS, ModelDefinitions.LAST_SEEN);
 
     private final List<Record> entityRecords = new ArrayList<>();
@@ -162,15 +162,14 @@ public class EntityMetricWriter extends TopologyWriterBase {
 
     @Override
     protected void writeEntity(final TopologyEntityDTO e) {
-        final EntityType entityType = EntityTypeUtils.protoIntToDb(e.getEntityType(), null);
-        if (entityType == null) {
+        if (EntityTypeUtils.protoIntToDb(e.getEntityType(), null) == null) {
             logger.error("Cannot map entity type {} for db storage for entity oid {}; skipping",
                     e.getEntityType(), e.getOid());
             return;
         }
         final long oid = e.getOid();
         logger.debug("Capturing entity data for entity {}", oid);
-        oidPack.toIndex(oid);
+        final int iid = oidPack.toIndex(oid);
         Record entityRecord = new Record(ENTITY_TABLE);
         final HashMap<String, Object> attrs = new HashMap<>();
         PartialRecordInfo rec = new PartialRecordInfo(e.getOid(), e.getEntityType(), entityRecord, attrs);
@@ -179,7 +178,7 @@ public class EntityMetricWriter extends TopologyWriterBase {
         rec.finalizeAttrs();
         // supply chain will be added during finish processing
         entityRecords.add(entityRecord);
-        writeMetrics(e, oid, entityType);
+        writeMetrics(e, oid, iid);
         // cache wasted file records, since storage name can only be fetched later
         createWastedFileRecords(e);
     }
@@ -194,9 +193,9 @@ public class EntityMetricWriter extends TopologyWriterBase {
      *
      * @param e   entity
      * @param oid entity oid
-     * @param entityType type of the entity in db enum format
+     * @param iid entity iid (for same entity - we use both)
      */
-    private void writeMetrics(final TopologyEntityDTO e, final long oid, final EntityType entityType) {
+    private void writeMetrics(final TopologyEntityDTO e, final long oid, final int iid) {
         logger.debug("Capturing metric data for entity {}", oid);
         // write bought commodity records
         e.getCommoditiesBoughtFromProvidersList().forEach(cbfp -> {
@@ -212,9 +211,9 @@ public class EntityMetricWriter extends TopologyWriterBase {
                 if (CommodityType.forNumber(typeNo) == null) {
                     logger.error("Skipping invalid bought commodity type {} for entity {}", typeNo, oid);
                 } else if (isAggregateByKeys(typeNo, producerType)) {
-                    recordAggregatedBoughtCommodity(oid, entityType, typeNo, cbs, producer);
+                    recordAggregatedBoughtCommodity(oid, typeNo, cbs, producer);
                 } else {
-                    recordUnaggregatedBoughtCommodity(oid, entityType, typeNo, cbs, producer);
+                    recordUnaggregatedBoughtCommodity(oid, typeNo, cbs, producer);
                 }
             });
         });
@@ -227,9 +226,9 @@ public class EntityMetricWriter extends TopologyWriterBase {
             if (CommodityType.forNumber(typeNo) == null) {
                 logger.error("Skipping invalid sold commodity type {} for entity {}", typeNo, oid);
             } else if (isAggregateByKeys(typeNo, e.getEntityType())) {
-                recordAggregatedSoldCommodity(oid, entityType, type, css);
+                recordAggregatedSoldCommodity(oid, type, css);
             } else {
-                recordUnaggregatedSoldCommodity(oid, entityType, type, css);
+                recordUnaggregatedSoldCommodity(oid, type, css);
             }
         });
     }
@@ -256,20 +255,19 @@ public class EntityMetricWriter extends TopologyWriterBase {
      * same commodity type and bought from the same producer, with different commodity keys.
      *
      * <p>We aggregate the used metric across all the bought commodity structures.</p>
+     *
      * @param oid               consuming entity oid
-     * @param entityType        type of the consuming entity
      * @param typeNo            commodity type
      * @param boughtCommodities bought commodity structures
      * @param producer          oid of producer entity
      */
-    private void recordAggregatedBoughtCommodity(final long oid, final EntityType entityType,
-            final Integer typeNo, final List<CommodityBoughtDTO> boughtCommodities, final long producer) {
+    private void recordAggregatedBoughtCommodity(final long oid, final Integer typeNo,
+            final List<CommodityBoughtDTO> boughtCommodities, final long producer) {
         // sum across commodity keys in case same commodity type appears with multiple keys
         // and same provider
         final String type = CommodityType.forNumber(typeNo).name();
         final Double sumUsed = reduceCommodityCollection(boughtCommodities, CommodityBoughtDTO::hasUsed, CommodityBoughtDTO::getUsed, Double::sum);
-        final Double sumUsedPeak = reduceCommodityCollection(boughtCommodities, CommodityBoughtDTO::hasPeak, CommodityBoughtDTO::getPeak, Double::sum);
-        metricRecords.add(getBoughtCommodityRecord(oid, entityType, type, null, sumUsed, sumUsedPeak, producer));
+        metricRecords.add(getBoughtCommodityRecord(oid, type, null, sumUsed, producer));
     }
 
     /**
@@ -278,22 +276,19 @@ public class EntityMetricWriter extends TopologyWriterBase {
      * keys.
      *
      * @param oid               consuming entity oid
-     * @param entityType        type of the consuming entity
      * @param typeNo            commodity type
      * @param boughtCommodities bought commodity structures
      * @param producer          oid of producer entity
      */
-    private void recordUnaggregatedBoughtCommodity(final long oid, final EntityType entityType,
-            final Integer typeNo, final List<CommodityBoughtDTO> boughtCommodities, final long producer) {
+    private void recordUnaggregatedBoughtCommodity(final long oid, final Integer typeNo,
+            final List<CommodityBoughtDTO> boughtCommodities, final long producer) {
         // record individual records for this bought commodity
         final String type = CommodityType.forNumber(typeNo).name();
         boughtCommodities.stream()
                 .map(cb -> getBoughtCommodityRecord(oid,
-                        entityType,
                         type,
                         cb.getCommodityType().getKey(),
                         cb.hasUsed() ? cb.getUsed() : null,
-                        cb.hasPeak() ? cb.getPeak() : null,
                         producer))
                 .forEach(metricRecords::add);
     }
@@ -302,18 +297,14 @@ public class EntityMetricWriter extends TopologyWriterBase {
      * Create a new metric record for a bought commodity.
      *
      * @param oid      consuming entity oid
-     * @param entityType type of the consuming entity
      * @param type     commodity type
      * @param key      commodity key
      * @param used     used metric
-     * @param usedPeak peak of used metric
      * @param producer producer oid
      * @return new metric record
      */
-    private Record getBoughtCommodityRecord(final long oid, final EntityType entityType,
-                                            final String type, String key,
-                                            @Nullable final Double used,
-                                            @Nullable final Double usedPeak, final long producer) {
+    private Record getBoughtCommodityRecord(final long oid, final String type, String key,
+                                            @Nullable final Double used, final long producer) {
         Record r = new Record(ModelDefinitions.METRIC_TABLE);
         r.set(ModelDefinitions.ENTITY_OID, oid);
         if (QX_VCPU_PATTERN.matcher(type).matches()) {
@@ -325,17 +316,14 @@ public class EntityMetricWriter extends TopologyWriterBase {
             r.set(ModelDefinitions.COMMODITY_KEY, key);
             r.set(ModelDefinitions.COMMODITY_CAPACITY, QX_VCPU_BASE_COEFFICIENT);
             r.set(ModelDefinitions.COMMODITY_CURRENT, used);
-            r.set(ModelDefinitions.COMMODITY_PEAK_CURRENT, usedPeak);
             r.set(ModelDefinitions.COMMODITY_UTILIZATION,
                   used == null ? null : used / QX_VCPU_BASE_COEFFICIENT);
         } else {
             r.set(ModelDefinitions.COMMODITY_TYPE, MetricType.valueOf(type));
             r.set(ModelDefinitions.COMMODITY_KEY, key);
             r.set(ModelDefinitions.COMMODITY_CONSUMED, used);
-            r.set(ModelDefinitions.COMMODITY_PEAK_CONSUMED, usedPeak);
             r.set(ModelDefinitions.COMMODITY_PROVIDER, producer);
         }
-        r.set(ModelDefinitions.ENTITY_TYPE_ENUM, entityType);
         return r;
     }
 
@@ -344,18 +332,17 @@ public class EntityMetricWriter extends TopologyWriterBase {
      * commodity type, with different commodity keys.
      *
      * <p>We aggregate the used and capacity metrics across all the sold commodity structures.</p>
-     * @param oid            selling entity oid
-     * @param entityType      type of the selling entity
+     *
+     * @param oid             selling entity oid
      * @param type            commodity type
      * @param soldCommodities sold commodity structures
      */
-    private void recordAggregatedSoldCommodity(final long oid, EntityType entityType, final MetricType type,
+    private void recordAggregatedSoldCommodity(final long oid, final MetricType type,
             final List<CommoditySoldDTO> soldCommodities) {
         // sum across commodity keys in case same commodity type appears with multiple keys
         final Double sumUsed = reduceCommodityCollection(soldCommodities, CommoditySoldDTO::hasUsed, CommoditySoldDTO::getUsed, Double::sum);
-        final Double sumUsedPeak = reduceCommodityCollection(soldCommodities, CommoditySoldDTO::hasPeak, CommoditySoldDTO::getPeak, Double::sum);
         final Double sumCap = reduceCommodityCollection(soldCommodities, CommoditySoldDTO::hasCapacity, CommoditySoldDTO::getCapacity, Double::sum);
-        metricRecords.add(getSoldCommodityRecord(oid, entityType, type.name(), null, sumUsed, sumUsedPeak, sumCap));
+        metricRecords.add(getSoldCommodityRecord(oid, type.name(), null, sumUsed, sumCap));
     }
 
     /**
@@ -383,21 +370,19 @@ public class EntityMetricWriter extends TopologyWriterBase {
     /**
      * Record a metric record for each of the given sold commodity structures, all of which are for
      * the same commodity type, with different commodity keys.
-     *  @param oid            selling entity oid
-     * @param entityType      type of the selling entity
+     *
+     * @param oid             selling entity oid
      * @param type            commodity type
      * @param soldCommodities sold commodity structures
      */
-    private void recordUnaggregatedSoldCommodity(final long oid, EntityType entityType, final MetricType type,
+    private void recordUnaggregatedSoldCommodity(final long oid, final MetricType type,
             final List<CommoditySoldDTO> soldCommodities) {
         // sum across commodity keys in case same commodity type appears with multiple keys
         soldCommodities.stream()
                 .map(cs -> getSoldCommodityRecord(oid,
-                        entityType,
                         type.name(),
                         cs.getCommodityType().getKey(),
                         cs.hasUsed() ? cs.getUsed() : null,
-                        cs.hasPeak() ? cs.getPeak() : null,
                         cs.hasCapacity() ? cs.getCapacity() : null))
                 .forEach(metricRecords::add);
     }
@@ -406,25 +391,20 @@ public class EntityMetricWriter extends TopologyWriterBase {
      * Create a new metric record for a sold commodity.
      *
      * @param oid      selling entity oid
-     * @param entityType type of the selling entity
      * @param type     commodity type
      * @param key      commodity key
      * @param used     used metric value
-     * @param usedPeak peak of used metric value
      * @param capacity capacity metric value
      * @return new record
      */
-    private Record getSoldCommodityRecord(final long oid, @Nonnull final EntityType entityType,
-            final String type, String key, @Nullable final Double used,
-            @Nullable final Double usedPeak, final Double capacity) {
+    private Record getSoldCommodityRecord(final long oid, final String type, String key,
+            final Double used, final Double capacity) {
         Record r = new Record(ModelDefinitions.METRIC_TABLE);
         r.set(ModelDefinitions.ENTITY_OID, oid);
-        r.set(ModelDefinitions.ENTITY_TYPE_ENUM, entityType);
         r.set(ModelDefinitions.COMMODITY_TYPE, MetricType.valueOf(type));
         r.set(ModelDefinitions.COMMODITY_KEY, key);
         r.set(ModelDefinitions.COMMODITY_CAPACITY, capacity);
         r.set(ModelDefinitions.COMMODITY_CURRENT, used);
-        r.set(ModelDefinitions.COMMODITY_PEAK_CURRENT, usedPeak);
         if (capacity != null && used != null) {
             r.set(ModelDefinitions.COMMODITY_UTILIZATION, capacity == 0 ? 0 : used / capacity);
         }
@@ -506,7 +486,7 @@ public class EntityMetricWriter extends TopologyWriterBase {
         Int2IntMap entityTypes = new Int2IntOpenHashMap();
         entityRecords.forEach(r ->
                 entityTypes.put(oidPack.toIndex(r.get(ENTITY_OID_AS_OID)),
-                        r.get(ENTITY_TYPE_AS_TYPE_ENUM).ordinal()));
+                        r.get(ENTITY_TYPE_ENUM).ordinal()));
         dataProvider.getAllGroups().forEach(g -> {
             EntityType type = GroupTypeUtils.protoToDb(g.getDefinition().getType());
             entityTypes.put(oidPack.toIndex(g.getId()), type.ordinal());

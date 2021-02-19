@@ -5,7 +5,7 @@ import static com.vmturbo.extractor.models.Constants.MAX_TIMESTAMP;
 import static com.vmturbo.extractor.models.ModelDefinitions.ATTRS;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_NAME;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_OID_AS_OID;
-import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_TYPE_AS_TYPE_ENUM;
+import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_TYPE_ENUM;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENVIRONMENT_TYPE_ENUM;
 import static com.vmturbo.extractor.models.ModelDefinitions.FIRST_SEEN;
 import static com.vmturbo.extractor.models.ModelDefinitions.LAST_SEEN;
@@ -88,7 +88,7 @@ public class EntityHashManager {
 
     /** Columns that are used to compute entity hash. */
     private static final Set<Column<?>> HASHED_ENTITY_COLUMNS = ImmutableSet.of(
-            ENTITY_NAME, ENTITY_TYPE_AS_TYPE_ENUM, ENVIRONMENT_TYPE_ENUM, ATTRS
+            ENTITY_NAME, ENTITY_TYPE_ENUM, ENVIRONMENT_TYPE_ENUM, ATTRS
     );
     private DSLContext dsl;
 

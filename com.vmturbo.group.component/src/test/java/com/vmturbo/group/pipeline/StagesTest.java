@@ -7,7 +7,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -26,7 +25,6 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
-import org.springframework.jdbc.BadSqlGrammarException;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.common.CloudTypeEnum.CloudType;
@@ -254,73 +252,5 @@ public class StagesTest {
         return PartialEntity.newBuilder()
                 .setWithOnlyEnvironmentTypeAndTargets(entity)
                 .build();
-    }
-
-    /**
-     * Tests that {@link StoreSupplementaryGroupInfoStage} does not stop if an exception occurs
-     * during evaluation of a group's members.
-     *
-     * @throws StoreOperationException to satisfy compiler
-     */
-    @Test
-    public void testStoreSupplementaryGroupInfoStageExecutionContinuesAfterSingleGroupFailure()
-            throws StoreOperationException {
-        final SearchServiceBlockingStub searchServiceRpc =
-                SearchServiceGrpc.newBlockingStub(testServer.getChannel());
-        final StoreSupplementaryGroupInfoStage stage =
-                new StoreSupplementaryGroupInfoStage(memberCache, searchServiceRpc,
-                        groupEnvironmentTypeResolver, groupSeverityCalculator, groupStoreMock);
-        // GIVEN
-        final long groupUuid1 = 1;
-        final long groupUuid2 = 2;
-        final long entityUuid1 = 10;
-        final long entityUuid2 = 20;
-        final Set<Long> group2entities = new HashSet<>();
-        group2entities.add(entityUuid2);
-        final LongOpenHashSet input = new LongOpenHashSet();
-        input.add(groupUuid1);
-        input.add(groupUuid2);
-        final EntityWithOnlyEnvironmentTypeAndTargets entityWithEnv1 =
-                createEntityWithOnlyEnvironmentTypeAndTargets(entityUuid1);
-        final EntityWithOnlyEnvironmentTypeAndTargets entityWithEnv2 =
-                createEntityWithOnlyEnvironmentTypeAndTargets(entityUuid2);
-        final Set<EntityWithOnlyEnvironmentTypeAndTargets> group2entitiesWithEnvType =
-                new HashSet<>();
-        group2entitiesWithEnvType.add(entityWithEnv2);
-        final List<PartialEntity> partialEntities = new ArrayList<>();
-        partialEntities.add(createPartialEntityWithOnlyEnvironmentTypeAndTargets(entityWithEnv1));
-        partialEntities.add(createPartialEntityWithOnlyEnvironmentTypeAndTargets(entityWithEnv2));
-        final PartialEntityBatch repositoryResult = PartialEntityBatch.newBuilder()
-                .addAllEntities(partialEntities)
-                .build();
-        final List<PartialEntityBatch> repositoryResults = new ArrayList<>();
-        repositoryResults.add(repositoryResult);
-        when(searchServiceMole.searchEntitiesStream(SearchEntitiesRequest.newBuilder()
-                .setSearch(SearchQuery.getDefaultInstance())
-                .setReturnType(Type.WITH_ONLY_ENVIRONMENT_TYPE_AND_TARGETS)
-                .build())).thenReturn(repositoryResults);
-        when(memberCache.getGroupMembers(groupStoreMock, Collections.singleton(groupUuid1), true))
-                .thenThrow(new BadSqlGrammarException(null, "SqlQuery", new SQLException()));
-        when(groupEnvironmentTypeResolver.getEnvironmentAndCloudTypeForGroup(eq(groupUuid2),
-                eq(group2entitiesWithEnvType),
-                eq(ArrayListMultimap.create()))).thenReturn(
-                new GroupEnvironment(EnvironmentType.HYBRID, CloudType.AWS));
-        when(groupSeverityCalculator.calculateSeverity(group2entities)).thenReturn(Severity.CRITICAL);
-        when(memberCache.getGroupMembers(groupStoreMock, Collections.singleton(groupUuid2), true))
-                .thenReturn(group2entities);
-        // WHEN
-        Status status = stage.passthrough(input);
-
-        // THEN
-        ArgumentCaptor<Collection> captor = ArgumentCaptor.forClass(Collection.class);
-        // verify that even though we have multiple groups, there is only one (bulk) update
-        verify(groupStoreMock, times(1))
-                .updateBulkGroupSupplementaryInfo(captor.capture());
-        Assert.assertEquals(Status.success().getType(), status.getType());
-        // Validate the arguments passed to updateBulkGroupSupplementaryInfo: since we failed to
-        // resolve members for group 1, only group 2 should be queued for update.
-        Assert.assertEquals(1, captor.getValue().size());
-        Iterator<GroupSupplementaryInfo> it = captor.getValue().iterator();
-        Assert.assertEquals(groupUuid2, it.next().getGroupId().longValue());
     }
 }

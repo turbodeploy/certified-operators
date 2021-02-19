@@ -2,15 +2,12 @@ package com.vmturbo.extractor.action;
 
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-
-import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
-import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
@@ -24,14 +21,13 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.commons.Units;
 import com.vmturbo.components.common.ClassicEnumMapper;
-import com.vmturbo.extractor.action.percentile.ActionPercentileData;
-import com.vmturbo.extractor.action.percentile.ActionPercentileDataRetriever;
 import com.vmturbo.extractor.export.ExportUtils;
-import com.vmturbo.extractor.schema.json.common.ActionAttributes;
 import com.vmturbo.extractor.schema.json.common.ActionEntity;
 import com.vmturbo.extractor.schema.json.common.CommodityChange;
 import com.vmturbo.extractor.schema.json.common.DeleteInfo;
 import com.vmturbo.extractor.schema.json.common.MoveChange;
+import com.vmturbo.extractor.schema.json.export.Action;
+import com.vmturbo.extractor.schema.json.reporting.ActionAttributes;
 import com.vmturbo.extractor.topology.SupplyChainEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 
@@ -41,82 +37,38 @@ import com.vmturbo.topology.graph.TopologyGraph;
  */
 public class ActionAttributeExtractor {
 
-    private final ActionPercentileDataRetriever actionPercentileDataRetriever;
-
-    ActionAttributeExtractor(@Nonnull final ActionPercentileDataRetriever actionPercentileDataRetriever) {
-        this.actionPercentileDataRetriever = actionPercentileDataRetriever;
-    }
-
     /**
-     * Extract {@link ActionAttributes} from a collection of {@link ActionSpec}s.
+     * Extract the {@link ActionAttributes} from an action.
      *
-     * @param actionSpecs The {@link ActionSpec}s, arranged by id.
+     * @param actionSpec The {@link ActionSpec}.
      * @param topologyGraph The {@link TopologyGraph} to use to obtain entity information about
      *                      entities involved in the action.
-     * @return The {@link ActionAttributes}, arranged by id (as in the actionSpecs input).
-     *         Any actions that fail to be mapped will be absent from this map.
+     * @return The {@link ActionAttributes}.
      */
     @Nonnull
-    public Long2ObjectMap<ActionAttributes> extractAttributes(
-            @Nonnull final List<ActionSpec> actionSpecs,
+    public ActionAttributes extractAttributes(@Nonnull final ActionSpec actionSpec,
             @Nullable final TopologyGraph<SupplyChainEntity> topologyGraph) {
-        final Long2ObjectMap<ActionAttributes> attrs = new Long2ObjectOpenHashMap<>(actionSpecs.size());
-        actionSpecs.forEach(e -> attrs.put(e.getRecommendation().getId(), new ActionAttributes()));
-        populateAttributes(actionSpecs, topologyGraph, attrs);
-        return attrs;
+        ActionAttributes actionAttributes = new ActionAttributes();
+        populateAttributes(actionSpec, topologyGraph, actionAttributes::setMoveInfo,
+                actionAttributes::setResizeInfo, actionAttributes::setDeleteInfo);
+        return actionAttributes;
     }
 
     /**
-     * Populate the {@link ActionAttributes} in an action.
+     * Extract action attributes from an action, and populate them in the {@link Action} input.
+     * We pass in the {@link Action} to avoid creating an intermediate object.
      *
-     * @param actionSpecs The {@link ActionSpec}s, arranged by id.
+     * @param actionSpec The {@link ActionSpec}.
      * @param topologyGraph The {@link TopologyGraph} to use to obtain entity information about
      *                      entities involved in the action.
-     * @param attributes The attributes to populate.
-     * @param <T> The subtype of {@link ActionAttributes} returned by this method.
+     * @param actionToPopulate The {@link Action} to set the properties in. This gets modified by
+     *                         this method.
      */
-    public <T extends ActionAttributes> void populateAttributes(
-            @Nonnull final List<ActionSpec> actionSpecs,
+    public void populateActionAttributes(@Nonnull final ActionSpec actionSpec,
             @Nullable final TopologyGraph<SupplyChainEntity> topologyGraph,
-            @Nonnull final Long2ObjectMap<T> attributes) {
-        final ActionPercentileData percentileChanges =
-                actionPercentileDataRetriever.getActionPercentiles(actionSpecs);
-        actionSpecs.forEach(actionSpec -> {
-            final T actionAttrs = attributes.get(actionSpec.getRecommendation().getId());
-            if (actionAttrs != null) {
-                populateAttributes(actionSpec, actionAttrs, topologyGraph, percentileChanges);
-            }
-        });
-    }
-
-    private <T extends ActionAttributes> void populateAttributes(ActionSpec actionSpec,
-            T attributes,
-            TopologyGraph<SupplyChainEntity> topologyGraph, ActionPercentileData actionPercentileData) {
-        final ActionDTO.Action recommendation = actionSpec.getRecommendation();
-        final ActionType actionType = ActionDTOUtil.getActionInfoActionType(actionSpec.getRecommendation());
-        final ActionDTO.ActionInfo actionInfo = recommendation.getInfo();
-        switch (actionType) {
-            case MOVE:
-            case SCALE:
-                attributes.setMoveInfo(getMoveInfo(recommendation, topologyGraph));
-                break;
-            case RESIZE:
-                if (actionInfo.hasAtomicResize()) {
-                    attributes.setResizeInfo(getAtomicResizeInfo(actionInfo.getAtomicResize(), topologyGraph,
-                            actionPercentileData));
-                } else {
-                    attributes.setResizeInfo(getNormalResizeInfo(actionInfo.getResize(),
-                            actionPercentileData));
-                }
-                break;
-            case DELETE:
-                attributes.setDeleteInfo(getDeleteInfo(actionInfo.getDelete(),
-                        recommendation.getExplanation().getDelete()));
-                break;
-            // add additional info for other action types if needed
-            default:
-                break;
-        }
+            @Nonnull final Action actionToPopulate) {
+        populateAttributes(actionSpec, topologyGraph, actionToPopulate::setMoveInfo,
+                actionToPopulate::setResizeInfo, actionToPopulate::setDeleteInfo);
     }
 
     /**
@@ -129,10 +81,41 @@ public class ActionAttributeExtractor {
      */
     @Nonnull
     public static ActionEntity getActionEntityWithType(ActionDTO.ActionEntity actionEntity,
-            TopologyGraph<SupplyChainEntity> topologyGraph) {
+                                                TopologyGraph<SupplyChainEntity> topologyGraph) {
         final ActionEntity ae = getActionEntityWithoutType(actionEntity, topologyGraph);
         ae.setType(ExportUtils.getEntityTypeJsonKey(actionEntity.getType()));
         return ae;
+    }
+
+    private void populateAttributes(ActionSpec actionSpec,
+            TopologyGraph<SupplyChainEntity> topologyGraph,
+            Consumer<Map<String, MoveChange>> moveSetter,
+            Consumer<Map<String, CommodityChange>> resizeSetter,
+            Consumer<DeleteInfo> deleteSetter) {
+        final ActionDTO.Action recommendation = actionSpec.getRecommendation();
+        final ActionType actionType = ActionDTOUtil.getActionInfoActionType(actionSpec.getRecommendation());
+        final ActionDTO.ActionInfo actionInfo = recommendation.getInfo();
+        switch (actionType) {
+            case MOVE:
+            case SCALE:
+                moveSetter.accept(getMoveInfo(recommendation, topologyGraph));
+                break;
+            case RESIZE:
+                if (actionInfo.hasAtomicResize()) {
+                    resizeSetter.accept(getAtomicResizeInfo(actionInfo.getAtomicResize(), topologyGraph));
+                } else {
+                    resizeSetter.accept(getNormalResizeInfo(actionInfo.getResize()));
+                }
+                break;
+            case DELETE:
+                deleteSetter.accept(getDeleteInfo(actionInfo.getDelete(),
+                        recommendation.getExplanation().getDelete()));
+                break;
+            // add additional info for other action types if needed
+            default:
+                break;
+        }
+
     }
 
     /**
@@ -175,12 +158,9 @@ public class ActionAttributeExtractor {
      * Add resize specific action info.
      *
      * @param resize action from AO
-     * @param actionPercentileData Used to look up percentile changes for the resized commodities.
      * @return map of resize change by commodity type
      */
-    @Nonnull
-    private Map<String, CommodityChange> getNormalResizeInfo(Resize resize,
-            @Nonnull final ActionPercentileData actionPercentileData) {
+    private Map<String, CommodityChange> getNormalResizeInfo(Resize resize) {
         final int commodityTypeInt = resize.getCommodityType().getType();
         final CommodityChange commodityChange = new CommodityChange();
         commodityChange.setFrom(resize.getOldCapacity());
@@ -188,8 +168,6 @@ public class ActionAttributeExtractor {
         if (resize.hasCommodityAttribute()) {
             commodityChange.setAttribute(resize.getCommodityAttribute().name());
         }
-        commodityChange.setPercentileChange(
-                actionPercentileData.getChange(resize.getTarget().getId(), resize.getCommodityType()));
         ClassicEnumMapper.getCommodityUnits(commodityTypeInt, null)
                 .ifPresent(commodityChange::setUnit);
         return Collections.singletonMap(ExportUtils.getCommodityTypeJsonKey(commodityTypeInt),
@@ -201,13 +179,10 @@ public class ActionAttributeExtractor {
      *
      * @param atomicResize action from AO
      * @param topologyGraph The {@link TopologyGraph} to use to obtain entity information from.
-     * @param actionPercentileData Used to look up percentile changes for the resized commodities.
      * @return map of resize change by commodity type
      */
-    @Nonnull
     private Map<String, CommodityChange> getAtomicResizeInfo(AtomicResize atomicResize,
-            TopologyGraph<SupplyChainEntity> topologyGraph,
-            ActionPercentileData actionPercentileData) {
+                                                             TopologyGraph<SupplyChainEntity> topologyGraph) {
         final Map<String, CommodityChange> resizeInfo = new HashMap<>();
         for (ResizeInfo resize : atomicResize.getResizesList()) {
             final CommodityChange commodityChange = new CommodityChange();
@@ -223,8 +198,6 @@ public class ActionAttributeExtractor {
             // set target (where this commodity comes from) for each sub action, since it may be
             // different from main target
             commodityChange.setTarget(getActionEntityWithType(resize.getTarget(), topologyGraph));
-            commodityChange.setPercentileChange(
-                    actionPercentileData.getChange(resize.getTarget().getId(), resize.getCommodityType()));
             // assumes same type of commodity is only resized once in atomic action
             resizeInfo.put(ExportUtils.getCommodityTypeJsonKey(commodityTypeInt), commodityChange);
         }

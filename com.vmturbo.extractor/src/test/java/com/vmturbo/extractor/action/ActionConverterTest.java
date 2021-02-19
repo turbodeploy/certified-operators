@@ -6,17 +6,13 @@ import static com.vmturbo.extractor.schema.enums.EntityType.VIRTUAL_MACHINE;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.sql.Timestamp;
-import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -24,13 +20,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 
-import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
-import it.unimi.dsi.fastutil.longs.Long2ObjectMaps;
-
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
@@ -49,7 +41,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderEx
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
-import com.vmturbo.extractor.export.DataExtractionFactory;
 import com.vmturbo.extractor.export.RelatedEntitiesExtractor;
 import com.vmturbo.extractor.models.ActionModel;
 import com.vmturbo.extractor.models.ActionModel.CompletedAction;
@@ -59,10 +50,8 @@ import com.vmturbo.extractor.schema.enums.ActionCategory;
 import com.vmturbo.extractor.schema.enums.ActionType;
 import com.vmturbo.extractor.schema.enums.Severity;
 import com.vmturbo.extractor.schema.enums.TerminalState;
-import com.vmturbo.extractor.schema.json.common.ActionAttributes;
-import com.vmturbo.extractor.schema.json.common.MoveChange;
 import com.vmturbo.extractor.schema.json.export.RelatedEntity;
-import com.vmturbo.extractor.topology.DataProvider;
+import com.vmturbo.extractor.schema.json.reporting.ActionAttributes;
 import com.vmturbo.extractor.topology.SupplyChainEntity;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
@@ -133,14 +122,7 @@ public class ActionConverterTest {
 
     private final String attrsJson = "{ \"foo\" : \"bar\" }";
 
-    private CachingPolicyFetcher cachingPolicyFetcher = mock(CachingPolicyFetcher.class);
-
-    private DataProvider dataProvider = mock(DataProvider.class);
-
-    private DataExtractionFactory dataExtractionFactory = mock(DataExtractionFactory.class);
-
-    private ActionConverter actionConverter = new ActionConverter(actionAttributeExtractor,
-            cachingPolicyFetcher, dataProvider, dataExtractionFactory, objectMapper);
+    private ActionConverter actionConverter = new ActionConverter(actionAttributeExtractor, objectMapper);
 
     private RelatedEntitiesExtractor relatedEntitiesExtractor = mock(RelatedEntitiesExtractor.class);
 
@@ -152,10 +134,6 @@ public class ActionConverterTest {
         mockEntity(123, EntityType.VIRTUAL_MACHINE_VALUE);
         mockEntity(234, EntityType.PHYSICAL_MACHINE_VALUE);
         mockEntity(345, EntityType.PHYSICAL_MACHINE_VALUE);
-        when(dataProvider.getTopologyGraph()).thenReturn(topologyGraph);
-        when(dataExtractionFactory.newRelatedEntitiesExtractor(dataProvider)).thenReturn(Optional.of(relatedEntitiesExtractor));
-        when(cachingPolicyFetcher.getOrFetchPolicies()).thenReturn(Collections.emptyMap());
-        when(actionAttributeExtractor.extractAttributes(any(), any())).thenReturn(Long2ObjectMaps.emptyMap());
 
         RelatedEntity relatedEntity1 = new RelatedEntity();
         relatedEntity1.setOid(234L);
@@ -176,10 +154,9 @@ public class ActionConverterTest {
      */
     @Test
     public void testPendingActionRecord() throws Exception {
-        when(actionAttributeExtractor.extractAttributes(Collections.singletonList(actionSpec), topologyGraph))
-                .thenReturn(Long2ObjectMaps.singleton(actionOid, attrs));
+        when(actionAttributeExtractor.extractAttributes(actionSpec, topologyGraph)).thenReturn(attrs);
         when(objectMapper.writeValueAsString(attrs)).thenReturn(attrsJson);
-        Record record = actionConverter.makePendingActionRecords(Collections.singletonList(actionSpec)).get(0);
+        Record record = actionConverter.makePendingActionRecord(actionSpec, topologyGraph);
         assertThat(record.get(PendingAction.RECOMMENDATION_TIME),
                 is(new Timestamp(actionSpec.getRecommendationTime())));
         assertThat(record.get(ActionModel.PendingAction.TYPE), is(ActionType.MOVE));
@@ -204,12 +181,9 @@ public class ActionConverterTest {
      */
     @Test
     public void testExecutedSucceededActionRecord() throws Exception {
-        when(actionAttributeExtractor.extractAttributes(Collections.singletonList(succeededActionSpec), topologyGraph))
-                .thenReturn(Long2ObjectMaps.singleton(actionOid, attrs));
+        when(actionAttributeExtractor.extractAttributes(succeededActionSpec, topologyGraph)).thenReturn(attrs);
         when(objectMapper.writeValueAsString(attrs)).thenReturn(attrsJson);
-        Record record = actionConverter.makeExecutedActionSpec(
-                Collections.singletonList(new ExecutedAction(actionOid, succeededActionSpec, "SUCCESS!")))
-            .get(0);
+        Record record = actionConverter.makeExecutedActionSpec(succeededActionSpec, "SUCCESS!", topologyGraph);
         assertThat(record.get(CompletedAction.RECOMMENDATION_TIME),
                 is(new Timestamp(actionSpec.getRecommendationTime())));
         assertThat(record.get(CompletedAction.TYPE), is(ActionType.MOVE));
@@ -239,9 +213,7 @@ public class ActionConverterTest {
      */
     @Test
     public void testExecutedFailedActionRecord() {
-        Record record = actionConverter.makeExecutedActionSpec(
-                Collections.singletonList(new ExecutedAction(actionOid, failedActionSpec, "FAILURE!")))
-            .get(0);
+        Record record = actionConverter.makeExecutedActionSpec(failedActionSpec, "FAILURE!", topologyGraph);
         assertThat(record.get(CompletedAction.FINAL_STATE), is(TerminalState.FAILED));
         assertThat(record.get(CompletedAction.FINAL_MESSAGE), is("FAILURE!"));
     }
@@ -251,15 +223,9 @@ public class ActionConverterTest {
      */
     @Test
     public void testMakeExportedAction() {
-        final Map<String, MoveChange> moveInfo = Collections.singletonMap("Foo", new MoveChange());
-        final List<ActionSpec> actionSpecs = Collections.singletonList(actionSpec);
-        Mockito.doAnswer(invocation -> {
-            Long2ObjectMap<com.vmturbo.extractor.schema.json.export.Action> actionMap = invocation.getArgumentAt(2, Long2ObjectMap.class);
-            actionMap.get(actionOid).setMoveInfo(moveInfo);
-            return null;
-        }).when(actionAttributeExtractor).populateAttributes(eq(actionSpecs), eq(topologyGraph), any());
         com.vmturbo.extractor.schema.json.export.Action action =
-                actionConverter.makeExportedActions(actionSpecs).stream().findFirst().get();
+                actionConverter.makeExportedAction(actionSpec, topologyGraph, new HashMap<>(),
+                        Optional.of(relatedEntitiesExtractor));
         // common fields
         Assert.assertThat(action.getOid(), is(actionSpec.getRecommendation().getId()));
         Assert.assertThat(action.getState(), is(actionSpec.getActionState().name()));
@@ -277,9 +243,6 @@ public class ActionConverterTest {
         Assert.assertThat(action.getRelated().size(), is(2));
         Assert.assertThat(action.getRelated().get(PHYSICAL_MACHINE.getLiteral()).get(0).getOid(), is(234L));
         Assert.assertThat(action.getRelated().get(STORAGE.getLiteral()).get(0).getOid(), is(456L));
-
-        // attributes
-        Assert.assertThat(action.getMoveInfo(), is(moveInfo));
     }
 
     /**

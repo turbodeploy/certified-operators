@@ -4,7 +4,7 @@ import static com.vmturbo.extractor.models.ModelDefinitions.ATTRS;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_NAME;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_OID_AS_OID;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_STATE_ENUM;
-import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_TYPE_AS_TYPE_ENUM;
+import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_TYPE_ENUM;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENVIRONMENT_TYPE_ENUM;
 import static com.vmturbo.extractor.models.ModelDefinitions.SEARCH_ENTITY_TABLE;
 import static com.vmturbo.extractor.util.RecordTestUtil.createRecordByName;
@@ -150,7 +150,7 @@ public class DslReplaceRecordWriterTest {
             final Map<String, Object> attrs) {
         return ImmutableList.<Pair<String, Object>>of(
                 Pair.of(ENTITY_OID_AS_OID.getName(), oid),
-                Pair.of(ENTITY_TYPE_AS_TYPE_ENUM.getName(), entityType),
+                Pair.of(ENTITY_TYPE_ENUM.getName(), entityType),
                 Pair.of(ENTITY_NAME.getName(), name),
                 Pair.of(ENVIRONMENT_TYPE_ENUM.getName(), environmentType),
                 Pair.of(ENTITY_STATE_ENUM.getName(), entityState),

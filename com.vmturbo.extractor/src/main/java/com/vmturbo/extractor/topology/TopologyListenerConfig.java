@@ -23,7 +23,6 @@ import org.springframework.context.annotation.Import;
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
-import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
@@ -32,7 +31,6 @@ import com.vmturbo.components.common.utils.DataPacks.LongDataPack;
 import com.vmturbo.extractor.ExtractorDbConfig;
 import com.vmturbo.extractor.ExtractorGlobalConfig;
 import com.vmturbo.extractor.ExtractorGlobalConfig.ExtractorFeatureFlags;
-import com.vmturbo.extractor.action.percentile.ActionPercentileDataRetriever;
 import com.vmturbo.extractor.export.DataExtractionFactory;
 import com.vmturbo.extractor.export.DataExtractionWriter;
 import com.vmturbo.extractor.export.ExportUtils;
@@ -61,7 +59,6 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription.Top
         ActionOrchestratorClientConfig.class,
         ExtractorDbConfig.class,
         ExtractorGlobalConfig.class,
-        HistoryClientConfig.class,
 })
 public class TopologyListenerConfig {
     @Autowired
@@ -74,6 +71,9 @@ public class TopologyListenerConfig {
     private GroupClientConfig groupClientConfig;
 
     @Autowired
+    private HistoryClientConfig historyClientConfig;
+
+    @Autowired
     private ActionOrchestratorClientConfig actionClientConfig;
 
     @Autowired
@@ -81,9 +81,6 @@ public class TopologyListenerConfig {
 
     @Autowired
     private ExtractorGlobalConfig extractorGlobalConfig;
-
-    @Autowired
-    private HistoryClientConfig historyClientConfig;
 
     /**
      * Max time to wait for results of COPY FROM command that streams data to postgres, after all
@@ -122,17 +119,6 @@ public class TopologyListenerConfig {
                 writerFactories(), writerConfig(), dataProvider());
         topologyProcessor().addLiveTopologyListener(topologyEntitiesListener);
         return topologyEntitiesListener;
-    }
-
-    /**
-     * Used to retrieve percentile-related data for actions.
-     *
-     * @return The {@link ActionPercentileDataRetriever}.
-     */
-    @Bean
-    public ActionPercentileDataRetriever percentileActionDecorator() {
-        return new ActionPercentileDataRetriever(StatsHistoryServiceGrpc.newBlockingStub(historyClientConfig.historyChannel()),
-                SettingPolicyServiceGrpc.newBlockingStub(groupClientConfig.groupChannel()));
     }
 
     /**
@@ -228,10 +214,6 @@ public class TopologyListenerConfig {
         }
         if (featureFlags.isExtractionEnabled()) {
             retFactories.add(() -> new DataExtractionWriter(extractorKafkaSender(), dataExtractionFactory()));
-        }
-
-        if (featureFlags.isExtractionEnabled() || featureFlags.isReportingActionIngestionEnabled()) {
-            retFactories.add(() -> percentileActionDecorator());
         }
         return Collections.unmodifiableList(retFactories);
     }

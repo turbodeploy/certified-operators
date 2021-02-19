@@ -1,10 +1,14 @@
-package com.vmturbo.extractor.schema.json.common;
+package com.vmturbo.extractor.schema.json.reporting;
 
 import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
+
+import com.vmturbo.extractor.schema.json.common.CommodityChange;
+import com.vmturbo.extractor.schema.json.common.DeleteInfo;
+import com.vmturbo.extractor.schema.json.common.MoveChange;
 
 /**
  * Action attributes for the ATTRS columns in the pending_action and completed_action tables.

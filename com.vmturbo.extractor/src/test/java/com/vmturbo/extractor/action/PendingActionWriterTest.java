@@ -55,6 +55,7 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.extractor.ExtractorDbConfig;
 import com.vmturbo.extractor.ExtractorGlobalConfig.ExtractorFeatureFlags;
+import com.vmturbo.extractor.export.DataExtractionFactory;
 import com.vmturbo.extractor.export.ExtractorKafkaSender;
 import com.vmturbo.extractor.schema.ExtractorDbBaseConfig;
 import com.vmturbo.extractor.topology.DataProvider;
@@ -110,6 +111,8 @@ public class PendingActionWriterTest {
     private ReportPendingActionWriter reportingActionWriter = mock(ReportPendingActionWriter.class);
     private ActionWriterFactory actionWriterFactory = mock(ActionWriterFactory.class);
     private ExtractorKafkaSender extractorKafkaSender = mock(ExtractorKafkaSender.class);
+    private DataExtractionFactory dataExtractionFactory = mock(DataExtractionFactory.class);
+    private ActionAttributeExtractor actionAttributeExtractor = mock(ActionAttributeExtractor.class);
     private TopologyGraph<SupplyChainEntity> topologyGraph = mock(TopologyGraph.class);
     private MutableLong lastWrite = new MutableLong(0);
 
@@ -127,13 +130,11 @@ public class PendingActionWriterTest {
         when(dataProvider.getTopologyGraph()).thenReturn(topologyGraph);
         final DbEndpoint endpoint = spy(dbConfig.ingesterEndpoint());
         doReturn(mock(DSLContext.class)).when(endpoint).dslContext();
-        when(actionConverter.makeExportedActions(any())).thenReturn(Collections.emptyList());
-        when(actionConverter.makePendingActionRecords(any())).thenReturn(Collections.emptyList());
         doReturn(Optional.of(new ReportPendingActionWriter(clock, pool, endpoint, writerConfig,
-                actionConverter, ACTION_WRITING_INTERVAL_MS, TypeInfoCase.MARKET, new HashMap<>())))
+                actionConverter, topologyGraph, ACTION_WRITING_INTERVAL_MS, TypeInfoCase.MARKET, new HashMap<>())))
                 .when(actionWriterFactory).getReportPendingActionWriter(any());
         doReturn(Optional.of(new DataExtractionPendingActionWriter(extractorKafkaSender,
-                clock, lastWrite, actionConverter)))
+                dataExtractionFactory, dataProvider, clock, lastWrite, actionConverter)))
                 .when(actionWriterFactory).getDataExtractionPendingActionWriter();
 
         when(extractorFeatureFlags.isReportingActionIngestionEnabled()).thenReturn(true);
@@ -210,7 +211,23 @@ public class PendingActionWriterTest {
         when(extractorFeatureFlags.isReportingActionIngestionEnabled()).thenReturn(false);
         actionWriter.onActionsUpdated(actionsUpdated(REALTIME_CONTEXT));
 
+        verify(actionWriter, never()).fetchPolicies(any());
         verify(actionWriter, never()).fetchActions(any());
+        verify(actionWriter, never()).fetchSeverities(anyLong(), any());
+    }
+
+    /**
+     * Test that policies are fetched when data extraction is enabled.
+     */
+    @Test
+    public void testFetchPolicies() {
+        when(extractorFeatureFlags.isReportingActionIngestionEnabled()).thenReturn(false);
+        when(extractorFeatureFlags.isExtractionEnabled()).thenReturn(true);
+        when(actionsBackend.getAllActions(any())).thenReturn(Collections.emptyList());
+        actionWriter.onActionsUpdated(actionsUpdated(REALTIME_CONTEXT));
+
+        verify(actionWriter).fetchPolicies(any());
+        verify(actionWriter).fetchActions(any());
         verify(actionWriter, never()).fetchSeverities(anyLong(), any());
     }
 

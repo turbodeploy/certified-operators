@@ -124,11 +124,8 @@ public class GroupInfoUpdater implements RepositoryListener,
         // Start a new severity update in a new thread. That thread will set the
         // 'severityUpdateIsQueued' flag to false once it's done.
         executorService.execute(() -> {
-            try {
-                groupSeverityUpdater.refreshGroupSeverities();
-            } finally {
-                severityUpdateIsQueued = false;
-            }
+            groupSeverityUpdater.refreshGroupSeverities();
+            severityUpdateIsQueued = false;
         });
     }
 }

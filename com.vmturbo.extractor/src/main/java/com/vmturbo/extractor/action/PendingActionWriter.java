@@ -2,6 +2,7 @@ package com.vmturbo.extractor.action;
 
 import java.sql.SQLException;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -26,6 +27,8 @@ import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionsUpdated;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceStub;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
+import com.vmturbo.common.protobuf.group.PolicyDTO;
+import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.severity.SeverityMap;
 import com.vmturbo.common.protobuf.severity.SeverityUtil;
 import com.vmturbo.components.api.FormattedString;
@@ -92,6 +95,17 @@ public class PendingActionWriter implements ActionsListener {
         if (writers.isEmpty()) {
             // no need to write
             return;
+        }
+
+        // fetch policies before actions, since they may be used in action writers
+        // currently it's only fetched when data extraction is enabled
+        final List<IActionWriter> writersRequiringPolicy = writers.stream()
+                .filter(IActionWriter::requirePolicy)
+                .collect(Collectors.toList());
+        if (!writersRequiringPolicy.isEmpty()) {
+            timer.start("Retrieve policies");
+            fetchPolicies(writersRequiringPolicy);
+            timer.stop();
         }
 
         // actions
@@ -221,6 +235,16 @@ public class PendingActionWriter implements ActionsListener {
     }
 
     /**
+     * Fetch all policies in the system.
+     *
+     * @param policyConsumers consumers of the policies
+     */
+    void fetchPolicies(List<IActionWriter> policyConsumers) {
+        Map<Long, Policy> policyById = actionWriterFactory.getOrFetchPolicies();
+        policyConsumers.forEach(consumer -> consumer.acceptPolicy(policyById));
+    }
+
+    /**
      * Interface for writing actions and severities.
      */
     interface IActionWriter {
@@ -233,6 +257,8 @@ public class PendingActionWriter implements ActionsListener {
         default boolean requirePolicy() {
             return false;
         }
+
+        default void acceptPolicy(Map<Long, PolicyDTO.Policy> policyById) {}
 
         void recordAction(ActionOrchestratorAction action);
 

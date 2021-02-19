@@ -1,5 +1,7 @@
 package com.vmturbo.topology.processor.topology;
 
+import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
@@ -123,7 +125,6 @@ public class PlanTopologyScopeEditorTest {
     private static final TopologyDTO.CommodityType DS2 = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.DATASTORE_VALUE)
             .setKey("DS2").build();
     private static final TopologyDTO.CommodityType ST_AMT = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE).build();
-    private static final TopologyDTO.CommodityType VMPM_ACCESS = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.VMPM_ACCESS_VALUE).setKey("foo").build();
 
     private static final List<TopologyDTO.CommodityType> basketSoldByPMToVMinDC1 = Lists.newArrayList(DC1_HOSTS, CPU, DS1);
     private static final List<TopologyDTO.CommodityType> basketSoldByPMToVMinDC2 = Lists.newArrayList(DC2_HOSTS, CPU, DS1, DS2);
@@ -158,13 +159,12 @@ public class PlanTopologyScopeEditorTest {
         put(100001L, basketSoldByVDCinDC1);
     }};
 
-    private static final Map<Long, List<TopologyDTO.CommodityType>> commBoughtByPod = ImmutableMap.of(
-        30003L, Lists.newArrayList(VCPU),
-        200004L, Lists.newArrayList(ST_AMT)
+    private static final Map<Long, List<TopologyDTO.CommodityType>> commBoughtByPodFromVM = ImmutableMap.of(
+        30003L, Lists.newArrayList(VCPU)
     );
 
     private static final Map<Long, List<TopologyDTO.CommodityType>> commBoughtByCntFromPod = ImmutableMap.of(
-        200001L, Lists.newArrayList(VCPU, VMPM_ACCESS)
+        200001L, Lists.newArrayList(VCPU)
     );
 
     private static final Map<Long, List<TopologyDTO.CommodityType>> commBoughtByVMinDC2PMDS2 = new HashMap<Long, List<TopologyDTO.CommodityType>>() {{
@@ -247,12 +247,11 @@ public class PlanTopologyScopeEditorTest {
     private final TopologyEntity.Builder as2 = createHypervisorTopologyEntity(70002L, "as2", EntityType.APPLICATION_SERVER, commBoughtByApp2, basketSoldByAS2);
     private final TopologyEntity.Builder bapp1 = createHypervisorTopologyEntity(80001L, "bapp1", EntityType.BUSINESS_APPLICATION, commBoughtByBA, new ArrayList<>());
     private final TopologyEntity.Builder vdcInDc1 = createHypervisorTopologyEntity(100001L, "vdcInDc1", EntityType.VIRTUAL_DATACENTER, commBoughtByVDCinDC1, basketSoldByVDCinDC1);
-    private final TopologyEntity.Builder pod1 = createHypervisorTopologyEntity(200001L, "pod1", EntityType.CONTAINER_POD, commBoughtByPod, Arrays.asList(VCPU, VMPM_ACCESS));
+    private final TopologyEntity.Builder pod1 = createHypervisorTopologyEntity(200001L, "pod1", EntityType.CONTAINER_POD, commBoughtByPodFromVM, Collections.singletonList(VCPU));
     private final TopologyEntity.Builder cntSpec1 = createHypervisorTopologyEntity(200003L, "cntSpec1", EntityType.CONTAINER_SPEC, Collections.emptyMap(), Collections.emptyList());
     private final TopologyEntity.Builder cnt1 = addAggregatedByConnection(
         createHypervisorTopologyEntity(200002L, "cnt1", EntityType.CONTAINER, commBoughtByCntFromPod, Collections.singletonList(VCPU)),
         cntSpec1.getOid());
-    private final TopologyEntity.Builder podVV = createHypervisorTopologyEntity(200004L, "podVV", EntityType.VIRTUAL_VOLUME, Collections.emptyMap(), Collections.singletonList(ST_AMT));
 
     private static final long VIRTUAL_VOLUME_IN_OHIO_ID = 6001L;
     private static final long VIRTUAL_VOLUME_IN_LONDON_ID = 6002L;
@@ -411,14 +410,14 @@ public class PlanTopologyScopeEditorTest {
                     s1   s2            /       \       cnt1--cntSpec1
                    /      \ appc1     /         \      /
                   /        \  \    as1         as2   pod1
-              vmInUSEast    \  \  /              |  /    \
-              /      \         vm1               vm3     podVV
+              vmInUSEast    \  \  /              |  /
+              /      \         vm1               vm3
        azUSEast   vvInUSEas   / \               / \
                             pm1  vv            pm3  st2
-                            /     \            |      |
-                         dc1     st1-da1      dc2     |
-                          |       /    \             /
-                         pm2    /        -----------
+                            /     \            |
+                         dc1     st1-da1      dc2
+                          |       /
+                         pm2    /
                            \   /
                             vm2
      NOTE: there is a VDC(not shown in graph) buying cpu allocation from pm1 and pm2, selling to vm1 and vm2.
@@ -545,12 +544,6 @@ public class PlanTopologyScopeEditorTest {
 
     @Before
     public void setup() {
-        // Mark the pod as not movable on its volume provider and container not movable on its pod
-        pod1.getEntityBuilder().getCommoditiesBoughtFromProvidersBuilderList().stream()
-            .filter(bought -> bought.getProviderId() == podVV.getOid())
-            .findAny()
-            .ifPresent(bought -> bought.setMovable(false));
-
         planTopologyScopeEditor = new PlanTopologyScopeEditor(GroupServiceGrpc
             .newBlockingStub(grpcServer.getChannel()));
         graph = TopologyEntityUtils
@@ -567,7 +560,7 @@ public class PlanTopologyScopeEditorTest {
                 computeTier2, storageTier2, virtualVolumeInCentralUs,
                 vmInCentralUs, virtualVolumeInCanada, vmInCanada, businessAcc4, cloudService,
                 appAws, appAzure, unattachedVirtualVolumeInCentralUs,
-                unattachedVirtualVolumeInLondon, virtualVolume2InCanada, pod1, cnt1, cntSpec1, podVV);
+                unattachedVirtualVolumeInLondon, virtualVolume2InCanada, pod1, cnt1, cntSpec1);
     }
 
     /**
@@ -955,9 +948,9 @@ public class PlanTopologyScopeEditorTest {
                 .indexBasedScoping(index, graph, groupResolver, planScope, PlanProjectType.USER);
         result.entities().forEach(e -> System.out.println(e.getOid() + " "));
 
-        assertEquals(11, result.size());
+        assertEquals(10, result.size());
         final List<Long> resultOids = result.entities().map(TopologyEntity::getOid).collect(Collectors.toList());
-        final List<Long> expected = Stream.of(bapp1, as2, vmInDc2, pmInDc2, st2, dc2, da1, pod1, cnt1, cntSpec1, podVV)
+        final List<Long> expected = Stream.of(bapp1, as2, vmInDc2, pmInDc2, st2, dc2, da1, pod1, cnt1, cntSpec1)
             .map(Builder::getOid)
             .collect(Collectors.toList());
         assertThat(resultOids, containsInAnyOrder(expected.toArray()));

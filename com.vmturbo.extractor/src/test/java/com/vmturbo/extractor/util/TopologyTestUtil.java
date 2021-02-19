@@ -19,7 +19,7 @@ import javax.annotation.Nonnull;
 import io.opentracing.SpanContext;
 
 import org.apache.commons.lang3.ObjectUtils;
-import org.javatuples.Quintet;
+import org.javatuples.Quartet;
 import org.javatuples.Triplet;
 import org.mockito.Mockito;
 
@@ -484,14 +484,14 @@ public class TopologyTestUtil {
     /**
      * Create a list of {@link CommoditySoldDTO}s.
      *
-     * <p>Values from which sold commodities are bulit come in the form of quartets (5-tuples)
-     * of commodity type, commodity key, used value, capacity value, and peak value in that order.</p>
+     * <p>Values from which sold commodities are bulit come in the form of quartets (4-tuples)
+     * of commodity type, commodity key, used value, and capacity value, in that order.</p>
      *
      * @param commodities sold commodity parameters
      * @return the new sold commodity structure list
      */
     public static List<CommoditySoldDTO> soldCommodities(
-            Quintet<CommodityDTO.CommodityType, String, Double, Double, Double>... commodities) {
+            Quartet<CommodityDTO.CommodityType, String, Double, Double>... commodities) {
         return Arrays.stream(commodities)
                 .map(t -> {
                     CommoditySoldDTO.Builder builder = CommoditySoldDTO.newBuilder()
@@ -504,9 +504,6 @@ public class TopologyTestUtil {
                     }
                     if (t.getValue3() != null) {
                         builder.setCapacity(t.getValue3());
-                    }
-                    if (t.getValue4() != null) {
-                        builder.setPeak(t.getValue4());
                     }
                     return builder.build();
                 })

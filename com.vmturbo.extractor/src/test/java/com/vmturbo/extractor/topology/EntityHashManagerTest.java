@@ -3,7 +3,7 @@ package com.vmturbo.extractor.topology;
 import static com.vmturbo.extractor.models.ModelDefinitions.ATTRS;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_OID_AS_OID;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_TABLE;
-import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_TYPE_AS_TYPE_ENUM;
+import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_TYPE_ENUM;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENVIRONMENT_TYPE_ENUM;
 import static com.vmturbo.extractor.util.ExtractorTestUtil.config;
 import static org.hamcrest.Matchers.aMapWithSize;
@@ -59,7 +59,7 @@ public class EntityHashManagerTest {
         entityHashManager.injectPriorTopology();
         baseEntity = new Record(ENTITY_TABLE);
         baseEntity.set(ENTITY_OID_AS_OID, 1L);
-        baseEntity.set(ENTITY_TYPE_AS_TYPE_ENUM, EntityType.VIRTUAL_MACHINE);
+        baseEntity.set(ENTITY_TYPE_ENUM, EntityType.VIRTUAL_MACHINE);
         baseEntity.set(ENVIRONMENT_TYPE_ENUM, EnvironmentType.ON_PREM);
         baseEntity.set(ATTRS, new JsonString("{}"));
         baseEntityIId = oidPack.toIndex(baseEntity.get(ENTITY_OID_AS_OID));
@@ -97,7 +97,7 @@ public class EntityHashManagerTest {
         topologyInfo = getTopoInfo(3000);
         entityHashManager.open(topologyInfo, null);
         Long hash2;
-        baseEntity.set(ENTITY_TYPE_AS_TYPE_ENUM, EntityType.PHYSICAL_MACHINE);
+        baseEntity.set(ENTITY_TYPE_ENUM, EntityType.PHYSICAL_MACHINE);
         assertThat(entityHashManager.processEntity(baseEntity), is(true));
         hash2 = entityHashManager.getEntityHash(oid);
         //hash should be different
@@ -106,7 +106,7 @@ public class EntityHashManagerTest {
         assertThat(entityHashManager.getPriorHashes(), is(aMapWithSize(1)));
         assertThat(entityHashManager.getPriorHashes().get(baseEntityIId), is(hash2));
         // undo change
-        baseEntity.set(ENTITY_TYPE_AS_TYPE_ENUM, EntityType.VIRTUAL_MACHINE);
+        baseEntity.set(ENTITY_TYPE_ENUM, EntityType.VIRTUAL_MACHINE);
 
         // and change entity type... similar checks to above
         topologyInfo = getTopoInfo(4000);

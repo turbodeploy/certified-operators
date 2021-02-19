@@ -9,6 +9,7 @@ import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_KEY;
 import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_PROVIDER;
 import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_TYPE;
 import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_UTILIZATION;
+import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_HASH;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_OID;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_OID_AS_OID;
 import static com.vmturbo.extractor.models.ModelDefinitions.FILE_PATH;
@@ -78,7 +79,7 @@ import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import it.unimi.dsi.fastutil.longs.LongSet;
 
 import org.apache.commons.lang3.tuple.Pair;
-import org.javatuples.Quintet;
+import org.javatuples.Quartet;
 import org.javatuples.Triplet;
 import org.jooq.DSLContext;
 import org.junit.Before;
@@ -287,21 +288,16 @@ public class EntityMetricWriterTest {
         assertThat(metricInsertCapture.size(), is(3));
         Iterator<Record> records = metricInsertCapture.iterator();
         assertThat(records.next().asMap(), mapMatchesLaxly(
-                createMetricRecordMap(null, vm.getOid(), MetricType.CPU, null, null, null, null,
-                        3.0, pm.getOid(), null, null,
-                        com.vmturbo.extractor.schema.enums.EntityType.VIRTUAL_MACHINE),
-                TIME.getName()));
+                createMetricRecordMap(null, vm.getOid(), MetricType.CPU, null, null, null, null, 3.0, pm.getOid()),
+                TIME.getName(), ENTITY_HASH.getName()));
         assertThat(records.next().asMap(), mapMatchesLaxly(
-                createMetricRecordMap(null, vm.getOid(), MetricType.MEM, "a", null, null, null, 1.0,
-                        pm.getOid(), null, null,
-                        com.vmturbo.extractor.schema.enums.EntityType.VIRTUAL_MACHINE),
-                TIME.getName()));
+                createMetricRecordMap(null, vm.getOid(), MetricType.MEM, "a", null, null, null, 1.0, pm.getOid()),
+                TIME.getName(), ENTITY_HASH.getName()));
         assertThat(records.next().asMap(), mapMatchesLaxly(
-                createMetricRecordMap(null, vm.getOid(), MetricType.MEM, "b", null, null, null, 2.0,
-                        pm.getOid(), null, null,
-                        com.vmturbo.extractor.schema.enums.EntityType.VIRTUAL_MACHINE),
-                TIME.getName()));
+                createMetricRecordMap(null, vm.getOid(), MetricType.MEM, "b", null, null, null, 2.0, pm.getOid()),
+                TIME.getName(), ENTITY_HASH.getName()));
     }
+
 
     /**
      * Check that bought commodities result in correct metric records when values null.
@@ -332,20 +328,14 @@ public class EntityMetricWriterTest {
         assertThat(metricInsertCapture.size(), is(3));
         Iterator<Record> records = metricInsertCapture.iterator();
         assertThat(records.next().asMap(), mapMatchesLaxly(
-                        createMetricRecordMap(null, vm.getOid(), MetricType.CPU, null, null, null,
-                                null, null, pm.getOid(), null, null,
-                                com.vmturbo.extractor.schema.enums.EntityType.VIRTUAL_MACHINE),
-                        TIME.getName()));
+                createMetricRecordMap(null, vm.getOid(), MetricType.CPU, null, null, null, null, null, pm.getOid()),
+                TIME.getName(), ENTITY_HASH.getName()));
         assertThat(records.next().asMap(), mapMatchesLaxly(
-                        createMetricRecordMap(null, vm.getOid(), MetricType.MEM, "a", null, null,
-                                null, null, pm.getOid(), null, null,
-                                com.vmturbo.extractor.schema.enums.EntityType.VIRTUAL_MACHINE),
-                        TIME.getName()));
+                createMetricRecordMap(null, vm.getOid(), MetricType.MEM, "a", null, null, null, null, pm.getOid()),
+                TIME.getName(), ENTITY_HASH.getName()));
         assertThat(records.next().asMap(), mapMatchesLaxly(
-                        createMetricRecordMap(null, vm.getOid(), MetricType.MEM, "b", null, null,
-                                null, null, pm.getOid(), null, null,
-                                com.vmturbo.extractor.schema.enums.EntityType.VIRTUAL_MACHINE),
-                        TIME.getName()));
+                createMetricRecordMap(null, vm.getOid(), MetricType.MEM, "b", null, null, null, null, pm.getOid()),
+                TIME.getName(), ENTITY_HASH.getName()));
     }
 
     /**
@@ -366,10 +356,8 @@ public class EntityMetricWriterTest {
         // process a pm selling CPU and MEM, each with multiple commodity keys
         final TopologyEntityDTO pm = mkEntity(PHYSICAL_MACHINE).toBuilder()
                 .addAllCommoditySoldList(soldCommodities(
-                        Quintet.with(CPU, "a", 1.0, 10.0, 2.0),
-                        Quintet.with(CPU, "b", 2.0, 20.0, 3.0),
-                        Quintet.with(MEM, "a", 1.0, 10.0, 1.5),
-                        Quintet.with(MEM, "b", 2.0, 20.0, 2.5)
+                        Quartet.with(CPU, "a", 1.0, 10.0), Quartet.with(CPU, "b", 2.0, 20.0),
+                        Quartet.with(MEM, "a", 1.0, 10.0), Quartet.with(MEM, "b", 2.0, 20.0)
                 )).build();
         int n = EntitiesProcessor.of(writer, info, config).process(pm).finish(dataProvider);
         // processed one entity
@@ -378,20 +366,14 @@ public class EntityMetricWriterTest {
         assertThat(metricInsertCapture.size(), is(3));
         Iterator<Record> records = metricInsertCapture.iterator();
         assertThat(records.next().asMap(), mapMatchesLaxly(
-                createMetricRecordMap(null, pm.getOid(), MetricType.CPU, null, 3.0, 30.0, 0.1, null,
-                        null, 5.0, null,
-                        com.vmturbo.extractor.schema.enums.EntityType.PHYSICAL_MACHINE),
-                TIME.getName()));
+                createMetricRecordMap(null, pm.getOid(), MetricType.CPU, null, 3.0, 30.0, 0.1, null, null),
+                TIME.getName(), ENTITY_HASH.getName()));
         assertThat(records.next().asMap(), mapMatchesLaxly(
-                createMetricRecordMap(null, pm.getOid(), MetricType.MEM, "a", 1.0, 10.0, 0.1, null,
-                        null, 1.5, null,
-                        com.vmturbo.extractor.schema.enums.EntityType.PHYSICAL_MACHINE),
-                TIME.getName()));
+                createMetricRecordMap(null, pm.getOid(), MetricType.MEM, "a", 1.0, 10.0, 0.1, null, null),
+                TIME.getName(), ENTITY_HASH.getName()));
         assertThat(records.next().asMap(), mapMatchesLaxly(
-                createMetricRecordMap(null, pm.getOid(), MetricType.MEM, "b", 2.0, 20.0, 0.1, null,
-                        null, 2.5, null,
-                        com.vmturbo.extractor.schema.enums.EntityType.PHYSICAL_MACHINE),
-                TIME.getName()));
+                createMetricRecordMap(null, pm.getOid(), MetricType.MEM, "b", 2.0, 20.0, 0.1, null, null),
+                TIME.getName(), ENTITY_HASH.getName()));
     }
 
     /**
@@ -412,10 +394,8 @@ public class EntityMetricWriterTest {
         // process a pm selling CPU and MEM, each with multiple commodity keys
         final TopologyEntityDTO pm = mkEntity(PHYSICAL_MACHINE).toBuilder()
                         .addAllCommoditySoldList(soldCommodities(
-                                Quintet.with(CPU, "a", null, null, null),
-                                Quintet.with(CPU, "b", null, null, null),
-                                Quintet.with(MEM, "a", null, null, null),
-                                Quintet.with(MEM, "b", null, null, null)
+                                        Quartet.with(CPU, "a", null, null), Quartet.with(CPU, "b", null, null),
+                                        Quartet.with(MEM, "a", null, null), Quartet.with(MEM, "b", null, null)
                         )).build();
         int n = EntitiesProcessor.of(writer, info, config).process(pm).finish(dataProvider);
         // processed one entity
@@ -424,20 +404,14 @@ public class EntityMetricWriterTest {
         assertThat(metricInsertCapture.size(), is(3));
         Iterator<Record> records = metricInsertCapture.iterator();
         assertThat(records.next().asMap(), mapMatchesLaxly(
-                        createMetricRecordMap(null, pm.getOid(), MetricType.CPU, null, null, null,
-                                null, null, null, null, null,
-                                com.vmturbo.extractor.schema.enums.EntityType.PHYSICAL_MACHINE),
-                        TIME.getName()));
+                createMetricRecordMap(null, pm.getOid(), MetricType.CPU, null, null, null, null, null, null),
+                TIME.getName(), ENTITY_HASH.getName()));
         assertThat(records.next().asMap(), mapMatchesLaxly(
-                        createMetricRecordMap(null, pm.getOid(), MetricType.MEM, "a", null, null,
-                                null, null, null, null, null,
-                                com.vmturbo.extractor.schema.enums.EntityType.PHYSICAL_MACHINE),
-                        TIME.getName()));
+                createMetricRecordMap(null, pm.getOid(), MetricType.MEM, "a", null, null, null, null, null),
+                TIME.getName(), ENTITY_HASH.getName()));
         assertThat(records.next().asMap(), mapMatchesLaxly(
-                        createMetricRecordMap(null, pm.getOid(), MetricType.MEM, "b", null, null,
-                                null, null, null, null, null,
-                                com.vmturbo.extractor.schema.enums.EntityType.PHYSICAL_MACHINE),
-                        TIME.getName()));
+                createMetricRecordMap(null, pm.getOid(), MetricType.MEM, "b", null, null, null, null, null),
+                TIME.getName(), ENTITY_HASH.getName()));
     }
 
     /**
@@ -457,13 +431,11 @@ public class EntityMetricWriterTest {
 
         // process a pm selling CPU and MEM, each with multiple commodity keys
         final TopologyEntityDTO pm = mkEntity(PHYSICAL_MACHINE).toBuilder()
-                        .addAllCommoditySoldList(soldCommodities(
-                                Quintet.with(CPU, "a", 2.0, 4.0, 2.5),
-                                Quintet.with(CPU, "b", null, null, null),
-                                Quintet.with(MEM, "a", 3.0, null, 4.0),
-                                Quintet.with(MEM, "b", null, null, null),
-                                Quintet.with(MEM, "c", null, 3.0, null)
-                        )).build();
+            .addAllCommoditySoldList(soldCommodities(
+                Quartet.with(CPU, "a", 2.0, 4.0), Quartet.with(CPU, "b", null, null),
+                Quartet.with(MEM, "a", 3.0, null), Quartet.with(MEM, "b", null, null),
+                Quartet.with(MEM, "c", null, 3.0)
+            )).build();
         int n = EntitiesProcessor.of(writer, info, config).process(pm).finish(dataProvider);
         // processed one entity
         assertThat(n, is(1));
@@ -471,25 +443,17 @@ public class EntityMetricWriterTest {
         assertThat(metricInsertCapture.size(), is(4));
         Iterator<Record> records = metricInsertCapture.iterator();
         assertThat(records.next().asMap(), mapMatchesLaxly(
-                        createMetricRecordMap(null, pm.getOid(), MetricType.CPU, null, 2.0, 4.0,
-                                0.5, null, null, 2.5, null,
-                                com.vmturbo.extractor.schema.enums.EntityType.PHYSICAL_MACHINE),
-                        TIME.getName()));
+                        createMetricRecordMap(null, pm.getOid(), MetricType.CPU, null, 2.0, 4.0, 0.5, null, null),
+                        TIME.getName(), ENTITY_HASH.getName()));
         assertThat(records.next().asMap(), mapMatchesLaxly(
-                        createMetricRecordMap(null, pm.getOid(), MetricType.MEM, "a", 3.0, null,
-                                null, null, null, 4.0, null,
-                                com.vmturbo.extractor.schema.enums.EntityType.PHYSICAL_MACHINE),
-                        TIME.getName()));
+                        createMetricRecordMap(null, pm.getOid(), MetricType.MEM, "a", 3.0, null, null, null, null),
+                        TIME.getName(), ENTITY_HASH.getName()));
         assertThat(records.next().asMap(), mapMatchesLaxly(
-                        createMetricRecordMap(null, pm.getOid(), MetricType.MEM, "b", null, null,
-                                null, null, null, null, null,
-                                com.vmturbo.extractor.schema.enums.EntityType.PHYSICAL_MACHINE),
-                        TIME.getName()));
+                        createMetricRecordMap(null, pm.getOid(), MetricType.MEM, "b", null, null, null, null, null),
+                        TIME.getName(), ENTITY_HASH.getName()));
         assertThat(records.next().asMap(), mapMatchesLaxly(
-                        createMetricRecordMap(null, pm.getOid(), MetricType.MEM, "c", null, 3.0,
-                                null, null, null, null, null,
-                                com.vmturbo.extractor.schema.enums.EntityType.PHYSICAL_MACHINE),
-                        TIME.getName()));
+                        createMetricRecordMap(null, pm.getOid(), MetricType.MEM, "c", null, 3.0, null, null, null),
+                        TIME.getName(), ENTITY_HASH.getName()));
     }
 
     /**
@@ -611,7 +575,7 @@ public class EntityMetricWriterTest {
         // create a PM and some VMs buying from it
         final TopologyEntityDTO pm = mkEntity(PHYSICAL_MACHINE).toBuilder()
                 .addAllCommoditySoldList(soldCommodities(
-                        Quintet.with(CommodityDTO.CommodityType.Q64_VCPU, null, 0.0, 20000.0, null)))
+                        Quartet.with(CommodityDTO.CommodityType.Q64_VCPU, null, 0.0, 20000.0)))
                 .build();
         final Map<Long, TopologyEntityDTO> vmsById = Stream.of(
                 CommodityType.Q1_VCPU, CommodityType.Q2_VCPU, CommodityType.Q3_VCPU,

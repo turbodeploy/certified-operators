@@ -2,14 +2,12 @@ package com.vmturbo.extractor.action;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
-import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.spy;
 
 import java.sql.SQLException;
 import java.time.temporal.ChronoUnit;
-import java.util.Collections;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 
@@ -17,12 +15,23 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.TypeInfoCase;
+import com.vmturbo.common.protobuf.group.PolicyDTOMoles.PolicyServiceMole;
+import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
+import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.components.common.utils.MultiStageTimer;
+import com.vmturbo.extractor.ExtractorDbConfig;
+import com.vmturbo.extractor.export.DataExtractionFactory;
 import com.vmturbo.extractor.export.ExtractorKafkaSender;
+import com.vmturbo.extractor.schema.ExtractorDbBaseConfig;
 import com.vmturbo.extractor.topology.DataProvider;
 import com.vmturbo.extractor.topology.ImmutableWriterConfig;
 import com.vmturbo.extractor.topology.WriterConfig;
@@ -33,6 +42,8 @@ import com.vmturbo.topology.graph.TopologyGraph;
 /**
  * Test for {@link ActionWriterFactory}.
  */
+@RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration(classes = {ExtractorDbConfig.class, ExtractorDbBaseConfig.class})
 public class ActionWriterFactoryTest {
 
     private static final Logger logger = LogManager.getLogger();
@@ -44,6 +55,9 @@ public class ActionWriterFactoryTest {
     private static final long ACTION_EXTRACTION_INTERVAL_MS = 60_000;
 
     private final MutableFixedClock clock = new MutableFixedClock(1_000_000);
+
+    @Autowired
+    private ExtractorDbConfig dbConfig;
 
     private WriterConfig writerConfig = ImmutableWriterConfig.builder()
             .insertTimeoutSeconds(10)
@@ -57,7 +71,19 @@ public class ActionWriterFactoryTest {
 
     private ExtractorKafkaSender extractorKafkaSender = mock(ExtractorKafkaSender.class);
 
+    private DataExtractionFactory dataExtractionFactory = mock(DataExtractionFactory.class);
+
+    private ActionAttributeExtractor actionAttributeExtractor = mock(ActionAttributeExtractor.class);
+
     ActionWriterFactory actionWriterFactory;
+
+    private PolicyServiceMole policyBackend = spy(PolicyServiceMole.class);
+
+    /**
+     * Test GRPC server.
+     */
+    @Rule
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(policyBackend);
 
     /**
      * Set up before each test.
@@ -66,13 +92,14 @@ public class ActionWriterFactoryTest {
      */
     @Before
     public void setUp() throws Exception {
-        final DbEndpoint endpoint = mock(DbEndpoint.class);
+        final DbEndpoint endpoint = spy(dbConfig.ingesterEndpoint());
         doReturn(mock(DSLContext.class)).when(endpoint).dslContext();
         doReturn(mock(TopologyGraph.class)).when(dataProvider).getTopologyGraph();
         actionWriterFactory = new ActionWriterFactory(
                 clock, actionConverter, endpoint, ACTION_WRITING_INTERVAL_MS, writerConfig,
-                executorService, dataProvider, extractorKafkaSender,
-                ACTION_EXTRACTION_INTERVAL_MS);
+                executorService, dataProvider, extractorKafkaSender, dataExtractionFactory,
+                ACTION_EXTRACTION_INTERVAL_MS,
+                PolicyServiceGrpc.newBlockingStub(grpcServer.getChannel()));
     }
 
     /**
@@ -85,8 +112,6 @@ public class ActionWriterFactoryTest {
     @Test
     public void testSkipUpdateForReporting() throws UnsupportedDialectException,
             InterruptedException, SQLException {
-        when(actionConverter.makePendingActionRecords(any())).thenReturn(Collections.emptyList());
-
         // first write
         Optional<ReportPendingActionWriter> writer = actionWriterFactory.getReportPendingActionWriter(TypeInfoCase.MARKET);
         assertThat(writer.isPresent(), is(true));
@@ -116,8 +141,6 @@ public class ActionWriterFactoryTest {
      */
     @Test
     public void testSkipUpdateForActionExtraction() {
-        when(actionConverter.makeExportedActions(any())).thenReturn(Collections.emptyList());
-
         // first write
         Optional<DataExtractionPendingActionWriter> writer = actionWriterFactory.getDataExtractionPendingActionWriter();
         assertThat(writer.isPresent(), is(true));

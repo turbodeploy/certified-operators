@@ -157,7 +157,7 @@ public class ClusterStatsFetcherTest {
 
         ingesterEndpoint.dslContext().insertInto(Metric.METRIC, Metric.METRIC.TIME,
             Metric.METRIC.ENTITY_OID, Metric.METRIC.TYPE).values(yesterday, clusterId1,
-            MetricType.CPU_HEADROOM).execute();
+            MetricType.CPU_HEADROOM.getName()).execute();
 
         ingesterEndpoint.dslContext().insertInto(Entity.ENTITY, Entity.ENTITY.TYPE,
             Entity.ENTITY.NAME, Entity.ENTITY.OID, Entity.ENTITY.FIRST_SEEN,
@@ -203,7 +203,7 @@ public class ClusterStatsFetcherTest {
 
         ingesterEndpoint.dslContext().insertInto(Metric.METRIC, Metric.METRIC.TIME,
             Metric.METRIC.ENTITY_OID, Metric.METRIC.TYPE).values(nowMinusMaxBackfillingTime, 1L,
-            MetricType.CPU_HEADROOM).execute();
+            MetricType.CPU_HEADROOM.getName()).execute();
 
         ingesterEndpoint.dslContext().insertInto(Entity.ENTITY, Entity.ENTITY.TYPE,
             Entity.ENTITY.NAME, Entity.ENTITY.OID, Entity.ENTITY.FIRST_SEEN,

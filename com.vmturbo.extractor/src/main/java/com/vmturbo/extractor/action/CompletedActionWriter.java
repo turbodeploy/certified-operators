@@ -4,9 +4,9 @@ import java.sql.SQLException;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.stream.Collectors;
@@ -25,6 +25,7 @@ import com.vmturbo.action.orchestrator.api.ActionsListener;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionFailure;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionSuccess;
 import com.vmturbo.extractor.ExtractorGlobalConfig.ExtractorFeatureFlags;
+import com.vmturbo.extractor.export.DataExtractionFactory;
 import com.vmturbo.extractor.export.ExportUtils;
 import com.vmturbo.extractor.export.ExtractorKafkaSender;
 import com.vmturbo.extractor.models.ActionModel;
@@ -56,7 +57,10 @@ import com.vmturbo.topology.graph.TopologyGraph;
 public class CompletedActionWriter implements ActionsListener {
     private static final Logger logger = LogManager.getLogger();
 
+    private final ActionConverter actionConverter;
     private final DataProvider dataProvider;
+    private final ExtractorFeatureFlags featureFlags;
+    private final DataExtractionFactory dataExtractionFactory;
 
     /**
      * The queue for actions the extractor knows about.
@@ -65,7 +69,8 @@ public class CompletedActionWriter implements ActionsListener {
      * on restart for a bit of extra resiliency if the extractor component goes down without processing
      * the queue?
      */
-    private final LinkedBlockingDeque<ExecutedAction> recordQueue = new LinkedBlockingDeque<>();
+    private final LinkedBlockingDeque<CompletedAction> recordQueue = new LinkedBlockingDeque<>();
+    private final ActionWriterFactory actionWriterFactory;
 
     CompletedActionWriter(@Nonnull final DbEndpoint dbEndpoint,
             @Nonnull final ExecutorService recordBatcherExecutor,
@@ -75,6 +80,8 @@ public class CompletedActionWriter implements ActionsListener {
             @Nonnull final DataProvider dataProvider,
             @Nonnull final ExtractorFeatureFlags featureFlags,
             @Nonnull final ExtractorKafkaSender extractorKafkaSender,
+            @Nonnull final DataExtractionFactory dataExtractionFactory,
+            @Nonnull final ActionWriterFactory actionWriterFactory,
             @Nonnull final Clock clock) {
         this(dbEndpoint, recordBatcherExecutor, actionConverter, dataProvider, featureFlags,
             dsl -> {
@@ -83,7 +90,7 @@ public class CompletedActionWriter implements ActionsListener {
                     Arrays.asList(ActionModel.CompletedAction.ACTION_OID, ActionModel.CompletedAction.COMPLETION_TIME),
                     // We don't expect overlaps.
                     Collections.emptyList());
-            }, extractorKafkaSender, clock);
+            }, extractorKafkaSender, dataExtractionFactory, actionWriterFactory, clock);
     }
 
     @VisibleForTesting
@@ -94,10 +101,16 @@ public class CompletedActionWriter implements ActionsListener {
             @Nonnull final ExtractorFeatureFlags featureFlags,
             @Nonnull final SinkFactory sinkFactory,
             @Nonnull final ExtractorKafkaSender extractorKafkaSender,
+            @Nonnull final DataExtractionFactory dataExtractionFactory,
+            @Nonnull final ActionWriterFactory actionWriterFactory,
             @Nonnull final Clock clock) {
+        this.actionConverter = actionConverter;
         this.dataProvider = dataProvider;
+        this.featureFlags = featureFlags;
+        this.dataExtractionFactory = dataExtractionFactory;
+        this.actionWriterFactory = actionWriterFactory;
         recordBatcherExecutor.submit(
-                new RecordBatchWriter(recordQueue, dbEndpoint, sinkFactory, extractorKafkaSender, clock, actionConverter, featureFlags));
+                new RecordBatchWriter(recordQueue, dbEndpoint, sinkFactory, extractorKafkaSender, clock));
     }
 
     /**
@@ -108,28 +121,20 @@ public class CompletedActionWriter implements ActionsListener {
      * {@link SinkFactory} may use multiple threads to actually insert the data.
      */
     static class RecordBatchWriter implements Runnable {
-        private final LinkedBlockingDeque<ExecutedAction> recordQueue;
+        private final LinkedBlockingDeque<CompletedActionWriter.CompletedAction> recordQueue;
         private final DbEndpoint dbEndpoint;
         private final SinkFactory sinkFactory;
         private final ExtractorKafkaSender extractorKafkaSender;
         private final Clock clock;
-        private final ActionConverter actionConverter;
-        private final ExtractorFeatureFlags featureFlags;
 
-        private RecordBatchWriter(LinkedBlockingDeque<ExecutedAction> recordQueue,
-                DbEndpoint dbEndpoint,
-                SinkFactory sinkFactory,
-                ExtractorKafkaSender extractorKafkaSender,
-                Clock clock,
-                ActionConverter actionConverter,
-                ExtractorFeatureFlags extractorFeatureFlags) {
+        private RecordBatchWriter(LinkedBlockingDeque<CompletedAction> recordQueue,
+                DbEndpoint dbEndpoint, SinkFactory sinkFactory,
+                ExtractorKafkaSender extractorKafkaSender, Clock clock) {
             this.recordQueue = recordQueue;
             this.dbEndpoint = dbEndpoint;
             this.sinkFactory = sinkFactory;
             this.extractorKafkaSender = extractorKafkaSender;
             this.clock = clock;
-            this.actionConverter = actionConverter;
-            this.featureFlags = extractorFeatureFlags;
         }
 
         @Override
@@ -147,42 +152,39 @@ public class CompletedActionWriter implements ActionsListener {
 
         @VisibleForTesting
         void runIteration() throws InterruptedException {
-            final List<ExecutedAction> completedActionsBatch = new ArrayList<>();
+            final List<CompletedActionWriter.CompletedAction> completedActionsBatch = new ArrayList<>();
             // Wait for a record to become available.
-            final ExecutedAction nextRecord = recordQueue.take();
+            final CompletedActionWriter.CompletedAction nextRecord = recordQueue.take();
             completedActionsBatch.add(nextRecord);
             // Drain any remaining records as well.
             recordQueue.drainTo(completedActionsBatch);
             logger.debug("Processing batch of {} completed actions.", completedActionsBatch.size());
-
-            // TODO: This is doubling the "common" work if reporting and extraction are both enabled.
-            if (featureFlags.isExtractionEnabled()) {
-                exportActionBatch(completedActionsBatch);
-            }
-            if (featureFlags.isReportingActionIngestionEnabled()) {
-                recordActionBatchForReporting(completedActionsBatch);
-            }
+            exportActionBatch(completedActionsBatch);
+            recordActionBatchForReporting(completedActionsBatch);
         }
 
-        private void recordActionBatchForReporting(List<ExecutedAction> batch)
+        private void recordActionBatchForReporting(List<CompletedActionWriter.CompletedAction> batch)
                 throws InterruptedException {
-            List<Record> executedRecordsBatch = actionConverter.makeExecutedActionSpec(batch);
-            if (executedRecordsBatch.size() != batch.size()) {
+            final List<Record> executedActionRecords = batch.stream()
+                    .map(CompletedAction::getRecord)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
+            if (executedActionRecords.size() != batch.size()) {
                 logger.debug("Recording {} of {} actions from batch for reporting."
-                    + "Either reporting is not enabled, or some actions did not pass validation.", executedRecordsBatch.size(), batch.size());
+                    + "Either reporting is not enabled, or some actions did not pass validation.", executedActionRecords.size(), batch.size());
             }
-            if (!executedRecordsBatch.isEmpty()) {
+            if (!executedActionRecords.isEmpty()) {
                 try (DSLContext dsl = dbEndpoint.dslContext(); TableWriter actionSpecReplacer = ActionModel.CompletedAction.TABLE.open(
                         sinkFactory.newSink(dsl), "Action Spec Replacer", logger)) {
-                    executedRecordsBatch.forEach(nextAction -> {
-                        try (Record r = actionSpecReplacer.open(nextAction)) {
+                    batch.forEach(nextAction -> {
+                        try (Record r = actionSpecReplacer.open(nextAction.record)) {
                             // Nothing to change in the record.
                         }
                     });
                 } catch (SQLException e) {
                     // TODO - Consider putting the records back into the queue with a timed delay.
-                    logger.error("Failed to record actions {} to database.", executedRecordsBatch.stream()
-                            .map(r -> r.get(ActionModel.CompletedAction.ACTION_OID))
+                    logger.error("Failed to record actions {} to database.", batch.stream()
+                            .map(CompletedActionWriter.CompletedAction::getActionId)
                             .map(Object::toString)
                             .collect(Collectors.joining(",")));
                 } catch (UnsupportedDialectException e) {
@@ -196,18 +198,17 @@ public class CompletedActionWriter implements ActionsListener {
          *
          * @param batch may contain actions that need be sent to Kafka
          */
-        private void exportActionBatch(List<ExecutedAction> batch) {
-            final Collection<Action> convertedActions = actionConverter.makeExportedActions(batch.stream()
-                .map(ExecutedAction::getActionSpec)
-                .collect(Collectors.toList()));
+        private void exportActionBatch(List<CompletedActionWriter.CompletedAction> batch) {
             final String timestamp = ExportUtils.getFormattedDate(clock.millis());
-            final List<ExportedObject> exportedActions = convertedActions.stream()
-                .map(action -> {
-                    ExportedObject exportedObject = new ExportedObject();
-                    exportedObject.setTimestamp(timestamp);
-                    exportedObject.setAction(action);
-                    return exportedObject;
-                }).collect(Collectors.toList());
+            final List<ExportedObject> exportedActions = batch.stream()
+                    .map(CompletedAction::getExportedAction)
+                    .filter(Objects::nonNull)
+                    .map(action -> {
+                        ExportedObject exportedObject = new ExportedObject();
+                        exportedObject.setTimestamp(timestamp);
+                        exportedObject.setAction(action);
+                        return exportedObject;
+                    }).collect(Collectors.toList());
             if (!exportedActions.isEmpty()) {
                 int count = extractorKafkaSender.send(exportedActions);
                 logger.info("Sent {} executed actions to Kafka", count);
@@ -232,8 +233,18 @@ public class CompletedActionWriter implements ActionsListener {
                 actionSuccess.getActionSpec().getDescription(), actionSuccess.getActionId());
         }
 
-        final ExecutedAction action = new ExecutedAction(actionSuccess.getActionId(), actionSuccess.getActionSpec(), actionSuccess.getSuccessDescription());
-        queueAction(action);
+        final CompletedAction action = new CompletedAction(actionSuccess.getActionId());
+        if (featureFlags.isReportingEnabled()) {
+            action.setReportingRecord(actionConverter.makeExecutedActionSpec(actionSuccess.getActionSpec(),
+                    actionSuccess.getSuccessDescription(), graph));
+        }
+        if (featureFlags.isExtractionEnabled()) {
+            action.setExportedAction(actionConverter.makeExportedAction(
+                    actionSuccess.getActionSpec(), graph, actionWriterFactory.getOrFetchPolicies(),
+                    dataExtractionFactory.newRelatedEntitiesExtractor(dataProvider)));
+        }
+
+        queueAction(actionSuccess.getActionId(), action);
     }
 
     /**
@@ -253,15 +264,25 @@ public class CompletedActionWriter implements ActionsListener {
                     actionFailure.getActionSpec().getDescription(), actionFailure.getActionId());
         }
 
-        final ExecutedAction action = new ExecutedAction(actionFailure.getActionId(), actionFailure.getActionSpec(), actionFailure.getErrorDescription());
-        queueAction(action);
+        final CompletedAction action = new CompletedAction(actionFailure.getActionId());
+        if (featureFlags.isReportingEnabled()) {
+            action.setReportingRecord(actionConverter.makeExecutedActionSpec(actionFailure.getActionSpec(),
+                    actionFailure.getErrorDescription(), graph));
+        }
+        if (featureFlags.isExtractionEnabled()) {
+            action.setExportedAction(actionConverter.makeExportedAction(
+                    actionFailure.getActionSpec(), graph, actionWriterFactory.getOrFetchPolicies(),
+                    dataExtractionFactory.newRelatedEntitiesExtractor(dataProvider)));
+        }
+
+        queueAction(actionFailure.getActionId(), action);
     }
 
-    private void queueAction(@Nonnull final ExecutedAction completedAction) {
+    private void queueAction(final long actionId, @Nonnull final CompletedAction completedAction) {
         int queueSize = recordQueue.size();
         recordQueue.add(completedAction);
         logger.debug("Added action {} to the queue. The queue now has {} actions.",
-            completedAction.getActionId(), queueSize + 1);
+            actionId, queueSize + 1);
     }
 
     /**

@@ -27,6 +27,8 @@ public class ModelDefinitions {
     public static final Column<Long> ENTITY_OID = Column.longColumn("entity_oid");
     /** ENTITY_OID, named just "oid". */
     public static final Column<Long> ENTITY_OID_AS_OID = Column.longColumn("oid");
+    /** ENTITY_HASH column. */
+    public static final Column<Long> ENTITY_HASH = Column.longColumn("entity_hash");
     /** ENTITY_NAME column. */
     public static final Column<String> ENTITY_NAME = Column.stringColumn("name");
     /** ATTRS column. */
@@ -43,16 +45,12 @@ public class ModelDefinitions {
     public static final Column<String> COMMODITY_KEY = Column.stringColumn("key");
     /** COMMODITY_CURRENT column. */
     public static final Column<Double> COMMODITY_CURRENT = Column.doubleColumn("current");
-    /** COMMODITY CURRENT PEAK column. */
-    public static final Column<Double> COMMODITY_PEAK_CURRENT = Column.doubleColumn("peak_current");
     /** COMMODITY_CAPACITY column. */
     public static final Column<Double> COMMODITY_CAPACITY = Column.doubleColumn("capacity");
     /** COMMODITY_UTILIZATION column. */
     public static final Column<Double> COMMODITY_UTILIZATION = Column.doubleColumn("utilization");
     /** COMMODITY_CONSUMED column. */
     public static final Column<Double> COMMODITY_CONSUMED = Column.doubleColumn("consumed");
-    /** COMMODITY CONSUMED PEAK column. */
-    public static final Column<Double> COMMODITY_PEAK_CONSUMED = Column.doubleColumn("peak_consumed");
     /** COMMODITY_PROVIDER column. */
     public static final Column<Long> COMMODITY_PROVIDER = Column.longColumn("provider_oid");
     /** SCOPED_OID column. */
@@ -79,10 +77,8 @@ public class ModelDefinitions {
     public static final Column<EntityState> ENTITY_STATE_ENUM = Column.entityStateColumn("state");
     /** ENVIRONMENT TYPE enum column. */
     public static final Column<EnvironmentType> ENVIRONMENT_TYPE_ENUM = Column.environmentTypeColumn("environment");
-    /** ENTITY TYPE enum column, named as "type". */
-    public static final Column<EntityType> ENTITY_TYPE_AS_TYPE_ENUM = Column.entityTypeColumn("type");
     /** ENTITY TYPE enum column. */
-    public static final Column<EntityType> ENTITY_TYPE_ENUM = Column.entityTypeColumn("entity_type");
+    public static final Column<EntityType> ENTITY_TYPE_ENUM = Column.entityTypeColumn("type");
     /** ENTITY SEVERITY enum column. */
     public static final Column<Severity> SEVERITY_ENUM = Column.severityColumn("severity");
     /** ACTIONS COUNT enum column. */
@@ -95,7 +91,7 @@ public class ModelDefinitions {
 
     /** ENTITY_TABLE. */
     public static final Table ENTITY_TABLE = Table.named("entity")
-            .withColumns(ENTITY_OID_AS_OID, ENTITY_TYPE_AS_TYPE_ENUM, ENTITY_NAME,
+            .withColumns(ENTITY_OID_AS_OID, ENTITY_TYPE_ENUM, ENTITY_NAME,
                     ENVIRONMENT_TYPE_ENUM, ATTRS, FIRST_SEEN, LAST_SEEN)
             .build();
 
@@ -107,9 +103,8 @@ public class ModelDefinitions {
     /** METRIC_TABLE. */
     public static final Table METRIC_TABLE = Table.named("metric")
             .withColumns(TIME, ENTITY_OID, COMMODITY_TYPE, COMMODITY_PROVIDER, COMMODITY_KEY,
-                    COMMODITY_CURRENT, COMMODITY_CAPACITY, COMMODITY_UTILIZATION,
-                    COMMODITY_CONSUMED, COMMODITY_PEAK_CURRENT, COMMODITY_PEAK_CONSUMED,
-                    ENTITY_TYPE_ENUM)
+                    COMMODITY_CURRENT, COMMODITY_CAPACITY,
+                    COMMODITY_UTILIZATION, COMMODITY_CONSUMED)
             .build();
 
     /** REPORTING_MODEL. */
@@ -119,7 +114,7 @@ public class ModelDefinitions {
 
     /** SEARCH_ENTITY_TABLE. */
     public static final Table SEARCH_ENTITY_TABLE = Table.named("search_entity")
-            .withColumns(ENTITY_OID_AS_OID, ENTITY_TYPE_AS_TYPE_ENUM, ENTITY_NAME, ENVIRONMENT_TYPE_ENUM,
+            .withColumns(ENTITY_OID_AS_OID, ENTITY_TYPE_ENUM, ENTITY_NAME, ENVIRONMENT_TYPE_ENUM,
                     ENTITY_STATE_ENUM, ATTRS)
             .build();
 

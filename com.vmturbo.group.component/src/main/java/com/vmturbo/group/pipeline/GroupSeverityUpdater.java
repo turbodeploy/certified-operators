@@ -65,35 +65,32 @@ public class GroupSeverityUpdater {
         Collection<GroupSupplementaryInfo> groupsToUpdate = new ArrayList<>();
         Map<Severity, Long> groupCountsBySeverity = new EnumMap<>(Severity.class);
         LongSet groupIds = memberCache.getCachedGroupIds();
-        stopWatch.start("refresh");
-        for (long groupId : groupIds) {
-            // get group's members
-            final Set<Long> groupEntities;
-            try {
-                groupEntities = memberCache.getGroupMembers(groupStore,
+        try {
+            stopWatch.start("refresh");
+            for (long groupId : groupIds) {
+                // get group's members
+                Set<Long> groupEntities = memberCache.getGroupMembers(groupStore,
                         Collections.singleton(groupId), true);
-            } catch (RuntimeException | StoreOperationException e) {
-                logger.error("Skipping severity update for group with uuid: " + groupId
-                        + " due to failure to retrieve its entities. Error: ", e);
-                continue;
+                // calculate severity based on members' severity
+                Severity groupSeverity = severityCalculator.calculateSeverity(groupEntities);
+                // try to insert 1. if a value is already there, add 1 to it
+                groupCountsBySeverity.merge(groupSeverity, 1L, Long::sum);
+                // emptiness, environment & cloud type are ignored during severity updates, so here
+                // we fill them with dummy values
+                groupsToUpdate.add(new GroupSupplementaryInfo(groupId, false, 0, 0,
+                        groupSeverity.getNumber()));
             }
-            // calculate severity based on members' severity
-            Severity groupSeverity = severityCalculator.calculateSeverity(groupEntities);
-            // try to insert 1. if a value is already there, add 1 to it
-            groupCountsBySeverity.merge(groupSeverity, 1L, Long::sum);
-            // emptiness, environment & cloud type are ignored during severity updates, so here
-            // we fill them with dummy values
-            groupsToUpdate.add(new GroupSupplementaryInfo(groupId, false, 0, 0,
-                    groupSeverity.getNumber()));
+            // update database records in a batch
+            final int updatedGroups = groupStore.updateBulkGroupsSeverity(groupsToUpdate);
+            stopWatch.stop();
+            logger.info("Successfully refreshed severities for {} (out of {}) groups in {} ms. Breakdown:\n{}",
+                    updatedGroups,
+                    groupsToUpdate.size(),
+                    stopWatch.getLastTaskTimeMillis(),
+                    severitiesBreakdown(groupCountsBySeverity));
+        } catch (StoreOperationException e) {
+            logger.error("An error occurred during group severity update: " + e);
         }
-        // update database records in a batch
-        final int updatedGroups = groupStore.updateBulkGroupsSeverity(groupsToUpdate);
-        stopWatch.stop();
-        logger.info("Successfully refreshed severities for {} (out of {}) groups in {} ms. Breakdown:\n{}",
-                updatedGroups,
-                groupIds.size(),
-                stopWatch.getLastTaskTimeMillis(),
-                severitiesBreakdown(groupCountsBySeverity));
     }
 
     /**

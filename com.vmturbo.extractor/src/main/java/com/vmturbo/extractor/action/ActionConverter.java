@@ -1,13 +1,8 @@
 package com.vmturbo.extractor.action;
 
 import java.sql.Timestamp;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -16,9 +11,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.ImmutableBiMap;
-
-import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
-import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -32,7 +24,6 @@ import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.RiskUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
-import com.vmturbo.extractor.export.DataExtractionFactory;
 import com.vmturbo.extractor.export.ExportUtils;
 import com.vmturbo.extractor.export.RelatedEntitiesExtractor;
 import com.vmturbo.extractor.models.ActionModel;
@@ -43,10 +34,9 @@ import com.vmturbo.extractor.schema.enums.ActionCategory;
 import com.vmturbo.extractor.schema.enums.ActionType;
 import com.vmturbo.extractor.schema.enums.Severity;
 import com.vmturbo.extractor.schema.enums.TerminalState;
-import com.vmturbo.extractor.schema.json.common.ActionAttributes;
 import com.vmturbo.extractor.schema.json.export.Action;
 import com.vmturbo.extractor.schema.json.export.ActionSavings;
-import com.vmturbo.extractor.topology.DataProvider;
+import com.vmturbo.extractor.schema.json.reporting.ActionAttributes;
 import com.vmturbo.extractor.topology.SupplyChainEntity;
 import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 import com.vmturbo.topology.graph.TopologyGraph;
@@ -116,153 +106,111 @@ public class ActionConverter {
 
     private final ActionAttributeExtractor actionAttributeExtractor;
 
-    private final CachingPolicyFetcher cachingPolicyFetcher;
-
-    private final DataProvider dataProvider;
-
     private final ObjectMapper objectMapper;
-
-    private final DataExtractionFactory dataExtractionFactory;
 
     /**
      * Create a new instance of the converter.
      *
      * @param actionAttributeExtractor The {@link ActionAttributeExtractor} used to extract
      *                                 type-specific action attributes.
-     * @param cachingPolicyFetcher Used to fetch policies. Policy names are required to compose descriptions.
-     * @param dataProvider Used to get the latest topology graph.
-     * @param dataExtractionFactory Used to get information about related entities for data extraction.
      * @param objectMapper The {@link ObjectMapper} used to serialize JSON.
      */
     public ActionConverter(@Nonnull final ActionAttributeExtractor actionAttributeExtractor,
-                           @Nonnull final CachingPolicyFetcher cachingPolicyFetcher,
-                           @Nonnull final DataProvider dataProvider,
-                           @Nonnull final DataExtractionFactory dataExtractionFactory,
                            @Nonnull final ObjectMapper objectMapper) {
         this.actionAttributeExtractor = actionAttributeExtractor;
-        this.cachingPolicyFetcher = cachingPolicyFetcher;
-        this.dataProvider = dataProvider;
-        this.dataExtractionFactory = dataExtractionFactory;
         this.objectMapper = objectMapper;
     }
 
-    @Nonnull
-    List<Record> makeExecutedActionSpec(List<ExecutedAction> executedActions) {
-        final TopologyGraph<SupplyChainEntity> topologyGraph = dataProvider.getTopologyGraph();
-        if (topologyGraph == null) {
-            // This should not happen, because we check for the topology graph earlier.
-            logger.error("No topology graph found. Cannot create executed action records.");
-            return Collections.emptyList();
-        }
-        final Long2ObjectMap<ActionAttributes> attributes =
-                actionAttributeExtractor.extractAttributes(executedActions.stream()
-                    .map(ExecutedAction::getActionSpec)
-                    .collect(Collectors.toList()), topologyGraph);
+    @Nullable
+    Record makeExecutedActionSpec(ActionSpec actionSpec, String message,
+            TopologyGraph<SupplyChainEntity> topologyGraph) {
+        final Record executedActionRecord = new Record(CompletedAction.TABLE);
+        try {
+            final long primaryEntityId = ActionDTOUtil.getPrimaryEntity(actionSpec.getRecommendation()).getId();
+            executedActionRecord.set(CompletedAction.RECOMMENDATION_TIME,
+                    new Timestamp(actionSpec.getRecommendationTime()));
 
-        final List<Record> retList = new ArrayList<>(executedActions.size());
-        executedActions.forEach(action -> {
-            final ActionSpec actionSpec = action.getActionSpec();
-            final long actionId = actionSpec.getRecommendation().getId();
-            final Record executedActionRecord = new Record(CompletedAction.TABLE);
-            try {
-                final long primaryEntityId = ActionDTOUtil.getPrimaryEntity(actionSpec.getRecommendation()).getId();
-                executedActionRecord.set(CompletedAction.RECOMMENDATION_TIME,
-                        new Timestamp(actionSpec.getRecommendationTime()));
-
-                TerminalState state = STATE_MAP.get(actionSpec.getActionState());
-                if (state == null) {
-                    // Only succeeded/failed actions get mapped successfully.
-                    logger.error("Completed action {} (id: {}) has non-final state: {}",
-                            actionSpec.getDescription(), actionId, actionSpec.getActionState());
-                    return;
-                }
-
-                if (!actionSpec.hasDecision() || !actionSpec.hasExecutionStep()) {
-                    // Something is wrong. A completed action should have a decision and execution step.
-                    logger.error("Completed action {} (id: {}) does not have a decision and execution step.",
-                            actionSpec.getDescription(), actionId);
-                    return;
-                } else {
-                    final ActionDecision decision = actionSpec.getDecision();
-                    // The last execution step's completion time is the completion time of the whole
-                    // action.
-                    final ExecutionStep executionStep = actionSpec.getExecutionStep();
-                    executedActionRecord.set(CompletedAction.ACCEPTANCE_TIME,
-                            new Timestamp(decision.getDecisionTime()));
-                    executedActionRecord.set(CompletedAction.COMPLETION_TIME,
-                            new Timestamp(executionStep.getCompletionTime()));
-                }
-                executedActionRecord.set(CompletedAction.ACTION_OID, actionId);
-                executedActionRecord.set(CompletedAction.TYPE, extractType(actionSpec));
-                executedActionRecord.set(CompletedAction.CATEGORY, extractCategory(actionSpec));
-                executedActionRecord.set(CompletedAction.SEVERITY, extractSeverity(actionSpec));
-                executedActionRecord.set(CompletedAction.TARGET_ENTITY, primaryEntityId);
-                executedActionRecord.set(CompletedAction.INVOLVED_ENTITIES,
-                        ActionDTOUtil.getInvolvedEntityIds(actionSpec.getRecommendation())
-                                .toArray(new Long[0]));
-                executedActionRecord.set(CompletedAction.ATTRS, toJsonString(attributes.get(actionId)));
-                executedActionRecord.set(CompletedAction.DESCRIPTION, actionSpec.getDescription());
-                executedActionRecord.set(CompletedAction.SAVINGS,
-                        actionSpec.getRecommendation().getSavingsPerHour().getAmount());
-
-
-                executedActionRecord.set(CompletedAction.FINAL_STATE, state);
-                executedActionRecord.set(CompletedAction.FINAL_MESSAGE, action.getMessage());
-
-
-                // We don't set the hash here. We set it when we write the data.
-
-                retList.add(executedActionRecord);
-            } catch (UnsupportedActionException e) {
-                // Should not happen.
+            TerminalState state = STATE_MAP.get(actionSpec.getActionState());
+            if (state == null) {
+                // Only succeeded/failed actions get mapped successfully.
+                return null;
             }
-        });
-        return retList;
+
+            if (!actionSpec.hasDecision() || !actionSpec.hasExecutionStep()) {
+                // Something is wrong. A completed action should have a decision and execution step.
+                logger.error("Completed action {} (id: {}) does not have a decision and execution step.",
+                        actionSpec.getDescription(), actionSpec.getRecommendation().getId());
+                return null;
+            } else {
+                final ActionDecision decision = actionSpec.getDecision();
+                // The last execution step's completion time is the completion time of the whole
+                // action.
+                final ExecutionStep executionStep = actionSpec.getExecutionStep();
+                executedActionRecord.set(CompletedAction.ACCEPTANCE_TIME,
+                        new Timestamp(decision.getDecisionTime()));
+                executedActionRecord.set(CompletedAction.COMPLETION_TIME,
+                        new Timestamp(executionStep.getCompletionTime()));
+            }
+            executedActionRecord.set(CompletedAction.ACTION_OID, actionSpec.getRecommendation().getId());
+            executedActionRecord.set(CompletedAction.TYPE, extractType(actionSpec));
+            executedActionRecord.set(CompletedAction.CATEGORY, extractCategory(actionSpec));
+            executedActionRecord.set(CompletedAction.SEVERITY, extractSeverity(actionSpec));
+            executedActionRecord.set(CompletedAction.TARGET_ENTITY, primaryEntityId);
+            executedActionRecord.set(CompletedAction.INVOLVED_ENTITIES,
+                    ActionDTOUtil.getInvolvedEntityIds(actionSpec.getRecommendation())
+                            .toArray(new Long[0]));
+            executedActionRecord.set(CompletedAction.ATTRS, extractAttrs(actionSpec, topologyGraph));
+            executedActionRecord.set(CompletedAction.DESCRIPTION, actionSpec.getDescription());
+            executedActionRecord.set(CompletedAction.SAVINGS,
+                    actionSpec.getRecommendation().getSavingsPerHour().getAmount());
+
+
+            executedActionRecord.set(CompletedAction.FINAL_STATE, state);
+            executedActionRecord.set(CompletedAction.FINAL_MESSAGE, message);
+
+
+            // We don't set the hash here. We set it when we write the data.
+
+            return executedActionRecord;
+        } catch (UnsupportedActionException e) {
+            return null;
+        }
+
     }
 
     /**
      * Create a record for the pending action table from a particular {@link ActionSpec}.
      *
-     * @param actionSpecs The {@link ActionSpec}s from the action orchestrator, arranged by id.
-     * @return The database {@link Record}s the actions map to, arranged by id.
+     * @param actionSpec The {@link ActionSpec} from the action orchestrator.
+     * @param topologyGraph The topology graph, used to help find additional entity information
+     *                      (e.g. display names) for action attributes.
+     * @return The database {@link Record}, or null if the action is unsupported.
      */
-    @Nonnull
-    List<Record> makePendingActionRecords(List<ActionSpec> actionSpecs) {
-        final TopologyGraph<SupplyChainEntity> topologyGraph = dataProvider.getTopologyGraph();
-        if (topologyGraph == null) {
-            // This should not happen, because we check for the topology graph before
-            // creating the writer for pending actions.
-            logger.error("No topology graph found. Cannot create pending action records.");
-            return Collections.emptyList();
-        }
-        final Long2ObjectMap<ActionAttributes> attributes = actionAttributeExtractor.extractAttributes(actionSpecs, topologyGraph);
-        final List<Record> retList = new ArrayList<>(actionSpecs.size());
-        actionSpecs.forEach(actionSpec -> {
-            final Record pendingActionRecord = new Record(ActionModel.PendingAction.TABLE);
-            final long actionId = actionSpec.getRecommendation().getId();
-            try {
-                final long primaryEntityId = ActionDTOUtil.getPrimaryEntity(actionSpec.getRecommendation()).getId();
-                pendingActionRecord.set(ActionModel.PendingAction.RECOMMENDATION_TIME,
-                        new Timestamp(actionSpec.getRecommendationTime()));
-                pendingActionRecord.set(ActionModel.PendingAction.ACTION_OID, actionId);
-                pendingActionRecord.set(ActionModel.PendingAction.TYPE, extractType(actionSpec));
-                pendingActionRecord.set(ActionModel.PendingAction.CATEGORY, extractCategory(actionSpec));
-                pendingActionRecord.set(ActionModel.PendingAction.SEVERITY, extractSeverity(actionSpec));
-                pendingActionRecord.set(ActionModel.PendingAction.TARGET_ENTITY, primaryEntityId);
-                pendingActionRecord.set(ActionModel.PendingAction.INVOLVED_ENTITIES,
-                        ActionDTOUtil.getInvolvedEntityIds(actionSpec.getRecommendation())
-                                .toArray(new Long[0]));
-                pendingActionRecord.set(ActionModel.PendingAction.DESCRIPTION, actionSpec.getDescription());
-                pendingActionRecord.set(ActionModel.PendingAction.SAVINGS,
-                        actionSpec.getRecommendation().getSavingsPerHour().getAmount());
-                pendingActionRecord.set(ActionModel.PendingAction.ATTRS, toJsonString(attributes.get(actionId)));
+    @Nullable
+    Record makePendingActionRecord(ActionSpec actionSpec, TopologyGraph<SupplyChainEntity> topologyGraph) {
+        final Record pendingActionRecord = new Record(ActionModel.PendingAction.TABLE);
+        try {
+            final long primaryEntityId = ActionDTOUtil.getPrimaryEntity(actionSpec.getRecommendation()).getId();
+            pendingActionRecord.set(ActionModel.PendingAction.RECOMMENDATION_TIME,
+                    new Timestamp(actionSpec.getRecommendationTime()));
+            pendingActionRecord.set(ActionModel.PendingAction.ACTION_OID, actionSpec.getRecommendation().getId());
+            pendingActionRecord.set(ActionModel.PendingAction.TYPE, extractType(actionSpec));
+            pendingActionRecord.set(ActionModel.PendingAction.CATEGORY, extractCategory(actionSpec));
+            pendingActionRecord.set(ActionModel.PendingAction.SEVERITY, extractSeverity(actionSpec));
+            pendingActionRecord.set(ActionModel.PendingAction.TARGET_ENTITY, primaryEntityId);
+            pendingActionRecord.set(ActionModel.PendingAction.INVOLVED_ENTITIES,
+                    ActionDTOUtil.getInvolvedEntityIds(actionSpec.getRecommendation())
+                            .toArray(new Long[0]));
+            pendingActionRecord.set(ActionModel.PendingAction.DESCRIPTION, actionSpec.getDescription());
+            pendingActionRecord.set(ActionModel.PendingAction.SAVINGS,
+                    actionSpec.getRecommendation().getSavingsPerHour().getAmount());
+            pendingActionRecord.set(ActionModel.PendingAction.ATTRS, extractAttrs(actionSpec,
+                    topologyGraph));
 
-                retList.add(pendingActionRecord);
-            } catch (UnsupportedActionException e) {
-                // Shouldn't happen.
-            }
-        });
-        return retList;
+            return pendingActionRecord;
+        } catch (UnsupportedActionException e) {
+            return null;
+        }
     }
 
     private ActionCategory extractCategory(ActionSpec spec) {
@@ -279,11 +227,9 @@ public class ActionConverter {
     }
 
     @Nullable
-    private JsonString toJsonString(@Nullable final ActionAttributes actionAttributes) {
-        if (actionAttributes == null) {
-            return null;
-        }
-
+    private JsonString extractAttrs(@Nonnull final ActionSpec actionSpec,
+            TopologyGraph<SupplyChainEntity> topologyGraph) {
+        ActionAttributes actionAttributes = actionAttributeExtractor.extractAttributes(actionSpec, topologyGraph);
         try {
             return new JsonString(objectMapper.writeValueAsString(actionAttributes));
         } catch (JsonProcessingException e) {
@@ -295,72 +241,64 @@ public class ActionConverter {
     /**
      * Create action to be exported based on given action spec and topology info.
      *
-     * @param actionSpecs the action from AO, arranged by id.
+     * @param actionSpec the action from AO
+     * @param topologyGraph the graph containing the topology
+     * @param policyById map of policies by id
+     * @param relatedEntitiesExtractor used to extract related entities
      * @return {@link Action}
      */
     @Nonnull
-    public Collection<Action> makeExportedActions(@Nonnull List<ActionSpec> actionSpecs) {
-        final Map<Long, Policy> policyById = cachingPolicyFetcher.getOrFetchPolicies();
-        final TopologyGraph<SupplyChainEntity> topologyGraph = dataProvider.getTopologyGraph();
-        if (topologyGraph == null) {
-            // This should not happen, because we check for the topology graph before
-            // creating the writer for exported actions.
-            logger.error("No topology graph present in extractor component. Cannot export actions.");
-            return Collections.emptyList();
+    public Action makeExportedAction(@Nonnull ActionSpec actionSpec,
+            @Nonnull TopologyGraph<SupplyChainEntity> topologyGraph,
+            @Nonnull Map<Long, Policy> policyById,
+            @Nonnull Optional<RelatedEntitiesExtractor> relatedEntitiesExtractor) {
+        final ActionDTO.Action recommendation = actionSpec.getRecommendation();
+        final Action action = new Action();
+        action.setOid(recommendation.getId());
+        action.setCreationTime(ExportUtils.getFormattedDate(actionSpec.getRecommendationTime()));
+        action.setState(actionSpec.getActionState().name());
+        action.setCategory(actionSpec.getCategory().name());
+        action.setMode(actionSpec.getActionMode().name());
+        action.setDescription(actionSpec.getDescription());
+        action.setSeverity(actionSpec.getSeverity().name());
+
+        // set risk description
+        try {
+            final String riskDescription = RiskUtil.createRiskDescription(actionSpec, policyById::get,
+                    entityId -> topologyGraph.getEntity(entityId)
+                            .map(SupplyChainEntity::getDisplayName)
+                            .orElse(null));
+            action.setExplanation(riskDescription);
+        } catch (UnsupportedActionException e) {
+            logger.error("Cannot calculate risk for unsupported action {}", actionSpec, e);
         }
-        final Optional<RelatedEntitiesExtractor> relatedEntitiesExtractor =
-                dataExtractionFactory.newRelatedEntitiesExtractor(dataProvider);
 
-        final Long2ObjectMap<Action> retActions = new Long2ObjectOpenHashMap<>(actionSpecs.size());
-        actionSpecs.forEach(actionSpec -> {
-            final ActionDTO.Action recommendation = actionSpec.getRecommendation();
-            final Action action = new Action();
-            action.setOid(recommendation.getId());
-            action.setCreationTime(ExportUtils.getFormattedDate(actionSpec.getRecommendationTime()));
-            action.setState(actionSpec.getActionState().name());
-            action.setCategory(actionSpec.getCategory().name());
-            action.setMode(actionSpec.getActionMode().name());
-            action.setDescription(actionSpec.getDescription());
-            action.setSeverity(actionSpec.getSeverity().name());
+        // set target and related
+        try {
+            ActionDTO.ActionEntity primaryEntity = ActionDTOUtil.getPrimaryEntity(recommendation, true);
+            action.setTarget(ActionAttributeExtractor.getActionEntityWithType(primaryEntity, topologyGraph));
+            relatedEntitiesExtractor.ifPresent(extractor ->
+                    action.setRelated(extractor.extractRelatedEntities(primaryEntity.getId())));
+        } catch (UnsupportedActionException e) {
+            // this should not happen
+            logger.error("Unable to get primary entity for unsupported action {}", actionSpec, e);
+        }
 
-            // set risk description
-            try {
-                final String riskDescription = RiskUtil.createRiskDescription(actionSpec, policyById::get,
-                        entityId -> topologyGraph.getEntity(entityId)
-                                .map(SupplyChainEntity::getDisplayName)
-                                .orElse(null));
-                action.setExplanation(riskDescription);
-            } catch (UnsupportedActionException e) {
-                logger.error("Cannot calculate risk for unsupported action {}", actionSpec, e);
-            }
+        // set action savings if available
+        if (recommendation.hasSavingsPerHour()) {
+            CurrencyAmount savingsPerHour = recommendation.getSavingsPerHour();
+            ActionSavings actionSavings = new ActionSavings();
+            actionSavings.setUnit(CostProtoUtil.getCurrencyUnit(savingsPerHour));
+            actionSavings.setAmount(savingsPerHour.getAmount());
+            action.setSavings(actionSavings);
+        }
 
-            // set target and related
-            try {
-                ActionDTO.ActionEntity primaryEntity = ActionDTOUtil.getPrimaryEntity(recommendation, true);
-                action.setTarget(ActionAttributeExtractor.getActionEntityWithType(primaryEntity, topologyGraph));
-                relatedEntitiesExtractor.ifPresent(extractor ->
-                        action.setRelated(extractor.extractRelatedEntities(primaryEntity.getId())));
-            } catch (UnsupportedActionException e) {
-                // this should not happen
-                logger.error("Unable to get primary entity for unsupported action {}", actionSpec, e);
-            }
+        final ActionDTO.ActionType actionType = ActionDTOUtil.getActionInfoActionType(actionSpec.getRecommendation());
+        action.setType(actionType.name());
 
-            // set action savings if available
-            if (recommendation.hasSavingsPerHour()) {
-                CurrencyAmount savingsPerHour = recommendation.getSavingsPerHour();
-                ActionSavings actionSavings = new ActionSavings();
-                actionSavings.setUnit(CostProtoUtil.getCurrencyUnit(savingsPerHour));
-                actionSavings.setAmount(savingsPerHour.getAmount());
-                action.setSavings(actionSavings);
-            }
+        // Add type-specific attributes to the action.
+        actionAttributeExtractor.populateActionAttributes(actionSpec, topologyGraph, action);
 
-            final ActionDTO.ActionType actionType = ActionDTOUtil.getActionInfoActionType(actionSpec.getRecommendation());
-            action.setType(actionType.name());
-            retActions.put(actionSpec.getRecommendation().getId(), action);
-        });
-
-        actionAttributeExtractor.populateAttributes(actionSpecs, topologyGraph, retActions);
-
-        return retActions.values();
+        return action;
     }
 }

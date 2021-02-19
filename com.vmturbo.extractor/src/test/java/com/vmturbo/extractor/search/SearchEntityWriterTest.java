@@ -4,7 +4,7 @@ import static com.vmturbo.extractor.models.ModelDefinitions.ATTRS;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_NAME;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_OID_AS_OID;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_STATE_ENUM;
-import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_TYPE_AS_TYPE_ENUM;
+import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_TYPE_ENUM;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENVIRONMENT_TYPE_ENUM;
 import static com.vmturbo.extractor.util.RecordTestUtil.captureSink;
 import static com.vmturbo.extractor.util.TopologyTestUtil.mkEntity;
@@ -217,14 +217,14 @@ public class SearchEntityWriterTest {
 
         assertThat(record.get(ENTITY_OID_AS_OID), is(g1.getId()));
         assertThat(record.get(ENTITY_NAME), is(g1.getDefinition().getDisplayName()));
-        assertThat(record.get(ENTITY_TYPE_AS_TYPE_ENUM), is(
+        assertThat(record.get(ENTITY_TYPE_ENUM), is(
                 GroupTypeUtils.protoToDb(g1.getDefinition().getType())));
     }
 
     private void verifyCommonFields(Record record, TopologyEntityDTO entity) {
         assertThat(record.get(ENTITY_OID_AS_OID), is(entity.getOid()));
         assertThat(record.get(ENTITY_NAME), is(entity.getDisplayName()));
-        assertThat(record.get(ENTITY_TYPE_AS_TYPE_ENUM), is(
+        assertThat(record.get(ENTITY_TYPE_ENUM), is(
                 SearchEntityTypeUtils.protoIntToDb(entity.getEntityType())));
         assertThat(record.get(ENVIRONMENT_TYPE_ENUM), is(
                 EnvironmentTypeUtils.protoToDb(entity.getEnvironmentType())));

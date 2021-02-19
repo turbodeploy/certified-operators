@@ -143,7 +143,7 @@ public class ClusterStatsFetcherFactory {
                     .from(Metric.METRIC)
                     .join(Entity.ENTITY)
                     .on(Metric.METRIC.ENTITY_OID.eq(Entity.ENTITY.OID))
-                    .where(Metric.METRIC.TYPE.eq(MetricType.CPU_HEADROOM)
+                    .where(Metric.METRIC.TYPE.eq(MetricType.CPU_HEADROOM.getName())
                         .and(Metric.METRIC.TIME.between(OffsetDateTime.now().minus(Duration.ofDays(headroomMaxBackfillingDays)),
                             OffsetDateTime.now()))
                         .and(Entity.ENTITY.TYPE.eq(EntityType.COMPUTE_CLUSTER)))
