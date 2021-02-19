@@ -459,7 +459,7 @@ panels:
            MAX(current) FILTER (WHERE metric.type = 'STORAGE_PROVISIONED') as stor_prov
          FROM
            metric
-           JOIN scope ON metric.entity_oid = scope.seed_oid
+           JOIN scope ON metric.entity_oid = scope.scoped_oid
              AND metric.time between scope.start and scope.finish
          WHERE
            -- fixed conditions
