@@ -37,7 +37,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 
-import org.javatuples.Quartet;
+import org.javatuples.Quintet;
 import org.javatuples.Triplet;
 import org.junit.Before;
 import org.junit.Test;
@@ -142,24 +142,25 @@ public class DataExtractionWriterTest {
     public void testEntityExtraction() {
         final TopologyEntityDTO st1 = mkEntity(STORAGE).toBuilder()
                 .addAllCommoditySoldList(soldCommodities(
-                        Quartet.with(STORAGE_ACCESS, "", 2500.0, 5000.0),
-                        Quartet.with(STORAGE_AMOUNT, "", 2048.0, 4096.0)
+                        Quintet.with(STORAGE_ACCESS, "", 2500.0, 5000.0, null),
+                        Quintet.with(STORAGE_AMOUNT, "", 2048.0, 4096.0, null)
                 )).build();
         final TopologyEntityDTO st2 = mkEntity(STORAGE).toBuilder()
                 .addAllCommoditySoldList(soldCommodities(
-                        Quartet.with(STORAGE_ACCESS, "", 2000.0, 4000.0),
-                        Quartet.with(STORAGE_AMOUNT, "", 4096.0, 5120.0)
+                        Quintet.with(STORAGE_ACCESS, "", 2000.0, 4000.0, null),
+                        Quintet.with(STORAGE_AMOUNT, "", 4096.0, 5120.0, null)
                 )).build();
         final TopologyEntityDTO pm = mkEntity(PHYSICAL_MACHINE).toBuilder()
                 .addAllCommoditySoldList(soldCommodities(
-                        Quartet.with(CPU, "a", 2000.0, 10000.0),
-                        Quartet.with(MEM, "b", 1024.0, 2048.0),
-                        Quartet.with(Q1_VCPU, "", 200.0, QX_VCPU_BASE_COEFFICIENT),
-                        Quartet.with(Q2_VCPU, "", 400.0, QX_VCPU_BASE_COEFFICIENT)
+                        Quintet.with(CPU, "a", 2000.0, 10000.0, null),
+                        Quintet.with(MEM, "b", 1024.0, 2048.0, null),
+                        Quintet.with(Q1_VCPU, "", 200.0, QX_VCPU_BASE_COEFFICIENT, null),
+                        Quintet.with(Q2_VCPU, "", 400.0, QX_VCPU_BASE_COEFFICIENT, null)
                 )).build();
         final TopologyEntityDTO vm = mkEntity(VIRTUAL_MACHINE).toBuilder()
                 .addAllCommoditySoldList(soldCommodities(
-                        Quartet.with(VCPU, "", 200.0, 500.0), Quartet.with(VMEM, "", 512.0, 1024.0)
+                        Quintet.with(VCPU, "", 200.0, 500.0, null),
+                        Quintet.with(VMEM, "", 512.0, 1024.0, null)
                 ))
                 .addCommoditiesBoughtFromProviders(boughtCommoditiesFromProvider(pm,
                         Triplet.with(CPU, "", 200.0), Triplet.with(MEM, "", 512.0),
