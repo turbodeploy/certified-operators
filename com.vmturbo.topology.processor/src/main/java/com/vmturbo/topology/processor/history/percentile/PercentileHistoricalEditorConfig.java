@@ -9,13 +9,13 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableMap;
 
 import org.apache.commons.lang.StringUtils;
 
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.components.common.setting.PercentileSettingSpecs;
+import com.vmturbo.components.common.setting.PercentileSettingSpecs.EntityTypePercentileSettings;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.KVConfig;
 import com.vmturbo.topology.processor.history.CachingHistoricalEditorConfig;
 import com.vmturbo.topology.processor.history.HistoryAggregationContext;
@@ -36,35 +36,10 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
     @VisibleForTesting
     public static final String STORE_CACHE_TO_DIAGNOSTICS_PROPERTY = "storeCacheToDiagnostics";
 
-    private static final Map<EntityType, EntitySettingSpecs> TYPE_AGGRESSIVENESS = ImmutableMap
-                    .of(EntityType.BUSINESS_USER,
-                        EntitySettingSpecs.PercentileAggressivenessBusinessUser,
-                        EntityType.CONTAINER_SPEC,
-                        EntitySettingSpecs.PercentileAggressivenessContainerSpec,
-                        EntityType.VIRTUAL_MACHINE,
-                        EntitySettingSpecs.PercentileAggressivenessVirtualMachine,
-                        EntityType.VIRTUAL_VOLUME,
-                        EntitySettingSpecs.PercentileAggressivenessVirtualVolume,
-                        EntityType.DATABASE,
-                        EntitySettingSpecs.PercentileAggressivenessDatabase);
-    private static final Map<EntityType, EntitySettingSpecs> TYPE_MAX_OBSERVATION_PERIOD = ImmutableMap
-                    .of(EntityType.BUSINESS_USER,
-                        EntitySettingSpecs.MaxObservationPeriodBusinessUser,
-                        EntityType.CONTAINER_SPEC,
-                        EntitySettingSpecs.MaxObservationPeriodContainerSpec,
-                        EntityType.VIRTUAL_MACHINE,
-                        EntitySettingSpecs.MaxObservationPeriodVirtualMachine,
-                        EntityType.VIRTUAL_VOLUME,
-                        EntitySettingSpecs.MaxObservationPeriodVirtualVolume,
-                        EntityType.DATABASE,
-                        EntitySettingSpecs.MaxObservationPeriodDatabase);
-    private static final Map<EntityType, EntitySettingSpecs> TYPE_MIN_OBSERVATION_PERIOD =
-            ImmutableMap.of(EntityType.CONTAINER_SPEC,
-                            EntitySettingSpecs.MinObservationPeriodContainerSpec,
-                            EntityType.VIRTUAL_MACHINE,
-                            EntitySettingSpecs.MinObservationPeriodVirtualMachine,
-                            EntityType.VIRTUAL_VOLUME,
-                            EntitySettingSpecs.MinObservationPeriodVirtualVolume);
+    private static final Function<EntityTypePercentileSettings, EntitySettingSpecs> TYPE_AGGRESSIVENESS = EntityTypePercentileSettings::getAggressiveness;
+    private static final Function<EntityTypePercentileSettings, EntitySettingSpecs> TYPE_MAX_OBSERVATION_PERIOD = EntityTypePercentileSettings::getObservationPeriod;
+    private static final Function<EntityTypePercentileSettings, EntitySettingSpecs> TYPE_MIN_OBSERVATION_PERIOD = EntityTypePercentileSettings::getMinObservationPeriod;
+
     private final Map<CommodityType, PercentileBuckets> buckets = new HashMap<>();
     private final int maintenanceWindowHours;
     private final int grpcStreamTimeoutSec;
@@ -191,14 +166,13 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
 
     @Nonnull
     private Number getNumberSetting(@Nonnull HistoryAggregationContext context, long oid,
-                                    @Nonnull Map<EntityType, EntitySettingSpecs> type2spec,
+                                    @Nonnull Function<EntityTypePercentileSettings, EntitySettingSpecs> type2spec,
                                     @Nonnull String description, @Nonnull Number defaultValue) {
-        EntitySettingSpecs spec = type2spec.get(context.getEntityType(oid));
-        if (spec != null) {
-            return context.getSettingValue(oid, spec, Number.class, Function.identity(),
-                ss -> ss.getNumericSettingValueType().getDefault());
-        }
-        return defaultValue;
+        return PercentileSettingSpecs.getPercentileSettings(context.getEntityType(oid))
+            .map(type2spec)
+            .map(spec -> context.getSettingValue(oid, spec, Number.class, Function.identity(),
+                    ss -> ss.getNumericSettingValueType().getDefault()))
+            .orElse(defaultValue);
     }
 
     @Override
