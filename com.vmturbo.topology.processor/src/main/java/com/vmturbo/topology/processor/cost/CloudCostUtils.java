@@ -10,6 +10,7 @@ import com.google.common.collect.ImmutableMap;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ReservedInstanceData.Platform;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
+import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
 
 /**
  *
@@ -65,23 +66,25 @@ public class CloudCostUtils {
             "B", EMPTY_PREFIX
     );
 
-    private static final Map<SDKProbeType, BiFunction<String, SDKProbeType, String>>
+    private static final Map<SDKProbeType, BiFunction<TopologyStitchingEntity, SDKProbeType, String>>
             DB_TIER_LOCAL_NAME_TO_ID_FUNCTION = ImmutableMap.of(
-            SDKProbeType.AZURE, (localName, probeType) -> azureDatabaseTierLocalNameToId(localName, probeType),
-            SDKProbeType.AWS, (localName, probeType) -> awsDatabaseTierLocalNameToId(localName, probeType),
-            SDKProbeType.AWS_COST, (localName, probeType) -> awsDatabaseTierLocalNameToId(localName, probeType),
-            SDKProbeType.AWS_BILLING, (localName, probeType) -> awsDatabaseTierLocalNameToId(localName, probeType)
+            SDKProbeType.AZURE, (topologyStitchingEntity, probeType) -> azureDatabaseTierLocalNameToId(topologyStitchingEntity, probeType),
+            SDKProbeType.AWS, (topologyStitchingEntity, probeType) -> awsDatabaseTierLocalNameToId(topologyStitchingEntity, probeType),
+            SDKProbeType.AWS_COST, (topologyStitchingEntity, probeType) -> awsDatabaseTierLocalNameToId(topologyStitchingEntity, probeType),
+            SDKProbeType.AWS_BILLING, (topologyStitchingEntity, probeType) -> awsDatabaseTierLocalNameToId(topologyStitchingEntity, probeType)
     );
 
     /**
      * Looks up  and returns a function based on {@link SDKProbeType}
      * which is used for formatting DB Tier localId.
      */
-    private static final Map<SDKProbeType, BiFunction<String, SDKProbeType, String>>
+    private static final Map<SDKProbeType, BiFunction<TopologyStitchingEntity, SDKProbeType, String>>
             DB_TIER_FULL_NAME_TO_ID_FUNCTION = ImmutableMap.of(
-            SDKProbeType.AZURE, (localName, probeType) -> azureDatabaseTierFullNameToId(localName, probeType),
-            SDKProbeType.AZURE_COST, (localName, probeType) -> azureDatabaseTierFullNameToId(localName, probeType)
-    );
+            SDKProbeType.AZURE, (topologyStitchingEntity, probeType) -> azureDatabaseTierFullNameToId(topologyStitchingEntity, probeType),
+            SDKProbeType.AZURE_COST, (topologyStitchingEntity, probeType) -> azureDatabaseTierFullNameToId(topologyStitchingEntity, probeType),
+            SDKProbeType.AWS, (topologyStitchingEntity, probeType) -> awsDatabaseTierLocalNameToId(topologyStitchingEntity, probeType),
+            SDKProbeType.AWS_COST, (topologyStitchingEntity, probeType) -> awsDatabaseTierLocalNameToId(topologyStitchingEntity, probeType)
+            );
 
     // prefixes used for database entities in the cloud discovery probes
     public static final String AZURE_DATABASE_TIER_PREFIX = "azure::DBPROFILE::";
@@ -136,16 +139,16 @@ public class CloudCostUtils {
      * <p>
      * Note that this function is not used in the cloud discovery wrapper probes, and we don't
      * necessarily want it to be.
-     *
-     * @param localName the local id of the database tier
+     *  @param topologyStitchingEntity the local id of the database tier
      * @param probeType the {@link SDKProbeType} of the probe that discovered this entity
+     * @return databaseTier name.
      */
-    public static String databaseTierLocalNameToId(@Nonnull String localName, @Nonnull SDKProbeType probeType) {
+    public static String databaseTierLocalNameToId(@Nonnull TopologyStitchingEntity topologyStitchingEntity, @Nonnull SDKProbeType probeType) {
         if (PROBE_TYPE_TO_DATABASE_TIER_PREFIX.containsKey(probeType)) {
-            return DB_TIER_LOCAL_NAME_TO_ID_FUNCTION.get(probeType).apply(localName, probeType);
+            return DB_TIER_LOCAL_NAME_TO_ID_FUNCTION.get(probeType).apply(topologyStitchingEntity, probeType);
         }
         // if a probe type is not found in the map, then return the original string unaltered.
-        return localName;
+        return topologyStitchingEntity.getDisplayName();
     }
 
     /**
@@ -155,19 +158,19 @@ public class CloudCostUtils {
      * Premium P11 / 1048576.0 MegaBytes and Premium P11 / 4194304.0 MegaBytes matches same DB cost entry.
      * Input eg: dbName : "P11 / 4194304.0 MegaBytes", probeType: AZURE
      * Output: "azure::DBPROFILE::Premium_P11 / 4194304.0 MegaBytes".
-     * @param dbName the local ID of the database tier
+     * @param entity the {@link TopologyStitchingEntity} of the database(server) tier.
      * @param probeType the {@link SDKProbeType} of the probe that discovered this entity.
      * @return string with either an updated ID (if probe type is found) or return original string.
      */
-    public static String databaseTierNameToFullId(@Nonnull String dbName, @Nonnull SDKProbeType probeType) {
+    public static String databaseTierNameToFullId(@Nonnull TopologyStitchingEntity entity, @Nonnull SDKProbeType probeType) {
         if (PROBE_TYPE_TO_DATABASE_TIER_PREFIX.containsKey(probeType)) {
-            BiFunction<String, SDKProbeType, String> biFunction = DB_TIER_FULL_NAME_TO_ID_FUNCTION.get(probeType);
+            BiFunction<TopologyStitchingEntity, SDKProbeType, String> biFunction = DB_TIER_FULL_NAME_TO_ID_FUNCTION.get(probeType);
             if (biFunction != null) {
-                return biFunction.apply(dbName, probeType);
+                return biFunction.apply(entity, probeType);
             }
         }
         // if a probe type is not found in the map, then return the original string unaltered.
-        return dbName;
+        return entity.getDisplayName() + entity.getLocalId();
     }
 
     /**
@@ -175,13 +178,14 @@ public class CloudCostUtils {
      * coming from regular Azure probe and the db costs coming from azure cost probe.
      * e.g. "S6 / 2048.0 MegaBytes" -> "azure::DBPROFILE::Standard_S6"
      *
-     * @param localName the local id of the database tier.
+     * @param entity {@link TopologyStitchingEntity} the database tier.
      * @param probeType the {@link SDKProbeType} of the probe that discovered this entity.
      * @return the string Azure db constructed id.
      */
-    private static String azureDatabaseTierLocalNameToId(@Nonnull String localName,
+    private static String azureDatabaseTierLocalNameToId(@Nonnull TopologyStitchingEntity entity,
                                                          @Nonnull SDKProbeType probeType) {
-        int indexOfStorageDelimiter = localName.indexOf("/");
+        final String localName = entity.getDisplayName();
+        int indexOfStorageDelimiter = entity.getDisplayName().indexOf("/");
         String dbTypeName = indexOfStorageDelimiter == -1 ?
                 localName : localName.substring(0, indexOfStorageDelimiter).trim();
         String dbTypeLetter = dbTypeName.substring(0, 1);
@@ -193,27 +197,35 @@ public class CloudCostUtils {
      * Returns formatted name for a given name and probeType.
      * eg: Input eg: localName : "P11 / 4194304.0 MegaBytes", probeType : AZURE
      * Output: "azure::DBPROFILE::Premium_P11 / 4194304.0 MegaBytes".
-     * @param localName azure DB name.
+     * @param entity {@link TopologyStitchingEntity} azure DB name.
      * @param probeType {@link SDKProbeType} to which the DB belongs to.
      * @return formatted string.
      */
-    private static String azureDatabaseTierFullNameToId(@Nonnull String localName,
+    private static String azureDatabaseTierFullNameToId(@Nonnull TopologyStitchingEntity entity,
                                                        @Nonnull SDKProbeType probeType) {
-        String dbTypeLetter = localName.substring(0, 1);
+        final String fullName = entity.getDisplayName() + entity.getLocalId();
+        String dbTypeLetter = fullName.substring(0, 1);
         return PROBE_TYPE_TO_DATABASE_TIER_PREFIX.get(probeType) +
-                AZURE_DATABASE_LETTER_TO_NAME.get(dbTypeLetter) + localName;
+                AZURE_DATABASE_LETTER_TO_NAME.get(dbTypeLetter) + fullName;
     }
 
     /**
      * Helper function to construct DB tier id in order to match the database tiers
      * coming from regular AWS probe and the db costs coming from azure cost probe.
      *
-     * @param localName the local id of the database tier.
+     * @param entity {@link TopologyStitchingEntity}  the local id of the database tier.
      * @param probeType the {@link SDKProbeType} of the probe that discovered this entity.
      * @return the string AWS db constructed id.
      */
-    private static String awsDatabaseTierLocalNameToId(@Nonnull String localName,
+    private static String awsDatabaseTierLocalNameToId(@Nonnull TopologyStitchingEntity entity,
                                                        @Nonnull SDKProbeType probeType) {
-        return PROBE_TYPE_TO_DATABASE_TIER_PREFIX.get(probeType) + localName;
+        final String identifier;
+        if (entity.getEntityBuilder().hasDatabaseServerTierData()
+                && entity.getEntityBuilder().getDatabaseServerTierData().hasTemplateIdentifier()) {
+            identifier = entity.getEntityBuilder().getDatabaseServerTierData().getTemplateIdentifier();
+        } else {
+            identifier = entity.getDisplayName();
+        }
+        return PROBE_TYPE_TO_DATABASE_TIER_PREFIX.get(probeType) + identifier;
     }
 }

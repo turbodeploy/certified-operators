@@ -453,6 +453,15 @@ public class PriceTableUploader implements DiagsRestorable<Void> {
                     (oid, pricesForTier) -> dbOnDemandPriceTableAdder(oid, pricesForTier, onDemandPricesBuilder),
                     missingTiers);
 
+                // add DBS prices
+                addPriceEntries(onDemandPriceTableForRegion.getDatabaseServerPriceTableList(),
+                        cloudEntitiesMap,
+                        extraneousIdLookUps,
+                        entry -> entry.getRelatedDatabaseServerTier().getId(),
+                        onDemandPricesBuilder::containsDbsPricesByInstanceId,
+                        (oid, pricesForTier) -> dbsOnDemandPriceTableAdder(oid, pricesForTier, onDemandPricesBuilder),
+                        missingTiers);
+
             // add Storage prices
             addPriceEntries(onDemandPriceTableForRegion.getStoragePriceTableList(),
                     cloudEntitiesMap,
@@ -506,6 +515,16 @@ public class PriceTableUploader implements DiagsRestorable<Void> {
         });
 
         onDemandPricesBuilder.putDbPricesByInstanceId(oid, dbPriceTableBuilder.build());
+    }
+
+    private void dbsOnDemandPriceTableAdder(Long oid,
+                                           OnDemandPriceTableByRegionEntry.DatabaseServerPriceTableByTierEntry pricesForTier,
+                                           OnDemandPriceTable.Builder onDemandPricesBuilder) {
+        Pricing.DbServerTierOnDemandPriceTable.Builder dbsPriceTableBuilder =
+                Pricing.DbServerTierOnDemandPriceTable.newBuilder();
+        String tierID = pricesForTier.getRelatedDatabaseServerTier().getId();
+        dbsPriceTableBuilder.putDbsPricesByTierId(tierID, pricesForTier.getDatabaseServerTierPriceList());
+        onDemandPricesBuilder.putDbsPricesByInstanceId(oid, dbsPriceTableBuilder.build());
     }
 
     /**

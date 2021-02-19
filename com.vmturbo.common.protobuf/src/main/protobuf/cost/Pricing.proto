@@ -118,11 +118,20 @@ message OnDemandPriceTable {
 
     // The prices for cloud storage in this region, arranged by tier ID.
     map<int64, common_dto.StorageTierPriceList> cloud_storage_prices_by_tier_id = 4;
+
+    // The prices for cloud DatabaseServer in this region, arranged by tier ID.
+    map<int64, DbServerTierOnDemandPriceTable> dbs_prices_by_instance_id = 5;
 }
 
 message DbTierOnDemandPriceTable {
     optional common_dto.DatabaseTierPriceList on_demand_prices_no_deployment_type = 1;
     map<int32, common_dto.DatabaseTierPriceList> db_prices_by_deployment_type = 2;
+}
+
+// Message carrying the cost Data received from probe as PricingTable to cost DB.
+// indexed by tier's name eg: aws:DBProfile::db.m2.medium::io1.
+message DbServerTierOnDemandPriceTable {
+    map<string, common_dto.DatabaseServerTierPriceList> dbs_prices_by_tier_id = 1;
 }
 
 // The pricing table for spot instances.
