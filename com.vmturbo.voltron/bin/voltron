@@ -34,6 +34,7 @@ print_help() {
    echo "voltron restore_topology       ...    ; Load topology processor from a ZIP file."
    echo "voltron restore_groups         ...    ; Load groups from a ZIP file."
    echo "voltron restore_cost           ...    ; Load cost diags from a ZIP file."
+   echo "voltron restore_action_orchestrator   ; Load action diags from a ZIP file."
    echo "voltron send_topology          ...    ; Broadcast topology."
    echo "voltron broadcast              ...    ; Broadcast topology (alias for send_topology)."
    echo "voltron get_topology           ...    ; Broadcast and return topology. Redirect output to a file to save. Requires grpc_cli."
@@ -59,46 +60,18 @@ send_topology() {
   curl -X POST --header 'Content-Type: application/json' --header 'Accept: application/json' http://localhost:${HTTP_PORT}/topology-processor/topology/send
 }
 
-restore_cost() {
-  if [ "$#" -lt 1 ]
+
+restore_diag() {
+  if [ "$#" -lt 3 ]
   then
-    echo "voltron restore_cost <path to cost diags ZIP file>"
+    echo "voltron $1 <path to topology processor ZIP file>"
   else
-    pathToFile="$( cd "$( dirname "$1" )" && pwd )"
-    fileName=$(basename $1)
+    pathToFile="$( cd "$( dirname "$3" )" && pwd )"
+    fileName=$(basename $3)
     fullPath=${pathToFile}/${fileName}
 
     echo "Restoring from: ${fullPath}"
-    curl --header 'Content-Type: application/zip' --data-binary @${fullPath} http://localhost:${HTTP_PORT}/cost/internal-state
-  fi
-}
-
-restore_groups() {
-  if [ "$#" -lt 1 ]
-  then
-    echo "voltron restore_groups <path to group ZIP file>"
-  else
-    pathToFile="$( cd "$( dirname "$1" )" && pwd )"
-    fileName=$(basename $1)
-    fullPath=${pathToFile}/${fileName}
-
-    echo "Restoring from: ${fullPath}"
-    curl --header 'Content-Type: application/zip' --data-binary @${fullPath} http://localhost:${HTTP_PORT}/group/internal-state
-  fi
-}
-
-
-restore_topology() {
-  if [ "$#" -lt 1 ]
-  then
-    echo "voltron restore_topology <path to topology processor ZIP file>"
-  else
-    pathToFile="$( cd "$( dirname "$1" )" && pwd )"
-    fileName=$(basename $1)
-    fullPath=${pathToFile}/${fileName}
-
-    echo "Restoring from: ${fullPath}"
-    curl --header 'Content-Type: application/zip' --data-binary @${fullPath} http://localhost:${HTTP_PORT}/topology-processor/internal-state
+    curl --header 'Content-Type: application/zip' --data-binary @${fullPath} http://localhost:${HTTP_PORT}/$2/internal-state
   fi
 }
 
@@ -147,11 +120,13 @@ grpc)
 help)
   print_help;;
 restore_topology)
-  restore_topology ${@:2};;
+  restore_diag "restore_topology" "topology-processor" ${@:2};;
+restore_action_orchestrator)
+  restore_diag "restore_action_orchestrator" "action-orchestrator" ${@:2};;
 restore_groups)
-  restore_groups ${@:2};;
+  restore_diag "restore_groups" "group" ${@:2};;
 restore_cost)
-  restore_cost ${@:2};;
+  restore_diag "restore_cost" "cost" ${@:2};;
 send_topology)
   send_topology;;
 broadcast)
@@ -163,5 +138,4 @@ set_broadcast_interval)
 setup_autocomplete)
   complete -o bashdefault -o default -F setup_autocomplete voltron;;
 esac
-
 

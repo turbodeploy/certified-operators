@@ -216,6 +216,9 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     @Value("${enableMemoryMonitor:true}")
     private boolean enableMemoryMonitor;
 
+    @Value("${enableSystemDiags:true}")
+    private boolean enableSystemDiags;
+
     private static final SetOnce<org.eclipse.jetty.server.Server> JETTY_SERVER = new SetOnce<>();
 
     @SuppressWarnings("SpringJavaInjectionPointsAutowiringInspection")
@@ -484,10 +487,13 @@ public abstract class BaseVmtComponent implements IVmtComponent,
             if (baseVmtComponentConfig.diagnosticService() == null) {
                 throw new RuntimeException("DiagnosticService missing");
             }
-            try {
-                baseVmtComponentConfig.diagnosticService().dumpSystemDiags(diagnosticZip);
-            } catch (DiagnosticsException e) {
-                logger.error("Failed to collect system diagnostics. Will try to get component diagnostics.", e);
+
+            if (enableSystemDiags) {
+                try {
+                    baseVmtComponentConfig.diagnosticService().dumpSystemDiags(diagnosticZip);
+                } catch (DiagnosticsException e) {
+                    logger.error("Failed to collect system diagnostics. Will try to get component diagnostics.", e);
+                }
             }
 
             // call the component's dump diags handler override, if any
