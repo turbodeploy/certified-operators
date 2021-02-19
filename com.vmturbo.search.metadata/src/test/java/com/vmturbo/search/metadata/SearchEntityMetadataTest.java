@@ -1,17 +1,22 @@
 package com.vmturbo.search.metadata;
 
 import static com.vmturbo.api.dto.searchquery.PrimitiveFieldApiDTO.primitive;
+import static com.vmturbo.search.metadata.SearchMetadataMapping.PRIMITIVE_CONNECTED_NETWORKS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableMap;
 
@@ -195,6 +200,41 @@ public class SearchEntityMetadataTest {
                         assertNotNull(mapping.getRelatedEntityTypes());
                     });
         }
+    }
+
+    /**
+     * Test that that attributes are sorted correctly in {@link SearchMetadataMapping}
+     * initialized with a true value for the "sorted" boolean. Currently the only metadata that
+     * supports this logic is {@link SearchMetadataMapping#PRIMITIVE_CONNECTED_NETWORKS}
+     */
+    @Test
+    public void testSortedAttributes() {
+        SearchMetadataMapping connectedNetworksMetadata = PRIMITIVE_CONNECTED_NETWORKS;
+        List<String> networks = Arrays.asList("n1", "n2");
+        TopologyEntityDTO vm1 = TopologyEntityDTO.newBuilder()
+            .setOid(1234)
+            .setEntityType(EntityDTO.EntityType.VIRTUAL_MACHINE_VALUE)
+            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                .setVirtualMachine(
+                    VirtualMachineInfo.newBuilder()
+                        .addAllConnectedNetworks(networks.stream().sorted().collect(Collectors.toList()))
+                        .setNumCpus(4)))
+            .build();
+
+        TopologyEntityDTO vm2 = TopologyEntityDTO.newBuilder()
+            .setOid(321)
+            .setEntityType(EntityDTO.EntityType.VIRTUAL_MACHINE_VALUE)
+            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                .setVirtualMachine(
+                    VirtualMachineInfo.newBuilder()
+                        .addAllConnectedNetworks(networks.stream().sorted(Comparator.reverseOrder()).collect(Collectors.toList()))
+                        .setNumCpus(4)))
+            .build();
+        List<String> connectedNetworksVm1 =
+            (List<String>) connectedNetworksMetadata.getTopoFieldFunction().apply(vm1).get();
+        List<String> connectedNetworksVm2 =
+            (List<String>) connectedNetworksMetadata.getTopoFieldFunction().apply(vm2).get();
+        Assert.assertEquals(connectedNetworksVm1, connectedNetworksVm2);
     }
 
     @FunctionalInterface
