@@ -121,8 +121,8 @@ public class ExtractorDbConfigTest {
             throws UnsupportedDialectException, InterruptedException {
         try {
             endpoint.dslContext().execute("INSERT INTO metric "
-                    + "(time, entity_oid, type, provider_oid, key, current, capacity, utilization, consumed) "
-                    + "VALUES (now(), 0, 'CPU', null, null, null, null, null, 0)");
+                    + "(time, entity_oid, type, provider_oid, key, current, capacity, utilization, consumed, peak_current, peak_consumed, entity_type)"
+                    + "VALUES (now(), 0, 'CPU', null, null, null, null, null, 0, 0, 0, 'VIRTUAL_MACHINE')");
             return 1L == (long)endpoint.dslContext().fetchValue("SELECT count(*) FROM metric");
         } catch (DataAccessException | SQLException | BadSqlGrammarException e) {
             return false;
