@@ -1,0 +1,47 @@
+#!/bin/bash
+
+# Script to upgrade existing timescaledb to 2.x on the VM.
+# Note: It assumes timescaledb 1.7.4 is running on the VM. Otherwise use `install_timescaledb.sh`.
+
+source /opt/local/bin/libs.sh
+
+# Stop Postgres in case it's running.
+sudo systemctl stop postgresql-12
+if [ "$?" -ne 0 ];
+then
+    log_msg "Failed to stop Postgres server. Aborting..."
+    exit 1
+fi
+log_msg "Stopped timescale DB"
+
+sudo yum install -y timescaledb-2-postgresql-12
+log_msg "Installed timescaledb 2"
+
+sudo systemctl start postgresql-12
+if [ "$?" -ne 0 ];
+then
+    log_msg "Failed to start Postgres server. Aborting..."
+    exit 1
+fi
+log_msg "Started timescaledb 2."
+
+sudo -iu postgres psql -d extractor -X -c "\dx timescaledb"
+if [ "$?" -ne 0 ];
+then
+    log_msg "Database extractor doesn't exist, skiping updating timescaledb extension on this database."
+    exit 0
+fi
+
+# update timescaledb extension
+sudo -iu postgres psql -d extractor -X -c "ALTER EXTENSION timescaledb UPDATE;"
+
+# confirm timescaledb extension on extrator database is updated to 2.0.1.
+timescaleVersion=$(sudo -iu postgres psql -d extractor -X -c "\dx timescaledb" | sed '4!d' | awk -F"|" '{print $2}' | xargs)
+
+if [ "$timescaleVersion" = "2.0.1" ]
+then
+  log_msg "Updated timescaledb 2 extension."
+else
+  log_msg "Failed to update timescaledb 2 extension. Current extension is $timescaleVersion."
+  exit 1
+fi

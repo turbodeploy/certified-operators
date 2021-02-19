@@ -37,7 +37,7 @@ metadata_expire=300
 EOL
 
 # Now install appropriate package for PG version
-sudo yum install --disablerepo="mariadb" -y timescaledb-postgresql-12
+sudo yum install --disablerepo="mariadb" -y timescaledb-2-postgresql-12
 
 log_msg "Successfully installed TimescaleDB."
 
