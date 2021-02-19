@@ -9,7 +9,7 @@ annotations:
     type: dashboard
 editable: false
 gnetId:
-graphTooltip: 0
+graphkTooltip: 0
 iteration: 1600812107378
 links: []
 panels:
@@ -466,7 +466,7 @@ panels:
            metric.type in ('STORAGE_AMOUNT', 'STORAGE_PROVISIONED')
            AND scope.scoped_type = 'STORAGE'
            -- conditions involving dashboard vars
-           AND metric.time between timestamptz $__timeFrom() and $__timeTo()
+           AND metric.time between $__timeFrom() and $__timeTo()
            AND ($__timeFrom(), $__timeTo()) OVERLAPS (scope.start, scope.finish)
            AND scope.seed_oid = ${Cluster:raw}::bigint + 0
          GROUP BY 1, 2) AS data
@@ -728,23 +728,23 @@ panels:
     rawQuery: true
     rawSql: |-
       SELECT
-        date_trunc('day', metric.time) AS time,
-         sum(CURRENT) FILTER (WHERE metric.type = 'CPU') /
-            sum(capacity) FILTER (WHERE metric.type = 'CPU') * 100 AS "CPU Utilization",
-         sum(CURRENT) FILTER (WHERE metric.type = 'MEM') /
-            sum(capacity) FILTER (WHERE metric.type = 'MEM') * 100 AS "Mem Utilization"
-      FROM metric
-      JOIN scope ON
-         metric.entity_oid = scope.scoped_oid
-         AND metric.time BETWEEN scope.start AND scope.finish
+        date_trunc('day', m.time) AS time,
+         sum(m.current) FILTER (WHERE m.type = 'CPU') /
+            sum(m.capacity) FILTER (WHERE m.type = 'CPU') * 100 AS "CPU Utilization",
+         sum(m.current) FILTER (WHERE m.type = 'MEM') /
+            sum(m.capacity) FILTER (WHERE m.type = 'MEM') * 100 AS "Mem Utilization"
+      FROM metric m
+      JOIN scope s ON
+         m.entity_oid = s.scoped_oid
+         AND m.time BETWEEN s.start AND s.finish
       WHERE
          -- fixed conditions
-         metric.type IN ('MEM', 'CPU')
-         AND scope.scoped_type = 'PHYSICAL_MACHINE'
+         m.type IN ('MEM', 'CPU')
+         AND s.scoped_type = 'PHYSICAL_MACHINE'
          -- conditions related to dashboard vars
-         AND metric.time BETWEEN timestamptz $__timeFrom() AND $__timeTo()
-         AND (timestamptz $__timeTo(), $__timeTo() ) OVERLAPS (START, finish)
-         AND scope.seed_oid = ${Cluster:raw}::bigint + 0
+         AND m.time BETWEEN $__timeFrom() AND $__timeTo()
+         AND ($__timeFrom(), $__timeTo() ) OVERLAPS (START, finish)
+         AND s.seed_oid = ${Cluster:raw}::bigint + 0
       GROUP BY 1
       ORDER BY 1
     refId: A

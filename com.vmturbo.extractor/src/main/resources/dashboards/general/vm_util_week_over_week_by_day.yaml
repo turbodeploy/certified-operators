@@ -331,7 +331,7 @@ templating:
     datasource: $DB
     definition: |-
       SELECT CASE
-         WHEN '${Group:raw}' = '0' THEN
+         WHEN '${Group:csv}' = '0' THEN
            'SELECT oid from entity where type=''VIRTUAL_MACHINE'''
          ELSE concat(
            'SELECT distinct s.scoped_oid as oid, start, finish ',
@@ -339,7 +339,7 @@ templating:
            'WHERE s.scoped_type = ''VIRTUAL_MACHINE'' ',
            '  AND ('$__timeFrom()'::timestamptz - interval ''7 day'', date_trunc(''day'', '$__timeTo()'::timestamptz)) ',
                 'OVERLAPS (s.start, s.finish) ',
-           '  AND s.seed_oid IN (SELECT * FROM unnest(ARRAY[${Group:raw}]::bigint[]))')
+           '  AND s.seed_oid IN (SELECT * FROM unnest(ARRAY[${Group:csv}]::bigint[]))')
          END
     hide: 2
     includeAll: true
@@ -349,7 +349,7 @@ templating:
     options: []
     query: |-
       SELECT CASE
-         WHEN '${Group:raw}' = '0' THEN
+         WHEN '${Group:csv}' = '0' THEN
            'SELECT oid from entity where type=''VIRTUAL_MACHINE'''
          ELSE concat(
            'SELECT distinct s.scoped_oid as oid, start, finish ',
@@ -357,7 +357,7 @@ templating:
            'WHERE s.scoped_type = ''VIRTUAL_MACHINE'' ',
            '  AND ('$__timeFrom()'::timestamptz - interval ''7 day'', date_trunc(''day'', '$__timeTo()'::timestamptz)) ',
                 'OVERLAPS (s.start, s.finish) ',
-           '  AND s.seed_oid IN (SELECT * FROM unnest(ARRAY[${Group:raw}]::bigint[]))')
+           '  AND s.seed_oid IN (SELECT * FROM unnest(ARRAY[${Group:csv}]::bigint[]))')
          END
     refresh: 2
     regex: ''
@@ -372,7 +372,7 @@ templating:
     datasource: $DB
     definition: |-
       SELECT CASE
-         WHEN '${Group:raw}' = '0' THEN 'true'
+         WHEN '${Group:csv}' = '0' THEN 'true'
          ELSE 'm.time BETWEEN v.start AND v.finish'
       END
     hide: 2
@@ -383,7 +383,7 @@ templating:
     options: []
     query: |-
       SELECT CASE
-         WHEN '${Group:raw}' = '0' THEN 'true'
+         WHEN '${Group:csv}' = '0' THEN 'true'
          ELSE 'm.time BETWEEN v.start AND v.finish'
       END
     refresh: 2

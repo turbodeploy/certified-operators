@@ -293,14 +293,14 @@ templating:
     useTags: false
   - allValue:
     datasource: $DB
-    definition: SELECT DISTINCT label FROM grafana
+    definition: SELECT DISTINCT label FROM grafana WHERE trial = ${trial}
     hide: 0
     includeAll: false
     label: Label
     multi: false
     name: label
     options: []
-    query: SELECT DISTINCT label FROM grafana
+    query: SELECT DISTINCT label FROM grafana WHERE trial = ${trial}
     refresh: 2
     regex: ''
     skipUrlSync: false
@@ -312,14 +312,20 @@ templating:
     useTags: false
   - allValue: ''
     datasource: $DB
-    definition: select dashboard from grafana
+    definition: |-
+      SELECT DISTINCT dashboard FROM grafana
+      WHERE trial = ${trial}
+        AND label = '${label}'
     hide: 0
     includeAll: true
     label:
     multi: true
     name: dashboard
     options: []
-    query: select dashboard from grafana
+    query: |-
+      SELECT DISTINCT dashboard FROM grafana
+      WHERE trial = ${trial}
+        AND label = '${label}'
     refresh: 2
     regex: ''
     skipUrlSync: false
@@ -331,14 +337,22 @@ templating:
     useTags: false
   - allValue: ''
     datasource: $DB
-    definition: select query_type from grafana
+    definition: |-
+      SELECT DISTINCT query_type FROM grafana
+        WHERE trial = ${trial}
+          AND label = '${label}'
+          AND dashboard = any(ARRAY[${dashboard}])
     hide: 0
     includeAll: true
     label: 'Query Type '
     multi: true
     name: type
     options: []
-    query: select query_type from grafana
+    query: |-
+      SELECT DISTINCT query_type FROM grafana
+        WHERE trial = ${trial}
+          AND label = '${label}'
+          AND dashboard = any(ARRAY[${dashboard}])
     refresh: 2
     regex: ''
     skipUrlSync: false
@@ -350,16 +364,24 @@ templating:
     useTags: false
   - allValue: ''
     datasource: $DB
-    definition: SELECT DISTINCT name FROM grafana where dashboard = any( array[ $dashboard
-      ] ::text[]) and query_type = any ( array [ $type ]::text[] )
+    definition: |-
+      SELECT DISTINCT name FROM grafana
+        WHERE trial = ${trial}
+          AND label = '${label}'
+          AND dashboard = any(ARRAY[${dashboard}])
+          AND query_type = any(ARRAY[$type])
     hide: 0
     includeAll: true
     label: Panel or Var Name
     multi: true
     name: name
     options: []
-    query: SELECT DISTINCT name FROM grafana where dashboard = any( array[ $dashboard
-      ] ::text[]) and query_type = any ( array [ $type ]::text[] )
+    query: |-
+      SELECT DISTINCT name FROM grafana
+        WHERE trial = ${trial}
+          AND label = '${label}'
+          AND dashboard = any(ARRAY[${dashboard}])
+          AND query_type = any(ARRAY[$type])
     refresh: 2
     regex: ''
     skipUrlSync: false

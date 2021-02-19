@@ -569,7 +569,7 @@ panels:
         avg(m.value) FILTER (WHERE m.metric_type = 'STORAGE_AMOUNT') AS "Storage"
       FROM entity_timestamp_aggregation m
       GROUP BY m.entity_oid, m.entity_name
-      ORDER BY m.entity_name
+      ORDER BY m.entity_name, m.entity_oid
     refId: A
     select:
     - - params:

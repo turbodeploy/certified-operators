@@ -245,9 +245,12 @@ panels:
           b.label as "B label",
           (a.end_time - a.start_time)::interval as interval,
           extract('epoch' from (a.end_time - a.start_time)::interval) as interval_secs,
+          CASE WHEN coalesce(a.row_count, 0) = coalesce(b.row_count, 0) THEN '[n: ✔' ELSE '[n: ✘' END
+            || CASE WHEN coalesce(a.row_data_hash, 0) = coalesce(b.row_data_hash, 0) THEN ', #: ✔]' ELSE ', #: ✘]' END
+            AS "A/B match",
+          b.execution_time / a.execution_time AS "B/A ratio",
           a.execution_time AS "A Time",
           b.execution_time AS "B Time",
-          b.execution_time / a.execution_time AS "B/A ratio",
           a.dashboard,
           a.query_type,
           a.name,
@@ -549,14 +552,14 @@ templating:
     useTags: false
   - allValue:
     datasource: $DB
-    definition: SELECT DISTINCT label FROM grafana
+    definition: SELECT DISTINCT label FROM grafana WHERE trial = ${trial}
     hide: 0
     includeAll: false
     label: '"A" label'
     multi: false
     name: a_label
     options: []
-    query: SELECT DISTINCT label FROM grafana
+    query: SELECT DISTINCT label FROM grafana WHERE trial = ${trial}
     refresh: 2
     regex: ''
     skipUrlSync: false
@@ -568,14 +571,14 @@ templating:
     useTags: false
   - allValue:
     datasource: $DB
-    definition: SELECT DISTINCT label FROM grafana
+    definition: SELECT DISTINCT label FROM grafana WHERE trial = ${trial}
     hide: 0
     includeAll: false
     label: '"B" label'
     multi: false
     name: b_label
     options: []
-    query: SELECT DISTINCT label FROM grafana
+    query: SELECT DISTINCT label FROM grafana WHERE trial = ${trial}
     refresh: 2
     regex: ''
     skipUrlSync: false
@@ -587,14 +590,20 @@ templating:
     useTags: false
   - allValue: ''
     datasource: $DB
-    definition: select dashboard from grafana
+    definition: |-
+      SELECT DISTINCT dashboard FROM grafana
+      WHERE trial = ${trial}
+        AND label in ('${a_label}', '${b_label}')
     hide: 0
     includeAll: true
     label:
     multi: true
     name: dashboard
     options: []
-    query: select dashboard from grafana
+    query: |-
+      SELECT DISTINCT dashboard FROM grafana
+      WHERE trial = ${trial}
+        AND label in ('${a_label}', '${b_label}')
     refresh: 2
     regex: ''
     skipUrlSync: false
@@ -606,14 +615,22 @@ templating:
     useTags: false
   - allValue: ''
     datasource: $DB
-    definition: select query_type from grafana
+    definition: |-
+      SELECT DISTINCT query_type FROM grafana
+        WHERE trial = ${trial}
+          AND label in ('${a_label}', '${b_label}')
+          AND dashboard = any(ARRAY[${dashboard}])
     hide: 0
     includeAll: true
     label: 'Query Type '
     multi: true
     name: type
     options: []
-    query: select query_type from grafana
+    query: |-
+      SELECT DISTINCT query_type FROM grafana
+        WHERE trial = ${trial}
+          AND label in ('${a_label}', '${b_label}')
+          AND dashboard = any(ARRAY[${dashboard}])
     refresh: 2
     regex: ''
     skipUrlSync: false
@@ -625,16 +642,24 @@ templating:
     useTags: false
   - allValue: ''
     datasource: $DB
-    definition: SELECT DISTINCT name FROM grafana where dashboard = any( array[ $dashboard
-      ] ::text[]) and query_type = any ( array [ $type ]::text[] )
+    definition: |-
+      SELECT DISTINCT name FROM grafana
+        WHERE trial = ${trial}
+          AND label in ('${a_label}', '${b_label}')
+          AND dashboard = any(ARRAY[${dashboard}])
+          AND quer_type = any(ARRAY[$type])
     hide: 0
     includeAll: true
     label: Panel or Var Name
     multi: true
     name: name
     options: []
-    query: SELECT DISTINCT name FROM grafana where dashboard = any( array[ $dashboard
-      ] ::text[]) and query_type = any ( array [ $type ]::text[] )
+    query: |-
+      SELECT DISTINCT name FROM grafana
+        WHERE trial = ${trial}
+          AND label in ('${a_label}', '${b_label}')
+          AND dashboard = any(ARRAY[${dashboard}])
+          AND query_type = any(ARRAY[$type])
     refresh: 2
     regex: ''
     skipUrlSync: false

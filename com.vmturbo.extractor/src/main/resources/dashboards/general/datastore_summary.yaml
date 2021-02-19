@@ -372,7 +372,7 @@ panels:
         rawSql: |-
           WITH sub AS (
             SELECT
-                e.oid as oid,
+                m.entity_oid as oid,
                 e.name as name,
                 m.type as type,
                 m.consumed as value
@@ -391,7 +391,7 @@ panels:
                 AND m.time BETWEEN timestamptz $__timeFrom() AND $__timeTo()
                 AND ($__timeFrom(),$__timeTo()) OVERLAPS (s.start, s.finish)
                 AND s.seed_oid = ${Datastore:raw} + 0
-            GROUP BY m.time, e.oid, e.name, m.type, m.consumed
+            GROUP BY m.time, m.entity_oid, e.name, m.type, m.consumed
           )
           SELECT
               max(sub.name) as "VM Name",
