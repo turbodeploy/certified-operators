@@ -14,6 +14,7 @@ import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
@@ -553,9 +554,9 @@ public class CostFunctionFactory {
                 balanceAccount.getPriceId() : balanceAccount.getId();
 
         if (!costTable.hasAccountId(accountId)) {
-            logger.debug("Business account id {} is not found on seller: {}, in regionId: {}, for shopping list: {},"
-                            + " return infinity compute quote", accountId,
-                    seller.getDebugInfoNeverUseInCode(), regionIdBought, sl.getDebugInfoNeverUseInCode());
+            logger.warn("Business account id {} is not found on seller: {}, for shopping list: {}, "
+                            + "return infinity compute quote", accountId,
+                    seller.getDebugInfoNeverUseInCode(), sl.getDebugInfoNeverUseInCode());
             return new CostUnavailableQuote(seller, regionIdBought, balanceAccount.getId(),
                     balanceAccount.getPriceId());
         }
