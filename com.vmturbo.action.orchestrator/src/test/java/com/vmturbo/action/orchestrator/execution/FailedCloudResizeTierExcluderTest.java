@@ -158,9 +158,16 @@ public class FailedCloudResizeTierExcluderTest {
     private SettingPolicyServiceBlockingStub settingPolicyService;
     private FailedCloudVMGroupProcessor failedCloudVMGroupProcessor;
 
-    private static final ActionFailure DEFAULT_ACTION_FAILURE = ActionFailure.newBuilder()
-            .setErrorDescription("Failure foobar occurred")
-            .setActionId(100L).build();
+        private static final ActionFailure DEFAULT_ACTION_FAILURE = ActionFailure.newBuilder()
+                .setErrorDescription("Failure foobar occurred")
+                .setActionId(100L).build();
+        private static final ActionFailure AZURE_ACTION_FAILURE = ActionFailure.newBuilder()
+                .setErrorDescription("Reason: com.microsoft.azure.CloudException: Async operation"
+                        + " failed with provisioning state: Failed: Allocation failed. We do not"
+                        + " have sufficient capacity for the requested VM size in this region."
+                        + " Read more about improving likelihood of allocation success at"
+                        + " http://aka.ms/allocation-guidance")
+                .setActionId(100L).build();
 
     private static final TopologyEntityDTO GOOD_VM = createVm("good-vm", GOOD_VM_ID, true, REGION_A_ID);
     private static final TopologyEntityDTO GOOD_VM_B = createVm("good-vm-region-b", GOOD_VM_B_ID, true, REGION_B_ID);
@@ -202,7 +209,10 @@ public class FailedCloudResizeTierExcluderTest {
                 RepositoryServiceGrpc.newBlockingStub(testServer.getChannel());
         settingPolicyService = SettingPolicyServiceGrpc
                 .newBlockingStub(testServer.getChannel());
-        String failedActionPatterns = "Action failed\nFailure .* occurred";
+        String failedActionPatterns = "Action failed\nFailure .* occurred\nThe cluster where the"
+                + " VM/Availability Set is allocated is currently out of capacity\ncom\\.micro"
+                + "soft\\.azure\\.CloudException: Async operation failed with provisioning state:"
+                + " Failed: Allocation failed";
         failedCloudVMGroupProcessor = createFailedCloudVMGroupProcessor(failedActionPatterns);
         initializeRepositoryService();
         initializeGroupService();
@@ -280,7 +290,7 @@ public class FailedCloudResizeTierExcluderTest {
     public void testSuccessfulPatternParsing() {
         List<Pattern> patterns = failedCloudVMGroupProcessor
                 .getFailedCloudResizeTierExcluder().getFailedActionPatterns();
-        Assert.assertEquals(2, patterns.size());
+        Assert.assertEquals(4, patterns.size());
     }
 
     /**
@@ -544,6 +554,17 @@ public class FailedCloudResizeTierExcluderTest {
                 "vm-in-no-group-2 with name 'Region Region-B - Failed execution Tier Family Exclusion Policy (account 123456)'",
                 "Create policy response for VM vm-in-no-group-2 = setting_policy"
         );
+    }
+
+    /**
+     * Ensure that the known Azure error message from OM-64464 is detected as a failed action.
+     */
+    @Test
+    public void testAzureActionFailure() {
+        Action action = createAction(101L, VM_NO_GROUP_2_ID, EntityType.COMPUTE_TIER,
+                TIER_A1_OID);
+        failedCloudVMGroupProcessor.handleActionFailure(action, AZURE_ACTION_FAILURE);
+        verifyOutput("Creating exclusion policy for failed action ID 101");
     }
 
     /**
