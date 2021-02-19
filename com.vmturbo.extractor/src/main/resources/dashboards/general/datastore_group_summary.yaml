@@ -63,17 +63,12 @@ panels:
               m.current,
               m.capacity
           FROM metric m
-          JOIN scope ON
-              m.entity_oid = scope.scoped_oid
-              AND m.time BETWEEN scope.start AND scope.finish
+          ${JoinClause:raw}
           WHERE
           -- fixed conditions
           m.type = 'STORAGE_AMOUNT'
-          AND scope.scoped_type = 'STORAGE'
           -- conditions involving dashboard vars
           AND m."time" BETWEEN timestamptz $__timeFrom() AND $__timeTo()
-          AND ($__timeFrom(), $__timeTo()) OVERLAPS (start, finish)
-          AND seed_oid IN (SELECT * FROM unnest(ARRAY[$Group]::bigint[]))
           GROUP BY m.time, m.entity_oid, m.current, m.capacity
           )
           SELECT unique_data.oid, avg(unique_data.current) AS used, avg(unique_data.capacity)::NUMERIC AS capacity
@@ -148,20 +143,15 @@ panels:
     rawQuery: true
     rawSql: |-
       WITH metrics AS (
-         SELECT metric.utilization, metric.CURRENT, metric.type
-         FROM metric
-         JOIN scope ON
-            metric.entity_oid = scope.scoped_oid
-            AND metric.time BETWEEN scope.start AND scope.finish
+         SELECT m.utilization, m.current, m.type
+         FROM metric m
+         ${JoinClause:raw}
          WHERE
            -- fixed conditions
-           metric.type in ('STORAGE_AMOUNT','STORAGE_ACCESS','STORAGE_LATENCY')
-           AND scope.scoped_type  = 'STORAGE'
+           m.type in ('STORAGE_AMOUNT','STORAGE_ACCESS','STORAGE_LATENCY')
            -- conditions related to dashboard vars
-           AND "time" BETWEEN $__timeFrom() AND $__timeTo()
-           AND ($__timeFrom(),$__timeTo()) OVERLAPS (start, finish)
-          AND scope.seed_oid IN (SELECT * FROM unnest(ARRAY[$Group]::bigint[]))
-           GROUP BY metric.time, metric.entity_oid, metric.utilization, metric.CURRENT, metric.type
+           AND m."time" BETWEEN $__timeFrom() AND $__timeTo()
+         GROUP BY m.time, m.entity_oid, m.utilization, m.CURRENT, m.type
         )
       SELECT
         unnest(array['AVG','MIN','MAX']) as "Aggregation",
@@ -246,26 +236,21 @@ panels:
     rawQuery: true
     rawSql: |-
       WITH metrics AS (
-         SELECT metric.time, metric.capacity, metric.current
-         FROM metric
-         JOIN scope ON
-            metric.entity_oid = scope.scoped_oid
-            AND metric.time BETWEEN scope.start AND scope.finish
+         SELECT m.time, m.capacity, m.current
+         FROM metric m
+         ${JoinClause:raw}
          WHERE
            -- fixed conditions
-           metric.type = 'STORAGE_AMOUNT'
-           AND scope.scoped_type = 'STORAGE'
+           m.type = 'STORAGE_AMOUNT'
            -- conditions related to dashboard vars
            AND "time" BETWEEN $__timeFrom() AND $__timeTo()
-           AND ($__timeFrom(),$__timeTo()) OVERLAPS (start, finish)
-          AND scope.seed_oid IN (SELECT * FROM unnest(ARRAY[$Group]::bigint[]))
-         GROUP BY metric.time, metric.entity_oid, metric.capacity, metric.current
+           GROUP BY m.time, m.entity_oid, m.capacity, m.current
       )
       SELECT
         date_trunc('hour', m.time) as "time",
         ROUND((sum(m.current)/sum(m.capacity))::NUMERIC, 4) AS "Storage Amount Used"
       FROM metrics m
-      GROUP BY m.time
+      GROUP BY date_trunc('hour', m.time)
     refId: A
     select:
     - - params:
@@ -362,20 +347,15 @@ panels:
     rawQuery: true
     rawSql: |-
       WITH metrics AS (
-         SELECT metric.time, metric.current, metric.type
-         FROM metric
-         JOIN scope ON
-            metric.entity_oid = scope.scoped_oid
-            AND metric.time BETWEEN scope.start AND scope.finish
+         SELECT m.time, m.current, m.type
+         FROM metric m
+         ${JoinClause:raw}
          WHERE
            -- fixed conditions
-           metric.type IN ('STORAGE_ACCESS', 'STORAGE_LATENCY')
-           AND scope.scoped_type = 'STORAGE'
+           m.type IN ('STORAGE_ACCESS', 'STORAGE_LATENCY')
            -- conditions related to dashboard vars
            AND "time" BETWEEN $__timeFrom() AND $__timeTo()
-           AND ($__timeFrom(),$__timeTo()) OVERLAPS (start, finish)
-          AND scope.seed_oid IN (SELECT * FROM unnest(ARRAY[$Group]::bigint[]))
-         GROUP BY metric.time, metric.entity_oid, metric.current, metric.type
+         GROUP BY m.time, m.entity_oid, m.current, m.type
       )
       SELECT
         m.time,
@@ -495,22 +475,17 @@ panels:
     rawQuery: true
     rawSql: |-
       WITH data AS (
-         SELECT e.name entity_name, metric.time, metric.entity_oid, metric.current, metric.capacity, metric.utilization, metric.type
-         FROM metric
-         JOIN scope ON
-            metric.entity_oid = scope.scoped_oid
-            AND metric.time BETWEEN scope.start AND scope.finish
-         JOIN entity e ON
-            e.oid = scope.scoped_oid
+         SELECT e1.name entity_name, m.time, m.entity_oid, m.current, m.capacity, m.utilization, m.type
+         FROM metric m
+         ${JoinClause:raw}
+         JOIN entity e1 ON
+            e1.oid = m.entity_oid
          WHERE
            -- fixed conditions
-            metric.type IN ('STORAGE_AMOUNT', 'STORAGE_PROVISIONED')
-            AND scope.scoped_type = 'STORAGE'
+           m.type IN ('STORAGE_AMOUNT', 'STORAGE_PROVISIONED')
            -- conditions related to dashboard vars
            AND "time" BETWEEN $__timeFrom() AND $__timeTo()
-           AND ($__timeFrom(),$__timeTo()) OVERLAPS (start, finish)
-          AND scope.seed_oid IN (SELECT * FROM unnest(ARRAY[$Group::bigint]))
-         GROUP BY e.name, metric.time, metric.entity_oid, metric.current, metric.capacity, metric.utilization, metric.type
+         GROUP BY e1.name, m.time, m.entity_oid, m.current, m.capacity, m.utilization, m.type
       )
       SELECT d.entity_name as "Datastore"
                   ,avg(d.capacity) FILTER (WHERE d.type = 'STORAGE_AMOUNT') AS "Storage Capacity"
@@ -589,22 +564,17 @@ panels:
     rawQuery: true
     rawSql: |-
       WITH data AS (
-         SELECT e.name entity_name, metric.current, metric.type
-         FROM metric
-         JOIN scope ON
-            metric.entity_oid = scope.scoped_oid
-            AND metric.time BETWEEN scope.start AND scope.finish
-         JOIN entity e ON
-            e.oid = scope.seed_oid
-         WHERE
-           -- fixed conditions
-            metric.type IN ('STORAGE_ACCESS', 'STORAGE_LATENCY')
-            AND scope.scoped_type = 'STORAGE'
-           -- conditions related to dashboard vars
-           AND metric.time BETWEEN $__timeFrom() AND $__timeTo()
-           AND ($__timeFrom(),$__timeTo()) OVERLAPS (start, finish)
-          AND scope.seed_oid IN (SELECT * FROM unnest(ARRAY[$Group]::bigint[]))
-         GROUP BY e.name, metric.time, metric.entity_oid, metric.current, metric.type
+        SELECT e1.name as entity_name, m.current, m.type
+        FROM metric m
+        ${JoinClause:raw}
+        JOIN entity e1 ON
+          e1.oid = m.entity_oid
+        WHERE
+          -- fixed conditions
+          m.type IN ('STORAGE_ACCESS', 'STORAGE_LATENCY')
+          -- conditions related to dashboard vars
+          AND m.time BETWEEN $__timeFrom() AND $__timeTo()
+        GROUP BY e1.name, m.time, m.entity_oid, m.current, m.type
       )
       SELECT d.entity_name as "Datastore"
                   ,avg(d.current) FILTER (WHERE d.type = 'STORAGE_ACCESS') AS "IOPS Avg"
@@ -648,7 +618,7 @@ templating:
     regex: ''
     skipUrlSync: false
     type: datasource
-  - allValue:
+  - allValue: "0"
     datasource: $DB
     definition: |-
       SELECT
@@ -676,6 +646,59 @@ templating:
         AND (type = 'STORAGE_CLUSTER'
           OR (type = 'GROUP' AND attrs -> 'member_types' ? 'STORAGE'))
       ORDER BY 1
+    refresh: 2
+    regex: ''
+    skipUrlSync: false
+    sort: 0
+    tagValuesQuery: ''
+    tags: []
+    tagsQuery: ''
+    type: query
+    useTags: false
+  - allValue:
+    datasource: $DB
+    definition: |-
+      SELECT
+        CASE WHEN '${Group:raw}' = '0'
+        THEN concat(
+          'JOIN entity e ON ',
+            'm.entity_oid = e.oid ',
+            'AND e.type = ''STORAGE'' ',
+            'AND ('$__timeFrom()', '$__timeTo()') OVERLAPS (e.first_seen, e.last_seen) ',
+        '')
+        ELSE concat(
+          'JOIN scope s ON ',
+            's.seed_oid = ${Group:raw} ',
+            'AND m.entity_oid = s.scoped_oid ',
+            'AND m.time BETWEEN s.start AND s.finish ',
+            'AND s.scoped_type = ''STORAGE'' ',
+            'AND ('$__timeFrom()', '$__timeTo()') OVERLAPS (s.start, s.finish) ',
+        '')
+        END
+    hide: 2
+    includeAll: true
+    label:
+    multi: false
+    name: JoinClause
+    options: []
+    query: |-
+      SELECT
+        CASE WHEN '${Group:raw}' = '0'
+        THEN concat(
+          'JOIN entity e ON ',
+            'm.entity_oid = e.oid ',
+            'AND e.type = ''STORAGE'' ',
+            'AND ('$__timeFrom()', '$__timeTo()') OVERLAPS (e.first_seen, e.last_seen) ',
+        '')
+        ELSE concat(
+          'JOIN scope s ON ',
+            's.seed_oid = ${Group:raw} ',
+            'AND m.entity_oid = s.scoped_oid ',
+            'AND m.time BETWEEN s.start AND s.finish ',
+            'AND s.scoped_type = ''STORAGE'' ',
+            'AND ('$__timeFrom()', '$__timeTo()') OVERLAPS (s.start, s.finish) ',
+        '')
+        END
     refresh: 2
     regex: ''
     skipUrlSync: false

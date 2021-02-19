@@ -115,6 +115,7 @@ panels:
           avg(avg_util)
       FROM data
       GROUP BY 1, 2
+      ORDER BY 1, 2
     refId: A
     select:
     - - params:
@@ -255,6 +256,7 @@ panels:
           avg(avg_util)
         FROM data
         GROUP BY 1, 2
+        ORDER BY 1, 2
     refId: A
     select:
     - - params:
@@ -397,6 +399,7 @@ panels:
           avg(avg_util)
       FROM data
       GROUP BY 1, 2
+      ORDER BY 1, 2
     refId: A
     select:
     - - params:
@@ -538,6 +541,7 @@ panels:
           avg(avg_util)
       FROM data
       GROUP BY 1, 2
+      ORDER BY 1, 2
     refId: A
     select:
     - - params:
@@ -679,6 +683,7 @@ panels:
           avg(avg_util)
       FROM data
       GROUP BY 1, 2
+      ORDER BY 1, 2
     refId: A
     select:
     - - params:
@@ -820,6 +825,7 @@ panels:
           avg(avg_util)
       FROM data
       GROUP BY 1, 2
+      ORDER BY 1, 2
     refId: A
     select:
     - - params:

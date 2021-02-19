@@ -1,4 +1,5 @@
 import argparse
+import ctypes
 import dataset
 import json
 import logging
@@ -10,6 +11,7 @@ import ruamel.yaml
 import sqlalchemy
 import sys
 import time
+import xxhash
 from collections import OrderedDict
 from datetime import datetime
 from datetime import timedelta
@@ -19,24 +21,17 @@ from fnmatch import fnmatch
 from pathlib import Path
 from ruamel.yaml import YAML
 
-
 class Folder: pass
-
 
 class Dashboard: pass
 
-
 class Variable: pass
-
 
 class Panel: pass
 
-
 class Query: pass
 
-
 class DB: pass
-
 
 class Grafana:
     now = datetime.now(timezone.utc)
@@ -210,8 +205,12 @@ class Grafana:
 
     @staticmethod
     def __value_replacement(values, format):
-        # currently only raw and (default) Sqlstring
+        # currently only raw, csv and (default) Sqlstring
         if format == 'raw':
+            joined = ",".join(values)
+            # probably need to stop using `raw` because grafana puts braces around multiple values
+            return '{' + joined + '}' if len(values) > 1 else joined
+        elif format == 'csv':
             return ",".join(values)
         else:  # format == 'SqlSring' or unspecivied
             quoted_values = ["'" + x.replace("'", "''") + "'" for x in values]
@@ -243,9 +242,11 @@ class Folder:
             self.dashboards.append(Dashboard(db_json['dashboard'], self))
 
     def test(self, args, test_db, perf_db):
+        started = not args.start_with
         for interval in args.intervals.split(','):
             for db in self.dashboards:
-                if (db.included(args)):
+                if (db.included(args) and (started or Grafana.match_globs(db.uid, args.start_with))):
+                    started = True
                     db.test(args, interval, test_db, perf_db)
 
 
@@ -355,7 +356,7 @@ class Variable:
                     'dashboard_uid': self.dashboard.uid, 'query_type': 'variable',
                     'name': self.name, 'variable': str(bindings), 'all_variable': all,
                     'interval': interval, 'start_time': from_time, 'end_time': to_time}
-        record_data = test_db.measure([sql], args.panel_mode, metadata)
+        record_data = test_db.measure([sql], metadata, args)
         keys = ['trial', 'label', 'dashboard_uid', 'query_type', 'name', 'all_variable',
                 'interval'] if args.upsert else None
         perf_db.record(record_data, keys)
@@ -381,7 +382,7 @@ class Panel:
                     'dashboard_uid': self.dashboard.uid, 'query_type': 'panel',
                     'name': self.title, 'variable': str(bindings), 'all_variable': all,
                     'interval': interval, 'start_time': from_time, 'end_time': to_time}
-        record_data = test_db.measure(queries, args.panel_mode, metadata, log_times=True)
+        record_data = test_db.measure(queries, metadata, args, log_times=True)
         keys = ['trial', 'label', 'dashboard_uid', 'query_type', 'name', 'all_variable',
                 'interval'] if args.upsert else None
         perf_db.record(record_data, keys)
@@ -398,17 +399,19 @@ class DB:
 
     __exec_time_pat = re.compile('[0-9.]+')
 
-    def measure(self, queries, mode, metadata, log_times=False):
+    def measure(self, queries, metadata, args, log_times=False):
         expect_plan = True
+        expect_results = False
         prefix = ''
-        if mode == 'EXPLAIN':
+        if args.panel_mode == 'EXPLAIN':
             prefix = 'EXPLAIN'
-        elif mode == 'ANALYZE':
+        elif args.panel_mode == 'ANALYZE':
             prefix = 'EXPLAIN ANALYZE'
-        elif mode == 'VERBOSE':
+        elif args.panel_mode == 'VERBOSE':
             prefix = 'EXPLAIN ANALYZE VERBOSE'
         else:
             expect_plan = False
+            expect_results = True
 
         timings = []
         records = []
@@ -416,14 +419,16 @@ class DB:
             logger.debug(f"Executing SQL: {sql}")
             try:
                 start_time = time.time()
-                result = self.datasource.query(f'{prefix} {sql}')
-                analysis = [row['QUERY PLAN'] for row in result] if expect_plan else None
-                # todo extract row count and list of record hashes for correctness checks
-                execution_time = time.time() - start_time
-                if analysis:
+                result_set = self.datasource.query(f'{prefix} {sql}')
+                execution_time = (time.time() - start_time)*1000
+                record = {'query': sql}
+                if expect_plan:
+                    analysis = [row['QUERY PLAN'] for row in result_set]
                     execution_time = float(DB.__exec_time_pat.search(analysis[-1]).group())
-                record = {'query': sql, 'analysis': '\n'.join(analysis),
-                          'execution_time': execution_time}
+                    record['analysis'] = '\n'.join(analysis)
+                if expect_results:
+                    record.update(self.__collect_results(result_set, args.max_rows))
+                record['execution_time'] = execution_time
                 timings.append(execution_time / 1000)
                 record.update(metadata)
                 records.append(record)
@@ -446,6 +451,22 @@ class DB:
         except sqlalchemy.exc.OperationalError as err:
             logger.error(err)
 
+    def __collect_results(self, result_set, max_rows):
+        n = 0
+        hash = 0
+        row_data = []
+        for row in result_set:
+            if n == 0:
+                row_data.append(','.join(row.keys()))
+            row_str = ','.join([str(v) for v in row.values()])
+            # we compute the hash in a fashion that is independent of row order
+            x = xxhash.xxh64()
+            x.update(row_str)
+            hash ^= ctypes.c_long(x.intdigest()).value
+            if n < max_rows:
+                row_data.append(row_str)
+            n += 1
+        return {'row_count': n, 'row_data': row_data, 'row_data_hash': hash}
 
 def run_load(args):
     g = Grafana(args.url, args.api_key).load_folder(args)
@@ -540,6 +561,9 @@ class Arg(Enum):
     match_on = (['--match-on'],
                 {'dest': 'match_on', 'help': 'how to match dashboards for inclusion/exclusion',
                  'choices': ['title', 'uid', 'both'], 'default': 'uid'})
+    start_with = (['--start-with'],
+                  {'dest': 'start_with',
+                   'help': 'dashboard uid pattern for first dashboard to test'})
     test_intervals = (['--intervals'],
                       {
                           'help': 'test interval durations e.g. 30m,1h,4h,1d; env GRAFANA_TEST_INTERVALS',
@@ -579,6 +603,9 @@ class Arg(Enum):
     test_upsert = (['--upsert'],
                    {'dest': 'upsert', 'action': 'store_true',
                     'help': 'Use upserts so existing perf records are updated'})
+    test_max_rows = (['--max-rows'],
+                      {'dest': 'max_rows', 'help': 'max result rows to capture in RUN mode',
+                       'type': int, 'default': 10})
     log_level = (['-l', '-log-level'],
                  {'dest': 'loglevel', 'help': 'logging level', 'default': 'INFO',
                   'choices': ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']})
@@ -619,7 +646,7 @@ def main():
     for arg in [Arg.url, Arg.api_key, Arg.folder, Arg.database, Arg.schema, Arg.test_perfdb,
                 Arg.include, Arg.exclude, Arg.match_on, Arg.test_intervals, Arg.test_end_time,
                 Arg.log_level, Arg.test_panels, Arg.test_panel_mode, Arg.test_var_value_count,
-                Arg.test_label, Arg.test_trial, Arg.test_upsert]:
+                Arg.test_label, Arg.test_trial, Arg.test_upsert, Arg.test_max_rows, Arg.start_with]:
         arg.add_to_parser(test_parser)
 
     args = parser.parse_args()
