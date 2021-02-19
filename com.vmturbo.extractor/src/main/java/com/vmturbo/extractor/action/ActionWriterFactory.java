@@ -2,23 +2,16 @@ package com.vmturbo.extractor.action;
 
 import java.time.Clock;
 import java.util.EnumMap;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
-
-import io.grpc.StatusRuntimeException;
 
 import org.apache.commons.lang3.mutable.MutableLong;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.TypeInfoCase;
-import com.vmturbo.common.protobuf.group.PolicyDTO;
-import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
-import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
-import com.vmturbo.extractor.export.DataExtractionFactory;
 import com.vmturbo.extractor.export.ExtractorKafkaSender;
 import com.vmturbo.extractor.topology.DataProvider;
 import com.vmturbo.extractor.topology.SupplyChainEntity;
@@ -52,7 +45,7 @@ public class ActionWriterFactory {
     private final ExecutorService pool;
     private final DataProvider dataProvider;
     private final ExtractorKafkaSender extractorKafkaSender;
-    private final DataExtractionFactory dataExtractionFactory;
+
     /**
      * The minimum interval for writing action information to the database. We don't write actions
      * every broadcast, because for reporting purposes we don't need action information at 10-minute
@@ -65,22 +58,6 @@ public class ActionWriterFactory {
     private final long actionExtractionIntervalMillis;
 
     /**
-     * The interval for updating policy cache, which is 10 min by default.
-     */
-    private static final long POLICY_UPDATE_INTERVAL_MILLIS = 600_000;
-
-    private final Object policyLock = new Object();
-    private final PolicyServiceBlockingStub policyService;
-
-    private final MutableLong lastPolicyUpdate = new MutableLong(0);
-
-    /**
-     * Cached policy map. It's used by both pending actions and executed actions. To ensure we have
-     * latest policy info for executed actions, we need to update it regularly (10 min for now).
-     */
-    private Map<Long, Policy> policyById;
-
-    /**
      * Constructor.
      *
      * @param clock clock
@@ -91,16 +68,13 @@ public class ActionWriterFactory {
      * @param pool thread pool
      * @param dataProvider providing cached topology info
      * @param extractorKafkaSender for sending actions to kafka
-     * @param dataExtractionFactory factory for creating different extractors
      * @param actionExtractionIntervalMillis interval for extracting actions
-     * @param policyServiceBlockingStub service for fetching policies
      */
     public ActionWriterFactory(Clock clock, ActionConverter actionConverter,
             DbEndpoint ingesterEndpoint, long actionWritingIntervalMillis,
             WriterConfig writerConfig, ExecutorService pool,
             DataProvider dataProvider, ExtractorKafkaSender extractorKafkaSender,
-            DataExtractionFactory dataExtractionFactory, long actionExtractionIntervalMillis,
-            PolicyServiceBlockingStub policyServiceBlockingStub) {
+            long actionExtractionIntervalMillis) {
         this.clock = clock;
         this.actionConverter = actionConverter;
         this.ingesterEndpoint = ingesterEndpoint;
@@ -108,10 +82,8 @@ public class ActionWriterFactory {
         this.pool = pool;
         this.dataProvider = dataProvider;
         this.extractorKafkaSender = extractorKafkaSender;
-        this.dataExtractionFactory = dataExtractionFactory;
         this.actionWritingIntervalMillis = actionWritingIntervalMillis;
         this.actionExtractionIntervalMillis = actionExtractionIntervalMillis;
-        this.policyService = policyServiceBlockingStub;
     }
 
     /**
@@ -129,7 +101,7 @@ public class ActionWriterFactory {
             TopologyGraph<SupplyChainEntity> topologyGraph = dataProvider.getTopologyGraph();
             if (topologyGraph != null) {
                 return Optional.of(new ReportPendingActionWriter(clock, pool, ingesterEndpoint,
-                    writerConfig, actionConverter, topologyGraph, actionWritingIntervalMillis,
+                    writerConfig, actionConverter, actionWritingIntervalMillis,
                     actionPlanType, lastActionWrite));
             } else {
                 logger.error("Not writing reporting actions because no topology graph "
@@ -170,37 +142,11 @@ public class ActionWriterFactory {
         final long nextExtractionTime = lastActionExtraction.longValue() + actionExtractionIntervalMillis;
         if (nextExtractionTime <= now) {
             return Optional.of(new DataExtractionPendingActionWriter(extractorKafkaSender,
-                    dataExtractionFactory, dataProvider, clock, lastActionExtraction, actionConverter));
+                    clock, lastActionExtraction, actionConverter));
         } else {
             logger.info("Not extracting pending actions for another {} minutes.",
                     TimeUnit.MILLISECONDS.toMinutes(nextExtractionTime - now));
             return Optional.empty();
         }
-    }
-
-    /**
-     * Get latest policy map or fetch from group component if it expires.
-     *
-     * @return map of policy by id
-     */
-    public Map<Long, Policy> getOrFetchPolicies() {
-        synchronized (policyLock) {
-            final long now = clock.millis();
-            final long nextUpdate = lastPolicyUpdate.longValue() + POLICY_UPDATE_INTERVAL_MILLIS;
-            if (nextUpdate <= now) {
-                try {
-                    final Map<Long, PolicyDTO.Policy> policyById = new HashMap<>();
-                    policyService.getPolicies(PolicyDTO.PolicyRequest.newBuilder().build())
-                            .forEachRemaining(response -> policyById.put(
-                                    response.getPolicy().getId(), response.getPolicy()));
-                    logger.info("Retrieved {} policies from group component", policyById.size());
-                    lastPolicyUpdate.setValue(now);
-                    this.policyById = policyById;
-                } catch (StatusRuntimeException e) {
-                    logger.error("Failed to fetch policies", e);
-                }
-            }
-        }
-        return policyById;
     }
 }

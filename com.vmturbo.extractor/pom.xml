@@ -299,6 +299,10 @@
             <artifactId>com.vmturbo.group.api</artifactId>
         </dependency>
         <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.history.schema</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.hamcrest</groupId>
             <artifactId>hamcrest-core</artifactId>
         </dependency>
