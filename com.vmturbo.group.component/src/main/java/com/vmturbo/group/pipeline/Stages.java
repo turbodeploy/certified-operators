@@ -153,8 +153,16 @@ public class Stages {
             try {
                 for (long groupId : input) {
                     // get group's members
-                    Set<Long> groupEntities = memberCache.getGroupMembers(groupStore,
-                            Collections.singleton(groupId), true);
+                    final Set<Long> groupEntities;
+                    try {
+                        groupEntities = memberCache.getGroupMembers(groupStore,
+                                Collections.singleton(groupId), true);
+                    } catch (RuntimeException | StoreOperationException e) {
+                        logger.error("Skipped supplementary info calculation for group with "
+                                + "uuid: " + groupId + " due to failure to retrieve its entities. "
+                                + "Error: ", e);
+                        continue;
+                    }
                     // calculate environment type based on members' environment type
                     GroupEnvironment groupEnvironment =
                             groupEnvironmentTypeResolver.getEnvironmentAndCloudTypeForGroup(groupId,
@@ -179,8 +187,6 @@ public class Stages {
                 }
                 // update database records in a batch
                 groupStore.updateBulkGroupSupplementaryInfo(groupsToInsert);
-            } catch (StoreOperationException e) {
-                return Status.failed("Exception caught: " + e.getMessage());
             } finally {
                 stopWatch.stop();
                 logger.info("Group supplementary info update took "
