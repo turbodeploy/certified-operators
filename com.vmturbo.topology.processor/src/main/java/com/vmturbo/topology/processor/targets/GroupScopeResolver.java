@@ -404,7 +404,8 @@ public class GroupScopeResolver {
             try {
                 localName = entityStore.chooseEntityDTO(scopedEntityDTO.getOid())
                         .getEntityPropertiesList().stream()
-                        .filter(entityProperty -> SDKUtil.DEFAULT_NAMESPACE.equals(entityProperty.getNamespace()))
+                        .filter(entityProperty -> SDKUtil.DEFAULT_NAMESPACE.equals(entityProperty.getNamespace())
+                                            || targetAddress.filter(addr -> addr.equals(entityProperty.getNamespace())).isPresent())
                         .filter(entityProperty -> SupplyChainConstants.LOCAL_NAME.equals(entityProperty.getName()))
                         .map(EntityProperty::getValue)
                         .findAny();
