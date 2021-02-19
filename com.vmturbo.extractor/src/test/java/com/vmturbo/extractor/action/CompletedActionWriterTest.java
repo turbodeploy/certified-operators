@@ -1,11 +1,9 @@
 package com.vmturbo.extractor.action;
 
 import static com.vmturbo.extractor.util.RecordTestUtil.captureSink;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -18,8 +16,10 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.tuple.Pair;
@@ -71,8 +71,6 @@ public class CompletedActionWriterTest {
 
     private DataExtractionFactory dataExtractionFactory = mock(DataExtractionFactory.class);
 
-    private ActionWriterFactory actionWriterFactory = mock(ActionWriterFactory.class);
-
     private Clock clock = mock(Clock.class);
 
     private RelatedEntitiesExtractor relatedEntitiesExtractor = mock(RelatedEntitiesExtractor.class);
@@ -90,7 +88,7 @@ public class CompletedActionWriterTest {
         DslUpsertRecordSink upsertSink = mock(DslUpsertRecordSink.class);
         this.executedActionUpsertCapture = captureSink(upsertSink, false);
 
-        when(featureFlags.isReportingEnabled()).thenReturn(true);
+        when(featureFlags.isReportingActionIngestionEnabled()).thenReturn(true);
         when(featureFlags.isExtractionEnabled()).thenReturn(true);
 
         // capture actions sent to kafka
@@ -105,8 +103,7 @@ public class CompletedActionWriterTest {
 
         ExecutorService batchExecutor = mock(ExecutorService.class);
         writer = new CompletedActionWriter(endpoint, batchExecutor, actionConverter, dataProvider,
-                featureFlags, dsl -> upsertSink, extractorKafkaSender,
-                dataExtractionFactory, actionWriterFactory, clock);
+                featureFlags, dsl -> upsertSink, extractorKafkaSender, clock);
         ArgumentCaptor<Runnable> submittedBatchWriter = ArgumentCaptor.forClass(Runnable.class);
         verify(batchExecutor).submit(submittedBatchWriter.capture());
         recordBatchWriter = (RecordBatchWriter)submittedBatchWriter.getValue();
@@ -122,20 +119,17 @@ public class CompletedActionWriterTest {
      */
     @Test
     public void testSucceededAction() throws Exception {
-        Pair<ActionSpec, Record> action = fakeAction(1, "SUCCESS");
+        ExecutedAction action = fakeAction(1, "SUCCESS");
+        Map<ExecutedAction, Pair<Record, Action>> expectedMappings = setupMockedConversion(action);
         writer.onActionSuccess(ActionSuccess.newBuilder()
                 .setActionId(1)
                 .setSuccessDescription("SUCCESS")
-                .setActionSpec(action.getKey())
+                .setActionSpec(action.getActionSpec())
                 .build());
 
         recordBatchWriter.runIteration();
 
-        assertThat(executedActionUpsertCapture.size(), is(1));
-        assertThat(executedActionUpsertCapture.get(0).asMap(), is(action.getValue().asMap()));
-
-        assertThat(exportedActionsCapture.size(), is(1));
-        assertThat(exportedActionsCapture.get(0).getAction().getOid(), is(1L));
+        validateCapturedResults(expectedMappings);
     }
 
     /**
@@ -145,20 +139,17 @@ public class CompletedActionWriterTest {
      */
     @Test
     public void testFailedAction() throws Exception {
-        Pair<ActionSpec, Record> action = fakeAction(1, "FAILED");
+        ExecutedAction action = fakeAction(1, "FAILED");
+        Map<ExecutedAction, Pair<Record, Action>> expectedMappings = setupMockedConversion(action);
         writer.onActionFailure(ActionFailure.newBuilder()
                 .setActionId(1)
                 .setErrorDescription("FAILED")
-                .setActionSpec(action.getKey())
+                .setActionSpec(action.getActionSpec())
                 .build());
 
         recordBatchWriter.runIteration();
 
-        assertThat(executedActionUpsertCapture.size(), is(1));
-        assertThat(executedActionUpsertCapture.get(0).asMap(), is(action.getValue().asMap()));
-
-        assertThat(exportedActionsCapture.size(), is(1));
-        assertThat(exportedActionsCapture.get(0).getAction().getOid(), is(1L));
+        validateCapturedResults(expectedMappings);
     }
 
     /**
@@ -169,47 +160,69 @@ public class CompletedActionWriterTest {
      */
     @Test
     public void testActionBatch() throws Exception {
-        Pair<ActionSpec, Record> action1 = fakeAction(1, "SUCCESS 1");
-        Pair<ActionSpec, Record> action2 = fakeAction(2, "SUCCESS 2");
+        final ExecutedAction action1 = fakeAction(1, "SUCCESS 1");
+        final ExecutedAction action2 = fakeAction(2, "SUCCESS 2");
+        final Map<ExecutedAction, Pair<Record, Action>> expectedMappings = setupMockedConversion(action1, action2);
 
         writer.onActionSuccess(ActionSuccess.newBuilder()
                 .setActionId(1)
                 .setSuccessDescription("SUCCESS 1")
-                .setActionSpec(action1.getKey())
+                .setActionSpec(action1.getActionSpec())
                 .build());
         writer.onActionSuccess(ActionSuccess.newBuilder()
                 .setActionId(2)
                 .setSuccessDescription("SUCCESS 2")
-                .setActionSpec(action2.getKey())
+                .setActionSpec(action2.getActionSpec())
                 .build());
 
         recordBatchWriter.runIteration();
 
-        assertThat(executedActionUpsertCapture.size(), is(2));
-        assertThat(executedActionUpsertCapture.get(0).asMap(), is(action1.getValue().asMap()));
-        assertThat(executedActionUpsertCapture.get(1).asMap(), is(action2.getValue().asMap()));
-
-        assertThat(exportedActionsCapture.size(), is(2));
-        assertThat(exportedActionsCapture.stream().map(ExportedObject::getAction)
-                .map(Action::getOid).collect(Collectors.toList()), containsInAnyOrder(1L, 2L));
+        validateCapturedResults(expectedMappings);
     }
 
 
-    Pair<ActionSpec, Record> fakeAction(final long id, String finalMessage) {
+    private void validateCapturedResults(Map<ExecutedAction, Pair<Record, Action>> expectedMappings) {
+        final Map<Long, Record> capturedRecords = executedActionUpsertCapture.stream()
+                .collect(Collectors.toMap(r -> r.get(CompletedAction.ACTION_OID), Function.identity()));
+        final Map<Long, Action> capturedActions = exportedActionsCapture.stream()
+                .map(ExportedObject::getAction)
+                .collect(Collectors.toMap(a -> a.getOid(), Function.identity()));
+
+        assertThat(capturedRecords.size(), is(expectedMappings.size()));
+        assertThat(capturedActions.size(), is(expectedMappings.size()));
+        expectedMappings.forEach((expectedAction, expectedResults) -> {
+            assertThat(capturedRecords.get(expectedAction.getActionId()).asMap(), is(expectedResults.getLeft().asMap()));
+            assertThat(capturedActions.get(expectedAction.getActionId()), is(expectedResults.getRight()));
+        });
+    }
+
+    private Map<ExecutedAction, Pair<Record, Action>> setupMockedConversion(ExecutedAction... actions) {
+        List<Record> bulkRecordResponse = new ArrayList<>();
+        List<Action> bulkExtractionResponse = new ArrayList<>();
+        Map<ExecutedAction, Pair<Record, Action>> retMap = new HashMap<>();
+        for (ExecutedAction action : actions) {
+            Record mappedRecord = new Record(CompletedAction.TABLE);
+            mappedRecord.set(CompletedAction.ACTION_OID, action.getActionId());
+            mappedRecord.set(CompletedAction.FINAL_MESSAGE, action.getMessage());
+            bulkRecordResponse.add(mappedRecord);
+
+            Action exportedAction = new Action();
+            exportedAction.setOid(action.getActionId());
+            bulkExtractionResponse.add(exportedAction);
+
+            retMap.put(action, Pair.of(mappedRecord, exportedAction));
+        }
+
+        when(actionConverter.makeExecutedActionSpec(any())).thenReturn(bulkRecordResponse);
+        when(actionConverter.makeExportedActions(any())).thenReturn(bulkExtractionResponse);
+        return retMap;
+    }
+
+    private ExecutedAction fakeAction(final long id, String finalMessage) {
         ActionSpec spec = ActionSpec.newBuilder()
                 .setExplanation(Long.toString(id))
                 .build();
-        Record mappedRecord = new Record(CompletedAction.TABLE);
-        mappedRecord.set(CompletedAction.ACTION_OID, spec.getRecommendation().getId());
-        mappedRecord.set(CompletedAction.FINAL_MESSAGE, finalMessage);
-        when(actionConverter.makeExecutedActionSpec(eq(spec), eq(finalMessage), eq(topologyGraph)))
-            .thenReturn(mappedRecord);
-
-        Action action = new Action();
-        action.setOid(id);
-        when(actionConverter.makeExportedAction(eq(spec), eq(topologyGraph), eq(new HashMap<>()),
-                eq(Optional.of(relatedEntitiesExtractor)))).thenReturn(action);
-        return Pair.of(spec, mappedRecord);
+        return new ExecutedAction(id, spec, finalMessage);
     }
 
     /**
@@ -220,6 +233,7 @@ public class CompletedActionWriterTest {
     @Test
     public void testReportingDisabled() throws Exception {
         when(featureFlags.isReportingEnabled()).thenReturn(false);
+        when(featureFlags.isReportingActionIngestionEnabled()).thenReturn(false);
         when(featureFlags.isExtractionEnabled()).thenReturn(false);
 
         writer.onActionSuccess(ActionSuccess.newBuilder()
