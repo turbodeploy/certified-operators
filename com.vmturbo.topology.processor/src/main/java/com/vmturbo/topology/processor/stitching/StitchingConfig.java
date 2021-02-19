@@ -99,7 +99,7 @@ public class StitchingConfig {
      * Feature flag for whether to enable consistent scaling of containers when they are running on
      * nodes with different speeds (see OM-65078).
      */
-    @Value("${enableConsistentScalingOnHeterogeneousProviders:false}")
+    @Value("${enableConsistentScalingOnHeterogeneousProviders:true}")
     private boolean enableConsistentScalingOnHeterogeneousProviders;
 
     @Autowired
