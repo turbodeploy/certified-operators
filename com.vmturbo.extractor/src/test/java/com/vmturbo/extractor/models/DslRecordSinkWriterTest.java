@@ -42,6 +42,7 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.extractor.ExtractorDbConfig;
 import com.vmturbo.extractor.schema.ExtractorDbBaseConfig;
+import com.vmturbo.extractor.schema.enums.EntityType;
 import com.vmturbo.extractor.schema.enums.MetricType;
 import com.vmturbo.extractor.topology.ImmutableWriterConfig;
 import com.vmturbo.extractor.topology.WriterConfig;
@@ -82,10 +83,11 @@ public class DslRecordSinkWriterTest {
     public static DbEndpointTestRule endpointRule = new DbEndpointTestRule("extractor");
 
     private final Map<String, Object> metricData1 = createMetricRecordMap(
-            OffsetDateTime.now(), 1L, MetricType.CPU, null, null, null, 1.0, 1.0, 2L);
+            OffsetDateTime.now(), 1L, MetricType.CPU, null, null, null, null, 1.0, 2L, null, null,
+            EntityType.VIRTUAL_MACHINE);
     private final Map<String, Object> metricData2 = createMetricRecordMap(
-            OffsetDateTime.now(), 2L, MetricType.MEM, null, null, 1.0, 1.0, null, null);
-
+            OffsetDateTime.now(), 2L, MetricType.MEM, null, 1.0, 1.0, null, null, null, null, null,
+            EntityType.VIRTUAL_MACHINE);
 
     /**
      * Set up for tests.
