@@ -3,6 +3,7 @@ package com.vmturbo.group.service;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
@@ -13,6 +14,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
@@ -29,6 +31,7 @@ import it.unimi.dsi.fastutil.longs.LongSets;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.jdbc.BadSqlGrammarException;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
@@ -116,6 +119,47 @@ public class CachingMemberCalculatorTest {
         // members.
         verify(internalCalculator, times(2))
             .getGroupMembers(any(IGroupStore.class), any(GroupDefinition.class), anyBoolean());
+    }
+
+    /**
+     * Test that if calculation of a single group's members fails, regrouping doesn't stop.
+     *
+     * @throws Exception to satisfy compiler
+     */
+    @Test
+    public void testExecutionContinuesAfterSingleGroupFailure() throws Exception {
+        // GIVEN
+        final CachingMemberCalculator memberCalculator = new CachingMemberCalculator(groupDAO,
+                internalCalculator, Type.SET, true, threadFactory);
+
+        Grouping g1 = Grouping.newBuilder()
+                .setId(1)
+                .setDefinition(GroupDefinition.newBuilder()
+                        .setDisplayName("foo"))
+                .build();
+        Grouping g2 = Grouping.newBuilder()
+                .setId(2)
+                .setDefinition(GroupDefinition.newBuilder()
+                        .setDisplayName("bar"))
+                .build();
+        Set<Long> g2Members = Sets.newHashSet(10L, 11L);
+
+        when(groupDAO.getGroups(any())).thenReturn(Arrays.asList(g1, g2));
+        when(internalCalculator.getGroupMembers(groupDAO, g1.getDefinition(), false))
+                .thenThrow(new BadSqlGrammarException(null, "SqlQuery", new SQLException()));
+        when(internalCalculator.getGroupMembers(groupDAO, g2.getDefinition(), false))
+                .thenReturn(g2Members);
+
+        // WHEN
+        memberCalculator.regroup();
+
+        // THEN
+        LongSet cachedGroupIds = memberCalculator.getCachedGroupIds();
+        // Verify that both groups were cached: even though an exception occurred during calculation
+        // for group 1 members, the execution continued and group 2 was also cached.
+        assertEquals(2, cachedGroupIds.size());
+        assertTrue(cachedGroupIds.contains(g1.getId()));
+        assertTrue(cachedGroupIds.contains(g2.getId()));
     }
 
     /**

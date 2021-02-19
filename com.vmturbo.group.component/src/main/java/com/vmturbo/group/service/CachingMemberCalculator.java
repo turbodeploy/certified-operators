@@ -236,8 +236,9 @@ public class CachingMemberCalculator implements GroupMemberCalculator, GroupUpda
 
                     cachedGroupMembers.get(distinctMembers::add);
                     totalMemberCnt += cachedGroupMembers.size();
-                } catch (StoreOperationException e) {
-                    logger.error("Failed to do regrouping. Error: ", e);
+                } catch (RuntimeException | StoreOperationException e) {
+                    logger.error("An error occurred during regrouping for group with uuid: "
+                            + group.getId() + ". Error: ", e);
                 }
             }
 
