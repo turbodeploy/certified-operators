@@ -4,15 +4,18 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 
 import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.immutables.value.Value.Immutable;
 
 import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierDemand;
 import com.vmturbo.cloud.commitment.analysis.demand.ScopedCloudTierInfo;
+import com.vmturbo.cloud.commitment.analysis.spec.catalog.SpecCatalogKey;
+import com.vmturbo.cloud.commitment.analysis.spec.catalog.SpecCatalogKey.OrganizationType;
+import com.vmturbo.cloud.common.immutable.HiddenImmutableTupleImplementation;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.HistoricalDemandSelection.CloudTierType;
 
 /**
@@ -25,7 +28,7 @@ public class ReservedInstanceSpecMatcher implements CloudCommitmentSpecMatcher<R
 
     private final RISpecPurchaseFilter riSpecPurchaseFilter;
 
-    private final ConcurrentMap<Long, Map<VirtualMachineCoverageScope, ReservedInstanceSpecData>> riSpecsByScopeByRegion =
+    private final Map<RegionalSpecCatalogKey, Map<VirtualMachineCoverageScope, ReservedInstanceSpecData>> riSpecsByRegionalCatalog =
             new ConcurrentHashMap<>();
 
     /**
@@ -46,15 +49,24 @@ public class ReservedInstanceSpecMatcher implements CloudCommitmentSpecMatcher<R
             @Nonnull ScopedCloudTierInfo scopedCloudTierDemand) {
 
         if (scopedCloudTierDemand.cloudTierType() == CloudTierType.COMPUTE_TIER) {
+
             final ComputeTierDemand computeTierDemand =
                     (ComputeTierDemand)scopedCloudTierDemand.cloudTierDemand();
 
+            final SpecCatalogKey catalogKey = SpecCatalogKey.of(
+                    scopedCloudTierDemand.billingFamilyId().isPresent()
+                            ? OrganizationType.BILLING_FAMILY
+                            : OrganizationType.STANDALONE_ACCOUNT,
+                    scopedCloudTierDemand.billingFamilyId().orElseGet(scopedCloudTierDemand::accountOid));
             final long regionOid = scopedCloudTierDemand.regionOid();
+            final RegionalSpecCatalogKey regionalCatalogKey = RegionalSpecCatalogKey.of(catalogKey, regionOid);
+
             final Map<VirtualMachineCoverageScope, ReservedInstanceSpecData> riSpecsByCoverageScope =
-                    riSpecsByScopeByRegion.computeIfAbsent(regionOid, riSpecPurchaseFilter::getSpecsByCoverageScope);
+                    riSpecsByRegionalCatalog.computeIfAbsent(regionalCatalogKey,
+                            (key) -> riSpecPurchaseFilter.getAvailableRegionalSpecs(catalogKey, regionOid));
 
             final VirtualMachineCoverageScope coverageScope = ImmutableVirtualMachineCoverageScope.builder()
-                    .regionOid(regionOid)
+                    .regionOid(scopedCloudTierDemand.regionOid())
                     .cloudTierOid(computeTierDemand.cloudTierOid())
                     .osType(computeTierDemand.osType())
                     .tenancy(computeTierDemand.tenancy())
@@ -81,6 +93,23 @@ public class ReservedInstanceSpecMatcher implements CloudCommitmentSpecMatcher<R
          */
         public ReservedInstanceSpecMatcher newMatcher(@Nonnull RISpecPurchaseFilter riSpecPurchaseFilter) {
             return new ReservedInstanceSpecMatcher(riSpecPurchaseFilter);
+        }
+    }
+
+    /**
+     * A key for mapping to a region x {@link SpecCatalogKey}.
+     */
+    @HiddenImmutableTupleImplementation
+    @Immutable(builder = false, lazyhash = true)
+    interface RegionalSpecCatalogKey {
+
+        SpecCatalogKey specCatalogKey();
+
+        long regionOid();
+
+        static RegionalSpecCatalogKey of(@Nonnull SpecCatalogKey specCatalogKey,
+                                         long regionOid) {
+            return RegionalSpecCatalogKeyTuple.of(specCatalogKey, regionOid);
         }
     }
 }

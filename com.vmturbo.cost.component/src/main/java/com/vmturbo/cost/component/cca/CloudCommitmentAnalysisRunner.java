@@ -3,6 +3,7 @@ package com.vmturbo.cost.component.cca;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -170,6 +171,7 @@ public class CloudCommitmentAnalysisRunner {
 
         cloudCommitmentAnalysisConfigBuilder.setPurchaseProfile(
                 CommitmentPurchaseProfile.newBuilder()
+                        .addAllAccountPurchaseRestrictions(resolvePurchaseRestrictions(demandSelection.getScope()))
                         .setAllocatedSelection(AllocatedDemandSelection
                                 .newBuilder()
                                 .setIncludeFlexibleDemand(cloudCommitmentSettingsFetcher.allocationFlexible())
@@ -217,15 +219,14 @@ public class CloudCommitmentAnalysisRunner {
     }
 
     @Nonnull
-    private Set<Long> searchForAggregatingEntities(@Nonnull Collection<Long> seedOids,
-                                                   @Nonnull EntityType entityType) {
+    private Set<Long> searchForConnectedEntities(@Nonnull Collection<Long> seedOids,
+                                                 @Nonnull EntityType entityType,
+                                                 @Nonnull TraversalDirection traversalDirection) {
         final SearchParameters serviceProviderSearchParams =
                 SearchParameters.newBuilder()
                         .setStartingFilter(SearchProtoUtil.idFilter(seedOids))
                         .addSearchFilter(SearchProtoUtil.searchFilterTraversal(
-                                SearchProtoUtil.traverseToType(
-                                        TraversalDirection.AGGREGATED_BY,
-                                        entityType)))
+                                SearchProtoUtil.traverseToType(traversalDirection, entityType)))
                         .build();
         final SearchEntitiesRequest searchRequest = SearchEntitiesRequest.newBuilder()
                 .setSearch(SearchQuery.newBuilder()
@@ -257,17 +258,19 @@ public class CloudCommitmentAnalysisRunner {
                     .addAllRegionOid(request.getRegionsList())
                     .build();
         } else if (!request.getAccountsList().isEmpty()) {
-            final Set<Long> serviceProviderOids = searchForAggregatingEntities(
+            final Set<Long> serviceProviderOids = searchForConnectedEntities(
                     request.getAccountsList(),
-                    EntityType.SERVICE_PROVIDER);
+                    EntityType.SERVICE_PROVIDER,
+                    TraversalDirection.AGGREGATED_BY);
 
             demandScope = DemandScope.newBuilder()
                     .addAllServiceProviderOid(serviceProviderOids)
                     .build();
         } else if (!request.getEntitiesList().isEmpty()) {
-            final Set<Long> regionOids = searchForAggregatingEntities(
+            final Set<Long> regionOids = searchForConnectedEntities(
                     request.getEntitiesList(),
-                    EntityType.REGION);
+                    EntityType.REGION,
+                    TraversalDirection.AGGREGATED_BY);
 
             demandScope = DemandScope.newBuilder()
                     .addAllRegionOid(regionOids)
@@ -328,5 +331,27 @@ public class CloudCommitmentAnalysisRunner {
         }
 
         return purchaseProfileByRegionMap.build();
+    }
+
+    /**
+     * If the recommendation demand scope is either a set of accounts or entities, the purchasing
+     * account of any recommendation should within the set of accounts or owning accounts, respectively.
+     *
+     * @param demandScope The recommendation demand scope.
+     * @return The set of purchasing account restrictions. The collection will be empty, if there
+     * are no restrictions.
+     */
+    private Collection<Long> resolvePurchaseRestrictions(@Nonnull DemandScope demandScope) {
+
+        if (demandScope.getAccountOidCount() > 0) {
+            return demandScope.getAccountOidList();
+        } else if (demandScope.getEntityOidCount() > 0) {
+            return searchForConnectedEntities(
+                    demandScope.getEntityOidList(),
+                    EntityType.BUSINESS_ACCOUNT,
+                    TraversalDirection.OWNED_BY);
+        } else {
+            return Collections.emptySet();
+        }
     }
 }

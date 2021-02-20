@@ -7,6 +7,7 @@ import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
@@ -33,7 +34,7 @@ public class RegionalRIMatcherCache {
 
     private final CloudTopology<TopologyEntityDTO> cloudTopology;
 
-    private final Map<String, ReservedInstancePurchaseConstraints> purchaseConstraints;
+    private final ComputeTierFamilyResolver computeTierFamilyResolver;
 
     private final TopologyInfo topologyInfo;
 
@@ -41,13 +42,13 @@ public class RegionalRIMatcherCache {
     public RegionalRIMatcherCache(@Nonnull ReservedInstanceSpecMatcherFactory riSpecMatcherFactory,
                                   @Nonnull ReservedInstanceInventoryMatcherFactory riInventoryMatcherFactory,
                                   @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology,
-                                  @Nonnull Map<String, ReservedInstancePurchaseConstraints> purchaseConstraints,
+                                  @Nonnull ComputeTierFamilyResolver computeTierFamilyResolver,
                                   @Nonnull TopologyInfo topologyInfo) {
 
         this.riSpecMatcherFactory = Objects.requireNonNull(riSpecMatcherFactory);
         this.riInventoryMatcherFactory = Objects.requireNonNull(riInventoryMatcherFactory);
         this.cloudTopology = Objects.requireNonNull(cloudTopology);
-        this.purchaseConstraints = Objects.requireNonNull(purchaseConstraints);
+        this.computeTierFamilyResolver = Objects.requireNonNull(computeTierFamilyResolver);
         this.topologyInfo = Objects.requireNonNull(topologyInfo);
     }
 
@@ -56,8 +57,7 @@ public class RegionalRIMatcherCache {
     public ReservedInstanceSpecMatcher getOrCreateRISpecMatchForRegion(long regionOid) {
         return riSpecMatchersByRegionOid.computeIfAbsent(regionOid,
                 (__) -> riSpecMatcherFactory.createRegionalMatcher(
-                        cloudTopology,
-                        purchaseConstraints,
+                        computeTierFamilyResolver,
                         regionOid));
     }
 

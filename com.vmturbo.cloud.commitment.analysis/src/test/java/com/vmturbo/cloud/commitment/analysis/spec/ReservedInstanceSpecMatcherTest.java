@@ -3,7 +3,8 @@ package com.vmturbo.cloud.commitment.analysis.spec;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.eq;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -62,7 +63,7 @@ public class ReservedInstanceSpecMatcherTest {
 
     @Before
     public void setup() {
-        when(riSpecPurchaseFilter.getSpecsByCoverageScope(eq(matchingCoverageScope.regionOid())))
+        when(riSpecPurchaseFilter.getAvailableRegionalSpecs(any(), anyLong()))
                 .thenReturn(ImmutableMap.of(matchingCoverageScope, matchingSpecData));
     }
 

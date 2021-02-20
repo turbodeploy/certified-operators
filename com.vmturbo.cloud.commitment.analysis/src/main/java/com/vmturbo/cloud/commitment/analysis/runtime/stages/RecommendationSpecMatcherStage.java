@@ -79,9 +79,8 @@ public class RecommendationSpecMatcherStage extends AbstractStage<AnalysisTopolo
                     specByDemand.computeIfAbsent(reservedInstanceSpecData.get(), t -> new HashSet<>())
                             .add(cloudTierInfo);
                 } else {
-                    logger.debug(
-                            "No RI Specs found for entities from account {} having tier type {}",
-                            cloudTierInfo.accountOid(), cloudTierInfo.cloudTierType());
+                    logger.info("No RI Specs found for entities from account {} having tier '{}'",
+                            cloudTierInfo.accountOid(), cloudTierInfo.cloudTierDemand());
                 }
             }
         });

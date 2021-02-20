@@ -9,6 +9,8 @@ import org.springframework.context.annotation.Lazy;
 import com.vmturbo.cloud.commitment.analysis.inventory.CloudCommitmentBoughtResolver;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.persistence.CloudCommitmentRecommendationStore;
 import com.vmturbo.cloud.commitment.analysis.spec.CloudCommitmentSpecResolver;
+import com.vmturbo.cloud.commitment.analysis.spec.catalog.ReservedInstanceCatalog.ReservedInstanceCatalogFactory;
+import com.vmturbo.cloud.common.topology.BillingFamilyRetrieverFactory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -20,6 +22,7 @@ import com.vmturbo.cost.calculation.DiscountApplicator.DiscountApplicatorFactory
 import com.vmturbo.cost.calculation.integration.PricingResolver;
 import com.vmturbo.cost.calculation.topology.TopologyEntityInfoExtractor;
 import com.vmturbo.cost.component.IdentityProviderConfig;
+import com.vmturbo.cost.component.cca.LocalReservedInstanceCatalog.LocalReservedInstanceCatalogFactory;
 import com.vmturbo.cost.component.discount.DiscountConfig;
 import com.vmturbo.cost.component.pricing.PricingConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceConfig;
@@ -57,6 +60,9 @@ public class LocalCloudCommitmentAnalysisConfig {
     @Lazy
     @Autowired
     private IMessageSenderFactory kafkaMessageSender;
+
+    @Autowired
+    private BillingFamilyRetrieverFactory billingFamilyRetrieverFactory;
 
 
     /**
@@ -108,6 +114,19 @@ public class LocalCloudCommitmentAnalysisConfig {
     public PricingResolver localCostPricingResolver() {
         return new LocalCostPricingResolver(pricingConfig.priceTableStore(), pricingConfig.businessAccountPriceTableKeyStore(), identityProviderConfig.identityProvider(),
                 discountConfig.discountStore(), discountApplicatorFactory(), topologyEntityInfoExtractor());
+    }
+
+    /**
+     * The {@link ReservedInstanceCatalogFactory} bean.
+     * @return The {@link ReservedInstanceCatalogFactory} bean.
+     */
+    @Bean
+    public ReservedInstanceCatalogFactory reservedInstanceCatalogFactory() {
+        return new LocalReservedInstanceCatalogFactory(
+                billingFamilyRetrieverFactory,
+                pricingConfig.businessAccountPriceTableKeyStore(),
+                pricingConfig.priceTableStore(),
+                reservedInstanceSpecConfig.reservedInstanceSpecStore());
     }
 
     /**

@@ -19,6 +19,9 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.cloud.commitment.analysis.spec.catalog.CloudCommitmentCatalog.SpecAccountGrouping;
+import com.vmturbo.cloud.commitment.analysis.spec.catalog.ReservedInstanceCatalog;
+import com.vmturbo.cloud.commitment.analysis.spec.catalog.SpecCatalogKey;
 import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CommitmentPurchaseProfile.ReservedInstancePurchaseProfile;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
@@ -46,17 +49,15 @@ public class RISpecPurchaseFilter implements CommitmentSpecPurchaseFilter<Virtua
 
     private final ReservedInstancePurchaseProfile riPurchaseProfile;
 
-    private final CloudCommitmentSpecResolver<ReservedInstanceSpec> reservedInstanceSpecResolver;
+    private final ReservedInstanceCatalog reservedInstanceCatalog;
 
     private final ComputeTierFamilyResolver computeTierFamilyResolver;
-
-
 
     /**
      * Constructor for the cloud commitment spec filter.
      *
      * @param cloudTierTopology The topology of cloud tiers..
-     * @param riSpecResolver The cloud commitment spec resolver for getting ri specs.
+     * @param reservedInstanceCatalog The cloud commitment spec catalog for getting available ri specs.
      * @param computeTierFamilyResolver A resolver of related compute tiers, based on the tiers' family.
      *                                  This is used in cases where an RI spec is size flexible, in order
      *                                  to determine all tiers covered by the spec.
@@ -64,26 +65,31 @@ public class RISpecPurchaseFilter implements CommitmentSpecPurchaseFilter<Virtua
      *                          potential specs to recommend.
      */
     public RISpecPurchaseFilter(@Nonnull CloudTopology<TopologyEntityDTO> cloudTierTopology,
-                                @Nonnull CloudCommitmentSpecResolver<ReservedInstanceSpec> riSpecResolver,
+                                @Nonnull ReservedInstanceCatalog reservedInstanceCatalog,
                                 @Nonnull ComputeTierFamilyResolver computeTierFamilyResolver,
                                 @Nonnull ReservedInstancePurchaseProfile riPurchaseProfile) {
         this.cloudTierTopology = Objects.requireNonNull(cloudTierTopology);
         this.computeTierFamilyResolver = Objects.requireNonNull(computeTierFamilyResolver);
         this.riPurchaseProfile = Objects.requireNonNull(riPurchaseProfile);
-        this.reservedInstanceSpecResolver = Objects.requireNonNull(riSpecResolver);
+        this.reservedInstanceCatalog = Objects.requireNonNull(reservedInstanceCatalog);
     }
 
     /**
      * {@inheritDoc}.
      */
     @Override
-    public Map<VirtualMachineCoverageScope, ReservedInstanceSpecData> getSpecsByCoverageScope(final long regionOid) {
+    public Map<VirtualMachineCoverageScope, ReservedInstanceSpecData> getAvailableRegionalSpecs(
+            @Nonnull SpecCatalogKey catalogKey,
+            long regionOid) {
 
         if (riPurchaseProfile.getRiTypeByRegionOidMap().containsKey(regionOid)) {
-            final ReservedInstanceType riTypeToPurchase = riPurchaseProfile.getRiTypeByRegionOidMap().get(regionOid);
+            final ReservedInstanceType riTypeToPurchase =
+                    riPurchaseProfile.getRiTypeByRegionOidMap().get(regionOid);
             final Map<VirtualMachineCoverageScope, Optional<ReservedInstanceSpecData>> riSpecsByCoverageScope =
-                    reservedInstanceSpecResolver.getSpecsForRegion(regionOid)
+                    reservedInstanceCatalog.getRegionalSpecs(catalogKey, regionOid)
                             .stream()
+                            .map(SpecAccountGrouping::commitmentSpecs)
+                            .flatMap(Set::stream)
                             .filter(riSpec -> filterRISpecsByType(riSpec, riTypeToPurchase))
                             .map(this::createRISpecData)
                             .filter(Optional::isPresent)

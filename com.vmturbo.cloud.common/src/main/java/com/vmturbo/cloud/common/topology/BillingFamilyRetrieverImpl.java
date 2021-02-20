@@ -4,13 +4,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Function;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.commons.lang3.tuple.Pair;
+import org.immutables.value.Value.Immutable;
 
+import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.components.api.SetOnce;
@@ -24,9 +27,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
  */
 public class BillingFamilyRetrieverImpl implements BillingFamilyRetriever {
 
-
-    private final SetOnce<Map<Long, GroupAndMembers>> billingFamiliesByAccountId
-            = new SetOnce<>();
+    private final SetOnce<BillingFamilyData> billingFamilyData = new SetOnce<>();
 
     private final GroupMemberRetriever groupMemberRetriever;
 
@@ -49,13 +50,27 @@ public class BillingFamilyRetrieverImpl implements BillingFamilyRetriever {
     public Optional<GroupAndMembers> getBillingFamilyForAccount(final long accountOid) {
 
         final Map<Long, GroupAndMembers> billingFamilyMap =
-                billingFamiliesByAccountId.ensureSet(this::createBillingFamilyAccountMap);
+                billingFamilyData.ensureSet(this::createBillingFamilyData)
+                        .billingFamilyByAccountIdMap();
 
         return Optional.ofNullable(billingFamilyMap.get(accountOid));
 
     }
 
-    private Map<Long, GroupAndMembers> createBillingFamilyAccountMap() {
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public Optional<GroupAndMembers> getBillingFamilyById(long billingFamilyId) {
+        final Map<Long, GroupAndMembers> billingFamilyMap =
+                billingFamilyData.ensureSet(this::createBillingFamilyData)
+                        .billingFamilyByIdMap();
+
+        return Optional.ofNullable(billingFamilyMap.get(billingFamilyId));
+    }
+
+    @Nonnull
+    private BillingFamilyData createBillingFamilyData() {
 
         final List<GroupAndMembers> billingFamilies = groupMemberRetriever
                 .getGroupsWithMembers(GetGroupsRequest.newBuilder()
@@ -64,7 +79,12 @@ public class BillingFamilyRetrieverImpl implements BillingFamilyRetriever {
                                 .build())
                         .build());
 
-        return billingFamilies.stream()
+        final Map<Long, GroupAndMembers> billingFamilyByIdMap = billingFamilies.stream()
+                .collect(ImmutableMap.toImmutableMap(
+                        bf -> bf.group().getId(),
+                        Function.identity()));
+
+        final Map<Long, GroupAndMembers> billingFamilyByAccountIdMap = billingFamilies.stream()
                 .flatMap(bf -> bf.members()
                         .stream()
                         .map(account -> Pair.of(account, bf)))
@@ -72,5 +92,30 @@ public class BillingFamilyRetrieverImpl implements BillingFamilyRetriever {
                         Pair::getKey,
                         Pair::getValue));
 
+        return BillingFamilyData.builder()
+                .billingFamilyByIdMap(billingFamilyByIdMap)
+                .billingFamilyByAccountIdMap(billingFamilyByAccountIdMap)
+                .build();
+    }
+
+    /**
+     * A data class containing information mapping billing families to queryable data.
+     */
+    @HiddenImmutableImplementation
+    @Immutable
+    interface BillingFamilyData {
+
+        Map<Long, GroupAndMembers> billingFamilyByIdMap();
+
+        Map<Long, GroupAndMembers> billingFamilyByAccountIdMap();
+
+        static Builder builder() {
+            return new Builder();
+        }
+
+        /**
+         * A builder class for constructing {@link BillingFamilyData} instances.
+         */
+        class Builder extends ImmutableBillingFamilyData.Builder {}
     }
 }
