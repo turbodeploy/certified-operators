@@ -107,8 +107,6 @@ public class ReservedInstanceAnalyzer {
 
     private final RIBuyDemandCalculatorFactory demandCalculatorFactory;
 
-    private final ReservedInstanceBoughtStore riBoughtStore;
-
     /**
      * the minimum historical data points required for RI buy.
      */
@@ -169,7 +167,6 @@ public class ReservedInstanceAnalyzer {
         this.identityProvider = Objects.requireNonNull(identityProvider);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.riMinimumDataPoints = riMinimumDataPoints;
-        this.riBoughtStore = riBoughtStore;
     }
 
     @VisibleForTesting
@@ -185,7 +182,6 @@ public class ReservedInstanceAnalyzer {
         this.analysisContextProvider = null;
         this.identityProvider = null;
         this.riMinimumDataPoints = 1;
-        this.riBoughtStore = null;
     }
 
     /**
@@ -378,8 +374,9 @@ public class ReservedInstanceAnalyzer {
         List<ReservedInstanceAnalysisRecommendation> recommendations = new ArrayList<>();
 
         final RIBuyDemandCalculator demandCalculator = demandCalculatorFactory.newCalculator(
-                analysisContextInfo.regionalRIMatcherCache(),
-                demandDataType, riBoughtStore);
+                analysisContextInfo.scope().getTopologyInfo(),
+                analysisContextInfo.cloudTopology(),
+                demandDataType);
         //get all the BA oids from analysis context
         final Set<Long> primaryAccounts = new HashSet<>();
         for (RIBuyRegionalContext riBuyRegionalContext : analysisContextInfo.regionalContexts()) {

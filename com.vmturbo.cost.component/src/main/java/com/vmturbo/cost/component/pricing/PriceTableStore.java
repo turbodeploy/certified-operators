@@ -2,6 +2,7 @@ package com.vmturbo.cost.component.pricing;
 
 import java.util.Collection;
 import java.util.Map;
+import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
@@ -71,6 +72,14 @@ public interface PriceTableStore {
      */
     @Nonnull
     Map<Long, ReservedInstancePriceTable> getRiPriceTables(Collection<Long> oids);
+
+    /**
+     * Get the reserved instance price table corresponding to the {@code priceTableOid}.
+     * @param priceTableOid The price table OID.
+     * @return The {@link ReservedInstancePriceTable}, if one is found corresponding to the price
+     * table OID.
+     */
+    Optional<ReservedInstancePriceTable> getRiPriceTable(long priceTableOid);
 
     /**
      * Put a new collection of probe type -> price table associations into the store. This

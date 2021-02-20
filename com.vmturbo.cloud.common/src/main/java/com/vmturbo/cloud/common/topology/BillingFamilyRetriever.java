@@ -24,4 +24,13 @@ public interface BillingFamilyRetriever {
      */
     @Nonnull
     Optional<GroupAndMembers> getBillingFamilyForAccount(long accountOid);
+
+    /**
+     * Queries the billing family by its ID.
+     * @param billingFamilyId The target billing family ID.
+     * @return An {@link Optional} containing the {@link GroupAndMembers} representing the billing family,
+     * if the billing family is found. The optional will be empty if the billing family cannot be found.
+     */
+    @Nonnull
+    Optional<GroupAndMembers> getBillingFamilyById(long billingFamilyId);
 }

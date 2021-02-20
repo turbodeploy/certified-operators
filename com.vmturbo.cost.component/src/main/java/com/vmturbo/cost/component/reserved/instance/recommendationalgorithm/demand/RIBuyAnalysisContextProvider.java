@@ -7,33 +7,25 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 
+import org.apache.commons.collections4.SetUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.immutables.value.Value;
 
-import com.vmturbo.common.protobuf.RepositoryDTOUtil;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
-import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
-import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
-import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.component.db.tables.records.ComputeTierTypeHourlyByWeekRecord;
 import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsStore;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalysisScope;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstancePurchaseConstraints;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.demand.AccountGroupingIdentifier.AccountGroupingType;
-import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.inventory.RegionalRIMatcherCache;
-import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.inventory.RegionalRIMatcherCacheFactory;
+import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.inventory.ReservedInstanceCatalogMatcher;
+import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.inventory.ReservedInstanceCatalogMatcher.ReservedInstanceCatalogMatcherFactory;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.inventory.ReservedInstanceSpecMatcher;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.inventory.ReservedInstanceSpecMatcher.ReservedInstanceSpecData;
 import com.vmturbo.group.api.GroupAndMembers;
@@ -57,7 +49,7 @@ public class RIBuyAnalysisContextProvider {
     // An interface for obtaining historical demand data
     private final ComputeTierDemandStatsStore computeTierDemandStatsStore;
 
-    private final RegionalRIMatcherCacheFactory regionalRIMatcherCacheFactory;
+    private final ReservedInstanceCatalogMatcherFactory reservedInstanceCatalogMatcherFactory;
 
     private final long realtimeTopologyContextId;
 
@@ -67,8 +59,6 @@ public class RIBuyAnalysisContextProvider {
      * Construct the {@link RIBuyAnalysisContextProvider} instance.
      *
      * @param computeTierDemandStatsStore   historical demand data store.
-     * @param regionalRIMatcherCacheFactory A factory to create a new {@link RegionalRIMatcherCache} for an
-     *                                      analysis context.
      * @param realtimeTopologyContextId     The realtime topology context ID, used in querying the realtime
      *                                      topology to match to recorded demand.
      * @param allowStandaloneAccountAnalysisClusters A boolean flag indicating whether demand clusters, in which
@@ -76,11 +66,11 @@ public class RIBuyAnalysisContextProvider {
      *                                               allowed.
      */
     public RIBuyAnalysisContextProvider(@Nonnull ComputeTierDemandStatsStore computeTierDemandStatsStore,
-                                     @Nonnull RegionalRIMatcherCacheFactory regionalRIMatcherCacheFactory,
+                                     @Nonnull ReservedInstanceCatalogMatcherFactory reservedInstanceCatalogMatcherFactory,
                                      long realtimeTopologyContextId,
                                      boolean allowStandaloneAccountAnalysisClusters) {
         this.computeTierDemandStatsStore = Objects.requireNonNull(computeTierDemandStatsStore);
-        this.regionalRIMatcherCacheFactory = Objects.requireNonNull(regionalRIMatcherCacheFactory);
+        this.reservedInstanceCatalogMatcherFactory = Objects.requireNonNull(reservedInstanceCatalogMatcherFactory);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.allowStandaloneAccountAnalysisClusters = allowStandaloneAccountAnalysisClusters;
     }
@@ -119,8 +109,8 @@ public class RIBuyAnalysisContextProvider {
             Map<String, ReservedInstancePurchaseConstraints> purchaseConstraints,
             @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology) {
 
-        final RegionalRIMatcherCache regionalRIMatcherCache =
-                regionalRIMatcherCacheFactory.createNewCache(cloudTopology, purchaseConstraints, scope.getTopologyInfo());
+        final ReservedInstanceCatalogMatcher reservedInstanceCatalogMatcher = reservedInstanceCatalogMatcherFactory.newMatcher(
+                cloudTopology, purchaseConstraints, SetUtils.emptyIfNull(scope.getAccounts()));
 
         final List<ComputeTierTypeHourlyByWeekRecord> demandClusters = computeTierDemandStatsStore
                 .getUniqueDemandClusters().collect(Collectors.toList());
@@ -140,7 +130,7 @@ public class RIBuyAnalysisContextProvider {
                         // Verify the cluster matches the requested analysis scope (e.g. the account associated
                         // with the cluster is within the requested account list).
                         .filter(scopedCluster -> filterDemandContextByAnalysisScope(scope, scopedCluster))
-                        .map(scopedCluster -> matchDemandClusterToRISpec(regionalRIMatcherCache, scopedCluster))
+                        .map(scopedCluster -> matchDemandClusterToRISpec(reservedInstanceCatalogMatcher, scopedCluster))
                         // filter out contexts which cannot be mapped to an RISpec
                         .filter(Objects::nonNull)
                         .collect(Collectors.groupingBy(
@@ -159,8 +149,8 @@ public class RIBuyAnalysisContextProvider {
                 .collect(Collectors.toList());
 
         return ImmutableRIBuyAnalysisContextInfo.builder()
+                .scope(scope)
                 .cloudTopology(cloudTopology)
-                .regionalRIMatcherCache(regionalRIMatcherCache)
                 .regionalContexts(regionalContexts)
                 .build();
     }
@@ -232,19 +222,10 @@ public class RIBuyAnalysisContextProvider {
 
     @Nullable
     private DemandContextRISpecMatch matchDemandClusterToRISpec(
-            @Nonnull RegionalRIMatcherCache regionalRIMatcherCache,
+            @Nonnull ReservedInstanceCatalogMatcher reservedInstanceCatalogMatcher,
             @Nonnull ScopedDemandCluster demandCluster) {
 
-        final ReservedInstanceSpecMatcher riSpecMatcher =
-                regionalRIMatcherCache.getOrCreateRISpecMatchForRegion(
-                        demandCluster.region().getOid());
-
-        return riSpecMatcher
-                .matchToPurchasingRISpecData(
-                        demandCluster.region(),
-                        demandCluster.computeTier(),
-                        demandCluster.platform(),
-                        demandCluster.tenancy())
+        return reservedInstanceCatalogMatcher.matchToPurchasingRISpecData(demandCluster)
                 .map(riSpecData -> ImmutableDemandContextRISpecMatch.builder()
                         .riSpecData(riSpecData)
                         .scopedDemandCluster(demandCluster)
@@ -329,7 +310,7 @@ public class RIBuyAnalysisContextProvider {
      * TODO Add more details.
      */
     @Value.Immutable
-    interface ScopedDemandCluster {
+    public interface ScopedDemandCluster {
 
         @Nullable
         GroupAndMembers billingFamily();
