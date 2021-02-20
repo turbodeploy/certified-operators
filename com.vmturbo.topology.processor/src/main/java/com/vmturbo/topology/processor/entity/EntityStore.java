@@ -662,13 +662,14 @@ public class EntityStore {
         if (logger.isDebugEnabled()) {
             entities.forEach((t, e) -> {
                 if (logger.isTraceEnabled()) {
-                    logger.trace("{} {} {} entities: {}", logPrefix, e.size(), t, e.stream()
-                            .map(en -> String.format("%s | %s | %s", en.getEntityType(), en.getId(),
-                                    en.getEntityInfo(targetId)
-                                            .map(PerTargetInfo::getEntityInfo)
-                                            .map(EntityDTO::getDisplayName)
-                                            .orElse("missing display name")))
-                            .collect(Collectors.joining(System.lineSeparator())));
+                    logger.trace("{} {} {} entities from target {} : {}", logPrefix, e.size(), t,
+                            targetId, e.stream()
+                                    .map(en -> String.format("%s | %s | %s", en.getEntityType(),
+                                            en.getId(), en.getEntityInfo(targetId)
+                                                    .map(PerTargetInfo::getEntityInfo)
+                                                    .map(EntityDTO::getDisplayName)
+                                                    .orElse("missing display name")))
+                                    .collect(Collectors.joining(System.lineSeparator())));
                 } else {
                     logger.debug("{} {} {} entities from target {}", logPrefix, e.size(), t,
                             targetId);
