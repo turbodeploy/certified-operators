@@ -312,7 +312,7 @@ public class EconomyCaches {
             logger.debug(logPrefix + "Adding reservation {} with buyers {} on real time economy cache",
                     existingReservations.keySet(), buyerOidToPlacement.keySet());
             addExistingReservationEntities(newEconomy, HashBiMap.create(commTypeToSpecMap),
-                    buyerOidToPlacement, existingReservations, false);
+                    buyerOidToPlacement, existingReservations, false, true);
         } catch (Exception exception) {
             realtimeCacheEndUpdateTime = clock.instant();
             logger.error(logPrefix + "Skip refresh real time economy cache because of exception {}", exception);
@@ -337,7 +337,10 @@ public class EconomyCaches {
             updateAccessCommoditiesInHistoricalEconomyCache(realtimeCachedEconomy, realtimeCachedCommTypeMap);
             // Clone a new historical economy with new InvertedIndex object constructed based on updated traders(all new commodities
             // will be included in the InvertedIndex look up table).
+            // NOTE: the cloned economy has only host and storages, but the utilization of them includes the reservation utils.
             Economy newHistEconomy = InitialPlacementUtils.cloneEconomy(historicalCachedEconomy, false);
+            addExistingReservationEntities(newHistEconomy, historicalCachedCommTypeMap,
+                    buyerOidToPlacement, existingReservations, true, false);
             historicalCachedEconomy = newHistEconomy;
         } catch (Exception e) {
             logger.error(logPrefix + "Updating access commodity in historical economy cache encounter error {},"
@@ -418,11 +421,13 @@ public class EconomyCaches {
      * @param buyerOidToPlacement a map of buyer oid to its placement decisions.
      * @param existingReservations a map of existing reservations by oid.
      * @param includeDeployed if true include the reservations which has deployed = true too.
+     * @param shouldApplyUtilization if false dont add the utilization of reserved vms to host and storages.
      */
     private void addExistingReservationEntities(@Nonnull final Economy economy,
             @Nonnull final BiMap<CommodityType, Integer> commTypeToSpecMap,
             @Nonnull final Map<Long, List<InitialPlacementDecision>> buyerOidToPlacement,
-            @Nonnull final Map<Long, List<InitialPlacementBuyer>> existingReservations, boolean includeDeployed) {
+            @Nonnull final Map<Long, List<InitialPlacementBuyer>> existingReservations, boolean includeDeployed,
+                                                final boolean shouldApplyUtilization) {
         if (existingReservations.isEmpty() || buyerOidToPlacement.isEmpty()) {
             return;
         }
@@ -453,7 +458,11 @@ public class EconomyCaches {
                     Trader supplierInEconomy = economy.getTopology().getTradersByOid()
                             .get(initialPlacementDecisions.get(0).supplier.get());
                     if (supplierInEconomy != null) {
-                        new Move(economy, sl, supplierInEconomy).take();
+                        if (shouldApplyUtilization) {
+                            new Move(economy, sl, supplierInEconomy).take();
+                        } else {
+                            sl.move(supplierInEconomy);
+                        }
                     }
                     // Make sure the previous reservation buyers not movable in real time cache
                     sl.setMovable(false);
@@ -543,7 +552,7 @@ public class EconomyCaches {
             // Adds latest reservation buyers fetched from plan orchestrator.
             if (!existingReservations.isEmpty() && !buyerOidToPlacement.isEmpty()) {
                 addExistingReservationEntities(historicalCachedEconomy, historicalCachedCommTypeMap,
-                        buyerOidToPlacement, existingReservations, true);
+                        buyerOidToPlacement, existingReservations, true, true);
                 logger.info(logPrefix + "Historical economy cache added reservation entities oid {}",
                         buyerOidToPlacement.keySet());
             }
