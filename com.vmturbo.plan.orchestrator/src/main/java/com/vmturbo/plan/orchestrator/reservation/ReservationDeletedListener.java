@@ -13,7 +13,8 @@ public interface ReservationDeletedListener {
      * A callback to be called when a reservation has been successfully deleted.
      *
      * @param reservation The reservation that was removed.
+     * @param deployed true if the associated VM is deployed.
      */
-    default void onReservationDeleted(@Nonnull final Reservation reservation) { }
+    default void onReservationDeleted(@Nonnull final Reservation reservation, boolean deployed) { }
 
 }

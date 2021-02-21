@@ -44,10 +44,14 @@ public class ReservationConfig {
     @Value("${prepareReservationCache:true}")
     private boolean prepareReservationCache;
 
+    @Value("${delayedDeletionTimeInMillis:172800000}")
+    private long delayedDeletionTimeInMillis;
+
     @Bean
     public ReservationRpcService reservationRpcService() {
         return new ReservationRpcService(templatesConfig.templatesDao(),
-                dbConfig.reservationDao(), reservationManager());
+                dbConfig.reservationDao(), reservationManager(),
+                delayedDeletionTimeInMillis);
     }
 
     /**

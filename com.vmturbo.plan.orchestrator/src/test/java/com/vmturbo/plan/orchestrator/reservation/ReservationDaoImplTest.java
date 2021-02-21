@@ -22,6 +22,8 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.Sets;
 
 import org.hamcrest.Matchers;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
@@ -113,6 +115,7 @@ public class ReservationDaoImplTest {
                         .addReservationConstraintInfo(ReservationConstraintInfo.newBuilder()
                                 .setConstraintId(100)
                                 .setType(Type.DATA_CENTER)))
+            .setDeployed(false)
             .build();
 
     private Reservation testSecondReservation = Reservation.newBuilder()
@@ -133,6 +136,7 @@ public class ReservationDaoImplTest {
                     .addReservationConstraintInfo(ReservationConstraintInfo.newBuilder()
                             .setConstraintId(100)
                             .setType(Type.DATA_CENTER)))
+            .setDeployed(false)
             .build();
 
     @Before
@@ -230,6 +234,26 @@ public class ReservationDaoImplTest {
         assertFalse(retrievedReservation.isPresent());
     }
 
+    /**
+     * Test the delayed delete of reservation.
+     * @throws NoSuchObjectException if the reservation is not present.
+     * @throws DuplicateTemplateException If there are multiple templates with same name during create.
+     */
+    @Test
+    public void testDelayedDeleteReservation() throws NoSuchObjectException, DuplicateTemplateException {
+        Reservation reservationWithTemplate = createReservationWithTemplate(testFirstReservation);
+        Reservation reservation = reservationDao.createReservation(reservationWithTemplate);
+        final DateTime today = DateTime.now(DateTimeZone.UTC);
+        Reservation deletedReservation = reservationDao.deleteReservationById(reservation.getId(), true, 10000L);
+        assertEquals(deletedReservation.getId(), reservation.getId());
+        Optional<Reservation> retrievedReservation = reservationDao.getReservationById(reservation.getId());
+        // reservation will not be deleted.
+        assertTrue(retrievedReservation.isPresent());
+        final DateTime expirationDate = new DateTime(retrievedReservation.get().getExpirationDate(), DateTimeZone.UTC);
+        // experition day was previously 12/15/2018
+        assertTrue(expirationDate.isAfter(today));
+    }
+
     @Test
     public void testGetReservationByStatus() throws DuplicateTemplateException {
         Reservation reservationWithTemplateFirst = createReservationWithTemplate(testFirstReservation);
@@ -323,7 +347,7 @@ public class ReservationDaoImplTest {
             reservationDao.createReservation(createReservationWithTemplate(testFirstReservation));
 
         final List<String> diags = Arrays.asList(
-            "{\"id\":\"3143031140272\",\"name\":\"Test-first-reservation\",\"startDate\":"
+            "{\"id\":\"3143031140272\",\"name\":\"Test-first-reservation\",\"deployed\":\"false\",\"startDate\":"
                     + "\"1547251200000\",\"expirationDate\":\"1547510400000\",\"status\":\"INITIAL\""
                     + ",\"reservationTemplateCollection\":{\"reservationTemplate\":[{\"count\":\"1\","
                     + "\"templateId\":\"3143031138320\",\"reservationInstance\":[{\"entityId\":\"456\","
@@ -333,7 +357,7 @@ public class ReservationDaoImplTest {
                     + ",\"constraintInfoCollection\":"
                     + "{\"reservationConstraintInfo\":[{\"constraintId\":\"100\",\"type\":"
                     + "\"DATA_CENTER\"}]}}",
-            "{\"id\":\"1997938756368\",\"name\":\"Test-second-reservation\",\"startDate\":" +
+            "{\"id\":\"1997938756368\",\"name\":\"Test-second-reservation\",\"deployed\":\"false\",\"startDate\":" +
                 "\"1574398800000\",\"expirationDate\":\"1577595600000\",\"status\":\"RESERVED\"," +
                 "\"reservationTemplateCollection\":{\"reservationTemplate\":[{\"count\":\"1\"," +
                 "\"templateId\":\"1997938755584\",\"reservationInstance\":[{\"entityId\":\"456\"," +

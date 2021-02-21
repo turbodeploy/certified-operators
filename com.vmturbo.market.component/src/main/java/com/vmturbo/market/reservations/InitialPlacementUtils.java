@@ -277,6 +277,7 @@ public final class InitialPlacementUtils {
      * @param commTypeToSpecMap the commodity type to commodity specification mapping.
      * @param buyerOidToPlacement the reservation buyers and their placement decisions.
      * @param existingReservations  map of existing reservations by oid.
+     * @param includeDeployed if true add the reservations with deployed = true into economy cache.
      * @return a list of {@link TraderTO} lists. The order of reservation buyers follows the order
      * they were added.
      */
@@ -284,22 +285,25 @@ public final class InitialPlacementUtils {
             @Nonnull final Economy economy,
             @Nonnull final BiMap<CommodityType, Integer> commTypeToSpecMap,
             @Nonnull final Map<Long, List<InitialPlacementDecision>> buyerOidToPlacement,
-            @Nonnull final Map<Long, List<InitialPlacementBuyer>> existingReservations) {
+            @Nonnull final Map<Long, List<InitialPlacementBuyer>> existingReservations,
+            boolean includeDeployed) {
         List<List<TraderTO>> placedBuyersPerRes = new ArrayList();
         // Create the reservations one by one following the order they were added
         existingReservations.values().forEach( buyers -> {
             List<TraderTO> placedBuyers = new ArrayList();
             buyers.forEach(buyer -> {
-                List<InitialPlacementDecision> placementPerBuyer =
-                        buyerOidToPlacement.get(buyer.getBuyerId());
-                if (placementPerBuyer != null && placementPerBuyer.stream()
-                        .allMatch(r -> r.supplier.isPresent())) {
-                    // When all shopping lists of a buyer have a supplier, figure out the cluster
-                    // boundaries from the suppliers.
-                    Optional<TraderTO> traderTO = constructTraderTOWithBoundary(economy, commTypeToSpecMap,
-                            placementPerBuyer, buyer);
-                    if (traderTO.isPresent()) {
-                        placedBuyers.add(traderTO.get());
+                if (includeDeployed || !buyer.getDeployed()) {
+                    List<InitialPlacementDecision> placementPerBuyer =
+                            buyerOidToPlacement.get(buyer.getBuyerId());
+                    if (placementPerBuyer != null && placementPerBuyer.stream()
+                            .allMatch(r -> r.supplier.isPresent())) {
+                        // When all shopping lists of a buyer have a supplier, figure out the cluster
+                        // boundaries from the suppliers.
+                        Optional<TraderTO> traderTO = constructTraderTOWithBoundary(economy, commTypeToSpecMap,
+                                placementPerBuyer, buyer);
+                        if (traderTO.isPresent()) {
+                            placedBuyers.add(traderTO.get());
+                        }
                     }
                 }
             });

@@ -288,9 +288,10 @@ public class ReservationsService implements IReservationsService {
     }
 
     @Override
-    public Boolean deleteReservationByID(String reservationID) {
+    public Boolean deleteReservationByID(String reservationID, Boolean deployed) {
         final DeleteReservationByIdRequest request = DeleteReservationByIdRequest.newBuilder()
                 .setReservationId(Long.valueOf(reservationID))
+                .setDeployed(deployed)
                 .build();
         reservationService.deleteReservationById(request);
         return true;
