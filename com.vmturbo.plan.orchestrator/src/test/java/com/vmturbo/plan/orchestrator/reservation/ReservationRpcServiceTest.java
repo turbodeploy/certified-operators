@@ -90,7 +90,7 @@ public class ReservationRpcServiceTest {
         reservationDao = Mockito.mock(ReservationDao.class);
         reservationManager = Mockito.mock(ReservationManager.class);
         reservationRpcService = new ReservationRpcService(templatesDao,
-                reservationDao, reservationManager);
+                reservationDao, reservationManager, 172800000l);
         grpcTestServerReservation = GrpcTestServer.newServer(reservationRpcService);
         grpcTestServerReservation.start();
         reservationServiceBlockingStub =
@@ -191,7 +191,22 @@ public class ReservationRpcServiceTest {
         final DeleteReservationByIdRequest request = DeleteReservationByIdRequest.newBuilder()
                 .setReservationId(123)
                 .build();
-        Mockito.when(reservationDao.deleteReservationById(123)).thenReturn(testReservation);
+        Mockito.when(reservationDao.deleteReservationById(123, false, 172800000l)).thenReturn(testReservation);
+        Reservation reservation = reservationServiceBlockingStub.deleteReservationById(request);
+        assertEquals(reservation, testReservation);
+    }
+
+    /**
+     * Test the delayed delete of reservation.
+     * @throws NoSuchObjectException if the reservation is not present.
+     */
+    @Test
+    public void testDelayedDeleteReservation() throws NoSuchObjectException {
+        final DeleteReservationByIdRequest request = DeleteReservationByIdRequest.newBuilder()
+                .setReservationId(123)
+                .setDeployed(true)
+                .build();
+        Mockito.when(reservationDao.deleteReservationById(123, true, 172800000l)).thenReturn(testReservation);
         Reservation reservation = reservationServiceBlockingStub.deleteReservationById(request);
         assertEquals(reservation, testReservation);
     }

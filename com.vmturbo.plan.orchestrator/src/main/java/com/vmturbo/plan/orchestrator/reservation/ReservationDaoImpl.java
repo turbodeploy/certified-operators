@@ -304,35 +304,64 @@ public class ReservationDaoImpl implements ReservationDao {
      * Delete a existing reservation.
      *
      * @param id The id of reservation needs to delete.
+     * @param deployed true if the associated VM is deployed.
+     * @param delayedDeletionTimeInMillis if deployed is true set expiration date based on delayedDeletionTimeInMillis
+     * @return deleted reservation object.
+     * @throws NoSuchObjectException if can not find existing reservation.
+     */
+    @Nonnull
+    @Override
+    public ReservationDTO.Reservation deleteReservationById(final long id, boolean deployed,
+                                                            long delayedDeletionTimeInMillis) throws NoSuchObjectException {
+        ReservationDTO.Reservation reservation;
+        if (!deployed) {
+            synchronized (reservationBlockingLock) {
+                try {
+                    reservation = dsl.transactionResult(configuration -> {
+                        final DSLContext transactionDsl = DSL.using(configuration);
+                        final ReservationDTO.Reservation insideReservation = getReservationById(id)
+                                .orElseThrow(() ->
+                                        new NoSuchObjectException("Reservation with id" + id + " not found"));
+                        transactionDsl.deleteFrom(RESERVATION).where(RESERVATION.ID.eq(id)).execute();
+                        return insideReservation;
+                    });
+                } catch (DataAccessException e) {
+                    if (e.getCause() instanceof NoSuchObjectException) {
+                        throw (NoSuchObjectException)e.getCause();
+                    } else {
+                        throw e;
+                    }
+                } finally {
+                    reservationBlockingLock.notifyAll();
+                }
+            }
+        } else {
+            // If delayed deletion. Just set the DelayedDeletionDate and DelayedDeletion flag.
+            Optional<ReservationDTO.Reservation> originalReservation = getReservationById(id);
+            if (originalReservation.isPresent()) {
+                ReservationDTO.Reservation updatedReservation = originalReservation.get()
+                        .toBuilder().setDeployed(true)
+                        .setExpirationDate(System.currentTimeMillis() + delayedDeletionTimeInMillis).build();
+                reservation = updateReservation(id, updatedReservation);
+            } else {
+                throw new NoSuchObjectException("Reservation with id" + id + " not found");
+            }
+        }
+        listeners.forEach(listener -> listener.onReservationDeleted(reservation, deployed));
+        return reservation;
+    }
+
+    /**
+     * Delete a existing reservation.
+     *
+     * @param id The id of reservation needs to delete.
      * @return deleted reservation object.
      * @throws NoSuchObjectException if can not find existing reservation.
      */
     @Nonnull
     @Override
     public ReservationDTO.Reservation deleteReservationById(final long id) throws NoSuchObjectException {
-        ReservationDTO.Reservation reservation;
-        synchronized (reservationBlockingLock) {
-            try {
-                reservation = dsl.transactionResult(configuration -> {
-                    final DSLContext transactionDsl = DSL.using(configuration);
-                    final ReservationDTO.Reservation insideReservation = getReservationById(id)
-                            .orElseThrow(() ->
-                                    new NoSuchObjectException("Reservation with id" + id + " not found"));
-                    transactionDsl.deleteFrom(RESERVATION).where(RESERVATION.ID.eq(id)).execute();
-                    return insideReservation;
-                });
-            } catch (DataAccessException e) {
-                if (e.getCause() instanceof NoSuchObjectException) {
-                    throw (NoSuchObjectException)e.getCause();
-                } else {
-                    throw e;
-                }
-            } finally {
-                reservationBlockingLock.notifyAll();
-            }
-        }
-        listeners.forEach(listener -> listener.onReservationDeleted(reservation));
-        return reservation;
+        return deleteReservationById(id, false, 0l);
     }
 
     /**
@@ -384,6 +413,7 @@ public class ReservationDaoImpl implements ReservationDao {
                 .setStatus(ReservationStatusConverter.typeFromDb(reservation.getStatus()))
                 .setReservationTemplateCollection(reservation.getReservationTemplateCollection())
                 .setConstraintInfoCollection(reservation.getConstraintInfoCollection())
+                .setDeployed(reservation.getDeployed() > 0)
                 .build();
     }
 
@@ -420,8 +450,11 @@ public class ReservationDaoImpl implements ReservationDao {
         record.setStatus(ReservationStatusConverter.typeToDb(reservation.getStatus()));
         record.setReservationTemplateCollection(reservation.getReservationTemplateCollection());
         record.setConstraintInfoCollection(reservation.getConstraintInfoCollection());
+        record.setDeployed(reservation.getDeployed() ? 1 : 0);
         return record;
     }
+
+
 
     private LocalDateTime convertDateProtoToLocalDate(final long timestamp) {
 

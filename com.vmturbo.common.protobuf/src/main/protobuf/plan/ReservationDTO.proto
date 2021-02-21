@@ -34,6 +34,9 @@ message Reservation {
 
     // Contains all specified constraints when creating the reservation.
     optional ConstraintInfoCollection constraint_info_collection = 7;
+
+    // reservation set for delayed deletion. if true keep reservation in historical cache.
+    optional bool deployed = 8  [default = false];
 }
 
 // ReservationChange describes a reservation whose status has changed.
@@ -167,6 +170,8 @@ message CreateReservationRequest {
 message DeleteReservationByIdRequest {
     // Id of reservation needs to delete.
     optional int64 reservation_id = 1;
+    // reservation set for delayed deletion. if true keep reservation in historical cache.
+    optional bool deployed = 2 [default = false];
 }
 
 // Request for get reservations by status.
