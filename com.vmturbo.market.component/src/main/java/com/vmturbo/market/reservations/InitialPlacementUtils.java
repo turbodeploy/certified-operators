@@ -119,7 +119,7 @@ public final class InitialPlacementUtils {
 
                     // Copy bare minimum trader properties
                     cloneTrader.setDebugInfoNeverUseInCode(
-                            trader.getDebugInfoNeverUseInCode() + (cloneForDiags ? "" : PLACEMENT_CLONE_SUFFIX));
+                            trader.getDebugInfoNeverUseInCode());
                     cloneTrader.getSettings().setQuoteFunction(
                             trader.getSettings().getQuoteFunction());
                     cloneTrader.getSettings().setCanAcceptNewCustomers(true);
