@@ -3,10 +3,8 @@ package com.vmturbo.topology.event.library.uptime;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.function.Function;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -31,7 +29,7 @@ public class InMemoryEntityUptimeStore implements EntityUptimeStore {
 
     private TimeInterval uptimeWindow = TimeInterval.EPOCH;
 
-    private Map<Long, EntityUptime> entityUptimeMap = Collections.emptyMap();
+    private Map<Long, EntityUptime> entityUptimeMap = Collections.EMPTY_MAP;
 
     /**
      * Constructs a new in-memory entity uptime store.
@@ -89,11 +87,9 @@ public class InMemoryEntityUptimeStore implements EntityUptimeStore {
             // if there is an entity uptime entry for an entity, it must also have an entry in
             // the cloud scope store.
             return cloudScopeStore.streamByFilter(filter)
-                    .map(EntityCloudScope::entityOid)
-                    .filter(entityUptimeMap::containsKey)
                     .collect(ImmutableMap.toImmutableMap(
-                            Function.identity(),
-                            entityUptimeMap::get));
+                            EntityCloudScope::entityOid,
+                            entityCloudScope -> getEntityUptime(entityCloudScope.entityOid())));
         } finally {
             uptimeDataLock.readLock().unlock();
         }
@@ -102,12 +98,12 @@ public class InMemoryEntityUptimeStore implements EntityUptimeStore {
     /**
      * {@inheritDoc}.
      */
-    @Nonnull
+    @Nullable
     @Override
-    public Optional<EntityUptime> getEntityUptime(final long entityOid) {
+    public EntityUptime getEntityUptime(final long entityOid) {
         uptimeDataLock.readLock().lock();
         try {
-            return Optional.ofNullable(entityUptimeMap.get(entityOid));
+            return entityUptimeMap.getOrDefault(entityOid, defaultUptime);
         } finally {
             uptimeDataLock.readLock().unlock();
         }
@@ -116,9 +112,9 @@ public class InMemoryEntityUptimeStore implements EntityUptimeStore {
     /**
      * {@inheritDoc}.
      */
-    @Nonnull
+    @Nullable
     @Override
-    public Optional<EntityUptime> getDefaultUptime() {
-        return Optional.ofNullable(defaultUptime);
+    public EntityUptime getDefaultUptime() {
+        return defaultUptime;
     }
 }

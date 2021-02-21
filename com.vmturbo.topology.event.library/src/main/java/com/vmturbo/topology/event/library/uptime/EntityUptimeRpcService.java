@@ -78,12 +78,12 @@ public class EntityUptimeRpcService extends EntityUptimeServiceImplBase {
 
             logger.debug("Responding to request for '{}' entity uptime", request.getEntityOid());
 
-            final GetEntityUptimeResponse.Builder response = GetEntityUptimeResponse.newBuilder();
-            entityUptimeStore.getEntityUptime(request.getEntityOid())
-                    .map(EntityUptime::toProtobuf)
-                    .ifPresent(response::setEntityUptime);
+            final EntityUptime entityUptime = entityUptimeStore.getEntityUptime(request.getEntityOid());
 
-            responseObserver.onNext(response.build());
+            final GetEntityUptimeResponse response = GetEntityUptimeResponse.newBuilder()
+                    .setEntityUptime(entityUptime.toProtobuf())
+                    .build();
+            responseObserver.onNext(response);
             responseObserver.onCompleted();
 
         } catch (Exception e) {
@@ -106,10 +106,8 @@ public class EntityUptimeRpcService extends EntityUptimeServiceImplBase {
 
             final Map<Long, EntityUptime> entityUptimeMap = entityUptimeStore.getUptimeByFilter(request.getFilter());
 
-            final GetEntityUptimeByFilterResponse.Builder response = GetEntityUptimeByFilterResponse.newBuilder();
-            entityUptimeStore.getDefaultUptime()
-                            .map(EntityUptime::toProtobuf)
-                            .ifPresent(response::setDefaultUptime);
+            final GetEntityUptimeByFilterResponse.Builder response = GetEntityUptimeByFilterResponse.newBuilder()
+                    .setDefaultUptime(entityUptimeStore.getDefaultUptime().toProtobuf());
             entityUptimeMap.forEach((entityOid, entityUptime) ->
                     response.putEntityUptimeByOid(entityOid, entityUptime.toProtobuf()));
 

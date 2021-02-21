@@ -1,9 +1,9 @@
 package com.vmturbo.topology.event.library.uptime;
 
 import java.util.Map;
-import java.util.Optional;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.vmturbo.cloud.common.data.TimeInterval;
 import com.vmturbo.common.protobuf.cost.EntityUptime.CloudScopeFilter;
@@ -43,13 +43,13 @@ public interface EntityUptimeStore {
      * @return The entity uptime for {@code entityOid}. If no entity uptime for that OID has been
      * persisted, {@link #getDefaultUptime()} will be returned.
      */
-    @Nonnull
-    Optional<EntityUptime> getEntityUptime(long entityOid);
+    @Nullable
+    EntityUptime getEntityUptime(long entityOid);
 
     /**
      * The default entity uptime.
      * @return The default entity uptime. May be null, if entity uptime is disabled.
      */
-    @Nonnull
-    Optional<EntityUptime> getDefaultUptime();
+    @Nullable
+    EntityUptime getDefaultUptime();
 }
