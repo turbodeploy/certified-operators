@@ -10,6 +10,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableMap;
@@ -60,9 +61,9 @@ public class InMemoryEntityUptimeStoreTest {
 
         // ASSERTS
         assertThat(entityUptimeStore.getUptimeWindow(), equalTo(uptimeWindow));
-        assertThat(entityUptimeStore.getEntityUptime(1), equalTo(entityUptimeA));
-        assertThat(entityUptimeStore.getEntityUptime(2), equalTo(entityUptimeB));
-        assertThat(entityUptimeStore.getEntityUptime(3), equalTo(entityUptimeStore.getDefaultUptime()));
+        assertThat(entityUptimeStore.getEntityUptime(1), equalTo(Optional.of(entityUptimeA)));
+        assertThat(entityUptimeStore.getEntityUptime(2), equalTo(Optional.of(entityUptimeB)));
+        assertThat(entityUptimeStore.getEntityUptime(3), equalTo(Optional.empty()));
     }
 
     @Test
@@ -114,8 +115,7 @@ public class InMemoryEntityUptimeStoreTest {
 
         // ASSERTS
         final Map<Long, EntityUptime> expectedUptimeMap = ImmutableMap.of(
-                1L, entityUptimeA,
-                3L, entityUptimeStore.getDefaultUptime());
+                1L, entityUptimeA);
         assertThat(actualUptimeMap, equalTo(expectedUptimeMap));
 
     }

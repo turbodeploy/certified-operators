@@ -13,6 +13,7 @@ import static org.mockito.Mockito.when;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.Map;
+import java.util.Optional;
 
 import com.google.common.collect.ImmutableMap;
 
@@ -92,7 +93,7 @@ public class EntityUptimeRpcServiceTest {
     @Test
     public void testGetEntityUptime() {
 
-        when(entityUptimeStore.getEntityUptime(anyLong())).thenReturn(EntityUptime.UNKNOWN_DEFAULT_TO_ALWAYS_ON);
+        when(entityUptimeStore.getEntityUptime(anyLong())).thenReturn(Optional.of(EntityUptime.UNKNOWN_DEFAULT_TO_ALWAYS_ON));
 
         // Invoke SUT
         final GetEntityUptimeRequest request = GetEntityUptimeRequest.newBuilder()
@@ -129,7 +130,7 @@ public class EntityUptimeRpcServiceTest {
                         .uptimePercentage(75.0)
                         .build());
         when(entityUptimeStore.getUptimeByFilter(any())).thenReturn(entityUptimeMap);
-        when(entityUptimeStore.getDefaultUptime()).thenReturn(EntityUptime.UNKNOWN_DEFAULT_TO_ALWAYS_ON);
+        when(entityUptimeStore.getDefaultUptime()).thenReturn(Optional.of(EntityUptime.UNKNOWN_DEFAULT_TO_ALWAYS_ON));
 
         // invoke SUT
         final CloudScopeFilter filter = CloudScopeFilter.newBuilder()
