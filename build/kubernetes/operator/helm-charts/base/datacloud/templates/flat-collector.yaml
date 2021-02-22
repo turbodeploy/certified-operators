@@ -69,7 +69,7 @@ spec:
         - name: SEVONE_DE_PROJECT_ID
           value: {{ include "datacloud.projectID" . | quote }}
         - name: SEVONE_GRPC_PORT
-          value: 443
+          value: "443"
         - name: SEVONE_PERSIST
           value: none
         - name: SEVONE_TRANSPORT
