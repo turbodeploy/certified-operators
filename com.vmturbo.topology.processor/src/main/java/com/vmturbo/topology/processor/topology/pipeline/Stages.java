@@ -17,6 +17,7 @@ import java.util.stream.StreamSupport;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.protobuf.AbstractMessage;
 
@@ -1474,7 +1475,7 @@ public class Stages {
         /**
          * Exports the entity count per entity type from broadcast.
          */
-        private static final DataMetricGauge BROADCAST_ENTITIES_GAUGE = DataMetricGauge.builder()
+        static final DataMetricGauge BROADCAST_ENTITIES_GAUGE = DataMetricGauge.builder()
             .withName(StringConstants.METRICS_TURBO_PREFIX + "broadcast_entities")
             .withHelp("Number of (post-stitching) entities that were broadcast per entity type.")
             .withLabelNames("entity_type")
@@ -1530,6 +1531,10 @@ public class Stages {
                         broadcastInfo = broadcastTopology(broadcastManagers.stream()
                             .<Function<TopologyInfo, TopologyBroadcast>>map(manager -> manager::broadcastLiveTopology)
                             .collect(Collectors.toList()), entities);
+                        BROADCAST_ENTITIES_GAUGE.getLabeledMetrics().forEach((key, val) -> val.setData(0.0));
+                        counts.forEach((type, count) ->
+                            BROADCAST_ENTITIES_GAUGE.labels(type.sdkType().toString())
+                                .setData((double)count.getEntityCount()));
                         break;
                     case PLAN:
                         broadcastInfo = broadcastTopology(broadcastManagers.stream()
@@ -1540,7 +1545,6 @@ public class Stages {
                         throw new IllegalStateException();
                 }
 
-                BROADCAST_ENTITIES_GAUGE.getLabeledMetrics().forEach((key, val) -> val.setData(0.0));
                 if (broadcastInfo.getEntityCount() == 0) {
                     return StageResult.withResult(broadcastInfo)
                         .andStatus(Status.withWarnings("No entities broadcast."));
@@ -1549,12 +1553,9 @@ public class Stages {
                     stringJoiner.add("Broadcast " + broadcastInfo.getEntityCount() +
                         " entities [" + FileUtils.byteCountToDisplaySize(
                             broadcastInfo.getSerializedTopologySizeBytes()) + "]");
-                    counts.forEach((type, count) -> {
-                        BROADCAST_ENTITIES_GAUGE.labels(type.sdkType().toString())
-                            .setData((double)count.getEntityCount());
+                    counts.forEach((type, count) ->
                         stringJoiner.add(count.getEntityCount() + " of type " + type.apiStr()
-                            + " [" + count.getHumanReadableSize() + "]");
-                    });
+                            + " [" + count.getHumanReadableSize() + "]"));
 
                     if (numEntitiesWithErrors.intValue() > 0) {
                         // There were some entities with stitching (or other pipeline) errors.
