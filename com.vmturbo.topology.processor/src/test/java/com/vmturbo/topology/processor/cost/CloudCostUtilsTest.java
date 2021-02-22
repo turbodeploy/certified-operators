@@ -22,20 +22,20 @@ public class CloudCostUtilsTest {
 
     @Test
     public void testDatabaseTierLocalNameToId() {
-        Assert.assertEquals("No change", CloudCostUtils.databaseTierLocalNameToId(
+        Assert.assertEquals("No change", CloudCostUtils.getEntityIdFromDBProfile(
                 generateTopologyStitchingEntity("No change"), null));
-        Assert.assertEquals("aws::DBPROFILE::id", CloudCostUtils.databaseTierLocalNameToId(
+        Assert.assertEquals("aws::DBPROFILE::id", CloudCostUtils.getEntityIdFromDBProfile(
                 generateTopologyStitchingEntity("id"), SDKProbeType.AWS_COST));
     }
 
     @Test
     public void testAzureDatabaseTierLocalNameToId() {
         Assert.assertEquals("azure::DBPROFILE::Basic", CloudCostUtils
-                .databaseTierLocalNameToId(generateTopologyStitchingEntity("Basic"), SDKProbeType.AZURE));
+                .getEntityIdFromDBProfile(generateTopologyStitchingEntity("Basic"), SDKProbeType.AZURE));
         Assert.assertEquals("azure::DBPROFILE::Standard_S6", CloudCostUtils
-                .databaseTierLocalNameToId(generateTopologyStitchingEntity("S6"), SDKProbeType.AZURE));
+                .getEntityIdFromDBProfile(generateTopologyStitchingEntity("S6"), SDKProbeType.AZURE));
         Assert.assertEquals("azure::DBPROFILE::Premium_P11", CloudCostUtils
-                .databaseTierLocalNameToId(generateTopologyStitchingEntity("P11"), SDKProbeType.AZURE));
+                .getEntityIdFromDBProfile(generateTopologyStitchingEntity("P11"), SDKProbeType.AZURE));
     }
 
     /**
@@ -44,7 +44,7 @@ public class CloudCostUtilsTest {
     @Test
     public void testAwsDatabaseServerTierLocalNameToId() {
         Assert.assertEquals("aws::DBPROFILE::db.m2.medium::gp2", CloudCostUtils
-                .databaseTierLocalNameToId(generateTopologyStitchingEntity("db.m2.medium::gp2"), SDKProbeType.AWS));
+                .getEntityIdFromDBProfile(generateTopologyStitchingEntity("db.m2.medium::gp2"), SDKProbeType.AWS));
     }
 
     /**
@@ -59,7 +59,7 @@ public class CloudCostUtilsTest {
                         .newBuilder().setTemplateIdentifier("db.t2.24xlarge::io1").build());
         TopologyStitchingEntity topologyStitchingEntity = new TopologyStitchingEntity(entityDTO, 1L, 01L, 1L);
         Assert.assertEquals("aws::DBPROFILE::db.t2.24xlarge::io1", CloudCostUtils
-                .databaseTierLocalNameToId(topologyStitchingEntity, SDKProbeType.AWS));
+                .getEntityIdFromDBProfile(topologyStitchingEntity, SDKProbeType.AWS));
     }
 
     private static TopologyStitchingEntity generateTopologyStitchingEntity(String displayName) {
