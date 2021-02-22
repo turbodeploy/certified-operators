@@ -7,7 +7,6 @@ import java.util.List;
 import java.util.Map;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import com.google.common.collect.Sets;
 
@@ -40,7 +39,6 @@ public class WorkflowDiagnosticsTest {
     private static final long OID1 = 200L;
     private static final long OID2 = 201L;
     private static final long OID3 = 202L;
-    private static final long OID4 = 203L;
 
     private static final WorkflowInfo INFO_1 = WorkflowInfo.newBuilder()
             .setTargetId(TGT1)
@@ -94,7 +92,7 @@ public class WorkflowDiagnosticsTest {
         Mockito.when(workflowStore.fetchWorkflows(new WorkflowFilter(Collections.emptyList())))
                 .thenReturn(Sets.newHashSet(WORKFLOW_1, WORKFLOW_2, WORKFLOW_3));
         final List<String> diags = collectDiags();
-        final Map<Long, List<WorkflowInfo>> persistedWorkflows = restoreDiags(diags, null);
+        final Map<Long, List<WorkflowInfo>> persistedWorkflows = restoreDiags(diags);
         Assert.assertEquals(Sets.newHashSet(TGT1, TGT2), persistedWorkflows.keySet());
         Assert.assertEquals(Sets.newHashSet(INFO_1, INFO_3),
                 new HashSet<>(persistedWorkflows.get(TGT1)));
@@ -117,7 +115,7 @@ public class WorkflowDiagnosticsTest {
         final List<String> diags = collectDiags();
         Mockito.when(workflowStore.fetchWorkflows(new WorkflowFilter(Collections.emptyList())))
                 .thenReturn(Sets.newHashSet(WORKFLOW_2, workflow3));
-        final Map<Long, List<WorkflowInfo>> persistedWorkflows = restoreDiags(diags, null);
+        final Map<Long, List<WorkflowInfo>> persistedWorkflows = restoreDiags(diags);
         Assert.assertEquals(Sets.newHashSet(TGT1, TGT2, TGT3), persistedWorkflows.keySet());
         Assert.assertEquals(Collections.singletonList(INFO_1), persistedWorkflows.get(TGT1));
         Assert.assertEquals(Collections.singletonList(INFO_2), persistedWorkflows.get(TGT2));
@@ -125,8 +123,7 @@ public class WorkflowDiagnosticsTest {
     }
 
     @Nonnull
-    private Map<Long, List<WorkflowInfo>> restoreDiags(@Nonnull List<String> diags,
-                                                       @Nullable Void context)
+    private Map<Long, List<WorkflowInfo>> restoreDiags(@Nonnull List<String> diags)
             throws WorkflowStoreException, DiagnosticsException {
         workflowDiagnostics.restoreDiags(diags, null);
         Mockito.verify(workflowStore, Mockito.atLeastOnce())

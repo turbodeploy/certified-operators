@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.action.orchestrator.audit.AuditCommunicationConfig;
 import com.vmturbo.action.orchestrator.store.ActionStoreConfig;
 import com.vmturbo.action.orchestrator.workflow.config.WorkflowConfig;
 import com.vmturbo.components.common.diagnostics.DiagnosticsControllerImportable;
@@ -24,13 +25,15 @@ import com.vmturbo.components.common.diagnostics.PrometheusDiagnosticsProvider;
  * can be used to debug deployments in local environments.
  */
 @Configuration
-@Import({ActionStoreConfig.class, WorkflowConfig.class})
+@Import({ActionStoreConfig.class, WorkflowConfig.class, AuditCommunicationConfig.class})
 public class ActionOrchestratorDiagnosticsConfig {
 
     @Autowired
     private ActionStoreConfig storeConfig;
     @Autowired
     private WorkflowConfig workflowConfig;
+    @Autowired
+    private AuditCommunicationConfig auditCommunicationConfig;
 
     @Bean
     public ActionOrchestratorDiagnostics diagnostics() {
@@ -55,7 +58,8 @@ public class ActionOrchestratorDiagnosticsConfig {
                         diagnostics(),
                         workflowConfig.workflowPersistentIdentityStore(),
                         workflowConfig.workflowDiagnostics(),
-                        new PrometheusDiagnosticsProvider(CollectorRegistry.defaultRegistry)));
+                        new PrometheusDiagnosticsProvider(CollectorRegistry.defaultRegistry),
+                        auditCommunicationConfig.auditActionsPersistenceDiagnostics()));
     }
 
     @Bean
