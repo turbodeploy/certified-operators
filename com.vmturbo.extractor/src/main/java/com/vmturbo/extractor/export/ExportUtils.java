@@ -7,6 +7,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
@@ -139,7 +140,9 @@ public class ExportUtils {
     }
 
     /**
-     * Convert given {@link Tags} to a map from tag key to tag values list.
+     * Convert given {@link Tags} to a map from tag key to tag values list. Make sure the values
+     * are sorted alphabetically, so that if the tags for the same entity appear in a
+     * different order on a new EntityDTO we will still end up with the same hash code.
      *
      * @param tags {@link Tags}
      * @return map from tag key to tag values list
@@ -148,7 +151,8 @@ public class ExportUtils {
         Map<String, List<String>> map = new HashMap<>();
         tags.getTagsMap().forEach((key, values) -> {
             map.computeIfAbsent(key, t -> new ArrayList<>())
-                    .addAll(values.getValuesList());
+                    .addAll(values.getValuesList()
+                        .stream().sorted().collect(Collectors.toList()));
         });
         return map;
     }

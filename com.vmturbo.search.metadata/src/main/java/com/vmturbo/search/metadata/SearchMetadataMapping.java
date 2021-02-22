@@ -5,7 +5,9 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -98,11 +100,15 @@ public enum SearchMetadataMapping {
             entity.getTypeSpecificInfo().getVirtualVolume().getAttachmentState())),
 
     PRIMITIVE_CONNECTED_NETWORKS("attrs", "connected_networks", Type.MULTI_TEXT, null,
-            entity -> {
-                final List<String> connectedNetworks =
+        (entity, sorted) -> {
+                List<String> connectedNetworks =
                         entity.getTypeSpecificInfo().getVirtualMachine().getConnectedNetworksList();
+                if (sorted) {
+                    connectedNetworks = connectedNetworks.stream()
+                        .sorted().collect(Collectors.toList());
+                }
                 return conditionallySet(!connectedNetworks.isEmpty(), connectedNetworks);
-            }),
+            }, true),
 
     PRIMITIVE_CPU_MODEL("attrs", "cpu_model", Type.TEXT, null,
         entity -> conditionallySet(entity.getTypeSpecificInfo().getPhysicalMachine().hasCpuModel(),
@@ -642,6 +648,34 @@ public enum SearchMetadataMapping {
         this.apiDatatype = Objects.requireNonNull(apiDatatype);
         this.enumClass = enumClass;
         this.topoFieldFunction = Objects.requireNonNull(topoFieldFunction);
+    }
+
+    /**
+     * Constructor of {@link SearchMetadataMapping} for attributes that are represented with a
+     * collection of objects. The constructor accepts one additional parameter "sorted" to decide
+     * whether or not the attributes in the collection should be sorted. Sorting the attributes
+     * means that no matter what order they are in the entity, they will always end up with the
+     * same hash code. If sorted is set to false, same entities with different ordered attributes
+     * will end up having different hash codes.
+     *
+     * @param columnName db column name
+     * @param jsonKeyName key inside db json column
+     * @param apiDatatype data structure descriptor of column data.
+     * @param enumClass Enum Class for {@link Type#ENUM} data
+     * @param topoFieldBiFunction function of how to get value from TopologyEntityDTO
+     * @param sorted whether or not the topoFieldBiFunction should sort its elements
+     */
+    SearchMetadataMapping(@Nonnull String columnName,
+                          @Nonnull String jsonKeyName,
+                          @Nonnull Type apiDatatype,
+                          @Nullable Class<? extends Enum<?>> enumClass,
+                          @Nonnull BiFunction<TopologyEntityDTO, Boolean, Optional<Object>> topoFieldBiFunction,
+                          boolean sorted) {
+        this.columnName = Objects.requireNonNull(columnName);
+        this.jsonKeyName = Objects.requireNonNull(jsonKeyName);
+        this.apiDatatype = Objects.requireNonNull(apiDatatype);
+        this.enumClass = enumClass;
+        this.topoFieldFunction = Objects.requireNonNull(entity -> topoFieldBiFunction.apply(entity, sorted));
     }
 
     SearchMetadataMapping(@Nonnull String columnName,
