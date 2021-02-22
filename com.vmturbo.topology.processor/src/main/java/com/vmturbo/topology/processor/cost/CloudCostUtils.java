@@ -12,14 +12,16 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ReservedInstanceData.
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadCloudCostDataStage;
 
 /**
- *
+ * Helper class to match DB and DBS tiers to their respective pricing data as part of
+ * {@link UploadCloudCostDataStage} stage.
  */
 public class CloudCostUtils {
 
     /**
-     * Static mapping of Platform -> OSType
+     * Static mapping of Platform -> OSType.
      */
     private static final Map<Platform, OSType> PLATFORM_OS_TYPE_MAP =
             ImmutableMap.<Platform, OSType>builder()
@@ -37,35 +39,12 @@ public class CloudCostUtils {
      * Unfortunately, because the protobuf number and enum value names are both different, this is
      * a static mapping from one to the other. It may be brittle if we expect the list to change.
      *
-     * @param platform
-     * @return
+     * @param platform The operating system used; e.g. Linux.
+     * @return The supported operating systems. Keep in sync with com.vmturbo.mediation.hybrid.cloud.common.OsType.
      */
-    public static final OSType platformToOSType(Platform platform) {
+    public static OSType platformToOSType(Platform platform) {
         return PLATFORM_OS_TYPE_MAP.getOrDefault(platform, OSType.UNKNOWN_OS);
     }
-
-    // Prefixes used when generating local id's for entities in the cloud discovery probes
-    public static final String AZURE_STORAGE_PREFIX = "azure::ST::";
-    public static final String AWS_STORAGE_PREFIX = "aws::ST::";
-    public static final String AZURE_STANDARD_DATABASE_PREFIX = "Standard_";
-    public static final String AZURE_PREMIUM_DATABASE_PREFIX = "Premium_";
-    public static final String EMPTY_PREFIX = "";
-
-    private static final Map<SDKProbeType, String> PROBE_TYPE_TO_STORAGE_PREFIX = ImmutableMap.of(
-            SDKProbeType.AWS_COST, AWS_STORAGE_PREFIX,
-            SDKProbeType.AWS, AWS_STORAGE_PREFIX,
-            SDKProbeType.AWS_BILLING, AWS_STORAGE_PREFIX,
-            SDKProbeType.AZURE, AZURE_STORAGE_PREFIX,
-            SDKProbeType.AZURE_COST, AZURE_STORAGE_PREFIX
-    );
-
-    // Map for matching the Azure SDK Probe letter to Azure cost probe prefix
-    private static final Map<String, String> AZURE_DATABASE_LETTER_TO_NAME = ImmutableMap.of(
-            "S", AZURE_STANDARD_DATABASE_PREFIX,
-            "P", AZURE_PREMIUM_DATABASE_PREFIX,
-            "F", EMPTY_PREFIX,
-            "B", EMPTY_PREFIX
-    );
 
     private static final Map<SDKProbeType, BiFunction<TopologyStitchingEntity, SDKProbeType, String>>
             DB_TIER_LOCAL_NAME_TO_ID_FUNCTION = ImmutableMap.of(
@@ -91,6 +70,13 @@ public class CloudCostUtils {
     private static final String AZURE_DATABASE_TIER_PREFIX = "azure::DBPROFILE::";
     private static final String AWS_DATABASE_TIER_PREFIX = "aws::DBPROFILE::";
     private static final String AZURE_COMPUTE_STORAGE_DELIMITER = "/";
+    // Prefixes used when generating local id's for entities in the cloud discovery probes
+    private static final String AZURE_STORAGE_PREFIX = "azure::ST::";
+    private static final String AWS_STORAGE_PREFIX = "aws::ST::";
+    private static final String AZURE_STANDARD_DATABASE_PREFIX = "Standard_";
+    private static final String AZURE_PREMIUM_DATABASE_PREFIX = "Premium_";
+    private static final String EMPTY_PREFIX = "";
+
     private static final Map<SDKProbeType, String> PROBE_TYPE_TO_DATABASE_TIER_PREFIX = ImmutableMap.of(
             SDKProbeType.AWS_COST, AWS_DATABASE_TIER_PREFIX,
             SDKProbeType.AWS, AWS_DATABASE_TIER_PREFIX,
@@ -98,6 +84,27 @@ public class CloudCostUtils {
             SDKProbeType.AZURE, AZURE_DATABASE_TIER_PREFIX,
             SDKProbeType.AZURE_COST, AZURE_DATABASE_TIER_PREFIX
     );
+    private static final Map<SDKProbeType, String> PROBE_TYPE_TO_STORAGE_PREFIX = ImmutableMap.of(
+            SDKProbeType.AWS_COST, AWS_STORAGE_PREFIX,
+            SDKProbeType.AWS, AWS_STORAGE_PREFIX,
+            SDKProbeType.AWS_BILLING, AWS_STORAGE_PREFIX,
+            SDKProbeType.AZURE, AZURE_STORAGE_PREFIX,
+            SDKProbeType.AZURE_COST, AZURE_STORAGE_PREFIX
+    );
+
+    // Map for matching the Azure SDK Probe letter to Azure cost probe prefix
+    private static final Map<String, String> AZURE_DATABASE_LETTER_TO_NAME = ImmutableMap.of(
+            "S", AZURE_STANDARD_DATABASE_PREFIX,
+            "P", AZURE_PREMIUM_DATABASE_PREFIX,
+            "F", EMPTY_PREFIX,
+            "B", EMPTY_PREFIX
+    );
+
+    /**
+     * Private constructor.
+     */
+    private CloudCostUtils() {
+    }
 
     /**
      * Converts a storage tier's local name to a probe-type-based string id. Ideally these id's
@@ -225,8 +232,8 @@ public class CloudCostUtils {
         final String identifier;
         final Builder entityBuilder = entity.getEntityBuilder();
         if (entityBuilder.hasDatabaseServerTierData()
-                && entity.getEntityBuilder().getDatabaseServerTierData().hasTemplateIdentifier()) {
-            identifier = entity.getEntityBuilder().getDatabaseServerTierData().getTemplateIdentifier();
+                && entityBuilder.getDatabaseServerTierData().hasTemplateIdentifier()) {
+            identifier = entityBuilder.getDatabaseServerTierData().getTemplateIdentifier();
         } else {
             identifier = entity.getDisplayName();
         }
