@@ -190,7 +190,7 @@ public class ActionAttributeExtractor {
         }
         commodityChange.setPercentileChange(
                 actionPercentileData.getChange(resize.getTarget().getId(), resize.getCommodityType()));
-        ClassicEnumMapper.getCommodityUnits(commodityTypeInt, null)
+        ClassicEnumMapper.getCommodityUnitsForAction(commodityTypeInt, null)
                 .ifPresent(commodityChange::setUnit);
         return Collections.singletonMap(ExportUtils.getCommodityTypeJsonKey(commodityTypeInt),
                 commodityChange);
@@ -217,7 +217,7 @@ public class ActionAttributeExtractor {
                 commodityChange.setAttribute(resize.getCommodityAttribute().name());
             }
             final int commodityTypeInt = resize.getCommodityType().getType();
-            ClassicEnumMapper.getCommodityUnits(commodityTypeInt, resize.getTarget().getType())
+            ClassicEnumMapper.getCommodityUnitsForAction(commodityTypeInt, resize.getTarget().getType())
                     .ifPresent(commodityChange::setUnit);
 
             // set target (where this commodity comes from) for each sub action, since it may be

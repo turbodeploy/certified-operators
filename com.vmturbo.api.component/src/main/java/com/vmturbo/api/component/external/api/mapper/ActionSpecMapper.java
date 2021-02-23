@@ -1425,7 +1425,7 @@ public class ActionSpecMapper {
         actionApiDTO.setNewValue(String.format(FORMAT_FOR_ACTION_VALUES, resizeInfo.getNewCapacity()));
         actionApiDTO.setResizeToValue(String.format(FORMAT_FOR_ACTION_VALUES, resizeInfo.getNewCapacity()));
         // set units if available
-        ClassicEnumMapper.getCommodityUnits(resizeInfo.getCommodityType().getType(), resizeInfo.getTarget().getType())
+        ClassicEnumMapper.getCommodityUnitsForAction(resizeInfo.getCommodityType().getType(), resizeInfo.getTarget().getType())
                 .ifPresent(actionApiDTO::setValueUnits);
 
         // set current location, new location and cloud aspects for cloud resize actions
@@ -1491,7 +1491,7 @@ public class ActionSpecMapper {
         actionApiDTO.setNewValue(String.format(FORMAT_FOR_ACTION_VALUES, resize.getNewCapacity()));
         actionApiDTO.setResizeToValue(String.format(FORMAT_FOR_ACTION_VALUES, resize.getNewCapacity()));
         // set units if available
-        ClassicEnumMapper.getCommodityUnits(resize.getCommodityType().getType(), null)
+        ClassicEnumMapper.getCommodityUnitsForAction(resize.getCommodityType().getType(), null)
                 .ifPresent(actionApiDTO::setValueUnits);
 
         // set current location, new location and cloud aspects for cloud resize actions
