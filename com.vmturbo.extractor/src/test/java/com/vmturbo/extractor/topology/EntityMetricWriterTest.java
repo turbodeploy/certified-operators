@@ -11,12 +11,14 @@ import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_TYPE;
 import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_UTILIZATION;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_OID;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_OID_AS_OID;
+import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_TYPE_ENUM;
 import static com.vmturbo.extractor.models.ModelDefinitions.FILE_PATH;
 import static com.vmturbo.extractor.models.ModelDefinitions.FILE_SIZE;
 import static com.vmturbo.extractor.models.ModelDefinitions.MODIFICATION_TIME;
 import static com.vmturbo.extractor.models.ModelDefinitions.STORAGE_NAME;
 import static com.vmturbo.extractor.models.ModelDefinitions.STORAGE_OID;
 import static com.vmturbo.extractor.models.ModelDefinitions.TIME;
+import static com.vmturbo.extractor.schema.enums.EntityType.COMPUTE_CLUSTER;
 import static com.vmturbo.extractor.topology.EntityMetricWriter.VM_QX_VCPU_NAME;
 import static com.vmturbo.extractor.util.RecordTestUtil.MapMatchesLaxly.mapMatchesLaxly;
 import static com.vmturbo.extractor.util.RecordTestUtil.captureSink;
@@ -500,6 +502,7 @@ public class EntityMetricWriterTest {
      * @throws SQLException                if there's a db problem
      * @throws IOException                 if an IO error
      */
+    @Test
     public void testClusterMetrics() throws UnsupportedDialectException, InterruptedException,
             SQLException, IOException {
         final double used = 10.0;
@@ -524,7 +527,7 @@ public class EntityMetricWriterTest {
             .addStatSnapshots(statSnapshot).build());
 
         doReturn(entityStats).when(dataProvider).getClusterStats();
-        doReturn(Stream.of(cluster)).when(dataProvider).getAllGroups();
+        doAnswer(i -> Stream.of(cluster)).when(dataProvider).getAllGroups();
 
         EntitiesProcessor.of(writer, info, config).finish(dataProvider);
         assertThat(metricInsertCapture.size(), is(statSnapshot.getStatRecordsCount()));
@@ -532,6 +535,7 @@ public class EntityMetricWriterTest {
 
         Map<String, Object>  expectedValues = ImmutableList.<Pair<String, Object>>of(
             Pair.of(TIME.getName(), time),
+            Pair.of(ENTITY_TYPE_ENUM.getName(), COMPUTE_CLUSTER),
             Pair.of(ENTITY_OID.getName(), oid),
             Pair.of(COMMODITY_TYPE.getName(), MetricType.CPU_HEADROOM),
             Pair.of(COMMODITY_KEY.getName(), key),
@@ -554,9 +558,9 @@ public class EntityMetricWriterTest {
      * @throws SQLException                if there's a db problem
      * @throws IOException                 if an IO error
      */
+    @Test
     public void testNullClusterMetrics() throws UnsupportedDialectException, InterruptedException,
         SQLException, IOException {
-        final String key = "key";
         final long oid = 12345L;
 
         final Grouping cluster =
@@ -566,8 +570,7 @@ public class EntityMetricWriterTest {
         final Timestamp time = new Timestamp(System.currentTimeMillis());
         final StatSnapshot statSnapshot = StatSnapshot.newBuilder()
             .setSnapshotDate(time.toInstant().toEpochMilli())
-            .addStatRecords(StatRecord.newBuilder().setName(CPU_HEADROOM).setUsed(StatValue.newBuilder())
-                .setCapacity(StatValue.newBuilder()))
+            .addStatRecords(StatRecord.newBuilder().setName(CPU_HEADROOM).build())
             .build();
 
         List<EntityStats> entityStats = Collections.singletonList(EntityStats.newBuilder()
@@ -575,7 +578,7 @@ public class EntityMetricWriterTest {
             .addStatSnapshots(statSnapshot).build());
 
         doReturn(entityStats).when(dataProvider).getClusterStats();
-        doReturn(Stream.of(cluster)).when(dataProvider).getAllGroups();
+        doAnswer(i -> Stream.of(cluster)).when(dataProvider).getAllGroups();
 
         EntitiesProcessor.of(writer, info, config).finish(dataProvider);
         assertThat(metricInsertCapture.size(), is(statSnapshot.getStatRecordsCount()));
@@ -583,9 +586,10 @@ public class EntityMetricWriterTest {
 
         Map<String, Object>  expectedValues = ImmutableList.<Pair<String, Object>>of(
             Pair.of(TIME.getName(), time),
+            Pair.of(ENTITY_TYPE_ENUM.getName(), COMPUTE_CLUSTER),
             Pair.of(ENTITY_OID.getName(), oid),
             Pair.of(COMMODITY_TYPE.getName(), MetricType.CPU_HEADROOM),
-            Pair.of(COMMODITY_KEY.getName(), key),
+            Pair.of(COMMODITY_KEY.getName(), null),
             Pair.of(COMMODITY_CURRENT.getName(), null),
             Pair.of(COMMODITY_CAPACITY.getName(), null),
             Pair.of(COMMODITY_UTILIZATION.getName(), null),
