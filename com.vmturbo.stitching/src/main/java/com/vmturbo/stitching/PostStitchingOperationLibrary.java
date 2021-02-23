@@ -32,6 +32,7 @@ import com.vmturbo.stitching.poststitching.PropagatePowerStatePostStitchingOpera
 import com.vmturbo.stitching.poststitching.PropagateStorageAccessAndLatencyPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.PropagatedUpUsedPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.ProtectSharedStorageWastedFilesPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.ServiceResponseTimePostStitchingOperation;
 import com.vmturbo.stitching.poststitching.SetAutoSetCommodityCapacityPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.SetAutoSetCommodityCapacityPostStitchingOperation.MaxCapacityCache;
 import com.vmturbo.stitching.poststitching.SetCommodityCapacityFromSettingPostStitchingOperation;
@@ -132,6 +133,7 @@ public class PostStitchingOperationLibrary {
                 enableConsistentScalingOnHeterogeneousProviders),
             new NamespaceConsistentScalingFactorPostStitchingOperation(
                 enableConsistentScalingOnHeterogeneousProviders),
+            new ServiceResponseTimePostStitchingOperation(),
             // Set capacity from settings for entities coming from public cloud
             new SetCommodityCapacityFromSettingPostStitchingOperation(EntityType.SERVICE,
                 ProbeCategory.CLOUD_MANAGEMENT,
