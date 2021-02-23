@@ -81,18 +81,16 @@ panels:
       with dormant_vms as (
       SELECT
         entity.oid as oid
-      FROM entity_old as entity,metric
+      FROM entity_old as entity, metric_old as metric
       WHERE
         entity.type = 'VIRTUAL_MACHINE' AND
         ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) AND
         metric.entity_oid = entity.oid AND
-        metric.entity_hash = entity.hash AND
         metric.type = 'VCPU' AND
         $__timeFilter(metric.time)
       GROUP BY entity.oid
       HAVING sum(metric.utilization) = 0  and min(metric.time) < (timestamptz $__timeFrom() + interval '1 hour')
       )
-
       select entity.name as "VM Name", sub.total as "Storage Used"
       from entity_old as entity
       INNER JOIN LATERAL (
@@ -108,7 +106,6 @@ panels:
         ) AS sub ON true
       where entity.oid in (select oid from dormant_vms)
       order by sub.total DESC
-
     refId: A
     select:
     - - params:
