@@ -397,6 +397,11 @@ public class PostStitchingTestUtilities {
             }
             return this;
         }
+
+        CommodityBoughtBuilder withUsed(final double used) {
+            builder.setUsed(used);
+            return this;
+        }
     }
 
     public static CommoditySoldDTO makeCommoditySold(@Nonnull final CommodityType type) {
@@ -434,6 +439,11 @@ public class PostStitchingTestUtilities {
 
     static CommodityBoughtDTO makeCommodityBought(@Nonnull final CommodityType type) {
         return CommodityBoughtBuilder.newBuilder().withType(type.getNumber()).build();
+    }
+
+    static CommodityBoughtDTO makeCommodityBought(@Nonnull final CommodityType type,
+                                                  final double used) {
+        return CommodityBoughtBuilder.newBuilder().withType(type.getNumber()).withUsed(used).build();
     }
 
     static CommoditiesBoughtFromProvider makeCommoditiesBoughtFromProvider(final long providerId,
