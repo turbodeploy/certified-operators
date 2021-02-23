@@ -22,7 +22,6 @@ import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.util.CommodityCommonFieldsExtractor;
 import com.vmturbo.api.component.external.api.util.StatsUtils;
 import com.vmturbo.api.component.external.api.util.StatsUtils.PrecisionEnum;
-import com.vmturbo.api.conversion.entity.CommodityTypeMapping;
 import com.vmturbo.api.dto.entityaspect.PortsAspectApiDTO;
 import com.vmturbo.api.dto.statistic.PortChannelApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
@@ -36,6 +35,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.Pair;
+import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 
 /**
@@ -157,8 +157,7 @@ public class PortsAspectMapper extends AbstractAspectMapper {
             @Nonnull final Set<String> aggregateKeys,
             @Nonnull final Map<String, List<MessageOrBuilder>> keyToCommodities,
             @Nonnull final Map<CommodityType, CommoditySoldDTO> keyToProviderCommoditySold) {
-        final String portUnits =
-            CommodityTypeMapping.getUnitForCommodityType(CommodityDTO.CommodityType.NET_THROUGHPUT);
+        final String portUnits = CommodityTypeUnits.NET_THROUGHPUT.getUnits();
         final CommodityType commodityTypeAndKey = CommodityCommonFieldsExtractor.getCommodityType(
             commodityBoughtOrSold);
         if (commodityTypeAndKey.getType() == CommodityDTO.CommodityType.PORT_CHANEL_VALUE) {
@@ -200,7 +199,7 @@ public class PortsAspectMapper extends AbstractAspectMapper {
 
             // convert to units if available
             final Pair<String, Integer> unitsMultiplierPair = StatsUtils.getConvertedUnits(
-                commodityTypeAndKey.getType(), CommodityDTO.CommodityType.NET_THROUGHPUT);
+                commodityTypeAndKey.getType(), CommodityTypeUnits.NET_THROUGHPUT);
             int multiplier = unitsMultiplierPair.second;
             StatsUtils.convertDTOValues(channel.getValues(), multiplier);
             StatsUtils.convertDTOValues(channel.getCapacity(), multiplier);
@@ -228,7 +227,7 @@ public class PortsAspectMapper extends AbstractAspectMapper {
     private StatApiDTO mapToPort(@Nonnull final MessageOrBuilder commodityBoughtOrSold,
             @Nonnull final Map<CommodityType, CommoditySoldDTO> keyToProviderCommoditySold) {
         final StatApiDTO port = new StatApiDTO();
-        final String portUnits = CommodityTypeMapping.getUnitForCommodityType(CommodityDTO.CommodityType.NET_THROUGHPUT);
+        final String portUnits = CommodityTypeUnits.NET_THROUGHPUT.getUnits();
         final CommodityType commodityTypeAndKey = CommodityCommonFieldsExtractor.getCommodityType(
             commodityBoughtOrSold);
         port.setName(CommodityCommonFieldsExtractor.getDisplayName(commodityBoughtOrSold));
@@ -258,7 +257,7 @@ public class PortsAspectMapper extends AbstractAspectMapper {
         port.setFilters(Lists.newArrayList(relationFilter, commKeyFilter));
         // convert to Kbit/sec
         final Pair<String, Integer> unitsMultiplierPair = StatsUtils.getConvertedUnits(
-            commodityTypeAndKey.getType(), CommodityDTO.CommodityType.NET_THROUGHPUT);
+            commodityTypeAndKey.getType(), CommodityTypeUnits.NET_THROUGHPUT);
         int multiplier = unitsMultiplierPair.second;
         StatsUtils.convertDTOValues(port.getValues(), multiplier);
         StatsUtils.convertDTOValues(port.getCapacity(), multiplier);

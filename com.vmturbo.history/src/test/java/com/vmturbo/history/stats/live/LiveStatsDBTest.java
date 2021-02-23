@@ -40,12 +40,12 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
-import com.vmturbo.api.conversion.entity.CommodityTypeMapping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.chunking.RemoteIterator;
+import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.history.db.BasedbIO;
 import com.vmturbo.history.db.DBConnectionPool;
 import com.vmturbo.history.db.HistorydbIO;
@@ -69,7 +69,6 @@ import com.vmturbo.history.schema.abstraction.tables.VpodStatsLatest;
 import com.vmturbo.history.schema.abstraction.tables.records.MarketStatsLatestRecord;
 import com.vmturbo.history.stats.DbTestConfig;
 import com.vmturbo.history.stats.StatsTestUtils;
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
 /**
  * Write live stats to real DB table.
@@ -149,16 +148,16 @@ public class LiveStatsDBTest {
     public void writeTopologyStatsTest() throws Exception {
         // Arrange
         int writeTopologyChunkSize = 10;
-        List<CommodityType> excludedCommodities = Arrays.asList(
-                CommodityType.APPLICATION,
-                CommodityType.CLUSTER,
-                CommodityType.DATACENTER,
-                CommodityType.DATASTORE,
-                CommodityType.DSPM_ACCESS,
-                CommodityType.NETWORK);
+        List<CommodityTypeUnits> excludedCommodities = Arrays.asList(
+                CommodityTypeUnits.APPLICATION,
+                CommodityTypeUnits.CLUSTER,
+                CommodityTypeUnits.DATACENTER,
+                CommodityTypeUnits.DATASTORE,
+                CommodityTypeUnits.DSPM_ACCESS,
+                CommodityTypeUnits.NETWORK);
         ImmutableList<String> commoditiesToExclude = ImmutableList.copyOf(
                 excludedCommodities.stream()
-                        .map(CommodityTypeMapping::getMixedCaseFromCommodityType)
+                        .map(CommodityTypeUnits::getMixedCase)
                         .collect(Collectors.toList()));
 //        LiveStatsWriter writerUnderTest = new LiveStatsWriter(
 //            historydbIO,

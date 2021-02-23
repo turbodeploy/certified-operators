@@ -1,13 +1,11 @@
 package com.vmturbo.api.conversion.action;
 
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertThat;
 
 import java.time.OffsetDateTime;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 import org.junit.Test;
 
@@ -102,21 +100,6 @@ public class SdkActionToApiConverterTest {
                 .setName("targetAddress")
                 .setValue(TARGET_ADDRESS)
                 .build())
-              .addEntityProperties(CommonDTO.EntityDTO.EntityProperty.newBuilder()
-                .setNamespace("VCTAGS")
-                .setName("grp")
-                .setValue("group1")
-                .build())
-              .addEntityProperties(CommonDTO.EntityDTO.EntityProperty.newBuilder()
-                .setNamespace("VCTAGS")
-                .setName("grp")
-                .setValue("group2")
-                .build())
-              .addEntityProperties(CommonDTO.EntityDTO.EntityProperty.newBuilder()
-                .setNamespace("VCTAGS")
-                .setName("owner")
-                .setValue("mahdi")
-                .build())
               .setPowerState(CommonDTO.EntityDTO.PowerState.POWERED_ON))
             .setCurrentSE(CommonDTO.EntityDTO.newBuilder()
               .setEntityType(CommonDTO.EntityDTO.EntityType.PHYSICAL_MACHINE)
@@ -154,7 +137,6 @@ public class SdkActionToApiConverterTest {
             .setRisk(ActionExecution.ActionItemDTO.Risk.newBuilder()
               .setSeverity(ActionExecution.ActionItemDTO.Risk.Severity.CRITICAL)
               .setCategory(ActionExecution.ActionItemDTO.Risk.Category.PERFORMANCE_ASSURANCE)
-              .addAffectedCommodity(CommonDTO.CommodityDTO.CommodityType.VCPU)
               .setDescription(MOVE_RISK_DESC)
             )
           )
@@ -305,10 +287,6 @@ public class SdkActionToApiConverterTest {
         // verify target entity
         assertEntityData(apiMessage.getTarget(), "ACTIVE", null, TARGET_ADDRESS, TARGET_ADDRESS,
             VM_LOCAL_NAME, VM_UUID, VM_DISPLAY_NAME, "VirtualMachine");
-        Map<String, List<String>> tags = apiMessage.getTarget().getTags();
-        assertThat(tags.size(), is(2));
-        assertThat(tags.get("grp"), containsInAnyOrder("group1", "group2"));
-        assertThat(tags.get("owner"), containsInAnyOrder("mahdi"));
 
 
         // verify current entity
@@ -325,8 +303,7 @@ public class SdkActionToApiConverterTest {
 
         // assert risk
         LogEntryApiDTO risk = apiMessage.getRisk();
-        assertThat(risk.getSubCategory(), is("Performance Assurance"));
-        assertThat(risk.getReasonCommodities(), containsInAnyOrder("VCPU"));
+        assertThat(risk.getSubCategory(), is("PERFORMANCE_ASSURANCE"));
         assertThat(risk.getDescription(), is(MOVE_RISK_DESC));
         assertThat(risk.getSeverity(), is("CRITICAL"));
 
@@ -349,18 +326,6 @@ public class SdkActionToApiConverterTest {
         assertThat(newEntityCluster.get(0).getDisplayName(), is(CLUSTER_2_DISPLAY_NAME));
         assertThat(newEntityCluster.get(0).getClassName(), is("Cluster"));
 
-        // verify compound action
-        assertThat(apiMessage.getCompoundActions().size(), is(1));
-        final ActionApiDTO compoundAction = apiMessage.getCompoundActions().get(0);
-        assertThat(compoundAction.getActionType(), is(ActionType.MOVE));
-        assertEntityData(compoundAction.getTarget(), "ACTIVE", null, TARGET_ADDRESS, TARGET_ADDRESS,
-            VM_LOCAL_NAME, VM_UUID, VM_DISPLAY_NAME, "VirtualMachine");
-        assertEntityData(compoundAction.getCurrentEntity(), "SUSPEND", VCENTER, null, "",
-            PM_1_LOCAL_NAME, PM_1_UUID, PM_1_DISPLAY_NAME, "PhysicalMachine");
-        assertEntityData(compoundAction.getNewEntity(), "ACTIVE", VCENTER, null, "",
-            PM_2_LOCAL_NAME, PM_2_UUID, PM_2_DISPLAY_NAME, "PhysicalMachine");
-        assertThat(compoundAction.getCurrentValue(), is(String.valueOf(PM_1_UUID)));
-        assertThat(compoundAction.getNewValue(), is(String.valueOf(PM_2_UUID)));
     }
 
     /**
@@ -397,7 +362,7 @@ public class SdkActionToApiConverterTest {
 
         // assert risk
         LogEntryApiDTO risk = apiMessage.getRisk();
-        assertThat(risk.getSubCategory(), is("Performance Assurance"));
+        assertThat(risk.getSubCategory(), is("PERFORMANCE_ASSURANCE"));
         assertThat(risk.getDescription(), is(MOVE_RISK_DESC));
         assertThat(risk.getSeverity(), is("CRITICAL"));
         assertThat(risk.getReasonCommodities(), is(Collections.singleton("VCPU")));
@@ -448,7 +413,7 @@ public class SdkActionToApiConverterTest {
 
         // assert risk
         LogEntryApiDTO risk = apiMessage.getRisk();
-        assertThat(risk.getSubCategory(), is("Performance Assurance"));
+        assertThat(risk.getSubCategory(), is("PERFORMANCE_ASSURANCE"));
         assertThat(risk.getDescription(), is(MOVE_RISK_DESC));
         assertThat(risk.getSeverity(), is("CRITICAL"));
 
@@ -457,19 +422,6 @@ public class SdkActionToApiConverterTest {
             apiMessage.getExecutionCharacteristics();
         assertThat(characteristics.getDisruptiveness(), is(ActionDisruptiveness.DISRUPTIVE));
         assertThat(characteristics.getReversibility(), is(ActionReversibility.IRREVERSIBLE));
-
-        // verify compound action
-        assertThat(apiMessage.getCompoundActions().size(), is(1));
-        final ActionApiDTO compoundAction = apiMessage.getCompoundActions().get(0);
-        assertThat(compoundAction.getActionType(), is(ActionType.SCALE));
-        assertEntityData(compoundAction.getTarget(), "ACTIVE", AZURE_SUBSCRIPTION, null, "",
-            VOLUME_LOCAL_NAME, VOLUME_UUID, VOLUME_DISPLAY_NAME, "VirtualVolume");
-        assertEntityData(compoundAction.getCurrentEntity(), "ACTIVE", AZURE_SUBSCRIPTION, null, "",
-            STORAGE_TIER_1_LOCAL_NAME, STORAGE_TIER_1_UUID, STORAGE_TIER_1_DISPLAY_NAME, "StorageTier");
-        assertEntityData(compoundAction.getNewEntity(), "ACTIVE", AZURE_SUBSCRIPTION, null, "",
-            STORAGE_TIER_2_LOCAL_NAME, STORAGE_TIER_2_UUID, STORAGE_TIER_2_DISPLAY_NAME, "StorageTier");
-        assertThat(compoundAction.getCurrentValue(), is(String.valueOf(STORAGE_TIER_1_UUID)));
-        assertThat(compoundAction.getNewValue(), is(String.valueOf(STORAGE_TIER_2_UUID)));
 
     }
 

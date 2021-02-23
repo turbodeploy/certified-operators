@@ -29,7 +29,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
-import com.vmturbo.platform.common.dto.CommonDTO;
+import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTOREST.CommodityDTO;
 
@@ -53,7 +53,7 @@ public class PortsAspectMapperTest extends BaseAspectMapperTest {
 
     private static final double DELTA = 1e-2;
     private static final int MULTIPLIER = StatsUtils.getConvertedUnits(PORT_CHANNEL_VALUE,
-        CommonDTO.CommodityDTO.CommodityType.NET_THROUGHPUT).second;
+        CommodityTypeUnits.NET_THROUGHPUT).second;
 
     private final List<CommodityBoughtDTO> commodityBoughts = Lists.newArrayList();
     private final List<CommoditySoldDTO> commoditySolds = Lists.newArrayList();

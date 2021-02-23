@@ -74,6 +74,7 @@ import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.ClassicEnumMapper;
+import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
 import com.vmturbo.components.common.pagination.EntityStatsPaginator;
 import com.vmturbo.components.common.pagination.EntityStatsPaginator.PaginatedStats;
@@ -594,26 +595,26 @@ public class ClusterStatsReader {
             for (Entry<String, Double> e : usages.entrySet()) {
                 final double usage = e.getValue();
                 final double capacity = capacities.getOrDefault(e.getKey(), 0.0);
-                final String units = ClassicEnumMapper.CommodityTypeUnits
-                                                        .unitFromStringIgnoreCase(e.getKey());
+                final CommodityTypeUnits units = ClassicEnumMapper.CommodityTypeUnits
+                                                        .fromStringIgnoreCase(e.getKey());
                 resultBuilder.addStatRecords(StatRecord.newBuilder()
                                                 .setName(e.getKey())
                                                 .setUsed(makeStatValue(usage))
                                                 .setValues(makeStatValue(usage))
                                                 .setCapacity(makeStatValue(capacity))
-                                                .setUnits(units == null ? "" : units));
+                                                .setUnits(units == null ? "" : units.getUnits()));
             }
 
             // commodities that only have one value
             for (Entry<String, Double> e : values.entrySet()) {
-                final String units = ClassicEnumMapper.CommodityTypeUnits
-                                                        .unitFromStringIgnoreCase(e.getKey());
+                final CommodityTypeUnits units = ClassicEnumMapper.CommodityTypeUnits
+                                                        .fromStringIgnoreCase(e.getKey());
                 resultBuilder.addStatRecords(StatRecord.newBuilder()
                                                     .setName(e.getKey())
                                                     .setUsed(makeStatValue(e.getValue()))
                                                     .setUnits(e.getKey())
                                                     .setReserved(0.0f)
-                                                    .setUnits(units == null ? "" : units));
+                                                    .setUnits(units == null ? "" : units.getUnits()));
             }
 
             return resultBuilder

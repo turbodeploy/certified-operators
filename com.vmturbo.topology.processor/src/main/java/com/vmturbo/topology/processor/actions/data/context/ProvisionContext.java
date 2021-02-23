@@ -1,15 +1,18 @@
 package com.vmturbo.topology.processor.actions.data.context;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
@@ -132,5 +135,24 @@ public class ProvisionContext extends AbstractActionExecutionContext {
         actionItemBuilder.setTargetSE(entityToCloneDTO);
         actionItemBuilder.setNewSE(providerEntityDTO);
         return actionItemBuilder;
+    }
+
+    @Nonnull
+    @Override
+    public List<TopologyDTO.CommodityType> getRiskCommodities() {
+        final ActionDTO.Explanation.ProvisionExplanation provision =
+            actionSpec.getRecommendation().getExplanation().getProvision();
+        if (provision.hasProvisionBySupplyExplanation()) {
+            return Collections.singletonList(provision.getProvisionBySupplyExplanation()
+                .getMostExpensiveCommodityInfo().getCommodityType());
+        } else if (provision.hasProvisionByDemandExplanation()) {
+            return provision.getProvisionByDemandExplanation()
+                .getCommodityNewCapacityEntryList().stream()
+                .map(ActionDTO.Explanation.ProvisionExplanation
+                    .ProvisionByDemandExplanation.CommodityNewCapacityEntry::getCommodityBaseType)
+                .map(type -> TopologyDTO.CommodityType.newBuilder().setType(type).build())
+                .collect(Collectors.toList());
+        }
+        return Collections.emptyList();
     }
 }

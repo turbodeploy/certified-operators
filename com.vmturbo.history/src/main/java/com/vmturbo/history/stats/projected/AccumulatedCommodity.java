@@ -72,9 +72,9 @@ abstract class AccumulatedCommodity {
                             .build());
         }
 
-        final String commodityTypeUnit = CommodityTypeUnits.unitFromString(commodityName);
-        if (commodityTypeUnit != null) {
-            builder.setUnits(commodityTypeUnit);
+        final CommodityTypeUnits commodityType = CommodityTypeUnits.fromString(commodityName);
+        if (commodityType != null) {
+            builder.setUnits(commodityType.getUnits());
         }
 
         return Optional.of(finalizeStatRecord(builder));

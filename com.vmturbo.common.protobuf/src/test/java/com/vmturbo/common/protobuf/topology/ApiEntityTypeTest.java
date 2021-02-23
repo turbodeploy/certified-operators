@@ -1,12 +1,9 @@
 package com.vmturbo.common.protobuf.topology;
 
-import static com.vmturbo.api.conversion.entity.EntityTypeMapping.ENTITY_TYPE_TO_API_STRING;
 import static org.hamcrest.core.IsNot.not;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
-import static org.junit.Assert.fail;
 
-import java.util.HashSet;
 import java.util.Set;
 
 import com.google.common.collect.ImmutableSet;
@@ -14,7 +11,6 @@ import com.google.common.collect.ImmutableSet;
 import org.hamcrest.collection.IsIterableContainingInAnyOrder;
 import org.junit.Test;
 
-import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 
 /**
@@ -88,24 +84,5 @@ public class ApiEntityTypeTest {
     public void testEntityTypesThatShouldNotBeExpanded() {
         assertThat(ApiEntityType.ENTITY_TYPES_TO_EXPAND.keySet(),
                 not(IsIterableContainingInAnyOrder.containsInAnyOrder(ENTITY_TYPES_NOT_TO_EXPAND.toArray())));
-    }
-
-    /**
-     * This test checks if entity type in {@link ApiEntityType} is the same as entity types in
-     * {@link EntityTypeMapping}.
-     */
-    @Test
-    public void testConversionProjectEntityTypes() {
-        Set<CommonDTO.EntityDTO.EntityType> entityTypes = new HashSet<>();
-        for (ApiEntityType apiEntityType : ApiEntityType.values()) {
-            entityTypes.add(apiEntityType.sdkType());
-        }
-
-        entityTypes.removeAll(ENTITY_TYPE_TO_API_STRING.keySet());
-
-        if (!entityTypes.isEmpty()) {
-            fail("The entity types " + entityTypes + " should be added to "
-                + "com.vmturbo.api.conversion.entity.EntityTypeMapping.ENTITY_TYPE_TO_API_STRING");
-        }
     }
 }

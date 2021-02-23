@@ -135,9 +135,9 @@ public class PropertyTypeVisitor<D> extends AbstractVisitor<Record, PropertyInfo
                 if (whetherToSet(builder.hasName(), record)) {
                     builder.setName(propertyType);
                 }
-                final String commodityTypeUnits = getCommodityTypeUnits(propertyType);
+                final CommodityTypeUnits commodityTypeUnits = getCommodityTypeUnits(propertyType);
                 if (commodityTypeUnits != null && (whetherToSet(builder.hasUnits(), record))) {
-                    builder.setUnits(commodityTypeUnits);
+                    builder.setUnits(commodityTypeUnits.getUnits());
                 }
             }
             final String key = propertyInformation.isMultiple()
@@ -149,9 +149,9 @@ public class PropertyTypeVisitor<D> extends AbstractVisitor<Record, PropertyInfo
         }
 
         @Nullable
-        private static String getCommodityTypeUnits(@Nonnull String propertyType) {
-            final String commodityTypeUnits =
-                            CommodityTypeUnits.unitFromString(propertyType);
+        private static CommodityTypeUnits getCommodityTypeUnits(@Nonnull String propertyType) {
+            final CommodityTypeUnits commodityTypeUnits =
+                            CommodityTypeUnits.fromString(propertyType);
             if (commodityTypeUnits != null) {
                 return commodityTypeUnits;
             }
@@ -163,7 +163,7 @@ public class PropertyTypeVisitor<D> extends AbstractVisitor<Record, PropertyInfo
                  */
                 final String removedCurrentPrefix = propertyType.substring(
                                 StringConstants.STAT_PREFIX_CURRENT.length());
-                return CommodityTypeUnits.unitFromStringIgnoreCase(removedCurrentPrefix);
+                return CommodityTypeUnits.fromStringIgnoreCase(removedCurrentPrefix);
             }
             return null;
         }

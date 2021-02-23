@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.actions.data.context;
 
+import java.util.Collections;
 import java.util.List;
 
 import javax.annotation.Nonnull;
@@ -146,5 +147,11 @@ public class ResizeContext extends AbstractActionExecutionContext {
         }
 
         return commodity;
+    }
+
+    @Nonnull
+    @Override
+    public List<CommodityType> getRiskCommodities() {
+        return Collections.singletonList(getActionInfo().getResize().getCommodityType());
     }
 }

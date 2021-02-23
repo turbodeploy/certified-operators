@@ -14,7 +14,6 @@ import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableSet;
 
-import com.vmturbo.api.conversion.entity.CommodityTypeMapping;
 import com.vmturbo.api.dto.searchquery.AggregateCommodityFieldApiDTO.Aggregation;
 import com.vmturbo.api.dto.searchquery.CommodityFieldApiDTO.CommodityAttribute;
 import com.vmturbo.api.dto.searchquery.FieldValueApiDTO.Type;
@@ -31,7 +30,7 @@ import com.vmturbo.api.enums.GroupType;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.SelectionCriteriaCase;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.platform.common.dto.CommonDTO;
+import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.search.metadata.utils.MetadataMappingUtils;
@@ -155,7 +154,7 @@ public enum SearchMetadataMapping {
     /** active sessions used. */
     COMMODITY_ACTIVE_SESSIONS_USED("attrs", "active_sessions_used",
         CommodityType.ACTIVE_SESSIONS, CommodityAttribute.USED,
-        CommodityTypeMapping.getUnitForCommodityType(CommonDTO.CommodityDTO.CommodityType.ACTIVE_SESSIONS), Type.NUMBER),
+        CommodityTypeUnits.ACTIVE_SESSIONS, Type.NUMBER),
 
     /** active sessions historical utilization. */
     COMMODITY_ACTIVE_SESSIONS_HISTORICAL_UTILIZATION("attrs", "active_sessions_hist_utilization",
@@ -170,7 +169,7 @@ public enum SearchMetadataMapping {
     /** connections used. */
     COMMODITY_CONNECTION_USED("attrs", "connection_used",
         CommodityType.CONNECTION, CommodityAttribute.USED,
-        CommodityTypeMapping.getUnitForCommodityType(CommonDTO.CommodityDTO.CommodityType.CONNECTION), Type.NUMBER),
+        CommodityTypeUnits.CONNECTION, Type.NUMBER),
 
     /** connections historical utilization. */
     COMMODITY_CONNECTION_HISTORICAL_UTILIZATION("attrs", "connection_hist_utilization",
@@ -185,8 +184,7 @@ public enum SearchMetadataMapping {
     /** CPU used. */
     COMMODITY_CPU_USED("attrs", "cpu_used",
         CommodityType.CPU, CommodityAttribute.USED,
-        CommodityTypeMapping.getUnitForCommodityType(CommonDTO.CommodityDTO.CommodityType.CPU),
-        Type.NUMBER),
+        CommodityTypeUnits.CPU, Type.NUMBER),
 
     /** CPU historical utilization. */
     COMMODITY_CPU_HISTORICAL_UTILIZATION("attrs", "cpu_hist_utilization",
@@ -196,7 +194,7 @@ public enum SearchMetadataMapping {
     /** DB hit rate used. */
     COMMODITY_DB_HIT_RATE_USED("attrs", "db_hit_rate_used",
         CommodityType.DB_CACHE_HIT_RATE, CommodityAttribute.USED,
-        CommodityTypeMapping.getUnitForCommodityType(CommonDTO.CommodityDTO.CommodityType.DB_CACHE_HIT_RATE), Type.NUMBER),
+        CommodityTypeUnits.DB_CACHE_HIT_RATE, Type.NUMBER),
 
     /** DB hit rate historical utilization. */
     COMMODITY_DB_HIT_RATE_HISTORICAL_UTILIZATION("attrs", "db_hit_rate_hist_utilization",
@@ -206,14 +204,12 @@ public enum SearchMetadataMapping {
     /** DB mem capacity. */
     COMMODITY_DB_MEM_CAPACITY("attrs", "db_mem_capacity",
         CommodityType.DB_MEM, CommodityAttribute.CAPACITY,
-        CommodityTypeMapping.getUnitForCommodityType(CommonDTO.CommodityDTO.CommodityType.MEM),
-        Type.NUMBER),
+        CommodityTypeUnits.MEM, Type.NUMBER),
 
     /** DB mem used. */
     COMMODITY_DB_MEM_USED("attrs", "db_mem_used",
         CommodityType.DB_MEM, CommodityAttribute.USED,
-        CommodityTypeMapping.getUnitForCommodityType(CommonDTO.CommodityDTO.CommodityType.MEM),
-        Type.NUMBER),
+        CommodityTypeUnits.MEM, Type.NUMBER),
 
     /** DB mem historical utilization. */
     COMMODITY_DB_MEM_HISTORICAL_UTILIZATION("attrs", "db_mem_hist_utilization",
@@ -223,7 +219,7 @@ public enum SearchMetadataMapping {
     /** image CPU used. */
     COMMODITY_IMAGE_CPU_USED("attrs", "image_cpu_used",
         CommodityType.IMAGE_CPU, CommodityAttribute.USED,
-        CommodityTypeMapping.getUnitForCommodityType(CommonDTO.CommodityDTO.CommodityType.IMAGE_CPU), Type.NUMBER),
+        CommodityTypeUnits.IMAGE_CPU, Type.NUMBER),
 
     /** image CPU percentile historical utilization. */
     COMMODITY_IMAGE_CPU_PERCENTILE_UTILIZATION("attrs", "image_cpu_percentile_utilization",
@@ -233,7 +229,7 @@ public enum SearchMetadataMapping {
     /** image mem used. */
     COMMODITY_IMAGE_MEM_USED("attrs", "image_mem_used",
         CommodityType.IMAGE_MEM, CommodityAttribute.USED,
-        CommodityTypeMapping.getUnitForCommodityType(CommonDTO.CommodityDTO.CommodityType.IMAGE_MEM), Type.NUMBER),
+        CommodityTypeUnits.IMAGE_MEM, Type.NUMBER),
 
     /** image mem percentile historical utilization. */
     COMMODITY_IMAGE_MEM_PERCENTILE_UTILIZATION("attrs", "image_mem_percentile_utilization",
@@ -243,7 +239,7 @@ public enum SearchMetadataMapping {
     /** image storage used. */
     COMMODITY_IMAGE_STORAGE_USED("attrs", "image_storage_used",
         CommodityType.IMAGE_STORAGE, CommodityAttribute.USED,
-        CommodityTypeMapping.getUnitForCommodityType(CommonDTO.CommodityDTO.CommodityType.IMAGE_STORAGE), Type.NUMBER),
+        CommodityTypeUnits.IMAGE_STORAGE, Type.NUMBER),
 
     /** image storage percentile historical utilization. */
     COMMODITY_IMAGE_STORAGE_PERCENTILE_UTILIZATION("attrs", "image_storage_percentile_utilization",
@@ -253,7 +249,7 @@ public enum SearchMetadataMapping {
     /** IO throughput used. */
     COMMODITY_IO_THROUGHPUT_USED("attrs", "io_throughput_used",
         CommodityType.IO_THROUGHPUT, CommodityAttribute.USED,
-        CommodityTypeMapping.getUnitForCommodityType(CommonDTO.CommodityDTO.CommodityType.IO_THROUGHPUT), Type.NUMBER),
+        CommodityTypeUnits.IO_THROUGHPUT, Type.NUMBER),
 
     /** IO throughput historical utilization. */
     COMMODITY_IO_THROUGHPUT_HISTORICAL_UTILIZATION("attrs", "io_throughput_hist_utilization",
@@ -263,14 +259,12 @@ public enum SearchMetadataMapping {
     /** mem capacity. */
     COMMODITY_MEM_CAPACITY("attrs", "mem_capacity",
         CommodityType.MEM, CommodityAttribute.CAPACITY,
-        CommodityTypeMapping.getUnitForCommodityType(CommonDTO.CommodityDTO.CommodityType.MEM),
-        Type.NUMBER),
+        CommodityTypeUnits.MEM, Type.NUMBER),
 
     /** mem used. */
     COMMODITY_MEM_USED("attrs", "mem_used",
         CommodityType.MEM, CommodityAttribute.USED,
-        CommodityTypeMapping.getUnitForCommodityType(CommonDTO.CommodityDTO.CommodityType.MEM),
-        Type.NUMBER),
+        CommodityTypeUnits.MEM, Type.NUMBER),
 
     /** mem historical utilization. */
     COMMODITY_MEM_HISTORICAL_UTILIZATION("attrs", "mem_hist_utilization",
@@ -280,7 +274,7 @@ public enum SearchMetadataMapping {
     /** net throughput amount used. */
     COMMODITY_NET_THROUGHPUT_USED("attrs", "net_throughput_used",
         CommodityType.NET_THROUGHPUT, CommodityAttribute.USED,
-        CommodityTypeMapping.getUnitForCommodityType(CommonDTO.CommodityDTO.CommodityType.NET_THROUGHPUT), Type.NUMBER),
+        CommodityTypeUnits.NET_THROUGHPUT, Type.NUMBER),
 
     /** net throughput historical utilization. */
     COMMODITY_NET_THROUGHPUT_HISTORICAL_UTILIZATION("attrs", "net_throughput_hist_utilization",
@@ -315,7 +309,7 @@ public enum SearchMetadataMapping {
     /** response time used. */
     COMMODITY_RESPONSE_TIME_USED("attrs", "response_time_used",
         CommodityType.RESPONSE_TIME, CommodityAttribute.USED,
-        CommodityTypeMapping.getUnitForCommodityType(CommonDTO.CommodityDTO.CommodityType.RESPONSE_TIME), Type.NUMBER),
+        CommodityTypeUnits.RESPONSE_TIME, Type.NUMBER),
 
     /** space historical utilization. */
     COMMODITY_SPACE_HISTORICAL_UTILIZATION("attrs", "space_hist_utilization",
@@ -325,7 +319,7 @@ public enum SearchMetadataMapping {
     /** storage access used. */
     COMMODITY_STORAGE_ACCESS_USED("attrs", "storage_access_used",
         CommodityType.STORAGE_ACCESS, CommodityAttribute.USED,
-        CommodityTypeMapping.getUnitForCommodityType(CommonDTO.CommodityDTO.CommodityType.STORAGE_ACCESS), Type.NUMBER),
+        CommodityTypeUnits.STORAGE_ACCESS, Type.NUMBER),
 
     /** storage access historical utilization. */
     COMMODITY_STORAGE_ACCESS_HISTORICAL_UTILIZATION("attrs", "storage_access_hist_utilization",
@@ -335,12 +329,12 @@ public enum SearchMetadataMapping {
     /** storage amount capacity. */
     COMMODITY_STORAGE_AMOUNT_CAPACITY("attrs", "storage_amount_capacity",
         CommodityType.STORAGE_AMOUNT, CommodityAttribute.CAPACITY,
-        CommodityTypeMapping.getUnitForCommodityType(CommonDTO.CommodityDTO.CommodityType.STORAGE_AMOUNT), Type.NUMBER),
+        CommodityTypeUnits.STORAGE_AMOUNT, Type.NUMBER),
 
     /** storage amount used. */
     COMMODITY_STORAGE_AMOUNT_USED("attrs", "storage_amount_used",
         CommodityType.STORAGE_AMOUNT, CommodityAttribute.USED,
-        CommodityTypeMapping.getUnitForCommodityType(CommonDTO.CommodityDTO.CommodityType.STORAGE_AMOUNT), Type.NUMBER),
+        CommodityTypeUnits.STORAGE_AMOUNT, Type.NUMBER),
 
     /** storage amount historical utilization. */
     COMMODITY_STORAGE_AMOUNT_HISTORICAL_UTILIZATION("attrs", "storage_amount_hist_utilization",
@@ -355,7 +349,7 @@ public enum SearchMetadataMapping {
     /** storage latency used. */
     COMMODITY_STORAGE_LATENCY_USED("attrs", "storage_latency_used",
         CommodityType.STORAGE_LATENCY, CommodityAttribute.USED,
-        CommodityTypeMapping.getUnitForCommodityType(CommonDTO.CommodityDTO.CommodityType.STORAGE_LATENCY), Type.NUMBER),
+        CommodityTypeUnits.STORAGE_LATENCY, Type.NUMBER),
 
     /** storage latency historical utilization. */
     COMMODITY_STORAGE_LATENCY_HISTORICAL_UTILIZATION("attrs", "storage_latency_hist_utilization",
@@ -365,7 +359,7 @@ public enum SearchMetadataMapping {
     /** storage provisioned used. */
     COMMODITY_STORAGE_PROVISIONED_USED("attrs", "storage_provisioned_used",
         CommodityType.STORAGE_PROVISIONED, CommodityAttribute.USED,
-        CommodityTypeMapping.getUnitForCommodityType(CommonDTO.CommodityDTO.CommodityType.STORAGE_PROVISIONED), Type.NUMBER),
+        CommodityTypeUnits.STORAGE_PROVISIONED, Type.NUMBER),
 
     /** storage provisioned historical utilization. */
     COMMODITY_STORAGE_PROVISIONED_CURRENT_UTILIZATION("attrs", "storage_provisioned_current_utilization",
@@ -375,7 +369,7 @@ public enum SearchMetadataMapping {
     /** swapping historical utilization. */
     COMMODITY_SWAPPING_HISTORICAL_UTILIZATION("attrs", "swapping_hist_utilization",
         CommodityType.SWAPPING, CommodityAttribute.WEIGHTED_HISTORICAL_UTILIZATION,
-        CommodityTypeMapping.getUnitForCommodityType(CommonDTO.CommodityDTO.CommodityType.SWAPPING), Type.NUMBER),
+        CommodityTypeUnits.SWAPPING, Type.NUMBER),
 
     /** swapping current utilization. */
     COMMODITY_SWAPPING_CURRENT_UTILIZATION("attrs", "swapping_current_utilization",
@@ -385,13 +379,12 @@ public enum SearchMetadataMapping {
     /** transactions used. */
     COMMODITY_TRANSACTION_USED("attrs", "transaction_used",
         CommodityType.TRANSACTION, CommodityAttribute.USED,
-        CommodityTypeMapping.getUnitForCommodityType(CommonDTO.CommodityDTO.CommodityType.TRANSACTION), Type.NUMBER),
+        CommodityTypeUnits.TRANSACTION, Type.NUMBER),
 
     /** vCPU used. */
     COMMODITY_VCPU_USED("attrs", "vcpu_used",
         CommodityType.VCPU, CommodityAttribute.USED,
-        CommodityTypeMapping.getUnitForCommodityType(CommonDTO.CommodityDTO.CommodityType.VCPU),
-        Type.NUMBER),
+        CommodityTypeUnits.VCPU, Type.NUMBER),
 
     /** vCPU percentile historical utilization. */
     COMMODITY_VCPU_PERCENTILE_UTILIZATION("attrs", "vcpu_percentile_utilization",
@@ -406,14 +399,12 @@ public enum SearchMetadataMapping {
     /** vMem capacity. */
     COMMODITY_VMEM_CAPACITY("attrs", "vmem_capacity",
         CommodityType.VMEM, CommodityAttribute.CAPACITY,
-        CommodityTypeMapping.getUnitForCommodityType(CommonDTO.CommodityDTO.CommodityType.VMEM),
-        Type.NUMBER),
+        CommodityTypeUnits.VMEM, Type.NUMBER),
 
     /** vMem used. */
     COMMODITY_VMEM_USED("attrs", "vmem_used",
         CommodityType.VMEM, CommodityAttribute.USED,
-        CommodityTypeMapping.getUnitForCommodityType(CommonDTO.CommodityDTO.CommodityType.VMEM),
-        Type.NUMBER),
+        CommodityTypeUnits.VMEM, Type.NUMBER),
 
     /** vMem percentile historical utilization. */
     COMMODITY_VMEM_PERCENTILE_UTILIZATION("attrs", "vmem_percentile_utilization",
@@ -428,7 +419,7 @@ public enum SearchMetadataMapping {
     /** vStorage used. */
     COMMODITY_VSTORAGE_USED("attrs", "vstorage_used",
         CommodityType.VSTORAGE, CommodityAttribute.USED,
-        CommodityTypeMapping.getUnitForCommodityType(CommonDTO.CommodityDTO.CommodityType.VSTORAGE), Type.NUMBER),
+        CommodityTypeUnits.VSTORAGE, Type.NUMBER),
 
     /** vStorage percentile historical utilization. */
     COMMODITY_VSTORAGE_WEIGHTED_UTILIZATION("attrs", "vstorage_historical_utilization",
@@ -537,8 +528,7 @@ public enum SearchMetadataMapping {
         EntityType.PhysicalMachine,
         //TODO: Update this and the mem one below to PERCENTILE when available
         CommodityType.CPU, CommodityAttribute.CURRENT_UTILIZATION, Aggregation.TOTAL,
-        CommodityTypeMapping.getUnitForCommodityType(CommonDTO.CommodityDTO.CommodityType.CPU),
-        Type.NUMBER),
+        CommodityTypeUnits.CPU, Type.NUMBER),
 
     /**
      * MEM commodity for groups. For now, this is only used by cluster, and is only for leaf entities
@@ -547,7 +537,7 @@ public enum SearchMetadataMapping {
     GROUP_COMMODITY_MEM_HISTORICAL_UTILIZATION_TOTAL("attrs", "mem_hist_utilization",
         EntityType.PhysicalMachine,
         CommodityType.MEM, CommodityAttribute.CURRENT_UTILIZATION, Aggregation.TOTAL,
-        CommodityTypeMapping.getUnitForCommodityType(CommonDTO.CommodityDTO.CommodityType.MEM), Type.NUMBER);
+        CommodityTypeUnits.MEM, Type.NUMBER);
 
 
     // name of the column in db table
@@ -569,7 +559,7 @@ public enum SearchMetadataMapping {
     // commodity
     private CommodityType commodityType;
     private CommodityAttribute commodityAttribute;
-    private String commodityUnit;
+    private CommodityTypeUnits commodityUnit;
     // group fields
     private Function<Grouping, Optional<Object>> groupFieldFunction;
     private Aggregation commodityAggregation;
@@ -713,7 +703,7 @@ public enum SearchMetadataMapping {
                           @Nonnull String jsonKeyName,
                           @Nonnull CommodityType commodityType,
                           @Nonnull CommodityAttribute commodityAttribute,
-                          @Nullable String commodityUnit,
+                          @Nullable CommodityTypeUnits commodityUnit,
                           @Nonnull Type apiDatatype) {
         this.columnName = Objects.requireNonNull(columnName);
         this.jsonKeyName = Objects.requireNonNull(jsonKeyName);
@@ -829,7 +819,7 @@ public enum SearchMetadataMapping {
                           @Nonnull CommodityType commodityType,
                           @Nonnull CommodityAttribute commodityAttribute,
                           @Nonnull Aggregation commodityAggregation,
-                          @Nullable String commodityUnit,
+                          @Nullable CommodityTypeUnits commodityUnit,
                           @Nonnull Type apiDatatype) {
         this.columnName = Objects.requireNonNull(columnName);
         this.jsonKeyName = Objects.requireNonNull(jsonKeyName);
@@ -956,7 +946,7 @@ public enum SearchMetadataMapping {
      * @return CommodityTypeUnits
      */
     @Nullable
-    public String getCommodityUnit() {
+    public CommodityTypeUnits getCommodityUnit() {
         return commodityUnit;
     }
 
@@ -977,7 +967,7 @@ public enum SearchMetadataMapping {
      *          if not set returns null
      */
     public String getUnitsString() {
-        return commodityUnit;
+        return Objects.isNull(commodityUnit) ? null : commodityUnit.getUnits();
     }
 
     public GroupType getRelatedGroupType() {

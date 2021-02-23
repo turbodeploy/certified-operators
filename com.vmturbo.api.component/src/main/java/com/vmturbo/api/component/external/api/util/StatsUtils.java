@@ -19,13 +19,13 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.stats.ImmutableTimeWindow;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext.TimeWindow;
-import com.vmturbo.api.conversion.entity.CommodityTypeMapping;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.commons.Pair;
+import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
 public class StatsUtils {
@@ -55,15 +55,15 @@ public class StatsUtils {
      * to the current value.
      *
      * @param commodityTypeValue the target commodity type value.
-     * @param commodityType the current commodity type.
+     * @param commodityTypeUnits the current commodity units.
      * @return pair of the converted units and multiplier.
      */
     public static Pair<String, Integer> getConvertedUnits(final int commodityTypeValue,
-        @Nonnull final CommodityType commodityType) {
+        @Nonnull final CommodityTypeUnits commodityTypeUnits) {
         if (!UNITS_CONVERTER.containsKey(commodityTypeValue)) {
             logger.warn("No converted units found for commodity type {}, will use the original " +
                 "units", commodityTypeValue);
-            return new Pair<>(CommodityTypeMapping.getUnitForCommodityType(commodityType), 1);
+            return new Pair<>(commodityTypeUnits.getUnits(), 1);
         }
         return UNITS_CONVERTER.get(commodityTypeValue);
     }

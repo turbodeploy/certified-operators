@@ -149,9 +149,5 @@
             <groupId>com.google.protobuf</groupId>
             <artifactId>protobuf-java-util</artifactId>
         </dependency>
-        <dependency>
-            <groupId>com.vmturbo</groupId>
-            <artifactId>com.vmturbo.api.conversion</artifactId>
-        </dependency>
     </dependencies>
 </project>

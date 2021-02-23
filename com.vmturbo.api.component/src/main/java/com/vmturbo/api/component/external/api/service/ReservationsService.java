@@ -1,6 +1,7 @@
 package com.vmturbo.api.component.external.api.service;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -8,8 +9,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -25,7 +24,6 @@ import com.vmturbo.api.component.external.api.mapper.ReservationMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
-import com.vmturbo.api.conversion.entity.CommodityTypeMapping;
 import com.vmturbo.api.dto.reservation.DemandEntityInfoDTO;
 import com.vmturbo.api.dto.reservation.DemandReservationApiDTO;
 import com.vmturbo.api.dto.reservation.DemandReservationApiInputDTO;
@@ -52,7 +50,7 @@ import com.vmturbo.common.protobuf.plan.ReservationDTO.GetReservationByStatusReq
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 
 /**
  * XL implementation of IReservationAndDeployService.
@@ -61,18 +59,16 @@ public class ReservationsService implements IReservationsService {
     private static final Logger logger = LogManager.getLogger();
 
     private static final Set<String> RESERVATION_RELATED_COMMODITIES
-            = Stream.of(
-                CommodityType.CPU_PROVISIONED,
-                CommodityType.MEM_PROVISIONED,
-                CommodityType.CPU,
-                CommodityType.MEM,
-                CommodityType.IO_THROUGHPUT,
-                CommodityType.NET_THROUGHPUT,
-                CommodityType.STORAGE_AMOUNT,
-                CommodityType.STORAGE_ACCESS,
-                CommodityType.STORAGE_PROVISIONED)
-          .map(CommodityTypeMapping::getMixedCaseFromCommodityType)
-          .collect(Collectors.toSet());
+            = new HashSet<>(Arrays.asList(
+            CommodityTypeUnits.CPU_PROVISIONED.getMixedCase(),
+            CommodityTypeUnits.MEM_PROVISIONED.getMixedCase(),
+            CommodityTypeUnits.CPU.getMixedCase(),
+            CommodityTypeUnits.MEM.getMixedCase(),
+            CommodityTypeUnits.IO_THROUGHPUT.getMixedCase(),
+            CommodityTypeUnits.NET_THROUGHPUT.getMixedCase(),
+            CommodityTypeUnits.STORAGE_AMOUNT.getMixedCase(),
+            CommodityTypeUnits.STORAGE_ACCESS.getMixedCase(),
+            CommodityTypeUnits.STORAGE_PROVISIONED.getMixedCase()));
 
     private final int maximumPlacementCount;
 

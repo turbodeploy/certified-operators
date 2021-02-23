@@ -40,7 +40,6 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
-import com.vmturbo.api.conversion.entity.CommodityTypeMapping;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
@@ -84,7 +83,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.Units;
-import com.vmturbo.platform.common.dto.CommonDTO;
+import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
@@ -669,8 +668,7 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
         virtualDiskApiDTO.setAttachedVirtualMachine(ServiceEntityMapper.toBaseServiceEntityApiDTO(vm));
 
         final boolean isCloudVolume = isCloudEntity(volume);
-        final String storageAmountUnit = isCloudVolume ? CLOUD_STORAGE_AMOUNT_UNIT :
-            CommodityTypeMapping.getUnitForCommodityType(CommonDTO.CommodityDTO.CommodityType.STORAGE_AMOUNT);
+        final String storageAmountUnit = isCloudVolume ? CLOUD_STORAGE_AMOUNT_UNIT : CommodityTypeUnits.STORAGE_AMOUNT.getUnits();
 
         List<StatApiDTO> statDTOs = Lists.newArrayList();
         // Add projected stats
@@ -691,16 +689,16 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
             }
         }
 
-        statDTOs.add(createStatApiDTO(CommodityTypeMapping.getMixedCaseFromCommodityType(CommonDTO.CommodityDTO.CommodityType.STORAGE_AMOUNT),
+        statDTOs.add(createStatApiDTO(CommodityTypeUnits.STORAGE_AMOUNT.getMixedCase(),
                 storageAmountUnit, (float)afterActionStorageAmountUsed,
             (float)(getCommodityCapacity(volume, CommodityType.STORAGE_AMOUNT) / Units.KIBI),
                 null, volume.getDisplayName(), null, false));
-        statDTOs.add(createStatApiDTO(CommodityTypeMapping.getMixedCaseFromCommodityType(CommonDTO.CommodityDTO.CommodityType.STORAGE_ACCESS),
-                CommodityTypeMapping.getUnitForCommodityType(CommonDTO.CommodityDTO.CommodityType.STORAGE_ACCESS), (float)afterActionStorageAccessUsed,
+        statDTOs.add(createStatApiDTO(CommodityTypeUnits.STORAGE_ACCESS.getMixedCase(),
+                CommodityTypeUnits.STORAGE_ACCESS.getUnits(), (float)afterActionStorageAccessUsed,
                 getCommodityCapacity(volume, CommodityType.STORAGE_ACCESS),
                 null, volume.getDisplayName(), null, false));
-        statDTOs.add(createStatApiDTO(CommodityTypeMapping.getMixedCaseFromCommodityType(CommonDTO.CommodityDTO.CommodityType.IO_THROUGHPUT),
-                CommodityTypeMapping.getUnitForCommodityType(CommonDTO.CommodityDTO.CommodityType.IO_THROUGHPUT), (float)afterActionIOThroughputUsed,
+        statDTOs.add(createStatApiDTO(CommodityTypeUnits.IO_THROUGHPUT.getMixedCase(),
+                CommodityTypeUnits.IO_THROUGHPUT.getUnits(), (float)afterActionIOThroughputUsed,
                 getCommodityCapacity(volume, CommodityType.IO_THROUGHPUT),
                 null, volume.getDisplayName(), null, false));
 
@@ -711,19 +709,19 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
                     case CommodityType.STORAGE_AMOUNT_VALUE:
                         // Unit of storage amount in source topology is in MB.
                         final float storageAmountUsed = isCloudVolume ? (float)(commodity.getUsed() / Units.KIBI) : (float)commodity.getUsed();
-                        statDTOs.add(createStatApiDTO(CommodityTypeMapping.getMixedCaseFromCommodityType(CommonDTO.CommodityDTO.CommodityType.STORAGE_AMOUNT),
+                        statDTOs.add(createStatApiDTO(CommodityTypeUnits.STORAGE_AMOUNT.getMixedCase(),
                             storageAmountUnit, storageAmountUsed, storageAmountUsed,
                             null, volume.getDisplayName(), null, true));
                         break;
                     case CommodityType.STORAGE_ACCESS_VALUE:
-                        statDTOs.add(createStatApiDTO(CommodityTypeMapping.getMixedCaseFromCommodityType(CommonDTO.CommodityDTO.CommodityType.STORAGE_ACCESS),
-                            CommodityTypeMapping.getUnitForCommodityType(CommonDTO.CommodityDTO.CommodityType.STORAGE_ACCESS), (float)commodity.getUsed(),
+                        statDTOs.add(createStatApiDTO(CommodityTypeUnits.STORAGE_ACCESS.getMixedCase(),
+                            CommodityTypeUnits.STORAGE_ACCESS.getUnits(), (float)commodity.getUsed(),
                             (float)commodity.getUsed(),
                             null, volume.getDisplayName(), null, true));
                         break;
                     case CommodityType.IO_THROUGHPUT_VALUE:
-                        statDTOs.add(createStatApiDTO(CommodityTypeMapping.getMixedCaseFromCommodityType(CommonDTO.CommodityDTO.CommodityType.IO_THROUGHPUT),
-                            CommodityTypeMapping.getUnitForCommodityType(CommonDTO.CommodityDTO.CommodityType.IO_THROUGHPUT), (float)commodity.getUsed(),
+                        statDTOs.add(createStatApiDTO(CommodityTypeUnits.IO_THROUGHPUT.getMixedCase(),
+                            CommodityTypeUnits.IO_THROUGHPUT.getUnits(), (float)commodity.getUsed(),
                             (float)commodity.getUsed(),
                             null, volume.getDisplayName(), null, true));
                         break;
@@ -736,18 +734,18 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
                     case CommodityType.STORAGE_AMOUNT_VALUE:
                         // Unit of storage amount in source topology is in MB.
                         final float storageAmountUsed = (float)(used / Units.KIBI);
-                        statDTOs.add(createStatApiDTO(CommodityTypeMapping.getMixedCaseFromCommodityType(CommonDTO.CommodityDTO.CommodityType.STORAGE_AMOUNT),
+                        statDTOs.add(createStatApiDTO(CommodityTypeUnits.STORAGE_AMOUNT.getMixedCase(),
                             storageAmountUnit, storageAmountUsed, storageAmountUsed,
                             null, volume.getDisplayName(), null, true));
                         break;
                     case CommodityType.STORAGE_ACCESS_VALUE:
-                        statDTOs.add(createStatApiDTO(CommodityTypeMapping.getMixedCaseFromCommodityType(CommonDTO.CommodityDTO.CommodityType.STORAGE_ACCESS),
-                            CommodityTypeMapping.getUnitForCommodityType(CommonDTO.CommodityDTO.CommodityType.STORAGE_ACCESS), used, used,
+                        statDTOs.add(createStatApiDTO(CommodityTypeUnits.STORAGE_ACCESS.getMixedCase(),
+                            CommodityTypeUnits.STORAGE_ACCESS.getUnits(), used, used,
                             null, volume.getDisplayName(), null, true));
                         break;
                     case CommodityType.IO_THROUGHPUT_VALUE:
-                        statDTOs.add(createStatApiDTO(CommodityTypeMapping.getMixedCaseFromCommodityType(CommonDTO.CommodityDTO.CommodityType.IO_THROUGHPUT),
-                            CommodityTypeMapping.getUnitForCommodityType(CommonDTO.CommodityDTO.CommodityType.IO_THROUGHPUT), used, used,
+                        statDTOs.add(createStatApiDTO(CommodityTypeUnits.IO_THROUGHPUT.getMixedCase(),
+                            CommodityTypeUnits.IO_THROUGHPUT.getUnits(), used, used,
                             null, volume.getDisplayName(), null, true));
                         break;
                 }
@@ -1096,8 +1094,8 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
         // storage amount stats
 
         retVal.setStats(Collections.singletonList(createStatApiDTO(
-            CommodityTypeMapping.getMixedCaseFromCommodityType(CommonDTO.CommodityDTO.CommodityType.STORAGE_AMOUNT),
-            CommodityTypeMapping.getUnitForCommodityType(CommonDTO.CommodityDTO.CommodityType.STORAGE_AMOUNT), file.getSizeKb() / 1024F,
+            CommodityTypeUnits.STORAGE_AMOUNT.getMixedCase(),
+            CommodityTypeUnits.STORAGE_AMOUNT.getUnits(), file.getSizeKb() / 1024F,
             file.getSizeKb() / 1024F, ServiceEntityMapper.toBaseServiceEntityApiDTO(storage), file.getPath(),
                 null, false)));
         return retVal;
@@ -1319,22 +1317,22 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
         // Note: Different units are used for ON-PERM and CLOUD.  But for api requires
         //       the same commodity type.
         if (isCloudEntity(volume)) {
-            statDTOs.add(createStatApiDTO(CommodityTypeMapping.getMixedCaseFromCommodityType(CommonDTO.CommodityDTO.CommodityType.STORAGE_AMOUNT),
+            statDTOs.add(createStatApiDTO(CommodityTypeUnits.STORAGE_AMOUNT.getMixedCase(),
                     CLOUD_STORAGE_AMOUNT_UNIT, convertStorageAmountToCloudStorageAmount(storageAmountUsed),
                     convertStorageAmountToCloudStorageAmount(storageAmountCapacity), storageTier, volume.getDisplayName(), null, isBeforePlan));
         } else {
-            statDTOs.add(createStatApiDTO(CommodityTypeMapping.getMixedCaseFromCommodityType(CommonDTO.CommodityDTO.CommodityType.STORAGE_AMOUNT),
-                    CommodityTypeMapping.getUnitForCommodityType(CommonDTO.CommodityDTO.CommodityType.STORAGE_AMOUNT), storageAmountUsed,
+            statDTOs.add(createStatApiDTO(CommodityTypeUnits.STORAGE_AMOUNT.getMixedCase(),
+                    CommodityTypeUnits.STORAGE_AMOUNT.getUnits(), storageAmountUsed,
                     storageAmountCapacity, storageTier, volume.getDisplayName(), null, isBeforePlan));
         }
         // storage access stats
-        statDTOs.add(createStatApiDTO(CommodityTypeMapping.getMixedCaseFromCommodityType(CommonDTO.CommodityDTO.CommodityType.STORAGE_ACCESS),
-                CommodityTypeMapping.getUnitForCommodityType(CommonDTO.CommodityDTO.CommodityType.STORAGE_ACCESS), storageAccessUsed,
+        statDTOs.add(createStatApiDTO(CommodityTypeUnits.STORAGE_ACCESS.getMixedCase(),
+                CommodityTypeUnits.STORAGE_ACCESS.getUnits(), storageAccessUsed,
                 storageAccessCapacity, storageTier, volume.getDisplayName(), null, isBeforePlan));
 
         // storage throughput stats
-        statDTOs.add(createStatApiDTO(CommodityTypeMapping.getMixedCaseFromCommodityType(CommonDTO.CommodityDTO.CommodityType.IO_THROUGHPUT),
-                CommodityTypeMapping.getUnitForCommodityType(CommonDTO.CommodityDTO.CommodityType.IO_THROUGHPUT), ioThroughputUsed,
+        statDTOs.add(createStatApiDTO(CommodityTypeUnits.IO_THROUGHPUT.getMixedCase(),
+                CommodityTypeUnits.IO_THROUGHPUT.getUnits(), ioThroughputUsed,
                 ioThroughputCapacity, storageTier, volume.getDisplayName(), null, isBeforePlan));
     }
 
@@ -1351,14 +1349,11 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
     /**
      * Helper method to convert Storage Amount to the preferred unit value for Cloud.
      *
-     * @param storageAmount Original storage Amount in the unit of {@link CommonDTO.CommodityDTO.CommodityType}
-     *                      .STORAGE_AMOUNT
+     * @param storageAmount Original storage Amount in the unit of {@link CommodityTypeUnits}.STORAGE_AMOUNT
      * @return the converted amount in unit of Cloud Storage
      */
     private static float convertStorageAmountToCloudStorageAmount(float storageAmount) {
-        final String storageAmountCommodityType =
-            CommodityTypeMapping.getUnitForCommodityType(CommonDTO.CommodityDTO.CommodityType.STORAGE_AMOUNT);
-        switch (storageAmountCommodityType) {
+        switch (CommodityTypeUnits.STORAGE_AMOUNT.getUnits()) {
             case "MB":
                 return storageAmount * (Units.MBYTE / CLOUD_STORAGE_AMOUNT_UNIT_IN_BYTE);
             case "KB":
@@ -1368,7 +1363,7 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
             case "TB":
                 return storageAmount * (Units.TBYTE / CLOUD_STORAGE_AMOUNT_UNIT_IN_BYTE);
             default:
-                logger.error("Undefined Storage Amount Units {}.", storageAmountCommodityType);
+                logger.error("Undefined Storage Amount Units {}.", CommodityTypeUnits.STORAGE_AMOUNT.getUnits());
                 return storageAmount;
         }
     }

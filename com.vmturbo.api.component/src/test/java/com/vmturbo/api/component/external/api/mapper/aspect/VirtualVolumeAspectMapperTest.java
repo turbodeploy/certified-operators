@@ -41,7 +41,6 @@ import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
-import com.vmturbo.api.conversion.entity.CommodityTypeMapping;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.entityaspect.VirtualDiskApiDTO;
@@ -76,6 +75,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.StorageInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
@@ -766,8 +766,7 @@ public class VirtualVolumeAspectMapperTest {
         assertEquals(storageAmountCapacityInMB / 1024F, statApiDTOStorageAmount.get().getCapacity().getAvg().longValue(), 0.00001);
         assertEquals(VirtualVolumeAspectMapper.CLOUD_STORAGE_AMOUNT_UNIT, statApiDTOStorageAmount.get().getUnits());
         java.util.Optional<StatApiDTO> statApiDTOIoThroughput = stats.stream()
-                .filter(stat -> CommodityTypeMapping.getMixedCaseFromCommodityType(CommodityDTO.CommodityType.IO_THROUGHPUT)
-                    .equals(stat.getName()))
+                .filter(stat -> CommodityTypeUnits.IO_THROUGHPUT.getMixedCase().equals(stat.getName()))
                 .findFirst();
         assertTrue(statApiDTOIoThroughput.isPresent());
         assertEquals(azureVolumeIoThroughput,
@@ -848,8 +847,7 @@ public class VirtualVolumeAspectMapperTest {
         assertEquals(statApiDTOStorageAccess.get().getCapacity().getAvg().longValue(), storageAccessCapacity);
         java.util.Optional<StatApiDTO> statApiDTOStorageAmount = stats.stream().filter(stat -> stat.getName() == "StorageAmount").findFirst();
         assertEquals(storageAmountCapacityInMB, statApiDTOStorageAmount.get().getCapacity().getAvg().longValue());
-        assertEquals(CommodityTypeMapping.getUnitForCommodityType(CommodityDTO.CommodityType.STORAGE_AMOUNT),
-            statApiDTOStorageAmount.get().getUnits());
+        assertEquals(CommodityTypeUnits.STORAGE_AMOUNT.getUnits(), statApiDTOStorageAmount.get().getUnits());
 
         assertEquals(snapshotId, volumeAspect.getSnapshotId());
         assertEquals(AttachmentState.ATTACHED.name(), volumeAspect.getAttachmentState());
@@ -904,7 +902,7 @@ public class VirtualVolumeAspectMapperTest {
             stat -> stat.getName().equals("StorageAmount")).findFirst();
         assertTrue(statApiDTOStorageAmount.isPresent());
         assertEquals(onPremStorageAmountUsed, statApiDTOStorageAmount.get().getValues().getAvg().doubleValue(), DELTA);
-        assertEquals(CommodityTypeMapping.getUnitForCommodityType(CommodityDTO.CommodityType.STORAGE_AMOUNT), statApiDTOStorageAmount.get().getUnits());
+        assertEquals(CommodityTypeUnits.STORAGE_AMOUNT.getUnits(), statApiDTOStorageAmount.get().getUnits());
 
     }
 
@@ -1066,15 +1064,15 @@ public class VirtualVolumeAspectMapperTest {
         // check stats for different volumes
         assertEquals(3, volumeAspect1.getStats().size());
         volumeAspect1.getStats().forEach(statApiDTO -> {
-            if (statApiDTO.getName().equals(CommodityTypeMapping.getMixedCaseFromCommodityType(CommodityDTO.CommodityType.STORAGE_ACCESS))) {
+            if (statApiDTO.getName().equals(CommodityTypeUnits.STORAGE_ACCESS.getMixedCase())) {
                 assertEquals(55, statApiDTO.getValue(), 0);
                 assertEquals(100, statApiDTO.getCapacity().getTotal(), 0);
                 assertEquals(String.valueOf(storageTierId1), statApiDTO.getRelatedEntity().getUuid());
-            } else if (statApiDTO.getName().equals(CommodityTypeMapping.getMixedCaseFromCommodityType(CommodityDTO.CommodityType.STORAGE_AMOUNT))) {
+            } else if (statApiDTO.getName().equals(CommodityTypeUnits.STORAGE_AMOUNT.getMixedCase())) {
                 assertEquals(105, statApiDTO.getValue(), 0);
                 assertEquals(1000, statApiDTO.getCapacity().getTotal(), 0);
                 assertEquals(String.valueOf(storageTierId1), statApiDTO.getRelatedEntity().getUuid());
-            } else if (statApiDTO.getName().equals(CommodityTypeMapping.getMixedCaseFromCommodityType(CommodityDTO.CommodityType.IO_THROUGHPUT))) {
+            } else if (statApiDTO.getName().equals(CommodityTypeUnits.IO_THROUGHPUT.getMixedCase())) {
                 assertEquals(0, statApiDTO.getCapacity().getTotal(), 0);
                 assertEquals(String.valueOf(storageTierId1), statApiDTO.getRelatedEntity().getUuid());
             }
@@ -1082,15 +1080,15 @@ public class VirtualVolumeAspectMapperTest {
 
         assertEquals(3, volumeAspect2.getStats().size());
         volumeAspect2.getStats().forEach(statApiDTO -> {
-            if (statApiDTO.getName().equals(CommodityTypeMapping.getMixedCaseFromCommodityType(CommodityDTO.CommodityType.STORAGE_ACCESS))) {
+            if (statApiDTO.getName().equals(CommodityTypeUnits.STORAGE_ACCESS.getMixedCase())) {
                 assertEquals(0, statApiDTO.getValue(), 0);
                 assertEquals(200, statApiDTO.getCapacity().getTotal(), 0);
                 assertEquals(String.valueOf(storageTierId1), statApiDTO.getRelatedEntity().getUuid());
-            } else if (statApiDTO.getName().equals(CommodityTypeMapping.getMixedCaseFromCommodityType(CommodityDTO.CommodityType.STORAGE_AMOUNT))) {
+            } else if (statApiDTO.getName().equals(CommodityTypeUnits.STORAGE_AMOUNT.getMixedCase())) {
                 assertEquals(0, statApiDTO.getValue(), 0);
                 assertEquals(2000, statApiDTO.getCapacity().getTotal(), 0);
                 assertEquals(String.valueOf(storageTierId1), statApiDTO.getRelatedEntity().getUuid());
-            } else if (statApiDTO.getName().equals(CommodityTypeMapping.getMixedCaseFromCommodityType(CommodityDTO.CommodityType.IO_THROUGHPUT))) {
+            } else if (statApiDTO.getName().equals(CommodityTypeUnits.IO_THROUGHPUT.getMixedCase())) {
                 assertEquals(0, statApiDTO.getValue(), 0);
                 assertEquals(0, statApiDTO.getCapacity().getTotal(), 0);
                 assertEquals(String.valueOf(storageTierId1), statApiDTO.getRelatedEntity().getUuid());
@@ -1099,15 +1097,15 @@ public class VirtualVolumeAspectMapperTest {
 
         assertEquals(3, volumeAspect3.getStats().size());
         volumeAspect3.getStats().forEach(statApiDTO -> {
-            if (statApiDTO.getName().equals(CommodityTypeMapping.getMixedCaseFromCommodityType(CommodityDTO.CommodityType.STORAGE_ACCESS))) {
+            if (statApiDTO.getName().equals(CommodityTypeUnits.STORAGE_ACCESS.getMixedCase())) {
                 assertEquals(150, statApiDTO.getValue(), 0);
                 assertEquals(300, statApiDTO.getCapacity().getTotal(), 0);
                 assertEquals(String.valueOf(azureStorageTierId), statApiDTO.getRelatedEntity().getUuid());
-            } else if (statApiDTO.getName().equals(CommodityTypeMapping.getMixedCaseFromCommodityType(CommodityDTO.CommodityType.STORAGE_AMOUNT))) {
+            } else if (statApiDTO.getName().equals(CommodityTypeUnits.STORAGE_AMOUNT.getMixedCase())) {
                 assertEquals(500, statApiDTO.getValue(), 0);
                 assertEquals(3000, statApiDTO.getCapacity().getTotal(), 0);
                 assertEquals(String.valueOf(azureStorageTierId), statApiDTO.getRelatedEntity().getUuid());
-            } else if (statApiDTO.getName().equals(CommodityTypeMapping.getMixedCaseFromCommodityType(CommodityDTO.CommodityType.IO_THROUGHPUT))) {
+            } else if (statApiDTO.getName().equals(CommodityTypeUnits.IO_THROUGHPUT.getMixedCase())) {
                 assertEquals(0, statApiDTO.getValue(), 0);
                 assertEquals(azureVolumeIoThroughput, statApiDTO.getCapacity().getTotal(), 0);
                 assertEquals(String.valueOf(azureStorageTierId), statApiDTO.getRelatedEntity().getUuid());

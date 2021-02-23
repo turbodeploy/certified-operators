@@ -23,8 +23,8 @@ import org.jooq.Condition;
 import org.jooq.Field;
 import org.jooq.Table;
 
-import com.vmturbo.api.conversion.entity.CommodityTypeMapping;
 import com.vmturbo.commons.TimeFrame;
+import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.history.schema.abstraction.Tables;
 import com.vmturbo.history.stats.live.ConfiguredPropertyType;
 import com.vmturbo.history.stats.live.PropertyType;
@@ -169,7 +169,7 @@ public class HistoryStatsUtils {
 
     /**
      * Convert an int commodityType value, as defined in {@link CommodityType} - in the SDK -
-     * into a mixed-case name - with
+     * into a mixed-case name using {@link CommodityTypeUnits} - with
      * an optional prefix.
      *
      * <p>For example, the int value for SWAPPING is 33;  and is mapped to "Swapping".
@@ -201,7 +201,7 @@ public class HistoryStatsUtils {
         final String upcaseCommodityName = commodityType.name();
         String mixedCaseName;
         try {
-            mixedCaseName = CommodityTypeMapping.getMixedCaseFromCommodityType(commodityType);
+            mixedCaseName = CommodityTypeUnits.valueOf(upcaseCommodityName).getMixedCase();
         } catch (IllegalArgumentException e) {
             // if this happens there are commodities for which the Enum value is missing
             mixedCaseName = upcaseCommodityName;

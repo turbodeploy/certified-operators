@@ -56,7 +56,6 @@ import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQu
 import com.vmturbo.api.component.external.api.util.setting.EntitySettingQueryExecutor;
 import com.vmturbo.api.component.external.api.util.stats.PlanEntityStatsFetcher;
 import com.vmturbo.api.component.external.api.websocket.UINotificationChannel;
-import com.vmturbo.api.conversion.entity.CommodityTypeMapping;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
@@ -172,8 +171,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason.FailedResources;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
+import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.plan.orchestrator.api.PlanUtils;
-import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.ProbeLicense;
@@ -1478,16 +1477,15 @@ public class MarketsService implements IMarketsService {
         BaseCommodityApiDTO commodity = new BaseCommodityApiDTO();
         resourceApiDTO.setCommodity(commodity);
 
-        CommonDTO.CommodityDTO.CommodityType sdkType =
-            UICommodityType.fromType(failedResource.getCommType()).sdkType();
+        String typeName = UICommodityType.fromType(failedResource.getCommType()).sdkType().name();
 
-        commodity.setType(com.vmturbo.api.enums.CommodityType.valueOf(sdkType.name()));
+        commodity.setType(com.vmturbo.api.enums.CommodityType.valueOf(typeName));
 
         String units = null;
         try {
-            units = CommodityTypeMapping.getUnitForCommodityType(sdkType);
+            units = CommodityTypeUnits.valueOf(typeName).getUnits();
         } catch (IllegalArgumentException ex) {
-            logger.warn("Unable to find units for commodity type {}", sdkType.name());
+            logger.warn("Unable to find units for commodity type {}", typeName);
         }
         if (StringUtils.isNotBlank(units)) {
             commodity.setUnits(units);

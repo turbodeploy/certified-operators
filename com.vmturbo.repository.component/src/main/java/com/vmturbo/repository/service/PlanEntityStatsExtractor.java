@@ -22,7 +22,6 @@ import com.google.common.collect.Multimap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.api.conversion.entity.CommodityTypeMapping;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.StatEpoch;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
@@ -37,6 +36,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
+import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.components.common.stats.StatsAccumulator;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.repository.service.AbridgedSoldCommoditiesForProvider.AbridgedSoldCommodity;
@@ -134,6 +134,7 @@ interface PlanEntityStatsExtractor {
                 commoditiesBoughtToAggregate.asMap().values().forEach(commodityBoughtDTOS -> {
                     // The commodity type for all commodities being aggregated must be the same
                     CommodityType commodityType = commodityBoughtDTOS.iterator().next().getCommodityType();
+                    final String commodityName = getCommodityName(commodityType);
                     // Set the key only if there are not multiple commodities being aggregated
                     final String key = commodityBoughtDTOS.size() == 1 ? commodityType.getKey() : "";
                     final Optional<Double> capacity = extractCapacityFromSoldCommodities(
@@ -149,7 +150,7 @@ interface PlanEntityStatsExtractor {
                     final HistUtilizationValue percentileValue =
                         createPercentileUtilization(commodityBoughtDTOS, capacityValues);
                     final StatRecord statRecord =
-                        buildStatRecord(commodityType, key, usedValues, capacityValues,
+                        buildStatRecord(commodityName, key, usedValues, capacityValues,
                             providerOidString, StringConstants.RELATION_BOUGHT, percentileValue);
                     snapshot.addStatRecords(statRecord);
                 });
@@ -171,6 +172,7 @@ interface PlanEntityStatsExtractor {
             commoditiesSoldToAggregate.asMap().values().forEach(commoditySoldDTOS -> {
                 // The commodity type for all commodities being aggregated must be the same
                 CommodityType commodityType = commoditySoldDTOS.iterator().next().getCommodityType();
+                final String commodityName = getCommodityName(commodityType);
                 // Set the key only if there are not multiple commodities being aggregated
                 final String key = commoditySoldDTOS.size() == 1 ? commodityType.getKey() : "";
                 StatsAccumulator accumulator = new StatsAccumulator();
@@ -190,7 +192,7 @@ interface PlanEntityStatsExtractor {
                     createPercentileUtilization(commoditySoldDTOS, capacityValue);
 
                 final StatRecord statRecord =
-                    buildStatRecord(commodityType, key, usedValues, capacityValue, entityOidString,
+                    buildStatRecord(commodityName, key, usedValues, capacityValue, entityOidString,
                         StringConstants.RELATION_SOLD, percentileValue);
                 snapshot.addStatRecords(statRecord);
             });
@@ -307,7 +309,7 @@ interface PlanEntityStatsExtractor {
         /**
          * Create a new StatRecord with values populated.
          *
-         * @param commodityType the name of the commodity
+         * @param commodityName the name of the commodity
          * @param key the key associate with the commodity, or empty if no key
          * @param used used (or current) value recorded for one sample
          * @param capacity the total capacity for the commodity
@@ -317,7 +319,7 @@ interface PlanEntityStatsExtractor {
          * @param histUtilizationValue historical utilization value
          * @return a new StatRecord initialized from the given values
          */
-        private StatRecord buildStatRecord(@Nonnull final CommodityType commodityType,
+        private StatRecord buildStatRecord(@Nonnull final String commodityName,
                                            @Nonnull final String key,
                                            @Nonnull final StatValue used,
                                            @Nonnull final StatValue capacity,
@@ -325,7 +327,7 @@ interface PlanEntityStatsExtractor {
                                            @Nonnull final String relation,
                                            @Nullable final HistUtilizationValue histUtilizationValue) {
             StatRecord.Builder statRecordBuilder = StatRecord.newBuilder()
-                .setName(CommodityTypeMapping.getApiCommodityType(commodityType.getType()))
+                .setName(commodityName)
                 .setCurrentValue(used.getAvg())
                 .setUsed(used)
                 .setPeak(used)
@@ -336,9 +338,9 @@ interface PlanEntityStatsExtractor {
             if (histUtilizationValue != null) {
                 statRecordBuilder.addHistUtilizationValue(histUtilizationValue);
             }
-            final String typeUnits = CommodityTypeMapping.getUnitForCommodityType(commodityType.getType());
+            final CommodityTypeUnits typeUnits = CommodityTypeUnits.fromString(commodityName);
             if (typeUnits != null) {
-                statRecordBuilder.setUnits(typeUnits);
+                statRecordBuilder.setUnits(typeUnits.getUnits());
             }
             return statRecordBuilder.build();
         }

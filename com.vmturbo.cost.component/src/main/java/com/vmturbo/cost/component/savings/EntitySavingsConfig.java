@@ -99,7 +99,6 @@ public class EntitySavingsConfig {
      */
     @Bean
     public EntityStateCache entityStateCache() {
-        // TODO switch to SqlEntityStateStore
         return new InMemoryEntityStateCache();
     }
 

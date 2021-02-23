@@ -41,7 +41,6 @@ import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.Mockito;
 
-import com.vmturbo.api.conversion.entity.CommodityTypeMapping;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.HistUtilizationValue;
@@ -49,6 +48,7 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.schema.abstraction.tables.records.BuStatsLatestRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.HistUtilizationRecord;
@@ -59,7 +59,6 @@ import com.vmturbo.history.stats.snapshots.ProducerIdVisitor.ProducerIdPopulator
 import com.vmturbo.history.stats.snapshots.PropertyTypeVisitor;
 import com.vmturbo.history.stats.snapshots.SnapshotCreator;
 import com.vmturbo.history.stats.snapshots.StatSnapshotCreator;
-import com.vmturbo.platform.common.dto.CommonDTO;
 
 public class StatSnapshotCreatorTest {
 
@@ -506,7 +505,7 @@ public class StatSnapshotCreatorTest {
                         CoreMatchers.is(PROVIDER_DISPLAY_NAME));
         Assert.assertThat(statRecord.getStatKey(), CoreMatchers.is(COMMODITY_KEY));
         Assert.assertThat(statRecord.getUnits(),
-                        CoreMatchers.is(CommodityTypeMapping.getUnitForCommodityType(CommonDTO.CommodityDTO.CommodityType.IMAGE_CPU)));
+                        CoreMatchers.is(CommodityTypeUnits.IMAGE_CPU.getUnits()));
 
         final HistUtilizationValue percentileValue =
                         statRecord.getHistUtilizationValueList().stream()
