@@ -52,7 +52,7 @@ public class EntitySavingsTracker {
         this.entitySavingsStore = Objects.requireNonNull(entitySavingsStore);
         this.entityEventsJournal = Objects.requireNonNull(entityEventsJournal);
         this.entityStateCache = Objects.requireNonNull(entityStateCache);
-        this.savingsCalculator = new SavingsCalculator(entityStateCache);
+        this.savingsCalculator = new SavingsCalculator();
     }
 
     /**
@@ -107,8 +107,19 @@ public class EntitySavingsTracker {
             } else {
                 logger.debug("Entity Savings Tracker retrieved {} events from events journal.", events.size());
             }
+
+            // TODO Get all entity IDs from the events
+            //Set<Long> entityIds = events.stream().map(SavingsEvent::getEntityId).collect(Collectors.toSet());
+
+            // TODO Get states for these entities from the state map (if they exist).
+            //Map<Long, EntityState> entityStates = entityStateStore.getEntityStates(entityIds);
+
             // Invoke calculator
-            savingsCalculator.calculate(events, startTime, endTime);
+            savingsCalculator.calculate(entityStateCache, events, startTime, endTime);
+            // TODO call new calculator API
+            //savingsCalculator.calculate(entityStates, events, startTime, endTime);
+            // TODO Update entity states. Also insert new states to track new entities.
+            //entityStateStore.updateEntityStates(entityStates);
 
             try {
                 // create stats records from state map for this period.
@@ -122,6 +133,8 @@ public class EntitySavingsTracker {
             // We delete inactive entity state after the stats for the entity have been flushed
             // a final time.
             entityStateCache.removeInactiveState();
+            // TODO remove entities states that has pendingDelete flag = true.
+            // entityStateStore.removeInactiveStates(entityStates);
 
             // Save the period end time so we won't need to get it from DB next time the tracker runs.
             lastPeriodEndTime = periodEndTime;
