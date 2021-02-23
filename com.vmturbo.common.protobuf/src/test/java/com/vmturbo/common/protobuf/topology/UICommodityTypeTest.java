@@ -1,7 +1,12 @@
 package com.vmturbo.common.protobuf.topology;
 
+import static com.vmturbo.api.conversion.entity.CommodityTypeMapping.COMMODITY_TYPE_TO_API_STRING;
+import static org.junit.Assert.fail;
+
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
+import java.util.Set;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -10,7 +15,7 @@ import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameter;
 import org.junit.runners.Parameterized.Parameters;
 
-import com.vmturbo.common.protobuf.StringUtil;
+import com.vmturbo.platform.common.dto.CommonDTO;
 
 /**
  *
@@ -43,6 +48,25 @@ public class UICommodityTypeTest {
         @Test
         public void validateDisplayName() {
             Assert.assertEquals(expectedDisplayName, commodity.displayName());
+        }
+    }
+
+    /**
+     * This test checks if commodity type in {@link UICommodityType} is the same as commodity types in
+     * {@link CommodityTypeMapping}.
+     */
+    @Test
+    public void testConversionProjectCommodityTypes() {
+        Set<CommonDTO.CommodityDTO.CommodityType> commodityTypes = new HashSet<>();
+        for (UICommodityType uiCommodityType : UICommodityType.values()) {
+            commodityTypes.add(uiCommodityType.sdkType());
+        }
+
+        commodityTypes.removeAll(COMMODITY_TYPE_TO_API_STRING.keySet());
+
+        if (!commodityTypes.isEmpty()) {
+            fail("The commodity types " + commodityTypes + " should be added to "
+              + "com.vmturbo.api.conversion.entity.CommodityTypeMapping.COMMODITY_TYPE_TO_API_STRING");
         }
     }
 }

@@ -7,6 +7,7 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionExecutionCharacteristicApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.policy.PolicyApiDTO;
@@ -186,10 +187,26 @@ public interface ActionInformationProvider {
     Optional<String> getNewValue();
 
     /**
+     * The unit for new and old value.
+     *
+     * @return the unit for new and old value.
+     */
+    @Nonnull
+    Optional<String> getValueUnit();
+
+    /**
      * Returns the execution characteristics of action execution.
      *
      * @return the execution characteristics of action execution.
      */
     @Nonnull
     Optional<ActionExecutionCharacteristicApiDTO> getActionExecutionCharacteristics();
+
+    /**
+     * Returns the individual actions of a compound action.
+     *
+     * @return the individual actions of a compound action.
+     */
+    @Nonnull
+    List<ActionApiDTO> getCompoundActions();
 }

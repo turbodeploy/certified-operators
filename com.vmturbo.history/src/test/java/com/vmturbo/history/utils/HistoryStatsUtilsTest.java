@@ -8,7 +8,7 @@ import java.util.Optional;
 
 import org.junit.Test;
 
-import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
+import com.vmturbo.api.conversion.entity.CommodityTypeMapping;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
 /**
@@ -19,7 +19,8 @@ public class HistoryStatsUtilsTest {
     public void formatCommodityNameTest() {
         // Arrange
         int sdkType = CommodityType.CPU_ALLOCATION.getNumber();
-        String mixedCaseDBType = CommodityTypeUnits.CPU_ALLOCATION.getMixedCase();
+        String mixedCaseDBType =
+            CommodityTypeMapping.getMixedCaseFromCommodityType(CommodityType.CPU_ALLOCATION);
 
         // Act
         String formattedName = HistoryStatsUtils.formatCommodityName(sdkType);
@@ -32,7 +33,7 @@ public class HistoryStatsUtilsTest {
     public void formatCommodityNamePrefixTest() {
         // Arrange
         int sdkType = CommodityType.CPU_ALLOCATION.getNumber();
-        String mixedCaseDBType = CommodityTypeUnits.CPU_ALLOCATION.getMixedCase();
+        String mixedCaseDBType = CommodityTypeMapping.getMixedCaseFromCommodityType(CommodityType.CPU_ALLOCATION);
         final String prefixString = "prefix";
 
         // Act
@@ -47,7 +48,7 @@ public class HistoryStatsUtilsTest {
     public void formatCommodityNameEmptyPrefixTest() {
         // Arrange
         int sdkType = CommodityType.CPU_ALLOCATION.getNumber();
-        String mixedCaseDBType = CommodityTypeUnits.CPU_ALLOCATION.getMixedCase();
+        String mixedCaseDBType = CommodityTypeMapping.getMixedCaseFromCommodityType(CommodityType.CPU_ALLOCATION);
 
         // Act
         String formattedName = HistoryStatsUtils.formatCommodityName(sdkType);
@@ -60,7 +61,7 @@ public class HistoryStatsUtilsTest {
     public void formatUnmappedSDKCommodity() {
         // Arrange
         int sdkType = CommodityType.SLA_COMMODITY.getNumber();
-        String mixedCaseDBType = CommodityTypeUnits.SLA_COMMODITY.getMixedCase();
+        String mixedCaseDBType = CommodityTypeMapping.getMixedCaseFromCommodityType(CommodityType.SLA_COMMODITY);
 
         // Act
         String formattedName = HistoryStatsUtils.formatCommodityName(sdkType);

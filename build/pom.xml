@@ -2014,6 +2014,11 @@
             </dependency>
             <dependency>
                 <groupId>com.vmturbo</groupId>
+                <artifactId>com.vmturbo.api.conversion</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
                 <artifactId>com.vmturbo.identity</artifactId>
                 <version>${project.version}</version>
             </dependency>

@@ -15,7 +15,10 @@ public class EntityTypeMapping {
     private EntityTypeMapping() {
     }
 
-    private static final Map<EntityDTO.EntityType, EntityType> ENTITY_TYPE_TO_API_STRING =
+    /**
+     * The map from SDK type to API Entity type.
+     */
+    public static final Map<EntityDTO.EntityType, EntityType> ENTITY_TYPE_TO_API_STRING =
         ImmutableMap.<EntityDTO.EntityType, EntityType>builder()
             .put(EntityDTO.EntityType.APPLICATION_COMPONENT, EntityType.ApplicationComponent)
             .put(EntityDTO.EntityType.SERVICE, EntityType.Service)
