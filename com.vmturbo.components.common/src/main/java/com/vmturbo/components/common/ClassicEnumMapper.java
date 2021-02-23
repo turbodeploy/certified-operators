@@ -359,23 +359,31 @@ public class ClassicEnumMapper {
     // Millicore unit for container CPU commodity types.
     private static final String MILLICORE_UNIT = "millicore";
 
+    // Unit type for vCPU on VMs.
+    private static final String VCPU_UNIT = "vCPU";
+
     /**
-     * Get units for the given commodity type.
+     * Get units for the given commodity type for an action description.
      *
      * @param commodityTypeInt proto integer type of commodity
      * @param atomicResizeTargetEntityTypeInt type of the target entity in atomic resize action
      * @return optional of units, or empty if no units
      */
-    public static Optional<String> getCommodityUnits(int commodityTypeInt,
+    public static Optional<String> getCommodityUnitsForAction(int commodityTypeInt,
                 @Nullable Integer atomicResizeTargetEntityTypeInt) {
         final CommodityType commodityType = CommodityType.forNumber(commodityTypeInt);
         try {
             String units = CommodityTypeUnits.valueOf(commodityType.name()).getUnits();
-            // If resize info is container CPU commodity, set unit as "millicore".
-            if (atomicResizeTargetEntityTypeInt != null
-                    && atomicResizeTargetEntityTypeInt == EntityType.CONTAINER_SPEC_VALUE
-                    && CPU_COMMODITY_TYPES.contains(commodityTypeInt)) {
-                units = MILLICORE_UNIT;
+            // Action translation converts vCPU resizes from "Mhz", which is how we represent
+            // vCPU stats, to vCPUs/millicores. We need to account for that here.
+            if (CPU_COMMODITY_TYPES.contains(commodityTypeInt)) {
+                // If resize info is container CPU commodity, set unit as "millicore".
+                if (atomicResizeTargetEntityTypeInt != null
+                        && atomicResizeTargetEntityTypeInt == EntityType.CONTAINER_SPEC_VALUE) {
+                    units = MILLICORE_UNIT;
+                } else {
+                    units = VCPU_UNIT;
+                }
             }
             return StringUtils.isEmpty(units) ? Optional.empty() : Optional.of(units);
         } catch (IllegalArgumentException e) {
