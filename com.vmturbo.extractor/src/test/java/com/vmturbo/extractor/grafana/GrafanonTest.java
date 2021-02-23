@@ -9,6 +9,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 
 import java.sql.Timestamp;
+import java.text.DateFormat;
 import java.util.Optional;
 
 import org.jooq.DSLContext;
@@ -63,7 +64,7 @@ public class GrafanonTest {
     @Test
     public void testGetMigrationV14TimeStamp() throws Exception {
         //GIVEN
-        long time = 222L;
+        long time = 99999000L;
         Timestamp timestamp = new Timestamp(time);
 
         Field field = DSL.field("installed_on");
@@ -75,7 +76,7 @@ public class GrafanonTest {
         String migrationTimestamp = grafanon.getMigrationV14TimeStamp();
 
         //THEN
-        assertEquals("Dec 31, 1969 7:00:00 PM", migrationTimestamp);
+        assertEquals(DateFormat.getDateTimeInstance().parse(migrationTimestamp).getTime(), time);
     }
 
     /**
