@@ -22,11 +22,11 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.api.conversion.entity.CommodityTypeMapping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.utils.GuestLoadFilters;
-import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.history.api.HistoryApiConfig;
 import com.vmturbo.history.db.HistoryDbConfig;
@@ -418,24 +418,24 @@ public class IngestersConfig {
      */
     private static String defaultExcludedCommodities() {
         // TODO this should probably be based on UICommodity rather than CommodityTypeUnits
-        final CommodityTypeUnits[] commodities = new CommodityTypeUnits[]{
-                CommodityTypeUnits.APPLICATION,
-                CommodityTypeUnits.CLUSTER,
-                CommodityTypeUnits.DATACENTER,
-                CommodityTypeUnits.DATASTORE,
-                CommodityTypeUnits.DRS_SEGMENTATION,
-                CommodityTypeUnits.DSPM_ACCESS,
-                CommodityTypeUnits.NETWORK,
-                CommodityTypeUnits.SEGMENTATION,
-                CommodityTypeUnits.STORAGE_CLUSTER,
-                CommodityTypeUnits.VAPP_ACCESS,
-                CommodityTypeUnits.VDC,
-                CommodityTypeUnits.VMPM_ACCESS,
-                CommodityTypeUnits.CONCURRENT_WORKER,
-                CommodityTypeUnits.CONCURRENT_SESSION
+        final CommodityType[] commodities = new CommodityType[]{
+            CommodityType.APPLICATION,
+            CommodityType.CLUSTER,
+            CommodityType.DATACENTER,
+            CommodityType.DATASTORE,
+            CommodityType.DRS_SEGMENTATION,
+            CommodityType.DSPM_ACCESS,
+            CommodityType.NETWORK,
+            CommodityType.SEGMENTATION,
+            CommodityType.STORAGE_CLUSTER,
+            CommodityType.VAPP_ACCESS,
+            CommodityType.VDC,
+            CommodityType.VMPM_ACCESS,
+            CommodityType.CONCURRENT_WORKER,
+            CommodityType.CONCURRENT_SESSION
         };
         return Arrays.stream(commodities)
-                .map(CommodityTypeUnits::getMixedCase)
+                .map(CommodityTypeMapping::getMixedCaseFromCommodityType)
                 .collect(Collectors.joining(" "));
     }
 
@@ -464,9 +464,7 @@ public class IngestersConfig {
     public ImmutableSet<CommodityType> excludedCommodities() {
         ImmutableSet.Builder<CommodityType> builder = ImmutableSet.builder();
         Arrays.stream(excludedCommodities.orElse(defaultExcludedCommodities()).split("\\s+"))
-                .map(CommodityTypeUnits::fromString)
-                .map(CommodityTypeUnits::name)
-                .map(CommodityType::valueOf)
+                .map(CommodityTypeMapping::getCommodityTypeFromMixedCase)
                 .forEach(builder::add);
         return builder.build();
     }

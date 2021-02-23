@@ -12,6 +12,7 @@ import javax.annotation.Nullable;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 
+import com.vmturbo.api.conversion.entity.CommodityTypeMapping;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
@@ -23,7 +24,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.commons.Units;
-import com.vmturbo.components.common.ClassicEnumMapper;
 import com.vmturbo.extractor.action.percentile.ActionPercentileData;
 import com.vmturbo.extractor.action.percentile.ActionPercentileDataRetriever;
 import com.vmturbo.extractor.export.ExportUtils;
@@ -190,7 +190,7 @@ public class ActionAttributeExtractor {
         }
         commodityChange.setPercentileChange(
                 actionPercentileData.getChange(resize.getTarget().getId(), resize.getCommodityType()));
-        ClassicEnumMapper.getCommodityUnits(commodityTypeInt, null)
+        CommodityTypeMapping.getCommodityUnits(commodityTypeInt, null)
                 .ifPresent(commodityChange::setUnit);
         return Collections.singletonMap(ExportUtils.getCommodityTypeJsonKey(commodityTypeInt),
                 commodityChange);
@@ -217,7 +217,7 @@ public class ActionAttributeExtractor {
                 commodityChange.setAttribute(resize.getCommodityAttribute().name());
             }
             final int commodityTypeInt = resize.getCommodityType().getType();
-            ClassicEnumMapper.getCommodityUnits(commodityTypeInt, resize.getTarget().getType())
+            CommodityTypeMapping.getCommodityUnits(commodityTypeInt, resize.getTarget().getType())
                     .ifPresent(commodityChange::setUnit);
 
             // set target (where this commodity comes from) for each sub action, since it may be

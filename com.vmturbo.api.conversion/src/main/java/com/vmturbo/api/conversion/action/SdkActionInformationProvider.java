@@ -1,6 +1,8 @@
 package com.vmturbo.api.conversion.action;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -11,12 +13,16 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.Lists;
+
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.api.conversion.entity.CommodityTypeMapping;
 import com.vmturbo.api.conversion.entity.EntityTypeMapping;
 import com.vmturbo.api.dto.BaseApiDTO;
+import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionExecutionCharacteristicApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.policy.PolicyApiDTO;
@@ -31,8 +37,10 @@ import com.vmturbo.api.enums.EntityState;
 import com.vmturbo.platform.common.builders.SDKConstants;
 import com.vmturbo.platform.common.dto.ActionExecution;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.sdk.common.supplychain.SupplyChainConstants;
+import com.vmturbo.platform.sdk.common.util.SDKUtil;
 
 /**
  * This provides information about action for conversion based on an {@code ActionExecutionDTO}
@@ -41,6 +49,12 @@ import com.vmturbo.platform.sdk.common.supplychain.SupplyChainConstants;
 public class SdkActionInformationProvider implements ActionInformationProvider {
     private static final String TARGET_ADDRESS = "targetAddress";
     private static final String FORMAT_FOR_ACTION_VALUES = "%.1f";
+
+    private static final String API_CATEGORY_PERFORMANCE_ASSURANCE = "Performance Assurance";
+    private static final String API_CATEGORY_EFFICIENCY_IMPROVEMENT = "Efficiency Improvement";
+    private static final String API_CATEGORY_PREVENTION = "Prevention";
+    private static final String API_CATEGORY_COMPLIANCE = "Compliance";
+    private static final String API_CATEGORY_UNKNOWN = "Unknown";
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -56,7 +70,7 @@ public class SdkActionInformationProvider implements ActionInformationProvider {
         this.actionExecutionDTO = actionExecutionDTO;
     }
 
-    private ActionExecution.ActionItemDTO getPrimaryAction() {
+    private ActionItemDTO getPrimaryAction() {
         if (this.actionExecutionDTO.getActionItemCount() > 0) {
             return this.actionExecutionDTO.getActionItem(0);
         } else {
@@ -97,7 +111,7 @@ public class SdkActionInformationProvider implements ActionInformationProvider {
 
     @Override
     public String getCategory() {
-        return getPrimaryAction().getRisk().getCategory().name();
+        return mapSdkRiskCategoryToApi(getPrimaryAction().getRisk().getCategory());
     }
 
     @Override
@@ -109,7 +123,7 @@ public class SdkActionInformationProvider implements ActionInformationProvider {
     public Set<String> getReasonCommodities() {
         if (getPrimaryAction().hasRisk()) {
             return getPrimaryAction().getRisk().getAffectedCommodityList()
-                .stream().map(CommonDTO.CommodityDTO.CommodityType::toString)
+                .stream().map(CommodityTypeMapping::getApiCommodityType)
                 .collect(Collectors.toSet());
         }
         return Collections.emptySet();
@@ -144,7 +158,7 @@ public class SdkActionInformationProvider implements ActionInformationProvider {
 
     @Override
     public ServiceEntityApiDTO getTarget() {
-        final ActionExecution.ActionItemDTO actionItemDTO = getPrimaryAction();
+        final ActionItemDTO actionItemDTO = getPrimaryAction();
         final String clusterId = getContextValue(actionItemDTO,
             SDKConstants.CURRENT_HOST_CLUSTER_ID);
         final String clusterName = getContextValue(actionItemDTO,
@@ -154,7 +168,7 @@ public class SdkActionInformationProvider implements ActionInformationProvider {
 
     @Override
     public Optional<ServiceEntityApiDTO> getCurrentEntity() {
-        final ActionExecution.ActionItemDTO actionItemDTO = getPrimaryAction();
+        final ActionItemDTO actionItemDTO = getPrimaryAction();
         if (actionItemDTO.hasCurrentSE()) {
             final String clusterId = getContextValue(actionItemDTO, SDKConstants.CURRENT_HOST_CLUSTER_ID);
             final String clusterName = getContextValue(actionItemDTO,
@@ -168,7 +182,7 @@ public class SdkActionInformationProvider implements ActionInformationProvider {
 
     @Override
     public Optional<ServiceEntityApiDTO> getNewEntity() {
-        final ActionExecution.ActionItemDTO actionItemDTO = getPrimaryAction();
+        final ActionItemDTO actionItemDTO = getPrimaryAction();
         if (getPrimaryAction().hasNewSE()) {
             final String clusterId = getContextValue(actionItemDTO, SDKConstants.NEW_HOST_CLUSTER_ID);
             final String clusterName = getContextValue(actionItemDTO,
@@ -192,19 +206,23 @@ public class SdkActionInformationProvider implements ActionInformationProvider {
 
     @Override
     public Optional<String> getCurrentValue() {
-        switch (actionExecutionDTO.getActionType()) {
+        return getCurrentValue(getPrimaryAction());
+    }
+
+    private Optional<String> getCurrentValue(ActionItemDTO actionItemDTO) {
+        switch (actionItemDTO.getActionType()) {
             case MOVE:
             case SCALE:
             case START:
             case RECONFIGURE:
             case PROVISION:
-                return getPrimaryAction().hasCurrentSE()
-                    ? Optional.of(String.valueOf(getPrimaryAction().getCurrentSE()
+                return actionItemDTO.hasCurrentSE()
+                    ? Optional.of(String.valueOf(actionItemDTO.getCurrentSE()
                     .getTurbonomicInternalId()))  : Optional.empty();
             case RESIZE:
-                return getPrimaryAction().hasCurrentComm()
+                return actionItemDTO.hasCurrentComm()
                     ? Optional.of(String.format(FORMAT_FOR_ACTION_VALUES,
-                        getPrimaryAction().getCurrentComm().getCapacity())) : Optional.empty();
+                    actionItemDTO.getCurrentComm().getCapacity())) : Optional.empty();
             default:
                 return Optional.empty();
         }
@@ -212,22 +230,38 @@ public class SdkActionInformationProvider implements ActionInformationProvider {
 
     @Override
     public Optional<String> getNewValue() {
-        switch (actionExecutionDTO.getActionType()) {
+        return getNewValue(getPrimaryAction());
+    }
+
+    private Optional<String> getNewValue(ActionItemDTO actionItemDTO) {
+        switch (actionItemDTO.getActionType()) {
             case MOVE:
             case SCALE:
             case START:
             case RECONFIGURE:
             case PROVISION:
-                return getPrimaryAction().hasNewSE()
-                    ? Optional.of(String.valueOf(getPrimaryAction().getNewSE()
-                      .getTurbonomicInternalId()))
+                return actionItemDTO.hasNewSE()
+                    ? Optional.of(String.valueOf(actionItemDTO.getNewSE()
+                    .getTurbonomicInternalId()))
                     : Optional.empty();
             case RESIZE:
-                return getPrimaryAction().hasNewComm()
+                return actionItemDTO.hasNewComm()
                     ? Optional.of(String.format(FORMAT_FOR_ACTION_VALUES,
-                        getPrimaryAction().getNewComm().getCapacity())) : Optional.empty();
+                    actionItemDTO.getNewComm().getCapacity())) : Optional.empty();
             default:
                 return Optional.empty();
+        }
+    }
+
+    @Nonnull
+    @Override
+    public Optional<String> getValueUnit() {
+        final ActionItemDTO.Risk risk = getPrimaryAction().getRisk();
+        if (getPrimaryAction().hasRisk()  && risk.getAffectedCommodityCount() > 0) {
+            return CommodityTypeMapping.getCommodityUnits(risk.getAffectedCommodity(0).getNumber(),
+                getPrimaryAction().getTargetSE().getEntityType().getNumber());
+        } else {
+            return Optional.empty();
         }
     }
 
@@ -236,7 +270,7 @@ public class SdkActionInformationProvider implements ActionInformationProvider {
         if (getPrimaryAction().hasCharacteristics()) {
             final ActionExecutionCharacteristicApiDTO actionExecutionCharacteristicApiDTO
                 = new ActionExecutionCharacteristicApiDTO();
-            final ActionExecution.ActionItemDTO.ExecutionCharacteristics characteristics =
+            final ActionItemDTO.ExecutionCharacteristics characteristics =
                 getPrimaryAction().getCharacteristics();
             if (characteristics.hasDisruptive()) {
                 actionExecutionCharacteristicApiDTO.setDisruptiveness(
@@ -254,8 +288,42 @@ public class SdkActionInformationProvider implements ActionInformationProvider {
         }
     }
 
+    @Override
+    @Nonnull
+    public List<ActionApiDTO> getCompoundActions() {
+        if (actionExecutionDTO.getActionItemCount() > 1
+              || ActionItemDTO.ActionType.MOVE == getPrimaryAction().getActionType()
+              || ActionItemDTO.ActionType.SCALE == getPrimaryAction().getActionType()) {
+            List<ActionApiDTO> actions = Lists.newArrayList();
+            for (ActionItemDTO item : actionExecutionDTO.getActionItemList()) {
+                ActionApiDTO actionApiDTO = new ActionApiDTO();
+                actionApiDTO.setTarget(new ServiceEntityApiDTO());
+                actionApiDTO.setCurrentEntity(new ServiceEntityApiDTO());
+                actionApiDTO.setNewEntity(new ServiceEntityApiDTO());
+                actionApiDTO.setDetails(item.getDescription());
+
+                actionApiDTO.setActionType(mapExternalStateToApiActionType(item.getActionType()));
+                // Set entity DTO fields for target, source (if needed) and destination entities
+                actionApiDTO.setTarget(getTarget());
+
+                getNewValue(item).ifPresent(actionApiDTO::setNewValue);
+                actionApiDTO.setNewEntity(convertSdkEntityToApi(item.getNewSE(), null, null));
+
+                final boolean hasSource = item.hasCurrentSE();
+                if (hasSource) {
+                    getCurrentValue(item).ifPresent(actionApiDTO::setCurrentValue);
+                    actionApiDTO.setCurrentEntity(convertSdkEntityToApi(item.getCurrentSE(), null, null));
+                }
+                actions.add(actionApiDTO);
+            }
+            return actions;
+        } else {
+            return Collections.emptyList();
+        }
+    }
+
     @Nullable
-    private static String getContextValue(@Nonnull ActionExecution.ActionItemDTO actionItemDTO,
+    private static String getContextValue(@Nonnull ActionItemDTO actionItemDTO,
                                           @Nonnull String key) {
         return actionItemDTO.getContextDataList()
             .stream()
@@ -274,6 +342,10 @@ public class SdkActionInformationProvider implements ActionInformationProvider {
         converted.setState(mapSdkStateToApiState(entityDTO).name());
         converted.setDiscoveredBy(getEntityTargetApiDto(entityDTO));
         converted.setVendorIds(getVendorIds(entityDTO));
+        final Map<String, List<String>> tagsMap = getTags(entityDTO);
+        if (!tagsMap.isEmpty()) {
+            converted.setTags(tagsMap);
+        }
 
         if (clusterId != null || clusterName != null) {
             BaseApiDTO baseApiDTO = new BaseApiDTO();
@@ -287,6 +359,18 @@ public class SdkActionInformationProvider implements ActionInformationProvider {
             converted.setConnectedEntities(Collections.singletonList(baseApiDTO));
         }
         return converted;
+    }
+
+    private static Map<String, List<String>> getTags(CommonDTO.EntityDTO entityDTO) {
+        Map<String, List<String>> tags = new HashMap<>();
+        for (CommonDTO.EntityDTO.EntityProperty property : entityDTO.getEntityPropertiesList()) {
+            if (SDKUtil.VC_TAGS_NAMESPACE.equals(property.getNamespace())) {
+                tags.computeIfAbsent(property.getName(), e -> new ArrayList<>())
+                    .add(property.getValue());
+            }
+        }
+
+        return tags;
     }
 
     private static Map<String, String> getVendorIds(CommonDTO.EntityDTO entityDTO) {
@@ -353,7 +437,7 @@ public class SdkActionInformationProvider implements ActionInformationProvider {
     }
 
     private static ActionType mapExternalStateToApiActionType(
-        ActionExecution.ActionItemDTO.ActionType actionType) {
+        ActionItemDTO.ActionType actionType) {
         switch (actionType) {
             case MOVE:
                 return ActionType.MOVE;
@@ -412,4 +496,29 @@ public class SdkActionInformationProvider implements ActionInformationProvider {
 
         return entityState;
     }
+
+
+    /**
+     * Map an SDK category to an equivalent API category string.
+     *
+     * @param category The {@link ActionItemDTO.Risk.Category}.
+     * @return A string representing the action category.
+     */
+    @Nonnull
+    public static String mapSdkRiskCategoryToApi(
+          @Nonnull final ActionItemDTO.Risk.Category category) {
+        switch (category) {
+            case PERFORMANCE_ASSURANCE:
+                return API_CATEGORY_PERFORMANCE_ASSURANCE;
+            case EFFICIENCY_IMPROVEMENT:
+                return API_CATEGORY_EFFICIENCY_IMPROVEMENT;
+            case PREVENTION:
+                return API_CATEGORY_PREVENTION;
+            case COMPLIANCE:
+                return API_CATEGORY_COMPLIANCE;
+            default:
+                return API_CATEGORY_UNKNOWN;
+        }
+    }
+
 }
