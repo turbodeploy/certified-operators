@@ -254,6 +254,7 @@ public class ActionExecutionContextTest {
                         .setType(CommodityDTO.CommodityType.VMEM_VALUE)
                         .build())
                     .setHotAddSupported(true)
+                    .setHotRemoveSupported(false)
                     .setNewCapacity(newCapacity)
                     .setOldCapacity(oldCapacity)
                     .setCommodityAttribute(CommodityAttribute.CAPACITY))
@@ -328,6 +329,10 @@ public class ActionExecutionContextTest {
         Assert.assertEquals(newCapacity, actionItemDTO.getNewComm().getCapacity(), 0);
         Assert.assertTrue(actionItemDTO.getCurrentComm().getVmemData().getHotAddSupported());
         Assert.assertTrue(actionItemDTO.getNewComm().getVmemData().getHotAddSupported());
+        Assert.assertTrue(actionItemDTO.getCurrentComm().getVmemData().hasHotRemoveSupported());
+        Assert.assertFalse(actionItemDTO.getCurrentComm().getVmemData().getHotRemoveSupported());
+        Assert.assertTrue(actionItemDTO.getNewComm().getVmemData().hasHotRemoveSupported());
+        Assert.assertFalse(actionItemDTO.getNewComm().getVmemData().getHotRemoveSupported());
 
         // Check that the raw entityInfo was retrieved (used only for setting the host field)
         Mockito.verify(entityStoreMock).getEntity(entityId);
