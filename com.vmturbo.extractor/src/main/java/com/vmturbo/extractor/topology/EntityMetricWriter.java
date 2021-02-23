@@ -588,6 +588,7 @@ public class EntityMetricWriter extends TopologyWriterBase {
         if (capacity != null && current != null) {
             utilization = capacity == 0 ? 0 : current / capacity;
         }
+        r.set(ModelDefinitions.ENTITY_TYPE_ENUM, EntityType.COMPUTE_CLUSTER);
         r.set(ModelDefinitions.COMMODITY_TYPE, propsToDbType.get(record.getName()));
         r.set(ModelDefinitions.ENTITY_OID, oid);
         r.set(ModelDefinitions.COMMODITY_KEY, record.hasStatKey() ? record.getStatKey() : null);
