@@ -11,6 +11,8 @@ import org.apache.logging.log4j.Logger;
 
 /**
  * Cache interface for keeping entity savings state.
+ * TODO Remove inner classes EntityState and SavingsInvestments.
+ * TODO Update methods for the SqlEntityStore implementation.
  */
 interface EntityStateCache {
     /**
