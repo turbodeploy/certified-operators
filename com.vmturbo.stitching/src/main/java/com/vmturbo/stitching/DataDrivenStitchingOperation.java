@@ -254,14 +254,17 @@ public class DataDrivenStitchingOperation<InternalSignatureT, ExternalSignatureT
                 Optional<StitchingEntity> externalEntityProvider =
                         getReplacedEntity(provider, externalEntity);
 
-                // Remove the externalProvider from the externalEntity provider-relationship.
+                // remove the provider from the externalEntity
                 externalEntityProvider.ifPresent(externalProvider -> {
                     resultBuilder.queueChangeRelationships(externalEntity, toUpdate ->
                             toUpdate.removeProvider(externalProvider));
-                    // Remove external provider from the topology if the external provider is replaceable.
+                    // if the external provider is replaceable, merge it onto the internal
+                    // provider and then delete it.  Merging adds the oid and target of the replaced
+                    // entity to the entity we are keeping.
                     if (externalProvider.getEntityBuilder().getOrigin()
-                            == EntityOrigin.REPLACEABLE) {
-                        resultBuilder.queueEntityRemoval(externalProvider);
+                                    == EntityOrigin.REPLACEABLE) {
+                        resultBuilder.queueEntityMerger(MergeEntities
+                                .mergeEntity(externalProvider).onto(provider));
                     }
                 });
             });
