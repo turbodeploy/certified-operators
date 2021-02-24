@@ -29,6 +29,7 @@ import com.vmturbo.api.ReservationNotificationDTO.ReservationNotification;
 import com.vmturbo.api.ReservationNotificationDTO.ReservationStatusNotification;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.util.TemplatesUtils;
+import com.vmturbo.api.conversion.entity.CommodityTypeMapping;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.reservation.DemandEntityInfoDTO;
@@ -71,7 +72,6 @@ import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason.FailedResources;
-import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -90,35 +90,35 @@ public class ReservationMapper {
     private static final Map<Integer, Pair<String, String>> COMMODITY_TYPE_NAME_UNIT_MAP =
             ImmutableMap.<Integer, Pair<String, String>>builder()
                     .put(CommodityType.CPU_PROVISIONED_VALUE,
-                            Pair.of(CommodityTypeUnits.CPU_PROVISIONED.getMixedCase(),
-                                    CommodityTypeUnits.CPU_PROVISIONED.getUnits()))
+                            Pair.of(CommodityTypeMapping.getMixedCaseFromCommodityType(CommodityType.CPU_PROVISIONED),
+                                CommodityTypeMapping.getUnitForCommodityType(CommodityType.CPU_PROVISIONED)))
                     .put(CommodityType.MEM_PROVISIONED_VALUE,
-                            Pair.of(CommodityTypeUnits.MEM_PROVISIONED.getMixedCase(),
-                                    CommodityTypeUnits.MEM_PROVISIONED.getUnits()))
+                            Pair.of(CommodityTypeMapping.getMixedCaseFromCommodityType(CommodityType.MEM_PROVISIONED),
+                                CommodityTypeMapping.getUnitForCommodityType(CommodityType.MEM_PROVISIONED)))
                     .put(CommodityType.CPU_VALUE,
-                            Pair.of(CommodityTypeUnits.CPU.getMixedCase(),
-                            CommodityTypeUnits.CPU.getUnits()))
+                            Pair.of(CommodityTypeMapping.getMixedCaseFromCommodityType(CommodityType.CPU),
+                                CommodityTypeMapping.getUnitForCommodityType(CommodityType.CPU)))
                     .put(CommodityType.MEM_VALUE,
-                            Pair.of(CommodityTypeUnits.MEM.getMixedCase(),
-                                    CommodityTypeUnits.MEM.getUnits()))
+                            Pair.of(CommodityTypeMapping.getMixedCaseFromCommodityType(CommodityType.MEM),
+                                CommodityTypeMapping.getUnitForCommodityType(CommodityType.MEM)))
                     .put(CommodityType.IO_THROUGHPUT_VALUE,
-                            Pair.of(CommodityTypeUnits.IO_THROUGHPUT.getMixedCase(),
-                                    CommodityTypeUnits.IO_THROUGHPUT.getUnits()))
+                            Pair.of(CommodityTypeMapping.getMixedCaseFromCommodityType(CommodityType.IO_THROUGHPUT),
+                                CommodityTypeMapping.getUnitForCommodityType(CommodityType.IO_THROUGHPUT)))
                     .put(CommodityType.NET_THROUGHPUT_VALUE,
-                            Pair.of(CommodityTypeUnits.NET_THROUGHPUT.getMixedCase(),
-                                    CommodityTypeUnits.NET_THROUGHPUT.getUnits()))
+                            Pair.of(CommodityTypeMapping.getMixedCaseFromCommodityType(CommodityType.NET_THROUGHPUT),
+                                CommodityTypeMapping.getUnitForCommodityType(CommodityType.NET_THROUGHPUT)))
                     .put(CommodityType.STORAGE_AMOUNT_VALUE,
-                            Pair.of(CommodityTypeUnits.STORAGE_AMOUNT.getMixedCase(),
-                                    CommodityTypeUnits.STORAGE_AMOUNT.getUnits()))
+                            Pair.of(CommodityTypeMapping.getMixedCaseFromCommodityType(CommodityType.STORAGE_AMOUNT),
+                                CommodityTypeMapping.getUnitForCommodityType(CommodityType.STORAGE_AMOUNT)))
                     .put(CommodityType.STORAGE_ACCESS_VALUE,
-                            Pair.of(CommodityTypeUnits.STORAGE_ACCESS.getMixedCase(),
-                                    CommodityTypeUnits.STORAGE_ACCESS.getUnits()))
+                            Pair.of(CommodityTypeMapping.getMixedCaseFromCommodityType(CommodityType.STORAGE_ACCESS),
+                                CommodityTypeMapping.getUnitForCommodityType(CommodityType.STORAGE_ACCESS)))
                     .put(CommodityType.STORAGE_PROVISIONED_VALUE,
-                            Pair.of(CommodityTypeUnits.STORAGE_PROVISIONED.getMixedCase(),
-                                    CommodityTypeUnits.STORAGE_PROVISIONED.getUnits()))
+                            Pair.of(CommodityTypeMapping.getMixedCaseFromCommodityType(CommodityType.STORAGE_PROVISIONED),
+                                CommodityTypeMapping.getUnitForCommodityType(CommodityType.STORAGE_PROVISIONED)))
                     .put(CommodityType.SEGMENTATION_VALUE,
                             Pair.of("PlacementPolicy",
-                                    CommodityTypeUnits.SEGMENTATION.getUnits()))
+                                CommodityTypeMapping.getUnitForCommodityType(CommodityType.SEGMENTATION)))
                     .build();
 
     private final Logger logger = LogManager.getLogger();

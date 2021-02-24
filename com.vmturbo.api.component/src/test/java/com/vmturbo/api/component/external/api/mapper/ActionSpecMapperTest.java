@@ -62,6 +62,7 @@ import com.vmturbo.api.component.external.api.service.PoliciesService;
 import com.vmturbo.api.component.external.api.service.ReservedInstancesService;
 import com.vmturbo.api.component.external.api.util.ApiUtilsTest;
 import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
+import com.vmturbo.api.conversion.entity.CommodityTypeMapping;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.QueryInputApiDTO;
 import com.vmturbo.api.dto.RangeInputApiDTO;
@@ -155,7 +156,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformati
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -1350,7 +1350,8 @@ public class ActionSpecMapperTest {
                 actionApiDTO.getRisk().getReasonCommodities().iterator().next());
         assertEquals("2097152.0", actionApiDTO.getCurrentValue());
         assertEquals("1048576.0", actionApiDTO.getNewValue());
-        assertEquals(CommodityTypeUnits.VMEM.getUnits(), actionApiDTO.getValueUnits());
+        assertEquals(CommodityTypeMapping.getUnitForCommodityType(CommodityDTO.CommodityType.VMEM),
+            actionApiDTO.getValueUnits());
     }
 
     @Test

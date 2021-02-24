@@ -1,22 +1,20 @@
 package com.vmturbo.components.common;
 
+import static com.vmturbo.api.conversion.entity.CommodityTypeMapping.COMMODITY_TYPE_TO_API_STRING;
+
 import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 
-import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.api.conversion.entity.CommodityTypeMapping;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.PowerState;
 
 /**
@@ -168,140 +166,20 @@ public class ClassicEnumMapper {
      * We didn't want to include the 'db' project here.
      **/
     public enum CommodityTypeUnits {
-        ACCESS("Access", ""),
-        ACTION_PERMIT("ActionPermit", ""),
-        ACTIVE_SESSIONS("ActiveSessions", ""),
-        BALLOONING("Ballooning", "KB"),
-        BICLIQUE("Biclique", ""),
-        BUFFER_COMMODITY("BufferCommodity", ""),
-        BURST_BALANCE("BurstBalance", ""),
-        COLLECTION_TIME("CollectionTime", "%"),
-        REMAINING_GC_CAPACITY("RemainingGcCapacity", "%"),
-        CONNECTION("Connection", "Connections"),
-        COOLING("Cooling", "C"),
-        COUPON("Coupon", ""),
-        CPU("CPU", "MHz"),
-        CPU_ALLOCATION("CPUAllocation", "MHz"),
-        CPU_REQUEST_ALLOCATION("CPURequestAllocation", "MHz"),
         CPU_HEADROOM("CPUHeadroom", "VM"),
         CPU_EXHAUSTION("CPUExhaustion", "Day"),
-        CPU_PROVISIONED("CPUProvisioned", "MHz"),
-        CROSS_CLOUD_MOVE_SVC("CrossCloudMoveSVC", ""),
-        CROSS_CLUSTER_MOVE_SVC("CrossClusterMoveSVC", ""),
-        DB_CACHE_HIT_RATE("DBCacheHitRate", "%"),
-        DB_MEM("DBMem", "KB"),
-        DISK_ARRAY_ACCESS("DiskArrayAccess", ""),
-        DESIRED_COUPON("DesiredCoupon", ""),
-        EXTENT("Extent", ""),
-        FLOW("Flow", "KByte/sec"),
-        FLOW_ALLOCATION("FlowAllocation", "Bytes"),
-        HA_COMMODITY("HACommodity", ""),
-        HEAP("Heap", "KB"),
-        HOT_STORAGE("HotStorage", ""),
-        IMAGE_CPU("ImageCPU", "MHz"),
-        IMAGE_MEM("ImageMem", "KB"),
-        IMAGE_STORAGE("ImageStorage", "MB"),
-        INSTANCE_DISK_SIZE("InstanceDiskSize", "MB"),
-        INSTANCE_DISK_TYPE("InstanceDiskType", ""),
-        INSTANCE_DISK_COUNT("InstanceDiskCount", ""),
-        IO_THROUGHPUT("IOThroughput", "KByte/sec"),
-        KPI("KPI", ""),
-        LICENSE_ACCESS("LicenseAccess", ""),
-        LICENSE_COMMODITY("LicenseCommodity", ""),
-        MEM("Mem", "KB"),
-        MEM_ALLOCATION("MemAllocation", "KB"),
-        MEM_REQUEST_ALLOCATION("MemRequestAllocation", "KB"),
         MEM_HEADROOM("MemHeadroom", "VM"),
         MEM_EXHAUSTION("MemExhaustion", "Day"),
-        MEM_PROVISIONED("MemProvisioned", "KB"),
-        MOVE("Move", ""),
-        NET_THROUGHPUT("NetThroughput", "KByte/sec"),
-        NETWORK_INTERFACE_COUNT("NetworkInterfaceCount", ""),
-        NETWORK_POLICY("NetworkPolicy", ""),
         NUM_CPUS("numCPUs", ""),
-        NUM_DISK("NumDisk", ""),
         NUM_SOCKETS("numSockets", ""),
         NUM_CORES("numCores", ""),
-        NUM_VCORE("NumVCore", ""),
         NUM_VCPUS("numVCPUs", ""),
-        NUMBER_CONSUMERS("NumberConsumers", ""),
-        NUMBER_CONSUMERS_PM("NumberConsumersPM", ""),
-        NUMBER_CONSUMERS_STORAGE("NumberConsumersStorage", ""),
-        POOL_CPU("PoolCPU", "MHz"),
-        POOL_MEM("PoolMem", "KB"),
-        POOL_STORAGE("PoolStorage", "MB"),
-        PORT_CHANEL("PortChannel", "KByte/sec"),
-        POWER("Power", "W"),
-        PROCESSING_UNITS("ProcessingUnits", ""),
         PRODUCES("Produces", ""),
-        SAME_CLUSTER_MOVE_SVC("SameClusterMoveSVC", ""),
-        SERVICE_LEVEL_CLUSTER("ServiceLevelCluster", ""),
-        SOFTWARE_LICENSE_COMMODITY("SoftwareLicenseCommodity", ""),
-        SPACE("Space", ""),
-        STORAGE("Storage", "MB"),
-        STORAGE_AMOUNT("StorageAmount", "MB"),
-        STORAGE_PROVISIONED("StorageProvisioned", "MB"),
-        STORAGE_ACCESS("StorageAccess", "IOPS"),
-        STORAGE_LATENCY("StorageLatency", "msec"),
         STORAGE_HEADROOM("StorageHeadroom", "VM"),
         STORAGE_EXHAUSTION("StorageExhaustion", "Day"),
-        Q1_VCPU("Q1VCPU", "msec"),
-        Q2_VCPU("Q2VCPU", "msec"),
-        Q3_VCPU("Q3VCPU", "msec"),
-        Q4_VCPU("Q4VCPU", "msec"),
-        Q5_VCPU("Q5VCPU", "msec"),
-        Q6_VCPU("Q6VCPU", "msec"),
-        Q7_VCPU("Q7VCPU", "msec"),
-        Q8_VCPU("Q8VCPU", "msec"),
-        Q16_VCPU("Q16VCPU", "msec"),
-        Q32_VCPU("Q32VCPU", "msec"),
-        Q64_VCPU("Q64VCPU", "msec"),
-        QN_VCPU("QNVCPU", "msec"),
-        RESPONSE_TIME("ResponseTime", "msec"),
-        RIGHT_SIZE_DOWN("RightsizeDown", ""),
-        RIGHT_SIZE_SVC("RightsizeSVC", ""),
-        RIGHT_SIZE_UP("RightsizeUp", ""),
-        STORAGE_ALLOCATION("StorageAllocation", "MB"),
-        SLA_COMMODITY("SLACommodity", ""),
-        SWAPPING("Swapping", "Byte/sec"),
-        TENANCY_ACCESS("TenancyAccess", ""),
-        TEMPLATE_ACCESS("TemplateAccess", ""),
         TEMPLATE_FAMILY("TemplateFamily", ""),
-        THREADS("Threads", "Threads"),
-        TRANSACTION("Transaction", "TPS"),
-        TRANSACTION_LOG("TransactionLog", "MB"),
-        VCPU("VCPU", "MHz"),
         VCPU_ALLOCATION("VCPUAllocation", "MHz"),
-        VCPU_LIMIT_QUOTA("VCPULimitQuota", "MHz"),
-        VCPU_REQUEST("VCPURequest", "MHz"),
-        VCPU_REQUEST_QUOTA("VCPURequestQuota", "MHz"),
-        VMEM("VMem", "KB"),
-        VMEM_ALLOCATION("VMemAllocation", "MB"),
-        VMEM_LIMIT_QUOTA("VMemLimitQuota", "KB"),
-        VMEM_REQUEST("VMemRequest", "KB"),
-        VMEM_REQUEST_QUOTA("VMemRequestQuota", "KB"),
-        VSTORAGE("VStorage", "MB"),
-        DTU("DTU", ""),
-        CONCURRENT_WORKER("ConcurrentWorker", ""),
-        CONCURRENT_SESSION("ConcurrentSession", ""),
-        // Access Commodities
-        CLUSTER("ClusterCommodity", ""),
-        DATASTORE("DatastoreCommodity", ""),
-        NETWORK("NetworkCommodity", ""),
-        SEGMENTATION("SegmentationCommodity", ""),
-        DATACENTER("DataCenterCommodity", ""),
-        DSPM_ACCESS("DSPMAccessCommodity", ""),
-        APPLICATION("ApplicationCommodity", ""),
-        DRS_SEGMENTATION("DrsSegmentationCommodity", ""),
-        STORAGE_CLUSTER("StorageClusterCommodity", ""),
-        VAPP_ACCESS("VAppAccessCommodity", ""),
-        VDC("VDCCommodity", ""),
-        VMPM_ACCESS("VMPMAccessCommodity", ""),
-        HOST_LUN_ACCESS("HostLunAccess", ""),
-        TOTAL_SESSIONS("TotalSessions", ""),
-        ZONE("Zone", ""),
-        // End of Access Commodities
-        UNKNOWN("Unknown", "");
+        VMEM_ALLOCATION("VMemAllocation", "MB");
 
 
         private final String mixedCase;
@@ -320,77 +198,41 @@ public class ClassicEnumMapper {
             return units;
         }
 
-        public static CommodityTypeUnits fromString(String mixedCaseName) {
+        public static String unitFromString(String mixedCaseName) {
             return COMMODITY_TYPE_UNITS_MAP.get(mixedCaseName);
         }
 
         /**
-         * Match commodityType string to Enum ignoring case.
+         * Match get unit for commodity from mixed case ignoring case.
          *
-         * @param commodityType Used to match against Enums available
-         * @return Matched {@link CommodityTypeUnits} if matched or else null
+         * @param commodityType The mixed case.
+         * @return The unit if matched or else null
          */
-        public static CommodityTypeUnits fromStringIgnoreCase(String commodityType) {
+        public static String unitFromStringIgnoreCase(String commodityType) {
             return COMMODITY_TYPE_UNITS_MAP_LOWER_CASE.get(commodityType.toLowerCase());
         }
 
-        private static final Map<String, CommodityTypeUnits> COMMODITY_TYPE_UNITS_MAP;
-        private static final Map<String, CommodityTypeUnits> COMMODITY_TYPE_UNITS_MAP_LOWER_CASE;
+        private static final Map<String, String> COMMODITY_TYPE_UNITS_MAP;
+        private static final Map<String, String> COMMODITY_TYPE_UNITS_MAP_LOWER_CASE;
 
         static {
-            ImmutableMap.Builder<String, CommodityTypeUnits> commodityTypeMapBuilder =
+            ImmutableMap.Builder<String, String> commodityTypeMapBuilder =
                     new ImmutableMap.Builder<>();
-            ImmutableMap.Builder<String, CommodityTypeUnits> commodityTypeMapBuilderLowerCase =
+            ImmutableMap.Builder<String, String> commodityTypeMapBuilderLowerCase =
                     new ImmutableMap.Builder<>();
             for (CommodityTypeUnits t : CommodityTypeUnits.values()) {
-                commodityTypeMapBuilder.put(t.getMixedCase(), t);
-                commodityTypeMapBuilderLowerCase.put(t.getMixedCase().toLowerCase(), t);
+                commodityTypeMapBuilder.put(t.getMixedCase(), t.getUnits());
+                commodityTypeMapBuilderLowerCase.put(t.getMixedCase().toLowerCase(), t.getUnits());
             }
+
+            // add commodities to the map
+            for (CommodityTypeMapping.CommodityInfo t : COMMODITY_TYPE_TO_API_STRING.values()) {
+                commodityTypeMapBuilder.put(t.getMixedCase(), t.getUnits());
+                commodityTypeMapBuilderLowerCase.put(t.getMixedCase().toLowerCase(), t.getUnits());
+            }
+
             COMMODITY_TYPE_UNITS_MAP = commodityTypeMapBuilder.build();
             COMMODITY_TYPE_UNITS_MAP_LOWER_CASE = commodityTypeMapBuilderLowerCase.build();
-        }
-    }
-
-    /**
-     * Set of CPU commodity types to use "millicore" as unit.
-     */
-    private static final Set<Integer> CPU_COMMODITY_TYPES = ImmutableSet.of(CommodityType.VCPU_VALUE,
-            CommodityType.VCPU_REQUEST_VALUE);
-    // Millicore unit for container CPU commodity types.
-    private static final String MILLICORE_UNIT = "millicore";
-
-    // Unit type for vCPU on VMs.
-    private static final String VCPU_UNIT = "vCPU";
-
-    /**
-     * Get units for the given commodity type for an action description.
-     *
-     * @param commodityTypeInt proto integer type of commodity
-     * @param atomicResizeTargetEntityTypeInt type of the target entity in atomic resize action
-     * @return optional of units, or empty if no units
-     */
-    public static Optional<String> getCommodityUnitsForAction(int commodityTypeInt,
-                @Nullable Integer atomicResizeTargetEntityTypeInt) {
-        final CommodityType commodityType = CommodityType.forNumber(commodityTypeInt);
-        try {
-            String units = CommodityTypeUnits.valueOf(commodityType.name()).getUnits();
-            // Action translation converts vCPU resizes from "Mhz", which is how we represent
-            // vCPU stats, to vCPUs/millicores. We need to account for that here.
-            if (CPU_COMMODITY_TYPES.contains(commodityTypeInt)) {
-                // If resize info is container CPU commodity, set unit as "millicore".
-                if (atomicResizeTargetEntityTypeInt != null
-                        && atomicResizeTargetEntityTypeInt == EntityType.CONTAINER_SPEC_VALUE) {
-                    units = MILLICORE_UNIT;
-                } else {
-                    units = VCPU_UNIT;
-                }
-            }
-            return StringUtils.isEmpty(units) ? Optional.empty() : Optional.of(units);
-        } catch (IllegalArgumentException e) {
-            // the Enum is missing, it may be expected if there is no units associated with the
-            // commodity, or unexpected if someone forgot to define units for the commodity
-            logger.warn("No units for commodity {}", commodityType);
-            return Optional.empty();
         }
     }
 }

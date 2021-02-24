@@ -18,6 +18,7 @@ import org.mockito.Mockito;
 import com.vmturbo.api.component.external.api.mapper.ReservationMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.api.conversion.entity.CommodityTypeMapping;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.reservation.DemandEntityInfoDTO;
 import com.vmturbo.api.dto.reservation.DemandReservationApiDTO;
@@ -41,7 +42,7 @@ import com.vmturbo.common.protobuf.plan.ReservationDTOMoles.ReservationServiceMo
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc;
 import com.vmturbo.common.protobuf.plan.TemplateDTOMoles.TemplateServiceMole;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
+import com.vmturbo.platform.common.dto.CommonDTO;
 
 public class ReservationServiceTest {
 
@@ -102,7 +103,7 @@ public class ReservationServiceTest {
         final long hostId = 123456L;
         final ApiId apiIdH = Mockito.mock(ApiId.class);
         List<StatSnapshotApiDTO> entityStatSnapshotH = createEntityStatSnapshot(2000f,
-                CommodityTypeUnits.MEM_PROVISIONED.getMixedCase());
+                CommodityTypeMapping.getMixedCaseFromCommodityType(CommonDTO.CommodityDTO.CommodityType.MEM_PROVISIONED));
         Mockito.when(apiIdH.isGroup()).thenReturn(false);
         Mockito.when(apiIdH.oid()).thenReturn(hostId);
         Mockito.when(mockUuidMapper.fromUuid(String.valueOf(hostId))).thenReturn(apiIdH);
@@ -114,7 +115,7 @@ public class ReservationServiceTest {
         final ApiId apiIdS = Mockito.mock(ApiId.class);
         Mockito.when(mockUuidMapper.fromUuid(Mockito.any())).thenReturn(apiIdH);
         List<StatSnapshotApiDTO> entityStatSnapshotS = createEntityStatSnapshot(3000f,
-                CommodityTypeUnits.STORAGE_PROVISIONED.getMixedCase());
+            CommodityTypeMapping.getMixedCaseFromCommodityType(CommonDTO.CommodityDTO.CommodityType.STORAGE_PROVISIONED));
         Mockito.when(apiIdS.isGroup()).thenReturn(false);
         Mockito.when(apiIdS.oid()).thenReturn(storageId);
         Mockito.when(mockUuidMapper.fromUuid(String.valueOf(storageId))).thenReturn(apiIdS);
@@ -129,10 +130,10 @@ public class ReservationServiceTest {
         DemandEntityInfoDTO demandEntityInfoDTO1 = new DemandEntityInfoDTO();
         PlacementInfoDTO placementInfoApiDTO1 = new PlacementInfoDTO();
         final ResourceApiDTO resourceApiDTOC1 = createResourceApiDTO(200f,
-                CommodityTypeUnits.MEM_PROVISIONED.getMixedCase(), "123456");
+            CommodityTypeMapping.getMixedCaseFromCommodityType(CommonDTO.CommodityDTO.CommodityType.MEM_PROVISIONED), "123456");
         placementInfoApiDTO1.setComputeResources(Arrays.asList(resourceApiDTOC1));
         final ResourceApiDTO resourceApiDTOS1 = createResourceApiDTO(300f,
-                CommodityTypeUnits.STORAGE_PROVISIONED.getMixedCase(), "234567");
+            CommodityTypeMapping.getMixedCaseFromCommodityType(CommonDTO.CommodityDTO.CommodityType.STORAGE_PROVISIONED), "234567");
         placementInfoApiDTO1.setStorageResources(Arrays.asList(resourceApiDTOS1));
         demandEntityInfoDTO1.setPlacements(placementInfoApiDTO1);
         demandEntityInfoDTOS1.add(demandEntityInfoDTO1);

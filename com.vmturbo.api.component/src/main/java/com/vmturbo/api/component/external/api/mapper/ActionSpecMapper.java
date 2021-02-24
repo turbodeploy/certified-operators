@@ -48,6 +48,7 @@ import com.vmturbo.api.component.external.api.mapper.ReservedInstanceMapper.NotF
 import com.vmturbo.api.component.external.api.mapper.ReservedInstanceMapper.NotFoundMatchTenancyException;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
+import com.vmturbo.api.conversion.entity.CommodityTypeMapping;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
@@ -140,7 +141,6 @@ import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.common.protobuf.utils.HCIUtils;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.Units;
-import com.vmturbo.components.common.ClassicEnumMapper;
 import com.vmturbo.components.common.setting.OsMigrationSettingsEnum.OperatingSystem;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -1425,8 +1425,9 @@ public class ActionSpecMapper {
         actionApiDTO.setNewValue(String.format(FORMAT_FOR_ACTION_VALUES, resizeInfo.getNewCapacity()));
         actionApiDTO.setResizeToValue(String.format(FORMAT_FOR_ACTION_VALUES, resizeInfo.getNewCapacity()));
         // set units if available
-        ClassicEnumMapper.getCommodityUnitsForAction(resizeInfo.getCommodityType().getType(), resizeInfo.getTarget().getType())
-                .ifPresent(actionApiDTO::setValueUnits);
+
+        CommodityTypeMapping.getCommodityUnitsForActions(resizeInfo.getCommodityType().getType(),
+            resizeInfo.getTarget().getType()).ifPresent(actionApiDTO::setValueUnits);
 
         // set current location, new location and cloud aspects for cloud resize actions
         if (resizeInfo.getTarget().getEnvironmentType() == EnvironmentTypeEnum.EnvironmentType.CLOUD) {
@@ -1491,7 +1492,7 @@ public class ActionSpecMapper {
         actionApiDTO.setNewValue(String.format(FORMAT_FOR_ACTION_VALUES, resize.getNewCapacity()));
         actionApiDTO.setResizeToValue(String.format(FORMAT_FOR_ACTION_VALUES, resize.getNewCapacity()));
         // set units if available
-        ClassicEnumMapper.getCommodityUnitsForAction(resize.getCommodityType().getType(), null)
+        CommodityTypeMapping.getCommodityUnitsForActions(resize.getCommodityType().getType(), null)
                 .ifPresent(actionApiDTO::setValueUnits);
 
         // set current location, new location and cloud aspects for cloud resize actions

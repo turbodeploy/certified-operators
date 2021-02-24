@@ -98,6 +98,8 @@ public class ActionToApiConverter {
         action.getCurrentValue().ifPresent(actionApiDTO::setCurrentValue);
         action.getNewValue().ifPresent(actionApiDTO::setNewValue);
 
+        action.getValueUnit().ifPresent(actionApiDTO::setValueUnits);
+
         action.getRelatedPolicy().ifPresent(actionApiDTO::setPolicy);
 
         // record the times for this action
@@ -112,6 +114,9 @@ public class ActionToApiConverter {
         // set the execution characteristics
         action.getActionExecutionCharacteristics()
             .ifPresent(actionApiDTO::setExecutionCharacteristics);
+
+        // add the compound actions for the action
+        actionApiDTO.addCompoundActions(action.getCompoundActions());
 
         return actionApiDTO;
     }
