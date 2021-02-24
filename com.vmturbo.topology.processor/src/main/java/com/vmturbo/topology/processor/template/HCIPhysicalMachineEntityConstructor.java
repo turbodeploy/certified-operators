@@ -21,6 +21,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.ListSettingPoliciesReque
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -250,11 +251,10 @@ public class HCIPhysicalMachineEntityConstructor {
             @Nonnull Collection<TopologyEntity.Builder> hostsToReplace,
             @Nonnull CommoditySoldDTO.Builder storageClusterComm)
             throws TopologyEntityConstructorException {
-        String key = storageClusterComm.getCommodityType().getKey();
-
         for (TopologyEntity.Builder host : hostsToReplace) {
             for (TopologyEntity consumer : host.getConsumers()) {
-                setStorageClusterCommForVm(consumer.getTopologyEntityDtoBuilder(), key);
+                setStorageClusterCommForVm(consumer.getTopologyEntityDtoBuilder(),
+                        storageClusterComm.getCommodityType());
             }
 
             for (Long providerId : host.getProviderIds()) {
@@ -282,7 +282,7 @@ public class HCIPhysicalMachineEntityConstructor {
     }
 
     private void setStorageClusterCommForVm(@Nonnull TopologyEntityDTO.Builder vm,
-            @Nonnull String storageClusterKey) {
+            @Nonnull TopologyDTO.CommodityType clusterTypeWithKey) {
         if (vm.getEntityType() != EntityType.VIRTUAL_MACHINE_VALUE) {
             return;
         }
@@ -298,10 +298,28 @@ public class HCIPhysicalMachineEntityConstructor {
         }
 
         for (CommoditiesBoughtFromProvider.Builder boughtGroup : storageBoughtGroups) {
-            CommodityBoughtDTO comm = TopologyEntityConstructor.createCommodityBoughtDTO(
-                    CommodityType.STORAGE_CLUSTER_VALUE, storageClusterKey,
-                    SDKConstants.ACCESS_COMMODITY_USED);
-            boughtGroup.addCommodityBought(comm);
+            List<CommodityBoughtDTO.Builder> existingComm = boughtGroup
+                    .getCommodityBoughtBuilderList().stream()
+                    .filter(c -> c.getCommodityType()
+                            .getType() == CommodityType.STORAGE_CLUSTER_VALUE)
+                    .collect(Collectors.toList());
+
+            if (existingComm.isEmpty()) {
+                logger.warn(
+                        "VM '{}' does not have the Storage Cluster commodity bought from {}. Creating one.",
+                        vm.getDisplayName(), boughtGroup.getProviderId());
+                CommodityBoughtDTO comm = TopologyEntityConstructor.createCommodityBoughtDTO(
+                        CommodityType.STORAGE_CLUSTER_VALUE, clusterTypeWithKey.getKey(),
+                        SDKConstants.ACCESS_COMMODITY_USED);
+                boughtGroup.addCommodityBought(comm);
+            } else {
+                if (existingComm.size() > 1) {
+                    logger.warn("VM '{}' has {} Storage Cluster commodities bought from {}",
+                            vm.getDisplayName(), existingComm.size(), boughtGroup.getProviderId());
+                }
+
+                existingComm.get(0).setCommodityType(clusterTypeWithKey);
+            }
         }
     }
 
