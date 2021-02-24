@@ -598,8 +598,9 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
      */
     @Nonnull
     public List<TopologyDTO.CommodityType> getRiskCommodities() {
-        // many of actions don't have a risk so we return no risk by default.
-        return Collections.emptyList();
+        return ActionDTOUtil.getReasonCommodities(actionSpec.getRecommendation())
+            .map(ActionDTO.Explanation.ReasonCommodity::getCommodityType)
+            .collect(Collectors.toList());
     }
 
     /**
