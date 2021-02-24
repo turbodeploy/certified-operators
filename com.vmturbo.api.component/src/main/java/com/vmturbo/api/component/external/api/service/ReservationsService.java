@@ -58,7 +58,7 @@ import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 public class ReservationsService implements IReservationsService {
     private static final Logger logger = LogManager.getLogger();
 
-    private static final Set<String> RESERVATION_RELATED_COMMODITIES
+    protected static final Set<String> RESERVATION_RELATED_COMMODITIES
             = new HashSet<>(Arrays.asList(
             CommodityTypeUnits.CPU_PROVISIONED.getMixedCase(),
             CommodityTypeUnits.MEM_PROVISIONED.getMixedCase(),
@@ -130,8 +130,14 @@ public class ReservationsService implements IReservationsService {
         List<ResourceApiDTO> resourceApiDTOs = new ArrayList<>();
         for (DemandReservationApiDTO reservationApiDTO : reservations) {
             for (DemandEntityInfoDTO demandEntityInfoDTO : reservationApiDTO.getDemandEntities()) {
-                resourceApiDTOs.addAll(demandEntityInfoDTO.getPlacements().getComputeResources());
-                resourceApiDTOs.addAll(demandEntityInfoDTO.getPlacements().getStorageResources());
+                // getComputeResources and getStorageResources will be null for all reservations
+                // whose status is not RESERVED.
+                if (demandEntityInfoDTO.getPlacements() != null
+                        && demandEntityInfoDTO.getPlacements().getComputeResources() != null
+                        && demandEntityInfoDTO.getPlacements().getStorageResources() != null) {
+                    resourceApiDTOs.addAll(demandEntityInfoDTO.getPlacements().getComputeResources());
+                    resourceApiDTOs.addAll(demandEntityInfoDTO.getPlacements().getStorageResources());
+                }
             }
         }
 
