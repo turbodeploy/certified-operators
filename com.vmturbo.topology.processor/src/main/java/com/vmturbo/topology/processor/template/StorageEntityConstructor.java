@@ -26,6 +26,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.platform.common.builders.SDKConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -120,8 +121,8 @@ public class StorageEntityConstructor extends TopologyEntityConstructor
         // Unique commodity key.
         final String commodityKey = COMMODITY_KEY_PREFIX + EntityType.DISK_ARRAY.name() +
             COMMODITY_KEY_SEPARATOR + topologyEntityBuilder.getOid();
-        final CommodityBoughtDTO extentCommodityBought =
-                createCommodityBoughtDTO(EXTENT_VALUE, commodityKey, 1);
+        final CommodityBoughtDTO extentCommodityBought = createCommodityBoughtDTO(EXTENT_VALUE,
+                commodityKey, SDKConstants.ACCESS_COMMODITY_USED);
         commoditiesBoughtGroup.addCommodityBought(extentCommodityBought);
         commoditiesBoughtGroup.setMovable(true);
         topologyEntityBuilder.addCommoditiesBoughtFromProviders(commoditiesBoughtGroup.build());
