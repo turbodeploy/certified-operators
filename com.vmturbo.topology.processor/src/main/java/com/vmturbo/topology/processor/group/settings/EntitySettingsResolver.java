@@ -524,8 +524,9 @@ public class EntitySettingsResolver {
 
                 @Override
                 public void onCompleted() {
-                    logger.warn("Finished uploading EntitySettings map to group component"
-                        + " for topology {}.", topologyInfo);
+                    logger.info(
+                        "Finished uploading EntitySettings map to group component for topology {}.",
+                            topologyInfo);
                     finishLatch.countDown();
                 }
             };
