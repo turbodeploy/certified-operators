@@ -47,7 +47,7 @@ public class SavingsCalculatorTest {
     @Test
     public void calculate() throws FileNotFoundException, ParseException {
         EntityStateCache entityStateCache = new InMemoryEntityStateCache();
-        SavingsCalculator savingsCalculator = new SavingsCalculator(entityStateCache);
+        SavingsCalculator savingsCalculator = new SavingsCalculator();
         EntityEventsJournal entityEventsJournal = new InMemoryEntityEventsJournal();
         EntitySavingsStore entitySavingsStore = new SavingsCapture();
         EntitySavingsTracker tracker = new EntitySavingsTracker(entitySavingsStore,
