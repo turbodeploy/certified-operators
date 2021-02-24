@@ -1,6 +1,7 @@
 package com.vmturbo.cost.component.savings;
 
 import java.util.List;
+import java.util.Map;
 
 import javax.annotation.Nonnull;
 
@@ -20,33 +21,38 @@ import com.vmturbo.cost.component.savings.EntityStateCache.EntityState;
 
 /**
  * This class implements the algorithm for calculating entity savings and investments.
+ * TODO Remove this class or change the implementation to work with the new definition of EntityState and the new calculate API.
  */
 class SavingsCalculator {
     /**
      * Logger.
      */
     private final Logger logger = LogManager.getLogger();
-    private final EntityStateCache entityStateCache;
+
+    // TODO Remove this variable
+    private EntityStateCache entityStateCache;
 
     /**
      * Constructor.
-     *
-     * @param entityStateCache entity state to apply events to.
      */
-    SavingsCalculator(EntityStateCache entityStateCache) {
-        this.entityStateCache = entityStateCache;
+    SavingsCalculator() {
     }
 
     /**
      * Calculates savings and investments.
+     * TODO EntitySavingsTracker won't call this calculate API anymore.
      *
+     * @param entityStateCache entityStateCache
      * @param events List of events
      * @param periodStartTime start time of the period
      * @param periodEndTime end time of the period
+     * @deprecated use the other calculate method
      */
-    void calculate(@Nonnull final List<SavingsEvent> events,
+    @Deprecated
+    public void calculate(@Nonnull EntityStateCache entityStateCache, @Nonnull final List<SavingsEvent> events,
             long periodStartTime, long periodEndTime) {
         logger.debug("Calculating savings/investment from {} to {}", periodStartTime, periodEndTime);
+        this.entityStateCache = entityStateCache;
         for (SavingsEvent event : events) {
             long timestamp = event.getTimestamp();
             long entityId = event.getEntityId();
@@ -60,6 +66,18 @@ class SavingsCalculator {
         // Close out the period.
         entityStateCache.getAll()
                 .forEach(entityState -> entityState.endPeriod(periodStartTime, periodEndTime));
+    }
+
+    /**
+     * Calculates savings and investments.
+     *
+     * @param entityStates a map of entity states for entities whose states are being tracked
+     * @param events list of events
+     * @param periodStartTime start time of the period
+     * @param periodEndTime end time of the period
+     */
+    public void calculate(@Nonnull Map<Long, com.vmturbo.cost.component.savings.EntityState> entityStates,
+                   @Nonnull final List<SavingsEvent> events, long periodStartTime, long periodEndTime) {
     }
 
     /**

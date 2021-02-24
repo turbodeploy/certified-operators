@@ -9,6 +9,7 @@ import javax.annotation.Nullable;
 
 /**
  * Implementation for state cache.
+ * TODO Remove this class.
  */
 class InMemoryEntityStateCache implements EntityStateCache {
     private final Map<Long, EntityState> stateMap = new ConcurrentHashMap<>();
