@@ -37,6 +37,7 @@ import org.jooq.DSLContext;
 import org.jooq.Query;
 import org.jooq.Record1;
 import org.jooq.TableRecord;
+import org.jooq.conf.StatementType;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 import org.springframework.util.StopWatch;
@@ -770,6 +771,8 @@ public class TopologyDataDefinitionStore implements DiagsRestorable<DSLContext> 
     public void restoreDiags(@Nonnull final List<String> collectedDiags, @Nonnull DSLContext context)
             throws DiagnosticsException {
         try {
+            final StatementType initialType = context.settings().getStatementType();
+            context.settings().setStatementType(StatementType.STATIC_STATEMENT);
             final Gson gson = ComponentGsonFactory.createGsonNoPrettyPrint();
             // Replace all existing topology data definitions with those from the diags
             // clear any existing topology data definitions from the DB
@@ -796,6 +799,7 @@ public class TopologyDataDefinitionStore implements DiagsRestorable<DSLContext> 
                     num_errors += 1;
                 }
             }
+            context.settings().setStatementType(initialType);
             logger.info("{} topology data definitions created. {} errors encountered.", num_created,
                 num_errors);
         } catch (DataAccessException ex) {
