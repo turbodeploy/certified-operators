@@ -464,6 +464,7 @@ public class ScheduleStore implements DiagsRestorable<DSLContext> {
         context.deleteFrom(SETTING_POLICY)
             .where(SETTING_POLICY.SCHEDULE_ID.isNotNull())
             .execute();
+        context.deleteFrom(SETTING_POLICY_SETTING_SCHEDULE_IDS).execute();
         return context.deleteFrom(SCHEDULE).execute();
     }
 
