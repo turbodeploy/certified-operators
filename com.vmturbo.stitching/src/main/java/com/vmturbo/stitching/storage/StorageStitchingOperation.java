@@ -129,8 +129,7 @@ public class StorageStitchingOperation implements StitchingOperation<String, Str
             })
             // Merge the storage-probe discovered storage onto the hypervisor probe discovered storage.
             .queueEntityMerger(MergeEntities.mergeEntity(storageStorage).onto(hypervisorStorage))
-            // Merge the hypervisor diskArray onto the storage DiskArray.
-            .queueEntityMerger(MergeEntities.mergeEntity(hypervisorDiskArray)
-                    .onto(storageDiskArrayOrLogicalPool));
+            // remove the hypervisor diskArray.
+            .queueEntityRemoval(hypervisorDiskArray);
     }
 }
