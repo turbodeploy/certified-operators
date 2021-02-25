@@ -52,6 +52,10 @@ public class CostClientConfig {
     @Value("${kafkaReceiverTimeoutSeconds:3600}")
     private int kafkaReceiverTimeoutSeconds;
 
+    // the max message size (in bytes) that the GRPC server for this component will accept.
+    @Value("${server.grpcMaxMessageBytes:20000000}")
+    private int grpcMaxMessageBytes;
+
     @Autowired
     private BaseKafkaConsumerConfig baseKafkaConfig;
 
@@ -65,6 +69,7 @@ public class CostClientConfig {
     @Bean
     public Channel costChannel() {
         return ComponentGrpcServer.newChannelBuilder(costHost, grpcPort)
+                .maxInboundMessageSize(grpcMaxMessageBytes)
                 .keepAliveTime(grpcPingIntervalSeconds, TimeUnit.SECONDS)
                 .build();
     }
