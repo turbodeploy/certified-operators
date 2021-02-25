@@ -1,5 +1,8 @@
 package com.vmturbo.platform.analysis.ede;
 
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.junit.Assert.assertEquals;
 
 import java.util.ArrayList;
@@ -8,6 +11,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -162,6 +166,33 @@ public class ConsistentResizerTest {
         assertEquals(resize1.getNewCapacity() * getCsf(resize1),
             resize2.getNewCapacity() * getCsf(resize2), CAPACITY_COMPARISON_DELTA);
         assertEquals(192, resize1.getNewCapacity() * getCsf(resize1), CAPACITY_COMPARISON_DELTA);
+    }
+
+    /**
+     * Test ResizingGroup.generateResizes with capacity lower bound and capacity upper bound.
+     * <p/>
+     * Resize 80 -> 120 with capacity increment as 37.5 and capacity lower bound and upper bound both at 120.
+     * The final action should be to resize capacity to 120 because even though 120 is not a multiple of
+     * 37.5 [ ceil(120/37.5) * 37.5 == 150 ] we still cap new capacity by the upper bound of 120.
+     */
+    @Test
+    public void testResizingGenerateResizeUpLowerBoundDoesNotExceedUpperBound() {
+        Resize resize1 = mockResize(TestUtils.VMEM, 80, 120, 120, true, 37.5);
+        Resize resize2 = mockResize(TestUtils.VMEM, 80, 120, 120, true, 37.5);
+        Stream.of(resize1, resize2).forEach(resize -> resize.getSellingTrader()
+            .getCommoditySold(TestUtils.VMEM)
+            .getSettings()
+            .setCapacityUpperBound(120));
+
+        ResizingGroup rg = new ConsistentResizer().new ResizingGroup();
+        rg.addResize(resize1, true, new HashMap<>(), rawMaterials);
+        rg.addResize(resize2, true, new HashMap<>(), rawMaterials);
+
+        List<Action> actions = new ArrayList<>();
+        rg.generateResizes(actions);
+        assertEquals(2, actions.size());
+        assertThat(resize1.getNewCapacity(), is(lessThanOrEqualTo(120.0)));
+        assertThat(resize2.getNewCapacity(), is(lessThanOrEqualTo(120.0)));
     }
 
     /**

@@ -195,16 +195,18 @@ public class ConsistentResizer {
             if (maxLowerBound.isGreaterThan(minUpperBound)) {
                 logger.error("Skipping resize generation for {} because the lowerBounds exceeds the upperBound.",
                         resizes.get(0).getResize().getSellingTrader().getScalingGroupId());
+                return;
             }
             // make sure we dont exceed the upperbound
             maxCapacity = ConsistentScalingNumber.min(maxCapacity, minUpperBound);
             // make sure we meet the lowerbound
             // update maxLowerBound to the smallest multiple of capacityIncrement larger than
             // current maxLowerBound value to make sure finalNewCapacity is always larger than lower
-            // bound when resizing down.
+            // bound when resizing down. Ensure this updated lower bound is not above the upper bound.
             maxLowerBound = maxLowerBound.dividedBy(capacityIncrement)
                 .ceiling()
                 .times(capacityIncrement);
+            maxLowerBound = ConsistentScalingNumber.min(maxLowerBound, minUpperBound);
             maxCapacity = ConsistentScalingNumber.max(maxCapacity, maxLowerBound);
 
             /*
