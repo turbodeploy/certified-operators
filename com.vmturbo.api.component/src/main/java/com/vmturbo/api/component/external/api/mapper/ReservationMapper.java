@@ -225,6 +225,7 @@ public class ReservationMapper {
             convertToDemandEntityDTO(reservationTemplate.get(),
                         reservationApiDTO);
         }
+        reservationApiDTO.setReservationDeployed(reservation.getDeployed());
         return reservationApiDTO;
     }
 

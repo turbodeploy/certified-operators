@@ -138,7 +138,8 @@ public class ReservationsService implements IReservationsService {
                 // whose status is not RESERVED.
                 if (demandEntityInfoDTO.getPlacements() != null
                         && demandEntityInfoDTO.getPlacements().getComputeResources() != null
-                        && demandEntityInfoDTO.getPlacements().getStorageResources() != null) {
+                        && demandEntityInfoDTO.getPlacements().getStorageResources() != null
+                        && !reservationApiDTO.getReservationDeployed()) {
                     resourceApiDTOs.addAll(demandEntityInfoDTO.getPlacements().getComputeResources());
                     resourceApiDTOs.addAll(demandEntityInfoDTO.getPlacements().getStorageResources());
                 }
