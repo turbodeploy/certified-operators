@@ -132,17 +132,20 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.GetPlansOptions;
 import com.vmturbo.common.protobuf.plan.PlanDTO.OptionalPlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.plan.PlanDTO.UpdatePlanRequest;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.DeletePlanProjectRequest;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.GetAllPlanProjectsRequest;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.GetPlanProjectRequest;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.GetPlanProjectResponse;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProject;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProject.PlanProjectStatus;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectInfo;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.RunPlanProjectRequest;
 import com.vmturbo.common.protobuf.plan.PlanProjectServiceGrpc.PlanProjectServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.Scenario;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges;
@@ -252,6 +255,12 @@ public class MarketsService implements IMarketsService {
      */
     private static final Set<Integer> ENTITY_TYPES_SUPPORTING_UNPLACED =
         ImmutableSet.of(EntityType.VIRTUAL_MACHINE_VALUE, EntityType.CONTAINER_POD_VALUE);
+
+    /**
+     * Entity types which are not valid for plan scopes.
+     */
+    private static final Set<ApiEntityType> INVALID_SCOPE_ENTITY_TYPES =
+        ImmutableSet.of(ApiEntityType.COMPUTE_TIER, ApiEntityType.DATABASE_TIER, ApiEntityType.STORAGE_TIER);
 
     public MarketsService(@Nonnull final ActionSpecMapper actionSpecMapper,
                           @Nonnull final UuidMapper uuidMapper,
@@ -864,34 +873,93 @@ public class MarketsService implements IMarketsService {
         }
 
         Scenario existingScenario = getScenario(scenarioId);
+        // Scenario scope validation.
+        if (!existingScenario.hasScenarioInfo() || !existingScenario.getScenarioInfo().hasScope()
+            || existingScenario.getScenarioInfo().getScope().getScopeEntriesCount() == 0) {
+            throw new IllegalArgumentException("Scenario with UUID: " + scenarioId
+                    + " does not have a defined scope.");
+        }
+        for (PlanScopeEntry scope : existingScenario.getScenarioInfo().getScope().getScopeEntriesList()) {
+            ApiId scopeId = uuidMapper.fromOid(scope.getScopeObjectOid());
+            if (scopeId.isGroup()) {
+                if (scopeId.getCachedGroupInfo().get().getEntityIds().isEmpty()) {
+                    throw new IllegalArgumentException("Scenario with UUID: " + scenarioId
+                        + " has invalid empty group scope oid: " + scope.getScopeObjectOid());
+                } else if (INVALID_SCOPE_ENTITY_TYPES.stream()
+                    .anyMatch(scopeId.getCachedGroupInfo().get().getEntityTypes()::contains)) {
+                    throw new IllegalArgumentException("Scenario with UUID: " + scenarioId
+                        + " has invalid group scope entity types oid: " + scope.getScopeObjectOid());
+                }
+            } else if (scopeId.isEntity()) {
+                if (INVALID_SCOPE_ENTITY_TYPES.contains(scopeId.getCachedEntityInfo().get().getEntityType())) {
+                    throw new IllegalArgumentException("Scenario with UUID: " + scenarioId
+                        + " has invalid entity type scope oid: " + scope.getScopeObjectOid()
+                        + " - " + scopeId.getCachedEntityInfo().get().getEntityType());
+                }
+            } else if (scopeId.isRealtimeMarket()) {
+                throw new IllegalArgumentException("Cannot use the whole market as a scope. "
+                    + "Please specify a group or an entity as a scope. "
+                    + " for Scenario with UUID: " + scenarioId);
+            } else {
+                throw new IllegalArgumentException("Scenario with UUID: " + scenarioId
+                    + " has invalid scope oid: " + scope.getScopeObjectOid());
+            }
+        }
+
         if (Boolean.TRUE.equals(ignoreConstraints)) {
             existingScenario = updateIgnoreConstraints(existingScenario);
         }
 
         if (planProjectBuilder.isPlanProjectRequired(sourceMarketId, existingScenario)) {
-            final PlanProject planProject = planProjectBuilder.createPlanProject(existingScenario);
+            final PlanProject planProject;
+            try {
+                planProject = planProjectBuilder.createPlanProject(existingScenario);
+                // plan project validation
+                if (planProject == null || planProject.getStatus() == PlanProjectStatus.FAILED) {
+                    throw new OperationFailedException(String.format(
+                    "Plan creation was not successful for market %s with scenario %s. %s ",
+                        marketUuid, scenarioId, planProject == null
+                            ? "PlanProject is null" : "Status: " + planProject.getStatus()));
+                }
+            } catch (StatusRuntimeException e) {
+                throw new OperationFailedException(String.format(
+                    "Plan creation was not successful for market %s with scenario %s. %s ",
+                    marketUuid, scenarioId, e.getMessage()));
+            }
+                logger.info("Running a newly created {} plan project {}.",
+                        existingScenario.getScenarioInfo().getType(), planProject.getPlanProjectId());
+                planProjectRpcService.runPlanProject(RunPlanProjectRequest.newBuilder()
+                        .setId(planProject.getPlanProjectId()).build());
 
-            logger.info("Running a newly created {} plan project {}.",
-                    existingScenario.getScenarioInfo().getType(), planProject.getPlanProjectId());
-            planProjectRpcService.runPlanProject(RunPlanProjectRequest.newBuilder()
-                    .setId(planProject.getPlanProjectId()).build());
-
-            return getMarketApiDto(planProject, getMainPlanInstance(planProject), existingScenario);
+                return getMarketApiDto(planProject, getMainPlanInstance(planProject), existingScenario);
         }
         // For regular plans (like OCP) that are not part of a project.
         final PlanInstance planInstance;
-        if (sourceMarketId.isRealtimeMarket()) {
-            // for realtime market create a new plan; topologyId is not set, defaulting to "0"
-            planInstance = planRpcService.createPlan(CreatePlanRequest.newBuilder()
-                    .setScenarioId(scenarioId)
-                    .build());
-        } else {
-            // plan market: create new plan where source topology is the prev projected topology
-            PlanDTO.PlanScenario planScenario = PlanDTO.PlanScenario.newBuilder()
-                    .setPlanId(sourceMarketId.oid())
-                    .setScenarioId(scenarioId)
-                    .build();
-            planInstance = planRpcService.createPlanOverPlan(planScenario);
+        try {
+            if (sourceMarketId.isRealtimeMarket()) {
+                // for realtime market create a new plan; topologyId is not set, defaulting to "0"
+                planInstance = planRpcService.createPlan(CreatePlanRequest.newBuilder()
+                        .setScenarioId(scenarioId)
+                        .build());
+            } else {
+                // plan market: create new plan where source topology is the prev projected topology
+                PlanDTO.PlanScenario planScenario = PlanDTO.PlanScenario.newBuilder()
+                        .setPlanId(sourceMarketId.oid())
+                        .setScenarioId(scenarioId)
+                        .build();
+                planInstance = planRpcService.createPlanOverPlan(planScenario);
+            }
+        } catch (StatusRuntimeException e) {
+            throw new OperationFailedException(String.format(
+                "Plan creation was not successful for market %s with scenario %s. %s ",
+                marketUuid, scenarioId, e.getMessage()));
+        }
+        // plan instance validation
+        if (planInstance == null || planInstance.getStatus() == PlanStatus.FAILED) {
+            throw new OperationFailedException(String.format(
+            "Plan creation was not successful for market %s with scenario %s. %s ",
+                marketUuid, scenarioId, planInstance == null
+                    ? "PlanInstance is null" : "Status: " + planInstance.getStatusMessage()));
         }
         final PlanInstance updatedInstance = planRpcService.runPlan(PlanId.newBuilder()
                 .setPlanId(planInstance.getPlanId())
