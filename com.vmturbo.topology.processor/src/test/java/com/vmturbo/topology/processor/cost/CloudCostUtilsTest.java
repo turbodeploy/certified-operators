@@ -24,7 +24,7 @@ public class CloudCostUtilsTest {
     public void testDatabaseTierLocalNameToId() {
         Assert.assertEquals("No change", CloudCostUtils.getEntityIdFromDBProfile(
                 generateTopologyStitchingEntity("No change"), null));
-        Assert.assertEquals("aws::DBPROFILE::id", CloudCostUtils.getEntityIdFromDBProfile(
+        Assert.assertEquals("aws::DBSPROFILE::id", CloudCostUtils.getEntityIdFromDBProfile(
                 generateTopologyStitchingEntity("id"), SDKProbeType.AWS_COST));
     }
 
@@ -43,7 +43,7 @@ public class CloudCostUtilsTest {
      */
     @Test
     public void testAwsDatabaseServerTierLocalNameToId() {
-        Assert.assertEquals("aws::DBPROFILE::db.m2.medium::gp2", CloudCostUtils
+        Assert.assertEquals("aws::DBSPROFILE::db.m2.medium::gp2", CloudCostUtils
                 .getEntityIdFromDBProfile(generateTopologyStitchingEntity("db.m2.medium::gp2"), SDKProbeType.AWS));
     }
 
@@ -58,7 +58,7 @@ public class CloudCostUtilsTest {
                 .setDatabaseServerTierData(DatabaseServerTierData
                         .newBuilder().setTemplateIdentifier("db.t2.24xlarge::io1").build());
         TopologyStitchingEntity topologyStitchingEntity = new TopologyStitchingEntity(entityDTO, 1L, 01L, 1L);
-        Assert.assertEquals("aws::DBPROFILE::db.t2.24xlarge::io1", CloudCostUtils
+        Assert.assertEquals("aws::DBSPROFILE::db.t2.24xlarge::io1", CloudCostUtils
                 .getEntityIdFromDBProfile(topologyStitchingEntity, SDKProbeType.AWS));
     }
 
