@@ -66,6 +66,18 @@ public class ReservationServiceTest {
 
     private ReservationsService reservationsService;
 
+    private final long hostId = 123456L;
+    private final long storageId = 234567L;
+
+    // reservationApiDTO1 corresponds to reservation1 which is successful and has both
+    // ComputeResources and StorageResources set.
+    private DemandReservationApiDTO reservationApiDTO1;
+
+    // reservationApiDTO2 corresponds to reservation2 which is failed and has both
+    // ComputeResources and StorageResources not set.
+    private DemandReservationApiDTO reservationApiDTO2;
+
+
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(reservationServiceMole,
             planServiceMole, actionsServiceMole, templateServiceMole, groupServiceMole);
@@ -80,14 +92,10 @@ public class ReservationServiceTest {
                 GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()), mockUuidMapper);
     }
 
-
     /**
-     * test getReservationAwareStats. 2 reservations. one is reserved and one is placement_failed.
-     * Only the reserved reservation contribute to the entity stats.
-     * @throws Exception
+     * Set up for the GetReservationAwareStats tests.
      */
-    @Test
-    public void testGetReservationAwareStats()  throws Exception {
+    private void setupForGetReservationAwareStats() throws Exception {
 
         // reservation specific StatPeriodApiInputDTO for mock.
         StatPeriodApiInputDTO statPeriodApiInputDTO = new StatPeriodApiInputDTO();
@@ -100,7 +108,6 @@ public class ReservationServiceTest {
         }
 
         // Host Stats to be return from stats service.
-        final long hostId = 123456L;
         final ApiId apiIdH = Mockito.mock(ApiId.class);
         List<StatSnapshotApiDTO> entityStatSnapshotH = createEntityStatSnapshot(2000f,
                 CommodityTypeMapping.getMixedCaseFromCommodityType(CommonDTO.CommodityDTO.CommodityType.MEM_PROVISIONED));
@@ -111,11 +118,10 @@ public class ReservationServiceTest {
                 String.valueOf(hostId),statPeriodApiInputDTO)).thenReturn(entityStatSnapshotH);
 
         // Storage Stats to be returned from stats service
-        final long storageId = 234567L;
         final ApiId apiIdS = Mockito.mock(ApiId.class);
         Mockito.when(mockUuidMapper.fromUuid(Mockito.any())).thenReturn(apiIdH);
         List<StatSnapshotApiDTO> entityStatSnapshotS = createEntityStatSnapshot(3000f,
-            CommodityTypeMapping.getMixedCaseFromCommodityType(CommonDTO.CommodityDTO.CommodityType.STORAGE_PROVISIONED));
+                CommodityTypeMapping.getMixedCaseFromCommodityType(CommonDTO.CommodityDTO.CommodityType.STORAGE_PROVISIONED));
         Mockito.when(apiIdS.isGroup()).thenReturn(false);
         Mockito.when(apiIdS.oid()).thenReturn(storageId);
         Mockito.when(mockUuidMapper.fromUuid(String.valueOf(storageId))).thenReturn(apiIdS);
@@ -123,17 +129,15 @@ public class ReservationServiceTest {
                 String.valueOf(storageId),statPeriodApiInputDTO)).thenReturn(entityStatSnapshotS);
 
 
-        // reservationApiDTO1 corresponds to reservation1 which is successful and has both
-        // ComputeResources and StorageResources set.
-        final DemandReservationApiDTO reservationApiDTO1 = new DemandReservationApiDTO();
+        reservationApiDTO1 = new DemandReservationApiDTO();
         final List<DemandEntityInfoDTO> demandEntityInfoDTOS1 = new ArrayList<>();
         DemandEntityInfoDTO demandEntityInfoDTO1 = new DemandEntityInfoDTO();
         PlacementInfoDTO placementInfoApiDTO1 = new PlacementInfoDTO();
         final ResourceApiDTO resourceApiDTOC1 = createResourceApiDTO(200f,
-            CommodityTypeMapping.getMixedCaseFromCommodityType(CommonDTO.CommodityDTO.CommodityType.MEM_PROVISIONED), "123456");
+                CommodityTypeMapping.getMixedCaseFromCommodityType(CommonDTO.CommodityDTO.CommodityType.MEM_PROVISIONED), "123456");
         placementInfoApiDTO1.setComputeResources(Arrays.asList(resourceApiDTOC1));
         final ResourceApiDTO resourceApiDTOS1 = createResourceApiDTO(300f,
-            CommodityTypeMapping.getMixedCaseFromCommodityType(CommonDTO.CommodityDTO.CommodityType.STORAGE_PROVISIONED), "234567");
+                CommodityTypeMapping.getMixedCaseFromCommodityType(CommonDTO.CommodityDTO.CommodityType.STORAGE_PROVISIONED), "234567");
         placementInfoApiDTO1.setStorageResources(Arrays.asList(resourceApiDTOS1));
         demandEntityInfoDTO1.setPlacements(placementInfoApiDTO1);
         demandEntityInfoDTOS1.add(demandEntityInfoDTO1);
@@ -142,9 +146,7 @@ public class ReservationServiceTest {
         Mockito.when(reservationMapper.convertReservationToApiDTO(reservation1))
                 .thenReturn(reservationApiDTO1);
 
-        // reservationApiDTO2 corresponds to reservation2 which is failed and has both
-        // ComputeResources and StorageResources not set.
-        final DemandReservationApiDTO reservationApiDTO2 = new DemandReservationApiDTO();
+        reservationApiDTO2 = new DemandReservationApiDTO();
         final List<DemandEntityInfoDTO> demandEntityInfoDTOS2 = new ArrayList<>();
         DemandEntityInfoDTO demandEntityInfoDTO2 = new DemandEntityInfoDTO();
         PlacementInfoDTO placementInfoApiDTO2 = new PlacementInfoDTO();
@@ -161,6 +163,16 @@ public class ReservationServiceTest {
         Mockito.when(reservationServiceMole
                 .getAllReservations(Mockito.any())).thenReturn(reservationIterator);
 
+    }
+
+    /**
+     * test getReservationAwareStats. 2 reservations. one is reserved and one is placement_failed.
+     * Only the reserved reservation contribute to the entity stats.
+     * @throws Exception
+     */
+    @Test
+    public void testGetReservationAwareStats()  throws Exception {
+        setupForGetReservationAwareStats();
         // host has the mem provisioned values added up.
         List<StatApiDTO> resultH = reservationsService.getReservationAwareStats(String.valueOf(hostId));
         Assert.assertEquals(2200f, resultH.get(0).getValues().getAvg(), 0.001);
@@ -168,6 +180,26 @@ public class ReservationServiceTest {
         // storage has the storage provisioned values added up.
         List<StatApiDTO> resultS = reservationsService.getReservationAwareStats(String.valueOf(storageId));
         Assert.assertEquals(3300f, resultS.get(0).getValues().getAvg(), 0.001);
+
+    }
+
+    /**
+     * test getReservationAwareStats. 2 reservations. one is reserved and one is placement_failed.
+     * The reserved one will not be added to stats because the deployedCount is > 0.
+     * @throws Exception
+     */
+    @Test
+    public void testGetReservationAwareStatsWithDeployedField()  throws Exception {
+        setupForGetReservationAwareStats();
+        reservationApiDTO1.setReservationDeployed(true);
+
+        // host mem_provisioned will not change because deployed count is != 0.
+        List<StatApiDTO> resultH = reservationsService.getReservationAwareStats(String.valueOf(hostId));
+        Assert.assertEquals(2000f, resultH.get(0).getValues().getAvg(), 0.001);
+
+        // storage storage_provisioned will not change because deployed count is != 0..
+        List<StatApiDTO> resultS = reservationsService.getReservationAwareStats(String.valueOf(storageId));
+        Assert.assertEquals(3000f, resultS.get(0).getValues().getAvg(), 0.001);
 
     }
 
