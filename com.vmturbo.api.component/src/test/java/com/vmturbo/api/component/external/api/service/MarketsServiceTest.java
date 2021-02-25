@@ -137,6 +137,8 @@ import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.PlanProjectServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc;
 import com.vmturbo.common.protobuf.plan.ScenarioMoles.ScenarioServiceMole;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.Scenario;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.common.protobuf.plan.ScenarioServiceGrpc;
@@ -565,6 +567,17 @@ public class MarketsServiceTest {
         MarketApiDTO mappedNewPlan = new MarketApiDTO();
         when(marketMapper.dtoFromPlanInstance(newPlan)).thenReturn(mappedNewPlan);
 
+        doReturn(Scenario.newBuilder()
+                .setId(TEST_SCENARIO_ID)
+                .setScenarioInfo(ScenarioInfo.newBuilder()
+                    .setName("Some scenario")
+                    .setScope(PlanScope.newBuilder()
+                        .addScopeEntries(PlanScopeEntry.newBuilder()
+                        .setScopeObjectOid(PHYSICAL_MACHINE_OID))))
+            .build()).when(scenarioBackend).getScenario(any());
+        doReturn(ApiTestUtils.mockEntityId(String.valueOf(PHYSICAL_MACHINE_OID), ApiEntityType.PHYSICAL_MACHINE, uuidMapper))
+            .when(uuidMapper).fromOid(PHYSICAL_MACHINE_OID);
+
         final MarketApiDTO resp = marketsService.applyAndRunScenario(
             MARKET_UUID, 1L, false, null);
 
@@ -596,6 +609,17 @@ public class MarketsServiceTest {
 
         MarketApiDTO mappedNewPlan = new MarketApiDTO();
         when(marketMapper.dtoFromPlanInstance(newPlan)).thenReturn(mappedNewPlan);
+
+        doReturn(Scenario.newBuilder()
+                    .setId(TEST_SCENARIO_ID)
+                    .setScenarioInfo(ScenarioInfo.newBuilder()
+                        .setName("Some scenario")
+                        .setScope(PlanScope.newBuilder()
+                            .addScopeEntries(PlanScopeEntry.newBuilder()
+                            .setScopeObjectOid(PHYSICAL_MACHINE_OID))))
+                .build()).when(scenarioBackend).getScenario(any());
+        doReturn(ApiTestUtils.mockEntityId(String.valueOf(PHYSICAL_MACHINE_OID), ApiEntityType.PHYSICAL_MACHINE, uuidMapper))
+            .when(uuidMapper).fromOid(PHYSICAL_MACHINE_OID);
 
         // the market UUID is the ID of the Plan Spec to start from
         String runPlanUri = "/markets/" + TEST_PLAN_OVER_PLAN_ID + "/scenarios/"
