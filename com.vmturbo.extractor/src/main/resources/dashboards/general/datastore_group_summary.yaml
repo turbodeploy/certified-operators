@@ -250,7 +250,8 @@ panels:
         date_trunc('hour', m.time) as "time",
         ROUND((sum(m.current)/sum(m.capacity))::NUMERIC, 4) AS "Storage Amount Used"
       FROM metrics m
-      GROUP BY date_trunc('hour', m.time)
+      GROUP BY 1
+      ORDER BY 1
     refId: A
     select:
     - - params:
