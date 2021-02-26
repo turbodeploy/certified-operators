@@ -5,6 +5,7 @@ import java.util.Calendar;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -18,7 +19,6 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.SavingsEvent;
-import com.vmturbo.cost.component.savings.EntityStateCache.SavingsInvestments;
 
 /**
  * Module to track entity realized/missed savings/investments stats.
@@ -112,12 +112,12 @@ public class EntitySavingsTracker {
             //Set<Long> entityIds = events.stream().map(SavingsEvent::getEntityId).collect(Collectors.toSet());
 
             // TODO Get states for these entities from the state map (if they exist).
-            //Map<Long, EntityState> entityStates = entityStateStore.getEntityStates(entityIds);
+            // Map<Long, EntityState> entityStates = entityStateStore.getEntityStates(entityIds);
+            // TODO Remove this after we support reading entity state from peristent storage.
+            Map<Long, EntityState> entityStates = entityStateCache.getStateMap();
 
             // Invoke calculator
-            savingsCalculator.calculate(entityStateCache, events, startTime, endTime);
-            // TODO call new calculator API
-            //savingsCalculator.calculate(entityStates, events, startTime, endTime);
+            savingsCalculator.calculate(entityStates, events, startTime, endTime);
             // TODO Update entity states. Also insert new states to track new entities.
             //entityStateStore.updateEntityStates(entityStates);
 
@@ -202,19 +202,25 @@ public class EntitySavingsTracker {
         Set<EntitySavingsStats> stats = new HashSet<>();
         entityStateCache.getAll().forEach(state -> {
             long entityId = state.getEntityId();
-            SavingsInvestments realized = state.getRealized();
-            if (realized != null) {
+            Double savings = state.getRealizedSavings();
+            if (savings != null) {
                 stats.add(new EntitySavingsStats(entityId, statTime,
-                        EntitySavingsStatsType.REALIZED_SAVINGS, realized.getSavings()));
-                stats.add(new EntitySavingsStats(entityId, statTime,
-                        EntitySavingsStatsType.REALIZED_INVESTMENTS, realized.getInvestments()));
+                        EntitySavingsStatsType.REALIZED_SAVINGS, savings));
             }
-            SavingsInvestments missed = state.getMissed();
-            if (missed != null) {
+            Double investments = state.getRealizedInvestments();
+            if (investments != null) {
                 stats.add(new EntitySavingsStats(entityId, statTime,
-                        EntitySavingsStatsType.MISSED_SAVINGS, missed.getSavings()));
+                        EntitySavingsStatsType.REALIZED_INVESTMENTS, investments));
+            }
+            savings = state.getMissedSavings();
+            if (savings != null) {
                 stats.add(new EntitySavingsStats(entityId, statTime,
-                        EntitySavingsStatsType.MISSED_INVESTMENTS, missed.getInvestments()));
+                        EntitySavingsStatsType.MISSED_SAVINGS, savings));
+            }
+            investments = state.getMissedInvestments();
+            if (investments != null) {
+                stats.add(new EntitySavingsStats(entityId, statTime,
+                        EntitySavingsStatsType.MISSED_INVESTMENTS, investments));
             }
         });
 

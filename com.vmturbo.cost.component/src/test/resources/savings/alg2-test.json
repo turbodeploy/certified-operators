@@ -1,0 +1,107 @@
+[
+    {
+        "destTier": 10,
+        "eventType": "RESIZE_EXECUTED",
+        "sourceTier": 8,
+        "timestamp": 0,
+        "uuid": 74766790688767
+    },
+    {
+        "destTier": 12,
+        "eventType": "RESIZE_RECOMMENDATION",
+        "sourceTier": 10,
+        "timestamp": 240000,
+        "uuid": 74766790688767
+    },
+    {
+        "destTier": 12,
+        "eventType": "RESIZE_EXECUTED",
+        "sourceTier": 10,
+        "timestamp": 480000,
+        "uuid": 74766790688767
+    },
+    {
+        "destTier": 10,
+        "eventType": "RESIZE_RECOMMENDATION",
+        "sourceTier": 12,
+        "timestamp": 720000,
+        "uuid": 74766790688767
+    },
+    {
+        "destTier": 10,
+        "eventType": "RESIZE_EXECUTED",
+        "sourceTier": 12,
+        "timestamp": 960000,
+        "uuid": 74766790688767
+    },
+    {
+        "destTier": 16,
+        "eventType": "RESIZE_EXECUTED",
+        "sourceTier": 10,
+        "timestamp": 1200000,
+        "uuid": 74766790688767
+    },
+    {
+        "destTier": 12,
+        "eventType": "RESIZE_EXECUTED",
+        "sourceTier": 16,
+        "timestamp": 1440000,
+        "uuid": 74766790688767
+    },
+    {
+        "destTier": 6,
+        "eventType": "RESIZE_EXECUTED",
+        "sourceTier": 12,
+        "timestamp": 1680000,
+        "uuid": 74766790688767
+    },
+    {
+        "destTier": 10,
+        "eventType": "RESIZE_RECOMMENDATION",
+        "sourceTier": 6,
+        "timestamp": 1920000,
+        "uuid": 74766790688767
+    },
+    {
+        "destTier": 10,
+        "eventType": "RESIZE_EXECUTED",
+        "sourceTier": 6,
+        "timestamp": 2160000,
+        "uuid": 74766790688767
+    },
+    {
+        "destTier": 2,
+        "eventType": "RESIZE_EXECUTED",
+        "sourceTier": 10,
+        "timestamp": 2400000,
+        "uuid": 74766790688767
+    },
+    {
+        "destTier": 8,
+        "eventType": "RESIZE_EXECUTED",
+        "sourceTier": 2,
+        "timestamp": 2640000,
+        "uuid": 74766790688767
+    },
+    {
+        "destTier": 4,
+        "eventType": "RESIZE_EXECUTED",
+        "sourceTier": 8,
+        "timestamp": 2880000,
+        "uuid": 74766790688767
+    },
+    {
+        "destTier": 14,
+        "eventType": "RESIZE_EXECUTED",
+        "sourceTier": 4,
+        "timestamp": 3120000,
+        "uuid": 74766790688767
+    },
+    {
+        "destTier": 6,
+        "eventType": "RESIZE_EXECUTED",
+        "sourceTier": 14,
+        "timestamp": 3600000,
+        "uuid": 74766790688767
+    }
+]

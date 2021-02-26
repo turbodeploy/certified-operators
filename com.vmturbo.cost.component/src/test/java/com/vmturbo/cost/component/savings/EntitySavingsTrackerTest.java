@@ -35,8 +35,6 @@ import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent.ActionEventType;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.SavingsEvent;
-import com.vmturbo.cost.component.savings.EntityStateCache.EntityState;
-import com.vmturbo.cost.component.savings.EntityStateCache.SavingsInvestments;
 
 /**
  * Verify operation of the entity savings tracker.
@@ -216,25 +214,24 @@ public class EntitySavingsTrackerTest {
         stats.add(new EntitySavingsStats(vm3Id, time1000am, EntitySavingsStatsType.MISSED_INVESTMENTS, 4d));
 
         verify(entitySavingsStore).addHourlyStats(statsCaptor.capture());
-        Assert.assertEquals(12, statsCaptor.getValue().size());
+        Assert.assertEquals(6, statsCaptor.getValue().size());
         Assert.assertTrue(statsCaptor.getValue().containsAll(stats));
     }
 
     private EntityState createEntityState(long entityId, double realizedSavings, double realizedInvestments,
                                           double missedSavings, double missedInvestments) {
         EntityState state = new EntityState(entityId);
-        if (realizedSavings != 0 || realizedInvestments != 0) {
-            SavingsInvestments realized = new SavingsInvestments();
-            realized.setSavings(realizedSavings);
-            realized.setInvestments(realizedInvestments);
-            state.setRealized(realized, 1L);
+        if (realizedSavings != 0) {
+            state.setRealizedSavings(realizedSavings);
         }
-
-        if (missedSavings != 0 || missedInvestments != 0) {
-            SavingsInvestments missed = new SavingsInvestments();
-            missed.setSavings(missedSavings);
-            missed.setInvestments(missedInvestments);
-            state.setMissed(missed, 1L);
+        if (realizedInvestments != 0) {
+            state.setRealizedInvestments(realizedInvestments);
+        }
+        if (missedSavings != 0) {
+            state.setMissedSavings(missedSavings);
+        }
+        if (missedInvestments != 0) {
+            state.setMissedInvestments(missedInvestments);
         }
         return state;
     }
