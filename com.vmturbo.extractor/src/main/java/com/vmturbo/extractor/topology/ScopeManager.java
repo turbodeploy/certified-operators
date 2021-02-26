@@ -51,6 +51,7 @@ import com.vmturbo.extractor.models.DslRecordSink;
 import com.vmturbo.extractor.models.Table.Record;
 import com.vmturbo.extractor.models.Table.TableWriter;
 import com.vmturbo.extractor.schema.enums.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.sql.utils.jooq.JooqUtil.TempTable;
@@ -111,6 +112,10 @@ public class ScopeManager {
     private OffsetDateTime priorTimestamp;
     Int2ObjectMap<IntSet> currentScope = new Int2ObjectOpenHashMap<>();
     private OffsetDateTime currentTimestamp;
+
+    // we'll need this frequently, and the enum method creates a new clone each time, so we'll
+    // get one up-front
+    private static EntityType[] entityTypeValues = EntityType.values();
 
     /**
      * Create a new instance.
@@ -298,13 +303,7 @@ public class ScopeManager {
             Int2IntMap entityTypes) {
         long scopedOid = oidPack.fromIndex(scopedIid);
         currentScope.get(scopedIid).forEach((IntConsumer)seedIid -> {
-            try (Record r = scopeInserter.open()) {
-                r.set(SEED_OID, oidPack.fromIndex(seedIid));
-                r.set(SCOPED_OID, scopedOid);
-                r.set(SCOPED_TYPE, EntityType.values()[entityTypes.get(scopedIid)]);
-                r.set(SCOPE_START, currentTimestamp);
-                r.set(SCOPE_FINISH, MAX_TIMESTAMP);
-            }
+            writeScopeRecord(seedIid, scopedIid, scopedOid, entityTypes, scopeInserter);
         });
     }
 
@@ -347,13 +346,7 @@ public class ScopeManager {
                 }
             } else if (currentSet.contains(seedIid)) {
                 // new entity (or reappearance of an old entity) requires a new record
-                try (Record r = scopeInserter.open()) {
-                    r.set(SEED_OID, oidPack.fromIndex(seedIid));
-                    r.set(SCOPED_OID, scopedOid);
-                    r.set(SCOPED_TYPE, EntityType.values()[entityTypes.get(scopedIid)]);
-                    r.set(SCOPE_START, currentTimestamp);
-                    r.set(SCOPE_FINISH, MAX_TIMESTAMP);
-                }
+                writeScopeRecord(seedIid, scopedIid, scopedOid, entityTypes, scopeInserter);
                 if (debugEnabled) {
                     adds.add(seedIid);
                 }
@@ -386,6 +379,22 @@ public class ScopeManager {
                 r.set(SCOPED_OID, scopedOid);
             }
         });
+    }
+
+    private void writeScopeRecord(final int seedIid, final int scopedIid, final long scopedOid, final Int2IntMap entityTypes, final TableWriter scopeInserter) {
+        EntityType scopeType = getEntityType(scopedIid, entityTypes);
+        if (scopeType != null) {
+            try (Record r = scopeInserter.open()) {
+                r.set(SEED_OID, oidPack.fromIndex(seedIid));
+                r.set(SCOPED_OID, scopedOid);
+                r.set(SCOPED_TYPE, scopeType);
+                r.set(SCOPE_START, currentTimestamp);
+                r.set(SCOPE_FINISH, MAX_TIMESTAMP);
+            }
+        } else {
+            logger.error("No entity type recorded for entity {}; scope record omitted",
+                    oidPack.fromIndex(scopedIid));
+        }
     }
 
     /**
@@ -432,6 +441,21 @@ public class ScopeManager {
             logger.warn("No prior scope available from database; proceeding with empty prior scope; "
                     + "this is expected during initial installation");
         }
+    }
+
+    /**
+     * Return the entity type for a given entity iid, as specified in the map.
+     *
+     * <p>If the iid is not present in the map, null is returned.</p>
+     *
+     * @param iid         iid of entity whose type is needed
+     * @param entityTypes map of iids to {@link EntityDTO.EntityType} ordinals
+     * @return the entity's type, or null if not found in map
+     */
+    private EntityType getEntityType(int iid, Int2IntMap entityTypes) {
+        int type = entityTypes.getOrDefault(iid, -1);
+        return type != -1 ? entityTypeValues[type]
+                : null;
     }
 
     // utility used in debug logging
