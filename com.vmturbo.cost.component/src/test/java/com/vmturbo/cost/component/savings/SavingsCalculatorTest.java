@@ -6,10 +6,14 @@ import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.math.DoubleMath;
 import com.google.gson.Gson;
 import com.google.gson.stream.JsonReader;
 
@@ -45,17 +49,45 @@ public class SavingsCalculatorTest {
      * @throws ParseException if the events file contains invalid JSON.
      */
     @Test
-    public void calculate() throws FileNotFoundException, ParseException {
+    public void entityRemoved() throws FileNotFoundException, ParseException {
         EntityStateCache entityStateCache = new InMemoryEntityStateCache();
-        SavingsCalculator savingsCalculator = new SavingsCalculator();
         EntityEventsJournal entityEventsJournal = new InMemoryEntityEventsJournal();
         EntitySavingsStore entitySavingsStore = new SavingsCapture();
         EntitySavingsTracker tracker = new EntitySavingsTracker(entitySavingsStore,
                 entityEventsJournal, entityStateCache);
         // Inject some events
         addTestEvents("src/test/resources/savings/unit-test.json", entityEventsJournal);
-        tracker.processEvents(roundTime(entityEventsJournal.getNewestEventTime(), true).getTimeInMillis());
-        Assert.assertTrue(true);
+        tracker.processEvents(roundTime(entityEventsJournal.getNewestEventTime(), true).getTimeInMillis()
+                + 3600000L);
+        // Verify the results
+        Assert.assertEquals(0, entityStateCache.size());
+    }
+
+    /**
+     * Ensure that Algorithm-2 is generating the correct savings entries.
+     *
+     *  @throws FileNotFoundException if the events file is missing.
+     */
+    @Test
+    public void testAlgorithm2() throws FileNotFoundException {
+        // Add events
+        EntityEventsJournal eventsJournal = new InMemoryEntityEventsJournal();
+        addTestEvents("src/test/resources/savings/alg2-test.json", eventsJournal);
+
+        // Run the algorithm. Run a single period of one hour
+        SavingsCalculator savingsCalculator = new SavingsCalculator();
+        Map<Long, EntityState> entityStates = new HashMap<>();
+        savingsCalculator.calculate(entityStates, eventsJournal.removeAllEvents(), 0, 3600000L);
+
+        // Verify the results
+        Assert.assertEquals(1, entityStates.size());
+        EntityState entityState = entityStates.values().iterator().next();
+        Assert.assertEquals(ImmutableList.of(-2d, 4d, -8d), entityState.getActionList());
+        Assert.assertFalse(entityState.isDeletePending());
+        Assert.assertTrue(DoubleMath.fuzzyEquals(4.6666d, entityState.getRealizedSavings(), .0001d));
+        Assert.assertTrue(DoubleMath.fuzzyEquals(4.1333d, entityState.getRealizedInvestments(), .0001d));
+        Assert.assertTrue(DoubleMath.fuzzyEquals(0.1333d, entityState.getMissedSavings(), .0001d));
+        Assert.assertTrue(DoubleMath.fuzzyEquals(0.4d, entityState.getMissedInvestments(), .0001d));
     }
 
     /**

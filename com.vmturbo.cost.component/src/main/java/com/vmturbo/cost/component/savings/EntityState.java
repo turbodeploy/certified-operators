@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 /**
@@ -14,7 +15,7 @@ public class EntityState {
     /**
      * OID of entity.
      */
-    private long entityId;
+    private final long entityId;
 
     /**
      * Calculator will set the deletePending flag to true if the entity is deleted.
@@ -99,6 +100,7 @@ public class EntityState {
         this.deletePending = active;
     }
 
+    @Nonnull
     public List<Double> getActionList() {
         return actionList;
     }

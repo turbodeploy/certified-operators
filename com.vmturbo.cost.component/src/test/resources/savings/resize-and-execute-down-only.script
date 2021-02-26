@@ -1,6 +1,0 @@
-# Resize down recommendation and execution
-
-0 1:00 create VM-A t3.medium on
-0 2:00 resize VM-A t3.medium t3.nano
-0 2:01 execute VM-A t3.medium t3.nano
-0 4:00 stop
