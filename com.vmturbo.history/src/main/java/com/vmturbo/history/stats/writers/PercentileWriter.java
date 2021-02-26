@@ -4,18 +4,12 @@
 
 package com.vmturbo.history.stats.writers;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.PipedInputStream;
-import java.io.PipedOutputStream;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.Objects;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
 import javax.annotation.Nonnull;
@@ -26,8 +20,6 @@ import com.google.protobuf.ByteString;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
-import org.apache.commons.io.IOUtils;
-import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
@@ -47,96 +39,80 @@ import com.vmturbo.proactivesupport.DataMetricTimer;
 public class PercentileWriter implements StreamObserver<PercentileChunk> {
     private static final PercentileBlobs PERCENTILE_BLOBS_TABLE = PercentileBlobs.PERCENTILE_BLOBS;
 
-    private final PipedOutputStream incomingData;
-    private final PipedInputStream dataToWrite;
     private final StreamObserver<SetPercentileCountsResponse> responseObserver;
     private final Logger logger = LogManager.getLogger();
     private final HistorydbIO historydbIO;
-    private final ExecutorService statsWriterExecutorService;
-    private final AtomicLong processedChunks = new AtomicLong();
-    private final AtomicLong totalBytesWritten = new AtomicLong();
-    private final AtomicLong startTimestamp = new AtomicLong();
+    private final DataMetricTimer dataMetricTimer;
 
     private Connection connection;
     private DSLContext context;
-    private PreparedStatement insertNewValues;
-    private Future<?> dataWritingPromise;
-    private DataMetricTimer dataMetricTimer;
+    private int processedChunks;
+    private long totalBytesWritten;
+    private long startTimestamp;
+    private boolean closed;
 
     /**
      * Creates {@link PercentileWriter} instance.
-     *
-     * @param responseObserver provides information about errors to the client side
+     *  @param responseObserver provides information about errors to the client side
      *                 that called percentile writer instance.
      * @param historydbIO provides connection to database.
-     * @param statsWriterExecutorService pool to do new values storing.
      */
     public PercentileWriter(@Nonnull StreamObserver<SetPercentileCountsResponse> responseObserver,
-                    @Nonnull HistorydbIO historydbIO,
-                    @Nonnull ExecutorService statsWriterExecutorService) {
+                    @Nonnull HistorydbIO historydbIO) {
         this.historydbIO = Objects.requireNonNull(historydbIO, "HistorydbIO should not be null");
-        this.statsWriterExecutorService = Objects.requireNonNull(statsWriterExecutorService,
-                        "StatsWriterExecutorService should not be null");
-        this.dataToWrite = new PipedInputStream();
-        this.incomingData = new PipedOutputStream();
         this.responseObserver = Objects.requireNonNull(responseObserver,
                         "Response observer should not be null");
+        dataMetricTimer = SharedMetrics.PERCENTILE_WRITING.startTimer();
     }
 
     @Override
-    public void onNext(PercentileChunk percentileChunk) {
+    public void onNext(PercentileChunk chunk) {
         try {
-            if (connection == null) {
-                initialChunk(percentileChunk);
+            final long startTimestampMs = chunk.getStartTimestamp();
+            final ByteString content = chunk.getContent();
+            if (closed) {
+                logger.warn("Closed '{}' received chunk for '{}' with '{}' data size",
+                                PercentileWriter.class.getSimpleName(), startTimestampMs,
+                                content.size());
+                return;
             }
-            final ByteString content = percentileChunk.getContent();
-            totalBytesWritten.addAndGet(content.size());
-            content.writeTo(incomingData);
-            final long current = this.processedChunks.getAndIncrement();
-            logger.trace("Chunk#{} of percentile data '{}' for '{}' timestamp and '{}' period has been processed.",
-                            () -> current, content::size, percentileChunk::getStartTimestamp,
-                            percentileChunk::getPeriod);
+            if (connection == null) {
+                connection = historydbIO.transConnection();
+                startTimestamp = startTimestampMs;
+                context = historydbIO.JooqBuilder();
+                try (PreparedStatement deleteExistingRecords = this.connection.prepareStatement(
+                                context.deleteFrom(PERCENTILE_BLOBS_TABLE)
+                                                .where(PERCENTILE_BLOBS_TABLE.START_TIMESTAMP
+                                                                .eq(startTimestampMs)).getSQL())) {
+                    deleteExistingRecords.setLong(1, startTimestampMs);
+                    deleteExistingRecords.execute();
+                }
+            }
+            final byte[] bytes = content.toByteArray();
+            try (PreparedStatement insertNewValues = this.connection.prepareStatement(
+                            context.insertInto(PERCENTILE_BLOBS_TABLE)
+                                            .columns(PERCENTILE_BLOBS_TABLE.START_TIMESTAMP,
+                                                            PERCENTILE_BLOBS_TABLE.AGGREGATION_WINDOW_LENGTH,
+                                                            PERCENTILE_BLOBS_TABLE.DATA,
+                                                            PERCENTILE_BLOBS_TABLE.CHUNK_INDEX)
+                                            .values(startTimestampMs, chunk.getPeriod(), bytes,
+                                                            processedChunks).getSQL())) {
+                try (ByteArrayInputStream data = new ByteArrayInputStream(bytes)) {
+                    insertNewValues.setLong(1, startTimestampMs);
+                    insertNewValues.setLong(2, chunk.getPeriod());
+                    insertNewValues.setBinaryStream(3, data);
+                    insertNewValues.setInt(4, processedChunks);
+                    insertNewValues.execute();
+                }
+                logger.trace("Chunk#{} of percentile data '{}' for '{}' timestamp and '{}' period has been processed.",
+                                () -> processedChunks, content::size, chunk::getStartTimestamp,
+                                chunk::getPeriod);
+            }
+            totalBytesWritten += bytes.length;
+            processedChunks++;
         } catch (IOException | SQLException | VmtDbException ex) {
             closeResources(new CloseResourceHandler(ex));
         }
-    }
-
-    private void initialChunk(PercentileChunk percentileChunk)
-                    throws VmtDbException, IOException, SQLException {
-        dataMetricTimer = SharedMetrics.PERCENTILE_WRITING.startTimer();
-        connection = historydbIO.transConnection();
-        incomingData.connect(dataToWrite);
-        final long startTimestampMs = percentileChunk.getStartTimestamp();
-        this.startTimestamp.set(startTimestampMs);
-        final byte[] data = percentileChunk.getContent().toByteArray();
-        context = historydbIO.JooqBuilder();
-        try (PreparedStatement deleteExistingRecord = this.connection.prepareStatement(
-                        context.deleteFrom(PERCENTILE_BLOBS_TABLE)
-                                        .where(PERCENTILE_BLOBS_TABLE.START_TIMESTAMP
-                                                        .eq(startTimestampMs)).getSQL())) {
-            deleteExistingRecord.setLong(1, startTimestampMs);
-            deleteExistingRecord.execute();
-        }
-        insertNewValues = this.connection.prepareStatement(
-                        context.insertInto(PERCENTILE_BLOBS_TABLE)
-                                        .columns(PERCENTILE_BLOBS_TABLE.START_TIMESTAMP,
-                                                        PERCENTILE_BLOBS_TABLE.AGGREGATION_WINDOW_LENGTH,
-                                                        PERCENTILE_BLOBS_TABLE.DATA)
-                                        .values(startTimestampMs, percentileChunk.getPeriod(), data)
-                                        .getSQL());
-        insertNewValues.setLong(1, startTimestampMs);
-        insertNewValues.setLong(2, percentileChunk.getPeriod());
-        insertNewValues.setBinaryStream(3, dataToWrite);
-        dataWritingPromise = statsWriterExecutorService.submit(() -> {
-            try {
-                insertNewValues.execute();
-                connection.commit();
-            } catch (SQLException e) {
-                doSilentlyIfInitialized(dataToWrite, InputStream::close);
-                throw e;
-            }
-            return null;
-        });
     }
 
     @Override
@@ -150,16 +126,17 @@ public class PercentileWriter implements StreamObserver<PercentileChunk> {
     }
 
     private void closeResources(Runnable runnable) {
-        IOUtils.closeQuietly(incomingData);
+        if (closed) {
+            return;
+        }
+        closed = true;
         try {
             runnable.run();
         } finally {
             dataMetricTimer.close();
-            doSilentlyIfInitialized(insertNewValues, PreparedStatement::close);
             doSilentlyIfInitialized(context, DSLContext::close);
             doSilentlyIfInitialized(connection, Connection::close);
         }
-        IOUtils.closeQuietly(dataToWrite);
     }
 
     private <T, E extends Exception> void doSilentlyIfInitialized(T item,
@@ -198,26 +175,24 @@ public class PercentileWriter implements StreamObserver<PercentileChunk> {
 
         @Override
         public void run() {
-            final Supplier<String> errorMsgSupplier = () -> String.format(
-                            "Attempt to update percentile data for '%s' failed in '%s' seconds, because:",
-                            startTimestamp.get(), dataMetricTimer.getTimeElapsedSecs());
-            if (dataWritingPromise == null) {
-                handleException(failure, errorMsgSupplier);
+            if (failure != null) {
+                handleException(failure, () -> String.format(
+                                "Attempt to update percentile data for '%s' failed in '%s' seconds, because:",
+                                startTimestamp, dataMetricTimer.getTimeElapsedSecs()));
                 return;
             }
             try {
-                dataWritingPromise.get();
+                connection.commit();
                 responseObserver.onNext(SetPercentileCountsResponse.newBuilder().build());
                 logger.debug("Percentile data '{}' bytes in '{}' chunks for '{}' timestamp have been written successfully in '{}' seconds",
-                                totalBytesWritten::get, processedChunks::get, startTimestamp::get,
-                                dataMetricTimer::getTimeElapsedSecs);
+                                () -> totalBytesWritten, () -> processedChunks,
+                                () -> startTimestamp, dataMetricTimer::getTimeElapsedSecs);
                 responseObserver.onCompleted();
-            } catch (InterruptedException ex) {
+            } catch (SQLException ex) {
                 handleException(ex, () -> String.format(
-                                "Attempt to update percentile data for '%s' was interrupted in '%s' seconds",
-                                startTimestamp.get(), dataMetricTimer.getTimeElapsedSecs()));
-            } catch (ExecutionException ex) {
-                handleException(combineFailureReasons(ex.getCause()), errorMsgSupplier);
+                                "Failed to commit writing of '%s' chunks of '%s' blob which has '%s' bytes in '%s' seconds",
+                                processedChunks, startTimestamp, totalBytesWritten,
+                                dataMetricTimer.getTimeElapsedSecs()));
             }
         }
 
@@ -227,16 +202,6 @@ public class PercentileWriter implements StreamObserver<PercentileChunk> {
             responseObserver.onError(Status.INTERNAL.withCause(ex).asException());
         }
 
-        @Nonnull
-        private Throwable combineFailureReasons(@Nonnull Throwable cause) {
-            if (failure != null && cause.getCause() == null) {
-                final Throwable failureRootCause = ExceptionUtils.getRootCause(failure);
-                final Throwable realFailureCause =
-                                failureRootCause == null ? failure : failureRootCause;
-                realFailureCause.initCause(cause);
-                return realFailureCause;
-            }
-            return cause;
-        }
     }
+
 }

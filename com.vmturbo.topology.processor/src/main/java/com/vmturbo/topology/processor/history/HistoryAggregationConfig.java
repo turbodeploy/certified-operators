@@ -73,7 +73,7 @@ public class HistoryAggregationConfig {
     private int grpcTimeSlotChannelMaxMessageSizeKb;
     @Value("${historyAggregation.grpcStreamTimeoutSec:300}")
     private int grpcStreamTimeoutSec;
-    @Value("${historyAggregation.blobReadWriteChunkSizeKb:128}")
+    @Value("${historyAggregation.blobReadWriteChunkSizeKb:51200}")
     private int blobReadWriteChunkSizeKb;
 
     @Value("${historyAggregation.backgroundLoadingThreshold:5000}")

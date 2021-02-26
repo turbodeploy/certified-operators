@@ -118,9 +118,6 @@ public class StatsConfig {
     private GroupClientConfig groupClientConfig;
 
     @Autowired
-    private HistoryApiConfig historyApiConfig;
-
-    @Autowired
     private IngestersConfig ingestersConfig;
 
     @Autowired
@@ -200,7 +197,6 @@ public class StatsConfig {
                 systemLoadReader(),
                 systemLoadRecordsPerChunk,
                 percentileReader(),
-                statsSvcThreadPool(),
                 volumeAttachmentHistoryReader());
     }
 
@@ -340,13 +336,4 @@ public class StatsConfig {
     VolumeAttachmentHistoryReader volumeAttachmentHistoryReader() {
         return new VolumeAttachmentHistoryReader(historyDbConfig.historyDbIO());
     }
-
-    @Bean
-    ExecutorService statsSvcThreadPool() {
-        final ThreadFactory threadFactory = new ThreadFactoryBuilder()
-                .setNameFormat("stats-hist-svc-pool-%d")
-                .build();
-        return Executors.newCachedThreadPool(threadFactory);
-    }
-
 }

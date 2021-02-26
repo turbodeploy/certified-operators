@@ -47,7 +47,6 @@ public class TestDataProvider implements MockDataProvider {
         final String sqlPrefix = sqlToParameters.getFirst();
         if (ctx.sql().startsWith(sqlPrefix)) {
             final List<?> expected = sqlToParameters.getSecond();
-
             Assert.assertEquals(String.format("Bindings are different:%nActual:%s%nExpected:%s",
                             Arrays.deepToString(actual), Arrays.deepToString(expected.toArray())),
                             Arrays.asList(actual), expected);

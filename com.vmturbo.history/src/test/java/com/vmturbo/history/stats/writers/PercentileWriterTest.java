@@ -15,8 +15,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.google.protobuf.ByteString;
@@ -31,7 +29,6 @@ import org.hamcrest.Matchers;
 import org.jooq.SQLDialect;
 import org.jooq.impl.DSL;
 import org.jooq.tools.jdbc.MockConnection;
-import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -57,12 +54,10 @@ public class PercentileWriterTest {
                     "insert into `vmtdb`.`percentile_blobs`";
     private static final String SQL_EXCEPTION_MESSAGE = "Something wrong has happened";
     private static final String TEST_DATA = "Test data bytes to be stored in database";
-    private static final String PIPE_CLOSED = "Pipe closed";
 
     private HistorydbIO historyDbIo;
     private LinkedList<Pair<Pair<String, List<?>>, ?>> sqlRequestToResponse;
     private StreamObserver<SetPercentileCountsResponse> streamObserver;
-    private ExecutorService statsWritersPool;
     private MockConnection connection;
 
     /**
@@ -77,15 +72,6 @@ public class PercentileWriterTest {
         connection = Mockito.spy(new MockConnection(
                         new TestDataProvider(sqlRequestToResponse)));
         streamObserver = mockStreamObserver();
-        statsWritersPool = Executors.newCachedThreadPool();
-    }
-
-    /**
-     * Releases all resources occupied by tests.
-     */
-    @After
-    public void after() {
-        statsWritersPool.shutdownNow();
     }
 
     private static <V> StreamObserver<V> mockStreamObserver() {
@@ -108,7 +94,7 @@ public class PercentileWriterTest {
         sqlRequestToResponse.add(Pair.create(Pair.create(DELETE_FROM_VMTDB_PERCENTILE_BLOBS,
                         Collections.singletonList(10L)), null));
         sqlRequestToResponse.add(Pair.create(Pair.create(INSERT_INTO_VMTDB_PERCENTILE_BLOBS,
-                        Arrays.asList(10L, 3L)), null));
+                        Arrays.asList(10L, 3L, null, 0)), null));
         final AtomicReference<InputStream> writingData = new AtomicReference<>();
         Mockito.when(connection.prepareStatement(Mockito.anyString()))
                         .thenAnswer((Answer<PreparedStatement>)invocation -> {
@@ -124,7 +110,7 @@ public class PercentileWriterTest {
                         });
         Mockito.when(historyDbIo.transConnection()).thenReturn(connection);
         final StreamObserver<PercentileChunk> percentileWriter =
-                        new PercentileWriter(streamObserver, historyDbIo, statsWritersPool);
+                        new PercentileWriter(streamObserver, historyDbIo);
         percentileWriter.onNext(PercentileChunk.newBuilder().setStartTimestamp(10)
                         .setContent(ByteString.copyFrom(TEST_DATA, StandardCharsets.UTF_8))
                         .setPeriod(3).build());
@@ -171,7 +157,7 @@ public class PercentileWriterTest {
                         });
         Mockito.when(historyDbIo.transConnection()).thenReturn(connection);
         final StreamObserver<PercentileChunk> percentileWriter =
-                        new PercentileWriter(streamObserver, historyDbIo, statsWritersPool);
+                        new PercentileWriter(streamObserver, historyDbIo);
         percentileWriter.onNext(PercentileChunk.newBuilder().setStartTimestamp(10)
                         .setContent(ByteString.copyFrom(TEST_DATA, StandardCharsets.UTF_8))
                         .setPeriod(3).build());
@@ -185,11 +171,9 @@ public class PercentileWriterTest {
                         .setPeriod(3).build());
         final ArgumentCaptor<Throwable> errorCaptor = ArgumentCaptor.forClass(Throwable.class);
         Mockito.verify(streamObserver, Mockito.only()).onError(errorCaptor.capture());
-        final Throwable error = errorCaptor.getValue();
+        final Throwable error = errorCaptor.getAllValues().get(0);
         checkThrowable(error, Status.INTERNAL.getCode().name(), StatusException.class);
-        final Throwable rpcFailureCause = error.getCause();
-        checkThrowable(rpcFailureCause, PIPE_CLOSED, IOException.class);
-        final Throwable ioCause = rpcFailureCause.getCause();
+        final Throwable ioCause = error.getCause();
         checkThrowable(ioCause, SQL_EXCEPTION_MESSAGE, SQLException.class);
     }
 
@@ -222,7 +206,6 @@ public class PercentileWriterTest {
                             if (invocation.getArgumentAt(0, String.class)
                                             .startsWith(INSERT_INTO_VMTDB_PERCENTILE_BLOBS)) {
                                 Mockito.doAnswer((answer) -> {
-                                    statsWritersPool.shutdownNow();
                                     final InputStream inputStream = writingData.get();
                                     IOUtils.readFully(inputStream, TEST_DATA.length());
                                     throw new InterruptedIOException();
@@ -232,7 +215,7 @@ public class PercentileWriterTest {
                         });
         Mockito.when(historyDbIo.transConnection()).thenReturn(connection);
         final StreamObserver<PercentileChunk> percentileWriter =
-                        new PercentileWriter(streamObserver, historyDbIo, statsWritersPool);
+                        new PercentileWriter(streamObserver, historyDbIo);
         percentileWriter.onNext(PercentileChunk.newBuilder().setStartTimestamp(10)
                         .setContent(ByteString.copyFrom(TEST_DATA, StandardCharsets.UTF_8))
                         .setPeriod(3).build());
@@ -245,9 +228,7 @@ public class PercentileWriterTest {
         Mockito.verify(streamObserver, Mockito.only()).onError(errorCaptor.capture());
         final Throwable error = errorCaptor.getValue();
         checkThrowable(error, Status.INTERNAL.getCode().name(), StatusException.class);
-        final Throwable rpcCause = error.getCause();
-        checkThrowable(rpcCause, "Read end dead", IOException.class);
-        final Throwable originalException = rpcCause.getCause();
+        final Throwable originalException = error.getCause();
         checkThrowable(originalException, null, InterruptedIOException.class);
     }
 
@@ -294,7 +275,7 @@ public class PercentileWriterTest {
             return null;
         }).when(streamObserver).onError(Mockito.any());
         final StreamObserver<PercentileChunk> percentileWriter =
-                        new PercentileWriter(streamObserver, historyDbIo, statsWritersPool);
+                        new PercentileWriter(streamObserver, historyDbIo);
         percentileWriter.onNext(PercentileChunk.newBuilder().setStartTimestamp(10)
                         .setContent(ByteString.EMPTY).setPeriod(3).build());
         percentileWriter.onCompleted();
@@ -325,7 +306,7 @@ public class PercentileWriterTest {
             return null;
         }).when(streamObserver).onError(Mockito.any());
         final StreamObserver<PercentileChunk> percentileWriter =
-                        new PercentileWriter(streamObserver, historyDbIo, statsWritersPool);
+                        new PercentileWriter(streamObserver, historyDbIo);
         percentileWriter.onNext(PercentileChunk.newBuilder().setStartTimestamp(10)
                         .setContent(ByteString.EMPTY).setPeriod(3).build());
         Mockito.verify(streamObserver, Mockito.times(1)).onError(Mockito.any());
