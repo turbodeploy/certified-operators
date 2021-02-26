@@ -998,6 +998,31 @@ public class ActionSpecMapper {
     }
 
     /**
+     * Sets the currentValue and newValue of {@param wrapperDto} to the {@param primaryProvider} ID,
+     * and sets currentEntity and newEntity to a newly created {@link ServiceEntityApiDTO}
+     * representing {@param primaryProvider}.
+     *
+     * @param primaryProvider The primary provider of an action target
+     * @param wrapperDto The API DTO to be delivered
+     * @param context From which to fetch an entity reference
+     */
+    private void setCurrentAndNewToPrimaryProvider(
+            @Nonnull ActionDTO.ActionEntity primaryProvider,
+            @Nonnull final ActionApiDTO wrapperDto,
+            @Nonnull final ActionSpecMappingContext context) {
+        Long primaryProviderId = primaryProvider.getId();
+        String primaryProviderIdString = Long.toString(primaryProviderId);
+        wrapperDto.setCurrentValue(primaryProviderIdString);
+        wrapperDto.setNewValue(primaryProviderIdString);
+
+        ServiceEntityApiDTO primaryProviderSeApiDTO = getServiceEntityDTO(context, primaryProvider);
+        wrapperDto.setCurrentEntity(primaryProviderSeApiDTO);
+        wrapperDto.setNewEntity(primaryProviderSeApiDTO);
+
+        setRelatedDatacenter(primaryProviderId, wrapperDto, context, false);
+    }
+
+    /**
      * Populate various fields of the {@link ActionApiDTO} representing a (compound) move.
      *
      * @param wrapperDto the DTO that represents the move recommendation and
@@ -1044,10 +1069,15 @@ public class ActionSpecMapper {
             wrapperDto.setCurrentEntity(getServiceEntityDTO(context, primaryChange.getSource()));
             setRelatedDatacenter(primarySourceId, wrapperDto, context, false);
         } else {
-            // For less brittle UI integration, we set the current entity to an empty object.
-            // The UI sometimes checks the validity of the "currentEntity.uuid" field,
-            // which throws an error if current entity is unset.
-            wrapperDto.setCurrentEntity(new ServiceEntityApiDTO());
+            final Optional<ActionDTO.ActionEntity> primaryProviderOptional = ActionDTOUtil.getPrimaryProvider(action);
+            if (primaryProviderOptional.isPresent()) {
+                setCurrentAndNewToPrimaryProvider(primaryProviderOptional.get(), wrapperDto, context);
+            } else {
+                // For less brittle UI integration, we set the current entity to an empty object.
+                // The UI sometimes checks the validity of the "currentEntity.uuid" field,
+                // which throws an error if current entity is unset.
+                wrapperDto.setCurrentEntity(new ServiceEntityApiDTO());
+            }
         }
         if (primaryChange != null) {
             long primaryDestinationId = primaryChange.getDestination().getId();
