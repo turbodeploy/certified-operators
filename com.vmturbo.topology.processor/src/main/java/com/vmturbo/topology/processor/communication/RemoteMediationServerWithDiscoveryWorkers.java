@@ -6,6 +6,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -68,6 +69,8 @@ public class RemoteMediationServerWithDiscoveryWorkers extends RemoteMediationSe
 
     private final int maxConcurrentTargetIncrementalDiscoveriesPerContainerCount;
 
+    private final long discoveryWorkerPollingTimeoutSecs;
+
     /**
      * Construct the instance.
      *  @param probeStore probes registry
@@ -79,19 +82,23 @@ public class RemoteMediationServerWithDiscoveryWorkers extends RemoteMediationSe
      * can be carried out in parallel per probe container.
      * @param maxConcurrentTargetIncrementalDiscoveriesPerContainerCount the number of incremental
      * discoveries that can be carried out in parallel per probe container.
+     * @param discoveryWorkerPollingTimeoutSecs maximum time to wait (in seconds) when polling for
+     * the next discovery.
      */
     public RemoteMediationServerWithDiscoveryWorkers(@Nonnull final ProbeStore probeStore,
             @Nonnull ProbePropertyStore probePropertyStore,
             @Nonnull ProbeContainerChooser containerChooser,
             @Nonnull AggregatingDiscoveryQueue discoveryQueue,
             int maxConcurrentTargetDiscoveriesPerContainerCount,
-            int maxConcurrentTargetIncrementalDiscoveriesPerContainerCount) {
+            int maxConcurrentTargetIncrementalDiscoveriesPerContainerCount,
+            long discoveryWorkerPollingTimeoutSecs) {
         super(probeStore, probePropertyStore, containerChooser);
         this.discoveryQueue = discoveryQueue;
         this.maxConcurrentTargetDiscoveriesPerContainerCount =
                 maxConcurrentTargetDiscoveriesPerContainerCount;
         this.maxConcurrentTargetIncrementalDiscoveriesPerContainerCount =
                 maxConcurrentTargetIncrementalDiscoveriesPerContainerCount;
+        this.discoveryWorkerPollingTimeoutSecs = discoveryWorkerPollingTimeoutSecs;
     }
 
     private boolean supportsIncrementalDiscovery(ContainerInfo containerInfo) {
@@ -150,7 +157,6 @@ public class RemoteMediationServerWithDiscoveryWorkers extends RemoteMediationSe
                         .forEach(transportDiscoveryWorker -> {
                             probesTypesForEndpoint.addAll(transportDiscoveryWorker.probesSupported);
                             transportDiscoveryWorker.containerClose();
-                            transportDiscoveryWorker.interrupt();
                         });
             }
         }
@@ -206,12 +212,17 @@ public class RemoteMediationServerWithDiscoveryWorkers extends RemoteMediationSe
                 .setMessageID(messageId)
                 .setDiscoveryRequest(discoveryRequest).build();
 
+        final int retVal = sendMessageViaTransport(message, target, responseHandler, transport);
+
         // if this target is related to a persistent probe, or has a channel, register the
         // association between the  target and the transport with the discoveryQueue.
+        // Call this only after calling sendMessageViaTransport, so this code is not executed if
+        // sendMessageViaTransport throws an exception.
         probeStore.getProbe(target.getProbeId()).ifPresent(probeInfo -> {
                     discoveryQueue.assignTargetToTransport(transport, target);
         });
-        return sendMessageViaTransport(message, target, responseHandler, transport);
+
+        return retVal;
     }
 
     @Override
@@ -310,6 +321,11 @@ public class RemoteMediationServerWithDiscoveryWorkers extends RemoteMediationSe
          */
         public void containerClose() {
             transportClosed.set(true);
+            // In case all the permits are out, notify so that run method will exit.
+            synchronized (numPermits) {
+                numPermits.notifyAll();
+            }
+            logger.info("Marking TransportWorker {} closed.", getName());
         }
 
         private int returnPermit(Target target) {
@@ -358,18 +374,20 @@ public class RemoteMediationServerWithDiscoveryWorkers extends RemoteMediationSe
                         logger.trace("About to call takeNextQueuedDiscovery...");
                         Optional<IDiscoveryQueueElement> optDiscoveryElement =
                                 discoveryQueue.takeNextQueuedDiscovery(serverEndpoint,
-                                        probesSupported, discoveryType);
+                                        probesSupported, discoveryType, TimeUnit.SECONDS.toMillis(
+                                                discoveryWorkerPollingTimeoutSecs));
                         logger.trace("Called takeNextQueuedDiscovery and got back {}",
-                                optDiscoveryElement.isPresent()
-                                        ? optDiscoveryElement.get()
+                                optDiscoveryElement.isPresent() ? optDiscoveryElement.get()
                                         : "empty");
                         // If we got a discovery, process it.  If not, we will continue looping as
-                        // long as transportDeleted is not set to true.
-                        optDiscoveryElement.ifPresent(discoveryElement -> {
+                        // long as transportClosed is not set to true.
+                        if (optDiscoveryElement.isPresent()) {
+                            IDiscoveryQueueElement discoveryElement = optDiscoveryElement.get();
                             logger.debug("Acquired discovery for target {}",
                                     discoveryElement.getTarget().getId());
                             final Target target = discoveryElement.getTarget();
-                            logger.log(logLevel, "Beginning discovery of target {}({}) leaving {} of {} "
+                            logger.log(logLevel,
+                                    "Beginning discovery of target {}({}) leaving {} of {} "
                                             + "permits available.", target.getId(), discoveryType,
                                     numPermits.get(), maxPermits);
                             discoveryElement.performDiscovery((bundle) -> {
@@ -384,7 +402,8 @@ public class RemoteMediationServerWithDiscoveryWorkers extends RemoteMediationSe
                                                 bundle.getDiscoveryMessageHandler(),
                                                 serverEndpoint);
                                         bundle.getDiscovery().setMediationMessageId(messageId);
-                                        logger.log(logLevel, "Beginning {}", bundle.getDiscovery());
+                                        logger.log(logLevel, "Beginning {}",
+                                                bundle.getDiscovery());
                                     }
                                 } catch (InterruptedException e) {
                                     logAndRecordException(e, bundle, target);
@@ -393,17 +412,26 @@ public class RemoteMediationServerWithDiscoveryWorkers extends RemoteMediationSe
                                     logAndRecordException(e, bundle, target);
                                 }
                                 logger.debug("Returning discovery {} for target {}({})",
-                                        bundle.getDiscovery(),
-                                        discoveryElement.getTarget().getId(), discoveryType);
+                                        bundle.getDiscovery(), discoveryElement.getTarget().getId(),
+                                        discoveryType);
                                 return bundle.getDiscovery();
                             }, () -> returnPermit(target));
-                        });
+                        } else {
+                            // Queue was empty. Return the permit we grabbed and try again.
+                            numPermits.incrementAndGet();
+                        }
                     } catch (InterruptedException e) {
-                        // interrupt() is called when transport has been closed
+                        // takeNextQueuedDiscovery may be interrupted
                         logger.warn("Interrupted while waiting to acquire target information. "
-                                + "Transport is {}. TransportClosed value is {}", serverEndpoint,
-                                transportClosed.get(), e);
+                                        + "Transport is {}. TransportClosed value is {}",
+                                serverEndpoint, transportClosed.get(), e);
                         numPermits.incrementAndGet();
+                        if (!transportClosed.get()) {
+                            logger.error(
+                                    "TransportDiscoveryWorker interrupted while transport was "
+                                            + "open.", e);
+                            Thread.currentThread().interrupt();
+                        }
                     }
                 } else { // no permits available, wait for a permit to get returned
                     synchronized (numPermits) {
@@ -416,11 +444,19 @@ public class RemoteMediationServerWithDiscoveryWorkers extends RemoteMediationSe
                         } catch (InterruptedException e) {
                             // interrupt() is called when transport has been closed
                             logger.warn("Interrupted while waiting for permit to be released. "
-                                    + "Transport is {}", serverEndpoint, e);
+                                            + "Transport is {}. TransportClosed value is {}",
+                                    serverEndpoint, transportClosed.get(), e);
+                            if (!transportClosed.get()) {
+                                logger.error(
+                                        "TransportDiscoveryWorker interrupted while transport was"
+                                                + " open.", e);
+                                Thread.currentThread().interrupt();
+                            }
                         }
                     }
                 }
             }
+            logger.info("Exiting TransportWorker {}.", getName());
         }
     }
 }

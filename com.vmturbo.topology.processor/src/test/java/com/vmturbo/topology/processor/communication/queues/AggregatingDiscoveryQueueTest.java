@@ -10,11 +10,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
-import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
@@ -39,7 +36,6 @@ import com.vmturbo.topology.processor.TestProbeStore;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityProviderException;
-import com.vmturbo.topology.processor.operation.OperationTestUtilities;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.discovery.DiscoveryBundle;
 import com.vmturbo.topology.processor.probes.ProbeException;
@@ -105,6 +101,8 @@ public class AggregatingDiscoveryQueueTest {
 
     private AggregatingDiscoveryQueue queue;
 
+    private final long waitForQueueEntrySeconds = 1L;
+
     /**
      * Expected exception.
      */
@@ -159,27 +157,6 @@ public class AggregatingDiscoveryQueueTest {
         return addedElement;
     }
 
-    private Future<Optional<IDiscoveryQueueElement>> callTakeOnThread(
-            @Nonnull ITransport<MediationServerMessage, MediationClientMessage> transport,
-            @Nonnull List<Long> probeTypes,
-            @Nonnull DiscoveryType discoveryType) {
-        Future<Optional<IDiscoveryQueueElement>> future = Executors.newSingleThreadExecutor()
-                .submit(() -> {
-                    try {
-                        return queue.takeNextQueuedDiscovery(transport, probeTypes, discoveryType);
-                    } catch (InterruptedException e) {
-                        return Optional.empty();
-                    }
-                });
-        // add a short sleep to give submitted chance time to run
-        try {
-            Thread.sleep(100L);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-        return future;
-    }
-
     /**
      * Test that when you add elements to different probe types, you get back the correct values.
      *
@@ -196,28 +173,29 @@ public class AggregatingDiscoveryQueueTest {
                 discoveryMethodMock2, false);
 
         // poll for VC discovery and assert that we got the first queued discovery
-        final Future<Optional<IDiscoveryQueueElement>> firstGet = callTakeOnThread(transportVc1,
-                Collections.singletonList(probeId1), DiscoveryType.FULL);
-        assertTrue(firstGet.isDone());
-        assertEquals(firstAdd, firstGet.get().get());
+        final Optional<IDiscoveryQueueElement> firstGet = queue.takeNextQueuedDiscovery(transportVc1,
+                Collections.singletonList(probeId1), DiscoveryType.FULL, waitForQueueEntrySeconds);
+        assertTrue(firstGet.isPresent());
+        assertEquals(firstAdd, firstGet.get());
 
         // poll for a HyperV discovery and make sure we get nothing back
-        final Future<Optional<IDiscoveryQueueElement>> secondGet = callTakeOnThread(transportHyperV1,
-                Collections.singletonList(probeId2), DiscoveryType.FULL);
-        assertFalse(secondGet.isDone());
+        final Optional<IDiscoveryQueueElement> secondGet = queue.takeNextQueuedDiscovery(transportHyperV1,
+                Collections.singletonList(probeId2), DiscoveryType.FULL, waitForQueueEntrySeconds);
+        assertFalse(secondGet.isPresent());
 
         // Now add a HyperV discovery
         final IDiscoveryQueueElement hypervAdd = addToQueueAndVerify(target3, DiscoveryType.FULL,
                 discoveryMethodMock3, false);
-        Thread.sleep(100L);
-        assertTrue(secondGet.isDone());
-        assertEquals(hypervAdd, secondGet.get().get());
+        final Optional<IDiscoveryQueueElement> thirdGet = queue.takeNextQueuedDiscovery(transportHyperV1,
+                Collections.singletonList(probeId2), DiscoveryType.FULL, waitForQueueEntrySeconds);
+        assertTrue(thirdGet.isPresent());
+        assertEquals(hypervAdd, thirdGet.get());
 
         // poll for VC discovery and assert that we got the second queued discovery
-        final Future<Optional<IDiscoveryQueueElement>> thirdGet = callTakeOnThread(transportVc2,
-                Collections.singletonList(probeId1), DiscoveryType.FULL);
-        assertTrue(thirdGet.isDone());
-        assertEquals(secondAdd, thirdGet.get().get());
+        final Optional<IDiscoveryQueueElement> fourthGet = queue.takeNextQueuedDiscovery(transportVc2,
+                Collections.singletonList(probeId1), DiscoveryType.FULL, waitForQueueEntrySeconds);
+        assertTrue(fourthGet.isPresent());
+        assertEquals(secondAdd, fourthGet.get());
     }
 
     /**
@@ -233,21 +211,25 @@ public class AggregatingDiscoveryQueueTest {
                 discoveryMethodMock1, false);
 
         // take an incremental discovery and make sure we get nothing back
-        final Future<Optional<IDiscoveryQueueElement>> firstGet = callTakeOnThread(transportVc1,
-                Collections.singletonList(probeId1), DiscoveryType.INCREMENTAL);
+        final Optional<IDiscoveryQueueElement> firstGet = queue.takeNextQueuedDiscovery(transportVc1,
+                Collections.singletonList(probeId1), DiscoveryType.INCREMENTAL, waitForQueueEntrySeconds);
 
-        assertFalse(firstGet.isDone());
+        assertFalse(firstGet.isPresent());
 
         // Add incremental discovery
         final IDiscoveryQueueElement firstIncr = addToQueueAndVerify(target1, DiscoveryType.INCREMENTAL,
                 discoveryMethodMock1, false);
-        Thread.sleep(100L);
+
+        final Optional<IDiscoveryQueueElement> secondGet = queue.takeNextQueuedDiscovery(transportVc1,
+                Collections.singletonList(probeId1), DiscoveryType.INCREMENTAL, waitForQueueEntrySeconds);
+
         // Remove FULL discovery
         assertEquals(firstFull, queue.takeNextQueuedDiscovery(transportVc1,
-                Collections.singletonList(probeId1), DiscoveryType.FULL).get());
+                Collections.singletonList(probeId1), DiscoveryType.FULL, waitForQueueEntrySeconds).get());
 
         // Check that incremental discovery was properly taken from the queue
-        assertEquals(firstIncr, firstGet.get().get());
+        assertTrue(secondGet.isPresent());
+        assertEquals(firstIncr, secondGet.get());
 
     }
 
@@ -269,10 +251,10 @@ public class AggregatingDiscoveryQueueTest {
         // At this point, target1 is first in the queue with target2 behind it. If we delete
         // target1, target2 should move to the front of the queue.
         queue.handleTargetRemoval(probeId1, targetId1);
-        final Future<Optional<IDiscoveryQueueElement>> firstGet = callTakeOnThread(transportVc2,
-                Collections.singletonList(probeId1), DiscoveryType.FULL);
-        assertTrue(firstGet.isDone());
-        assertEquals(secondAdd, firstGet.get().get());
+        final Optional<IDiscoveryQueueElement> firstGet = queue.takeNextQueuedDiscovery(transportVc2,
+                Collections.singletonList(probeId1), DiscoveryType.FULL, waitForQueueEntrySeconds);
+        assertTrue(firstGet.isPresent());
+        assertEquals(secondAdd, firstGet.get());
     }
 
     /**
@@ -285,6 +267,11 @@ public class AggregatingDiscoveryQueueTest {
      */
     @Test
     public void testDedicatedTransportForTarget() throws InterruptedException, ExecutionException, ProbeException {
+        final ContainerInfo containerInfo = ContainerInfo.newBuilder()
+                .addProbes(probeInfo1).build();
+        queue.parseContainerInfoWithTransport(containerInfo, transportVc1);
+        queue.parseContainerInfoWithTransport(containerInfo, transportVc2);
+
         // tie target1 to transportVc1
         queue.assignTargetToTransport(transportVc1, target1);
 
@@ -293,30 +280,71 @@ public class AggregatingDiscoveryQueueTest {
                 discoveryMethodMock1, false);
 
         // transportVc2 should not be able to get this discovery
-        final Future<Optional<IDiscoveryQueueElement>> secondTransportGet =
-                callTakeOnThread(transportVc2, Collections.singletonList(probeId1),
-                        DiscoveryType.FULL);
-        assertFalse(secondTransportGet.isDone());
+        final Optional<IDiscoveryQueueElement> secondTransportGet =
+                queue.takeNextQueuedDiscovery(transportVc2, Collections.singletonList(probeId1),
+                        DiscoveryType.FULL, waitForQueueEntrySeconds);
+        assertFalse(secondTransportGet.isPresent());
 
         // test that transportVc1 can get the discovery
-        final Future<Optional<IDiscoveryQueueElement>> firstTransportGet = callTakeOnThread(transportVc1,
-                Collections.singletonList(probeId1), DiscoveryType.FULL);
-        assertTrue(firstTransportGet.isDone());
-        assertEquals(firstAdd, firstTransportGet.get().get());
+        final Optional<IDiscoveryQueueElement> firstTransportGet = queue.takeNextQueuedDiscovery(transportVc1,
+                Collections.singletonList(probeId1), DiscoveryType.FULL, waitForQueueEntrySeconds);
+        assertTrue(firstTransportGet.isPresent());
+        assertEquals(firstAdd, firstTransportGet.get());
 
         // add target1 again - it should still be on the queue dedicated to transportVc1
         final IDiscoveryQueueElement reAddTarget1 = addToQueueAndVerify(target1, DiscoveryType.FULL,
                 discoveryMethodMock1, false);
 
         // transportVc2 can still not get it
-        assertFalse(secondTransportGet.isDone());
+        final Optional<IDiscoveryQueueElement> secondTransportGet2 =
+                queue.takeNextQueuedDiscovery(transportVc2, Collections.singletonList(probeId1),
+                        DiscoveryType.FULL, waitForQueueEntrySeconds);
+        assertFalse(secondTransportGet2.isPresent());
 
         // when transportVc1 is deleted, queued discovery should be re-assigned to probe ID queue
         // and transportVc2 should be able to get it now
         queue.handleTransportRemoval(transportVc1, Collections.singleton(probeId1));
-        Thread.sleep(100L);
-        assertTrue(secondTransportGet.isDone());
-        assertEquals(reAddTarget1, secondTransportGet.get().get());
+
+        final Optional<IDiscoveryQueueElement> secondTransportGet3 =
+                queue.takeNextQueuedDiscovery(transportVc2, Collections.singletonList(probeId1),
+                        DiscoveryType.FULL, waitForQueueEntrySeconds);
+        assertTrue(secondTransportGet3.isPresent());
+        assertEquals(reAddTarget1, secondTransportGet3.get());
+    }
+
+    /**
+     * Test that if you assign a target to a transport after that transport has disconnected,
+     * it is ignored.
+     *
+     * @throws ProbeException if adding to the queue throws it.
+     * @throws InterruptedException if waiting to pull an element off the queue throws it.
+     */
+    @Test
+    public void testAssignmentAfterTransportDisconnect() throws ProbeException,
+            InterruptedException {
+        final ContainerInfo containerInfo = ContainerInfo.newBuilder()
+                .addProbes(probeInfo1).build();
+        queue.parseContainerInfoWithTransport(containerInfo, transportVc1);
+        queue.parseContainerInfoWithTransport(containerInfo, transportVc2);
+
+        // simulate removal of transportVc1
+        probeStore.removeTransport(transportVc1);
+        queue.handleTransportRemoval(transportVc1, Collections.singleton(probeId1));
+
+        // this should have no effect since transportVc1 is already disconnected
+        queue.assignTargetToTransport(transportVc1, target1);
+
+        // add a target1 discovery to queue
+        final IDiscoveryQueueElement firstAdd = addToQueueAndVerify(target1, DiscoveryType.FULL,
+                discoveryMethodMock1, false);
+
+        // second transport should be able to get target1 discovery, since assignment
+        // of target to transportVc1 was ignored
+        final Optional<IDiscoveryQueueElement> secondTransportGet =
+                queue.takeNextQueuedDiscovery(transportVc2, Collections.singletonList(probeId1),
+                        DiscoveryType.FULL, waitForQueueEntrySeconds);
+
+        assertEquals(firstAdd, secondTransportGet.get());
     }
 
     /**
@@ -333,8 +361,11 @@ public class AggregatingDiscoveryQueueTest {
         ExecutionException, ProbeException {
         String channel = "channel1";
 
-        queue.parseContainerInfoWithTransport(ContainerInfo.newBuilder().setCommunicationBindingChannel(channel).build(), transportVc1);
-        queue.parseContainerInfoWithTransport(ContainerInfo.newBuilder().setCommunicationBindingChannel(channel).build(), transportVc2);
+        final ContainerInfo containerInfo = ContainerInfo.newBuilder()
+                .setCommunicationBindingChannel(channel)
+                .build();
+        queue.parseContainerInfoWithTransport(containerInfo, transportVc1);
+        queue.parseContainerInfoWithTransport(containerInfo, transportVc2);
 
         TargetSpec specWithLabel =
             TargetSpec.newBuilder().setProbeId(probeId1).setCommunicationBindingChannel(channel).build();
@@ -345,11 +376,10 @@ public class AggregatingDiscoveryQueueTest {
 
         //It can be taken by transport two since they are on the same channel and the target
         // hasn't been assigned a transport yet
-        Future<Optional<IDiscoveryQueueElement>> secondTransportGet =
-            callTakeOnThread(transportVc2, Collections.singletonList(probeId1),
-                DiscoveryType.FULL);
-        assertTrue(secondTransportGet.isDone());
-
+        Optional<IDiscoveryQueueElement> secondTransportGet =
+                queue.takeNextQueuedDiscovery(transportVc2, Collections.singletonList(probeId1),
+                        DiscoveryType.FULL, waitForQueueEntrySeconds);
+        assertTrue(secondTransportGet.isPresent());
 
         queue.assignTargetToTransport(transportVc1, target1);
 
@@ -358,23 +388,25 @@ public class AggregatingDiscoveryQueueTest {
         // transportVc2 should not be able to get this discovery, since the target has an
         // assigned transport
         secondTransportGet =
-            callTakeOnThread(transportVc2, Collections.singletonList(probeId1),
-                DiscoveryType.FULL);
-        assertFalse(secondTransportGet.isDone());
+                queue.takeNextQueuedDiscovery(transportVc2, Collections.singletonList(probeId1),
+                        DiscoveryType.FULL, waitForQueueEntrySeconds);
+        assertFalse(secondTransportGet.isPresent());
 
         // test that transportVc1 can get the discovery once transport 1 has been deleted
-        final Future<Optional<IDiscoveryQueueElement>> firstTransportGet =
-            callTakeOnThread(transportVc1,
-            Collections.singletonList(probeId1), DiscoveryType.FULL);
-        assertTrue(firstTransportGet.isDone());
+        final Optional<IDiscoveryQueueElement> firstTransportGet =
+                queue.takeNextQueuedDiscovery(transportVc1, Collections.singletonList(probeId1),
+                        DiscoveryType.FULL, waitForQueueEntrySeconds);
+        assertTrue(firstTransportGet.isPresent());
 
         // when transportVc1 is deleted, queued discovery should be re-assigned to probe ID queue
         // and transportVc2 should be able to get it now
         addToQueueAndVerify(target1, DiscoveryType.FULL,
             discoveryMethodMock1, false);
         queue.handleTransportRemoval(transportVc1, Collections.singleton(probeId1));
-        Thread.sleep(100L);
-        assertTrue(secondTransportGet.isDone());
+        secondTransportGet =
+                queue.takeNextQueuedDiscovery(transportVc2, Collections.singletonList(probeId1),
+                        DiscoveryType.FULL, waitForQueueEntrySeconds);
+        assertTrue(secondTransportGet.isPresent());
     }
 
     /**
@@ -404,16 +436,16 @@ public class AggregatingDiscoveryQueueTest {
             discoveryMethodMock1, false);
 
         // Should not be taken by transport2, since it is on another channel
-        Future<Optional<IDiscoveryQueueElement>> secondTransportGet =
-            callTakeOnThread(transportVc2, Collections.singletonList(probeId1),
-                DiscoveryType.FULL);
-        assertFalse(secondTransportGet.isDone());
+        Optional<IDiscoveryQueueElement> secondTransportGet =
+                queue.takeNextQueuedDiscovery(transportVc2, Collections.singletonList(probeId1),
+                        DiscoveryType.FULL, waitForQueueEntrySeconds);
+        assertFalse(secondTransportGet.isPresent());
 
 
-        Future<Optional<IDiscoveryQueueElement>> firstTransportGet =
-            callTakeOnThread(transportVc1,
-                Collections.singletonList(probeId1), DiscoveryType.FULL);
-        assertTrue(firstTransportGet.isDone());
+        Optional<IDiscoveryQueueElement> firstTransportGet =
+                queue.takeNextQueuedDiscovery(transportVc1, Collections.singletonList(probeId1),
+                        DiscoveryType.FULL, waitForQueueEntrySeconds);
+        assertTrue(firstTransportGet.isPresent());
 
         // Update the target to be on channel 2
         TargetSpec newSpecWithLabel =
@@ -424,11 +456,14 @@ public class AggregatingDiscoveryQueueTest {
             discoveryMethodMock1, false);
 
        firstTransportGet =
-            callTakeOnThread(transportVc1,
-                Collections.singletonList(probeId1), DiscoveryType.FULL);
+               queue.takeNextQueuedDiscovery(transportVc1, Collections.singletonList(probeId1),
+                       DiscoveryType.FULL, waitForQueueEntrySeconds);
 
-        assertFalse(firstTransportGet.isDone());
-        assertTrue(secondTransportGet.isDone());
+        assertFalse(firstTransportGet.isPresent());
+        secondTransportGet =
+                queue.takeNextQueuedDiscovery(transportVc2, Collections.singletonList(probeId1),
+                        DiscoveryType.FULL, waitForQueueEntrySeconds);
+        assertTrue(secondTransportGet.isPresent());
     }
 
     /**
@@ -478,6 +513,9 @@ public class AggregatingDiscoveryQueueTest {
      */
     @Test
     public void testNonPersistentTargetWithSameIdAsPersistentTarget() throws ProbeException {
+        final ContainerInfo containerInfo = ContainerInfo.newBuilder()
+                .addProbes(probeInfo1).build();
+        queue.parseContainerInfoWithTransport(containerInfo, transportVc1);
         // tie target1 to transportVc1
         queue.assignTargetToTransport(transportVc1, target1);
 
@@ -517,28 +555,34 @@ public class AggregatingDiscoveryQueueTest {
             discoveryMethodMock1, false);
 
         // transportVc2 should not be able to get this discovery
-        final Future<Optional<IDiscoveryQueueElement>> secondTransportGet =
-            callTakeOnThread(transportVc2, Collections.singletonList(probeId1),
-                DiscoveryType.FULL);
-        assertFalse(secondTransportGet.isDone());
+        Optional<IDiscoveryQueueElement> secondTransportGet =
+                queue.takeNextQueuedDiscovery(transportVc2, Collections.singletonList(probeId1),
+                        DiscoveryType.FULL, waitForQueueEntrySeconds);
+        assertFalse(secondTransportGet.isPresent());
 
         // test that transportVc1 can get the discovery
-        final Future<Optional<IDiscoveryQueueElement>> firstTransportGet = callTakeOnThread(transportVc1,
-            Collections.singletonList(probeId1), DiscoveryType.FULL);
-        assertTrue(firstTransportGet.isDone());
-        assertEquals(firstAdd, firstTransportGet.get().get());
+        final Optional<IDiscoveryQueueElement> firstTransportGet =
+                queue.takeNextQueuedDiscovery(transportVc1, Collections.singletonList(probeId1),
+                        DiscoveryType.FULL, waitForQueueEntrySeconds);
+        assertTrue(firstTransportGet.isPresent());
+        assertEquals(firstAdd, firstTransportGet.get());
 
         // add target1 again - it should still be on the queue dedicated to transportVc1
         final IDiscoveryQueueElement reAddTarget1 = addToQueueAndVerify(target1, DiscoveryType.FULL,
             discoveryMethodMock1, false);
 
         // transportVc2 can still not get it
-        assertFalse(secondTransportGet.isDone());
+        secondTransportGet =
+                queue.takeNextQueuedDiscovery(transportVc2, Collections.singletonList(probeId1),
+                        DiscoveryType.FULL, waitForQueueEntrySeconds);
+        assertFalse(secondTransportGet.isPresent());
 
         // when transportVc1 is deleted, transportVc2 should still not get it
         queue.handleTransportRemoval(transportVc1, Collections.singleton(probeId1));
-        Thread.sleep(100L);
-        assertFalse(secondTransportGet.isDone());
+        secondTransportGet =
+                queue.takeNextQueuedDiscovery(transportVc2, Collections.singletonList(probeId1),
+                        DiscoveryType.FULL, waitForQueueEntrySeconds);
+        assertFalse(secondTransportGet.isPresent());
     }
 
     private ProbeInfo createProbeInfo(@Nonnull String probeType,
@@ -611,10 +655,11 @@ public class AggregatingDiscoveryQueueTest {
         assertEquals(addTarget3, addToQueueAndVerify(target3, DiscoveryType.FULL,
                 discoveryMethodMock3, false));
 
-        // Try to get a VC discovery from the queue on a new thread. The call should never return.
-        final Future<Optional<IDiscoveryQueueElement>> firstGet = callTakeOnThread(transportVc1,
-                Collections.singletonList(probeId1), DiscoveryType.FULL);
-        assertFalse(OperationTestUtilities.waitForEventAndReturnResult(
-                () -> firstGet.isDone(), 5L));
+        // Try to get a VC discovery from the queue on a new thread. We should get back an
+        // empty Optional.
+        final Optional<IDiscoveryQueueElement> firstGet = queue.takeNextQueuedDiscovery(
+                transportVc1, Collections.singletonList(probeId1), DiscoveryType.FULL,
+                waitForQueueEntrySeconds);
+        assertFalse(firstGet.isPresent());
     }
 }
