@@ -69,6 +69,7 @@ import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceSpecServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceSpecServiceGrpc.ReservedInstanceSpecServiceBlockingStub;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyDTOMoles.PolicyServiceMole;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
@@ -166,6 +167,8 @@ public class ActionSpecMappingContextFactoryTest {
                 .newBlockingStub(grpcTestServer.getChannel());
         final PolicyServiceBlockingStub policyService = PolicyServiceGrpc
                 .newBlockingStub(grpcTestServer.getChannel());
+        final GroupServiceGrpc.GroupServiceBlockingStub groupService = GroupServiceGrpc
+            .newBlockingStub(grpcTestServer.getChannel());
         final ReservedInstanceSpecServiceBlockingStub riSpecService = ReservedInstanceSpecServiceGrpc
                 .newBlockingStub(grpcTestServer.getChannel());
         final SupplyChainServiceBlockingStub supplyChainService = SupplyChainServiceGrpc
@@ -180,7 +183,8 @@ public class ActionSpecMappingContextFactoryTest {
                             777777,
                             buyRIServiceClient, riSpecService,
                             Mockito.mock(ServiceEntityMapper.class),
-                            supplyChainService, policiesService, reservedInstancesService);
+                            supplyChainService, policiesService, reservedInstancesService,
+                            groupService);
 
         final Map<Long, Pair<ReservedInstanceBought, ReservedInstanceSpec>>
                 buyRIIdToRIBoughtandRISpec = actionSpecMappingContextFactory
@@ -205,6 +209,8 @@ public class ActionSpecMappingContextFactoryTest {
         final BuyReservedInstanceServiceBlockingStub buyRIServiceClient = BuyReservedInstanceServiceGrpc
             .newBlockingStub(grpcTestServer.getChannel());
         final PolicyServiceBlockingStub policyService = PolicyServiceGrpc
+            .newBlockingStub(grpcTestServer.getChannel());
+        final GroupServiceGrpc.GroupServiceBlockingStub groupService = GroupServiceGrpc
             .newBlockingStub(grpcTestServer.getChannel());
         final ReservedInstanceSpecServiceBlockingStub riSpecService = ReservedInstanceSpecServiceGrpc
             .newBlockingStub(grpcTestServer.getChannel());
@@ -298,7 +304,7 @@ public class ActionSpecMappingContextFactoryTest {
             777777,
             buyRIServiceClient, riSpecService,
             serviceEntityMapper,
-            supplyChainService, policiesService, reservedInstancesService);
+            supplyChainService, policiesService, reservedInstancesService, groupService);
 
         long topologyContextId = 777777L;
         ActionSpecMappingContext result = null;
@@ -379,6 +385,9 @@ public class ActionSpecMappingContextFactoryTest {
         final long realtimeContextId = 777777L;
         final long planContextId = 888888L;
 
+        final GroupServiceGrpc.GroupServiceBlockingStub groupService = GroupServiceGrpc
+            .newBlockingStub(grpcTestServer.getChannel());
+
         RepositoryApi repositoryApiMock = Mockito.mock(RepositoryApi.class);
         final ActionSpecMappingContextFactory actionSpecMappingContextFactory = new
                 ActionSpecMappingContextFactory(PolicyServiceGrpc.newBlockingStub(
@@ -393,7 +402,7 @@ public class ActionSpecMappingContextFactoryTest {
                 Mockito.mock(ServiceEntityMapper.class),
                 SupplyChainServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
                 policiesService,
-                reservedInstancesService);
+                reservedInstancesService, groupService);
 
         List<ApiPartialEntity> planPartialEntities = new ArrayList<>();
         planPartialEntities.add(ApiPartialEntity.newBuilder().setDisplayName("aws-EU (Paris)")
