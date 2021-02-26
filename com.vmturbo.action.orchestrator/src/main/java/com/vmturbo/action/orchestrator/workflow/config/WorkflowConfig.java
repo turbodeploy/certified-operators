@@ -12,6 +12,7 @@ import com.vmturbo.action.orchestrator.ActionOrchestratorDBConfig;
 import com.vmturbo.action.orchestrator.workflow.WorkflowDiagnostics;
 import com.vmturbo.action.orchestrator.workflow.rpc.DiscoveredWorkflowRpcService;
 import com.vmturbo.action.orchestrator.workflow.rpc.WorkflowRpcService;
+import com.vmturbo.action.orchestrator.workflow.store.InMemoryWorkflowStore;
 import com.vmturbo.action.orchestrator.workflow.store.PersistentWorkflowIdentityStore;
 import com.vmturbo.action.orchestrator.workflow.store.PersistentWorkflowStore;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowAttributeExtractor;
@@ -30,6 +31,14 @@ public class WorkflowConfig {
     @Value("${identityGeneratorPrefix}")
     private long identityGeneratorPrefix;
 
+    /**
+     * If true then used in-memory workflow cache (synced up with DB workflow store). If false
+     * then all discovered workflows are persisted only in DB and workflow fetch requests
+     * required DB interaction.
+     */
+    @Value("${useInMemoryWorkflowCache:true}")
+    private boolean useInMemoryWorkflowCache;
+
     @Autowired
     private ActionOrchestratorDBConfig databaseConfig;
 
@@ -45,7 +54,11 @@ public class WorkflowConfig {
 
     @Bean
     public WorkflowStore workflowStore() {
-        return new PersistentWorkflowStore(databaseConfig.dsl(), identityStore(), clock());
+        if (useInMemoryWorkflowCache) {
+            return new InMemoryWorkflowStore(databaseConfig.dsl(), identityStore(), clock());
+        } else {
+            return new PersistentWorkflowStore(databaseConfig.dsl(), identityStore(), clock());
+        }
     }
 
     @Bean
