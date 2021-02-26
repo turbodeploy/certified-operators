@@ -2377,6 +2377,53 @@ public class ActionSpecMapperTest {
     }
 
     /**
+     * Test to verify that the current and new entities of a given intra-tier scale action are set
+     * to the same primary provider entity if available. If primary provider is not available,
+     * verifies that current and new values are effectively unset.
+     *
+     * @throws Exception Potentially thrown by mapActionSpecToActionApiDTO
+     */
+    @Test
+    public void testSameCurrentAndNewEntities() throws Exception {
+        final int progress = 20;
+        final ActionDTO.ExecutionStep executionStepProgress = ActionDTO.ExecutionStep.newBuilder()
+                .setStartTime(MILLIS_2020_01_01_00_00_00)
+                .setProgressPercentage(progress)
+                .build();
+        final ActionInfo actionInfoWithPrimaryProvider = getScaleWithinTierActionInfo(true);
+        Explanation scaleExplanation = Explanation.newBuilder()
+                .setScale(ScaleExplanation.newBuilder()
+                        .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()))
+                .build();
+        ActionSpec scaleWithinTierWithPrimaryProviderActionSpec = ActionSpec.newBuilder()
+                .setExecutionStep(executionStepProgress)
+                .setActionState(ActionDTO.ActionState.IN_PROGRESS)
+                .setRecommendation(buildAction(actionInfoWithPrimaryProvider, scaleExplanation))
+                .build();
+        ActionApiDTO scaleWithinTierActionApiDTO = mapper
+                .mapActionSpecToActionApiDTO(scaleWithinTierWithPrimaryProviderActionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID, ActionDetailLevel.EXECUTION);
+        assertTrue(scaleWithinTierActionApiDTO.getCurrentEntity() != null);
+        assertEquals(scaleWithinTierActionApiDTO.getCurrentEntity(), scaleWithinTierActionApiDTO.getNewEntity());
+        assertEquals(scaleWithinTierActionApiDTO.getCurrentLocation(), scaleWithinTierActionApiDTO.getNewLocation());
+
+        final ActionInfo actionInfoWithoutPrimaryProvider = getScaleWithinTierActionInfo(false);
+        Explanation anoterScaleExplanation = Explanation.newBuilder()
+                .setScale(ScaleExplanation.newBuilder()
+                        .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()))
+                .build();
+        ActionSpec scaleWithinTierWithoutPrimaryProviderActionSpec = ActionSpec.newBuilder()
+                .setExecutionStep(executionStepProgress)
+                .setActionState(ActionDTO.ActionState.IN_PROGRESS)
+                .setRecommendation(buildAction(actionInfoWithoutPrimaryProvider, anoterScaleExplanation))
+                .build();
+        ActionApiDTO scaleWithinTierWithoutPrimaryProvider = mapper
+                .mapActionSpecToActionApiDTO(scaleWithinTierWithoutPrimaryProviderActionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID, ActionDetailLevel.EXECUTION);
+        assertTrue(scaleWithinTierWithoutPrimaryProvider.getCurrentEntity() != null);
+        assertTrue(scaleWithinTierWithoutPrimaryProvider.getCurrentEntity().getUuid() == null);
+        assertTrue(scaleWithinTierWithoutPrimaryProvider.getNewEntity() == null);
+    }
+
+    /**
      * Test the creation of the ActionExecutionAuditApiDTO, when status is in progress.
      */
     @Test
@@ -2706,6 +2753,33 @@ public class ActionSpecMapperTest {
         when(repositoryApi.entitiesRequest(any())).thenReturn(req);
 
         return moveInfo;
+    }
+
+    /**
+     * Gets a new Scale {@link ActionInfo} object, with an optional primary provider set.
+     *
+     * @param withPrimaryProvider Whether the primary provider should be set
+     * @return A new Scale {@link ActionInfo} object, with an optional primary provider set
+     */
+    private ActionInfo getScaleWithinTierActionInfo(boolean withPrimaryProvider) {
+        long SOURCE_OID = 1L;
+        Scale.Builder scaleBuilder = Scale.newBuilder()
+                .setTarget(ApiUtilsTest.createActionEntity(3));
+        if (withPrimaryProvider) {
+            scaleBuilder.setPrimaryProvider(
+                    ActionEntity.newBuilder()
+                            .setType(EntityType.DATABASE_TIER_VALUE)
+                            .setId(SOURCE_OID).build());
+        }
+        final ActionInfo scaleInfo = ActionInfo.newBuilder()
+                .setScale(scaleBuilder)
+                .build();
+        final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReq(topologyEntityDTOList(Lists.newArrayList(
+                new TestEntity(TARGET, 3L, EntityType.DATABASE_VALUE)
+        )));
+        when(repositoryApi.entitiesRequest(any())).thenReturn(req);
+
+        return scaleInfo;
     }
 
     private ActionInfo getScaleActionInfo() {

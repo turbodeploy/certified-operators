@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -798,6 +799,28 @@ public class ActionDTOUtil {
      */
     public static Optional<ChangeProvider> getPrimaryChangeProvider(@Nonnull final ActionDTO.Action action) {
         return getPrimaryChangeProvider(action.getInfo());
+    }
+
+    /**
+     * Get the primary provider of the {@link ActionDTO.Action} if it is a {@link ActionDTO.Scale}
+     * action, and one is available.
+     *
+     * @param action The action of interest
+     * @return The primary provider of the {@link ActionDTO.Scale} if available
+     */
+    public static Optional<ActionEntity> getPrimaryProvider(@Nonnull final ActionDTO.Action action) {
+        ActionInfo actionInfo = action.getInfo();
+        if (Objects.isNull(actionInfo)) {
+            return Optional.empty();
+        }
+        switch (actionInfo.getActionTypeCase()) {
+            case SCALE:
+                return actionInfo.hasScale() && actionInfo.getScale().hasPrimaryProvider()
+                        ? Optional.of(actionInfo.getScale().getPrimaryProvider())
+                        : Optional.empty();
+            default:
+                return Optional.empty();
+        }
     }
 
     @Nonnull
