@@ -7,9 +7,6 @@ import java.util.concurrent.Future;
 
 import javax.annotation.Nonnull;
 
-import com.google.protobuf.AbstractMessage;
-import com.googlecode.protobuf.format.JsonFormat;
-
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
@@ -26,7 +23,6 @@ public class ActionStreamKafkaProducer {
      */
     private final KafkaProducer<String, String> producer;
     private final Logger logger = LogManager.getLogger(getClass());
-    private final JsonFormat jsonFormat = new JsonFormat();
 
     /**
      * Constructor of {@link ActionStreamKafkaProducer}.
@@ -40,16 +36,14 @@ public class ActionStreamKafkaProducer {
     /**
      * Send message to certain kafka topic.
      *
-     * @param serverMsg message to send
+     * @param message message to send
      * @param topic topic name
      * @return Future represents the result of an asynchronous audit of the action
      */
-    public Future<RecordMetadata> sendMessage(@Nonnull final AbstractMessage serverMsg,
+    public Future<RecordMetadata> sendMessage(@Nonnull final String message,
             @Nonnull final String topic) {
         final Instant startTime = Instant.now();
-        logger.debug("Sending message {} to topic {}.", serverMsg.getClass().getSimpleName(),
-                topic);
-        final String message = jsonFormat.printToString(serverMsg);
+        logger.debug("Sending {} character message to topic {}.", message.length(), topic);
         return producer.send(new ProducerRecord<>(topic, message), (metadata, exception) -> {
             double sentTimeMs = Duration.between(startTime, Instant.now()).toMillis();
             logger.debug("Message send took {} ms", sentTimeMs);

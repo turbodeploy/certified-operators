@@ -38,6 +38,11 @@
 
   <dependencies>
     <dependency>
+      <groupId>com.google.protobuf</groupId>
+      <artifactId>protobuf-java</artifactId>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
       <groupId>com.vmturbo</groupId>
       <artifactId>com.vmturbo.commons</artifactId>
       <exclusions>
@@ -50,6 +55,12 @@
     <dependency>
       <groupId>com.vmturbo</groupId>
       <artifactId>com.vmturbo.api</artifactId>
+      <exclusions>
+        <exclusion>
+          <groupId>com.google.protobuf</groupId>
+          <artifactId>protobuf-java</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>com.google.guava</groupId>

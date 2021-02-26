@@ -44,13 +44,6 @@
        <dependency>
            <groupId>com.vmturbo</groupId>
            <artifactId>com.vmturbo.api.conversion</artifactId>
-           <version>${vmturbo.mt.branch.version}</version>
-           <exclusions>
-               <exclusion>
-                   <groupId>com.google.protobuf</groupId>
-                   <artifactId>protobuf-java</artifactId>
-               </exclusion>
-           </exclusions>
        </dependency>
         <dependency>
             <groupId>commons-io</groupId>
