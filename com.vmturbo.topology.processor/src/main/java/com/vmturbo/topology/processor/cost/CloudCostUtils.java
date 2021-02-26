@@ -68,7 +68,7 @@ public class CloudCostUtils {
 
     // prefixes used for database entities in the cloud discovery probes
     private static final String AZURE_DATABASE_TIER_PREFIX = "azure::DBPROFILE::";
-    private static final String AWS_DATABASE_TIER_PREFIX = "aws::DBPROFILE::";
+    private static final String AWS_DATABASE_SERVER_TIER_PREFIX = "aws::DBSPROFILE::";
     private static final String AZURE_COMPUTE_STORAGE_DELIMITER = "/";
     // Prefixes used when generating local id's for entities in the cloud discovery probes
     private static final String AZURE_STORAGE_PREFIX = "azure::ST::";
@@ -78,9 +78,9 @@ public class CloudCostUtils {
     private static final String EMPTY_PREFIX = "";
 
     private static final Map<SDKProbeType, String> PROBE_TYPE_TO_DATABASE_TIER_PREFIX = ImmutableMap.of(
-            SDKProbeType.AWS_COST, AWS_DATABASE_TIER_PREFIX,
-            SDKProbeType.AWS, AWS_DATABASE_TIER_PREFIX,
-            SDKProbeType.AWS_BILLING, AWS_DATABASE_TIER_PREFIX,
+            SDKProbeType.AWS_COST, AWS_DATABASE_SERVER_TIER_PREFIX,
+            SDKProbeType.AWS, AWS_DATABASE_SERVER_TIER_PREFIX,
+            SDKProbeType.AWS_BILLING, AWS_DATABASE_SERVER_TIER_PREFIX,
             SDKProbeType.AZURE, AZURE_DATABASE_TIER_PREFIX,
             SDKProbeType.AZURE_COST, AZURE_DATABASE_TIER_PREFIX
     );
@@ -142,7 +142,7 @@ public class CloudCostUtils {
      * <p>
      * Examples:
      * <ul>
-     * <li>localName <em>"db1"</em> for an AWS Probe would become <em>"aws::DBPROFILE::db1"</em></li>
+     * <li>localName <em>"db1"</em> for an AWS Probe would become <em>"aws::DBSPROFILE::db1"</em></li>
      * <li>localName <em>"db1"</em> for an Azure Probe would become <em>"azure::DBPROFILE::db1"</em></li>
      * </ul>
      * <p>
