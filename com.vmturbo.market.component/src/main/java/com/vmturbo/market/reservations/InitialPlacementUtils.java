@@ -24,6 +24,7 @@ import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.market.reservations.InitialPlacementFinderResult.FailureInfo;
+import com.vmturbo.market.topology.conversions.MarketAnalysisUtils;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySoldSettings;
@@ -436,9 +437,10 @@ public final class InitialPlacementUtils {
             @Nonnull final BiMap<CommodityType, Integer> commTypeToSpecMap) {
         List<FailureInfo> failureInfos = new ArrayList();
         for (CommodityBundle bundle : exp.commBundle) {
-            failureInfos.add(new FailureInfo(commTypeToSpecMap.inverse().get(bundle.commSpec.getType()),
-                    exp.seller.isPresent() ? exp.seller.get().getOid() : 0,
-                    bundle.maxAvailable.get(), bundle.requestedAmount));
+            CommodityType commType = commTypeToSpecMap.inverse().get(bundle.commSpec.getType());
+            double maxQuantity = MarketAnalysisUtils.getMaxAvailableForUnplacementReason(commType, bundle);
+            failureInfos.add(new FailureInfo(commType, exp.seller.isPresent()
+                    ? exp.seller.get().getOid() : 0, maxQuantity, bundle.requestedAmount));
         }
         return failureInfos;
     }

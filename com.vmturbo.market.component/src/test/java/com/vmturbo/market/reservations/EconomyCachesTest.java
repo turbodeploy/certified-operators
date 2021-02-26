@@ -7,6 +7,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.BiMap;
@@ -24,10 +25,12 @@ import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.market.reservations.InitialPlacementFinderResult.FailureInfo;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunctionFactory;
@@ -41,6 +44,8 @@ import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.analysis.protobuf.QuoteFunctionDTOs.QuoteFunctionDTO;
 import com.vmturbo.platform.analysis.protobuf.QuoteFunctionDTOs.QuoteFunctionDTO.SumOfCommodity;
 import com.vmturbo.platform.analysis.topology.Topology;
+import com.vmturbo.platform.analysis.utilities.InfiniteQuoteExplanation;
+import com.vmturbo.platform.analysis.utilities.InfiniteQuoteExplanation.CommodityBundle;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -57,11 +62,13 @@ public class EconomyCachesTest {
     private static final int CLUSTER1_COMM_SPEC_TYPE = 300;
     private static final int CLUSTER2_COMM_SPEC_TYPE = 400;
     private static final int MERGE_CLUSTERS_COMM_SPEC_TYPE = 500;
+    private static final int SEGMENTATION_COMM_SPEC_TYPE = 600;
     private static final int ST_CLUSTER1_COMM_SPEC_TYPE = 700;
     private static final int ST_CLUSTER2_COMM_SPEC_TYPE = 800;
     private static final String cluster1Key = "cluster1";
     private static final String cluster2Key = "cluster2";
     private static final String mergeClusterKey = "merge";
+    private static final String placePolicyKey = "AtMostNBound";
     private static final double pmMemCapacity = 100;
     private static final long pm1Oid = 1111L;
     private static final double pm1MemUsed = 20;
@@ -102,6 +109,8 @@ public class EconomyCachesTest {
                 ST_CLUSTER2_COMM_SPEC_TYPE);
         commTypeToSpecMap.put(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.CLUSTER_VALUE).setKey(mergeClusterKey).build(),
                 MERGE_CLUSTERS_COMM_SPEC_TYPE);
+        commTypeToSpecMap.put(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.SEGMENTATION_VALUE).setKey(placePolicyKey).build(),
+                SEGMENTATION_COMM_SPEC_TYPE);
     }
 
     /**
@@ -814,6 +823,25 @@ public class EconomyCachesTest {
                 new HashMap());
         Mockito.verify(spy).updateHistoricalCachedEconomy(Mockito.any(), Mockito.any(),
                 Mockito.any(), Mockito.any());
+    }
+
+    /**
+     * Test InitialPlacementUtils.populateFailureInfos when the failed commodity is a segmentation
+     * commodity.
+     */
+    @Test
+    public void testPopulateFailureInfos() {
+        Trader trader = Mockito.mock(Trader.class);
+        ShoppingList sl = Mockito.mock(ShoppingList.class);
+        Set<CommodityBundle> commBundles = new HashSet();
+        // maxAvailable is 0.1 because of the small delta value added to capacity.See
+        // AtMostNBoundPolicyApplication.applyInternal.
+        commBundles.add(new CommodityBundle(new CommoditySpecification(SEGMENTATION_COMM_SPEC_TYPE),
+                1, Optional.of(0.1)));
+        InfiniteQuoteExplanation explanation = new InfiniteQuoteExplanation(false, commBundles,
+                Optional.of(trader), Optional.of(EntityType.PHYSICAL_MACHINE_VALUE), sl);
+        List<FailureInfo> failureInfo = InitialPlacementUtils.populateFailureInfos(explanation, commTypeToSpecMap);
+        Assert.assertEquals(0, failureInfo.get(0).getMaxQuantity(), 0.0001);
     }
 
     /**
