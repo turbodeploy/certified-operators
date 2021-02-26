@@ -1230,7 +1230,13 @@ public class SupplyChainFetcherFactory {
                                          @Nonnull final CostServiceBlockingStub costServiceBlockingStub) {
             super(realtimeTopologyContextId, topologyContextId, seedUuids, entityTypes, entityStates, environmentType, supplyChainRpcService,
                     groupExpander, enforceUserScope, repositoryApi);
-            this.entityDetailType = entityDetailType;
+
+            if (entityDetailType == null) {
+                this.entityDetailType = EntityDetailType.compact;
+            } else {
+                this.entityDetailType = entityDetailType;
+            }
+
             this.aspectsToInclude = aspectsToInclude;
             this.includeHealthSummary = includeHealthSummary;
             this.severityRpcService = Objects.requireNonNull(severityRpcService);
@@ -1266,16 +1272,16 @@ public class SupplyChainFetcherFactory {
                 // fetch service entities, if requested
                 final Map<String, ServiceEntityApiDTO> serviceEntityApiDTOS = new HashMap<>();
                 // If we only have one member we need its name for the supplychain
-                if (entityDetailType != null || memberOidsList.size() == 1) {
+                if ((entityDetailType != EntityDetailType.compact) || memberOidsList.size() == 1) {
                     RepositoryApi.MultiEntityRequest request = repositoryApi.entitiesRequest(memberOidsList);
-                    if (Objects.equals(entityDetailType, EntityDetailType.aspects)) {
+                    if (entityDetailType == EntityDetailType.aspects) {
                         request.useAspectMapper(entityAspectMapper, aspectsToInclude);
                     }
                     request.getSEList().forEach(e -> serviceEntityApiDTOS.put(e.getUuid(), e));
                 }
 
                 final Map<Severity, Long> severities = new HashMap<>();
-                if (includeHealthSummary || entityDetailType != null) {
+                if (includeHealthSummary || (entityDetailType != EntityDetailType.compact)) {
                     // fetch severities, either to include in a health summary or to decorate SE's
                     try {
                         logger.debug("Collecting severities for {}", supplyChainNode.getEntityType());
@@ -1287,7 +1293,7 @@ public class SupplyChainFetcherFactory {
                                 .setTopologyContextId(getTopologyContextId())
                                 .addAllEntityIds(memberOidsList)
                                 .build();
-                            if (entityDetailType != null) {
+                            if (entityDetailType != EntityDetailType.compact) {
                                 fetchEntitySeverities(severityRequest, serviceEntityApiDTOS, severities);
                             } else {
                                 fetchSeverityCounts(severityRequest, severities);
