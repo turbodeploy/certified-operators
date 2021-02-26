@@ -22,6 +22,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -309,6 +310,137 @@ public class SupplyChainFetcherFactoryTest {
         Map<String, ServiceEntityApiDTO> serviceEntityApiDTOMap = supplychainEntryDTOs.iterator().next()
                 .getInstances();
         assertFalse(serviceEntityApiDTOMap.isEmpty());
+    }
+
+    /**
+     * Verifies that the proper execution order, and return values when detail_type == EntityDetailType.entity
+     *
+     * @throws Exception should never happen in this test
+     */
+    @Test
+    public void testGetSupplyChainEntityDetailType() throws Exception {
+        final Set<String> searchUuidSet = Sets.newHashSet(ImmutableList.of("1", "2", "3"));
+
+        ServiceEntityApiDTO vmServiceEntity = new ServiceEntityApiDTO();
+        vmServiceEntity.setUuid("1");
+        vmServiceEntity.setDisplayName("A");
+
+        ServiceEntityApiDTO vmServiceEntity2 = new ServiceEntityApiDTO();
+        vmServiceEntity2.setUuid("2");
+        vmServiceEntity2.setDisplayName("B");
+
+        ServiceEntityApiDTO pmServiceEntity = new ServiceEntityApiDTO();
+        pmServiceEntity.setUuid("3");
+        pmServiceEntity.setDisplayName("C");
+
+        RepositoryApi.MultiEntityRequest entitiesRequest = ApiTestUtils.mockMultiSEReq(Lists.newArrayList(vmServiceEntity, vmServiceEntity2));
+        RepositoryApi.MultiEntityRequest entitiesRequest2 = ApiTestUtils.mockMultiSEReq(Lists.newArrayList(pmServiceEntity));
+        when(repositoryApiBackend.entitiesRequest(Sets.newHashSet(1L, 2L))).thenReturn( entitiesRequest);
+        when(repositoryApiBackend.entitiesRequest(Sets.newHashSet(3L))).thenReturn( entitiesRequest2);
+
+        when(groupExpander.expandUuids(searchUuidSet)).thenReturn(ImmutableSet.of(1L, 2L, 3L));
+
+        // Create a set of supply chain nodes to return as the mock result from the supply chain service
+        final SupplyChainNode vmNode = SupplyChainNode.newBuilder()
+                .setEntityType(VM.typeNumber())
+                .putMembersByState(EntityState.POWERED_ON_VALUE, MemberList.newBuilder()
+                        .addMemberOids(1L).addMemberOids(2L)
+                        .build())
+                .build();
+        // We create a Node with only one instance on purpose to check this edge case because one instance
+        // is a special case and it is handled differently in SupplyChainFetcherFactory, meaning that
+        // regardless the entitydetail type when there is only one instance we fetch its details.
+        final SupplyChainNode pmNode = SupplyChainNode.newBuilder()
+                .setEntityType(PM.typeNumber())
+                .putMembersByState(EntityState.POWERED_ON_VALUE, MemberList.newBuilder()
+                        .addMemberOids(3L)
+                        .build())
+                .build();
+
+        when(supplyChainServiceBackend.getSupplyChain(any()))
+                .thenReturn(GetSupplyChainResponse.newBuilder()
+                        .setSupplyChain(SupplyChain.newBuilder()
+                                .addSupplyChainNodes(vmNode)
+                                .addSupplyChainNodes(pmNode))
+                        .build());
+
+        SupplychainApiDTO result = supplyChainFetcherFactory.newApiDtoFetcher()
+                .addSeedUuids(ImmutableList.of("1", "2", "3"))
+                .entityDetailType(EntityDetailType.entity)
+                .fetch();
+
+        Collection<SupplychainEntryDTO> supplychainEntryDTOs = result.getSeMap().values();
+
+        assertFalse(supplychainEntryDTOs.isEmpty());
+        final Set<String> resultKeys = Sets.newHashSet(ImmutableList.of("PhysicalMachine", "VirtualMachine"));
+        assertTrue(resultKeys.equals(result.getSeMap().keySet()));
+
+        SupplychainEntryDTO vmEntry = result.getSeMap().get("VirtualMachine");
+        assertEquals((int)vmEntry.getEntitiesCount(), 2);
+        assertFalse(vmEntry.getInstances().isEmpty());
+        final Set<String> vmResultKeys = Sets.newHashSet(ImmutableList.of("1", "2"));
+        assertTrue(vmResultKeys.equals(vmEntry.getInstances().keySet()));
+        assertEquals(vmEntry.getInstances().get("1").getDisplayName(), "A");
+        assertEquals(vmEntry.getInstances().get("2").getDisplayName(), "B");
+
+        SupplychainEntryDTO pmEntry = result.getSeMap().get("PhysicalMachine");
+        assertEquals((int)pmEntry.getEntitiesCount(), 1);
+        assertFalse(pmEntry.getInstances().isEmpty());
+        final Set<String> pmResultKeys = Sets.newHashSet(ImmutableList.of("3"));
+        assertTrue(pmResultKeys.equals(pmEntry.getInstances().keySet()) );
+        assertEquals(pmEntry.getInstances().get("3").getDisplayName(), "C");
+    }
+
+    /**
+     * Verifies that the proper execution order, and return values when detail_type == EntityDetailType.compact
+     *
+     * @throws Exception should never happen in this test
+     */
+    @Test
+    public void testGetSupplyChainCompactDetailType() throws Exception {
+        final ImmutableList<String> searchUuids = ImmutableList.of("1", "2", "3", "4");
+        final Set<String> searchUuidSet = Sets.newHashSet(searchUuids);
+
+        when(groupExpander.expandUuids(searchUuidSet)).thenReturn(ImmutableSet.of(1L, 2L, 3L, 4L));
+        // Create a set of supply chain nodes to return as the mock result from the supply chain service
+        // Have also tried to create node with only one MemberOid where this test will fail
+        // because the backend will send request for details of the entity since there is only one
+        // thus thiw behavior is correct and expected
+        final SupplyChainNode vmNode = SupplyChainNode.newBuilder()
+                .setEntityType(VM.typeNumber())
+                .putMembersByState(EntityState.POWERED_ON_VALUE, MemberList.newBuilder()
+                        .addMemberOids(1L).addMemberOids(2L)
+                        .build())
+                .build();
+        final SupplyChainNode pmNode = SupplyChainNode.newBuilder()
+                .setEntityType(PM.typeNumber())
+                .putMembersByState(EntityState.POWERED_ON_VALUE, MemberList.newBuilder()
+                        .addMemberOids(3L).addMemberOids( 4L)
+                        .build())
+                .build();
+
+        when(supplyChainServiceBackend.getSupplyChain(any()))
+                .thenReturn(GetSupplyChainResponse.newBuilder()
+                        .setSupplyChain(SupplyChain.newBuilder()
+                                .addSupplyChainNodes(vmNode)
+                                .addSupplyChainNodes(pmNode))
+                        .build());
+        SupplychainApiDTO result = supplyChainFetcherFactory.newApiDtoFetcher()
+                .addSeedUuids(ImmutableList.of("1", "2", "3", "4"))
+                .entityDetailType(EntityDetailType.compact)
+                .fetch();
+
+        Collection<SupplychainEntryDTO> supplychainEntryDTOs = result.getSeMap().values();
+        assertFalse(supplychainEntryDTOs.isEmpty());
+        final Set<String> resultKeys = Sets.newHashSet(ImmutableList.of("PhysicalMachine", "VirtualMachine"));
+        assertTrue(resultKeys.equals(result.getSeMap().keySet()));
+
+        Iterator<SupplychainEntryDTO> it = supplychainEntryDTOs.iterator();
+        while (it.hasNext()) {
+            SupplychainEntryDTO next = it.next();
+            assertEquals((int)next.getEntitiesCount(), 2);
+            assertTrue(next.getInstances().isEmpty());
+        }
     }
 
     /**
