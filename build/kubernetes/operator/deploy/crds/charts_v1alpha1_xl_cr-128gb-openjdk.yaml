@@ -40,6 +40,14 @@ spec:
   # Component selector - Probes
   actionscript:
     enabled: true
+  # ActionStream Kafka is in private preview. Please also add:
+  # spec:
+  #   properties:
+  #     global:
+  #       useStableActionIdAsUuid: true
+  # if you plan to enable this.
+  actionstream-kafka:
+    enabled: false
   appdynamics:
     enabled: true
   appinsights:
@@ -170,6 +178,10 @@ spec:
 
   # Resources limits - Probes
   mediation-actionscript:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-actionstream-kafka:
     resources:
       limits:
         memory: 512Mi
