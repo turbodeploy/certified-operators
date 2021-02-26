@@ -143,7 +143,7 @@ public class OperationManagerWithQueueTest {
 
     private final RemoteMediationServerWithDiscoveryWorkers remoteMediationServer =
             spy(new RemoteMediationServerWithDiscoveryWorkers(probeStore, probePropertyStore,
-                    containerChooser, discoveryQueue, 1, 1));
+                    containerChooser, discoveryQueue, 1, 1, 10));
 
     private OperationManager operationManager;
 

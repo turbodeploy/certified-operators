@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.communication;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
@@ -8,7 +9,6 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.timeout;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -16,6 +16,7 @@ import java.util.Collections;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
@@ -144,6 +145,8 @@ public class RemoteMediationServerWithDiscoveryWorkersTest {
 
     private String target2IdFields = "target2";
 
+    private long discoveryWorkerPollingTimeoutSecs = 3L;
+
     /**
      * Argument captor for simulating returning a permit to the TransportWorker.
      */
@@ -183,7 +186,7 @@ public class RemoteMediationServerWithDiscoveryWorkersTest {
                         new ProbeContainerChooserImpl(probeStore),
                         queue,
                         1,
-                        1));
+                        1, discoveryWorkerPollingTimeoutSecs));
     }
 
     private void setupBundles() {
@@ -280,16 +283,6 @@ public class RemoteMediationServerWithDiscoveryWorkersTest {
         OperationTestUtilities.waitForEvent(() -> discoveryMethod3.runnable != null);
         OperationTestUtilities.waitForEvent(() -> discoveryMethod4.runnable != null);
 
-        // Verify that transport worker 1 took 2 discoveries off the queue
-        verify(queue, times(2))
-                .takeNextQueuedDiscovery(eq(transport1), eq(Collections.singleton(probeIdVc)),
-                        eq(DiscoveryType.FULL));
-
-        // Verify that transport worker 2 took 2 discoveries off the queue
-        verify(queue, times(2))
-                .takeNextQueuedDiscovery(eq(transport2), eq(Collections.singleton(probeIdVc)),
-                        eq(DiscoveryType.FULL));
-
         verify(transport1, timeout(verify_timeout_millis).times(2))
                 .send(transportSendCaptor.capture());
         verify(transport2, timeout(verify_timeout_millis).times(2))
@@ -319,9 +312,16 @@ public class RemoteMediationServerWithDiscoveryWorkersTest {
     public void testTransportClosed() throws InterruptedException, ProbeException {
         remoteMediationServer.registerTransport(containerInfo, transport1);
         // When transport thread has started, it will call takeNextQueueDiscovery once for FULL
-        // and once for INCREMENTAL.
-        verify(queue, timeout(verify_timeout_millis).times(2))
-                .takeNextQueuedDiscovery(any(), any(), any());
+        // and once for INCREMENTAL. If a thread times out waiting for a discovery to be queued,
+        // it will call takeNextQueuedDiscovery multiple times.
+        verify(queue, timeout(verify_timeout_millis).atLeastOnce())
+                .takeNextQueuedDiscovery(eq(transport1), eq(Collections.singleton(probeIdVc)),
+                        eq(DiscoveryType.FULL),
+                        eq(TimeUnit.SECONDS.toMillis(discoveryWorkerPollingTimeoutSecs)));
+        verify(queue, timeout(verify_timeout_millis).atLeastOnce())
+                .takeNextQueuedDiscovery(eq(transport1), eq(Collections.singleton(probeIdVc)),
+                        eq(DiscoveryType.INCREMENTAL),
+                        eq(TimeUnit.SECONDS.toMillis(discoveryWorkerPollingTimeoutSecs)));
 
         // close the transport, which should also interrupt the worker thread
         remoteMediationServer.processContainerClose(transport1);
@@ -329,12 +329,13 @@ public class RemoteMediationServerWithDiscoveryWorkersTest {
         verify(queue, timeout(verify_timeout_millis)).handleTransportRemoval(transport1,
                 Collections.singleton(probeIdVc));
 
+        // wait for threads to timeout waiting for the queue
+        Thread.sleep(TimeUnit.SECONDS.toMillis(discoveryWorkerPollingTimeoutSecs));
+
         queue.offerDiscovery(target1, DiscoveryType.FULL, discoveryMethod1, errorHandler1, false);
-        // Verify we didn't try to run the discovery. takeNextQueuedDiscovery should have only been
-        // called once for each discovery type and then interrupted and never called again.
-        verify(queue, times(2)).takeNextQueuedDiscovery(any(),
-                any(),
-                any());
+        // Verify we didn't try to run the discovery.
+        Thread.sleep(1000L);
+        assertNull(discoveryMethod1.runnable);
     }
 
     /**
@@ -368,7 +369,8 @@ public class RemoteMediationServerWithDiscoveryWorkersTest {
         // Execute queue.takeNextQueuedDiscovery() on a different thread since it may block forever.
         executor.execute(() -> {
             try {
-                takenDiscovery.trySetValue(queue.takeNextQueuedDiscovery(transport1, Collections.singletonList(probeIdVc), DiscoveryType.FULL));
+                takenDiscovery.trySetValue(queue.takeNextQueuedDiscovery(transport1,
+                        Collections.singletonList(probeIdVc), DiscoveryType.FULL, discoveryWorkerPollingTimeoutSecs));
             } catch (InterruptedException e) {
                 takenDiscovery.trySetValue(Optional.empty());
             }
