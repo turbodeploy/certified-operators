@@ -2,6 +2,7 @@ package com.vmturbo.cost.calculation.topology;
 
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -12,8 +13,10 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSortedSet;
+import com.google.common.collect.Lists;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -58,8 +61,6 @@ public class AccountPricingData<T> {
     private final Map<LicenseIdentifier, SortedLicensePriceEntry> reservedLicensePrices;
 
     private final Long accountPricingDataOid;
-
-    private final DebugInfoNeverUsedInCode debugInfoNeverUsedInCode;
 
     /**
      * This map specifies which is the base OS for each OS type.
@@ -123,11 +124,9 @@ public class AccountPricingData<T> {
      * @param discountApplicator The discount applicator.
      * @param priceTable The price table.
      * @param accountPricingDataOid The account pricing data oid.
-     * @param priceTableOid The price table key oid.
-     * @param businessAccountOid The original business account oid which created this account pricing data.
      */
     public AccountPricingData(DiscountApplicator<T> discountApplicator, final PriceTable priceTable,
-            Long accountPricingDataOid, @Nonnull Long priceTableOid, @Nonnull Long businessAccountOid) {
+            Long accountPricingDataOid) {
         this.discountApplicator = discountApplicator;
         this.priceTable = priceTable;
         this.onDemandLicensePrices = priceTable.getOnDemandLicensePricesList()
@@ -137,7 +136,6 @@ public class AccountPricingData<T> {
                 .stream()
                 .collect(Collectors.collectingAndThen(PRICE_COLLECTOR, ImmutableMap::copyOf));
         this.accountPricingDataOid = accountPricingDataOid;
-        this.debugInfoNeverUsedInCode = new DebugInfoNeverUsedInCode(priceTableOid, businessAccountOid);
     }
 
     /**
@@ -310,10 +308,6 @@ public class AccountPricingData<T> {
         return this.discountApplicator;
     }
 
-    public DebugInfoNeverUsedInCode getDebugInfoNeverUsedInCode() {
-        return this.debugInfoNeverUsedInCode;
-    }
-
     public Long getAccountPricingDataOid() {
         return this.accountPricingDataOid;
     }
@@ -378,37 +372,6 @@ public class AccountPricingData<T> {
         }
 
         class Builder extends ImmutableSortedLicensePriceEntry.Builder {}
-    }
-
-    /**
-     * A class holding debug related info for debugging account pricing data.
-     */
-    public static class DebugInfoNeverUsedInCode {
-        private Long priceTableKeyOid;
-        private Long representativeAccountOid;
-
-        private DebugInfoNeverUsedInCode(@Nonnull Long priceTableKeyOid, @Nonnull Long representativeAccountOid) {
-            this.representativeAccountOid = representativeAccountOid;
-            this.priceTableKeyOid = priceTableKeyOid;
-        }
-
-        /**
-         * Getter for the business account oid which created this account pricing data.
-         *
-         * @return The business account oid.
-         */
-        public Long getRepresentativeAccountOid() {
-            return representativeAccountOid;
-        }
-
-        /**
-         * Getter for the price table key oid this account pricing data object reoresents.
-         *
-         * @return The price table key oid.
-         */
-        public Long getPriceTableKeyOid() {
-            return priceTableKeyOid;
-        }
     }
 
 }

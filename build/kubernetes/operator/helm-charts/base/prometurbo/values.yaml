@@ -385,7 +385,6 @@ businessApplications:
       - db
       - mediation-aws
       - mediation-actionscript
-      - mediation-actionstream-kafka
       - mediation-appdynamics
       - mediation-appinsights
       - mediation-awsbilling

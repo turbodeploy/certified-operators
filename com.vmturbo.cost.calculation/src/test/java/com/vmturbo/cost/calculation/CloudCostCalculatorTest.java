@@ -230,7 +230,7 @@ public class CloudCostCalculatorTest {
         TestEntityClass wsqlVm4Cores = createVmTestEntity(DEFAULT_VM_ID, OSType.WINDOWS_WITH_SQL_ENTERPRISE, Tenancy.DEFAULT, VMBillingType.ONDEMAND, 4,
                 EntityDTO.LicenseModel.LICENSE_INCLUDED);
         // act
-        AccountPricingData accountPricingData = new AccountPricingData(discountApplicator, PRICE_TABLE, 15L, 20L, 30L);
+        AccountPricingData accountPricingData = new AccountPricingData(discountApplicator, PRICE_TABLE, 15L);
         CloudCostData cloudCostData = createCloudCostDataWithAccountPricingTable(BUSINESS_ACCOUNT_ID, accountPricingData);
         CloudCostCalculator cloudCostCalculator = calculator(cloudCostData);
         // Configure ReservedInstanceApplicator
@@ -295,7 +295,7 @@ public class CloudCostCalculatorTest {
         TestEntityClass windowsVm4CoresBYOL = createVmTestEntity(DEFAULT_VM_ID, OSType.WINDOWS, Tenancy.DEFAULT,
                 VMBillingType.ONDEMAND, 4, EntityDTO.LicenseModel.AHUB);
 
-        AccountPricingData accountPricingData = new AccountPricingData(discountApplicator, PRICE_TABLE, 15L, 20L, 35L);
+        AccountPricingData accountPricingData = new AccountPricingData(discountApplicator, PRICE_TABLE, 15L);
         CloudCostData cloudCostData = createCloudCostDataWithAccountPricingTable(BUSINESS_ACCOUNT_ID, accountPricingData);
         CloudCostCalculator cloudCostCalculator = calculator(cloudCostData);
 
@@ -338,7 +338,7 @@ public class CloudCostCalculatorTest {
         // Set up the discount applicator (no discount)
         DiscountApplicator<TestEntityClass> discountApplicator = setupDiscountApplicator(0.0);
 
-        AccountPricingData accountPricingData = new AccountPricingData(setupDiscountApplicator(0.0), PRICE_TABLE, 15L,20L, 35L);
+        AccountPricingData accountPricingData = new AccountPricingData(setupDiscountApplicator(0.0), PRICE_TABLE, 15L);
         CloudCostData cloudCostData = createCloudCostDataWithAccountPricingTable(BUSINESS_ACCOUNT_ID, accountPricingData);
 
         // Set up the RI applicator (no RI)
@@ -389,7 +389,7 @@ public class CloudCostCalculatorTest {
         when(topology.getConnectedRegion(VOLUME_ID)).thenReturn(Optional.of(region));
         when(topology.getOwner(VOLUME_ID)).thenReturn(Optional.of(businessAccount));
         when(topology.getStorageTier(VOLUME_ID)).thenReturn(Optional.of(storageTier));
-        AccountPricingData accountPricingData = new AccountPricingData(setupDiscountApplicator(0.0), PRICE_TABLE, 15L, 20L, 35L);
+        AccountPricingData accountPricingData = new AccountPricingData(setupDiscountApplicator(0.0), PRICE_TABLE, 15L);
         CloudCostData cloudCostData = createCloudCostDataWithAccountPricingTable(BUSINESS_ACCOUNT_ID, accountPricingData);
         CloudCostCalculator cloudCostCalculator = calculator(cloudCostData);
         final CostJournal<TestEntityClass> journal = cloudCostCalculator.calculateCost(volume);
@@ -411,7 +411,7 @@ public class CloudCostCalculatorTest {
         when(topology.getOwner(VOLUME_ID)).thenReturn(Optional.of(businessAccount));
         when(topology.getStorageTier(VOLUME_ID)).thenReturn(Optional.of(storageTier));
         AccountPricingData accountPricingData = new AccountPricingData(setupDiscountApplicator(0.0),
-            PRICE_TABLE, ACCOUNT_PRICING_DATA_OID, 15L, 20L);
+            PRICE_TABLE, ACCOUNT_PRICING_DATA_OID);
         CloudCostData cloudCostData = createCloudCostDataWithAccountPricingTable(BUSINESS_ACCOUNT_ID,
             accountPricingData);
         CloudCostCalculator cloudCostCalculator = calculator(cloudCostData);
@@ -435,7 +435,7 @@ public class CloudCostCalculatorTest {
         when(topology.getOwner(VOLUME_ID)).thenReturn(Optional.of(businessAccount));
         when(topology.getStorageTier(VOLUME_ID)).thenReturn(Optional.of(storageTier));
         final AccountPricingData accountPricingData = new AccountPricingData(
-                setupDiscountApplicator(0.0), PRICE_TABLE, ACCOUNT_PRICING_DATA_OID, 15L, 20L);
+                setupDiscountApplicator(0.0), PRICE_TABLE, ACCOUNT_PRICING_DATA_OID);
         final CloudCostData cloudCostData = createCloudCostDataWithAccountPricingTable(
                 BUSINESS_ACCOUNT_ID, accountPricingData);
         final CloudCostCalculator<TestEntityClass> cloudCostCalculator = calculator(cloudCostData);
@@ -524,7 +524,7 @@ public class CloudCostCalculatorTest {
         when(topology.getStorageTier(VOLUME_ID))
             .thenReturn(Optional.of(storageTier));
         AccountPricingData accountPricingData = new AccountPricingData(setupDiscountApplicator(0.0),
-            PRICE_TABLE, ACCOUNT_PRICING_DATA_OID, 15L, 20L);
+            PRICE_TABLE, ACCOUNT_PRICING_DATA_OID);
         CloudCostData cloudCostData = createCloudCostDataWithAccountPricingTable(BUSINESS_ACCOUNT_ID, accountPricingData);
         CloudCostCalculator cloudCostCalculator = calculator(cloudCostData);
         return cloudCostCalculator.calculateCost(volume);
@@ -552,7 +552,7 @@ public class CloudCostCalculatorTest {
         when(infoExtractor.getDBStorageCapacity(any())).thenReturn(Optional.of((float)STORAGE_RANGE));
         final DiscountApplicator<TestEntityClass> discountApplicator = setupDiscountApplicator(0.0);
         AccountPricingData accountPricingData = new AccountPricingData(discountApplicator, PRICE_TABLE,
-            ACCOUNT_PRICING_DATA_OID, 15L, 20L);
+            ACCOUNT_PRICING_DATA_OID);
         CloudCostData cloudCostData = createCloudCostDataWithAccountPricingTable(BUSINESS_ACCOUNT_ID, accountPricingData);
         CloudCostCalculator cloudCostCalculator = calculator(cloudCostData);
 
@@ -601,7 +601,7 @@ public class CloudCostCalculatorTest {
                 .thenReturn(Optional.of((float)STORAGE_RANGE + (extraStorageInGB * Units.KBYTE)));
         final DiscountApplicator<TestEntityClass> discountApplicator = setupDiscountApplicator(0.0);
         AccountPricingData accountPricingData = new AccountPricingData(discountApplicator, PRICE_TABLE,
-                ACCOUNT_PRICING_DATA_OID, 15L, 20L);
+                ACCOUNT_PRICING_DATA_OID);
         CloudCostData cloudCostData = createCloudCostDataWithAccountPricingTable(BUSINESS_ACCOUNT_ID, accountPricingData);
         CloudCostCalculator cloudCostCalculator = calculator(cloudCostData);
 
@@ -648,7 +648,7 @@ public class CloudCostCalculatorTest {
 
         final DiscountApplicator<TestEntityClass> discountApplicator = setupDiscountApplicator(0.0);
         AccountPricingData accountPricingData = new AccountPricingData(discountApplicator, PRICE_TABLE,
-            ACCOUNT_PRICING_DATA_OID,15L, 20L);
+            ACCOUNT_PRICING_DATA_OID);
         CloudCostData cloudCostData = createCloudCostDataWithAccountPricingTable(BUSINESS_ACCOUNT_ID, accountPricingData);
         CloudCostCalculator cloudCostCalculator = calculator(cloudCostData);
 
@@ -684,7 +684,7 @@ public class CloudCostCalculatorTest {
         // Set up CloudCostData
         final DiscountApplicator<TestEntityClass> discountApplicator = setupDiscountApplicator(0.0);
         final AccountPricingData accountPricingData = new AccountPricingData(discountApplicator,
-                PRICE_TABLE, ACCOUNT_PRICING_DATA_OID, 15L, 20L);
+                PRICE_TABLE, ACCOUNT_PRICING_DATA_OID);
         final CloudCostData cloudCostData = createCloudCostDataWithAccountPricingTable(
                 BUSINESS_ACCOUNT_ID, accountPricingData);
 
@@ -733,7 +733,7 @@ public class CloudCostCalculatorTest {
 
         final DiscountApplicator<TestEntityClass> discountApplicator = setupDiscountApplicator(0.0);
         final AccountPricingData accountPricingData = new AccountPricingData(discountApplicator,
-                PRICE_TABLE, ACCOUNT_PRICING_DATA_OID, 15L, 20L);
+                PRICE_TABLE, ACCOUNT_PRICING_DATA_OID);
         final CloudCostData cloudCostData = createCloudCostDataWithAccountPricingTable(
                 BUSINESS_ACCOUNT_ID, accountPricingData);
         final CloudCostCalculator cloudCostCalculator = calculator(cloudCostData);
@@ -757,7 +757,7 @@ public class CloudCostCalculatorTest {
             .setType(EntityType.NETWORK_VALUE)
             .build(infoExtractor);
         AccountPricingData accountPricingData = new AccountPricingData(setupDiscountApplicator(0.0),
-            PRICE_TABLE, ACCOUNT_PRICING_DATA_OID, 15L, 20L);
+            PRICE_TABLE, ACCOUNT_PRICING_DATA_OID);
         CloudCostData cloudCostData = createCloudCostDataWithAccountPricingTable(BUSINESS_ACCOUNT_ID, accountPricingData);
         CloudCostCalculator cloudCostCalculator = calculator(cloudCostData);
         final CostJournal<TestEntityClass> journal = cloudCostCalculator.calculateCost(noCostEntity);

@@ -92,7 +92,7 @@ public abstract class ResolverPricing implements PricingResolver<TopologyEntityD
                             cloudTopo, topologyEntityInfoExtractor, discount);
             final long accountPricingDataKey = IdentityGenerator.next();
             AccountPricingData<TopologyEntityDTO> accountPricingData = new AccountPricingData<>(
-                    discountApplicator, priceTable, accountPricingDataKey, priceTableOid, baOid);
+                    discountApplicator, priceTable, accountPricingDataKey);
             accountPricingDataMapByPricingDataIdentifier.put(pricingDataIdentifier, accountPricingData);
             accountPricingDataByBusinessAccountOid.put(baOid, accountPricingData);
         }

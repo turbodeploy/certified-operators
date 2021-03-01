@@ -117,7 +117,7 @@ variable "istio" {
   default = false
 }
 
-variable "actionstream-kafka" {
+variable "mediation-actionstream-kafka" {
   default = false
 }
 

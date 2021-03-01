@@ -149,7 +149,6 @@ public class TopologyCostCalculator {
                 riApplicatorFactory,
                 dependentCostLookup,
                 topologyRICoverage);
-        cloudCostData.logMissingAccountPricingData();
         entities.forEach(entity -> {
             retCosts.put(entity.getOid(), costCalculator.calculateCost(entity, isProjectedTopology));
         });
