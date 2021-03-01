@@ -298,6 +298,12 @@
             <version>${immutables.version}</version>
             <scope>provided</scope>
         </dependency>
+        <dependency>
+            <groupId>org.immutables</groupId>
+            <artifactId>gson</artifactId>
+            <version>${immutables.version}</version>
+            <scope>provided</scope>
+        </dependency>
         <!-- Verify and decode JWT token -->
         <dependency>
             <groupId>com.vmturbo</groupId>

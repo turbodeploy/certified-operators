@@ -2,6 +2,7 @@ package com.vmturbo.cost.component.savings;
 
 import java.util.Optional;
 
+import org.immutables.gson.Gson;
 import org.immutables.value.Value.Derived;
 import org.immutables.value.Value.Immutable;
 import org.immutables.value.Value.Style;
@@ -11,6 +12,7 @@ import org.immutables.value.Value.Style.ImplementationVisibility;
  * Stores info about pricing changes.
  */
 @Style(visibility = ImplementationVisibility.PACKAGE, overshadowImplementation = true)
+@Gson.TypeAdapters
 @Immutable(lazyhash = true)
 interface EntityPriceChange {
     /**
