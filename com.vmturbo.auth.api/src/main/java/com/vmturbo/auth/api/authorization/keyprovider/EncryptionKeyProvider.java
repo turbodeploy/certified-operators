@@ -82,6 +82,7 @@ public class EncryptionKeyProvider implements IEncryptionKeyProvider {
         final String primaryMasterKey = masterKeyReader.getPrimaryMasterKey()
             .orElseThrow(() -> new SecurityException("No master encryption key was provided from the external source!"));
 
+        // Check if the encryption key is stored internally
         if (keyValueStore.containsKey(ENCRYPTION_KEY_KV_KEY)) {
             final String cipherText = keyValueStore.get(ENCRYPTION_KEY_KV_KEY)
                 .orElseThrow(() -> new SecurityException("The encryption key could not be retrieved!"));
@@ -105,13 +106,25 @@ public class EncryptionKeyProvider implements IEncryptionKeyProvider {
             return encryptionKey;
         }
 
-        // We don't have the internal encryption key stored, so generate a new one.
-        byte[] encryptionKeyBytes = CryptoFacility.getRandomBytes(ENCRYPTION_KEY_LENGTH_IN_BYTES);
-        encryptionKey = BaseEncoding.base64().encode(encryptionKeyBytes);
-        logger.info("Generated new encryption key.");
+        // The encryption key is not yet stored internally
+        // This may be an upgrade from an older version; check the legacy key location
+        final byte[] encryptionKeyBytes;
+        Optional<byte[]> legacyKey = CryptoFacility.getEncryptionKeyForVMTurboInstance();
+        if (legacyKey.isPresent()) {
+            // Upgrade a legacy key into the new encrypted storage format
+            logger.info("Successfully imported existing encryption key.");
+            encryptionKeyBytes = legacyKey.get();
+        } else {
+            // We don't have the internal encryption key stored, and no legacy key was found. This appears to be a new
+            // installation, so generate a new encryption key.
+            encryptionKeyBytes = CryptoFacility.getRandomBytes(ENCRYPTION_KEY_LENGTH_IN_BYTES);
+            logger.info("Generated new encryption key.");
+        }
         // Encrypt the internal encryption key before storing it, using the master encryption key
         encryptAndStore(primaryMasterKey, encryptionKeyBytes);
         logger.info("Persisted encryption key.");
+        // Cache the encryption key for future use
+        encryptionKey = BaseEncoding.base64().encode(encryptionKeyBytes);
         return encryptionKey;
     }
 

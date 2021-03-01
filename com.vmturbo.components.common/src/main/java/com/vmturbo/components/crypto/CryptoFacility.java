@@ -1,5 +1,21 @@
 package com.vmturbo.components.crypto;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.io.BaseEncoding;
+import com.vmturbo.components.common.utils.EnvironmentUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import javax.crypto.Cipher;
+import javax.crypto.SecretKey;
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.GCMParameterSpec;
+import javax.crypto.spec.PBEKeySpec;
+import javax.crypto.spec.SecretKeySpec;
+import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
@@ -12,25 +28,8 @@ import java.security.spec.InvalidKeySpecException;
 import java.security.spec.KeySpec;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
-
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-import javax.crypto.Cipher;
-import javax.crypto.SecretKey;
-import javax.crypto.SecretKeyFactory;
-import javax.crypto.spec.GCMParameterSpec;
-import javax.crypto.spec.PBEKeySpec;
-import javax.crypto.spec.SecretKeySpec;
-
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.io.BaseEncoding;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
-import com.vmturbo.components.common.utils.EnvironmentUtils;
 
 /**
  * The CryptoFacility is a utility class that provides encryption and secure hash services.
@@ -551,6 +550,45 @@ public class CryptoFacility {
         } catch (Exception e) {
             throw new SecurityException(e);
         }
+    }
+
+    /**
+     * This method gets the encryption key that is stored in the dedicated docker volume or kubernetes secret.
+     *
+     * <p>This method tries all versions of the encryption key until it finds a match. If no match is found,
+     * Optional.empty is returned. This method was introduced in order to support upgrading from the old, PV-based
+     * scheme to the newer master key-based approach. </p>
+     *
+     * @return the encryption key if found, else Optional.empty
+     */
+    public static synchronized Optional<byte[]> getEncryptionKeyForVMTurboInstance() {
+        // There's probably nothing in the cache yet, in the upgrade scenario...
+        // But just in case we've already read in the encryption key, let's check
+        if (!encryptionKeyMap.isEmpty()) {
+            return encryptionKeyMap.values().stream().findFirst();
+        }
+
+        for (AesParameter aesParameter : AES_VERSION_KEY_CONFIG_MAP.values()) {
+            final String location =
+                    EnvironmentUtils.getOptionalEnvProperty(VMT_ENCRYPTION_KEY_DIR_PARAM).orElse(VMT_ENCRYPTION_KEY_DIR);
+            // The path to the encryption file.
+            // If Kubernetes secrets are activated, this file will be populated by a secret instead of a PV.
+            Path encryptionFile = Paths.get(location + "/" + aesParameter.keyFileName);
+            byte[] encryptionKeyForVMTurboInstance;
+            try {
+                final int numKeyBytes = aesParameter.keyLength / 8;
+                if (Files.exists(encryptionFile)) {
+                    encryptionKeyForVMTurboInstance = Files.readAllBytes(encryptionFile);
+                    if (encryptionKeyForVMTurboInstance.length == numKeyBytes) {
+                        return Optional.of(encryptionKeyForVMTurboInstance);
+                    }
+                }
+            } catch (IOException e) {
+                logger.error("Failure while attempting to read encryption key file: " + e.getMessage(), e);
+            }
+        }
+        // None of the legacy encryption key files were found (or they were the wrong length)
+        return Optional.empty();
     }
 
     /**

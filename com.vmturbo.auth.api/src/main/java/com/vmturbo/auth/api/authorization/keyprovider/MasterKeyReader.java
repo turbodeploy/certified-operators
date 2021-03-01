@@ -19,9 +19,9 @@ import org.apache.logging.log4j.Logger;
  */
 public class MasterKeyReader {
 
-    private static final String PRIMARY_MASTER_SECRET_FILE_PATH = "/home/turbonomic/data/helper_dir/vmt_helper_data_256.out";
+    private static final String PRIMARY_MASTER_SECRET_FILE_PATH = "/home/turbonomic/data/master_keys/primary_key_256.out";
 
-    private static final String FALLBACK_MASTER_SECRET_FILE_PATH = "/home/turbonomic/data/helper_dir/fallback_vmt_helper_data_256.out";
+    private static final String FALLBACK_MASTER_SECRET_FILE_PATH = "/home/turbonomic/data/master_keys/fallback_key_256.out";
 
     private static final int EXPECTED_BYTE_LENGTH = 32;
 

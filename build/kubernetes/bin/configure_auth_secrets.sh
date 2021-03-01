@@ -14,6 +14,4 @@ set -euo pipefail
 # Note: We don't delete any existing keys that we encounter. Doing so could 'brick' an already-configured instance.
 #   If any of these keys already exist, this script will exit with an error message like the following:
 #   Error from server (AlreadyExists): secrets "auth-secret" already exists
-kubectl create secret generic auth-secret --from-literal=vmt_helper_data_256.out="`openssl rand 32`"
-kubectl create secret generic api-secret --from-literal=vmt_helper_data_256.out="`openssl rand 32`"
-kubectl create secret generic topology-processor-secret --from-literal=vmt_helper_data_256.out="`openssl rand 32`"
+kubectl create secret generic master-key-secret --from-literal=primary_key_256.out="`openssl rand 32`"

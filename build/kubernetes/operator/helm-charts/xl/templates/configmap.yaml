@@ -56,6 +56,12 @@ data:
         connRetryIntervalSeconds: 10
         # Remote iterator consumers - 10 minutes max wait for next chunk
         com.vmturbo.communication.remote.iterator.timeout: 600000
+{{- if .Values.global }}
+  {{- if .Values.global.enableExternalSecrets }}
+    {{/* Kubernetes secrets are enabled for encryption keys. Pass that information along to the java processes. */}}
+        enableExternalSecrets: true
+  {{- end }}
+{{- end }}
       action-orchestrator:
         identityGeneratorPrefix: 9
         dbSchemaName: action
