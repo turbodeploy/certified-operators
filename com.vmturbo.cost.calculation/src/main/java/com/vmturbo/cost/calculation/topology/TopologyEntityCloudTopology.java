@@ -5,7 +5,6 @@ import static com.vmturbo.common.protobuf.topology.TopologyDTOUtil.PRIMARY_TIER_
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -54,8 +53,6 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
 
     private final Map<Long, Long> ownedBy;
 
-    private final Map<Long, Set<Long>> aggregatedBy;
-
     private final Map<Long, Long> serviceForEntity;
 
     private final SetOnce<Map<Long, GroupAndMembers>> businessAccountIdToBillingFamilyGroup
@@ -99,15 +96,11 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
                                 @Nonnull final GroupMemberRetriever groupMemberRetriever) {
         final Map<Long, TopologyEntityDTO> entitiesMap = new HashMap<>();
         final Map<Long, Long> ownedBy = new HashMap<>();
-        final Map<Long, Set<Long>> aggregatedBy = new HashMap<>();
         final Map<Long, Long> connectedToService = new HashMap<>();
         topologyEntities.forEach(cloudEntity -> {
             final long id = cloudEntity.getOid();
             entitiesMap.put(id, cloudEntity);
             cloudEntity.getConnectedEntityListList().forEach(connection -> {
-                if (connection.getConnectionType() == ConnectionType.AGGREGATED_BY_CONNECTION) {
-                    aggregatedBy.computeIfAbsent(connection.getConnectedEntityId(), k -> new HashSet<>()).add(id);
-                }
                 if (connection.getConnectionType() == ConnectionType.OWNS_CONNECTION) {
                     // We assume that an entity has at most one direct owner.
                     final Long oldOwner = ownedBy.put(connection.getConnectedEntityId(), id);
@@ -126,7 +119,6 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
         });
         this.topologyEntitiesById = Collections.unmodifiableMap(entitiesMap);
         this.ownedBy = Collections.unmodifiableMap(ownedBy);
-        this.aggregatedBy = Collections.unmodifiableMap(aggregatedBy);
         this.serviceForEntity = Collections.unmodifiableMap(connectedToService);
         this.groupMemberRetriever = groupMemberRetriever;
     }
@@ -310,21 +302,6 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
     public Optional<TopologyEntityDTO> getOwner(final long entityId) {
         return Optional.ofNullable(ownedBy.get(entityId))
             .flatMap(this::getEntity);
-    }
-
-    @Override
-    public Set<TopologyEntityDTO> getAggregated(long entityId) {
-        return aggregatedBy.getOrDefault(entityId, Collections.emptySet()).stream().map(this::getEntity)
-                .flatMap(e -> e.isPresent() ? Stream.of(e.get()) : Stream.empty()).collect(Collectors.toSet());;
-    }
-
-    @Override
-    public Set<TopologyEntityDTO> getRegionFromServiceProvider(long entityId) {
-        Optional<TopologyEntityDTO> serviceProvider = getEntity(entityId);
-        return serviceProvider.map(TopologyEntityDTO::getConnectedEntityListList).orElse(Collections.emptyList())
-                .stream().filter(connectedEntity -> connectedEntity.getConnectedEntityType() == EntityType.REGION_VALUE)
-                .flatMap(ce -> getEntity(ce.getConnectedEntityId()).isPresent() ? Stream.of(getEntity(ce.getConnectedEntityId()).get())
-                        : Stream.empty()).collect(ImmutableSet.toImmutableSet());
     }
 
     @Nonnull

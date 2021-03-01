@@ -208,7 +208,7 @@ public class MarketCloudCostDataProviderTest {
         TopologyEntityInfoExtractor topologyEntityInfoExtractor = mock(TopologyEntityInfoExtractor.class);
 
         AccountPricingData<TopologyDTO.TopologyEntityDTO> accountPricingData = new AccountPricingData<>(DiscountApplicator.noDiscount(),
-                        Pricing.PriceTable.getDefaultInstance(), 144179052733936L, 15L, 20L);
+                        Pricing.PriceTable.getDefaultInstance(), 144179052733936L);
         MarketPricingResolver marketPricingResolver = mock(MarketPricingResolver.class);
         final ImmutableMap<Long, AccountPricingData<TopologyDTO.TopologyEntityDTO>> accountPricingDataByBusinessAccountOid =
                         ImmutableMap.of(73578741418069L, accountPricingData);

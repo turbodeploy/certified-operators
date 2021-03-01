@@ -65,7 +65,7 @@ public class CostCalculationContextTest {
     @Before
     public void setup() {
          priceTable = buildPriceTable();
-        accountPricingData = new AccountPricingData(discountApplicator, priceTable, BUSINESS_ACCOUNT_ID, 15L, BUSINESS_ACCOUNT_ID);
+        accountPricingData = new AccountPricingData(discountApplicator, priceTable, BUSINESS_ACCOUNT_ID);
     }
 
     /**
