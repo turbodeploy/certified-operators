@@ -326,7 +326,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                                 "calculation.", entityId, regionId, storageTierId);
                     }
                 } else {
-                    logger.error("calculateVirtualVolumeCost: Global price table has no entry for region {}." +
+                    logger.debug("calculateVirtualVolumeCost: Global price table has no entry for region {}." +
                             "  This means there is some inconsistency between the topology and pricing data.", regionId);
                 }
             } else {
@@ -502,7 +502,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                 final long regionId = context.getRegionid();
                 final Optional<OnDemandPriceTable> onDemandPriceTable = context.getOnDemandPriceTable();
                 if (!onDemandPriceTable.isPresent()) {
-                    logger.warn("calculateVirtualMachineCost: Global price table has no entry for region {}." +
+                    logger.debug("calculateVirtualMachineCost: Global price table has no entry for region {}." +
                                     "  This means there is some inconsistency between the topology and pricing data.",
                             regionId);
                 } else {
@@ -700,7 +700,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                         recordDatabaseCost(dbPriceList, context.getCostJournal(), databaseTier, databaseConfig, entity);
                     }
                 } else {
-                    logger.warn("calculateDatabaseCost: Global price table has no entry for region {}." +
+                    logger.debug("calculateDatabaseCost: Global price table has no entry for region {}." +
                             "  This means there is some inconsistency between the topology and pricing data.", regionId);
                 }
             });

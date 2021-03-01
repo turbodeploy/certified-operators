@@ -66,7 +66,7 @@ public class ComputeTierConverter implements TierConverter {
     public Map<TraderTO.Builder, MarketTier> createMarketTierTraderTOs(
             @Nonnull TopologyEntityDTO computeTier,
             @Nonnull Map<Long, TopologyEntityDTO> topology,
-            @Nonnull Set<TopologyEntityDTO> businessAccounts, @Nonnull Set<AccountPricingData<TopologyEntityDTO>> uniqueAccountPricingData) {
+            @Nonnull Set<TopologyEntityDTO> businessAccounts, @Nonnull AccountPricingData accountPricingData) {
         Map<TraderTO.Builder, MarketTier> traderTOs = new HashMap<>();
         List<TopologyEntityDTO> connectedRegions = TopologyDTOUtil.getConnectedEntitiesOfType(
                 computeTier, EntityType.REGION_VALUE, topology);
@@ -85,7 +85,7 @@ public class ComputeTierConverter implements TierConverter {
                 .setQuoteFunction(QuoteFunctionDTO.newBuilder()
                         .setRiskBased(RiskBased.newBuilder()
                                 .setCloudCost(costDTOCreator.createCostDTO(computeTier, connectedRegions,
-                                        uniqueAccountPricingData)).build()))
+                                        accountPricingData)).build()))
                 .setQuoteFactor(1)
                 .build();
 
