@@ -16,6 +16,7 @@ import io.grpc.StatusRuntimeException;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.core.convert.ConversionFailedException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -29,6 +30,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import com.vmturbo.api.dto.ErrorApiDTO;
 import com.vmturbo.api.exceptions.InvalidOperationException;
@@ -80,6 +82,18 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(PatternSyntaxException.class)
     @ResponseBody
     public ResponseEntity<ErrorApiDTO> handlePatternSyntaxException(HttpServletRequest req, PatternSyntaxException ex) {
+        return createErrorDTO(req, ex, HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    @ResponseBody
+    public ResponseEntity<ErrorApiDTO> handleMethodArgumentTypeMismatchException(HttpServletRequest req, MethodArgumentTypeMismatchException ex) {
+        return createErrorDTO(req, ex, HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(ConversionFailedException.class)
+    @ResponseBody
+    public ResponseEntity<ErrorApiDTO> handleConversionFailedException(HttpServletRequest req, ConversionFailedException ex) {
         return createErrorDTO(req, ex, HttpStatus.BAD_REQUEST);
     }
 
