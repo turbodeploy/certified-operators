@@ -8,6 +8,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
@@ -44,8 +45,6 @@ public class EntitySavingsTrackerTest {
 
     private static EntityEventsJournal entityEventsJournal;
 
-    private static EntityStateCache entityStateCache;
-
     private EntitySavingsTracker tracker;
 
     private static final Calendar calendar = Calendar.getInstance();
@@ -79,9 +78,11 @@ public class EntitySavingsTrackerTest {
 
     /**
      * Set up before each test case.
+     *
+     * @throws Exception any exception
      */
     @Before
-    public void setup() {
+    public void setup() throws Exception {
         MockitoAnnotations.initMocks(this);
         entityEventsJournal = mock(EntityEventsJournal.class);
         createEvents();
@@ -89,19 +90,19 @@ public class EntitySavingsTrackerTest {
         when(entityEventsJournal.removeEventsBetween(time1000am, time1100am)).thenReturn(eventsByPeriod.get(time1000am));
         when(entityEventsJournal.removeEventsBetween(time1100am, time1200pm)).thenReturn(eventsByPeriod.get(time1100am));
         entitySavingsStore = mock(EntitySavingsStore.class);
-        entityStateCache = mock(InMemoryEntityStateCache.class);
-        tracker = spy(new EntitySavingsTracker(entitySavingsStore, entityEventsJournal, entityStateCache));
+        EntityStateStore entityStateStore = mock(SqlEntityStateStore.class);
+        tracker = spy(new EntitySavingsTracker(entitySavingsStore, entityEventsJournal, entityStateStore, Clock.systemUTC()));
 
         Set<EntityState> stateSet = ImmutableSet.of(
-                createEntityState(vm1Id, 2, 0, 0, 0),
-                createEntityState(vm2Id, 0, 0, 0, 3),
-                createEntityState(vm3Id, 1, 2, 3, 4));
+                createEntityState(vm1Id, 2d, null, null, null),
+                createEntityState(vm2Id, null, null, null, 0d),
+                createEntityState(vm3Id, 1d, 2d, 3d, 4d));
         Answer<Stream> stateStream = new Answer<Stream>() {
             public Stream answer(InvocationOnMock invocation) throws Throwable {
                 return stateSet.stream();
             }
         };
-        when(entityStateCache.getAll()).thenAnswer(stateStream);
+        when(entityStateStore.getAllEntityStates()).thenAnswer(stateStream);
     }
 
     private static void createEvents() {
@@ -218,19 +219,19 @@ public class EntitySavingsTrackerTest {
         Assert.assertTrue(statsCaptor.getValue().containsAll(stats));
     }
 
-    private EntityState createEntityState(long entityId, double realizedSavings, double realizedInvestments,
-                                          double missedSavings, double missedInvestments) {
+    private EntityState createEntityState(long entityId, Double realizedSavings, Double realizedInvestments,
+                                          Double missedSavings, Double missedInvestments) {
         EntityState state = new EntityState(entityId);
-        if (realizedSavings != 0) {
+        if (realizedSavings != null) {
             state.setRealizedSavings(realizedSavings);
         }
-        if (realizedInvestments != 0) {
+        if (realizedInvestments != null) {
             state.setRealizedInvestments(realizedInvestments);
         }
-        if (missedSavings != 0) {
+        if (missedSavings != null) {
             state.setMissedSavings(missedSavings);
         }
-        if (missedInvestments != 0) {
+        if (missedInvestments != null) {
             state.setMissedInvestments(missedInvestments);
         }
         return state;

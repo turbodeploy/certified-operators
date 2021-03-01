@@ -7,11 +7,19 @@ import java.util.Objects;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+
 /**
  * Class to encapsulate the entity states that need to be persisted or to be passed from the
  * savings calculator to EntitySavingsTracker.
  */
 public class EntityState {
+    /**
+     * Used to JSONify fields.
+     */
+    private static final Gson GSON = createGson();
+
     /**
      * OID of entity.
      */
@@ -139,6 +147,31 @@ public class EntityState {
 
     public void setMissedInvestments(final Double missedInvestments) {
         this.missedInvestments = missedInvestments;
+    }
+
+    private static Gson createGson() {
+        GsonBuilder gsonBuilder = new GsonBuilder();
+        gsonBuilder.registerTypeAdapterFactory(new GsonAdaptersEntityPriceChange());
+        return gsonBuilder.create();
+    }
+
+    /**
+     * De-serialize string to this object.
+     *
+     * @param jsonSerialized String read from DB to make into this object.
+     * @return StateInfo object made out of JSON string.
+     */
+    public static EntityState fromJson(@Nonnull final String jsonSerialized) {
+        return GSON.fromJson(jsonSerialized, EntityState.class);
+    }
+
+    /**
+     * Serialize this StateInfo object into JSON string, for saving to DB.
+     *
+     * @return JSON string.
+     */
+    public String toJson() {
+        return GSON.toJson(this);
     }
 
     @Override

@@ -98,9 +98,8 @@ public class EntitySavingsConfig {
      * @return EntityState cache to keep track of per entity state in memory.
      */
     @Bean
-    public EntityStateCache entityStateCache() {
-        // TODO switch to SqlEntityStateStore
-        return new InMemoryEntityStateCache();
+    public EntityStateStore entityStateStore() {
+        return new SqlEntityStateStore(databaseConfig.dsl(), persistEntityCostChunkSize);
     }
 
     /**
@@ -150,7 +149,8 @@ public class EntitySavingsConfig {
      */
     @Bean
     public EntitySavingsTracker entitySavingsTracker() {
-        return new EntitySavingsTracker(entitySavingsStore(), entityEventsJournal(), entityStateCache());
+        return new EntitySavingsTracker(entitySavingsStore(), entityEventsJournal(), entityStateStore(),
+                costComponentGlobalConfig.clock());
     }
 
     /**
