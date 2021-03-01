@@ -96,8 +96,11 @@ public class MergePolicyTestBase {
         // ensure only VMs attached to PMs will have merge policy ID set
         assertThat(topologyGraph.getEntity(6L).get(),
                 not(policyMatcher.hasCommodityBoughtClusterType(mergePolicy)));
-        final double value = 99.0;
 
+        assertThat(topologyGraph.getEntity(100L).get(),
+                policyMatcher.hasCommoditySoldClusterType(mergePolicy, null));
+
+        final double value = 99.0;
         updateTopologyGraph(value, mergePolicy); // add two new DTOs to commodity sold list
         applyPolicy(new MergePolicy(policy, mergePolicyEntities));
 
