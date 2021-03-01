@@ -140,7 +140,8 @@ public class MapperConfig {
             communicationConfig.serviceEntityMapper(),
             communicationConfig.supplyChainRpcService(),
             serviceConfig.policiesService(),
-            serviceConfig.reservedInstancesService());
+            serviceConfig.reservedInstancesService(),
+            communicationConfig.groupRpcService());
     }
 
     @Bean

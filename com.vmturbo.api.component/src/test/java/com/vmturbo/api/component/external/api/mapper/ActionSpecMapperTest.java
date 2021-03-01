@@ -133,6 +133,9 @@ import com.vmturbo.common.protobuf.cost.CostMoles;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc;
+import com.vmturbo.common.protobuf.group.GroupDTO;
+import com.vmturbo.common.protobuf.group.GroupDTOMoles;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
@@ -156,6 +159,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformati
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -215,6 +219,8 @@ public class ActionSpecMapperTest {
 
     private PolicyDTOMoles.PolicyServiceMole policyMole = spy(new PolicyServiceMole());
 
+    private GroupDTOMoles.GroupServiceMole groupMole = spy(new GroupDTOMoles.GroupServiceMole());
+
     private SupplyChainProtoMoles.SupplyChainServiceMole supplyChainMole =
         spy(new SupplyChainServiceMole());
 
@@ -228,7 +234,8 @@ public class ActionSpecMapperTest {
 
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(policyMole, costServiceMole,
-            reservedInstanceBoughtServiceMole, reservedInstanceUtilizationCoverageServiceMole);
+            reservedInstanceBoughtServiceMole, reservedInstanceUtilizationCoverageServiceMole,
+            groupMole);
 
     @Rule
     public GrpcTestServer supplyChainGrpcServer = GrpcTestServer.newServer(supplyChainMole);
@@ -261,6 +268,8 @@ public class ActionSpecMapperTest {
         Mockito.when(policyMole.getPolicies(any())).thenReturn(policyResponses);
         PolicyServiceGrpc.PolicyServiceBlockingStub policyService =
                 PolicyServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        GroupServiceGrpc.GroupServiceBlockingStub groupService =
+            GroupServiceGrpc.newBlockingStub(grpcServer.getChannel());
         final List<GetMultiSupplyChainsResponse> supplyChainResponses = ImmutableList.of(
             makeGetMultiSupplyChainResponse(1L, DATACENTER1_ID),
             makeGetMultiSupplyChainResponse(2L, DATACENTER2_ID),
@@ -307,7 +316,8 @@ public class ActionSpecMapperTest {
                         serviceEntityMapper,
                         supplyChainService,
                         policiesService,
-                        reservedInstancesService);
+                        reservedInstancesService,
+                        groupService);
 
         final BuyRiScopeHandler buyRiScopeHandler = mock(BuyRiScopeHandler.class);
         when(buyRiScopeHandler.extractActionTypes(emptyInputDto, scopeWithBuyRiActions))
@@ -384,6 +394,110 @@ public class ActionSpecMapperTest {
         // no external url
         assertEquals(null, actionApiDTO.getExternalActionName());
         assertEquals(null, actionApiDTO.getExternalActionName());
+    }
+
+    /**
+     * Test the case of conversion of move action between hosts.
+     *
+     * @throws Exception if something goes wrong.
+     */
+    @Test
+    public void testMapVmMoveAcrossHosts() throws Exception {
+        // ARRANGE
+        final long vmId = 1001L;
+        final long pm1Id = 1002L;
+        final long pm2Id = 1003L;
+        final long cluster1Id = 2001L;
+        final long cluster2Id = 2002L;
+        final String cluster1Name = "Cluster1";
+        final String cluster2Name = "Cluster2";
+
+
+        ActionInfo moveInfo = ActionInfo.newBuilder().setMove(Move.newBuilder()
+            .setTarget(ActionEntity.newBuilder()
+                .setId(vmId)
+                .setType(EntityType.VIRTUAL_MACHINE.getNumber())
+                .build())
+            .addChanges(ChangeProvider.newBuilder()
+                    .setSource(ActionEntity.newBuilder()
+                        .setId(pm1Id)
+                        .setType(EntityType.PHYSICAL_MACHINE.getNumber())
+                        .build())
+                    .setDestination(ActionEntity.newBuilder()
+                        .setId(pm2Id)
+                        .setType(EntityType.PHYSICAL_MACHINE.getNumber())
+                        .build())
+                    .build())
+                .build())
+            .build();
+
+        final ActionSpec actionSpec = buildActionSpec(moveInfo, Explanation.getDefaultInstance());
+
+        final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReq(topologyEntityDTOList(Lists.newArrayList(
+            new TestEntity(TARGET, vmId, EntityType.VIRTUAL_MACHINE_VALUE),
+            new TestEntity(SOURCE, pm1Id, EntityType.PHYSICAL_MACHINE_VALUE),
+            new TestEntity(DESTINATION, pm2Id, EntityType.PHYSICAL_MACHINE_VALUE))));
+        when(repositoryApi.entitiesRequest(any()))
+            .thenReturn(req);
+
+        ArgumentCaptor<GroupDTO.GetGroupsForEntitiesRequest> paramCaptor =
+            ArgumentCaptor.forClass(GroupDTO.GetGroupsForEntitiesRequest.class);
+        when(groupMole.getGroupsForEntities(paramCaptor.capture()))
+            .thenReturn(GroupDTO.GetGroupsForEntitiesResponse
+            .newBuilder()
+            .addGroups(GroupDTO.Grouping.newBuilder()
+                .setId(cluster1Id)
+                .setDefinition(GroupDTO.GroupDefinition.newBuilder()
+                    .setDisplayName(cluster1Name)
+                    .build())
+                .build())
+            .addGroups(GroupDTO.Grouping.newBuilder()
+                .setId(cluster2Id)
+                .setDefinition(GroupDTO.GroupDefinition.newBuilder()
+                    .setDisplayName(cluster2Name)
+                    .build())
+                .build())
+            .putEntityGroup(pm1Id, GroupDTO.Groupings.newBuilder().addGroupId(cluster1Id).build())
+            .putEntityGroup(pm2Id, GroupDTO.Groupings.newBuilder().addGroupId(cluster2Id).build())
+            .build());
+
+        // ACT
+        ActionApiDTO actionApiDTO =
+            mapper.mapActionSpecToActionApiDTO(actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID);
+
+        // ASSERT
+        assertEquals(TARGET, actionApiDTO.getTarget().getDisplayName());
+        assertEquals(String.valueOf(vmId), actionApiDTO.getTarget().getUuid());
+
+        ActionApiDTO first = actionApiDTO.getCompoundActions().get(0);
+        assertEquals(SOURCE, first.getCurrentEntity().getDisplayName());
+        assertEquals(String.valueOf(pm1Id), first.getCurrentValue());
+
+        assertEquals(DESTINATION, first.getNewEntity().getDisplayName());
+        assertEquals(String.valueOf(pm2Id), first.getNewValue());
+
+        // check the request for getting clusters
+        final GroupDTO.GetGroupsForEntitiesRequest request = paramCaptor.getValue();
+        assertThat(request.getEntityIdList(), containsInAnyOrder(pm1Id, pm2Id));
+        assertThat(request.getGroupTypeList(), containsInAnyOrder(
+            CommonDTO.GroupDTO.GroupType.COMPUTE_HOST_CLUSTER));
+        assertTrue(request.getLoadGroupObjects());
+
+        // check the cluster info on the request
+        final List<BaseApiDTO> currentClusterList = first.getCurrentEntity().getConnectedEntities();
+        assertThat(currentClusterList.size(), is(1));
+        final ServiceEntityApiDTO currentCluster = (ServiceEntityApiDTO)currentClusterList.get(0);
+        assertThat(currentCluster.getUuid(), is(String.valueOf(pm1Id)));
+        assertThat(currentCluster.getDisplayName(), is(cluster1Name));
+        assertThat(currentCluster.getClassName(), is(StringConstants.CLUSTER));
+
+        final List<BaseApiDTO> newClusterList = first.getNewEntity().getConnectedEntities();
+        assertThat(newClusterList.size(), is(1));
+        final ServiceEntityApiDTO newCluster = (ServiceEntityApiDTO)newClusterList.get(0);
+        assertThat(newCluster.getUuid(), is(String.valueOf(pm2Id)));
+        assertThat(newCluster.getDisplayName(), is(cluster2Name));
+        assertThat(newCluster.getClassName(), is(StringConstants.CLUSTER));
+
     }
 
     /**
@@ -789,7 +903,7 @@ public class ActionSpecMapperTest {
         ActionSpecMappingContext context = new ActionSpecMappingContext(entitiesMap,
             policyMap, Collections.emptyMap(), Collections.emptyMap(),
             Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
-            Collections.emptyMap(), serviceEntityMapper, false, policyApiDto);
+            Collections.emptyMap(), serviceEntityMapper, false, policyApiDto, Collections.emptyMap());
 
         final ReasonCommodity placement =
                         createReasonCommodity(CommodityDTO.CommodityType.SEGMENTATION_VALUE, String.valueOf(policyOid));

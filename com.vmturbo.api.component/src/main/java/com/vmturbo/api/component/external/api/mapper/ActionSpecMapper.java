@@ -2569,11 +2569,19 @@ public class ActionSpecMapper {
     private ServiceEntityApiDTO getServiceEntityDTO(@Nonnull ActionSpecMappingContext context,
             @Nonnull ActionEntity actionEntity) {
         final Optional<ServiceEntityApiDTO> targetEntity = context.getEntity(actionEntity.getId());
+        final ServiceEntityApiDTO serviceEntityApiDTO;
         if (targetEntity.isPresent()) {
-            return ServiceEntityMapper.copyServiceEntityAPIDTO(targetEntity.get());
+            serviceEntityApiDTO = ServiceEntityMapper.copyServiceEntityAPIDTO(targetEntity.get());
         } else {
-            return getMinimalServiceEntityApiDTO(actionEntity);
+            serviceEntityApiDTO = getMinimalServiceEntityApiDTO(actionEntity);
         }
+
+        // set the cluster if the entity has a cluster
+        context.getCluster(actionEntity.getId())
+            .map(Collections::singletonList)
+            .ifPresent(serviceEntityApiDTO::setConnectedEntities);
+
+        return serviceEntityApiDTO;
     }
 
     /**
