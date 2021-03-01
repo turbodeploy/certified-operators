@@ -335,10 +335,15 @@ public class EconomyCaches {
                 return;
             }
             updateAccessCommoditiesInHistoricalEconomyCache(realtimeCachedEconomy, realtimeCachedCommTypeMap);
-            // Clone a new historical economy with new InvertedIndex object constructed based on updated traders(all new commodities
-            // will be included in the InvertedIndex look up table).
-            // NOTE: the cloned economy has only host and storages, but the utilization of them includes the reservation utils.
+            // Clone a new historical economy with new InvertedIndex object constructed based on
+            // updated traders(all new commodities will be included in the InvertedIndex look up table).
+            // NOTE: the cloned economy has only host and storages, but the utilization of them
+            // includes the reservation utils.
             Economy newHistEconomy = InitialPlacementUtils.cloneEconomy(historicalCachedEconomy, false);
+            // In case of traders are deleted in the real time, historical cache may not catch it up
+            // immediately, so we have to mark those traders in historical cache canAcceptNewCustomers false.
+            // NOTE: We are not handling the case of traders are recently added in the real time.
+            updateTradersInHistoricalEconomyCache(realtimeCachedEconomy, newHistEconomy);
             addExistingReservationEntities(newHistEconomy, historicalCachedCommTypeMap,
                     buyerOidToPlacement, existingReservations, true, false);
             historicalCachedEconomy = newHistEconomy;
@@ -349,6 +354,26 @@ public class EconomyCaches {
                     buyerOidToPlacement, existingReservations);
         }
 
+    }
+
+    /**
+     * Mark the traders that are removed in real time but still exists in historical economy as
+     * canAcceptNewCustomers false.
+     *
+     * @param realtimeEconomy the real time economy cache.
+     * @param histEconomy the historical economy cache.
+     */
+    @VisibleForTesting
+    protected void updateTradersInHistoricalEconomyCache(Economy realtimeEconomy, Economy histEconomy) {
+        Set<Long> realtimeTraderOids = realtimeEconomy.getTopology().getTradersByOid().keySet();
+        Set<Long> histTraderOids = histEconomy.getTopology().getTradersByOid().keySet();
+        for (Long oid : histTraderOids) {
+            // For trader exists in historical but not in real time, change the flag.
+            if (!realtimeTraderOids.contains(oid)) {
+                Trader t = histEconomy.getTopology().getTradersByOid().get(oid);
+                t.getSettings().setCanAcceptNewCustomers(false);
+            }
+        }
     }
 
     /**

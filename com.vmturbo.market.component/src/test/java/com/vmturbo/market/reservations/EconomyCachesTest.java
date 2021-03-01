@@ -30,6 +30,7 @@ import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
@@ -823,6 +824,77 @@ public class EconomyCachesTest {
                 new HashMap());
         Mockito.verify(spy).updateHistoricalCachedEconomy(Mockito.any(), Mockito.any(),
                 Mockito.any(), Mockito.any());
+    }
+
+    /**
+     * Test the traders removed in realtime when a target is deleted.
+     */
+    @Test
+    public void testUpdateTradersInHistoricalEconomyCache() {
+        // Historical and real time has the same 4 hosts.
+        Economy economy = economyWithCluster(new double[]{pm1MemUsed, pm2MemUsed, pm3MemUsed, pm4MemUsed});
+        // Simulate the real time topology as if all pms are in controllable state. It should not affect
+        // reservation cache as we force all of them to be canAcceptNewCustomers true while cloning.
+        economy.getTraders().stream().forEach(t -> {
+            t.getSettings().setCanAcceptNewCustomers(false);
+        });
+        economyCaches.getState().setReservationReceived(true);
+        economyCaches.updateHistoricalCachedEconomy(economy, commTypeToSpecMap, new HashMap<>(),
+                new HashMap<>());
+        economyCaches.updateRealtimeCachedEconomy(economy, commTypeToSpecMap, new HashMap<>(),
+                new HashMap<>());
+
+        // Now simulate the target deletion. Assuming the pm3 and pm4 are removed in real time.
+        Trader pm3 = economy.getTopology().getTradersByOid().get(pm3Oid);
+        Trader pm4 = economy.getTopology().getTradersByOid().get(pm4Oid);
+        economy.removeTrader(pm3);
+        economy.removeTrader(pm4);
+        economy.getTopology().getModifiableTraderOids().remove(pm3Oid);
+        economy.getTopology().getModifiableTraderOids().remove(pm4Oid);
+        economyCaches.updateRealtimeCachedEconomy(economy, commTypeToSpecMap, new HashMap<>(), new HashMap<>());
+        long buyer1Oid = 1234L;
+        long buyer1SlOid = 1000L;
+        double buyerMemUsed = 20;
+        InitialPlacementBuyer buyer1 = initialPlacementBuyer(buyer1Oid, buyer1SlOid, VM_TYPE, new HashMap() {{
+            put(TopologyDTO.CommodityType.newBuilder().setType(MEM_TYPE).build(), new Double(buyerMemUsed));
+        }});
+
+        Assert.assertEquals(2, economyCaches.historicalCachedEconomy.getTraders().stream()
+                .filter(t -> !t.getSettings().canAcceptNewCustomers()).count());
+        Map<Long, List<InitialPlacementDecision>> placements = economyCaches.findInitialPlacement(
+                Arrays.asList(buyer1), new HashMap<>(), 1);
+        // Only pm1 and pm2 can be considered for placement, so buyer should be on pm1.
+        Assert.assertTrue(placements.values().stream().flatMap(List::stream).allMatch(p -> p.supplier.get() == pm1Oid));
+        Assert.assertTrue(economyCaches.historicalCachedEconomy.getMarkets().size() == 1);
+        economyCaches.historicalCachedEconomy.getMarkets().stream().forEach(m -> {
+            Assert.assertTrue(m.getActiveSellersAvailableForPlacement().get(0).getOid() == pm1Oid
+                    || m.getActiveSellersAvailableForPlacement().get(1).getOid() == pm2Oid);
+        });
+
+        // Now if the removed pm3 and pm4 added back. Update the real time with all 4 pms
+        // and the already placed reservation.
+        economyCaches.updateRealtimeCachedEconomy(
+                economyWithCluster(new double[]{pm1MemUsed, pm2MemUsed, pm3MemUsed, pm4MemUsed}),
+                commTypeToSpecMap, placements, new HashMap() {{
+                    put(1L, Arrays.asList(buyer1));
+                }});
+        long buyer2Oid = 2234L;
+        long buyer2SlOid = 2000L;
+        InitialPlacementBuyer buyer2 = initialPlacementBuyer(buyer2Oid, buyer2SlOid, VM_TYPE, new HashMap() {{
+            put(TopologyDTO.CommodityType.newBuilder().setType(MEM_TYPE).build(), new Double(buyerMemUsed));
+        }});
+        economyCaches.findInitialPlacement(Arrays.asList(buyer2), new HashMap<>(), 1);
+        List<Trader> providers = economyCaches.historicalCachedEconomy.getTraders().stream().filter(
+                t -> InitialPlacementUtils.PROVIDER_ENTITY_TYPES.contains(t.getType())).collect(
+                Collectors.toList());
+
+        Assert.assertEquals(4, providers.size());
+        Assert.assertTrue(providers.stream().allMatch(t -> t.getSettings().canAcceptNewCustomers()));
+        for (Market mkt : economyCaches.historicalCachedEconomy.getMarkets()) {
+            if (mkt.getBuyers().stream().anyMatch(sl -> sl.getBuyer().getOid() == buyer2Oid)) {
+                Assert.assertTrue(mkt.getActiveSellersAvailableForPlacement().size() == 4);
+            }
+        }
     }
 
     /**
