@@ -42,6 +42,8 @@ import com.google.gson.stream.JsonReader;
 import com.google.protobuf.AbstractMessage;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
+
+import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 
@@ -748,6 +750,7 @@ public class TopologyEntitiesHandlerTest {
             }
         }
 
+        final CloudTopology cloudTopology = mock(CloudTopology.class);
         Map<OSType, Double> m1LargePrices = new HashMap<>();
         m1LargePrices.put(OSType.LINUX, 5d);
         m1LargePrices.put(OSType.RHEL, 3d);
@@ -755,9 +758,16 @@ public class TopologyEntitiesHandlerTest {
         m1MediumPrices.put(OSType.LINUX, 4d);
         m1MediumPrices.put(OSType.RHEL, 2d);
         AccountPricingData accountPricingData = mock(AccountPricingData.class);
-        when(ccd.getAccountPricingData(ba.getOid())).thenReturn(Optional.ofNullable(accountPricingData));
         when(accountPricingData.getAccountPricingDataOid()).thenReturn(ba.getOid());
         when(ccd.getAccountPricingData(ba.getOid())).thenReturn(Optional.ofNullable(accountPricingData));
+        TopologyEntityDTO serviceProvider = TopologyEntityDTO.newBuilder().setOid(5678974832L).setEntityType(EntityType.SERVICE_PROVIDER_VALUE).build();
+        when(cloudTopology.getServiceProvider(ba.getOid())).thenReturn(Optional.of(serviceProvider));
+        when(ccd.getAccountPricingData(ba.getOid())).thenReturn(Optional.of(accountPricingData));
+        when(cloudTopology.getRegionFromServiceProvider(serviceProvider.getOid())).thenReturn(new HashSet(Collections.singleton(region)));
+        when(cloudTopology.getAggregated(region.getOid())).thenReturn(dtosToProcess.stream().filter(s -> s.getEntityType() == EntityType.COMPUTE_TIER_VALUE
+                || s.getEntityType() == EntityType.STORAGE_TIER_VALUE || s.getEntityType() == EntityType.DATABASE_TIER_VALUE).collect(
+                Collectors.toSet()));
+        when(cloudTopology.getBillingFamilyForEntity(ba.getOid())).thenReturn(Optional.empty());
         when(marketCloudRateExtractor.getComputePriceBundle(m1Large, region.getOid(), accountPricingData))
                         .thenReturn(mockComputePriceBundle(ba.getOid(), m1LargePrices));
         when(marketCloudRateExtractor.getComputePriceBundle(m1Medium, region.getOid(), accountPricingData))
@@ -774,7 +784,7 @@ public class TopologyEntitiesHandlerTest {
         when(ccd.getRiCoverageForEntity(anyLong())).thenReturn(Optional.empty());
         final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO,
                         marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-            consistentScalingHelperFactory, reversibilitySettingFetcher);
+            consistentScalingHelperFactory, reversibilitySettingFetcher, cloudTopology);
         Field field = TopologyConverter.class.getDeclaredField("costNotificationStatus");
         field.setAccessible(true);
         field.set(converter, Status.SUCCESS);

@@ -123,6 +123,7 @@ public class SMAInput {
         Objects.requireNonNull(cloudTopology, "source cloud topology is null");
         Objects.requireNonNull(providers, "providers are null");
         Objects.requireNonNull(cloudCostData, "cloudCostData is null");
+        cloudCostData.logMissingAccountPricingData();
         Objects.requireNonNull(marketCloudRateExtractor, "marketPriceTable is null");
         this.marketCloudRateExtractor = marketCloudRateExtractor;
 

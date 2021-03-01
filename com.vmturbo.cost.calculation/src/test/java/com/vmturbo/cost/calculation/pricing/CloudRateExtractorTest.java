@@ -647,7 +647,7 @@ public class CloudRateExtractorTest {
         final long baId = 7L;
         final CloudRateExtractor mktPriceTable = new CloudRateExtractor(topology, infoExtractor);
         AccountPricingData accountPricingData =
-                new AccountPricingData<>(DiscountApplicator.noDiscount(), priceTable, baId);
+                new AccountPricingData<>(DiscountApplicator.noDiscount(), priceTable, baId, 15L, baId);
         final StoragePriceBundle storagePriceBundle =
                 mktPriceTable.getStoragePriceBundle(STORAGE_TIER_ID, REGION_ID, accountPricingData);
         final StorageTierPriceData[] expectedData = new StorageTierPriceData[]{
@@ -718,7 +718,7 @@ public class CloudRateExtractorTest {
                 .when(topology).getEntities();
         final CloudRateExtractor mktPriceTable = new CloudRateExtractor(topology, infoExtractor);
         AccountPricingData accountPricingData =
-                new AccountPricingData<>(DiscountApplicator.noDiscount(), priceTable, baId);
+                new AccountPricingData<>(DiscountApplicator.noDiscount(), priceTable, baId, 15L, baId);
         final StoragePriceBundle storagePriceBundle =
                 mktPriceTable.getStoragePriceBundle(STORAGE_TIER_ID, REGION_ID, accountPricingData);
 
@@ -955,7 +955,7 @@ public class CloudRateExtractorTest {
         final long baId = 7L;
         final CloudRateExtractor mktPriceTable = new CloudRateExtractor(topology, infoExtractor);
         AccountPricingData accountPricingData =
-                new AccountPricingData<>(DiscountApplicator.noDiscount(), priceTable, baId);
+                new AccountPricingData<>(DiscountApplicator.noDiscount(), priceTable, baId, 15L, baId);
         final StoragePriceBundle storagePriceBundle =
                 mktPriceTable.getStoragePriceBundle(IO2_TIER_ID, REGION_ID, accountPricingData);
         final double tinyDecrease = Math.ulp(1.0);
