@@ -168,6 +168,10 @@ public interface CloudTopology<ENTITY_CLASS> {
     @Nonnull
     Optional<ENTITY_CLASS> getOwner(final long entityId);
 
+    Set<ENTITY_CLASS> getAggregated(final long entityId);
+
+    Set<ENTITY_CLASS> getRegionFromServiceProvider(final long entityId);
+
     /**
      * Get the service a particular entity belongs to. If called with the ID of a service, this is
      * equivalent to {@link CloudTopology#getEntity(long)}.

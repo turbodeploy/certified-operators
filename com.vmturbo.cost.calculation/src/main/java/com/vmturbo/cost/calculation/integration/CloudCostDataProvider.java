@@ -13,6 +13,9 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
@@ -20,6 +23,7 @@ import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
+import com.vmturbo.cost.calculation.topology.AccountPricingData.DebugInfoNeverUsedInCode;
 import com.vmturbo.cost.calculation.topology.TopologyEntityInfoExtractor;
 
 /**
@@ -57,6 +61,8 @@ public interface CloudCostDataProvider {
      */
     @Immutable
     class CloudCostData<T> {
+
+        private static final Logger logger = LogManager.getLogger();
 
         private static final CloudCostData EMPTY = new CloudCostData<>(Collections.emptyMap(), Collections.emptyMap(),
                 Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
@@ -104,6 +110,26 @@ public interface CloudCostDataProvider {
              */
         public Optional<AccountPricingData<T>> getAccountPricingData(Long businessAccountOid) {
             return Optional.ofNullable(accountPricingDataByBusinessAccountOid.get(businessAccountOid));
+        }
+
+        /**
+         * This method is used to log missing price tables referenced in the account pricing data.
+         */
+        public void logMissingAccountPricingData() {
+            for (AccountPricingData accountPricingData: accountPricingDataByBusinessAccountOid.values()) {
+                DebugInfoNeverUsedInCode debugInfoNeverUsedInCode = accountPricingData.getDebugInfoNeverUsedInCode();
+                if (accountPricingData.getPriceTable() == null) {
+                    logger.error("ERROR!!: Account Pricing Data {} with price table key oid {}"
+                                    + " created by business account {} missing price table. This may happen if cost data has not successfully been uploaded.",
+                            accountPricingData.getAccountPricingDataOid(), debugInfoNeverUsedInCode.getPriceTableKeyOid(), debugInfoNeverUsedInCode.getRepresentativeAccountOid());
+                    return;
+                }
+                if (accountPricingData.getPriceTable().getOnDemandPriceByRegionIdMap() == null || accountPricingData.getPriceTable().getOnDemandPriceByRegionIdMap().isEmpty()) {
+                    logger.error("ERROR!!: Account Pricing Data {} with price table key oid {} created by business account {} has no on demand pricing in price table.. This may happen if cost data has not successfully been uploaded.",
+                            accountPricingData.getAccountPricingDataOid(), debugInfoNeverUsedInCode.getPriceTableKeyOid(), debugInfoNeverUsedInCode.getRepresentativeAccountOid());
+                    return;
+                }
+            }
         }
 
         @Nonnull
