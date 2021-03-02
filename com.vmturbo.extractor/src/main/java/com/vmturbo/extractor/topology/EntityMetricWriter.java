@@ -511,6 +511,10 @@ public class EntityMetricWriter extends TopologyWriterBase {
             EntityType type = GroupTypeUtils.protoToDb(g.getDefinition().getType());
             entityTypes.put(oidPack.toIndex(g.getId()), type.ordinal());
         });
+        // put every group in its own scope, so the overall scope relationship is reflexive.
+        // this happens naturally for true entities due to supply chain calculation
+        dataProvider.getAllGroups().forEach(g ->
+                scopeManager.addInCurrentScope(g.getId(), g.getId()));
         scopeManager.finishTopology(entityTypes);
     }
 
