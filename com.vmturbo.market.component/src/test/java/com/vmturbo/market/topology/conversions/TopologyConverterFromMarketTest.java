@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -2053,6 +2054,13 @@ public class TopologyConverterFromMarketTest {
      */
     @Test
     public void testConvertFromMarketPreservesCommoditiesBoughtByVmsFromVolumes() {
+        TopologyEntityDTO region = TopologyEntityDTO.newBuilder().setOid(73442089143124L).setEntityType(EntityType.REGION_VALUE).build();
+        TopologyEntityDTO businessAccount = TopologyEntityDTO.newBuilder().setOid(15678904L).setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE).build();
+        AccountPricingData accountPricingData = mock(AccountPricingData.class);
+        TopologyEntityDTO serviceProvider = TopologyEntityDTO.newBuilder().setOid(5678974832L).setEntityType(EntityType.SERVICE_PROVIDER_VALUE).build();
+        when(mockCCD.getAccountPricingData(businessAccount.getOid())).thenReturn(Optional.of(accountPricingData));
+        when(cloudTopology.getServiceProvider(businessAccount.getOid())).thenReturn(Optional.of(serviceProvider));
+        when(cloudTopology.getRegionFromServiceProvider(serviceProvider.getOid())).thenReturn(new HashSet(Collections.singleton(region)));
         final long vmOid = 1L;
         final long volume1Oid = 2L;
         final long volume2Oid = 3L;
@@ -2101,7 +2109,9 @@ public class TopologyConverterFromMarketTest {
                 vmOid, originalVm,
                 storageTierOid, storageTier,
                 volume1Oid, originalVolume1,
-                volume2Oid, originalVolume2);
+                volume2Oid, originalVolume2,
+                businessAccount.getOid(), businessAccount);
+        when(cloudTopology.getAggregated(region.getOid())).thenReturn(Collections.singleton(storageTier));
         final CommoditySpecificationTO commoditySpecificationTO =
             CommoditySpecificationTO.newBuilder()
             .setBaseType(1111)
@@ -2161,6 +2171,13 @@ public class TopologyConverterFromMarketTest {
      */
     @Test
     public void testConvertFromMarketPreservesCommoditiesBoughtByVmsIgnoringEphemeralVolume() {
+        TopologyEntityDTO region = TopologyEntityDTO.newBuilder().setOid(73442089143124L).setEntityType(EntityType.REGION_VALUE).build();
+        TopologyEntityDTO businessAccount = TopologyEntityDTO.newBuilder().setOid(15678904L).setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE).build();
+        AccountPricingData accountPricingData = mock(AccountPricingData.class);
+        TopologyEntityDTO serviceProvider = TopologyEntityDTO.newBuilder().setOid(5678974832L).setEntityType(EntityType.SERVICE_PROVIDER_VALUE).build();
+        when(mockCCD.getAccountPricingData(businessAccount.getOid())).thenReturn(Optional.of(accountPricingData));
+        when(cloudTopology.getServiceProvider(businessAccount.getOid())).thenReturn(Optional.of(serviceProvider));
+        when(cloudTopology.getRegionFromServiceProvider(serviceProvider.getOid())).thenReturn(new HashSet(Collections.singleton(region)));
         constructTopologyConverter(CommodityIndex.newFactory(), PLAN_TOPOLOGY_INFO);
         final long vmOid = 1L;
         final long volume1Oid = 2L;
@@ -2206,7 +2223,9 @@ public class TopologyConverterFromMarketTest {
                 vmOid, originalVm,
                 storageTierOid, storageTier,
                 volume1Oid, originalVolume1,
-                ephemeralVolumeOid, originalEphemeralVolume);
+                ephemeralVolumeOid, originalEphemeralVolume,
+                businessAccount.getOid(), businessAccount);
+        when(cloudTopology.getAggregated(region.getOid())).thenReturn(Collections.singleton(storageTier));
         final CommoditySpecificationTO commoditySpecificationTO =
             CommoditySpecificationTO.newBuilder()
             .setBaseType(1111)
@@ -2467,7 +2486,7 @@ public class TopologyConverterFromMarketTest {
         converter.getCloudTc().insertIntoAccountPricingDataByBusinessAccountOidMap(baOid,
                 new AccountPricingData(discountApplicator,
                         com.vmturbo.common.protobuf.cost.Pricing.PriceTable.newBuilder().getDefaultInstanceForType(),
-                        baOid));
+                        baOid, 15L, baOid));
         Map<Long, Set<ConnectedEntity>> businessAccountsToNewlyOwnedEntities =
                 converter.getCloudTc().getBusinessAccountsToNewlyOwnedEntities(
                         Lists.newArrayList(trader),

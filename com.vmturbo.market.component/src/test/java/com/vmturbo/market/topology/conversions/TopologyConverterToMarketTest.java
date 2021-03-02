@@ -80,6 +80,7 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.utils.CommodityTypeAllocatorConstants;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
+import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.pricing.CloudRateExtractor;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.market.topology.MarketTier;
@@ -2135,10 +2136,18 @@ public class TopologyConverterToMarketTest {
             messageFromJsonFile("protobuf/messages/vm-azure-1.topologyDto.json"),
             computeTier)
             .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
-
-
         final MarketTier marketTier = mock(MarketTier.class);
         Mockito.when(marketTier.getTier()).thenReturn(computeTier);
+        TopologyEntityDTO region = TopologyEntityDTO.newBuilder().setOid(73442089143124L).setEntityType(EntityType.REGION_VALUE).build();
+        TopologyEntityDTO businessAccount = TopologyEntityDTO.newBuilder().setOid(15678904L).setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE).build();
+        topologyDTOs.put(businessAccount.getOid(), businessAccount);
+        AccountPricingData accountPricingData = mock(AccountPricingData.class);
+        TopologyEntityDTO serviceProvider = TopologyEntityDTO.newBuilder().setOid(5678974832L).setEntityType(EntityType.SERVICE_PROVIDER_VALUE).build();
+        when(ccd.getAccountPricingData(businessAccount.getOid())).thenReturn(Optional.of(accountPricingData));
+        CloudTopology cloudTopology = mock(CloudTopology.class);
+        when(cloudTopology.getServiceProvider(businessAccount.getOid())).thenReturn(Optional.of(serviceProvider));
+        when(cloudTopology.getRegionFromServiceProvider(serviceProvider.getOid())).thenReturn(new HashSet(Collections.singleton(region)));
+        when(cloudTopology.getAggregated(region.getOid())).thenReturn(Collections.singleton(computeTier));
 
         Collection<TraderTO> traderTOs = new TopologyConverter(REALTIME_TOPOLOGY_INFO, false,
             MarketAnalysisUtils.QUOTE_FACTOR,
@@ -2146,7 +2155,7 @@ public class TopologyConverterToMarketTest {
             marketCloudRateExtractor,
             ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher,
-                MarketAnalysisUtils.PRICE_WEIGHT_SCALE)
+                MarketAnalysisUtils.PRICE_WEIGHT_SCALE, cloudTopology)
             .convertToMarket(topologyDTOs);
 
         assertEquals(2, traderTOs.size());
@@ -2246,13 +2255,14 @@ public class TopologyConverterToMarketTest {
                 messageFromJsonFile("protobuf/messages/cloud-storageTier.json"),
                 messageFromJsonFile("protobuf/messages/cloud-db.json"))
                 .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
+        CloudTopology cloudTopology = mock(CloudTopology.class);
         final TopologyConverter topologyConverter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, false,
                 MarketAnalysisUtils.QUOTE_FACTOR,
                 MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketCloudRateExtractor,
                 ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher,
-                MarketAnalysisUtils.PRICE_WEIGHT_SCALE);
+                MarketAnalysisUtils.PRICE_WEIGHT_SCALE, cloudTopology);
         final long computeTierOid = 111111L;
         final TopologyEntityDTO computeTier = TopologyEntityDTO.newBuilder()
             .setOid(computeTierOid)
@@ -2263,6 +2273,19 @@ public class TopologyConverterToMarketTest {
                 .build())
             .setEntityType(EntityType.COMPUTE_TIER_VALUE)
             .build();
+        topologyDTOs.put(computeTierOid, computeTier);
+        TopologyEntityDTO region = TopologyEntityDTO.newBuilder().setOid(73442089143124L).setEntityType(EntityType.REGION_VALUE).build();
+        topologyDTOs.put(region.getOid(), region);
+        TopologyEntityDTO businessAccount = TopologyEntityDTO.newBuilder().setOid(15678904L).setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE).build();
+        topologyDTOs.put(businessAccount.getOid(), businessAccount);
+        AccountPricingData accountPricingData = mock(AccountPricingData.class);
+        TopologyEntityDTO serviceProvider = TopologyEntityDTO.newBuilder().setOid(5678974832L).setEntityType(EntityType.SERVICE_PROVIDER_VALUE).build();
+        when(ccd.getAccountPricingData(businessAccount.getOid())).thenReturn(Optional.of(accountPricingData));
+        when(cloudTopology.getServiceProvider(businessAccount.getOid())).thenReturn(Optional.of(serviceProvider));
+        when(cloudTopology.getRegionFromServiceProvider(serviceProvider.getOid())).thenReturn(new HashSet(Collections.singleton(region)));
+        when(cloudTopology.getAggregated(region.getOid())).thenReturn(topologyDTOs.values().stream()
+                .filter(s -> s.getEntityType() == EntityType.STORAGE_TIER_VALUE || s.getEntityType() == EntityType.COMPUTE_TIER_VALUE || s.getEntityType() == EntityType.DATABASE_TIER_VALUE)
+                .collect(Collectors.toSet()));
         topologyDTOs.put(computeTierOid, computeTier);
         Collection<TraderTO> traderTOs = topologyConverter.convertToMarket(topologyDTOs);
         assertEquals(4, traderTOs.size());
@@ -2335,7 +2358,18 @@ public class TopologyConverterToMarketTest {
         final ReversibilitySettingFetcher settingFetcher = mock(ReversibilitySettingFetcher.class);
         when(settingFetcher.getEntityOidsWithReversibilityPreferred())
                 .thenReturn(ImmutableSet.of(volumeOid));
-
+        TopologyEntityDTO region = TopologyEntityDTO.newBuilder().setOid(73442089143124L).setEntityType(EntityType.REGION_VALUE).build();
+        topologyDTOs.put(region.getOid(), region);
+        TopologyEntityDTO businessAccount = TopologyEntityDTO.newBuilder().setOid(15678904L).setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE).build();
+        topologyDTOs.put(businessAccount.getOid(), businessAccount);
+        AccountPricingData accountPricingData = mock(AccountPricingData.class);
+        TopologyEntityDTO serviceProvider = TopologyEntityDTO.newBuilder().setOid(5678974832L).setEntityType(EntityType.SERVICE_PROVIDER_VALUE).build();
+        when(ccd.getAccountPricingData(businessAccount.getOid())).thenReturn(Optional.of(accountPricingData));
+        CloudTopology cloudTopology = mock(CloudTopology.class);
+        when(cloudTopology.getServiceProvider(businessAccount.getOid())).thenReturn(Optional.of(serviceProvider));
+        when(cloudTopology.getRegionFromServiceProvider(serviceProvider.getOid())).thenReturn(new HashSet(Collections.singleton(region)));
+        when(cloudTopology.getAggregated(region.getOid())).thenReturn(topologyDTOs.values().stream()
+                .filter(s -> s.getEntityType() == EntityType.STORAGE_TIER_VALUE).collect(Collectors.toSet()));
         final TopologyConverter topologyConverter = new TopologyConverter(
                 REALTIME_TOPOLOGY_INFO,
                 false,
@@ -2347,7 +2381,7 @@ public class TopologyConverterToMarketTest {
                 tierExcluderFactory,
                 consistentScalingHelperFactory,
                 settingFetcher,
-                MarketAnalysisUtils.PRICE_WEIGHT_SCALE);
+                MarketAnalysisUtils.PRICE_WEIGHT_SCALE, cloudTopology);
 
         final Collection<TraderTO> traderTOs = topologyConverter.convertToMarket(topologyDTOs);
 
