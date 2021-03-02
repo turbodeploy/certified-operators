@@ -616,9 +616,8 @@ public class SearchService implements ISearchService {
         // source side (in the search service), because this search is still using REST, and
         // converting this method to GRPC looks like it will take more time than I have right now.
         // TODO: Convert the entity search to use GRPC instead of REST.
-        Predicate<ServiceEntityApiDTO> scopeFilter = userSessionContext.isUserScoped()
-                        ? entity -> userSessionContext.getUserAccessScope().contains(Long.valueOf(entity.getUuid()))
-                        : entity -> true; // no-op if the user is not scoped
+        final Predicate<ServiceEntityApiDTO> scopeFilter = getScopePredicate();
+
         if (scopes == null || scopes.size() <= 0 ||
             (scopes.get(0).equals(UuidMapper.UI_REAL_TIME_MARKET_STR))) {
             // Search with no scope requested; or a single scope == "Market"; then search in live Market
@@ -669,6 +668,23 @@ public class SearchService implements ISearchService {
                         .collect(Collectors.toList());
 
         return paginationRequest.allResultsResponse(result);
+    }
+
+    /**
+     * Create a scope predicate taking into account whether the entity ID and entity type are included within the user's scope.
+     * 
+     * @return predicate evaluating as true if an entity falls within a user's scope, false otherwise
+     */
+    private Predicate<ServiceEntityApiDTO> getScopePredicate() {
+        if (!userSessionContext.isUserScoped()) {
+            return entity -> true;
+        }
+        return entity -> {
+            final ApiEntityType entityType = ApiEntityType.fromString(entity.getClassName());
+            final long oid = Long.valueOf(entity.getUuid());
+            return userSessionContext.isEntityTypeAllowedForUser(entityType) &&
+                userSessionContext.getUserAccessScope().contains(oid);
+        };
     }
 
     /**

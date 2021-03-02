@@ -79,6 +79,12 @@ public class UserScopeUtils {
             ApiEntityType.DATABASE_SERVER_TIER,
             ApiEntityType.DATABASE_TIER);
 
+    /**
+     * Entity types that should not be shown to scoped users.
+     */
+    public static final Set<ApiEntityType> SCOPED_USER_PROHIBITED_ENTITY_TYPES =
+        ImmutableSet.of(ApiEntityType.RESERVED_INSTANCE, ApiEntityType.CLOUD_COMMITMENT);
+
 
     public static boolean isUserScoped() {
         // first check if there is a security context user

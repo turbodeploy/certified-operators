@@ -40,6 +40,7 @@ import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest.EntityStatsPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IReservedInstancesService;
+import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
 import com.vmturbo.common.protobuf.cost.Cost.AccountFilter.AccountFilterType;
 import com.vmturbo.common.protobuf.cost.Cost.AvailabilityZoneFilter;
@@ -111,6 +112,9 @@ public class ReservedInstancesService implements IReservedInstancesService {
             @Nullable String scopeUuid,
             @Nullable Boolean includeAllUsable,
             @Nullable com.vmturbo.api.enums.AccountFilterType filterType) throws Exception {
+        if (UserScopeUtils.isUserScoped()) {
+            return Collections.emptyList();
+        }
         // default to the real time market as the scope
         scopeUuid = Optional.ofNullable(scopeUuid)
             .orElse(UuidMapper.UI_REAL_TIME_MARKET_STR);

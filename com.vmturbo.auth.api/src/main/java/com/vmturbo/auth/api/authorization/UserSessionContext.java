@@ -22,6 +22,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.auth.api.authorization.scoping.AccessScopeCacheKey;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.userscope.UserScope.EntityAccessScopeContents;
 import com.vmturbo.common.protobuf.userscope.UserScope.EntityAccessScopeRequest;
 import com.vmturbo.common.protobuf.userscope.UserScope.EntityAccessScopeResponse;
@@ -273,6 +274,16 @@ public class UserSessionContext implements AutoCloseable {
                 .collect(Collectors.toMap(Map.Entry::getKey, entry -> toOidSet(entry.getValue())));
 
         return new EntityAccessScope(key.getScopeGroupOids(), seedOids, accessibleOids, oidsByEntityType);
+    }
+
+    /**
+     * Determine if the user's scope has access to a certain entity type.
+     *
+     * @param entityType the type of entity for which to check access
+     * @return true if the user is permitted access, false otherwise
+     */
+    public boolean isEntityTypeAllowedForUser(ApiEntityType entityType) {
+        return !isUserScoped() || !UserScopeUtils.SCOPED_USER_PROHIBITED_ENTITY_TYPES.contains(entityType);
     }
 
     private class EntityAccessScopeCacheEntry {
