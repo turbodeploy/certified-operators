@@ -15,6 +15,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSortedSet;
 
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.immutables.value.Value.Default;
@@ -26,9 +27,12 @@ import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
 import com.vmturbo.components.common.utils.OptionalUtils;
 import com.vmturbo.cost.calculation.DiscountApplicator;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.LicensePriceTuple;
+import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.ComputeTierConfig;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList;
+import com.vmturbo.platform.sdk.common.PricingDTO.LicenseOverride;
+import com.vmturbo.platform.sdk.common.PricingDTO.LicenseOverrides;
 import com.vmturbo.platform.sdk.common.PricingDTO.LicensePriceEntry;
 import com.vmturbo.platform.sdk.common.PricingDTO.LicensePriceEntry.LicensePrice;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price;
@@ -56,6 +60,12 @@ public class AccountPricingData<T> {
 
     //List of licensePrice is sorted by number of cores.
     private final Map<LicenseIdentifier, SortedLicensePriceEntry> reservedLicensePrices;
+
+    // List of on-demand license override values by the (compute tier OID, OSType) tuple
+    private final Map<ComputeTierOSType, LicenseOverride> onDemandLicenseOverrideMap;
+
+    // List of reserved license override values by the (compute tier OID, OSType) tuple
+    private final Map<ComputeTierOSType, LicenseOverride> reservedLicenseOverrideMap;
 
     private final Long accountPricingDataOid;
 
@@ -137,7 +147,33 @@ public class AccountPricingData<T> {
                 .stream()
                 .collect(Collectors.collectingAndThen(PRICE_COLLECTOR, ImmutableMap::copyOf));
         this.accountPricingDataOid = accountPricingDataOid;
+        this.onDemandLicenseOverrideMap = AccountPricingData.convertLicenseOverrides(
+                priceTable.getOnDemandLicenseOverridesMap(),
+                "On-demand License Overrides");
+        this.reservedLicenseOverrideMap = AccountPricingData.convertLicenseOverrides(
+                priceTable.getReservedLicenseOverridesMap(),
+                "Reserved License Overrides");
         this.debugInfoNeverUsedInCode = new DebugInfoNeverUsedInCode(priceTableOid, businessAccountOid);
+    }
+
+    private static Map<ComputeTierOSType, LicenseOverride> convertLicenseOverrides(
+            @Nonnull Map<Long, LicenseOverrides> licenseOverridesMap,
+            @Nonnull String licenseOverrideTag) {
+
+        return licenseOverridesMap.entrySet()
+                .stream()
+                .flatMap(overrideEntries -> overrideEntries.getValue().getLicenseOverrideList()
+                        .stream()
+                        .map(overrideEntry -> Pair.of(overrideEntries.getKey(), overrideEntry)))
+                .collect(ImmutableMap.toImmutableMap(
+                        overridePair -> ComputeTierOSType.of(
+                                overridePair.getKey(), overridePair.getValue().getOsType()),
+                        Pair::getValue,
+                        (overrideA, overrideB) -> {
+                            logger.warn("Duplicate license overrides for in parsing {}:\n{}\n{}",
+                                    licenseOverrideTag, overrideA, overrideB);
+                            return overrideA;
+                        }));
     }
 
     /**
@@ -145,14 +181,13 @@ public class AccountPricingData<T> {
      * cores that is .GE. the numCores argument. If numCores is too high then
      * return {@link Optional#empty}. This will have effect on Azure instances.
      *
-     * @param os VM OS
-     * @param numCores VM number of CPUs
-     * @param burstableCPU if a license support burstableCPU.
+     * @param tierConfig The compute tier config.
+     * @param os The os.
      * @return the matching license price
      */
-    private Optional<CurrencyAmount> getExplicitLicensePrice(OSType os, int numCores,
-                                                             boolean burstableCPU) {
-        return getLicensePrice(onDemandLicensePrices, os, numCores, burstableCPU);
+    private Optional<CurrencyAmount> getExplicitLicensePrice(@Nonnull ComputeTierConfig tierConfig,
+                                                             @Nonnull OSType os) {
+        return getLicensePrice(tierConfig, os, onDemandLicensePrices, onDemandLicenseOverrideMap);
     }
 
     /**
@@ -160,14 +195,13 @@ public class AccountPricingData<T> {
      * cores that is .GE. the numCores argument. If numCores is too high then
      * return {@link Optional#empty}. This will have effect on Azure instances.
      *
-     * @param os VM OS
-     * @param numCores VM number of CPUs
-     * @param burstableCPU if a license support burstableCPU.
+     * @param tierConfig The compute tier config.
+     * @param os The os.
      * @return the matching license price
      */
-    public Optional<CurrencyAmount> getReservedLicensePrice(OSType os, int numCores,
-                                                   final boolean burstableCPU) {
-        return getLicensePrice(reservedLicensePrices, os, numCores, burstableCPU);
+    public Optional<CurrencyAmount> getReservedLicensePrice(@Nonnull ComputeTierConfig tierConfig,
+                                                            @Nonnull OSType os) {
+        return getLicensePrice(tierConfig, os, reservedLicensePrices, reservedLicenseOverrideMap);
     }
 
     /**
@@ -175,16 +209,23 @@ public class AccountPricingData<T> {
      * cores that is .GE. the numCores argument. If numCores is too high then
      * return {@link Optional#empty}.
      *
-     * @param mapping license price mapping
      * @param os VM OS
-     * @param numCores VM number of CPUs
-     * @param burstableCPU if a license support burstableCPU.
      * @return the matching license price
      */
-    private Optional<CurrencyAmount> getLicensePrice(Map<LicenseIdentifier, SortedLicensePriceEntry> mapping,
-            OSType os, int numCores, final boolean burstableCPU) {
+    private Optional<CurrencyAmount> getLicensePrice(@Nonnull ComputeTierConfig tierConfig,
+                                                     @Nonnull OSType os,
+                                                     Map<LicenseIdentifier, SortedLicensePriceEntry> priceMapping,
+                                                     Map<ComputeTierOSType, LicenseOverride> licenseOverrideMap) {
 
-        SortedLicensePriceEntry licensePriceEntry = mapping.get(LicenseIdentifier.of(os, burstableCPU));
+        final ComputeTierOSType computeTierOSType = ComputeTierOSType.of(tierConfig.computeTierOid(), os);
+        final int numCores = licenseOverrideMap.containsKey(computeTierOSType)
+                // Right now, we assume if an override is provided, it will override the number
+                // of cores.
+                ? licenseOverrideMap.get(computeTierOSType).getOverrideValue().getNumCores()
+                : tierConfig.numCores();
+        final boolean isBurstableCPU = tierConfig.isBurstableCPU();
+
+        SortedLicensePriceEntry licensePriceEntry = priceMapping.get(LicenseIdentifier.of(os, isBurstableCPU));
         if (licensePriceEntry == null) {
             return Optional.empty();
         }
@@ -197,7 +238,7 @@ public class AccountPricingData<T> {
                 .findFirst();
 
         final Optional<CurrencyAmount> basePrice = licensePriceEntry.baseOSType()
-                .flatMap(baseOsType -> getLicensePrice(mapping, baseOsType, numCores, burstableCPU));
+                .flatMap(baseOsType -> getLicensePrice(tierConfig, baseOsType, priceMapping, licenseOverrideMap));
 
         return OptionalUtils.reduce(AccountPricingData::mergeCurrencyAmounts, price, basePrice);
     }
@@ -246,16 +287,13 @@ public class AccountPricingData<T> {
      * </ul>
      *
      * @param os the OS for which we want to get the price of for the template
-     * @param numOfCores the number of cores of that template
      * @param computePriceList all compute prices for this specific template
-     * @param burstableCPU if a license support burstableCPU.
      * @return the matching license price
      */
     @Nonnull
-    public LicensePriceTuple getLicensePrice(OSType os,
-                                             final int numOfCores,
-                                             ComputeTierPriceList computePriceList,
-                                             final boolean burstableCPU) {
+    public LicensePriceTuple getLicensePrice(ComputeTierConfig tierConfig,
+                                             OSType os,
+                                             ComputeTierPriceList computePriceList) {
         LicensePriceTuple licensePrice = new LicensePriceTuple();
 
         // calculate the implicit price by getting the price adjustment of the current OS.
@@ -277,10 +315,10 @@ public class AccountPricingData<T> {
         }
 
         // add the price of the license itself as the explicit price
-        getExplicitLicensePrice(os, numOfCores, burstableCPU)
+        getExplicitLicensePrice(tierConfig, os)
                 .ifPresent(licenseExplicitPrice -> licensePrice
                         .setExplicitOnDemandLicensePrice(licenseExplicitPrice.getAmount()));
-        getReservedLicensePrice(os, numOfCores, burstableCPU)
+        getReservedLicensePrice(tierConfig, os)
                 .ifPresent(reservedLicensePrice -> licensePrice
                         .setReservedInstanceLicensePrice(reservedLicensePrice.getAmount()));
 
@@ -378,6 +416,23 @@ public class AccountPricingData<T> {
         }
 
         class Builder extends ImmutableSortedLicensePriceEntry.Builder {}
+    }
+
+    @Style(visibility = ImplementationVisibility.PACKAGE,
+            allParameters = true,
+            typeImmutable = "*Tuple")
+    @Immutable(lazyhash = true, builder = false)
+    interface ComputeTierOSType {
+
+        long computeTierOid();
+
+        @Nonnull
+        OSType osType();
+
+        static ComputeTierOSType of(long computeTierOid,
+                                    @Nonnull OSType osType) {
+            return ComputeTierOSTypeTuple.of(computeTierOid, osType);
+        }
     }
 
     /**

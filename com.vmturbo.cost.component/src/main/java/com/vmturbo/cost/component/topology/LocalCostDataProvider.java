@@ -47,21 +47,13 @@ public class LocalCostDataProvider implements CloudCostDataProvider {
 
     private final EntityReservedInstanceMappingStore entityRiMappingStore;
 
-    private final RepositoryClient repositoryClient;
-
-    private final SupplyChainServiceBlockingStub supplyChainServiceBlockingStub;
-
-    private final long realtimeTopologyContextId;
-
     public LocalCostDataProvider(@Nonnull final PriceTableStore priceTableStore,
                  @Nonnull final DiscountStore discountStore,
                  @Nonnull final ReservedInstanceBoughtStore riBoughtStore,
                 final BusinessAccountPriceTableKeyStore businessAccountPriceTableKeyStore,
                  @Nonnull final ReservedInstanceSpecStore riSpecStore,
                  @Nonnull final EntityReservedInstanceMappingStore entityRiMappingStore,
-                 @Nonnull final RepositoryClient repositoryClient,
-                 @Nonnull SupplyChainServiceBlockingStub supplyChainServiceBlockingStub,
-                 final long realtimeTopologyContextId, IdentityProvider identityProvider,
+                                 IdentityProvider identityProvider,
                                  @Nonnull DiscountApplicatorFactory discountApplicatorFactory,
                                  @Nonnull TopologyEntityInfoExtractor topologyEntityInfoExtractor) {
         this.priceTableStore = Objects.requireNonNull(priceTableStore);
@@ -73,9 +65,6 @@ public class LocalCostDataProvider implements CloudCostDataProvider {
         this.localCostPricingResolver = new LocalCostPricingResolver(priceTableStore,
                 businessAccountPriceTableKeyStore, identityProvider, discountStore,
                 discountApplicatorFactory, topologyEntityInfoExtractor);
-        this.repositoryClient = Objects.requireNonNull(repositoryClient);
-        this.supplyChainServiceBlockingStub = supplyChainServiceBlockingStub;
-        this.realtimeTopologyContextId = realtimeTopologyContextId;
     }
 
     @Nonnull

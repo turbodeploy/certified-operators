@@ -98,7 +98,7 @@ public class ReservedInstanceApplicator<ENTITY_CLASS> {
             .map(entityRiCoverage -> {
                 final TraxNumber totalRequired = trax(entityInfoExtractor.getComputeTierConfig(computeTier)
                     .orElseThrow(() -> new IllegalArgumentException("Expected compute tier with compute tier config."))
-                    .getNumCoupons(), "coupons required");
+                    .numCoupons(), "coupons required");
                 final TraxNumber coverageByRIInventory = recordRICoverageEntries(
                         entityId,
                         totalRequired,

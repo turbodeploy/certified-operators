@@ -36,6 +36,7 @@ import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostD
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.LicensePriceTuple;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
+import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.ComputeTierConfig;
 import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.ComputePriceBundle;
 import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.ComputePriceBundle.ComputePrice;
 import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.StoragePriceBundle;
@@ -88,6 +89,20 @@ public class CloudRateExtractorTest {
     private static final String WINDOWS_WITH_SQL_WEB = "Windows_SQL_Web";
     private static final boolean BURSTABLE_CPUS = true;
     private static final boolean NOT_BURSTABLE_CPUS = !BURSTABLE_CPUS;
+
+    private static final ComputeTierConfig AWS_COMPUTE_TIER_CONFIG = ComputeTierConfig.builder()
+            .computeTierOid(AWS_COMPUTE_TIER_ID)
+            .numCoupons(1)
+            .numCores(NUM_OF_CORES)
+            .isBurstableCPU(false)
+            .build();
+
+    private static final ComputeTierConfig AZURE_COMPUTE_TIER_CONFIG = ComputeTierConfig.builder()
+            .computeTierOid(AZURE_COMPUTE_TIER_ID)
+            .numCoupons(1)
+            .numCores(NUM_OF_CORES)
+            .isBurstableCPU(false)
+            .build();
 
     private static final PriceTable COMPUTE_PRICE_TABLE = PriceTable.newBuilder()
         .putOnDemandPriceByRegionId(REGION_ID, OnDemandPriceTable.newBuilder()
@@ -286,37 +301,37 @@ public class CloudRateExtractorTest {
     private void initializeAWSLicensePriceTuples(Long businessAccountId) {
         ComputeTierPriceList priceList = getComputePriceList(AWS_COMPUTE_TIER_ID);
         LicensePriceTuple emptyLicenseTuple = createLicensePriceTuple(0.0, 0.0);
-        when(cloudCostData.getAccountPricingData(businessAccountId).get().getLicensePrice(OSType.LINUX, NUM_OF_CORES, priceList, NOT_BURSTABLE_CPUS ))
+        when(cloudCostData.getAccountPricingData(businessAccountId).get().getLicensePrice(AWS_COMPUTE_TIER_CONFIG, OSType.LINUX, priceList))
             .thenReturn(emptyLicenseTuple);
         LicensePriceTuple windowsLicenseTuple = createLicensePriceTuple(WINDOWS_PRICE_ADJUSTMENT,
             0.0);
-        when(cloudCostData.getAccountPricingData(businessAccountId).get().getLicensePrice(OSType.WINDOWS, NUM_OF_CORES, priceList, NOT_BURSTABLE_CPUS ))
+        when(cloudCostData.getAccountPricingData(businessAccountId).get().getLicensePrice(AWS_COMPUTE_TIER_CONFIG, OSType.WINDOWS, priceList))
             .thenReturn(windowsLicenseTuple);
         LicensePriceTuple windowsPALicenseTuple = createLicensePriceTuple(
             WINDOWS_SQL_WEB_PRICE_ADJUSTMENT, 0.0);
-        when(cloudCostData.getAccountPricingData(businessAccountId).get().getLicensePrice(OSType.WINDOWS_WITH_SQL_WEB, NUM_OF_CORES, priceList, NOT_BURSTABLE_CPUS ))
+        when(cloudCostData.getAccountPricingData(businessAccountId).get().getLicensePrice(AWS_COMPUTE_TIER_CONFIG, OSType.WINDOWS_WITH_SQL_WEB, priceList))
             .thenReturn(windowsPALicenseTuple);
         LicensePriceTuple redHatPALicenseTuple = createLicensePriceTuple(RHEL_PRICE_ADJUSTMENT,
             0.0);
-        when(cloudCostData.getAccountPricingData(businessAccountId).get().getLicensePrice(OSType.RHEL, NUM_OF_CORES, priceList, NOT_BURSTABLE_CPUS ))
+        when(cloudCostData.getAccountPricingData(businessAccountId).get().getLicensePrice(AWS_COMPUTE_TIER_CONFIG, OSType.RHEL, priceList))
             .thenReturn(redHatPALicenseTuple);
     }
 
     private void initializeAzureLicensePriceTuples(Long businessAccountId) {
         ComputeTierPriceList priceList = getComputePriceList(AZURE_COMPUTE_TIER_ID);
         LicensePriceTuple emptyLicenseTuple = createLicensePriceTuple(0.0, 0.0);
-        when(cloudCostData.getAccountPricingData(businessAccountId).get().getLicensePrice(OSType.LINUX, NUM_OF_CORES, priceList, NOT_BURSTABLE_CPUS ))
+        when(cloudCostData.getAccountPricingData(businessAccountId).get().getLicensePrice(AZURE_COMPUTE_TIER_CONFIG, OSType.LINUX, priceList))
             .thenReturn(emptyLicenseTuple);
         LicensePriceTuple windowsLicenseTuple = createLicensePriceTuple(WINDOWS_PRICE_ADJUSTMENT,
             0.0);
-        when(cloudCostData.getAccountPricingData(businessAccountId).get().getLicensePrice(OSType.WINDOWS, NUM_OF_CORES, priceList, NOT_BURSTABLE_CPUS ))
+        when(cloudCostData.getAccountPricingData(businessAccountId).get().getLicensePrice(AZURE_COMPUTE_TIER_CONFIG, OSType.WINDOWS, priceList))
             .thenReturn(windowsLicenseTuple);
         LicensePriceTuple windowsSqlWebPriceTuple = createLicensePriceTuple(WINDOWS_SQL_WEB_PRICE_ADJUSTMENT,
             0.0);
-        when(cloudCostData.getAccountPricingData(businessAccountId).get().getLicensePrice(OSType.WINDOWS_WITH_SQL_WEB, NUM_OF_CORES, priceList, NOT_BURSTABLE_CPUS ))
+        when(cloudCostData.getAccountPricingData(businessAccountId).get().getLicensePrice(AZURE_COMPUTE_TIER_CONFIG, OSType.WINDOWS_WITH_SQL_WEB, priceList))
             .thenReturn(windowsSqlWebPriceTuple);
         LicensePriceTuple redHatLpPriceTuple = createLicensePriceTuple(RHEL_PRICE_ADJUSTMENT, 0.0);
-        when(cloudCostData.getAccountPricingData(businessAccountId).get().getLicensePrice(OSType.RHEL, NUM_OF_CORES, priceList, NOT_BURSTABLE_CPUS ))
+        when(cloudCostData.getAccountPricingData(businessAccountId).get().getLicensePrice(AZURE_COMPUTE_TIER_CONFIG, OSType.RHEL, priceList))
             .thenReturn(redHatLpPriceTuple);
     }
 

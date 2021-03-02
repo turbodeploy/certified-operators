@@ -182,8 +182,8 @@ public class CloudRateExtractor {
                     .forEach(osType -> {
                         // let cost calculation component figure out the correct
                         // license price that should be added to the base price
-                        final LicensePriceTuple licensePrice = accountPricingData.getLicensePrice(osType,
-                                computeTierConfig.getNumCores(), computeTierPrices, computeTierConfig.isBurstableCPU());
+                        final LicensePriceTuple licensePrice = accountPricingData.getLicensePrice(
+                                computeTierConfig, osType, computeTierPrices);
                         final double totalLicensePrice = licensePrice.getImplicitOnDemandLicensePrice() * discount
                                 + licensePrice.getExplicitOnDemandLicensePrice();
                         priceBuilder.addPrice(accountPricingData.getAccountPricingDataOid(), osType,
@@ -507,7 +507,7 @@ public class CloudRateExtractor {
                             final OSType osType = OS_TYPE_MAP.get(licenseCommodityType.getKey());
 
                             final Optional<CurrencyAmount> reservedLicensePrice =
-                                    accountPricingData.getReservedLicensePrice(osType, numCores, burstableCPU);
+                                    accountPricingData.getReservedLicensePrice(computeTierConfig, osType);
 
                             final Optional<Double> discountedPrice = reservedLicensePrice.map(CurrencyAmount::getAmount)
                                     .map(fullPrice -> fullPrice * discount);

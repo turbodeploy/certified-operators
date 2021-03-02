@@ -95,9 +95,6 @@ public class TopologyListenerConfig {
     private ReservedInstanceConfig reservedInstanceConfig;
 
     @Autowired
-    private RepositoryClientConfig repositoryClientConfig;
-
-    @Autowired
     private CostConfig costConfig;
 
     @Autowired
@@ -105,9 +102,6 @@ public class TopologyListenerConfig {
 
     @Autowired
     private ReservedInstanceSpecConfig reservedInstanceSpecConfig;
-
-    @Autowired
-    private SupplyChainServiceConfig supplyChainServiceConfig;
 
     @Autowired
     private GroupClientConfig groupClientConfig;
@@ -239,9 +233,7 @@ public class TopologyListenerConfig {
                 businessAccountPriceTableKeyStore(),
                 reservedInstanceSpecConfig.reservedInstanceSpecStore(),
                 reservedInstanceConfig.entityReservedInstanceMappingStore(),
-                repositoryClientConfig.repositoryClient(),
-                supplyChainServiceConfig.supplyChainRpcService(),
-                realtimeTopologyContextId, identityProviderConfig.identityProvider(),
+                identityProviderConfig.identityProvider(),
                 discountApplicatorFactory(), topologyEntityInfoExtractor());
     }
 

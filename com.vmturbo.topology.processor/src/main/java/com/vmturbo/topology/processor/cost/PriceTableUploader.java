@@ -67,6 +67,7 @@ import com.vmturbo.components.common.diagnostics.DiagsRestorable;
 import com.vmturbo.platform.common.dto.CommonDTO.PricingIdentifier;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.PricingDTO;
+import com.vmturbo.platform.sdk.common.PricingDTO.LicenseOverrides;
 import com.vmturbo.platform.sdk.common.PricingDTO.PriceTable.OnDemandPriceTableByRegionEntry;
 import com.vmturbo.platform.sdk.common.PricingDTO.PriceTable.ReservedInstancePriceEntry;
 import com.vmturbo.platform.sdk.common.PricingDTO.PriceTable.ReservedInstancePriceTableByRegionEntry;
@@ -475,6 +476,22 @@ public class PriceTableUploader implements DiagsRestorable<Void> {
             // add the on demand prices
             priceTableBuilder.putOnDemandPriceByRegionId(regionOid, onDemandPricesBuilder.build());
         }
+
+        addLicensePriceOverrides(
+                sourcePriceTable.getOnDemandLicenseOverridesMap(),
+                cloudEntitiesMap,
+                priceTableBuilder::putOnDemandLicenseOverrides,
+                missingTiers,
+                "On-demand License Price Overrides");
+
+        addLicensePriceOverrides(
+                sourcePriceTable.getReservedLicenseOverridesMap(),
+                cloudEntitiesMap,
+                priceTableBuilder::putReservedLicenseOverrides,
+                missingTiers,
+                "Reserved License Price Overrides");
+
+
         if (missingTiers.size() > 0) {
             logger.warn("Couldn't find oids for: {}", missingTiers);
         }
@@ -488,6 +505,21 @@ public class PriceTableUploader implements DiagsRestorable<Void> {
                 .convertSpotPrices(sourcePriceTable, cloudEntitiesMap));
 
         return priceTableBuilder.build();
+    }
+
+    private void addLicensePriceOverrides(@Nonnull Map<String, LicenseOverrides> licenseOverridesByTierMap,
+                                          @Nonnull final Map<String, Long> cloudEntityOidByLocalId,
+                                          @Nonnull BiConsumer<Long, LicenseOverrides> priceKeySetConsumer,
+                                          @Nonnull Multimap<String, String> missingTiers,
+                                          @Nonnull String priceSectionTag) {
+        licenseOverridesByTierMap.forEach((localId, priceKeySet) -> {
+            Long oid = cloudEntityOidByLocalId.get(localId);
+            if (oid == null) {
+                missingTiers.put(priceSectionTag, localId);
+            } else {
+                priceKeySetConsumer.accept(oid, priceKeySet);
+            }
+        });
     }
 
     private void dbOnDemandPriceTableAdder(Long oid,
