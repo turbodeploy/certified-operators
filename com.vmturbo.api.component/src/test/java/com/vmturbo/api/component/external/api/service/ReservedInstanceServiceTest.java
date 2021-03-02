@@ -10,6 +10,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 
 import org.apache.commons.lang3.builder.EqualsBuilder;
@@ -18,6 +19,9 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
@@ -35,6 +39,7 @@ import com.vmturbo.api.dto.reservedinstance.ReservedInstanceApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.enums.AccountFilterType;
 import com.vmturbo.api.enums.CloudType;
+import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtForScopeRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtForScopeResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCoveredEntitiesRequest;
@@ -179,6 +184,25 @@ public class ReservedInstanceServiceTest {
                 reservedInstanceApiDTOs.iterator().next();
         Assert.assertEquals(4, (int)reservedInstanceApiDTO.getCoveredEntityCount());
         Assert.assertEquals(2, (int)reservedInstanceApiDTO.getUndiscoveredAccountsCoveredCount());
+    }
+
+    /**
+     * Test that RI request is rejected if the user is scoped.
+     *
+     * @throws Exception never
+     */
+    @Test
+    public void testScopedUserGetReservedInstances() throws Exception {
+        final Authentication scopedUser = new UsernamePasswordAuthenticationToken(
+            new AuthUserDTO(null, "user", "password", "10.10.10.10", "11111", "token",
+                ImmutableList.of("ADVISOR"), Collections.singletonList(12345L)),
+            "admin000",
+            Collections.emptySet());
+
+        SecurityContextHolder.getContext().setAuthentication(scopedUser);
+
+        Assert.assertTrue(reservedInstancesService.getReservedInstances("12345", null, null).isEmpty());
+        Mockito.verifyZeroInteractions(uuidMapper, repositoryApi);
     }
 
     /**
