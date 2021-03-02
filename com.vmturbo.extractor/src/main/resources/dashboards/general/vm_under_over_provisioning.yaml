@@ -108,14 +108,22 @@ panels:
     rawQuery: true
     rawSql: |
       WITH vms_by_cluster AS (
-        SELECT DISTINCT ON (e.oid) c.name AS cluster_name, e.oid AS vm_oid, e.name AS vm_name
-        FROM entity e
-          JOIN scope s ON (e.oid = s.seed_oid)
-          JOIN entity c ON (c.oid = s.scoped_oid)
+        SELECT DISTINCT ON (e.oid)
+         c.name AS cluster_name,
+         e.oid AS vm_oid,
+         e.name AS vm_name
+        FROM entity c,
+          entity e,
+          scope s
         WHERE e.type = 'VIRTUAL_MACHINE'
           AND c.type = 'COMPUTE_CLUSTER'
-          AND (s.start, s.finish) OVERLAPS ($__timeFrom(), $__timeTo()))
-      SELECT max(cluster_name) AS "Cluster name",
+          AND s.seed_oid = c.oid
+          AND s.scoped_oid = e.oid
+          AND (s.start, s.finish) OVERLAPS ($__timeFrom(), $__timeTo())
+        ORDER BY e.oid, s.finish, s.start
+      )
+      SELECT
+        max(cluster_name) AS "Cluster name",
         max(vm_name) AS "VM name",
         avg(metric.capacity) FILTER (WHERE metric.type = 'VMEM') AS "VMEM Capacity",
         avg(metric.utilization) FILTER (WHERE metric.type = 'VMEM') AS "VMEM Avg",
@@ -124,13 +132,15 @@ panels:
         avg(metric.utilization) FILTER (WHERE metric.type = 'VCPU') AS "VCPU Avg",
         max(metric.utilization) FILTER (WHERE metric.type = 'VCPU') AS "VCPU Peak"
       FROM vms_by_cluster
-        JOIN metric ON metric.entity_oid = vm_oid
-      WHERE metric."type" IN ('VMEM', 'VCPU')
-        AND provider_oid IS NULL
-        AND metric."time" BETWEEN $__timeFrom() AND $__timeTo()
+      JOIN metric ON
+        metric.entity_oid = vm_oid
+        AND metric."type" IN ('VMEM', 'VCPU')
+        AND provider_oid ISNULL
+        AND $__timeFilter(metric."time")
       GROUP BY vm_oid
-      HAVING max(metric.utilization) FILTER (WHERE metric.type = 'VMEM') < 0.1
-        OR max(metric.utilization) FILTER (WHERE metric.type = 'VCPU') < 0.1;
+      HAVING
+        max(metric.utilization) FILTER (WHERE metric.type = 'VMEM') < 0.1 -- "VMEM Peak"
+        OR max(metric.utilization) FILTER (WHERE metric.type = 'VCPU') < 0.1 -- "VCPU Peak"
     refId: B
     select:
     - - params:
@@ -239,14 +249,22 @@ panels:
     rawQuery: true
     rawSql: |
       WITH vms_by_cluster AS (
-        SELECT DISTINCT ON (e.oid) c.name AS cluster_name, e.oid AS vm_oid, e.name AS vm_name
-        FROM entity e
-          JOIN scope s ON (e.oid = s.seed_oid)
-          JOIN entity c ON (c.oid = s.scoped_oid)
+        SELECT DISTINCT ON (e.oid)
+         c.name AS cluster_name,
+         e.oid AS vm_oid,
+         e.name AS vm_name
+        FROM entity c,
+          entity e,
+          scope s
         WHERE e.type = 'VIRTUAL_MACHINE'
           AND c.type = 'COMPUTE_CLUSTER'
-          AND (s.start, s.finish) OVERLAPS ($__timeFrom(), $__timeTo()))
-      SELECT max(cluster_name) AS "Cluster name",
+          AND s.seed_oid = c.oid
+          AND s.scoped_oid = e.oid
+          AND (s.start, s.finish) OVERLAPS ($__timeFrom(), $__timeTo())
+        ORDER BY e.oid, s.finish, s.start
+      )
+      SELECT
+        max(cluster_name) AS "Cluster name",
         max(vm_name) AS "VM name",
         avg(metric.capacity) FILTER (WHERE metric.type = 'VMEM') AS "VMEM Capacity",
         avg(metric.utilization) FILTER (WHERE metric.type = 'VMEM') AS "VMEM Avg",
@@ -255,13 +273,14 @@ panels:
         avg(metric.utilization) FILTER (WHERE metric.type = 'VCPU') AS "VCPU Avg",
         max(metric.utilization) FILTER (WHERE metric.type = 'VCPU') AS "VCPU Peak"
       FROM vms_by_cluster
-        JOIN metric ON metric.entity_oid = vm_oid
-      WHERE metric."type" IN ('VMEM', 'VCPU')
+      JOIN metric ON
+        metric.entity_oid = vm_oid
+        AND metric."type" IN ('VMEM', 'VCPU')
         AND provider_oid IS NULL
-        AND metric."time" BETWEEN $__timeFrom() AND $__timeTo()
+        AND $__timeFilter(metric."time")
       GROUP BY vm_oid
-      HAVING max(metric.utilization) FILTER (WHERE metric.type = 'VMEM') < 0.1
-        OR max(metric.utilization) FILTER (WHERE metric.type = 'VCPU') < 0.1;
+      HAVING max(metric.utilization) FILTER (WHERE metric.type = 'VMEM') > 0.85
+        OR max(metric.utilization) FILTER (WHERE metric.type = 'VCPU') > 0.85;
     refId: B
     select:
     - - params:
@@ -317,13 +336,20 @@ panels:
     rawQuery: true
     rawSql: |
       WITH vms_by_cluster AS (
-        SELECT DISTINCT ON (e.oid) c.name AS cluster_name, e.oid AS vm_oid, e.name AS vm_name
-        FROM entity e
-          JOIN scope s ON (e.oid = s.seed_oid)
-          JOIN entity c ON (c.oid = s.scoped_oid)
+        SELECT DISTINCT ON (e.oid)
+         c.name AS cluster_name,
+         e.oid AS vm_oid,
+         e.name AS vm_name
+        FROM entity c,
+          entity e,
+          scope s
         WHERE e.type = 'VIRTUAL_MACHINE'
           AND c.type = 'COMPUTE_CLUSTER'
-          AND (s.start, s.finish) OVERLAPS ($__timeFrom(), $__timeTo())),
+          AND s.seed_oid = c.oid
+          AND s.scoped_oid = e.oid
+          AND (s.start, s.finish) OVERLAPS ($__timeFrom(), $__timeTo())
+        ORDER BY e.oid, s.finish, s.start
+      ),
       vm_peaks AS (
         SELECT
           max(cluster_name) AS cluster_name,
