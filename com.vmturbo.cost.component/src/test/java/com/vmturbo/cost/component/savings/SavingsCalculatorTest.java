@@ -1,5 +1,7 @@
 package com.vmturbo.cost.component.savings;
 
+import static org.mockito.Mockito.mock;
+
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.text.ParseException;
@@ -8,10 +10,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.math.DoubleMath;
@@ -19,14 +23,11 @@ import com.google.gson.Gson;
 import com.google.gson.stream.JsonReader;
 
 import org.apache.commons.collections4.MultiValuedMap;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 import org.jooq.DSLContext;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
-import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;
 import com.vmturbo.cost.component.savings.EventInjector.ScriptEvent;
@@ -55,11 +56,12 @@ public class SavingsCalculatorTest {
     @Ignore
     @Test
     public void entityRemoved() throws FileNotFoundException, ParseException {
-        EntityStateStore entityStateStore = new SqlEntityStateStore(Mockito.mock(DSLContext.class), 1000);
+        EntityStateStore entityStateStore = new SqlEntityStateStore(mock(DSLContext.class), 1000);
         EntityEventsJournal entityEventsJournal = new InMemoryEntityEventsJournal();
         EntitySavingsStore entitySavingsStore = new SavingsCapture();
+        AuditLogWriter auditLogWriter = mock(AuditLogWriter.class);
         EntitySavingsTracker tracker = new EntitySavingsTracker(entitySavingsStore,
-                entityEventsJournal, entityStateStore, Clock.systemUTC());
+                entityEventsJournal, entityStateStore, Clock.systemUTC(), auditLogWriter);
         // Inject some events
         addTestEvents("src/test/resources/savings/unit-test.json", entityEventsJournal);
         tracker.processEvents(roundTime(entityEventsJournal.getNewestEventTime(), true).getTimeInMillis()
@@ -137,7 +139,7 @@ public class SavingsCalculatorTest {
         }
 
         @Override
-        public void addHourlyStats(@NotNull Set<EntitySavingsStats> hourlyStats)
+        public void addHourlyStats(@Nonnull Set<EntitySavingsStats> hourlyStats)
                 throws EntitySavingsException {
             stats.addAll(hourlyStats);
         }
@@ -146,20 +148,56 @@ public class SavingsCalculatorTest {
             return this.stats;
         }
 
-        @NotNull
+        @Nonnull
         @Override
-        public Set<AggregatedSavingsStats> getHourlyStats(
-                @NotNull Set<EntitySavingsStatsType> statsTypes, @NotNull Long startTime,
-                @NotNull Long endTime, @NotNull MultiValuedMap<EntityType, Long> entitiesByType)
+        public List<AggregatedSavingsStats> getHourlyStats(
+                @Nonnull Set<EntitySavingsStatsType> statsTypes, @Nonnull Long startTime,
+                @Nonnull Long endTime, @Nonnull MultiValuedMap<EntityType, Long> entitiesByType)
                 throws EntitySavingsException {
             // Not used.
-            return new HashSet<>();
+            return new ArrayList<>();
+        }
+
+        @Nonnull
+        @Override
+        public List<AggregatedSavingsStats> getDailyStats(
+                @Nonnull Set<EntitySavingsStatsType> statsTypes, @Nonnull Long startTime,
+                @Nonnull Long endTime, @Nonnull MultiValuedMap<EntityType, Long> entitiesByType)
+                throws EntitySavingsException {
+            // Not used.
+            return new ArrayList<>();
+        }
+
+        @Nonnull
+        @Override
+        public List<AggregatedSavingsStats> getMonthlyStats(
+                @Nonnull Set<EntitySavingsStatsType> statsTypes, @Nonnull Long startTime,
+                @Nonnull Long endTime, @Nonnull MultiValuedMap<EntityType, Long> entitiesByType)
+                throws EntitySavingsException {
+            // Not used.
+            return new ArrayList<>();
         }
 
         @Nullable
         @Override
         public Long getMaxStatsTime() {
             return null;
+        }
+
+        @Nonnull
+        @Override
+        public LastRollupTimes getLastRollupTimes() {
+            return null;
+        }
+
+        @Override
+        public void setLastRollupTimes(@Nonnull LastRollupTimes rollupTimes) {
+
+        }
+
+        @Override
+        public void performRollup(@Nonnull RollupTimeInfo rollupTimeInfo) {
+
         }
     }
 }

@@ -91,7 +91,8 @@ public class EntitySavingsTrackerTest {
         when(entityEventsJournal.removeEventsBetween(time1100am, time1200pm)).thenReturn(eventsByPeriod.get(time1100am));
         entitySavingsStore = mock(EntitySavingsStore.class);
         EntityStateStore entityStateStore = mock(SqlEntityStateStore.class);
-        tracker = spy(new EntitySavingsTracker(entitySavingsStore, entityEventsJournal, entityStateStore, Clock.systemUTC()));
+        tracker = spy(new EntitySavingsTracker(entitySavingsStore, entityEventsJournal,
+                entityStateStore, Clock.systemUTC(), mock(AuditLogWriter.class)));
 
         Set<EntityState> stateSet = ImmutableSet.of(
                 createEntityState(vm1Id, 2d, null, null, null),

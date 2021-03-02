@@ -9,7 +9,10 @@ public class EntitySavingsProcessorTest {
 
     private EntitySavingsTracker entitySavingsTracker = Mockito.mock(EntitySavingsTracker.class);
 
-    private EntitySavingsProcessor entitySavingsProcessor = new EntitySavingsProcessor(entitySavingsTracker, topologyEventsPoller);
+    private RollupSavingsProcessor rollupSavingsProcessor = Mockito.mock(RollupSavingsProcessor.class);
+
+    private EntitySavingsProcessor entitySavingsProcessor = new EntitySavingsProcessor(
+            entitySavingsTracker, topologyEventsPoller, rollupSavingsProcessor);
 
     @Test
     public void testExecute() {

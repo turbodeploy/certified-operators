@@ -1,10 +1,13 @@
 package com.vmturbo.cost.component.savings;
 
+import java.time.Clock;
+import java.time.LocalTime;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.DSLContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -70,6 +73,11 @@ public class EntitySavingsConfig {
 
     @Autowired
     private ActionOrchestratorClientConfig aoClientConfig;
+
+    /**
+     * How long (minutes) after the hour mark to run the periodic hourly processor task.
+     */
+    private static final int startMinuteMark = 5;
 
     /**
      * Return whether entity savings tracking is enabled.
@@ -150,7 +158,7 @@ public class EntitySavingsConfig {
     @Bean
     public EntitySavingsTracker entitySavingsTracker() {
         return new EntitySavingsTracker(entitySavingsStore(), entityEventsJournal(), entityStateStore(),
-                costComponentGlobalConfig.clock());
+                getClock(), auditLogWriter());
     }
 
     /**
@@ -161,17 +169,35 @@ public class EntitySavingsConfig {
     @Bean
     public EntitySavingsProcessor entitySavingsProcessor() {
         EntitySavingsProcessor entitySavingsProcessor =
-                new EntitySavingsProcessor(entitySavingsTracker(), topologyEventsPoller());
+                new EntitySavingsProcessor(entitySavingsTracker(), topologyEventsPoller(),
+                        rollupSavingsProcessor());
 
         if (isEnabled()) {
-            logger.info("EntitySavingsProcessor is enabled.");
-            Executors.newSingleThreadScheduledExecutor().scheduleWithFixedDelay(
-                    entitySavingsProcessor::execute, 0, 1, TimeUnit.HOURS);
+            int initialDelayMinutes = getInitialStartDelayMinutes();
+            Executors.newSingleThreadScheduledExecutor().scheduleAtFixedRate(
+                    entitySavingsProcessor::execute, initialDelayMinutes, 60, TimeUnit.MINUTES);
+            logger.info("EntitySavingsProcessor is enabled, will run at hour+{} min, after {} mins.",
+                    startMinuteMark, initialDelayMinutes);
         } else {
             logger.info("EntitySavingsProcessor is disabled.");
         }
 
         return entitySavingsProcessor;
+    }
+
+    /**
+     * Gets how many minutes to wait from now before triggering off the entity savings processor
+     * task the first time. E.g if current time is 10:48, then we wait 17 mins, so that the
+     * savings processor kicks off at 11:05, and every hour after that.
+     *
+     * @return Minutes to wait.
+     */
+    int getInitialStartDelayMinutes() {
+        final LocalTime now = LocalTime.now();
+        int currentMinute = now.getMinute();
+        return currentMinute <= startMinuteMark
+                ? (startMinuteMark - currentMinute)
+                : (60 - currentMinute + startMinuteMark);
     }
 
     /**
@@ -181,7 +207,7 @@ public class EntitySavingsConfig {
      */
     @Bean
     public EntitySavingsStore entitySavingsStore() {
-        return new SqlEntitySavingsStore(databaseConfig.dsl(), costComponentGlobalConfig.clock(),
+        return new SqlEntitySavingsStore(getDslContext(), getClock(),
                 persistEntityCostChunkSize);
     }
 
@@ -225,5 +251,44 @@ public class EntitySavingsConfig {
         EventInjector injector = new EventInjector(entitySavingsTracker(), entityEventsJournal());
         injector.start();
         return injector;
+    }
+
+    /**
+     * Get instance of rollup processor.
+     *
+     * @return Rollup processor.
+     */
+    @Bean
+    public RollupSavingsProcessor rollupSavingsProcessor() {
+        return new RollupSavingsProcessor(entitySavingsStore(), getClock());
+    }
+
+    /**
+     * Gets the audit log writer.
+     *
+     * @return Audit log writer.
+     */
+    @Bean
+    public AuditLogWriter auditLogWriter() {
+        return new SqlAuditLogWriter(getDslContext(), getClock(),
+                persistEntityCostChunkSize);
+    }
+
+    /**
+     * DB DSL context.
+     *
+     * @return DSL context.
+     */
+    DSLContext getDslContext() {
+        return databaseConfig.dsl();
+    }
+
+    /**
+     * Gets UTC clock to use.
+     *
+     * @return Clock.
+     */
+    Clock getClock() {
+        return costComponentGlobalConfig.clock();
     }
 }

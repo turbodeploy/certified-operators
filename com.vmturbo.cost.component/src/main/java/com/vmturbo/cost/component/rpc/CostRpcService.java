@@ -884,7 +884,7 @@ public class CostRpcService extends CostServiceImplBase {
             // Currently entities are assumed to be only VMs, later sprints will add more support.
             entitiesByType.putAll(EntityType.VIRTUAL_MACHINE, entityIds);
 
-            final Set<AggregatedSavingsStats> stats = entitySavingsStore.getHourlyStats(statsTypes,
+            final List<AggregatedSavingsStats> stats = entitySavingsStore.getHourlyStats(statsTypes,
                     request.getStartDate(), request.getEndDate(), entitiesByType);
 
             final Set<EntitySavingsStatsRecord> records = createSavingsStatsRecords(stats);
@@ -904,7 +904,7 @@ public class CostRpcService extends CostServiceImplBase {
      * @return Stats records, each with VM id and timestamp, having all stats type as records.
      */
     private Set<EntitySavingsStatsRecord> createSavingsStatsRecords(
-            @Nonnull final Set<AggregatedSavingsStats> stats) {
+            @Nonnull final List<AggregatedSavingsStats> stats) {
         // Group stats by timestamp.
         final Map<Long, List<AggregatedSavingsStats>> groupedStats =
                 stats.stream()

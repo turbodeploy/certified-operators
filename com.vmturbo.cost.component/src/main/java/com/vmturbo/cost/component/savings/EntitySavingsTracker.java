@@ -2,7 +2,9 @@ package com.vmturbo.cost.component.savings;
 
 import java.text.SimpleDateFormat;
 import java.time.Clock;
+import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
@@ -41,35 +43,43 @@ public class EntitySavingsTracker {
 
     private final SavingsCalculator savingsCalculator;
 
+    private final AuditLogWriter auditLogWriter;
+
     private Calendar lastPeriodEndTime;
 
-    private TimeZone timeZone;
+    private final TimeZone timeZone;
 
     /**
      * Constructor.
      *
      * @param entitySavingsStore entitySavingsStore
      * @param entityEventsJournal entityEventsJournal
-     * @param entityStateStore entityStateCache
+     * @param entityStateStore Persistent state store.
      * @param clock clock
+     * @param auditLogWriter Audit log writer helper.
      */
     EntitySavingsTracker(@Nonnull EntitySavingsStore entitySavingsStore,
                          @Nonnull EntityEventsJournal entityEventsJournal,
                          @Nonnull EntityStateStore entityStateStore,
-                         @Nonnull final Clock clock) {
+                         @Nonnull final Clock clock,
+                         @Nonnull AuditLogWriter auditLogWriter) {
         this.entitySavingsStore = Objects.requireNonNull(entitySavingsStore);
         this.entityEventsJournal = Objects.requireNonNull(entityEventsJournal);
         this.entityStateStore = Objects.requireNonNull(entityStateStore);
         this.savingsCalculator = new SavingsCalculator();
         timeZone = TimeZone.getTimeZone(clock.getZone());
+        this.auditLogWriter = auditLogWriter;
     }
 
     /**
      * Process events posted to the internal state of each entity whose savings/investments are
      * being tracked.
+     *
+     * @return List of times to the hour mark for which we have wrote stats this time, so these
+     *      hours are now eligible for daily and monthly rollups, if applicable.
      */
-    void processEvents() {
-        processEvents(getCurrentTime());
+    List<Long> processEvents() {
+        return processEvents(getCurrentTime());
     }
 
     /**
@@ -77,17 +87,21 @@ public class EntitySavingsTracker {
      * being tracked.  Processing will stop at the supplied time.
      *
      * @param end current time in milliseconds indicating when to stop generating savings entries.
+     * @return List of times to the hour mark for which we have wrote stats this time, so these
+     *      hours are now eligible for daily and monthly rollups, if applicable.
      */
-    void processEvents(long end) {
+    @Nonnull
+    List<Long> processEvents(long end) {
         logger.debug("Processing savings/investment.");
 
         Calendar periodStartTime = getPeriodStartTime();
         if (periodStartTime == null) {
             logger.debug("There are no events in event journal and there are no states in states map. "
                     + "Events tracker has nothing to process.");
-            return;
+            return Collections.emptyList();
         }
 
+        final List<Long> hourlyStatsTimes = new ArrayList<>();
         // Set period end time to 1 hour after start time.
         Calendar periodEndTime = Calendar.getInstance(timeZone);
         periodEndTime.setTime(periodStartTime.getTime());
@@ -130,6 +144,7 @@ public class EntitySavingsTracker {
                 // Update entity states. Also insert new states to track new entities.
                 entityStateStore.updateEntityStates(entityStates);
 
+                auditLogWriter.write(events);
                 try {
                     // create stats records from state map for this period.
                     generateStats(startTime);
@@ -159,7 +174,9 @@ public class EntitySavingsTracker {
             logger.error("Operation error in entity state store.", e);
         }
 
-        logger.debug("Savings/investment processing complete.");
+        logger.debug("Savings/investment processing complete for {} hourly times.",
+                hourlyStatsTimes);
+        return hourlyStatsTimes;
     }
 
     /**
