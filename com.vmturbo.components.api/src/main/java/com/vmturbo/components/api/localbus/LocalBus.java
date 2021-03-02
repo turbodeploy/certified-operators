@@ -5,8 +5,10 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -18,7 +20,6 @@ import com.google.protobuf.AbstractMessage;
 
 import io.opentracing.SpanContext;
 
-import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.client.Deserializer;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.client.IMessageReceiverFactory;
@@ -147,8 +148,15 @@ public class LocalBus implements IMessageSenderFactory, IMessageReceiverFactory 
         }
 
         @Override
-        public void sendMessage(@Nonnull final T serverMsg) throws CommunicationException, InterruptedException {
+        public void sendMessage(@Nonnull final T serverMsg) {
             localBusTopic.sendMessage(serverMsg);
+        }
+
+        @Override
+        public Future<?> sendMessageAsync(@Nonnull T serverMsg) {
+            // delegate to sendMessage for LocalBus
+            sendMessage(serverMsg);
+            return CompletableFuture.completedFuture(null);
         }
 
         @Override
