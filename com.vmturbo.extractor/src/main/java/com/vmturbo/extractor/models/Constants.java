@@ -90,6 +90,7 @@ public class Constants {
                     .add(CommodityType.VMEM_REQUEST_QUOTA)
                     .add(CommodityType.VSTORAGE)
                     .add(CommodityType.TOTAL_SESSIONS)
+                    .add(CommodityType.DTU)
                     .build();
 
     /**
