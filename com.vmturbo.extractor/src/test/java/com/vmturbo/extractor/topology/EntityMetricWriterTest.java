@@ -54,10 +54,12 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 
 import java.io.IOException;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
@@ -144,8 +146,10 @@ public class EntityMetricWriterTest {
     private List<Record> entitiesUpdateCapture;
     private List<Record> metricInsertCapture;
     private List<Record> wastedFileReplacerCapture;
+    private List<Grouping> allGroups = new ArrayList<>();
     private WriterConfig config;
     private static final ObjectMapper objectMapper = new ObjectMapper();
+    private ScopeManager scopeManager;
 
     /**
      * Set up for tests.
@@ -191,9 +195,10 @@ public class EntityMetricWriterTest {
         final DataPack<Long> oidPack = new LongDataPack();
         final EntityHashManager entityHashManager = new EntityHashManager(new LongDataPack(), config);
         entityHashManager.injectPriorTopology();
+        this.scopeManager = mock(ScopeManager.class);
         this.writer = spy(new EntityMetricWriter(endpoint,
                 entityHashManager,
-                mock(ScopeManager.class), oidPack,
+                scopeManager, oidPack,
                 Executors.newSingleThreadScheduledExecutor()));
         doReturn(entitiesUpserterSink).when(writer).getEntityUpsertSink(
                 any(), any());
@@ -201,7 +206,7 @@ public class EntityMetricWriterTest {
         doReturn(metricInserterSink).when(writer).getMetricInserterSink();
         // note that EntityMetricWriter consumes groups multiple times, so we need to
         // construct a new stream each time.
-        doAnswer(i -> Stream.empty()).when(dataProvider).getAllGroups();
+        doAnswer(i -> allGroups.stream()).when(dataProvider).getAllGroups();
         doReturn(wastedFileReplacerSink).when(writer).getWastedFileReplacerSink();
         LongSet relatedEntities = new LongOpenHashSet();
         doReturn(relatedEntities).when(dataProvider).getRelatedEntities(anyLong());
@@ -744,4 +749,22 @@ public class EntityMetricWriterTest {
             assertThat(record.get(STORAGE_NAME), is(storageById.get(storageId).getDisplayName()));
         }
     }
+
+    /**
+     * Check that groups are added to their own scope.
+     *
+     * @throws UnsupportedDialectException if misconfigured db endpoint
+     * @throws InterruptedException        if interrupted
+     * @throws SQLException                if db error
+     * @throws IOException                 if other IO error
+     */
+    @Test
+    public void testGroupsHaveReflexiveScope() throws UnsupportedDialectException, InterruptedException, SQLException, IOException {
+        allGroups.add(Grouping.newBuilder().setId(1L).build());
+        setupWriterAndSinks(Collections.emptyList(), Collections.emptyMap());
+        writer.startTopology(info, config, timer);
+        writer.finish(dataProvider);
+        verify(scopeManager).addInCurrentScope(1L, 1L);
+    }
+
 }
