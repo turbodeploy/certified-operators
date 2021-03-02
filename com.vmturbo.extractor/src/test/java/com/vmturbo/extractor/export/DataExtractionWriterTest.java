@@ -5,6 +5,7 @@ import static com.vmturbo.extractor.util.TopologyTestUtil.boughtCommoditiesFromP
 import static com.vmturbo.extractor.util.TopologyTestUtil.mkEntity;
 import static com.vmturbo.extractor.util.TopologyTestUtil.soldCommodities;
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.CPU;
+import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.DTU;
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.MEM;
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.Q1_VCPU;
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.Q2_VCPU;
@@ -143,7 +144,8 @@ public class DataExtractionWriterTest {
         final TopologyEntityDTO st1 = mkEntity(STORAGE).toBuilder()
                 .addAllCommoditySoldList(soldCommodities(
                         Quintet.with(STORAGE_ACCESS, "", 2500.0, 5000.0, null),
-                        Quintet.with(STORAGE_AMOUNT, "", 2048.0, 4096.0, null)
+                        Quintet.with(STORAGE_AMOUNT, "", 2048.0, 4096.0, null),
+                        Quintet.with(DTU, "", 1234.0, 2468.0, null)
                 )).build();
         final TopologyEntityDTO st2 = mkEntity(STORAGE).toBuilder()
                 .addAllCommoditySoldList(soldCommodities(
@@ -291,13 +293,16 @@ public class DataExtractionWriterTest {
         assertThat(pmEntity.getMetric().get(MetricType.Q2_VCPU.getLiteral()).getUtilization(), is(0.02));
 
         // st1 sold
-        assertThat(stEntity1.getMetric().size(), is(2));
+        assertThat(stEntity1.getMetric().size(), is(3));
         assertThat(stEntity1.getMetric().get(MetricType.STORAGE_ACCESS.getLiteral()).getCurrent(), is(2500.0));
         assertThat(stEntity1.getMetric().get(MetricType.STORAGE_ACCESS.getLiteral()).getCapacity(), is(5000.0));
         assertThat(stEntity1.getMetric().get(MetricType.STORAGE_ACCESS.getLiteral()).getUtilization(), is(0.5));
         assertThat(stEntity1.getMetric().get(MetricType.STORAGE_AMOUNT.getLiteral()).getCurrent(), is(2048.0));
         assertThat(stEntity1.getMetric().get(MetricType.STORAGE_AMOUNT.getLiteral()).getCapacity(), is(4096.0));
         assertThat(stEntity1.getMetric().get(MetricType.STORAGE_AMOUNT.getLiteral()).getUtilization(), is(0.5));
+        assertThat(stEntity1.getMetric().get(MetricType.DTU.getLiteral()).getCurrent(), is(1234.0));
+        assertThat(stEntity1.getMetric().get(MetricType.DTU.getLiteral()).getCapacity(), is(2468.0));
+        assertThat(stEntity1.getMetric().get(MetricType.DTU.getLiteral()).getUtilization(), is(0.5));
 
         // st2 sold
         assertThat(stEntity2.getMetric().size(), is(2));
