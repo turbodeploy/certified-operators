@@ -57,7 +57,7 @@ public class StorageTierConverter implements TierConverter {
             @Nonnull TopologyEntityDTO storageTier,
             @Nonnull Map<Long, TopologyEntityDTO> topology,
             @Nonnull Set<TopologyEntityDTO> businessAccounts,
-            @Nonnull Set<AccountPricingData<TopologyEntityDTO>> uniqueAccountPricingData) {
+            @Nonnull AccountPricingData accountPricingData) {
         Map<TraderTO.Builder, MarketTier> traderTOs = new HashMap<>();
         List<TopologyEntityDTO> connectedRegions = TopologyDTOUtil.getConnectedEntitiesOfType(
                 storageTier, EntityType.REGION_VALUE, topology);
@@ -76,7 +76,7 @@ public class StorageTierConverter implements TierConverter {
                 .setQuoteFunction(QuoteFunctionDTO.newBuilder()
                         .setRiskBased(RiskBased.newBuilder()
                                 .setCloudCost(costDTOCreator.createStorageTierCostDTO(
-                                        storageTier, connectedRegions, uniqueAccountPricingData)).build()))
+                                        storageTier, connectedRegions, accountPricingData)).build()))
                 .setQuoteFactor(1)
                 .build();
 

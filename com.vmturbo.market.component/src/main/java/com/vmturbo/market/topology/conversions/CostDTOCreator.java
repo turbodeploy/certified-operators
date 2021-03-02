@@ -17,6 +17,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Multimap;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -87,16 +88,16 @@ public class CostDTOCreator {
      *
      * @param tier is topology entity DTO representation of the tier.
      * @param regions list of region topology entity DTOs.
-     * @param uniqueAccountPricingData The unique set of pricing in the topology.
+     * @param accountPricingData The account pricing data the tier is scoped to.
      *
      * @return CostDTO
      */
     public CostDTO createCostDTO(TopologyEntityDTO tier, List<TopologyEntityDTO> regions,
-            Set<AccountPricingData<TopologyEntityDTO>> uniqueAccountPricingData) {
+            AccountPricingData accountPricingData) {
         if (tier.getEntityType() == EntityType.COMPUTE_TIER_VALUE) {
-            return createComputeTierCostDTO(tier, regions, uniqueAccountPricingData);
+            return createComputeTierCostDTO(tier, regions, accountPricingData);
         } else {
-            return createDatabaseTierCostDTO(tier, regions, uniqueAccountPricingData);
+            return createDatabaseTierCostDTO(tier, regions, accountPricingData);
         }
     }
 
@@ -105,66 +106,65 @@ public class CostDTOCreator {
      *
      * @param tier the compute tier topology entity DTO.
      * @param regions list of region topology entity DTOs.
-     * @param uniqueAccountPricingData The set of unique account pricing data.
+     * @param accountPricingData The set of unique account pricing data.
      *
      * @return CostDTO
      */
     public CostDTO createComputeTierCostDTO(TopologyEntityDTO tier, List<TopologyEntityDTO> regions,
-                                            Set<AccountPricingData<TopologyEntityDTO>> uniqueAccountPricingData) {
+                                            AccountPricingData accountPricingData) {
         ComputeTierCostDTO.Builder computeTierDTOBuilder = ComputeTierCostDTO.newBuilder();
-        for (AccountPricingData accountPricingData : uniqueAccountPricingData) {
-            for (TopologyEntityDTO region: regions) {
-                CloudRateExtractor.ComputePriceBundle priceBundle = marketCloudRateExtractor.getComputePriceBundle(tier, region.getOid(), accountPricingData);
-                Map<Long, Map<OSType, ComputePrice>> computePrices = Maps.newHashMap();
-                priceBundle.getPrices().forEach(price ->
-                        computePrices.computeIfAbsent(price.accountId(), ba -> Maps.newHashMap())
-                                .computeIfAbsent(price.osType(), os -> price));
-                Set<CommodityType> licenseCommoditySet = tier.getCommoditySoldListList().stream()
-                        .filter(c -> c.getCommodityType().getType() == CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE)
-                        .map(CommoditySoldDTO::getCommodityType)
-                        .collect(Collectors.toSet());
+        for (TopologyEntityDTO region: regions) {
+            CloudRateExtractor.ComputePriceBundle priceBundle = marketCloudRateExtractor.getComputePriceBundle(tier, region.getOid(), accountPricingData);
+            Map<Long, Map<OSType, ComputePrice>> computePrices = Maps.newHashMap();
+            priceBundle.getPrices().forEach(price ->
+                    computePrices.computeIfAbsent(price.accountId(), ba -> Maps.newHashMap())
+                            .computeIfAbsent(price.osType(), os -> price));
+            Set<CommodityType> licenseCommoditySet = tier.getCommoditySoldListList().stream()
+                    .filter(c -> c.getCommodityType().getType() == CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE)
+                    .map(CommoditySoldDTO::getCommodityType)
+                    .collect(Collectors.toSet());
 
-                Map<OSType, ComputePrice> pricesForBa = computePrices.get(accountPricingData.getAccountPricingDataOid());
-                if (pricesForBa == null) {
-                    logger.warn("Cost not found for tier {} - region {} - AccountPricingDataOid {}",
-                            tier.getDisplayName(), region.getDisplayName(), accountPricingData.getAccountPricingDataOid());
-                }
-                for (CommodityType licenseCommodity : licenseCommoditySet) {
-                    double price = Double.POSITIVE_INFINITY;
-                    if (pricesForBa != null) {
-                        OSType osType = CloudRateExtractor.OS_TYPE_MAP.get(licenseCommodity.getKey());
-                        if (osType != null) {
-                            ComputePrice computePrice = pricesForBa.get(osType);
-                            if (computePrice != null) {
-                                price = computePrice.hourlyPrice();
-                                // If the price is a base price, then add this as a cost tuple with
-                                // license commodity id -1. Base price is usually the cost of the tier
-                                // with LINUX OS. Inside the analysis library, we use this price if the
-                                // license the VM is looking for is not found in the costMap. (Although
-                                // this should not happen, it is more of a safety mechanism)
-                                if (computePrice.isBasePrice()) {
-                                    computeTierDTOBuilder.addCostTupleList(createCostTuple(
-                                            accountPricingData.getAccountPricingDataOid(), -1,
-                                            price, region.getOid(), Collections.emptyList()));
-                                }
-                            } else {
-                                logger.warn("Tier {} - region {} sells license {}, but market has no" +
-                                        " mapping for this license.", tier.getDisplayName(),
-                                        region.getDisplayName(), licenseCommodity.getKey());
+            Map<OSType, ComputePrice> pricesForBa = computePrices.get(accountPricingData.getAccountPricingDataOid());
+            if (pricesForBa == null) {
+                logger.debug("Cost not found for tier {} - region {} - AccountPricingDataOid {}",
+                        tier.getDisplayName(), region.getDisplayName(), accountPricingData.getAccountPricingDataOid());
+            }
+            for (CommodityType licenseCommodity : licenseCommoditySet) {
+                double price = Double.POSITIVE_INFINITY;
+                if (pricesForBa != null) {
+                    OSType osType = CloudRateExtractor.OS_TYPE_MAP.get(licenseCommodity.getKey());
+                    if (osType != null) {
+                        ComputePrice computePrice = pricesForBa.get(osType);
+                        if (computePrice != null) {
+                            price = computePrice.hourlyPrice();
+                            // If the price is a base price, then add this as a cost tuple with
+                            // license commodity id -1. Base price is usually the cost of the tier
+                            // with LINUX OS. Inside the analysis library, we use this price if the
+                            // license the VM is looking for is not found in the costMap. (Although
+                            // this should not happen, it is more of a safety mechanism)
+                            if (computePrice.isBasePrice()) {
+                                computeTierDTOBuilder.addCostTupleList(createCostTuple(
+                                        accountPricingData.getAccountPricingDataOid(), -1,
+                                        price, region.getOid(), Collections.emptyList()));
                             }
+                        } else {
+                            logger.warn("Tier {} - region {} sells license {}, but market has no" +
+                                    " mapping for this license.", tier.getDisplayName(),
+                                    region.getDisplayName(), licenseCommodity.getKey());
                         }
-                        CommoditySpecificationTO spec = commodityConverter
-                                .commoditySpecification(licenseCommodity);
-                        computeTierDTOBuilder
-                                .addCostTupleList(CostTuple.newBuilder()
-                                        .setBusinessAccountId(accountPricingData.getAccountPricingDataOid())
-                                        .setRegionId(region.getOid())
-                                        .setLicenseCommodityType(spec.getType())
-                                        .setPrice(price));
                     }
+                    CommoditySpecificationTO spec = commodityConverter
+                            .commoditySpecification(licenseCommodity);
+                    computeTierDTOBuilder
+                            .addCostTupleList(CostTuple.newBuilder()
+                                    .setBusinessAccountId(accountPricingData.getAccountPricingDataOid())
+                                    .setRegionId(region.getOid())
+                                    .setLicenseCommodityType(spec.getType())
+                                    .setPrice(price));
                 }
             }
         }
+
         createComputeResourceDependency(tier)
                 .map(computeTierDTOBuilder::addComputeResourceDepedency);
 
@@ -203,97 +203,95 @@ public class CostDTOCreator {
      *
      * @param tier the database tier topology entity DTO
      * @param regions the regions topology entity DTO
-     * @param uniqueAccountPricingData The set of unique account pricing data.
+     * @param accountPricingData The account Pricing Data the tier is scoped to.
      *
      * @return CostDTO
      */
     @VisibleForTesting
     CostDTO createDatabaseTierCostDTO(TopologyEntityDTO tier, List<TopologyEntityDTO> regions,
-                                             Set<AccountPricingData<TopologyEntityDTO>> uniqueAccountPricingData) {
+                                             AccountPricingData accountPricingData) {
         DatabaseTierCostDTO.Builder dbTierDTOBuilder = DatabaseTierCostDTO.newBuilder();
-        for (AccountPricingData accountPricingData : uniqueAccountPricingData) {
-            for (TopologyEntityDTO region: regions) {
-                DatabasePriceBundle priceBundle = marketCloudRateExtractor.getDatabasePriceBundle(tier.getOid(),
-                        region.getOid(), accountPricingData);
-                Set<CommodityType> licenseCommoditySet = tier.getCommoditySoldListList().stream()
-                        .filter(c -> c.getCommodityType().getType() == CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE)
-                        .map(CommoditySoldDTO::getCommodityType)
-                        .collect(Collectors.toSet());
+        for (TopologyEntityDTO region: regions) {
+            DatabasePriceBundle priceBundle = marketCloudRateExtractor.getDatabasePriceBundle(tier.getOid(),
+                    region.getOid(), accountPricingData);
+            Set<CommodityType> licenseCommoditySet = tier.getCommoditySoldListList().stream()
+                    .filter(c -> c.getCommodityType().getType() == CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE)
+                    .map(CommoditySoldDTO::getCommodityType)
+                    .collect(Collectors.toSet());
 
-                Map<Long, Map<String, DatabasePrice>> databasePriceMap = Maps.newHashMap();
-                priceBundle.getPrices().forEach(price ->
-                        databasePriceMap.computeIfAbsent(price.getAccountId(), ba -> Maps.newHashMap())
-                                .computeIfAbsent(price.toString(), id -> price));
-                Optional<CommodityType> dataCenterAccessCommodity = Optional.ofNullable(region.getCommoditySoldListList()
-                        .get(0).getCommodityType());
+            Map<Long, Map<String, DatabasePrice>> databasePriceMap = Maps.newHashMap();
+            priceBundle.getPrices().forEach(price ->
+                    databasePriceMap.computeIfAbsent(price.getAccountId(), ba -> Maps.newHashMap())
+                            .computeIfAbsent(price.toString(), id -> price));
+            Optional<CommodityType> dataCenterAccessCommodity = Optional.ofNullable(region.getCommoditySoldListList()
+                    .get(0).getCommodityType());
 
-                Map<String, DatabasePrice> pricesForBa = databasePriceMap.get(accountPricingData.getAccountPricingDataOid());
-                if (pricesForBa == null) {
-                    logger.warn("Cost not found for tier {} - region {} - AccountPricingDataOid {}",
-                            tier.getDisplayName(), region.getDisplayName(), accountPricingData.getAccountPricingDataOid());
-                    continue;
-                }
-                for (CommodityType licenseCommodity : licenseCommoditySet) {
-                    double price = Double.POSITIVE_INFINITY;
-                    String licenseId = licenseCommodity.getKey();
-                    // Keeps the storage options of the Azure DB tiers
-                    List<StorageOption> storageOptions = new ArrayList<>();
-                    // we support just LicenseIncluded and NoLicenseRequired
-                    if (licenseId.contains(LICENSE_MODEL_MAP.get(LicenseModel.LICENSE_INCLUDED))
-                            || licenseId.contains(LICENSE_MODEL_MAP.get(LicenseModel.NO_LICENSE_REQUIRED))) {
-                        licenseId = licenseId.replace(LICENSE_MODEL_MAP.get(LicenseModel.LICENSE_INCLUDED), "");
-                        licenseId = licenseId.replace(LICENSE_MODEL_MAP.get(LicenseModel.NO_LICENSE_REQUIRED), "");
-                        // lookup for license without LicenseModel in the priceMap
-                        DatabasePrice databasePrice = pricesForBa.get(licenseId);
-                        if (databasePrice != null) {
-                            price = databasePrice.getHourlyPrice();
-                            storageOptions.addAll(databasePrice.getStorageOptions());
-                        } else {
-                            // MULTL-AZ licenses are going to be given INFINITE cost
-                            logger.trace("Cost not found for tier {} - region {} - AccountPricingDataOid {} - license {}",
-                                tier.getDisplayName(), region.getDisplayName(),
-                                accountPricingData.getAccountPricingDataOid(), licenseId);
-                        }
-                    } else {
-                        // License is for BYOL, return INFINITE price
-                        if (logger.isTraceEnabled()) {
-                            logger.trace("Returning INFINITE price for {} license sold by tier {} - region {}",
-                                    licenseId, tier.getDisplayName(), region.getDisplayName());
-                        }
-                    }
-                    // Add storage options for Azure DB tiers
-                    List<DependentCostTuple> dependentCostTuples = new ArrayList<>();
-                    if (!storageOptions.isEmpty()) {
-                        List<DependentResourceOption> dependentResourceOptions = new ArrayList<>();
-                        storageOptions.forEach(storageOption -> {
-                            dependentResourceOptions.add(
-                                    convertStorageOptionToResourceOption(storageOption));
-                        });
-                        dependentCostTuples.add(DependentCostTuple.newBuilder()
-                                .setDependentResourceType(commodityConverter.commoditySpecification(
-                                        CommodityType.newBuilder()
-                                                .setType(
-                                                        CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE)
-                                                .build()).getType())
-                                .addAllDependentResourceOptions(dependentResourceOptions)
-                                .build());
-                        CommoditySpecificationTO spec =
-                                commodityConverter.commoditySpecification(licenseCommodity);
-                        dbTierDTOBuilder.addCostTupleList(
-                                createCostTuple(accountPricingData.getAccountPricingDataOid(), spec.getType(), price, region.getOid(),
-                                        dependentCostTuples));
-                    } else {
-                        logger.debug("Storage Options are empty for {}, {}", tier.getDisplayName(), region.getDisplayName());
-                    }
-
-                }
-                // price when license isn't available
-                dbTierDTOBuilder.addCostTupleList(CostTuple.newBuilder()
-                        .setBusinessAccountId(accountPricingData.getAccountPricingDataOid())
-                        .setLicenseCommodityType(-1)
-                        .setRegionId(region.getOid())
-                        .setPrice(Double.POSITIVE_INFINITY));
+            Map<String, DatabasePrice> pricesForBa = databasePriceMap.get(accountPricingData.getAccountPricingDataOid());
+            if (pricesForBa == null) {
+                logger.debug("Cost not found for tier {} - region {} - AccountPricingDataOid {}",
+                        tier.getDisplayName(), region.getDisplayName(), accountPricingData.getAccountPricingDataOid());
+                continue;
             }
+            for (CommodityType licenseCommodity : licenseCommoditySet) {
+                double price = Double.POSITIVE_INFINITY;
+                String licenseId = licenseCommodity.getKey();
+                // Keeps the storage options of the Azure DB tiers
+                List<StorageOption> storageOptions = new ArrayList<>();
+                // we support just LicenseIncluded and NoLicenseRequired
+                if (licenseId.contains(LICENSE_MODEL_MAP.get(LicenseModel.LICENSE_INCLUDED))
+                        || licenseId.contains(LICENSE_MODEL_MAP.get(LicenseModel.NO_LICENSE_REQUIRED))) {
+                    licenseId = licenseId.replace(LICENSE_MODEL_MAP.get(LicenseModel.LICENSE_INCLUDED), "");
+                    licenseId = licenseId.replace(LICENSE_MODEL_MAP.get(LicenseModel.NO_LICENSE_REQUIRED), "");
+                    // lookup for license without LicenseModel in the priceMap
+                    DatabasePrice databasePrice = pricesForBa.get(licenseId);
+                    if (databasePrice != null) {
+                        price = databasePrice.getHourlyPrice();
+                        storageOptions.addAll(databasePrice.getStorageOptions());
+                    } else {
+                        // MULTL-AZ licenses are going to be given INFINITE cost
+                        logger.trace("Cost not found for tier {} - region {} - AccountPricingDataOid {} - license {}",
+                            tier.getDisplayName(), region.getDisplayName(),
+                            accountPricingData.getAccountPricingDataOid(), licenseId);
+                    }
+                } else {
+                    // License is for BYOL, return INFINITE price
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("Returning INFINITE price for {} license sold by tier {} - region {}",
+                                licenseId, tier.getDisplayName(), region.getDisplayName());
+                    }
+                }
+                // Add storage options for Azure DB tiers
+                List<DependentCostTuple> dependentCostTuples = new ArrayList<>();
+                if (!storageOptions.isEmpty()) {
+                    List<DependentResourceOption> dependentResourceOptions = new ArrayList<>();
+                    storageOptions.forEach(storageOption -> {
+                        dependentResourceOptions.add(
+                                convertStorageOptionToResourceOption(storageOption));
+                    });
+                    dependentCostTuples.add(DependentCostTuple.newBuilder()
+                            .setDependentResourceType(commodityConverter.commoditySpecification(
+                                    CommodityType.newBuilder()
+                                            .setType(
+                                                    CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE)
+                                            .build()).getType())
+                            .addAllDependentResourceOptions(dependentResourceOptions)
+                            .build());
+                    CommoditySpecificationTO spec =
+                            commodityConverter.commoditySpecification(licenseCommodity);
+                    dbTierDTOBuilder.addCostTupleList(
+                            createCostTuple(accountPricingData.getAccountPricingDataOid(), spec.getType(), price, region.getOid(),
+                                    dependentCostTuples));
+                } else {
+                    logger.debug("Storage Options are empty for {}, {}", tier.getDisplayName(), region.getDisplayName());
+                }
+
+            }
+            // price when license isn't available
+            dbTierDTOBuilder.addCostTupleList(CostTuple.newBuilder()
+                    .setBusinessAccountId(accountPricingData.getAccountPricingDataOid())
+                    .setLicenseCommodityType(-1)
+                    .setRegionId(region.getOid())
+                    .setPrice(Double.POSITIVE_INFINITY));
         }
 
         return CostDTO.newBuilder()
@@ -316,12 +314,12 @@ public class CostDTOCreator {
      * @return The CBTP cost dto.
      */
     CostDTO createCbtpCostDTO(final ReservedInstanceKey reservedInstanceKey,
-                              Map<Long, AccountPricingData<TopologyEntityDTO>> accountPricingDataByBusinessAccountOid,
+                              Multimap<AccountPricingData, Long> accountPricingDataByBusinessAccountOid,
                               TopologyEntityDTO region,
                               Set<TopologyEntityDTO> computeTiersInScope,
                               final Set<Long> applicableBusinessAccounts) {
         Set<CostTuple> costTupleList = new HashSet<>();
-        for (final AccountPricingData accountPricingData: accountPricingDataByBusinessAccountOid.values()) {
+        for (final AccountPricingData accountPricingData: accountPricingDataByBusinessAccountOid.keys()) {
 
             if (accountPricingData != null) {
                 Set<CostTuple> cbtpCostTuples = createCbtpCostTuples(
@@ -469,38 +467,36 @@ public class CostDTOCreator {
      *
      * @param tier the storage tier topology entity DTO.
      * @param connectedRegions the region topology entity DTO.
-     * @param uniqueAccountPricingData The unique account pricing data in the system.
+     * @param accountPricingData The account pricing data the tier is scoped to.
      *
      * @return CostDTO
      */
     public CostDTO createStorageTierCostDTO(TopologyEntityDTO tier, List<TopologyEntityDTO> connectedRegions,
-                                            Set<AccountPricingData<TopologyEntityDTO>> uniqueAccountPricingData) {
+                                            AccountPricingData accountPricingData) {
         CostDTO.StorageTierCostDTO.Builder storageDTO =  StorageTierCostDTO.newBuilder();
         // Mapping from commodityType to StorageResourceCost builder.
         Map<CommodityType, StorageTierCostDTO.StorageResourceCost.Builder> commType2ResourceCostBuilderMap
                 = new HashMap<>();
         for (TopologyEntityDTO region: connectedRegions) {
-            for (AccountPricingData accountPricingData : uniqueAccountPricingData) {
-                StoragePriceBundle storageCostBundle = marketCloudRateExtractor
-                        .getStoragePriceBundle(tier.getOid(), region.getOid(), accountPricingData);
-                if (storageCostBundle == null) {
-                    // This can happen in unit tests
-                    logger.warn("Failed to get pricing information for tier {} on region {}",
-                            tier.getDisplayName(), region.getDisplayName());
-                    return CostDTO.newBuilder().setStorageTierCost(storageDTO.build()).build();
-                }
-                tier.getCommoditySoldListList().forEach(c -> {
-                    CommodityType commType = c.getCommodityType();
-                    List<StorageTierPriceData> priceDataList = storageCostBundle.getPrices(commType);
-                    if (!priceDataList.isEmpty()) {
-                        StorageTierCostDTO.StorageResourceCost.Builder builder =
-                                commType2ResourceCostBuilderMap.computeIfAbsent(commType,
-                                        k -> StorageTierCostDTO.StorageResourceCost.newBuilder()
-                                                .setResourceType(commodityConverter.commoditySpecification(commType)));
-                        priceDataList.forEach(p -> builder.addStorageTierPriceData(p));
-                    }
-                });
+            StoragePriceBundle storageCostBundle = marketCloudRateExtractor
+                    .getStoragePriceBundle(tier.getOid(), region.getOid(), accountPricingData);
+            if (storageCostBundle == null) {
+                // This can happen in unit tests
+                logger.debug("Failed to get pricing information for tier {} on region {}",
+                        tier.getDisplayName(), region.getDisplayName());
+                return CostDTO.newBuilder().setStorageTierCost(storageDTO.build()).build();
             }
+            tier.getCommoditySoldListList().forEach(c -> {
+                CommodityType commType = c.getCommodityType();
+                List<StorageTierPriceData> priceDataList = storageCostBundle.getPrices(commType);
+                if (!priceDataList.isEmpty()) {
+                    StorageTierCostDTO.StorageResourceCost.Builder builder =
+                            commType2ResourceCostBuilderMap.computeIfAbsent(commType,
+                                    k -> StorageTierCostDTO.StorageResourceCost.newBuilder()
+                                            .setResourceType(commodityConverter.commoditySpecification(commType)));
+                    priceDataList.forEach(p -> builder.addStorageTierPriceData(p));
+                }
+            });
         }
         // StorageTier CostDTO contains one StorageResourceCost object for one commodityType,
         // and each StorageResourceCost object contains price data including all regions and accounts combinations.

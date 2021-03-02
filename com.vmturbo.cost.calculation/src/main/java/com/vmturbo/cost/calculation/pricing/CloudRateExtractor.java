@@ -145,7 +145,7 @@ public class CloudRateExtractor {
      */
     @Nonnull
     public ComputePriceBundle getComputePriceBundle(final TopologyEntityDTO tier, final long regionId,
-            final AccountPricingData<TopologyEntityDTO> accountPricingData) {
+            @Nonnull final AccountPricingData<TopologyEntityDTO> accountPricingData) {
         long tierId = tier.getOid();
         final ComputePriceBundle.Builder priceBuilder = ComputePriceBundle.newBuilder();
 
@@ -160,7 +160,7 @@ public class CloudRateExtractor {
 
         ComputeTierPriceList computeTierPrices = regionPriceTable.getComputePricesByTierIdMap().get(tierId);
         if (computeTierPrices == null) {
-            logger.warn("Price list not found for tier {} in region {}'s price table."
+            logger.debug("Price list not found for tier {} in region {}'s price table."
                             + " Cost data might not have been uploaded, or the tier is not available in the region.",
                     tierId, regionId);
             return priceBuilder.build();
@@ -208,12 +208,9 @@ public class CloudRateExtractor {
      */
     @Nonnull
     public DatabasePriceBundle getDatabasePriceBundle(final long tierId, final long regionId,
-            final AccountPricingData<TopologyEntityDTO> accountPricingData) {
+            @Nonnull final AccountPricingData<TopologyEntityDTO> accountPricingData) {
         final DatabasePriceBundle.Builder priceBuilder = DatabasePriceBundle.newBuilder();
-        if (accountPricingData == null || accountPricingData.getPriceTable() == null) {
-            logger.error("No account pricing data found for business account oid {}");
-            return priceBuilder.build();
-        }
+
         OnDemandPriceTable regionPriceTable = getOnDemandPriceTable(tierId, regionId, accountPricingData);
         if (regionPriceTable == null) {
             return priceBuilder.build();
@@ -222,7 +219,7 @@ public class CloudRateExtractor {
         DbTierOnDemandPriceTable dbTierPriceTable =
                 regionPriceTable.getDbPricesByInstanceIdMap().get(tierId);
         if (dbTierPriceTable == null) {
-            logger.warn("Price list not found for tier {} in region {}'s price table."
+            logger.debug("Price list not found for tier {} in region {}'s price table."
                             + " Cost data might not have been uploaded, or the tier is not available in the region.",
                     tierId, regionId);
             return priceBuilder.build();
@@ -338,7 +335,6 @@ public class CloudRateExtractor {
                                                     @Nonnull AccountPricingData<TopologyEntityDTO> accountPricingData) {
         final StoragePriceBundle.Builder priceBuilder = StoragePriceBundle.newBuilder();
         if (accountPricingData == null || accountPricingData.getPriceTable() == null) {
-            logger.error("No account pricing data found to generate StoragePriceBundle.");
             return priceBuilder.build();
         }
         final Optional<TopologyEntityDTO> storageTierOpt = cloudTopology.getEntity(tierId);

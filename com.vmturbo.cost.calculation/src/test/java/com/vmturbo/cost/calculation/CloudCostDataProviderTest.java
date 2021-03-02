@@ -135,11 +135,11 @@ public class CloudCostDataProviderTest {
 
     private final AccountPricingData<TopologyEntityDTO> awsAccountPricingData =
             new AccountPricingData<>( discountApplicator, AWS_COMPUTE_PRICE_TABLE,
-                    AWS_BUSINESS_ACCOUNT_OID);
+                    AWS_BUSINESS_ACCOUNT_OID, 15L, AWS_BUSINESS_ACCOUNT_OID);
 
     private final AccountPricingData<TopologyEntityDTO> azureAccountPricingData =
             new AccountPricingData<>( discountApplicator, AZURE_COMPUTE_PRICE_TABLE,
-                    AZURE_BUSINESS_ACCOUNT_OID);
+                    AZURE_BUSINESS_ACCOUNT_OID, 15L, AZURE_BUSINESS_ACCOUNT_OID);
 
     private Map<Long, AccountPricingData<TopologyEntityDTO>> awsAccountPricingDatByBaMap
             = new HashMap<>();
