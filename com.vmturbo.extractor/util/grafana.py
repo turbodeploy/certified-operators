@@ -18,6 +18,7 @@ from datetime import timedelta
 from datetime import timezone
 from enum import Enum
 from fnmatch import fnmatch
+from math import log10, floor
 from pathlib import Path
 from ruamel.yaml import YAML
 
@@ -458,7 +459,7 @@ class DB:
         for row in result_set:
             if n == 0:
                 row_data.append(','.join(row.keys()))
-            row_str = ','.join([str(v) for v in row.values()])
+            row_str = ','.join([str(v) for v in self.fix_floats(row.values(),12)])
             # we compute the hash in a fashion that is independent of row order
             x = xxhash.xxh64()
             x.update(row_str)
@@ -467,6 +468,14 @@ class DB:
                 row_data.append(row_str)
             n += 1
         return {'row_count': n, 'row_data': row_data, 'row_data_hash': hash}
+
+    def fix_floats(self, values, n):
+        return [self.fix_float(x, n) if type(x) == float else x for x in values]
+
+    def fix_float(self, x, n):
+        # round x to n significant digits, so rounding errors don't create false-negatives
+        # in result hash comparisons
+        return 0.0 if x == 0.0 else round(x, (n - 1) - int(floor(log10(abs(x)))))
 
 def run_load(args):
     g = Grafana(args.url, args.api_key).load_folder(args)
@@ -605,7 +614,7 @@ class Arg(Enum):
                     'help': 'Use upserts so existing perf records are updated'})
     test_max_rows = (['--max-rows'],
                       {'dest': 'max_rows', 'help': 'max result rows to capture in RUN mode',
-                       'type': int, 'default': 10})
+                       'type': int, 'default': 100000})
     log_level = (['-l', '-log-level'],
                  {'dest': 'loglevel', 'help': 'logging level', 'default': 'INFO',
                   'choices': ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']})
