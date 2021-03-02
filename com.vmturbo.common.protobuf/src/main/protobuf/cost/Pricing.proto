@@ -42,8 +42,12 @@ message PriceTable {
     // A list of on-demand license prices grouped by OS type.
     repeated common_dto.LicensePriceEntry on_demand_license_prices = 20;
 
+    map<int64, common_dto.LicenseOverrides> on_demand_license_overrides = 21;
+
     // A list of reserved license prices grouped by OS type.
     repeated common_dto.LicensePriceEntry reserved_license_prices = 30;
+
+    map<int64, common_dto.LicenseOverrides> reserved_license_overrides = 31;
 }
 
 // PriceTableKey contains information which describes the source of price table.

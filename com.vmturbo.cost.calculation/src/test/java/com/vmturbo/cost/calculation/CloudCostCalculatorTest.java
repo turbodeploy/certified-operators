@@ -40,6 +40,7 @@ import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostD
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.ComputeConfig;
+import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.ComputeTierConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.NetworkConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.VirtualVolumeConfig;
 import com.vmturbo.cost.calculation.journal.CostJournal;
@@ -232,6 +233,13 @@ public class CloudCostCalculatorTest {
         // act
         AccountPricingData accountPricingData = new AccountPricingData(discountApplicator, PRICE_TABLE, 15L, 20L, 30L);
         CloudCostData cloudCostData = createCloudCostDataWithAccountPricingTable(BUSINESS_ACCOUNT_ID, accountPricingData);
+        final ComputeTierConfig computeTierConfig = ComputeTierConfig.builder()
+                .computeTierOid(computeTier.getId())
+                .numCores(4)
+                .numCoupons(0)
+                .isBurstableCPU(false)
+                .build();
+        when(infoExtractor.getComputeTierConfig(computeTier)).thenReturn(Optional.of(computeTierConfig));
         CloudCostCalculator cloudCostCalculator = calculator(cloudCostData);
         // Configure ReservedInstanceApplicator
         final ReservedInstanceApplicator<TestEntityClass> riApplicator =
@@ -264,6 +272,14 @@ public class CloudCostCalculatorTest {
         // then that price is used.
         TestEntityClass wsqlVm2Cores = createVmTestEntity(DEFAULT_VM_ID, OSType.WINDOWS_WITH_SQL_ENTERPRISE, Tenancy.DEFAULT, VMBillingType.ONDEMAND, 2,
                 EntityDTO.LicenseModel.LICENSE_INCLUDED);
+        // setup the 2 core config
+        final ComputeTierConfig computeTierConfig2 = ComputeTierConfig.builder()
+                .computeTierOid(computeTier.getId())
+                .numCores(2)
+                .numCoupons(0)
+                .isBurstableCPU(false)
+                .build();
+        when(infoExtractor.getComputeTierConfig(computeTier)).thenReturn(Optional.of(computeTierConfig2));
         final CostJournal<TestEntityClass> journal2 = cloudCostCalculator.calculateCost(wsqlVm2Cores);
         assertThat(journal2.getHourlyCostForCategory(CostCategory.ON_DEMAND_LICENSE).getValue(),
             is(WSQL_ADJUSTMENT * 1 + WSQL_ENTERPRISE_2));
@@ -295,6 +311,13 @@ public class CloudCostCalculatorTest {
         TestEntityClass windowsVm4CoresBYOL = createVmTestEntity(DEFAULT_VM_ID, OSType.WINDOWS, Tenancy.DEFAULT,
                 VMBillingType.ONDEMAND, 4, EntityDTO.LicenseModel.AHUB);
 
+        final ComputeTierConfig computeTierConfig = ComputeTierConfig.builder()
+                .computeTierOid(computeTier.getId())
+                .numCores(4)
+                .numCoupons(0)
+                .isBurstableCPU(false)
+                .build();
+        when(infoExtractor.getComputeTierConfig(computeTier)).thenReturn(Optional.of(computeTierConfig));
         AccountPricingData accountPricingData = new AccountPricingData(discountApplicator, PRICE_TABLE, 15L, 20L, 35L);
         CloudCostData cloudCostData = createCloudCostDataWithAccountPricingTable(BUSINESS_ACCOUNT_ID, accountPricingData);
         CloudCostCalculator cloudCostCalculator = calculator(cloudCostData);
