@@ -26,6 +26,7 @@ import org.springframework.util.CollectionUtils;
 
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
+import com.vmturbo.common.protobuf.cost.Pricing.DbServerTierOnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.DbTierOnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
@@ -56,6 +57,8 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList.ComputeTierConfigPrice;
+import com.vmturbo.platform.sdk.common.PricingDTO.DatabaseServerTierPriceList;
+import com.vmturbo.platform.sdk.common.PricingDTO.DatabaseServerTierPriceList.DatabaseServerTierConfigPrice;
 import com.vmturbo.platform.sdk.common.PricingDTO.DatabaseTierConfigPrice;
 import com.vmturbo.platform.sdk.common.PricingDTO.DatabaseTierPriceList;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price;
@@ -241,10 +244,10 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                     calculateVirtualMachineCost(context, isProjectedTopology);
                     break;
                 case EntityType.DATABASE_VALUE:
-                    calculateDatabaseCost(false, context);
+                    calculateDatabaseCost(context);
                     break;
                 case EntityType.DATABASE_SERVER_VALUE:
-                    calculateDatabaseCost(true, context);
+                    calculateDatabaseServerCost(context);
                     break;
                 case EntityType.VIRTUAL_VOLUME_VALUE:
                     calculateVirtualVolumeCost(context);
@@ -672,24 +675,18 @@ public class CloudCostCalculator<ENTITY_CLASS> {
         journal.recordOnDemandCost(CostCategory.SPOT, computeTier, spotPrice.get(), unitsBought);
     }
 
-    private void calculateDatabaseCost(final boolean isDbServer,
-                                       CostCalculationContext<ENTITY_CLASS> context) {
+    private void calculateDatabaseCost(CostCalculationContext<ENTITY_CLASS> context) {
         final ENTITY_CLASS entity = context.getEntity();
         final long entityId = entityInfoExtractor.getId(entity);
         logger.trace("Starting entity cost calculation for db {}", entityId);
         if (!isBillable(entity)) {
-            logger.trace("Skipping DB/DBServer cost calculation for {} because it is not in" +
+            logger.trace("Skipping DB cost calculation for {} because it is not in" +
                             " billable state", entityId);
             return;
         }
         entityInfoExtractor.getDatabaseConfig(entity).ifPresent(databaseConfig -> {
             // Calculate on-demand prices for entities that have a database config.
-            final Optional<ENTITY_CLASS> tier;
-            if (isDbServer) {
-                tier = cloudTopology.getDatabaseServerTier(entityId);
-            } else {
-                tier = cloudTopology.getDatabaseTier(entityId);
-            }
+            final Optional<ENTITY_CLASS> tier = cloudTopology.getDatabaseTier(entityId);
             tier.ifPresent(databaseTier -> {
                 final long regionId = context.getRegionid();
                 final Optional<OnDemandPriceTable> onDemandPriceTable = context.getOnDemandPriceTable();
@@ -705,6 +702,52 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                 }
             });
         });
+    }
+
+    private void calculateDatabaseServerCost(CostCalculationContext<ENTITY_CLASS> context) {
+        final ENTITY_CLASS entity = context.getEntity();
+        final long entityId = entityInfoExtractor.getId(entity);
+        logger.trace("Starting entity cost calculation for dbs {}", entityId);
+        if (!isBillable(entity)) {
+            logger.trace("Skipping DBServer cost calculation for {} because it is not in" +
+                    " billable state", entityId);
+            return;
+        }
+        entityInfoExtractor.getDatabaseConfig(entity).ifPresent(databaseConfig -> {
+            // Calculate on-demand prices for entities that have a database config.
+            final Optional<ENTITY_CLASS> tier  = cloudTopology.getDatabaseServerTier(entityId);
+
+            tier.ifPresent(databaseTier -> {
+                final long regionId = context.getRegionid();
+                final Optional<OnDemandPriceTable> onDemandPriceTable = context.getOnDemandPriceTable();
+                if (onDemandPriceTable.isPresent()) {
+                    final DatabaseServerTierPriceList dbsPriceList = getDbsPriceList(
+                            onDemandPriceTable.get(), entityInfoExtractor.getId(databaseTier));
+                    if (dbsPriceList != null) {
+                        recordDatabaseServerCost(dbsPriceList, context.getCostJournal(), databaseTier, databaseConfig, entity);
+                    } else {
+                        logger.debug("calculateDatabaseServerCost: Price table is missed for region {}, tier {} ",
+                                regionId, databaseTier);
+                    }
+                } else {
+                    logger.warn("calculateDatabaseServerCost: Global price table has no entry for region {}." +
+                            "  This means there is some inconsistency between the topology and pricing data.", regionId);
+                }
+            });
+        });
+    }
+
+    @Nullable
+    private DatabaseServerTierPriceList getDbsPriceList(OnDemandPriceTable onDemandPriceTable,
+            long tierId) {
+        DbServerTierOnDemandPriceTable priceTable =
+                onDemandPriceTable.getDbsPricesByInstanceIdMap().get(tierId);
+        if (priceTable == null) {
+            logger.warn("No database server price table found for db tier id {}. Returning null db price list",
+                    tierId);
+            return null;
+        }
+        return priceTable.getDbsPricesByTierIdMap().values().iterator().next();
     }
 
     @Nullable
@@ -760,6 +803,33 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                     calculateDBStorageCost(storagePrices,
                             entity),
                     FULL);
+        }
+    }
+
+    /**
+     * Record dbs prices and add it to the compute cost journal.
+     *
+     * @param dbsPriceList    DB server list contains all the db prices.
+     * @param journal        Journal used to add the costs to.
+     * @param dbsTier   DB server Tier that we are calculating.
+     * @param databaseConfig DB server config of the db that we want to record.
+     * @param entity         current DB server entity.
+     */
+    private void recordDatabaseServerCost(DatabaseServerTierPriceList dbsPriceList,
+            Builder<ENTITY_CLASS> journal, ENTITY_CLASS dbsTier, DatabaseConfig databaseConfig,
+            final ENTITY_CLASS entity) {
+
+        for (DatabaseServerTierConfigPrice serverConfigPrice : dbsPriceList.getConfigPricesList()) {
+            final DatabaseTierConfigPrice configPrice =
+                    serverConfigPrice.getDatabaseTierConfigPrice();
+
+            if (databaseConfig.matchesPriceTableConfig(configPrice)) {
+
+                journal.recordOnDemandCost(CostCategory.ON_DEMAND_COMPUTE, dbsTier,
+                        configPrice.getPricesList().get(0), FULL);
+                break;
+                //TODO: PaaS Team - implement storage cost calculation
+            }
         }
     }
 
