@@ -78,35 +78,41 @@ panels:
     rawQuery: true
     rawSql: |-
       WITH metrics AS (
-        SELECT m.time, m.utilization
-          FROM metric m,
-          scope_to($__timeFrom()::timestamptz - INTERVAL '7 day', $__timeTo(), 'PHYSICAL_MACHINE', ARRAY[${Group}]::bigint[], '${Group:raw}' = '0') s
-          WHERE
-            m.entity_oid = s.oid
-            AND m.time BETWEEN s.from_time AND s.to_time
-            AND m.type = 'MEM'
-            AND m.time BETWEEN ($__timeFrom()::TIMESTAMPTZ - interval '7 day') AND date_trunc('day', $__timeTo()::TIMESTAMPTZ)
-          GROUP BY m.time, m.entity_oid, m.utilization
-      ),
-      DATA AS (
-        SELECT m.time, avg(m.utilization) AS avg_util
-        FROM metrics m
-        GROUP BY m.time
+        SELECT metric.time, metric.utilization
+         FROM metric
+         JOIN scope s ON
+            metric.entity_oid = s.scoped_oid
+            AND metric.time BETWEEN s.start AND s.finish
+         WHERE
+           -- fixed conditions
+             metric.type = 'MEM'
+            AND s.scoped_type = 'PHYSICAL_MACHINE'
+           -- conditions related to dashboard vars
+           AND metric.time BETWEEN ($__timeFrom()::TIMESTAMPTZ - interval '7 day') AND date_trunc('day', $__timeTo()::TIMESTAMPTZ)
+           and ($__timeFrom()::TIMESTAMPTZ - interval '7 day', date_trunc('day', $__timeTo()::TIMESTAMPTZ)) overlaps (start, finish)
+          AND s.seed_oid IN (SELECT * FROM unnest(ARRAY[$Group]::bigint[]))
+         GROUP BY metric.time, metric.entity_oid, metric.utilization
+      ), DATA AS (
+          SELECT
+               m.time,
+               avg(m.utilization) AS avg_util
+           FROM metrics m
+           GROUP BY m.time
       )
       SELECT
-        INTERVAL '1 DAY' + CASE
-          WHEN time BETWEEN date_trunc('day', $__timeFrom()::TIMESTAMPTZ - interval '7 day')
-            AND date_trunc('day', $__timeTo()::TIMESTAMPTZ - interval '7 day')
-          THEN date_trunc('day', time + interval '7 day')
-          ELSE date_trunc('day', time)
-        END as "time",
-        CASE
-          WHEN time BETWEEN date_trunc('day', $__timeFrom()::TIMESTAMPTZ - interval '7 day')
-            AND date_trunc('day', $__timeTo()::TIMESTAMPTZ - interval '7 day')
-          THEN 'Previous Week'
-          ELSE 'Week Ending ' || DATE($__timeTo()::TIMESTAMPTZ)::TEXT
-        END as metric,
-        avg(avg_util)
+          INTERVAL '1 DAY' + CASE
+            WHEN time BETWEEN date_trunc('day', $__timeFrom()::TIMESTAMPTZ - interval '7 day')
+                AND date_trunc('day', $__timeTo()::TIMESTAMPTZ - interval '7 day')
+              THEN date_trunc('day', time + interval '7 day')
+            ELSE date_trunc('day', time)
+          END as "time",
+          CASE
+            WHEN time BETWEEN date_trunc('day', $__timeFrom()::TIMESTAMPTZ - interval '7 day')
+                AND date_trunc('day', $__timeTo()::TIMESTAMPTZ - interval '7 day')
+              THEN 'Previous Week'
+            ELSE 'Week Ending ' || DATE($__timeTo()::TIMESTAMPTZ)::TEXT
+          END as metric,
+          avg(avg_util)
       FROM data
       GROUP BY 1, 2
       ORDER BY 1, 2
@@ -214,39 +220,43 @@ panels:
     rawQuery: true
     rawSql: |-
       WITH metrics AS (
-        SELECT m.time, m.utilization
-        FROM metric m,
-          scope_to($__timeFrom()::timestamptz - INTERVAL '7 day', $__timeTo(), 'PHYSICAL_MACHINE', ARRAY[${Group}]::bigint[], '${Group:raw}' = '0') s
-        WHERE
-          m.entity_oid = s.oid AND m.time BETWEEN s.from_time AND s.to_time
-          AND m.type = 'CPU'
-          AND m.time BETWEEN ($__timeFrom()::TIMESTAMPTZ - interval '7 day') AND date_trunc('day', $__timeTo()::TIMESTAMPTZ)
-        GROUP BY m.time, m.entity_oid, m.utilization
-      ),
-      DATA AS (
-        SELECT
-          m.time,
-          avg(m.utilization) AS avg_util
-        FROM metrics m
-        GROUP BY m.time
-      )
-      SELECT
-        INTERVAL '1 DAY' + CASE
-          WHEN time BETWEEN date_trunc('day', $__timeFrom()::TIMESTAMPTZ - interval '7 day')
-            AND date_trunc('day', $__timeTo()::TIMESTAMPTZ - interval '7 day')
-          THEN date_trunc('day', time + interval '7 day')
+         SELECT metric.time, metric.utilization
+         FROM metric
+         JOIN scope s ON
+            metric.entity_oid = s.scoped_oid
+            AND metric.time BETWEEN s.start AND s.finish
+         WHERE
+           -- fixed conditions
+             metric.type = 'CPU'
+            AND s.scoped_type = 'PHYSICAL_MACHINE'
+           -- conditions related to dashboard vars
+           AND metric.time BETWEEN ($__timeFrom()::TIMESTAMPTZ - interval '7 day') AND date_trunc('day', $__timeTo()::TIMESTAMPTZ)
+           and ($__timeFrom()::TIMESTAMPTZ - interval '7 day', date_trunc('day', $__timeTo()::TIMESTAMPTZ)) overlaps (start, finish)
+          AND s.seed_oid IN (SELECT * FROM unnest(ARRAY[$Group]::bigint[]))
+         GROUP BY metric.time, metric.entity_oid, metric.utilization
+      ), DATA AS (
+          SELECT
+               m.time,
+               avg(m.utilization) AS avg_util
+           FROM metrics m
+           GROUP BY m.time
+      ) SELECT
+          INTERVAL '1 DAY' + CASE
+            WHEN time BETWEEN date_trunc('day', $__timeFrom()::TIMESTAMPTZ - interval '7 day')
+                AND date_trunc('day', $__timeTo()::TIMESTAMPTZ - interval '7 day')
+              THEN date_trunc('day', time + interval '7 day')
             ELSE date_trunc('day', time)
-        END as "time",
-        CASE
-          WHEN time BETWEEN date_trunc('day', $__timeFrom()::TIMESTAMPTZ - interval '7 day')
-            AND date_trunc('day', $__timeTo()::TIMESTAMPTZ - interval '7 day')
-          THEN 'Previous Week'
-          ELSE 'Week Ending ' || DATE($__timeTo()::TIMESTAMPTZ)::TEXT
-        END as metric,
-        avg(avg_util)
-      FROM data
-      GROUP BY 1, 2
-      ORDER BY 1, 2
+          END as "time",
+          CASE
+            WHEN time BETWEEN date_trunc('day', $__timeFrom()::TIMESTAMPTZ - interval '7 day')
+                AND date_trunc('day', $__timeTo()::TIMESTAMPTZ - interval '7 day')
+              THEN 'Previous Week'
+            ELSE 'Week Ending ' || DATE($__timeTo()::TIMESTAMPTZ)::TEXT
+          END as metric,
+          avg(avg_util)
+        FROM data
+        GROUP BY 1, 2
+        ORDER BY 1, 2
     refId: A
     select:
     - - params:
@@ -352,37 +362,41 @@ panels:
     rawQuery: true
     rawSql: |-
       WITH metrics AS (
-        SELECT m.time, m.utilization
-        FROM metric m,
-          scope_to($__timeFrom()::timestamptz - INTERVAL '7 day', $__timeTo(), 'PHYSICAL_MACHINE', ARRAY[${Group}]::bigint[], '${Group:raw}' = '0') s
-        WHERE
-          m.entity_oid = s.oid
-          AND m.time BETWEEN s.from_time AND s.to_time
-          AND m.type = 'BALLOONING'
-          AND m.time BETWEEN ($__timeFrom()::TIMESTAMPTZ - interval '7 day') AND date_trunc('day', $__timeTo()::TIMESTAMPTZ)
-        GROUP BY m.time, m.entity_oid, m.utilization
-      ),
-      DATA AS (
-        SELECT
-          m.time,
-          avg(m.utilization) AS avg_util
-        FROM metrics m
-        GROUP BY m.time
+         SELECT metric.time, metric.utilization
+         FROM metric
+         JOIN scope s ON
+            metric.entity_oid = s.scoped_oid
+            AND metric.time BETWEEN s.start AND s.finish
+         WHERE
+           -- fixed conditions
+               metric.type = 'BALLOONING'
+           AND s.scoped_type = 'PHYSICAL_MACHINE'
+           -- conditions related to dashboard vars
+           AND metric.time BETWEEN ($__timeFrom()::TIMESTAMPTZ - interval '7 day') AND date_trunc('day', $__timeTo()::TIMESTAMPTZ)
+           and ($__timeFrom()::TIMESTAMPTZ - interval '7 day', date_trunc('day', $__timeTo()::TIMESTAMPTZ)) overlaps (start, finish)
+          AND s.seed_oid IN (SELECT * FROM unnest(ARRAY[$Group]::bigint[]))
+         GROUP BY metric.time, metric.entity_oid, metric.utilization
+      ), DATA AS (
+          SELECT
+               m.time,
+               avg(m.utilization) AS avg_util
+           FROM metrics m
+           GROUP BY m.time
       )
       SELECT
-        INTERVAL '1 DAY' + CASE
-          WHEN time BETWEEN date_trunc('day', $__timeFrom()::TIMESTAMPTZ - interval '7 day')
-            AND date_trunc('day', $__timeTo()::TIMESTAMPTZ - interval '7 day')
-          THEN date_trunc('day', time + interval '7 day')
-          ELSE date_trunc('day', time)
-        END as "time",
-        CASE
-          WHEN time BETWEEN date_trunc('day', $__timeFrom()::TIMESTAMPTZ - interval '7 day')
-            AND date_trunc('day', $__timeTo()::TIMESTAMPTZ - interval '7 day')
-          THEN 'Previous Week'
-          ELSE 'Week Ending ' || DATE($__timeTo()::TIMESTAMPTZ)::TEXT
-        END as metric,
-        avg(avg_util)
+          INTERVAL '1 DAY' + CASE
+            WHEN time BETWEEN date_trunc('day', $__timeFrom()::TIMESTAMPTZ - interval '7 day')
+                AND date_trunc('day', $__timeTo()::TIMESTAMPTZ - interval '7 day')
+              THEN date_trunc('day', time + interval '7 day')
+            ELSE date_trunc('day', time)
+          END as "time",
+          CASE
+            WHEN time BETWEEN date_trunc('day', $__timeFrom()::TIMESTAMPTZ - interval '7 day')
+                AND date_trunc('day', $__timeTo()::TIMESTAMPTZ - interval '7 day')
+              THEN 'Previous Week'
+            ELSE 'Week Ending ' || DATE($__timeTo()::TIMESTAMPTZ)::TEXT
+          END as metric,
+          avg(avg_util)
       FROM data
       GROUP BY 1, 2
       ORDER BY 1, 2
@@ -490,36 +504,41 @@ panels:
     rawQuery: true
     rawSql: |-
       WITH metrics AS (
-        SELECT m.time, m.utilization
-        FROM metric m,
-          scope_to($__timeFrom()::timestamptz - INTERVAL '7 day', $__timeTo(), 'PHYSICAL_MACHINE', ARRAY[${Group}]::bigint[], '${Group:raw}' = '0') s
-        WHERE
-          m.entity_oid = s.oid
-          AND m.type = 'SWAPPING'
-          AND m.time BETWEEN ($__timeFrom()::TIMESTAMPTZ - interval '7 day') AND date_trunc('day', $__timeTo()::TIMESTAMPTZ)
-        GROUP BY m.time, m.entity_oid, m.utilization
-      ),
-      DATA AS (
-        SELECT
-          m.time,
-          avg(m.utilization) AS avg_util
-        FROM metrics m
-        GROUP BY m.time
+         SELECT metric.time, metric.utilization
+         FROM metric
+         JOIN scope s ON
+            metric.entity_oid = s.scoped_oid
+            AND metric.time BETWEEN s.start AND s.finish
+         WHERE
+           -- fixed conditions
+               metric.type = 'SWAPPING'
+           AND  s.scoped_type = 'PHYSICAL_MACHINE'
+           -- conditions related to dashboard vars
+           AND metric.time BETWEEN ($__timeFrom()::TIMESTAMPTZ - interval '7 day') AND date_trunc('day', $__timeTo()::TIMESTAMPTZ)
+           and ($__timeFrom()::TIMESTAMPTZ - interval '7 day', date_trunc('day', $__timeTo()::TIMESTAMPTZ)) overlaps (start, finish)
+          AND s.seed_oid IN (SELECT * FROM unnest(ARRAY[$Group]::bigint[]))
+         GROUP BY metric.time, metric.entity_oid, metric.utilization
+      ), DATA AS (
+          SELECT
+               m.time,
+               avg(m.utilization) AS avg_util
+           FROM metrics m
+           GROUP BY m.time
       )
       SELECT
-        INTERVAL '1 DAY' + CASE
-          WHEN time BETWEEN date_trunc('day', $__timeFrom()::TIMESTAMPTZ - interval '7 day')
-            AND date_trunc('day', $__timeTo()::TIMESTAMPTZ - interval '7 day')
-          THEN date_trunc('day', time + interval '7 day')
-          ELSE date_trunc('day', time)
-        END as "time",
-        CASE
-          WHEN time BETWEEN date_trunc('day', $__timeFrom()::TIMESTAMPTZ - interval '7 day')
-            AND date_trunc('day', $__timeTo()::TIMESTAMPTZ - interval '7 day')
-          THEN 'Previous Week'
-          ELSE 'Week Ending ' || DATE($__timeTo()::TIMESTAMPTZ)::TEXT
-        END as metric,
-        avg(avg_util)
+          INTERVAL '1 DAY' + CASE
+            WHEN time BETWEEN date_trunc('day', $__timeFrom()::TIMESTAMPTZ - interval '7 day')
+                AND date_trunc('day', $__timeTo()::TIMESTAMPTZ - interval '7 day')
+              THEN date_trunc('day', time + interval '7 day')
+            ELSE date_trunc('day', time)
+          END as "time",
+          CASE
+            WHEN time BETWEEN date_trunc('day', $__timeFrom()::TIMESTAMPTZ - interval '7 day')
+                AND date_trunc('day', $__timeTo()::TIMESTAMPTZ - interval '7 day')
+              THEN 'Previous Week'
+            ELSE 'Week Ending ' || DATE($__timeTo()::TIMESTAMPTZ)::TEXT
+          END as metric,
+          avg(avg_util)
       FROM data
       GROUP BY 1, 2
       ORDER BY 1, 2
@@ -627,37 +646,41 @@ panels:
     rawQuery: true
     rawSql: |-
       WITH metrics AS (
-        SELECT m.time, m.utilization
-        FROM metric m,
-          scope_to($__timeFrom()::timestamptz - INTERVAL '7 day', $__timeTo(), 'PHYSICAL_MACHINE', ARRAY[${Group}]::bigint[], '${Group:raw}' = '0') s
-        WHERE
-          m.entity_oid = s.oid
-          AND m.time BETWEEN s.from_time AND s.to_time
-          AND m.type = 'IO_THROUGHPUT'
-          AND m.time BETWEEN ($__timeFrom()::TIMESTAMPTZ - interval '7 day') AND date_trunc('day', $__timeTo()::TIMESTAMPTZ)
-        GROUP BY m.time, m.entity_oid, m.utilization
-      ),
-      DATA AS (
-        SELECT
-          m.time,
-          avg(m.utilization) AS avg_util
-        FROM metrics m
-        GROUP BY m.time
+         SELECT metric.time, metric.utilization
+         FROM metric
+         JOIN scope s ON
+            metric.entity_oid = s.scoped_oid
+            AND metric.time BETWEEN s.start AND s.finish
+         WHERE
+           -- fixed conditions
+               metric.type = 'IO_THROUGHPUT'
+           AND s.scoped_type = 'PHYSICAL_MACHINE'
+           -- conditions related to dashboard vars
+           AND metric.time BETWEEN ($__timeFrom()::TIMESTAMPTZ - interval '7 day') AND date_trunc('day', $__timeTo()::TIMESTAMPTZ)
+           and ($__timeFrom()::TIMESTAMPTZ - interval '7 day', date_trunc('day', $__timeTo()::TIMESTAMPTZ)) overlaps (start, finish)
+          AND s.seed_oid IN (SELECT * FROM unnest(ARRAY[$Group]::bigint[]))
+         GROUP BY metric.time, metric.entity_oid, metric.utilization
+      ), DATA AS (
+          SELECT
+               m.time,
+               avg(m.utilization) AS avg_util
+           FROM metrics m
+           GROUP BY m.time
       )
       SELECT
-        INTERVAL '1 DAY' + CASE
-          WHEN time BETWEEN date_trunc('day', $__timeFrom()::TIMESTAMPTZ - interval '7 day')
-            AND date_trunc('day', $__timeTo()::TIMESTAMPTZ - interval '7 day')
-          THEN date_trunc('day', time + interval '7 day')
-          ELSE date_trunc('day', time)
-        END as "time",
-        CASE
-          WHEN time BETWEEN date_trunc('day', $__timeFrom()::TIMESTAMPTZ - interval '7 day')
-            AND date_trunc('day', $__timeTo()::TIMESTAMPTZ - interval '7 day')
-          THEN 'Previous Week'
-          ELSE 'Week Ending ' || DATE($__timeTo()::TIMESTAMPTZ)::TEXT
-        END as metric,
-        avg(avg_util)
+          INTERVAL '1 DAY' + CASE
+            WHEN time BETWEEN date_trunc('day', $__timeFrom()::TIMESTAMPTZ - interval '7 day')
+                AND date_trunc('day', $__timeTo()::TIMESTAMPTZ - interval '7 day')
+              THEN date_trunc('day', time + interval '7 day')
+            ELSE date_trunc('day', time)
+          END as "time",
+          CASE
+            WHEN time BETWEEN date_trunc('day', $__timeFrom()::TIMESTAMPTZ - interval '7 day')
+                AND date_trunc('day', $__timeTo()::TIMESTAMPTZ - interval '7 day')
+              THEN 'Previous Week'
+            ELSE 'Week Ending ' || DATE($__timeTo()::TIMESTAMPTZ)::TEXT
+          END as metric,
+          avg(avg_util)
       FROM data
       GROUP BY 1, 2
       ORDER BY 1, 2
@@ -765,36 +788,41 @@ panels:
     rawQuery: true
     rawSql: |-
       WITH metrics AS (
-        SELECT m.time, m.utilization
-        FROM metric m,
-          scope_to($__timeFrom()::timestamptz - INTERVAL '7 day', $__timeTo(), 'PHYSICAL_MACHINE', ARRAY[${Group}]::bigint[], '${Group:raw}' = '0') s
-        WHERE
-          m.entity_oid = s.oid
-          AND m.type = 'NET_THROUGHPUT'
-          AND m.time BETWEEN ($__timeFrom()::TIMESTAMPTZ - interval '7 day') AND date_trunc('day', $__timeTo()::TIMESTAMPTZ)
-        GROUP BY m.time, m.entity_oid, m.utilization
-      ),
-      DATA AS (
-        SELECT
-          m.time,
-          avg(m.utilization) AS avg_util
-        FROM metrics m
-        GROUP BY m.time
+         SELECT metric.time, metric.utilization
+         FROM metric
+         JOIN scope s ON
+            metric.entity_oid = s.scoped_oid
+            AND metric.time BETWEEN s.start AND s.finish
+         WHERE
+           -- fixed conditions
+               metric.type = 'NET_THROUGHPUT'
+           AND s.scoped_type = 'PHYSICAL_MACHINE'
+           -- conditions related to dashboard vars
+           AND metric.time BETWEEN ($__timeFrom()::TIMESTAMPTZ - interval '7 day') AND date_trunc('day', $__timeTo()::TIMESTAMPTZ)
+           and ($__timeFrom()::TIMESTAMPTZ - interval '7 day', date_trunc('day', $__timeTo()::TIMESTAMPTZ)) overlaps (start, finish)
+          AND s.seed_oid IN (SELECT * FROM unnest(ARRAY[$Group]::bigint[]))
+         GROUP BY metric.time, metric.entity_oid, metric.utilization
+      ), DATA AS (
+          SELECT
+               m.time,
+               avg(m.utilization) AS avg_util
+           FROM metrics m
+           GROUP BY m.time
       )
       SELECT
-        INTERVAL '1 DAY' + CASE
-          WHEN time BETWEEN date_trunc('day', $__timeFrom()::TIMESTAMPTZ - interval '7 day')
-            AND date_trunc('day', $__timeTo()::TIMESTAMPTZ - interval '7 day')
-          THEN date_trunc('day', time + interval '7 day')
-          ELSE date_trunc('day', time)
-        END as "time",
-        CASE
-          WHEN time BETWEEN date_trunc('day', $__timeFrom()::TIMESTAMPTZ - interval '7 day')
-            AND date_trunc('day', $__timeTo()::TIMESTAMPTZ - interval '7 day')
-          THEN 'Previous Week'
-          ELSE 'Week Ending ' || DATE($__timeTo()::TIMESTAMPTZ)::TEXT
-        END as metric,
-        avg(avg_util)
+          INTERVAL '1 DAY' + CASE
+            WHEN time BETWEEN date_trunc('day', $__timeFrom()::TIMESTAMPTZ - interval '7 day')
+                AND date_trunc('day', $__timeTo()::TIMESTAMPTZ - interval '7 day')
+              THEN date_trunc('day', time + interval '7 day')
+            ELSE date_trunc('day', time)
+          END as "time",
+          CASE
+            WHEN time BETWEEN date_trunc('day', $__timeFrom()::TIMESTAMPTZ - interval '7 day')
+                AND date_trunc('day', $__timeTo()::TIMESTAMPTZ - interval '7 day')
+              THEN 'Previous Week'
+            ELSE 'Week Ending ' || DATE($__timeTo()::TIMESTAMPTZ)::TEXT
+          END as metric,
+          avg(avg_util)
       FROM data
       GROUP BY 1, 2
       ORDER BY 1, 2
@@ -862,7 +890,7 @@ templating:
     regex: ''
     skipUrlSync: false
     type: datasource
-  - allValue: "0"
+  - allValue:
     datasource: $DB
     definition: |-
       SELECT name as __text,

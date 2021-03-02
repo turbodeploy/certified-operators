@@ -71,16 +71,17 @@ panels:
     metricColumn: none
     rawQuery: true
     rawSql: |-
-      WITH data AS (
+      WITH vms as (
+        ${VMSelector:raw}
+      ),
+      data as (
         SELECT m.time, avg(m.utilization) AS avg_util
-        FROM  metric m,
-          scope_to($__timeFrom()::timestamptz - INTERVAL '24 hour',  date_trunc('hour', $__timeTo()::timestamptz),
-            'VIRTUAL_MACHINE', ARRAY[${Group}]::bigint[], '${Group:raw}' = '0') s
-        WHERE m.entity_oid = s.oid
-          and m.time BETWEEN s.from_time AND s.to_time
-          AND m.type = 'VMEM'
-          AND m.provider_oid IS NULL
-          AND m.time BETWEEN $__timeFrom()::timestamptz - interval '24 hour' AND date_trunc('hour', $__timeTo()::timestamptz)
+        FROM  metric m, vms v
+        WHERE m.entity_oid = v.oid
+        AND m.type = 'VMEM'
+        AND m.provider_oid IS NULL
+        AND m.time BETWEEN $__timeFrom()::timestamptz - interval '24 hour' AND date_trunc('hour', $__timeTo()::timestamptz)
+        AND ${ScopeCondition:raw}
         GROUP BY 1
       )
       SELECT
@@ -200,16 +201,17 @@ panels:
     metricColumn: none
     rawQuery: true
     rawSql: |-
-      WITH data as (
+      WITH vms as (
+        ${VMSelector:raw}
+      ),
+      data as (
         SELECT m.time, avg(m.utilization) AS avg_util
-        FROM  metric m,
-          scope_to($__timeFrom()::timestamptz - INTERVAL '24 hour', date_trunc('hour', $__timeTo()::timestamptz),
-            'VIRTUAL_MACHINE', ARRAY[${Group}]::bigint[], '${Group:raw}' = '0') s
-        WHERE m.entity_oid = s.oid
-          AND m.time BETWEEN s.from_time AND s.to_time
-          AND m.type = 'VCPU'
-          AND m.provider_oid IS NULL
-          AND m.time BETWEEN $__timeFrom()::timestamptz - interval '24 hour' AND date_trunc('hour', $__timeTo()::timestamptz)
+        FROM  metric m, vms v
+        WHERE m.entity_oid = v.oid
+        AND m.type = 'VCPU'
+        AND m.provider_oid IS NULL
+        AND m.time BETWEEN $__timeFrom()::timestamptz - interval '24 hour' AND date_trunc('hour', $__timeTo()::timestamptz)
+        AND ${ScopeCondition:raw}
         GROUP BY 1
       )
        SELECT
@@ -291,7 +293,7 @@ templating:
     regex: ''
     skipUrlSync: false
     type: datasource
-  - allValue: '0'
+  - allValue:
     datasource: $DB
     definition: |-
       SELECT name as __text,
@@ -317,6 +319,74 @@ templating:
       AND attrs -> 'member_types' ? 'VIRTUAL_MACHINE'
       GROUP BY name, oid
       ORDER BY 1
+    refresh: 2
+    regex: ''
+    skipUrlSync: false
+    sort: 0
+    tagValuesQuery: ''
+    tags: []
+    tagsQuery: ''
+    type: query
+    useTags: false
+  - allValue:
+    datasource: $DB
+    definition: |-
+      SELECT CASE
+         WHEN '${Group:csv}' = '0' THEN
+           'SELECT oid from entity where type=''VIRTUAL_MACHINE'''
+         ELSE concat(
+           'SELECT distinct s.scoped_oid as oid, start, finish ',
+           'FROM scope s ',
+           'WHERE s.scoped_type = ''VIRTUAL_MACHINE'' ',
+           '  AND ('$__timeFrom()'::timestamptz - interval ''24 hour'', date_trunc(''hour'', '$__timeTo()'::timestamptz)) ',
+                'OVERLAPS (s.start, s.finish) ',
+           '  AND s.seed_oid IN (SELECT * FROM unnest(ARRAY[${Group:csv}]::bigint[]))')
+         END
+    hide: 2
+    includeAll: true
+    label:
+    multi: false
+    name: VMSelector
+    options: []
+    query: |-
+      SELECT CASE
+         WHEN '${Group:csv}' = '0' THEN
+           'SELECT oid from entity where type=''VIRTUAL_MACHINE'''
+         ELSE concat(
+           'SELECT distinct s.scoped_oid as oid, start, finish ',
+           'FROM scope s ',
+           'WHERE s.scoped_type = ''VIRTUAL_MACHINE'' ',
+           '  AND ('$__timeFrom()'::timestamptz - interval ''24 hour'', date_trunc(''hour'', '$__timeTo()'::timestamptz)) ',
+                'OVERLAPS (s.start, s.finish) ',
+           '  AND s.seed_oid IN (SELECT * FROM unnest(ARRAY[${Group:csv}]::bigint[]))')
+         END
+    refresh: 2
+    regex: ''
+    skipUrlSync: false
+    sort: 0
+    tagValuesQuery: ''
+    tags: []
+    tagsQuery: ''
+    type: query
+    useTags: false
+  - allValue:
+    datasource: $DB
+    definition: |-
+      SELECT CASE
+         WHEN '${Group:csv}' = '0' THEN 'true'
+         ELSE 'm.time BETWEEN v.start AND v.finish'
+      END
+    hide: 2
+    includeAll: true
+    label:
+    multi: false
+    name: ScopeCondition
+    options: []
+    query: |-
+      SELECT CASE
+         WHEN '${Group:csv}' = '0' THEN 'true'
+         ELSE 'm.time BETWEEN v.start AND v.finish'
+      END
     refresh: 2
     regex: ''
     skipUrlSync: false

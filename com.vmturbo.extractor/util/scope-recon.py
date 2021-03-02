@@ -1,11 +1,7 @@
 import logging
 import psycopg2
-import queue
-import xxhash
 
 from datetime import datetime
-from multiprocessing import Process, Queue
-from time import perf_counter
 
 class Scope:
 
@@ -26,12 +22,13 @@ class Scope:
         self.prior = self.current
         self.current_time = t
         self.current = {}
+        logger.info(f"Captured time: {self.current_time} = {t}")
         
     def add_scope(self, seed, scoped):
         for oid in scoped:
             if seed not in self.current:
-                self.current[seed] = set()
-            self.current[seed].add(oid)
+                self.current[seed] = []
+            self.current[seed].append(oid)
 
     def close_time(self):
         for seed in self.current.keys():
@@ -41,7 +38,9 @@ class Scope:
                     pass
                 else:
                     # oid enters seed's scope - remember start time
+                    logger.info(f"Adding to starts: ({seed}, {oid}): {self.current_time}")
                     self.starts[(seed, oid)] = self.current_time
+                        
         for seed in self.prior.keys():
             for oid in self.prior[seed]:
                 if seed in self.current and oid in self.current[seed]:
@@ -49,9 +48,10 @@ class Scope:
                     pass
                 else:
                     # oid exits seed's scope
-                    self.write_record(seed, oid, self.starts[(seed, oid)], self.prior_time)
+                    self.write_record(seed, oid, self.starts[(seed, oid)], prior_time)
+                    logger.info(f"Removing from starts: ({seed}, {oid}): {self.starts[(seed, oid)]}")
                     del self.starts[(seed, oid)]
-    
+
     def finish(self):
         self.close_time()
         for seed in self.current.keys():
@@ -82,35 +82,6 @@ class Scope:
         return type in self.GROUP_TYPES
         
 
-class ScopeBuilder:
-    def __init__(self, bucket, type_map, hash_scopes, conn_provider, data_queue):
-        self.bucket = bucket
-        self.conn = conn_provider()
-        self.type_map = type_map
-        self.hash_scopes = hash_scopes
-        self.data_queue = data_queue
-
-    def run(self):
-        bucket = self.bucket
-        scope = Scope(self.type_map, self.conn.cursor())
-        last_time = None
-        while True:
-            (time, oid, hash) = self.data_queue.get()
-            if not time:
-                break
-            if (time != last_time):
-                if last_time:
-                    scope.close_time()
-                scope.open_time(time)
-                last_time = time
-            if hash in self.hash_scopes:
-                scope.add_scope(oid, self.hash_scopes[hash])
-            else:
-                logger.warn(f"Missing scope for hash {hash}")
-        scope.finish()
-        self.conn.commit()
-
-
 def load_entity_types(conn):
     type_map = {}
     cursor = conn.cursor()
@@ -127,11 +98,6 @@ def load_scopes(conn):
         scope_map[hash] = scope
     return scope_map
 
-def runner(bucket, type_map, hash_scopes, conn_provider, data_queue):
-    builder = ScopeBuilder(bucket, type_map, hash_scopes, conn_provider, data_queue)
-    builder.run()
-    
-
 def main():
     global logger
     logger = logging.getLogger("scope-recon")
@@ -139,43 +105,28 @@ def main():
     logger.setLevel('INFO')
     # No idea why, but if I don't do the following, nothing gets logged at INFO level using logger
     logging.info(None)
-    conn_provider = lambda : psycopg2.connect(
+    conn = psycopg2.connect(
         user="extractor", password="vmturbo", host="localhost", port="5432",
         database="extractor")
-    conn = conn_provider()
     type_map = load_entity_types(conn)
     logger.info(f'type_map loaded with {len(type_map)} entries')
     hash_scopes = load_scopes(conn)
     logger.info(f'legacy scopes loaded with {len(hash_scopes)} entries')
     cursor = conn.cursor()
-    cursor.execute("SELECT time, entity_oid, entity_hash FROM scope_recon ORDER BY time")
-    bucket_count = 1
-    queues = [Queue(maxsize=1000) for i in range(bucket_count)]
-    workers = [Process(target=runner, args=(i, type_map, hash_scopes, conn_provider , queues[i])) for i in range(bucket_count)]
-    for worker in workers:
-        worker.start()
+    cursor.execute("SELECT time, entity_oid, entity_hash FROM scope_recon WHERE TIME < '2020-12-10 16:40:00' ORDER BY time")
     last_time = None
-    work = [0 for i in range(bucket_count)]
-    start = None
+    scope = Scope(type_map, conn.cursor())
     for (time, oid, hash) in cursor:
-        if time != last_time:
-            if start:
-                logger.info(f"Elapsed: {perf_counter()-start}; distribution: {work}")
-            logger.info(f"Processing records from time {time}")
-            work = [0 for i in range(bucket_count)]
+        if (time != last_time):
+            if last_time:
+                scope.close_time()
+            scope.open_time(time)
             last_time = time
-            start = perf_counter()
-        x = xxhash.xxh64()
-        x.update(str(oid))
-        bucket = x.intdigest() % bucket_count
-        work[bucket] += 1
-        queues[bucket].put((time, oid, hash))
-    for i in range(bucket_count):
-        queues[i].put((None, None, None))
-    start = perf_counter()
-    for i in range(bucket_count):
-        workers[i].join()
-    logger.info(f"Final data write took {perf_counter()-start} seconds")
+            logger.info(f'Loading data for time {time}')
+        scope.add_scope(oid, hash_scopes[hash])
+    scope.finish()
+    conn.commit()
+            
 
 if (__name__ == '__main__'):
     main()

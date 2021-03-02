@@ -112,12 +112,6 @@ public class TopologyListenerConfig {
     private int headroomCheckIntervalHrs;
 
     /**
-     * Max time to wait for an object to be delivered to Kafka, default to 5 min.
-     */
-    @Value("${kafkaTimeoutSeconds:300}")
-    private int kafkaTimeoutSeconds;
-
-    /**
      * Create an instance of our topology listener.
      *
      * @return listener instance
@@ -316,7 +310,7 @@ public class TopologyListenerConfig {
     @Bean
     public ExtractorKafkaSender extractorKafkaSender() {
         return new ExtractorKafkaSender(kafkaProducerConfig.kafkaMessageSender()
-                .bytesSender(ExportUtils.DATA_EXTRACTION_KAFKA_TOPIC), kafkaTimeoutSeconds);
+                .bytesSender(ExportUtils.DATA_EXTRACTION_KAFKA_TOPIC));
     }
 
     /**

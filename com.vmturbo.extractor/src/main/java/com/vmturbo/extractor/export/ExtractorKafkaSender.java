@@ -4,10 +4,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -18,6 +14,9 @@ import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.components.api.chunking.GetSerializedSizeException;
+import com.vmturbo.components.api.chunking.OversizedElementException;
 import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.extractor.schema.json.export.ExportedObject;
 
@@ -41,17 +40,14 @@ public class ExtractorKafkaSender {
     private static final Logger logger = LogManager.getLogger();
 
     private final IMessageSender<byte[]> kafkaMessageSender;
-    private final int kafkaTimeoutSeconds;
 
     /**
      * Constructor for {@link ExtractorKafkaSender}.
      *
      * @param kafkaMessageSender for sending objects to kafka
-     * @param kafkaTimeoutSeconds max time to wait for an object to be delivered to kafka
      */
-    public ExtractorKafkaSender(IMessageSender<byte[]> kafkaMessageSender, int kafkaTimeoutSeconds) {
+    public ExtractorKafkaSender(IMessageSender<byte[]> kafkaMessageSender) {
         this.kafkaMessageSender = kafkaMessageSender;
-        this.kafkaTimeoutSeconds = kafkaTimeoutSeconds;
     }
 
     /**
@@ -61,36 +57,35 @@ public class ExtractorKafkaSender {
      * @return number of objects successfully sent to Kafka
      */
     public int send(@Nonnull Collection<ExportedObject> exportedObjects) {
-        final List<Future<?>> futures = new ArrayList<>();
-        final List<String> objectsWithSerializedErrors = new ArrayList<>();
-        exportedObjects.forEach(exportedObject -> {
-            try {
-                byte[] bytes = ExportUtils.toBytes(exportedObject);
-                futures.add(kafkaMessageSender.sendMessageAsync(bytes));
-            } catch (JsonProcessingException e) {
-                // track objects which can not be serialized
-                objectsWithSerializedErrors.add(exportedObject.toString());
-            }
-        });
-
-        if (!objectsWithSerializedErrors.isEmpty()) {
-            logger.error("{} of {} objects can not be serialized: {}",
-                    objectsWithSerializedErrors.size(), exportedObjects.size(), objectsWithSerializedErrors);
-        }
-
+        final List<ExportedObject> objectsToSend = calculateSerializedSize(exportedObjects);
+        final ExportedObjectChunkCollector chunkCollector = new ExportedObjectChunkCollector(
+                kafkaMessageSender.getRecommendedRequestSizeBytes(),
+                kafkaMessageSender.getMaxRequestSizeBytes());
         final MutableInt successCounter = new MutableInt(0);
         try {
-            for (Future<?> future : futures) {
+            for (ExportedObject exportedObject : objectsToSend) {
                 try {
-                    future.get(kafkaTimeoutSeconds, TimeUnit.SECONDS);
-                    successCounter.increment();
-                } catch (ExecutionException | TimeoutException e) {
-                    logger.error("Failed to send object to kafka", e);
+                    // serialize the object as byte array (json)
+                    final Collection<ExportedObject> chunkToSend =
+                            chunkCollector.addToCurrentChunk(exportedObject);
+                    if (chunkToSend != null) {
+                        sendChunk(chunkToSend, successCounter);
+                    }
+                } catch (OversizedElementException e) {
+                    logger.error("Failed to send object ({}) because it's too large: {}",
+                            exportedObject, e.getMessage());
+                } catch (GetSerializedSizeException e) {
+                    // if the serialized size can not be determined for some reason, we do not send it
+                    logger.error("Failed to send object ({}) because its serialized size can not "
+                                    + "be determined: {}", exportedObject, e.getMessage());
                 }
             }
-        } catch (InterruptedException e) {
-            logger.error("Interrupted while sending objects to Kafka: {} of {} sent",
-                    successCounter.intValue(), futures.size(), e);
+            if (chunkCollector.count() > 0) {
+                sendChunk(chunkCollector.takeCurrentChunk(), successCounter);
+            }
+        } catch (CommunicationException | InterruptedException e) {
+            logger.error("Failed to send objects to Kafka: {} of {} sent",
+                    successCounter.intValue(), objectsToSend.size(), e);
         }
         return successCounter.intValue();
     }
@@ -122,5 +117,24 @@ public class ExtractorKafkaSender {
                     objectsWithSerializedErrors.size(), exportedObjects.size(), objectsWithSerializedErrors);
         }
         return objectsToSend;
+    }
+
+    /**
+     * Send the given chunk of objects to Kafka and record the number of objects sent successfully.
+     *
+     * @param chunkToSend collection of objects to be sent
+     * @param successCounter counter for number of objects sent successfully
+     * @throws CommunicationException error connecting to Kafka
+     * @throws InterruptedException operation was interrupted
+     */
+    private void sendChunk(final Collection<ExportedObject> chunkToSend, final MutableInt successCounter)
+            throws CommunicationException, InterruptedException {
+        try {
+            kafkaMessageSender.sendMessage(ExportUtils.toBytes(chunkToSend));
+            successCounter.add(chunkToSend.size());
+        } catch (JsonProcessingException e) {
+            // json error on one object should not affect others
+            logger.error("Error converting {} objects in chunk to json", chunkToSend.size(), e);
+        }
     }
 }

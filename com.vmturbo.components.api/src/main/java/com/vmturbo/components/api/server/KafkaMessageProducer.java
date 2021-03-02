@@ -249,13 +249,6 @@ public class KafkaMessageProducer implements AutoCloseable, IMessageSenderFactor
         }
 
         @Override
-        public Future<RecordMetadata> sendMessageAsync(@Nonnull S serverMsg) {
-            final String messageKey = keyGenerator != null ? keyGenerator.apply(serverMsg)
-                    : defaultMessageKeyGenerator();
-            return sendKafkaMessage(serverMsg, topic, messageKey);
-        }
-
-        @Override
         public void sendMessage(@Nonnull S serverMsg)
                 throws CommunicationException {
             String messageKey = keyGenerator != null ? keyGenerator.apply(serverMsg)

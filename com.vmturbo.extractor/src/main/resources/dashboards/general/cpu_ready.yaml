@@ -209,21 +209,19 @@ panels:
         rawSql: |-
           with metrics AS (
             SELECT m.time, m.type, m.entity_oid, m.utilization
-            FROM metric m,
-              scope_to($__timeFrom(), $__timeTo(), 'PHYSICAL_MACHINE', ARRAY[${Cluster}]::bigint[], '${Cluster:raw}' = '0') s
-            WHERE m.entity_oid = s.oid
-              AND m.time BETWEEN s.from_time AND s.to_time
-              AND m.time BETWEEN $__timeFrom() AND $__timeTo()
+            FROM metric m
+            WHERE m.time BETWEEN $__timeFrom() AND $__timeTo()
               AND m.type::text like 'Q%VCPU'
           )
           SELECT e.name as "Host",
             regexp_replace(m.type::text, 'Q([0-9]*)_VCPU', '\1 vCPU') as "Queue Type",
             avg(m.utilization) as "Avg CPU Ready",
             max(m.utilization) as "Max CPU Ready"
-          FROM metrics m,
-            entity e
-          WHERE m.entity_oid = e.oid
-          GROUP BY e.oid, 2
+          FROM metrics m
+            JOIN entity e ON (m.entity_oid = e.oid)
+            ${ScopeJoin:raw}
+            AND e.type = 'PHYSICAL_MACHINE'
+          GROUP BY e.oid, e.name, m.type
           ORDER BY 3 desc
         refId: A
         select:
@@ -330,20 +328,17 @@ panels:
         rawSql: |-
           with metrics AS (
             SELECT m.time, m.entity_oid, m.utilization
-            FROM metric m,
-              scope_to($__timeFrom(), $__timeTo(), 'VIRTUAL_MACHINE', ARRAY[${Cluster}]::bigint[], '${Cluster:raw}' = '0') s
-            WHERE m.entity_oid = s.oid
-              AND m.time BETWEEN s.from_time AND s.to_time
-              AND m.time BETWEEN $__timeFrom() AND $__timeTo()
-              AND m.type='CPU_READY'
+            FROM metric m
+            WHERE m.time BETWEEN $__timeFrom() AND $__timeTo() AND m.type='CPU_READY'
           )
           SELECT e.name as "VM Name",
             max(e.attrs->>'num_cpus') || ' vCPUs' as "Num vCPUs",
             avg(m.utilization) as "Avg CPU Ready",
             max(m.utilization) as "Max CPU Ready"
-          FROM metrics m,
-            entity e
-          WHERE m.entity_oid = e.oid
+          FROM metrics m
+            JOIN entity e ON (m.entity_oid = e.oid)
+            ${ScopeJoin:raw}
+            AND e.type = 'VIRTUAL_MACHINE'
           GROUP BY e.oid, e.name
           ORDER BY 3 desc
         refId: A
@@ -405,6 +400,41 @@ templating:
           AND ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)
         GROUP BY name, oid
         ORDER BY 1
+      refresh: 2
+      regex: ''
+      skipUrlSync: false
+      sort: 0
+      tagValuesQuery: ''
+      tags: []
+      tagsQuery: ''
+      type: query
+      useTags: false
+    - allValue:
+      datasource: $DB
+      definition: |-
+        SELECT CASE WHEN ARRAY[${Cluster:csv}]::bigint[] = ARRAY[0]::bigint[]
+          THEN  'WHERE true '
+          ELSE concat(
+            'JOIN scope s ON (s.scoped_oid = e.oid) ',
+            'WHERE s.seed_oid IN (SELECT * FROM unnest(array[${Cluster:csv}]::bigint[])) ',
+            'AND (s.start, s.finish) OVERLAPS ('$__timeFrom()', '$__timeTo()') ',
+            'AND m.time BETWEEN s.start AND s.finish')
+          END
+      hide: 2
+      includeAll: false
+      label:
+      multi: false
+      name: ScopeJoin
+      options: []
+      query: |-
+        SELECT CASE WHEN ARRAY[${Cluster:csv}]::bigint[] = ARRAY[0]::bigint[]
+          THEN  'WHERE true '
+          ELSE concat(
+            'JOIN scope s ON (s.scoped_oid = e.oid) ',
+            'WHERE s.seed_oid IN (SELECT * FROM unnest(array[${Cluster:csv}]::bigint[])) ',
+            'AND (s.start, s.finish) OVERLAPS ('$__timeFrom()', '$__timeTo()') ',
+            'AND m.time BETWEEN s.start AND s.finish')
+          END
       refresh: 2
       regex: ''
       skipUrlSync: false

@@ -6,23 +6,24 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.junit.Before;
 import org.junit.Test;
 
+import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.extractor.schema.json.export.Entity;
 import com.vmturbo.extractor.schema.json.export.ExportedObject;
 
 /**
- * Test that ExtractorKafkaSender works as expected.
+ * Test that ExtractorKafkaSender works as expected, respecting size limit.
  */
 public class ExtractorKafkaSenderTest {
 
@@ -32,26 +33,48 @@ public class ExtractorKafkaSenderTest {
 
     /**
      * Setup before each test.
+     *
+     * @throws CommunicationException if communication error occurred
+     * @throws InterruptedException if thread is interrupted
      */
     @Before
-    public void setUp() {
+    public void setUp() throws CommunicationException, InterruptedException {
         // capture objects sent to kafka
         this.objectsCapture = new ArrayList<>();
         doAnswer(inv -> {
             byte[] bytes = inv.getArgumentAt(0, byte[].class);
             if (bytes != null) {
-                objectsCapture.add(ExportUtils.fromBytes(bytes));
+                objectsCapture.addAll(ExportUtils.fromBytes(bytes));
             }
-            return CompletableFuture.completedFuture(null);
-        }).when(kafkaMessageSender).sendMessageAsync(any());
-        this.extractorKafkaSender = spy(new ExtractorKafkaSender(kafkaMessageSender, 10));
+            return null;
+        }).when(kafkaMessageSender).sendMessage(any());
+        this.extractorKafkaSender = spy(new ExtractorKafkaSender(kafkaMessageSender));
     }
 
     /**
-     * Test that entities are sent to Kafka correctly.
+     * Test that ExtractorKafkaSender works if total size is less than max size limit.
      */
     @Test
-    public void testSendToKafka() {
+    public void testSendToKafkaLessThanMaxRequestSize() {
+        when(kafkaMessageSender.getMaxRequestSizeBytes()).thenReturn(Integer.MAX_VALUE);
+        when(kafkaMessageSender.getRecommendedRequestSizeBytes()).thenReturn(Integer.MAX_VALUE);
+        sendToKafkaAndVerify();
+    }
+
+    /**
+     * Test that ExtractorKafkaSender works if total size is more than max size limit.
+     */
+    @Test
+    public void testSendToKafkaMoreThanMaxRequestSize() {
+        when(kafkaMessageSender.getMaxRequestSizeBytes()).thenReturn(60);
+        when(kafkaMessageSender.getRecommendedRequestSizeBytes()).thenReturn(60);
+        sendToKafkaAndVerify();
+    }
+
+    /**
+     * Send entities to Kafka and verify they are sent.
+     */
+    private void sendToKafkaAndVerify() {
         // around 57 bytes
         final Entity entity1 = new Entity();
         entity1.setOid(1L);
@@ -64,14 +87,13 @@ public class ExtractorKafkaSenderTest {
         entity2.setName("bar");
         entity2.setType("PHYSICAL_MACHINE");
         // send
-        int sentCount = extractorKafkaSender.send(Stream.of(entity1, entity2).map(e -> {
+        extractorKafkaSender.send(Stream.of(entity1, entity2).map(e -> {
             ExportedObject object = new ExportedObject();
             object.setEntity(e);
             return object;
         }).collect(Collectors.toList()));
 
         // verify
-        assertThat(sentCount, is(2));
         assertThat(objectsCapture.size(), is(2));
 
         Map<Long, Entity> entityById = objectsCapture.stream()

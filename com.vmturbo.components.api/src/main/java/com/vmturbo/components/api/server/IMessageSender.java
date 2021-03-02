@@ -1,10 +1,6 @@
 package com.vmturbo.components.api.server;
 
-import java.util.concurrent.Future;
-
 import javax.annotation.Nonnull;
-
-import org.apache.kafka.clients.producer.RecordMetadata;
 
 import com.vmturbo.communication.CommunicationException;
 
@@ -30,17 +26,6 @@ public interface IMessageSender<S> {
      */
     void sendMessage(@Nonnull final S serverMsg) throws CommunicationException,
             InterruptedException;
-
-    /**
-     * Send the given message without waiting for it to be delivered. By default, this is not
-     * supported and throws an {@link UnsupportedOperationException}.
-     *
-     * @param serverMsg the message to be sent
-     * @return future representing pending completion of the sending
-     */
-    default Future<?> sendMessageAsync(@Nonnull final S serverMsg) {
-        throw new UnsupportedOperationException("Sending async is not supported");
-    }
 
     /**
      * Get the maximum size of messages allowed to be sent via this sender. Any messages larger
