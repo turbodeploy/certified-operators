@@ -4,15 +4,18 @@ import static com.vmturbo.common.protobuf.topology.TopologyDTOUtil.QX_VCPU_BASE_
 import static com.vmturbo.extractor.util.TopologyTestUtil.boughtCommoditiesFromProvider;
 import static com.vmturbo.extractor.util.TopologyTestUtil.mkEntity;
 import static com.vmturbo.extractor.util.TopologyTestUtil.soldCommodities;
+import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.COOLING;
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.CPU;
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.DTU;
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.MEM;
+import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.POWER;
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.Q1_VCPU;
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.Q2_VCPU;
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.STORAGE_ACCESS;
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.STORAGE_AMOUNT;
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.VCPU;
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.VMEM;
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.CHASSIS;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.PHYSICAL_MACHINE;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.STORAGE;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE;
@@ -158,7 +161,8 @@ public class DataExtractionWriterTest {
                         Quintet.with(MEM, "b", 1024.0, 2048.0, null),
                         Quintet.with(Q1_VCPU, "", 200.0, QX_VCPU_BASE_COEFFICIENT, null),
                         Quintet.with(Q2_VCPU, "", 400.0, QX_VCPU_BASE_COEFFICIENT, null)
-                )).build();
+                ))
+                .build();
         final TopologyEntityDTO vm = mkEntity(VIRTUAL_MACHINE).toBuilder()
                 .addAllCommoditySoldList(soldCommodities(
                         Quintet.with(VCPU, "", 200.0, 500.0, null),
@@ -335,6 +339,53 @@ public class DataExtractionWriterTest {
         assertThat(stEntity2.getRelated().size(), is(2));
         assertThat(getRelatedEntityIds(stEntity2, EntityType.VIRTUAL_MACHINE), containsInAnyOrder(vm.getOid()));
         assertThat(getRelatedEntityIds(stEntity2, EntityType.STORAGE_CLUSTER), containsInAnyOrder(STORAGE_CLUSTER1.getId()));
+    }
+
+    /**
+     * Verify that power/cooling commodities are exported.
+     */
+    @Test
+    public void testPowerCoolingMetrics() {
+        final TopologyEntityDTO chassis = mkEntity(CHASSIS).toBuilder()
+                .addAllCommoditySoldList(soldCommodities(
+                        Quintet.with(POWER, "", 5.0, 7500.0, null),
+                        Quintet.with(COOLING, "", 10.0, 85.0, null)
+                )).build();
+        final TopologyEntityDTO pm = mkEntity(PHYSICAL_MACHINE).toBuilder()
+                .addCommoditiesBoughtFromProviders(boughtCommoditiesFromProvider(chassis,
+                        Triplet.with(POWER, "", 3.0),
+                        Triplet.with(COOLING, "", 5.0)
+                ))
+                .build();
+        // mock graph
+        doReturn(Optional.of(new SupplyChainEntity(chassis))).when(topologyGraph).getEntity(chassis.getOid());
+        doReturn(Optional.of(new SupplyChainEntity(pm))).when(topologyGraph).getEntity(pm.getOid());
+
+        // write all entities
+        writer.writeEntity(chassis);
+        writer.writeEntity(pm);
+        writer.finish(dataProvider);
+
+        // verify 2 entities are sent to kafka
+        assertThat(entitiesCapture.size(), is(2));
+
+        final Map<Long, Entity> entityMap = entitiesCapture.stream()
+                .collect(Collectors.toMap(Entity::getOid, e -> e));
+        final Entity chassisEntity = entityMap.get(chassis.getOid());
+        final Entity pmEntity = entityMap.get(pm.getOid());
+
+        // verify commodities
+        // chassis sold
+        assertThat(chassisEntity.getMetric().size(), is(2));
+        assertThat(chassisEntity.getMetric().get(MetricType.POWER.getLiteral()).getCurrent(), is(5.0));
+        assertThat(chassisEntity.getMetric().get(MetricType.POWER.getLiteral()).getCapacity(), is(7500.0));
+        assertThat(chassisEntity.getMetric().get(MetricType.COOLING.getLiteral()).getCurrent(), is(10.0));
+        assertThat(chassisEntity.getMetric().get(MetricType.COOLING.getLiteral()).getCapacity(), is(85.0));
+
+        // pm bought
+        assertThat(pmEntity.getMetric().size(), is(2));
+        assertThat(pmEntity.getMetric().get(MetricType.POWER.getLiteral()).getConsumed(), is(3.0));
+        assertThat(pmEntity.getMetric().get(MetricType.COOLING.getLiteral()).getConsumed(), is(5.0));
     }
 
     /**
