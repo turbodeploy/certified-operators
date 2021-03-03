@@ -258,6 +258,10 @@ public interface EntitySavingsStore {
             return lastTimeByHour;
         }
 
+        boolean hasLastTimeByHour() {
+            return lastTimeByHour != 0L;
+        }
+
         void setLastTimeByDay(long lastDaily) {
             lastTimeByDay = lastDaily;
         }
@@ -266,12 +270,20 @@ public interface EntitySavingsStore {
             return lastTimeByDay;
         }
 
+        boolean hasLastTimeByDay() {
+            return lastTimeByDay != 0L;
+        }
+
         void setLastTimeByMonth(long lastMonthly) {
             lastTimeByMonth = lastMonthly;
         }
 
         long getLastTimeByMonth() {
             return lastTimeByMonth;
+        }
+
+        boolean hasLastTimeByMonth() {
+            return lastTimeByMonth != 0L;
         }
 
         @Override

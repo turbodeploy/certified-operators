@@ -7,6 +7,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.IntStream;
 
 import javax.annotation.Nonnull;
 
@@ -84,35 +85,58 @@ public class SqlAuditLogWriter implements AuditLogWriter {
     @Override
     public void write(@Nonnull List<SavingsEvent> events) {
         try {
-            Iterators.partition(events.iterator(), chunkSize)
-                    .forEachRemaining(chunk -> dsl.transaction(transaction -> {
-                        final DSLContext transactionContext = DSL.using(transaction);
-                        InsertReturningStep<EntitySavingsAuditEventsRecord> insert = dsl
-                                .insertInto(ENTITY_SAVINGS_AUDIT_EVENTS)
-                                .set(ENTITY_SAVINGS_AUDIT_EVENTS.ENTITY_OID, 0L)
-                                .set(ENTITY_SAVINGS_AUDIT_EVENTS.EVENT_TYPE, 0)
-                                .set(ENTITY_SAVINGS_AUDIT_EVENTS.EVENT_ID, StringUtils.EMPTY)
-                                .set(ENTITY_SAVINGS_AUDIT_EVENTS.EVENT_TIME, INIT_TIME)
-                                .set(ENTITY_SAVINGS_AUDIT_EVENTS.EVENT_INFO, StringUtils.EMPTY)
-                                .onDuplicateKeyIgnore();
-                        final BatchBindStep batch = transactionContext.batch(insert);
-                        chunk.forEach(event -> {
-                            try {
-                                final AuditLogEntry logEntry = new AuditLogEntry(event, gson);
-                                batch.bind(logEntry.entityOid, logEntry.eventType, logEntry.eventId,
-                                        SavingsUtil.getLocalDateTime(logEntry.eventTime, clock),
-                                        logEntry.eventInfo);
-                            } catch (InvalidProtocolBufferException ipbe) {
-                                logger.warn("Unable to serialize audit event {}.", event, ipbe);
-                            }
-                        });
-                        if (batch.size() > 0) {
-                            batch.execute();
-                        }
-                    }));
+            InsertReturningStep<EntitySavingsAuditEventsRecord> insert = dsl
+                    .insertInto(ENTITY_SAVINGS_AUDIT_EVENTS)
+                    .set(ENTITY_SAVINGS_AUDIT_EVENTS.ENTITY_OID, 0L)
+                    .set(ENTITY_SAVINGS_AUDIT_EVENTS.EVENT_TYPE, 0)
+                    .set(ENTITY_SAVINGS_AUDIT_EVENTS.EVENT_ID, StringUtils.EMPTY)
+                    .set(ENTITY_SAVINGS_AUDIT_EVENTS.EVENT_TIME, INIT_TIME)
+                    .set(ENTITY_SAVINGS_AUDIT_EVENTS.EVENT_INFO, StringUtils.EMPTY)
+                    .onDuplicateKeyIgnore();
+
+            // Put all records within a single transaction, irrespective of the chunk size.
+            dsl.transaction(transaction -> {
+                final DSLContext transactionContext = DSL.using(transaction);
+                final BatchBindStep batch = transactionContext.batch(insert);
+
+                // Add to batch and bind in chunks based on chunk size.
+                Iterators.partition(events.iterator(), chunkSize)
+                        .forEachRemaining(chunk ->
+                                chunk.forEach(event -> bindAuditEvent(batch, event)));
+
+                if (batch.size() > 0) {
+                    int[] insertCounts = batch.execute();
+                    int totalInserted = IntStream.of(insertCounts).sum();
+                    if (totalInserted < batch.size()) {
+                        logger.warn("Entity savings audit: Could only insert {} out of "
+                                        + "batch size of {}. Total input entry count: {}. "
+                                        + "Chunk size: {}", totalInserted, batch.size(),
+                                events.size(), chunkSize);
+                    }
+                }
+            });
         } catch (Exception e) {
             logger.warn("Could not write {} entity savings event audit entries to DB.",
                     events.size(), e);
+        }
+    }
+
+    /**
+     * Creates an audit log entry out of the savings event. If successful, then binds that to the
+     * batch in preparation for insert into DB.
+     *
+     * @param batch DB batch to add the event to.
+     * @param event Savings event to write to audit log.
+     */
+    private void bindAuditEvent(final BatchBindStep batch, @Nonnull final SavingsEvent event) {
+        try {
+            final AuditLogEntry logEntry = new AuditLogEntry(event, gson);
+            batch.bind(logEntry.entityOid, logEntry.eventType,
+                    logEntry.eventId,
+                    SavingsUtil.getLocalDateTime(logEntry.eventTime, clock),
+                    logEntry.eventInfo);
+        } catch (InvalidProtocolBufferException ipbe) {
+            logger.warn("Unable to serialize audit event {}.", event, ipbe);
         }
     }
 

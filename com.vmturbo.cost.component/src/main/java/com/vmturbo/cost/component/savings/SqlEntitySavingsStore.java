@@ -156,18 +156,18 @@ public class SqlEntitySavingsStore implements EntitySavingsStore {
 
             // Put all records within a single transaction, irrespective of the chunk size.
             dsl.transaction(transaction -> {
-                        final DSLContext transactionContext = DSL.using(transaction);
-                        final BatchBindStep batch = transactionContext.batch(insert);
+                final DSLContext transactionContext = DSL.using(transaction);
+                final BatchBindStep batch = transactionContext.batch(insert);
 
-                        // Add to batch and bind in chunks based on chunk size.
-                        Iterators.partition(hourlyStats.iterator(), chunkSize)
-                                .forEachRemaining(chunk ->
-                                        chunk.forEach(stats ->
-                                                batch.bind(stats.getEntityId(),
-                                                        SavingsUtil.getLocalDateTime(
-                                                                stats.getTimestamp(), clock),
-                                                        stats.getType().getNumber(),
-                                                        stats.getValue())));
+                // Add to batch and bind in chunks based on chunk size.
+                Iterators.partition(hourlyStats.iterator(), chunkSize)
+                        .forEachRemaining(chunk ->
+                                chunk.forEach(stats ->
+                                        batch.bind(stats.getEntityId(),
+                                                SavingsUtil.getLocalDateTime(
+                                                        stats.getTimestamp(), clock),
+                                                stats.getType().getNumber(),
+                                                stats.getValue())));
                 if (batch.size() > 0) {
                     int[] insertCounts = batch.execute();
                     int totalInserted = IntStream.of(insertCounts).sum();
@@ -247,14 +247,23 @@ public class SqlEntitySavingsStore implements EntitySavingsStore {
     @Override
     public void setLastRollupTimes(@Nonnull final LastRollupTimes rollupTimes) {
         try {
-            dsl.deleteFrom(AGGREGATION_META_DATA)
-                    .where(AGGREGATION_META_DATA.AGGREGATE_TABLE.eq(LastRollupTimes.getTableName()));
+            final AggregationMetaDataRecord record = new AggregationMetaDataRecord();
+            record.setAggregateTable(LastRollupTimes.getTableName());
+            record.setLastAggregated(new Timestamp(rollupTimes.getLastTimeUpdated()));
+            if (rollupTimes.hasLastTimeByHour()) {
+                record.setLastAggregatedByHour(new Timestamp(rollupTimes.getLastTimeByHour()));
+            }
+            if (rollupTimes.hasLastTimeByDay()) {
+                record.setLastAggregatedByDay(new Timestamp(rollupTimes.getLastTimeByDay()));
+            }
+            if (rollupTimes.hasLastTimeByMonth()) {
+                record.setLastAggregatedByMonth(new Timestamp(rollupTimes.getLastTimeByMonth()));
+            }
+
             dsl.insertInto(AGGREGATION_META_DATA)
-                    .values(LastRollupTimes.getTableName(),
-                            new Timestamp(rollupTimes.getLastTimeUpdated()),
-                            new Timestamp(rollupTimes.getLastTimeByHour()),
-                            new Timestamp(rollupTimes.getLastTimeByDay()),
-                            new Timestamp(rollupTimes.getLastTimeByMonth()))
+                    .set(record)
+                    .onDuplicateKeyUpdate()
+                    .set(record)
                     .execute();
         } catch (Exception e) {
             logger.warn("Unable to set last rollup times to DB: {}", rollupTimes, e);

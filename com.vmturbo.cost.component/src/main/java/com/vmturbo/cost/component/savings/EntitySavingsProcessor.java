@@ -51,9 +51,9 @@ class EntitySavingsProcessor {
         logger.debug("Invoke EntitySavingsTracker to process events.");
         final List<Long> hourlyStatsTimes = entitySavingsTracker.processEvents();
 
-        logger.debug("Invoking RollupSavingsProcessor to process rollups.");
+        logger.debug("Invoking RollupSavingsProcessor to process rollup.");
         rollupProcessor.process(hourlyStatsTimes);
 
-        logger.info("END: Savings/investment processing complete.");
+        logger.info("END: Processing savings/investment. {} Hourly stats.", hourlyStatsTimes.size());
     }
 }
