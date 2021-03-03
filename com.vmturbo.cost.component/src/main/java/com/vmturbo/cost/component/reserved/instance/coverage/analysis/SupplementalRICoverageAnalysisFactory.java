@@ -5,7 +5,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -140,14 +139,9 @@ public class SupplementalRICoverageAnalysisFactory {
     private Set<CloudCommitmentAggregate> resolveCloudCommitmentAggregates(
             @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology) {
 
-        ReservedInstanceBoughtFilter selectAllDiscovered = ReservedInstanceBoughtFilter
-                .newBuilder().excludeRIsFromUndiscoveredAcccounts(true).build();
-        // Exclude the undiscovered RIs from the reserved instances so as to not run supplementary allocation
-        // on undiscovered RIs
-
         List<ReservedInstanceBought> reservedInstances =
                 reservedInstanceBoughtStore
-                        .getReservedInstanceBoughtForAnalysis(selectAllDiscovered);
+                        .getReservedInstanceBoughtForAnalysis(ReservedInstanceBoughtFilter.SELECT_ALL_FILTER);
 
         // Query only for RI specs referenced from reservedInstances
         final Set<Long> riSpecIds = reservedInstances.stream()

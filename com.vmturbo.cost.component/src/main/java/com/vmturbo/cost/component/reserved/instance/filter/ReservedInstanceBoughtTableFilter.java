@@ -28,17 +28,10 @@ public abstract class ReservedInstanceBoughtTableFilter extends ReservedInstance
     // Needs to set to true, if any filter needs to get from reserved instance spec table.
     protected boolean joinWithSpecTable;
 
-    /**
-     * Set to true fo the RIS reterned by filter should not include the
-     * ReservedInstances from undiscovered accounts.
-     */
-    protected boolean excludeRIsFromUndiscoveredAcccounts = false;
-
     protected ReservedInstanceBoughtTableFilter(@Nonnull Builder builder) {
         super(builder);
         this.riBoughtFilter = Objects.requireNonNull(builder.riBoughtFilter);
         this.joinWithSpecTable = regionFilter.getRegionIdCount() > 0;
-        this.excludeRIsFromUndiscoveredAcccounts = builder.excludeRIsFromUndiscoveredAcccounts;
     }
 
     /**
@@ -50,17 +43,6 @@ public abstract class ReservedInstanceBoughtTableFilter extends ReservedInstance
     public boolean isJoinWithSpecTable() {
         return this.joinWithSpecTable;
     }
-
-    /**
-     *
-     * Set to true fo the RIS reterned by filter should not include the
-     * ReservedInstances from undiscovered accounts.
-     * @return flag set for filtering the reserved instances from undiscovered accounts.
-     */
-    public boolean isExcludeRIsFromUndiscoveredAcccounts() {
-        return excludeRIsFromUndiscoveredAcccounts;
-    }
-
 
     /**
      * Generate the conditions to be used as filters in querying for RI instances.
@@ -132,13 +114,6 @@ public abstract class ReservedInstanceBoughtTableFilter extends ReservedInstance
             T extends ReservedInstanceBoughtTableFilter,
             U extends Builder> extends ReservedInstanceFilter.Builder<T, U> {
 
-        /**
-         * Set to true fo the RIS reterned by filter should not include the
-         * ReservedInstances from undiscovered accounts.
-         */
-        protected boolean excludeRIsFromUndiscoveredAcccounts = false;
-
-
         private Cost.ReservedInstanceBoughtFilter riBoughtFilter =
                 Cost.ReservedInstanceBoughtFilter.getDefaultInstance();
 
@@ -154,18 +129,6 @@ public abstract class ReservedInstanceBoughtTableFilter extends ReservedInstance
                     .orElseGet(Cost.ReservedInstanceBoughtFilter::getDefaultInstance);
             return (U)this;
         }
-
-        /**
-         *
-         * Set to true fo the RIS reterned by filter should not include the
-         * ReservedInstances from undiscovered accounts.
-         * @param excludeRIsFromUndiscoveredAcccounts flag for filtering RIs from undiscovered accounts.
-         */
-        public U excludeRIsFromUndiscoveredAcccounts(final boolean excludeRIsFromUndiscoveredAcccounts) {
-            this.excludeRIsFromUndiscoveredAcccounts = excludeRIsFromUndiscoveredAcccounts;
-            return (U)this;
-        }
-
     }
 }
 

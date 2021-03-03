@@ -135,18 +135,9 @@ public class SQLReservedInstanceBoughtStore extends AbstractReservedInstanceStor
     public List<ReservedInstanceBought> getReservedInstanceBoughtByFilterWithContext(
             @Nonnull final DSLContext context,
             @Nonnull final ReservedInstanceBoughtFilter filter) {
-        List<ReservedInstanceBought> filterRis =  internalGet(context, filter).stream()
+        return internalGet(context, filter).stream()
                 .map(this::reservedInstancesToProto)
                 .collect(toList());
-        if (filter.isExcludeRIsFromUndiscoveredAcccounts()) {
-            final Set<Long> undiscoveredRIs =
-                    getUndiscoveredReservedInstances()
-                            .stream().map(riBought -> riBought.getId())
-                            .collect(Collectors.toSet());
-            filterRis = filterRis.stream()
-                    .filter(ri -> !undiscoveredRIs.contains(ri.getId())).collect(Collectors.toList());
-        }
-        return filterRis;
     }
 
     @Override
