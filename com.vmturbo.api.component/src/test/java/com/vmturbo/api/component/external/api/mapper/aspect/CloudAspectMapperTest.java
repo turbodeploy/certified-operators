@@ -8,6 +8,8 @@ import static org.mockito.Mockito.when;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -24,8 +26,10 @@ import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
+import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.EntityUptimeApiDTO;
 import com.vmturbo.api.dto.entityaspect.CloudAspectApiDTO;
+import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.common.protobuf.VirtualMachineProtoUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
@@ -51,6 +55,7 @@ import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirect
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
@@ -91,6 +96,7 @@ public class CloudAspectMapperTest {
     private static final Long TOTAL_ANALYZED_DURATION = 500L;
     private static final Long UPTIME_DURATION = 600L;
     private static final Double UPTIME_PERCENTAGE = 55.9D;
+    private static final Long CREATION_TIMESTAMP = 1500000000L;
 
     private final ReservedInstanceUtilizationCoverageServiceMole riCoverageServiceMole = spy(
             new ReservedInstanceUtilizationCoverageServiceMole());
@@ -231,6 +237,7 @@ public class CloudAspectMapperTest {
                         .setTotalDurationMs(TOTAL_ANALYZED_DURATION)
                         .setUptimeDurationMs(UPTIME_DURATION)
                         .setUptimePercentage(UPTIME_PERCENTAGE)
+                        .setCreationTimeMs(CREATION_TIMESTAMP)
                         .build())
                 .build());
     }
@@ -263,6 +270,7 @@ public class CloudAspectMapperTest {
         Assert.assertEquals(UPTIME_DURATION, entityUptime.getUptimeDurationInMilliseconds());
         Assert.assertEquals(TOTAL_ANALYZED_DURATION, entityUptime.getTotalDurationInMilliseconds());
         Assert.assertEquals(UPTIME_PERCENTAGE, entityUptime.getUptimePercentage(), DELTA);
+        Assert.assertEquals(CREATION_TIMESTAMP, entityUptime.getCreationTimestamp());
     }
 
     /**
@@ -283,6 +291,32 @@ public class CloudAspectMapperTest {
         Assert.assertEquals(30F, aspect.getRiCoveragePercentage(), DELTA);
         Assert.assertEquals(couponsCovered, aspect.getRiCoverage().getValue(), DELTA);
         Assert.assertEquals(VMBillingType.HYBRID.name(), aspect.getBillingType());
+    }
+
+    /**
+     * Test for {@link CloudAspectMapper#mapEntityToAspectBatchPartial(List)}.
+     */
+    @Test
+    public void testMapEntityToAspectBatchPartial() {
+        final Map<Long, EntityAspect> entityAspectMap =
+                cloudAspectMapper.mapEntityToAspectBatchPartial(
+                        Collections.singletonList(ApiPartialEntity.newBuilder()
+                                .setOid(VIRTUAL_MACHINE_OID)
+                                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                                .setEnvironmentType(EnvironmentType.CLOUD)
+                                .build())).get();
+        Assert.assertEquals(1, entityAspectMap.size());
+        final CloudAspectApiDTO aspect = (CloudAspectApiDTO)entityAspectMap.get(
+                VIRTUAL_MACHINE_OID);
+
+        final EntityUptimeApiDTO entityUptime = aspect.getEntityUptime();
+        Assert.assertEquals(UPTIME_DURATION, entityUptime.getUptimeDurationInMilliseconds());
+        Assert.assertEquals(TOTAL_ANALYZED_DURATION, entityUptime.getTotalDurationInMilliseconds());
+        Assert.assertEquals(UPTIME_PERCENTAGE, entityUptime.getUptimePercentage(), DELTA);
+        Assert.assertEquals(CREATION_TIMESTAMP, entityUptime.getCreationTimestamp());
+        final BaseApiDTO account = aspect.getBusinessAccount();
+        Assert.assertEquals(ApiEntityType.BUSINESS_ACCOUNT.apiStr(), account.getClassName());
+        Assert.assertEquals(String.valueOf(BUSINESS_ACCOUNT_OID), account.getUuid());
     }
 
     /**

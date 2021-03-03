@@ -45,14 +45,11 @@ import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
 import org.springframework.context.annotation.Bean;
 
-import com.vmturbo.api.component.external.api.mapper.ConnectedEntityMapper;
-import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.MagicScopeGateway;
-import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.stats.PaginatedStatsExecutor;
 import com.vmturbo.api.component.external.api.util.stats.PlanEntityStatsFetcher;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryExecutor;
@@ -74,7 +71,6 @@ import com.vmturbo.common.protobuf.common.Pagination.OrderBy.EntityStatsOrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.cost.CostMoles;
-import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.OptimizationMetadata;
@@ -98,7 +94,6 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanEntityStatsChunk
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
-import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
@@ -120,12 +115,9 @@ import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.group.api.ImmutableGroupAndMembers;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
-import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 @RunWith(MockitoJUnitRunner.class)
 public class StatsServiceTest {
-
-    private final ThinTargetCache targetCache = Mockito.mock(ThinTargetCache.class);
 
     private final PolicyDTOMoles.PolicyServiceMole policyMole = spy(new PolicyServiceMole());
 
@@ -139,8 +131,6 @@ public class StatsServiceTest {
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(policyMole, costServiceMole, reservedInstanceBoughtServiceMole);
 
-    private ServiceEntityMapper serviceEntityMapper;
-
     private StatsService statsService;
 
     private UuidMapper uuidMapper = Mockito.mock(UuidMapper.class);
@@ -151,21 +141,15 @@ public class StatsServiceTest {
 
     private PlanServiceMole planServiceSpy = spy(new PlanServiceMole());
 
-
     private RepositoryServiceMole repositoryServiceSpy = spy(new RepositoryServiceMole());
 
     private StatsQueryExecutor statsQueryExecutor = mock(StatsQueryExecutor.class);
 
     private PlanEntityStatsFetcher planEntityStatsFetcher = mock(PlanEntityStatsFetcher.class);
 
-    private SupplyChainFetcherFactory supplyChainFetcherFactory =
-            Mockito.mock(SupplyChainFetcherFactory.class);
-
     private GroupExpander groupExpander = Mockito.mock(GroupExpander.class);
 
     private StatsMapper statsMapper = Mockito.mock(StatsMapper.class);
-
-    private final ConnectedEntityMapper connectedEntityMapper = Mockito.mock(ConnectedEntityMapper.class);
 
     private MagicScopeGateway magicScopeGateway = mock(MagicScopeGateway.class);
 
@@ -206,15 +190,10 @@ public class StatsServiceTest {
 
     @Before
     public void setUp() throws Exception {
-        serviceEntityMapper = new ServiceEntityMapper(targetCache,
-                        CostServiceGrpc.newBlockingStub(grpcServer.getChannel()),
-                        supplyChainRpcService(), connectedEntityMapper);
         final StatsHistoryServiceBlockingStub statsServiceRpc =
             StatsHistoryServiceGrpc.newBlockingStub(testServer.getChannel());
         final PlanServiceGrpc.PlanServiceBlockingStub planRpcService =
             PlanServiceGrpc.newBlockingStub(testServer.getChannel());
-        final RepositoryServiceGrpc.RepositoryServiceBlockingStub repositoryRpcService =
-            RepositoryServiceGrpc.newBlockingStub(testServer.getChannel());
 
         groupExpander = Mockito.mock(GroupExpander.class);
         GroupServiceBlockingStub groupService = GroupServiceGrpc.newBlockingStub(testServer.getChannel());
