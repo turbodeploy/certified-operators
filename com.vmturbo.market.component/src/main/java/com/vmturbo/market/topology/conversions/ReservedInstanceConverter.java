@@ -11,8 +11,6 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.Multimap;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -66,7 +64,8 @@ public class ReservedInstanceConverter extends ComputeTierConverter {
     public Map<TraderTO.Builder, MarketTier> createMarketTierTraderTOs(
             @Nonnull CloudCostData<TopologyEntityDTO> cloudCostData,
             @Nonnull Map<Long, TopologyEntityDTO> topology,
-            Multimap<AccountPricingData, Long> accountPricingDataByBusinessAccountOid) {
+            Map<Long, AccountPricingData<TopologyEntityDTO>> accountPricingDataByBusinessAccountOid) {
+
         ReservedInstanceAggregator aggregator = new ReservedInstanceAggregator(cloudCostData,
                 topology, cloudTopology);
         // create RI aggregates from the RIs bought
