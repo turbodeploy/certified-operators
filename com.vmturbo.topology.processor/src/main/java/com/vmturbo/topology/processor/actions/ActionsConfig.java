@@ -29,6 +29,7 @@ import com.vmturbo.topology.processor.actions.data.EntityRetriever;
 import com.vmturbo.topology.processor.actions.data.GroupAndPolicyRetriever;
 import com.vmturbo.topology.processor.actions.data.context.ActionExecutionContextFactory;
 import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
+import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClient;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription;
@@ -296,10 +297,24 @@ public class ActionsConfig {
     public ActionAuditService actionAuditService() {
         final int priority = Math.min(targetConfig.targetStore().priority(),
                 probeConfig.probeStore().priority()) - 1;
-        return new ActionAuditService(aoClientConfig.createActionEventsListener(),
-                operationConfig.operationManager(), actionExecutionContextFactory(),
-                actionRelatedScheduler(), actionAuditSendPeriodSec, actionAuditBatchSize,
-                priority, thinTargetCache());
+        final ActionAuditService actionAuditService =
+                new ActionAuditService(aoClientConfig.createActionEventsListener(),
+                        operationConfig.operationManager(), actionExecutionContextFactory(),
+                        actionRelatedScheduler(), actionAuditSendPeriodSec, actionAuditBatchSize,
+                        priority, thinTargetCache());
+        topologyProcessor().addTargetListener(actionAuditService);
+        return actionAuditService;
+    }
+
+    /**
+     * Topology processor bean.
+     *
+     * @return instance of topology processor
+     */
+    @Bean
+    public TopologyProcessor topologyProcessor() {
+        return tpConfig.topologyProcessor(
+                TopologyProcessorSubscription.forTopic(Topic.Notifications));
     }
 
     /**
@@ -309,8 +324,7 @@ public class ActionsConfig {
      */
     @Bean
     public ThinTargetCache thinTargetCache() {
-        return new ThinTargetCache(tpConfig.topologyProcessor(
-                TopologyProcessorSubscription.forTopic(Topic.Notifications)));
+        return new ThinTargetCache(topologyProcessor());
     }
 
     /**
