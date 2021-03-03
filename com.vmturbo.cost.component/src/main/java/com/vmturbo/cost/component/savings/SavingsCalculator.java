@@ -87,10 +87,18 @@ class SavingsCalculator {
         }
         SavingsInvestments realized = algorithmState.getRealized();
         SavingsInvestments missed = algorithmState.getMissed();
-        entityState.setRealizedInvestments(realized.getInvestments() / periodLength);
-        entityState.setRealizedSavings(realized.getSavings() / periodLength);
-        entityState.setMissedSavings(missed.getSavings() / periodLength);
-        entityState.setMissedInvestments(missed.getInvestments() / periodLength);
+        if (entityState.getRealizedInvestments() != null || realized.getInvestments() != 0) {
+            entityState.setRealizedInvestments(realized.getInvestments() / periodLength);
+        }
+        if (entityState.getRealizedSavings() != null || realized.getSavings() != 0) {
+            entityState.setRealizedSavings(realized.getSavings() / periodLength);
+        }
+        if (entityState.getMissedInvestments() != null || missed.getInvestments() != 0) {
+            entityState.setMissedInvestments(missed.getInvestments() / periodLength);
+        }
+        if (entityState.getMissedSavings() != null || missed.getSavings() != 0) {
+            entityState.setMissedSavings(missed.getSavings() / periodLength);
+        }
     }
 
     /**

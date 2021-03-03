@@ -48,27 +48,25 @@ public class EntityState {
      */
     private List<Double> actionList;
 
-    // Savings or investments of a period are transient values because they are persisted in the
-    // form of stats.
     /**
      * Realized savings.
      */
-    private transient Double realizedSavings;
+    private Double realizedSavings;
 
     /**
      * Realized investments.
      */
-    private transient Double realizedInvestments;
+    private Double realizedInvestments;
 
     /**
      * Missed savings.
      */
-    private transient Double missedSavings;
+    private Double missedSavings;
 
     /**
      * Missed investments.
      */
-    private transient Double missedInvestments;
+    private Double missedInvestments;
 
     EntityState(long entityId) {
         this.entityId = entityId;
