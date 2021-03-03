@@ -3,7 +3,6 @@ package com.vmturbo.market.topology.conversions;
 import static com.google.common.base.Preconditions.checkNotNull;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -23,10 +22,9 @@ import javax.annotation.Nullable;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.Multimap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 import com.google.common.collect.Sets;
 
 import org.apache.logging.log4j.LogManager;
@@ -84,7 +82,7 @@ public class CloudTopologyConverter {
     private final Map<TopologyEntityDTO, TopologyEntityDTO> azToRegionMap;
     private final Set<TopologyEntityDTO> businessAccounts;
     private final CloudCostData<TopologyEntityDTO> cloudCostData;
-    private Multimap<AccountPricingData, Long> businessAccountOidByAccountPricingData = HashMultimap.create();
+    private Map<Long, AccountPricingData<TopologyEntityDTO>> accountPricingDataByBusinessAccountOid = new HashMap<>();
     private final CloudTopology<TopologyEntityDTO> cloudTopology;
 
     /**
@@ -144,29 +142,22 @@ public class CloudTopologyConverter {
         List<TraderTO.Builder> traderTOBuilders = new ArrayList<>();
         List<TraderTO.Builder> computeMarketTierBuilders = new ArrayList<>();
         logger.info("Beginning creation of market tier trader TOs");
-        Set<AccountPricingData> uniqueAccountPricingData = ImmutableSet.copyOf(
-                businessAccountOidByAccountPricingData.keys());
-        for (Entry<AccountPricingData, Collection<Long>> entry: businessAccountOidByAccountPricingData
-                .asMap().entrySet()) {
-            Collection<Long> businessAccountOids = entry.getValue();
-            AccountPricingData accountPricingData = entry.getKey();
-            Set<TopologyEntityDTO> tiersAttachedToBusinessAccount = getTiersScopedToAccounts(
-                    businessAccountOids);
-            for (TopologyEntityDTO entity : tiersAttachedToBusinessAccount) {
-                TierConverter converter = converterMap.get(entity.getEntityType());
-                if (converter != null) {
-                    Map<TraderTO.Builder, MarketTier> traderTOBuildersForEntity = converter.createMarketTierTraderTOs(entity, topology, businessAccounts,
-                            accountPricingData);
-                    traderTOBuilders.addAll(traderTOBuildersForEntity.keySet());
-                    if (EntityType.COMPUTE_TIER_VALUE == entity.getEntityType()) {
-                        computeMarketTierBuilders.addAll(traderTOBuildersForEntity.keySet());
-                    }
-                    // Add all the traderTO oids to MarketTier mappings to
-                    // traderTOOidToMarketTier
-                    traderTOBuildersForEntity.forEach(
-                            (traderTO, marketTier) -> traderTOOidToMarketTier.put(traderTO.getOid(),
-                                    marketTier));
+        Set<AccountPricingData<TopologyEntityDTO>> uniqueAccountPricingData = ImmutableSet.copyOf(accountPricingDataByBusinessAccountOid.values());
+        for (Entry<Long, TopologyEntityDTO> entry : checkNotNull(topology.entrySet())) {
+            TopologyEntityDTO entity = entry.getValue();
+            TierConverter converter = converterMap.get(entity.getEntityType());
+            if (converter != null) {
+                Map<TraderTO.Builder, MarketTier> traderTOBuildersForEntity =
+                        converter.createMarketTierTraderTOs(entity, topology, businessAccounts, uniqueAccountPricingData);
+                traderTOBuilders.addAll(traderTOBuildersForEntity.keySet());
+                // Only add compute tiers.
+                if (entity.getEntityType() == EntityType.COMPUTE_TIER_VALUE) {
+                    computeMarketTierBuilders.addAll(traderTOBuildersForEntity.keySet());
                 }
+                // Add all the traderTO oids to MarketTier mappings to
+                // traderTOOidToMarketTier
+                traderTOBuildersForEntity.forEach((traderTO, marketTier) ->
+                        traderTOOidToMarketTier.put(traderTO.getOid(), marketTier));
             }
         }
 
@@ -174,8 +165,7 @@ public class CloudTopologyConverter {
         // since riData does not come along with the topologyEntityDTOs, RiDiscountedMarketTier creation
         // happens outside the for loop processing topologyEntityDTOs
         Map<TraderTO.Builder, MarketTier> traderTOBuildersForRis =
-                riConverter.createMarketTierTraderTOs(cloudCostData, topology,
-                        businessAccountOidByAccountPricingData);
+                riConverter.createMarketTierTraderTOs(cloudCostData, topology, accountPricingDataByBusinessAccountOid);
         traderTOBuilders.addAll(traderTOBuildersForRis.keySet());
         computeMarketTierBuilders.addAll(traderTOBuildersForRis.keySet());
         // Add all the traderTO oids to MarketTier mappings to
@@ -755,7 +745,7 @@ public class CloudTopologyConverter {
      */
     public void insertIntoAccountPricingDataByBusinessAccountOidMap(Long businessAccountOid,
                                                                     AccountPricingData accountPricingData) {
-        businessAccountOidByAccountPricingData.put(accountPricingData, businessAccountOid);
+        accountPricingDataByBusinessAccountOid.put(businessAccountOid, accountPricingData);
     }
 
     /**
@@ -768,42 +758,10 @@ public class CloudTopologyConverter {
      * @return a map of balanceAccountOid -> businessAccount {@link TopologyEntityDTO}
      */
     public Map<Long, TopologyEntityDTO> getBalanceAccountIdToBusinessAccount(Map<Long, TopologyEntityDTO> businessAccountIdToTopologyEntityDTO) {
-        return businessAccountOidByAccountPricingData.entries().stream()
+        return accountPricingDataByBusinessAccountOid.entrySet().stream()
                 .collect(Collectors.toMap(
-                        entry -> entry.getKey().getAccountPricingDataOid(),
-                        entry -> businessAccountIdToTopologyEntityDTO.get(entry.getValue()),
+                        entry -> entry.getValue().getAccountPricingDataOid(),
+                        entry -> businessAccountIdToTopologyEntityDTO.get(entry.getKey()),
                         BinaryOperator.minBy(Comparator.comparingLong(TopologyEntityDTO::getOid))));
-    }
-
-    /**
-     * Given a set of business account oids, gets the tiers associated with the business accounts. The
-     * tiers are fetched from each region aggregating them.
-     *
-     * @param businessAccountOids The business account oids to fetch the tiers for.
-     *
-     * @return The tiers.
-     */
-    public Set<TopologyEntityDTO> getTiersScopedToAccounts(Collection<Long> businessAccountOids) {
-        Set<TopologyEntityDTO> tierSet = new HashSet<>();
-        // Can be null in unit tests.
-        if (cloudTopology != null) {
-            for (Long businessAccountOid : businessAccountOids) {
-                Optional<TopologyEntityDTO> serviceProviderOpt = cloudTopology.getServiceProvider(
-                        businessAccountOid);
-                if (serviceProviderOpt.isPresent()) {
-                    Set<TopologyEntityDTO> regions = cloudTopology.getRegionFromServiceProvider(
-                            serviceProviderOpt.get().getOid());
-                    for (TopologyEntityDTO region : regions) {
-                        Set<TopologyEntityDTO> cloudTiers = cloudTopology.getAggregated(region.getOid());
-                        for (TopologyEntityDTO cloudTier : cloudTiers) {
-                            tierSet.add(cloudTier);
-                        }
-                    }
-                } else {
-                    logger.error("Service Provider not found for account with oid {}", businessAccountOid);
-                }
-            }
-        }
-        return tierSet;
     }
 }

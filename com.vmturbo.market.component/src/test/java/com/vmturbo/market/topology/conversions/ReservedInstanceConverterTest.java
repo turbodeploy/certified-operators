@@ -29,10 +29,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.HashBasedTable;
-import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Multimap;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -95,7 +93,7 @@ public class ReservedInstanceConverterTest {
 
     private AccountPricingData<TopologyEntityDTO> accountPricingData = mock(AccountPricingData.class);
     private CloudRateExtractor marketCloudRateExtractor = mock(CloudRateExtractor.class);
-    private Multimap<AccountPricingData, Long> accountPricingDataByBusinessAccountMap;
+    private Map<Long, AccountPricingData<TopologyEntityDTO>> accountPricingDataByBusinessAccountMap;
     private Set<CoreBasedLicensePriceBundle> reservedLicenseBundle = ImmutableSet.of(
             ImmutableCoreBasedLicensePriceBundle
                     .builder()
@@ -165,9 +163,9 @@ public class ReservedInstanceConverterTest {
                         .osType(OSType.LINUX)
                         .numCores(1)
                         .build()));
-        accountPricingDataByBusinessAccountMap = HashMultimap.create();
-        accountPricingDataByBusinessAccountMap.put(accountPricingData, businessAccountOid);
-        accountPricingDataByBusinessAccountMap.put(accountPricingData, businessAccount2Oid);
+        accountPricingDataByBusinessAccountMap = new HashMap<>();
+        accountPricingDataByBusinessAccountMap.put(businessAccountOid, accountPricingData);
+        accountPricingDataByBusinessAccountMap.put(businessAccount2Oid, accountPricingData);
     }
 
     private CloudTopology<TopologyEntityDTO> createCloudTopologyMock() {

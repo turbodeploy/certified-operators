@@ -16,11 +16,11 @@ public interface TierConverter {
      * @param tier The tier for which the traderTOs need to be created
      * @param topology The topology
      * @param businessAccounts The set of business accounts.
-     * @param accountPricingData The account Pricing Data the tier is scoped to.
+     * @param uniqueAccountPricingData The set of unique pricing data (price table + discount) we have in the topology
      *
      * @return Map of {@link TraderTO.Builder} created to {@link MarketTier}
      */
     Map<TraderTO.Builder, MarketTier> createMarketTierTraderTOs(
             TopologyEntityDTO tier, Map<Long, TopologyEntityDTO> topology,
-            Set<TopologyEntityDTO> businessAccounts, AccountPricingData accountPricingData);
+            Set<TopologyEntityDTO> businessAccounts, Set<AccountPricingData<TopologyEntityDTO>> uniqueAccountPricingData);
 }
