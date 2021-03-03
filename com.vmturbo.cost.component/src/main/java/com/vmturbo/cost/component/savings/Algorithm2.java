@@ -226,7 +226,7 @@ public class Algorithm2 implements Algorithm {
      */
     @Override
     public long getPowerFactor() {
-        return 0;
+        return powerFactor;
     }
 
     /**

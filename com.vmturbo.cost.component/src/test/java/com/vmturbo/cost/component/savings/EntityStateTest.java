@@ -49,9 +49,9 @@ public class EntityStateTest {
         Assert.assertEquals(powerFactor, deserializedState.getPowerFactor());
         Assert.assertEquals(recommendation, deserializedState.getCurrentRecommendation());
         Assert.assertEquals(actionList, deserializedState.getActionList());
-        Assert.assertNull(deserializedState.getRealizedSavings());
-        Assert.assertNull(deserializedState.getRealizedInvestments());
-        Assert.assertNull(deserializedState.getMissedSavings());
-        Assert.assertNull(deserializedState.getMissedInvestments());
+        Assert.assertEquals(realizedSavings, deserializedState.getRealizedSavings());
+        Assert.assertEquals(realizedInvestments, deserializedState.getRealizedInvestments());
+        Assert.assertEquals(missedSavings, deserializedState.getMissedSavings());
+        Assert.assertEquals(missedInvestments, deserializedState.getMissedInvestments());
     }
 }
