@@ -14,12 +14,15 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.anyLong;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.SortedMap;
@@ -41,7 +44,9 @@ import com.vmturbo.identity.exceptions.IdentityServiceException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
+import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
+import com.vmturbo.proactivesupport.DataMetricGauge.GaugeData;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
@@ -523,5 +528,101 @@ public class EntityStoreTest {
             .thenReturn(entities);
         Mockito.when(identityProvider.generateTopologyId()).thenReturn(1L);
         entityStore.entitiesDiscovered(probeId, targetId, messageId, discoveryType, new ArrayList<>(entities.values()));
+    }
+
+    /**
+     * Make sure telemetry data is accurate and make sure there's no ConcurrentModificationException.
+     *
+     * @throws Exception exception
+     */
+    @Test
+    public void testTelemetry() throws Exception {
+        // Add targets.
+        final Target target1 = mock(Target.class);
+        when(target1.getProbeInfo()).thenReturn(ProbeInfo.newBuilder().setProbeType("AWS")
+            .setProbeCategory("").setUiProbeCategory("Public Cloud").build());
+        final Target target2 = mock(Target.class);
+        when(target2.getProbeInfo()).thenReturn(ProbeInfo.newBuilder().setProbeType("AWS")
+            .setProbeCategory("").setUiProbeCategory("Public Cloud").build());
+        final Target target3 = mock(Target.class);
+        when(target3.getProbeInfo()).thenReturn(ProbeInfo.newBuilder().setProbeType("Pure")
+            .setProbeCategory("").setUiProbeCategory("STORAGE").build());
+        final Target target4 = mock(Target.class);
+        when(target4.getProbeInfo()).thenReturn(ProbeInfo.newBuilder().setProbeType("Pure")
+            .setProbeCategory("").setUiProbeCategory("STORAGE").build());
+        final Target target5 = mock(Target.class);
+        when(target5.getProbeInfo()).thenReturn(ProbeInfo.newBuilder().setProbeType("vCenter")
+            .setProbeCategory("").setUiProbeCategory("HYPERVISOR").build());
+        when(targetStore.getAll()).thenReturn(Arrays.asList(target1, target2, target3, target4, target5));
+
+        final long targetId1 = 1L;
+        final long targetId2 = 2L;
+        final long targetId5 = 5L;
+        when(targetStore.getTarget(targetId1)).thenReturn(Optional.of(target1));
+        when(targetStore.getTarget(targetId2)).thenReturn(Optional.of(target2));
+        when(targetStore.getTarget(targetId5)).thenReturn(Optional.of(target5));
+
+        // Add target entities
+        final Map<Long, EntityDTO> firstTargetEntities = ImmutableMap.of(
+            1L, virtualMachine("foo").build(),
+            2L, physicalMachine("bar").build(),
+            3L, storage("baz").build());
+        final Map<Long, EntityDTO> secondTargetEntities = ImmutableMap.of(
+            4L, virtualMachine("vampire").build(),
+            5L, physicalMachine("werewolf").build(),
+            6L, storage("dragon").build(),
+            7L, virtualMachine("fooo").build());
+        final Map<Long, EntityDTO> thirdTargetEntities = ImmutableMap.of(
+            8L, virtualMachine("vampire").build(),
+            9L, physicalMachine("werewolf").build(),
+            10L, storage("dragon").build());
+
+        addEntities(firstTargetEntities, targetId1, 0L, DiscoveryType.FULL, 0);
+        addEntities(secondTargetEntities, targetId2, 2L, DiscoveryType.FULL, 2);
+        addEntities(thirdTargetEntities, targetId5, 5L, DiscoveryType.FULL, 5);
+
+        entityStore.sendMetricsEntityAndTargetData();
+
+        Map<List<String>, GaugeData> values = EntityStore.TARGET_COUNT_GAUGE.getLabeledMetrics();
+        assertEquals(3, values.size());
+
+        double delta = 0.001d;
+        assertEquals(2, values.get(Arrays.asList("Public Cloud", "AWS")).getData(), delta);
+        assertEquals(2, values.get(Arrays.asList("Storage", "Pure")).getData(), delta);
+        assertEquals(1, values.get(Arrays.asList("Hypervisor", "vCenter")).getData(), delta);
+
+        values = EntityStore.DISCOVERED_ENTITIES_GAUGE.getLabeledMetrics();
+        assertEquals(6, values.size());
+
+        assertEquals(2, values.get(Arrays.asList("Public Cloud", "AWS", "PHYSICAL_MACHINE")).getData(), delta);
+        assertEquals(3, values.get(Arrays.asList("Public Cloud", "AWS", "VIRTUAL_MACHINE")).getData(), delta);
+        assertEquals(2, values.get(Arrays.asList("Public Cloud", "AWS", "STORAGE")).getData(), delta);
+        assertEquals(1, values.get(Arrays.asList("Hypervisor", "vCenter", "PHYSICAL_MACHINE")).getData(), delta);
+        assertEquals(1, values.get(Arrays.asList("Hypervisor", "vCenter", "VIRTUAL_MACHINE")).getData(), delta);
+        assertEquals(1, values.get(Arrays.asList("Hypervisor", "vCenter", "STORAGE")).getData(), delta);
+
+        // Test ConcurrentModificationException.
+        new Thread(() -> {
+            final long start = System.currentTimeMillis();
+            while (true) {
+                try {
+                    addEntities(firstTargetEntities, targetId1, 0L, DiscoveryType.FULL, 0);
+                } catch (Exception e) {
+
+                }
+                if (System.currentTimeMillis() - start > 3000) {
+                    break;
+                }
+            }
+        }).start();
+
+        final long start = System.currentTimeMillis();
+        while (true) {
+            entityStore.sendMetricsEntityAndTargetData();
+            if (System.currentTimeMillis() - start > 3000) {
+                break;
+            }
+        }
+
     }
 }
