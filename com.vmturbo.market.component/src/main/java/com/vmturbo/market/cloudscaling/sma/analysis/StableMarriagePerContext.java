@@ -655,9 +655,7 @@ public class StableMarriagePerContext {
             return true;
         } else {
             if (oldEngagement == null) {
-                // a uncovered vm should never scale to another template to use an RI if savings is 0.
-                // If they are in the same template then they can use the RI even if savings is 0.
-                return virtualMachine.getCurrentTemplate().getOid() == newEngagement.getTemplate().getOid();
+                return false;
             } else {
                 return preference(virtualMachine, oldEngagement,
                         newEngagement, virtualMachineGroupMap);

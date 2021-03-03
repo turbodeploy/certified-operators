@@ -49,12 +49,10 @@ public class SMAUtils {
 
     /**
      * Round the float to a fixed number of decimal places determined by ROUNDING.
-     * Converted the input to double so that Math.round will return long.
-     * Otherwise Float_MAX_VALUE is converted to 21474.83647 which is not quite a big value.
      * @param input the float to be rounded.
      * @return float rounded to a fixed number of decimals.
      */
-    public static float round(double input) {
+    public static float round(float input) {
         return (float)Math.round(input *
                 SMAUtils.ROUNDING) / SMAUtils.ROUNDING;
     }
