@@ -10,6 +10,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -23,6 +24,7 @@ import org.jooq.DSLContext;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.Matchers;
 import org.mockito.Mockito;
 
 import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregator.CloudCommitmentAggregatorFactory;
@@ -189,36 +191,44 @@ public class SupplementalRICoverageAnalysisTest {
         Setup Factory
          */
 
-        final List<ReservedInstanceBought> reservedInstances = ImmutableList.of(
-                ReservedInstanceBought.newBuilder()
-                        .setId(1)
-                        .setReservedInstanceBoughtInfo(
-                                ReservedInstanceBoughtInfo.newBuilder()
-                                .setBusinessAccountId(1)
+        // 4,6 - RIS from discovered accounts. 5 - RI from undiscovered account.
+        ReservedInstanceBought discoveredRI1 = ReservedInstanceBought.newBuilder()
+                .setId(4)
+                .setReservedInstanceBoughtInfo(
+                        ReservedInstanceBoughtInfo.newBuilder()
+                                .setBusinessAccountId(discoveredBA.getOid())
                                 .setReservedInstanceBoughtCoupons(
                                         ReservedInstanceBoughtCoupons.newBuilder()
-                                        .setNumberOfCoupons(10)
-                                        .build())
+                                                .setNumberOfCoupons(10)
+                                                .build())
                                 .build())
-                        .build(),
-                ReservedInstanceBought.newBuilder()
-                        .setId(2)
-                        .setReservedInstanceBoughtInfo(
-                                ReservedInstanceBoughtInfo.newBuilder()
-                                        .setBusinessAccountId(1).build())
-                        .build(),
-                ReservedInstanceBought.newBuilder()
-                    .setId(3)
-                    .setReservedInstanceBoughtInfo(
-                            ReservedInstanceBoughtInfo.newBuilder()
-                                .setBusinessAccountId(2)
+                .build();
+        ReservedInstanceBought discoveredRI2 = ReservedInstanceBought.newBuilder()
+                .setId(6)
+                .setReservedInstanceBoughtInfo(
+                        ReservedInstanceBoughtInfo.newBuilder()
+                                .setBusinessAccountId(discoveredBA.getOid())
                                 .setReservedInstanceBoughtCoupons(
-                                    ReservedInstanceBoughtCoupons.newBuilder()
-                                    .setNumberOfCoupons(10)
-                                    .setNumberOfCouponsUsed(1)
-                                    .build())
+                                        ReservedInstanceBoughtCoupons.newBuilder()
+                                                .setNumberOfCoupons(10)
+                                                .setNumberOfCouponsUsed(1)
+                                                .build())
                                 .build())
-                    .build());
+                .build();
+        ReservedInstanceBought undiscoveredRI = ReservedInstanceBought.newBuilder()
+                .setId(5)
+                .setReservedInstanceBoughtInfo(
+                        ReservedInstanceBoughtInfo.newBuilder()
+                                .setBusinessAccountId(unDiscoveredBA.getOid())
+                                .setReservedInstanceBoughtCoupons(
+                                        ReservedInstanceBoughtCoupons.newBuilder()
+                                                .setNumberOfCoupons(10)
+                                                .setNumberOfCouponsUsed(1)
+                                                .build())
+                                .build())
+                .build();
+        final List<ReservedInstanceBought> reservedInstances = ImmutableList.of(
+                discoveredRI1, discoveredRI2, undiscoveredRI);
 
         final List<ReservedInstanceSpec> riSpecs = ImmutableList.of(
                 ReservedInstanceSpec.newBuilder()
@@ -235,8 +245,10 @@ public class SupplementalRICoverageAnalysisTest {
         Setup mocks for factory
          */
         doReturn(reservedInstances).when(reservedInstanceBoughtStore)
-            .getReservedInstanceBoughtByFilter(
-                eq(ReservedInstanceBoughtFilter.SELECT_ALL_FILTER));
+            .getReservedInstanceBoughtByFilter(Matchers.any(ReservedInstanceBoughtFilter.class));
+        doReturn(Collections.singletonList(undiscoveredRI)).when(reservedInstanceBoughtStore)
+                .getUndiscoveredReservedInstances();
+
 
         when(reservedInstanceSpecStore.getReservedInstanceSpecByIds(any()))
                 .thenReturn(riSpecs);
