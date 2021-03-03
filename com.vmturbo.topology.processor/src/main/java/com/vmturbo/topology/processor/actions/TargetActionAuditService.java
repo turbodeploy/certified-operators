@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.actions;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Deque;
 import java.util.List;
 import java.util.ListIterator;
@@ -8,6 +9,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -16,6 +18,8 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
+import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.commons.lang3.time.StopWatch;
 import org.apache.logging.log4j.LogManager;
@@ -57,6 +61,7 @@ public class TargetActionAuditService {
     private volatile ActionAudit runningOperation = null;
     private final ExecutorService threadPool;
     private final boolean isServiceNowTarget;
+    private final Collection<Future<?>> actionAuditFutures = new ArrayList<>();
 
     /**
      * Constructs service.
@@ -87,8 +92,9 @@ public class TargetActionAuditService {
         this.batchSize = batchSize;
         this.threadPool = scheduler;
         this.initialized = Objects.requireNonNull(initialized);
-        scheduler.scheduleWithFixedDelay(this::runQueue, sendIntervalSec, sendIntervalSec,
-                TimeUnit.SECONDS);
+        actionAuditFutures.add(
+                scheduler.scheduleWithFixedDelay(this::runQueue, sendIntervalSec, sendIntervalSec,
+                        TimeUnit.SECONDS));
     }
 
     private boolean isServiceNowTarget(@Nonnull ThinTargetCache thinTargetCache,
@@ -120,7 +126,7 @@ public class TargetActionAuditService {
                 event.getTimestamp());
         if (events.size() >= batchSize) {
             // Try to schedule sending events as soon as we have full batch
-            threadPool.execute(this::runQueue);
+            actionAuditFutures.add(threadPool.submit(this::runQueue));
         }
     }
 
@@ -227,6 +233,37 @@ public class TargetActionAuditService {
     }
 
     /**
+     * Cancels all of the submitted tasks for sending audit message to external service related to
+     * this target,commit in internal kafka all audit events from queue in order not resend them
+     * again if target will be added again. Cleans queue with undelivered audit events.
+     */
+    public void purgeAuditEvents() {
+        actionAuditFutures.forEach(future -> future.cancel(true));
+        events.forEach(event -> event.getSecond().run());
+        events.clear();
+    }
+
+    /**
+     * Return queue with audit events.
+     *
+     * @return queue with audit events
+     */
+    @VisibleForTesting
+    public Deque<Pair<ActionEvent, Runnable>> getEvents() {
+        return events;
+    }
+
+    /**
+     * Return collections of audit futures.
+     *
+     * @return collection of audit futures
+     */
+    @VisibleForTesting
+    public Collection<Future<?>> getActionAuditFutures() {
+        return actionAuditFutures;
+    }
+
+    /**
      * Operation callback to receive a response from action audit request processing in SDK probe.
      */
     private class ActionAuditCallback implements OperationCallback<ActionErrorsResponse> {
@@ -286,7 +323,7 @@ public class TargetActionAuditService {
             }
 
             // Send next batch of action events, if any
-            runQueue();
+            actionAuditFutures.add(threadPool.submit(TargetActionAuditService.this::runQueue));
         }
 
         @Override

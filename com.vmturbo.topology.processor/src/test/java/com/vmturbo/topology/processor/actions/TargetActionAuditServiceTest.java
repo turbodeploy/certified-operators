@@ -185,6 +185,7 @@ public class TargetActionAuditServiceTest {
         final OperationCallback<ActionErrorsResponse> clearedCallback =
                 operationCallbackCaptor.getValue();
         clearedCallback.onSuccess(failedResponse);
+        executorService.executeTasks();
 
         // ASSERT 2 (failed to send CLEARED event)
         // approves that if audit response from probe has errors then we returned sent actions to
