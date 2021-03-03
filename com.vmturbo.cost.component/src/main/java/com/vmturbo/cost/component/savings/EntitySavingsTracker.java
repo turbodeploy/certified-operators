@@ -118,22 +118,19 @@ public class EntitySavingsTracker {
 
         try {
             while (periodEndTime.getTimeInMillis() < end) {
-                logger.debug("Entity Savings Tracker is processing events between {} and {}",
-                        formatDateTime(periodStartTime), formatDateTime(periodEndTime));
-
                 // Read from entity event journal.
                 final long startTime = periodStartTime.getTimeInMillis();
                 final long endTime = periodEndTime.getTimeInMillis();
                 events = entityEventsJournal.removeEventsBetween(startTime, endTime);
 
-                if (events.isEmpty()) {
-                    logger.debug("There are no events in this period.");
-                } else {
-                    logger.debug("Entity Savings Tracker retrieved {} events from events journal.", events.size());
-                }
-
                 // Get all entity IDs from the events
-                Set<Long> entityIds = events.stream().map(SavingsEvent::getEntityId).collect(Collectors.toSet());
+                Set<Long> entityIds = events.stream()
+                        .map(SavingsEvent::getEntityId)
+                        .collect(Collectors.toSet());
+
+                logger.info("Process {} events for {} entities between {} ({}) & {} ({}).",
+                        events.size(), entityIds.size(), startTime, formatDateTime(periodStartTime),
+                        endTime, formatDateTime(periodEndTime));
 
                 // Get states for these entities from the state map (if they exist).
                 Map<Long, EntityState> entityStates = entityStateStore.getEntityStates(entityIds);
@@ -148,6 +145,7 @@ public class EntitySavingsTracker {
                 try {
                     // create stats records from state map for this period.
                     generateStats(startTime);
+                    hourlyStatsTimes.add(startTime);
                 } catch (EntitySavingsException e) {
                     logger.error("Error occurred when Entity Savings Tracker writes stats to entity savings store. "
                             + "Start time: {} End time: {}", startTime, endTime, e);
