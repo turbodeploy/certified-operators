@@ -1401,7 +1401,11 @@ public class TopologyConverter {
                             storageCommSold.setUsed(Math.max(0, storageCommSold.getUsed() - stAmtToReleaseInMB)));
                 });
 
-            overwriteCommoditiesBoughtByVMsFromVolumes(entityDTOBuilder);
+            // Only call this if the entity is not produced by analysis
+            if (!entityDTOBuilder.getOrigin().hasAnalysisOrigin()) {
+                overwriteCommoditiesBoughtByVMsFromVolumes(entityDTOBuilder);
+            }
+
             updateProjectedEntityOsType(entityDTOBuilder);
             updateProjectedCores(entityDTOBuilder);
 
