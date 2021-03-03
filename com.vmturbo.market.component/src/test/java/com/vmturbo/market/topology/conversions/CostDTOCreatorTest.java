@@ -198,8 +198,8 @@ public class CostDTOCreatorTest {
             when(marketCloudRateExtractor.getComputePriceBundle(tier, region.getOid(), accountPricingData)).thenReturn(ComputePriceBundle.newBuilder().build());
         }
         accountPricingDatabyBusinessAccountMap.put(BA_ID, accountPricingData);
-        HashSet<AccountPricingData> uniqueAccountPricingData = new HashSet<>(accountPricingDatabyBusinessAccountMap.values());
-        CostDTO costDTO = costDTOCreator.createComputeTierCostDTO(tier, REGIONS, accountPricingData);
+        HashSet<AccountPricingData<TopologyEntityDTO>> uniqueAccountPricingData = new HashSet<>(accountPricingDatabyBusinessAccountMap.values());
+        CostDTO costDTO = costDTOCreator.createComputeTierCostDTO(tier, REGIONS, uniqueAccountPricingData);
         Assert.assertEquals(1, costDTO.getComputeTierCost().getComputeResourceDepedencyCount());
         ComputeResourceDependency dependency = costDTO.getComputeTierCost().getComputeResourceDepedency(0);
         Assert.assertNotNull(dependency.getBaseResourceType());
@@ -214,7 +214,7 @@ public class CostDTOCreatorTest {
     public void testCreateStorageTierCostDTO() {
         TopologyEntityDTO storageTier = createStorageTier();
         CostDTO costDTO = new CostDTOCreator(converter, marketCloudRateExtractor)
-                .createStorageTierCostDTO(storageTier, Collections.emptyList(), null);
+                .createStorageTierCostDTO(storageTier, Collections.emptyList(), Collections.emptySet());
         StorageTierCostDTO storageTierCostDTO = costDTO.getStorageTierCost();
         assertNotNull(storageTierCostDTO);
 
@@ -277,7 +277,7 @@ public class CostDTOCreatorTest {
                 .setBaseType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE)
                 .build());
         CostDTO costDTO =
-                costDTOCreator.createDatabaseTierCostDTO(dbTier, regions, accountPricingData);
+                costDTOCreator.createDatabaseTierCostDTO(dbTier, regions, accountPricingDataSet);
         List<DependentResourceOption> dependentResourceOptions = costDTO.getDatabaseTierCost()
                 .getCostTupleListList()
                 .get(0)
@@ -322,7 +322,7 @@ public class CostDTOCreatorTest {
         TopologyEntityDTO dbTier = createDBTier();
 
         CostDTO costDTO = costDTOCreator.createDatabaseTierCostDTO(dbTier, regions,
-                accountPricingData);
+                accountPricingDataSet);
         Assert.assertEquals(1, costDTO.getDatabaseTierCost().getCostTupleListList().size());
         Assert.assertEquals(Double.POSITIVE_INFINITY,
                 costDTO.getDatabaseTierCost().getCostTupleListList().get(0).getPrice(), 0.01);
