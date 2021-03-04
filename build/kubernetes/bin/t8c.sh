@@ -458,6 +458,20 @@ then
     echo "Kafka is configured to run as a container, skipping configuration for the VM service."
   fi
 
+  # Setup Consul before bringing up XL components (if so configured)
+  # Check to see if our Kubernetes deployment is configured to use an external Consul
+  # If so, run Consul in the VM
+  egrep "externalConsulIP" ${chartsFile}
+  externalConsulIP=$(echo $?)
+
+  if [ X${externalConsulIP} = X0 ]
+  then
+    echo "Consul is configured to run in the VM, configuring..."
+    /opt/local/bin/configure_consul.sh
+  else
+    echo "Consul is configured to run as a container, skipping configuration for the VM service."
+  fi
+
   # Create the operator
   kubectl create -f ${serviceAccountFile} -n turbonomic
   kubectl create -f ${roleFile} -n turbonomic
