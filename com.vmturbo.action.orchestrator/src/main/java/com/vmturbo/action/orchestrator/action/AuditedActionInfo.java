@@ -14,6 +14,9 @@ public class AuditedActionInfo {
 
     private final long recommendationId;
     private final long workflowId;
+    private final long targetEntityId;
+    @Nonnull
+    private final String settingName;
     @Nonnull
     private final Optional<Long> clearedTimestamp;
 
@@ -22,15 +25,23 @@ public class AuditedActionInfo {
      *
      * @param recommendationId action identifier
      * @param workflowId workflow identifier
+     * @param targetEntityId the entity id of the target of the action
+     * @param settingName the setting name the workflow applies to only in the context of this action
      * @param clearedTimestamp time when Action Orchestrator first notices that the action is no
      *                         longer recommended. Will be Optional.empty() when action is generated
      *                         by the market, or when the action has been missing for
      *                         AuditCommunicationConfig.minsClearedActionsCriteria minutes.
      */
-    public AuditedActionInfo(long recommendationId, long workflowId,
+    public AuditedActionInfo(
+            long recommendationId,
+            long workflowId,
+            long targetEntityId,
+            @Nonnull String settingName,
             @Nonnull Optional<Long> clearedTimestamp) {
         this.recommendationId = recommendationId;
         this.workflowId = workflowId;
+        this.targetEntityId = targetEntityId;
+        this.settingName = settingName;
         this.clearedTimestamp = clearedTimestamp;
     }
 
@@ -50,6 +61,25 @@ public class AuditedActionInfo {
      */
     public long getWorkflowId() {
         return workflowId;
+    }
+
+    /**
+     * Returns the identifier ot the target entity of the action.
+     *
+     * @return the identifier ot the target entity of the action.
+     */
+    public long getTargetEntityId() {
+        return targetEntityId;
+    }
+
+    /**
+     * Returns the setting name the workflow applies to only in the context of this action.
+     *
+     * @return the setting name the workflow applies to only in the context of this action.
+     */
+    @Nonnull
+    public String getSettingName() {
+        return settingName;
     }
 
     /**
@@ -74,13 +104,21 @@ public class AuditedActionInfo {
             return false;
         }
         AuditedActionInfo that = (AuditedActionInfo)o;
-        return recommendationId == that.recommendationId && workflowId == that.workflowId && Objects
-                .equals(clearedTimestamp, that.clearedTimestamp);
+        return recommendationId == that.recommendationId
+            && workflowId == that.workflowId
+            && targetEntityId == that.targetEntityId
+            && Objects.equals(settingName, that.settingName)
+            && Objects.equals(clearedTimestamp, that.clearedTimestamp);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(recommendationId, workflowId, clearedTimestamp);
+        return Objects.hash(
+            recommendationId,
+            workflowId,
+            targetEntityId,
+            settingName,
+            clearedTimestamp);
     }
 
     @Override
@@ -88,6 +126,8 @@ public class AuditedActionInfo {
         return "AuditedActionInfo{"
             + "recommendationId=" + recommendationId
             + ", workflowId=" + workflowId
+            + ", targetEntityId=" + targetEntityId
+            + ", settingName=" + settingName
             + ", clearedTimestamp=" + clearedTimestamp.orElse(null)
             + '}';
     }

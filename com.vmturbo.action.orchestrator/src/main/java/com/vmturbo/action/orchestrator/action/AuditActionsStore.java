@@ -55,7 +55,10 @@ public class AuditActionsStore implements AuditActionsPersistenceManager {
                         new ActionWorkflowBookKeepingRecord(action.getRecommendationId(),
                                 action.getWorkflowId(),
                                 !action.getClearedTimestamp().isPresent() ? null
-                                        : new Timestamp(action.getClearedTimestamp().get()))));
+                                        : new Timestamp(action.getClearedTimestamp().get()),
+                                action.getTargetEntityId(),
+                                action.getSettingName()
+                        )));
 
                 // in jooq 3.14.x can be compressed into DSLContext.batchMerge()
                 final Query[] queries = auditedActionsRecords.stream()
@@ -112,9 +115,14 @@ public class AuditActionsStore implements AuditActionsPersistenceManager {
         dslContext.selectFrom(ACTION_WORKFLOW_BOOK_KEEPING)
                 .fetch()
                 .forEach(record -> auditedActions.add(
-                        new AuditedActionInfo(record.getActionStableId(), record.getWorkflowId(),
-                                record.getClearedTimestamp() == null ? Optional.empty()
-                                        : Optional.of(record.getClearedTimestamp().getTime()))));
+                        new AuditedActionInfo(
+                            record.getActionStableId(),
+                            record.getWorkflowId(),
+                            record.getTargetEntityId(),
+                            record.getSettingName(),
+                            record.getClearedTimestamp() == null ? Optional.empty()
+                                        : Optional.of(record.getClearedTimestamp().getTime())
+                        )));
         return auditedActions;
     }
 
