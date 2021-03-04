@@ -160,6 +160,7 @@ public class CommodityTypeMapping {
             .put(CommodityType.DTU, CommodityInfo.of("DTU", "DTU", ""))
             .put(CommodityType.CONCURRENT_SESSION, CommodityInfo.of("ConcurrentSession", "ConcurrentSession", ""))
             .put(CommodityType.CONCURRENT_WORKER, CommodityInfo.of("ConcurrentWorker", "ConcurrentWorker", ""))
+            .put(CommodityType.NUMBER_REPLICAS, CommodityInfo.of("NumberReplicas", "NumberReplicas", ""))
             .put(CommodityType.UNKNOWN, CommodityInfo.of("Unknown", "Unknown", ""))
             .build();
 

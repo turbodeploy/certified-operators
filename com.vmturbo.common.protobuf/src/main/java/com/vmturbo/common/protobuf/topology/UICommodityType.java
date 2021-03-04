@@ -249,6 +249,8 @@ public enum UICommodityType {
     CONCURRENT_SESSION(CommodityType.CONCURRENT_SESSION, "Concurrent Session"),
     /** Concurrent Workers can be thought of as the concurrent processes in the SQL database that are processing queries. **/
     CONCURRENT_WORKER(CommodityType.CONCURRENT_WORKER, "Concurrent Worker"),
+    /** The commodity NUMBER_REPLICAS **/
+    NUMBER_REPLICAS(CommodityType.NUMBER_REPLICAS, "Number Replicas"),
     /** The commodity UNKNOWN. */
     UNKNOWN(CommodityType.UNKNOWN, "Unknown");
 
