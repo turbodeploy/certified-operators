@@ -176,11 +176,6 @@ public class PercentilePersistenceTask extends
                      long periodMs,
                      @Nonnull PercentileHistoricalEditorConfig config)
                     throws HistoryCalculationException, InterruptedException {
-        if (counts.getPercentileRecordsList().isEmpty()) {
-            logger.debug("There is no percentile commodity entries to save for timestamp {}. Skipping actual write",
-                         startTimestamp);
-            return;
-        }
 
         Stopwatch sw = Stopwatch.createStarted();
         WriterObserver observer = new WriterObserver(config.getGrpcStreamTimeoutSec());
@@ -191,9 +186,6 @@ public class PercentilePersistenceTask extends
         for (int i = 0; i <= data.length / chunkSize; ++i) {
             int position = i * chunkSize;
             int size = Math.min(chunkSize, data.length - position);
-            if (size <= 0) {
-                break;
-            }
             ByteString payload = ByteString.copyFrom(data, position, size);
             observer.checkIoAvailability((CallStreamObserver<PercentileChunk>)writer);
             writer.onNext(PercentileChunk.newBuilder().setStartTimestamp(startTimestamp)
