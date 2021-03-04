@@ -647,10 +647,13 @@ public class EntitySettingsApplicator {
         public void apply(@Nonnull final TopologyEntityDTO.Builder entity,
                           @Nonnull final ActionMode actionMode) {
             // when setting value is DISABLED, set reconfigurable to false.
+            // otherwise make sure reconfigurable is set on analysis settings.
             if (ActionMode.DISABLED == actionMode) {
                 entity.getAnalysisSettingsBuilder().setReconfigurable(false);
                 logger.trace("Disabled reconfigure for {}::{}",
                             entity::getEntityType, entity::getDisplayName);
+            } else if (!entity.getAnalysisSettingsBuilder().hasReconfigurable()) {
+                entity.getAnalysisSettingsBuilder().setReconfigurable(true);
             }
         }
     }

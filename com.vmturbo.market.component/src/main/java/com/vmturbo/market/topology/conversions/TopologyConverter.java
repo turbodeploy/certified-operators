@@ -2868,8 +2868,8 @@ public class TopologyConverter {
                 stitchingErrors.isNone();
 
             final boolean reconfigurable = topologyDTO.getAnalysisSettings().hasReconfigurable()
-                ? topologyDTO.getAnalysisSettings().getReconfigurable()
-                : EntitySettings.BooleanKey.ENABLE_RECONFIGURE.value(topologyDTO);
+                && topologyDTO.getAnalysisSettings().getReconfigurable()
+                && EntitySettings.BooleanKey.ENABLE_RECONFIGURE.value(topologyDTO);
 
             boolean isEntityFromCloud = TopologyConversionUtils.isEntityConsumingCloud(topologyDTO);
             TraderSettingsTO.Builder settingsBuilder = TopologyConversionUtils
