@@ -177,7 +177,47 @@ message GetPriceTableResponse {
 
 message GetPriceTablesResponse{
     // List of price tables corresponding to a list of oids
-    map <int64, PriceTable> price_tables_by_oid = 1;
+    map <int64, PriceTable> price_tables_by_oid = 1 [deprecated = true];
+
+    optional int64 price_table_serialized_size = 2;
+
+    // PriceTable chunks which carries one of priceTableSegment, ba_oid and created_time.
+    // which is streamed to various components. see rpc GetPriceTables.
+    repeated PriceTableChunk price_table_chunk = 3;
+}
+
+// Message to carry priceTable data from Cost component to other components.
+message PriceTableChunk {
+    // the time the request was created
+    optional int64 created_time = 1;
+
+    // oid of price table to which the priceTableChunk belongs to.
+    optional int64 price_table_oid = 3;
+
+    oneof priceTableSegment {
+        OnDemandPriceTableByRegionSegment ondemand_price_table_by_region = 4;
+        SpotInstancePriceTableByRegionSegment spot_instance_price_table_by_region = 5;
+        OnDemandLicensePriceEntrySegment ondemand_license_price_entry_segment = 6;
+        ReservedLicenseSegment reserved_license_segment = 7;
+    }
+
+    message OnDemandPriceTableByRegionSegment {
+        optional OnDemandPriceTable on_demand_price_table = 1;
+        optional int64 region_id = 2;
+    }
+
+    message SpotInstancePriceTableByRegionSegment {
+        optional SpotInstancePriceTable spot_instance_price_table = 1;
+        optional int64 region_id = 2;
+    }
+
+    message OnDemandLicensePriceEntrySegment {
+        repeated common_dto.LicensePriceEntry license_price_entry = 1;
+    }
+
+    message ReservedLicenseSegment {
+        repeated common_dto.LicensePriceEntry reserved_license_price_entry = 1;
+    }
 }
 
 // a segment of a probe price table delivery
@@ -258,7 +298,7 @@ service PricingService {
     };
 
     // Gets a list of price tables
-    rpc GetPriceTables (GetPriceTablesRequest) returns (GetPriceTablesResponse);
+    rpc GetPriceTables (GetPriceTablesRequest) returns (stream GetPriceTablesResponse);
 
     // request for the checksum of the list of price tables
     rpc GetPriceTableChecksum (GetPriceTableChecksumRequest) returns (GetPriceTableChecksumResponse);
