@@ -91,6 +91,10 @@ spec:
     enabled: false
   newrelic:
     enabled: true
+  websphere:
+    enabled: false
+  weblogic:
+    enabled: false
 
   # Resource limits - Core Services
   action-orchestrator:
@@ -229,4 +233,11 @@ spec:
     resources:
       limits:
         memory: 1Gi
-
+  mediation-websphere:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-weblogic:
+    resources:
+      limits:
+        memory: 512Mi
