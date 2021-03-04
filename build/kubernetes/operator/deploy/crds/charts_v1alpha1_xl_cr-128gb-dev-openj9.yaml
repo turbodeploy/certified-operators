@@ -115,10 +115,6 @@ spec:
     enabled: true
   udt:
     enabled: true
-  websphere:
-    enabled: false
-  weblogic:
-    enabled: false
 
   # Resource limits - Core Services
   action-orchestrator:
@@ -382,14 +378,6 @@ spec:
       limits:
         memory: 32Gi
   mediation-udt:
-    resources:
-      limits:
-        memory: 32Gi
-  mediation-websphere:
-    resources:
-      limits:
-        memory: 32Gi
-  mediation-weblogic:
     resources:
       limits:
         memory: 32Gi

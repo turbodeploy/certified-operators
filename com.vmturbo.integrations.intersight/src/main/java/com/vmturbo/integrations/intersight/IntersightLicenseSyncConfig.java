@@ -39,12 +39,6 @@ public class IntersightLicenseSyncConfig {
     @Value("${intersightLicenseSyncInitialDelaySeconds:10}")
     private int intersightLicenseSyncInitialDelaySeconds;
 
-    // Default to 6 hours:
-    // 60 second * 60 = 3600 seconds (1 hour)
-    // 3600 seconds * 6 = 21600 seconds (6 hours)
-    @Value("${intersightLicenseCountUpdateIntervalSeconds:21600}")
-    private int intersightLicenseCountUpdateIntervalSeconds;
-
     @Value("${intersightLicenseSyncIntervalSeconds:600}")
     private int intersightLicenseSyncIntervalSeconds;
 
@@ -103,6 +97,6 @@ public class IntersightLicenseSyncConfig {
         return new IntersightLicenseCountUpdater(intersightLicenseCountSyncEnabled,
                 keyValueStoreConfig.keyValueStore(),
                 licenseCheckClientConfig.licenseCheckClient(),
-                intersightLicenseClient(), intersightLicenseCountUpdateIntervalSeconds, intersightLicenseSyncService());
+                intersightLicenseClient(), intersightLicenseSyncIntervalSeconds, intersightLicenseSyncService());
     }
 }

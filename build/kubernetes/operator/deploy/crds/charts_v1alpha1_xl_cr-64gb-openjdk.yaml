@@ -115,7 +115,3 @@ spec:
     enabled: false
   jvm:
     enabled: false
-  websphere:
-    enabled: false
-  weblogic:
-    enabled: false

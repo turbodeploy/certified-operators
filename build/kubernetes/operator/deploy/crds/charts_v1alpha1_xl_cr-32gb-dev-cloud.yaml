@@ -135,10 +135,6 @@ spec:
     enabled: false
   xtremio:
     enabled: false
-  websphere:
-    enabled: false
-  weblogic:
-    enabled: false
 
   # Resource limits - Core Services
   action-orchestrator:
@@ -376,14 +372,6 @@ spec:
       limits:
         memory: 512Mi
   mediation-xtremio:
-    resources:
-      limits:
-        memory: 512Mi
-  mediation-websphere:
-    resources:
-      limits:
-        memory: 512Mi
-  mediation-weblogic:
     resources:
       limits:
         memory: 512Mi

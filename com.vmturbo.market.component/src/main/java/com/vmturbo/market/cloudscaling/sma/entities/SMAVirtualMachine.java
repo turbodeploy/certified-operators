@@ -292,14 +292,7 @@ public class SMAVirtualMachine {
                 setGroupProviders(Arrays.asList(this.getCurrentTemplate()));
             }
         } else {
-            // If currentTemplate has no cost data then the VM cannot move.
-            // getOnDemandTotalCost returns Float.MAX_VALUE if there is no cost data.
-            if (this.getCurrentTemplate() != null &&
-                    (this.getCurrentTemplate().getOnDemandTotalCost(getCostContext()) == Float.MAX_VALUE)) {
-                setGroupProviders(Arrays.asList(this.getCurrentTemplate()));
-            } else {
-                setGroupProviders(providers);
-            }
+            setGroupProviders(providers);
         }
 
     }

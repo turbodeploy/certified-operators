@@ -116,7 +116,3 @@ spec:
     enabled: true
   udt:
     enabled: true
-  websphere:
-    enabled: false
-  weblogic:
-    enabled: false
