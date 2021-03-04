@@ -19,6 +19,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.Builder;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -100,31 +101,58 @@ public class MergePolicyApplication extends PlacementPolicyApplication<MergePoli
      * Otherwise, if commodity does not exist, create and add it to the list of sold commodities
      * provider.
      *
+     * @param providers providers
      * @param commodityType the {@link CommodityType}
      * @param newCommodityKey the new key of commodity
-     * @param providers providers
      */
     private void changeCommodityKeyForSoldCommodities(@Nonnull final Set<TopologyEntity> providers,
             @Nonnull final CommodityType commodityType, @Nonnull final String newCommodityKey) {
         for (TopologyEntity provider : providers) {
-            final Optional<Builder> commodityToModify = provider.getTopologyEntityDtoBuilder()
-                    .getCommoditySoldListBuilderList()
-                    .stream()
-                    .filter(commodity -> isCommodityTypeEligibleForMerge(
-                            commodity.getCommodityType(), commodityType))
-                    .findFirst();
+            changeCommodityKeyForSoldCommodities(provider, commodityType, newCommodityKey);
 
-            if (commodityToModify.isPresent()) {
-                commodityToModify.get().getCommodityTypeBuilder().setKey(newCommodityKey);
-            } else {
-                final CommoditySoldDTO newSoldCommodity = CommoditySoldDTO.newBuilder()
-                        .setCommodityType(TopologyDTO.CommodityType.newBuilder()
-                                .setKey(newCommodityKey)
-                                .setType(commodityType.getNumber()))
-                        .build();
-                recordCommodityAddition(commodityType.getNumber());
-                provider.getTopologyEntityDtoBuilder().addCommoditySoldList(newSoldCommodity);
+            // Change sold commodity key for entity that replaces current provider
+            final TopologyEntityDTO.Builder builder = provider.getTopologyEntityDtoBuilder();
+            if (builder.hasEdit() &&
+                builder.getEdit().hasReplaced() &&
+                builder.getEdit().getReplaced().hasReplacementId() &&
+                topologyGraph.getEntity(builder.getEdit().getReplaced().getReplacementId()).isPresent()) {
+                changeCommodityKeyForSoldCommodities(
+                    topologyGraph.getEntity(builder.getEdit().getReplaced().getReplacementId()).get(),
+                    commodityType, newCommodityKey);
             }
+        }
+    }
+
+    /**
+     * Change the key of the sold commodity of a provider
+     * with {@code commodityType} to the {@code newCommodityKey}.
+     * Otherwise, if commodity does not exist, create and add it to the list of sold commodities
+     * provider.
+     *
+     * @param provider a provider
+     * @param commodityType the {@link CommodityType}
+     * @param newCommodityKey the new key of commodity
+     */
+    private void changeCommodityKeyForSoldCommodities(@Nonnull final TopologyEntity provider,
+                                                      @Nonnull final CommodityType commodityType,
+                                                      @Nonnull final String newCommodityKey) {
+        final Optional<Builder> commodityToModify = provider.getTopologyEntityDtoBuilder()
+            .getCommoditySoldListBuilderList()
+            .stream()
+            .filter(commodity -> isCommodityTypeEligibleForMerge(
+                commodity.getCommodityType(), commodityType))
+            .findFirst();
+
+        if (commodityToModify.isPresent()) {
+            commodityToModify.get().getCommodityTypeBuilder().setKey(newCommodityKey);
+        } else {
+            final CommoditySoldDTO newSoldCommodity = CommoditySoldDTO.newBuilder()
+                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                    .setKey(newCommodityKey)
+                    .setType(commodityType.getNumber()))
+                .build();
+            recordCommodityAddition(commodityType.getNumber());
+            provider.getTopologyEntityDtoBuilder().addCommoditySoldList(newSoldCommodity);
         }
     }
 

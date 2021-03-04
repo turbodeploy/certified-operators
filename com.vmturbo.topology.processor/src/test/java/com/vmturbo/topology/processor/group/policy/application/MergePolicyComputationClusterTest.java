@@ -11,6 +11,8 @@ import org.junit.Before;
 import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Edit;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Replaced;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.group.policy.PolicyGroupingHelper;
@@ -45,11 +47,14 @@ public class MergePolicyComputationClusterTest extends MergePolicyTestBase {
 
         final Map<Long, TopologyEntity.Builder> topologyMap = new HashMap<>();
         topologyMap.put(1L, topologyEntity(1L, EntityType.PHYSICAL_MACHINE));
+        topologyMap.get(1L).getEntityBuilder()
+            .setEdit(Edit.newBuilder().setReplaced(Replaced.newBuilder().setPlanId(0L).setReplacementId(100L)));
         topologyMap.put(2L, topologyEntity(2L, EntityType.PHYSICAL_MACHINE));
         topologyMap.put(3L, topologyEntity(3L, EntityType.STORAGE));
         topologyMap.put(4L, topologyEntity(4L, EntityType.VIRTUAL_MACHINE, 1));
         topologyMap.put(5L, topologyEntity(5L, EntityType.VIRTUAL_MACHINE, 2));
         topologyMap.put(6L, topologyEntity(6L, EntityType.VIRTUAL_MACHINE));
+        topologyMap.put(100L, topologyEntity(100L, EntityType.PHYSICAL_MACHINE));
 
         super.topologyGraph = TopologyEntityTopologyGraphCreator.newGraph(topologyMap);
         super.policyMatcher = new PolicyMatcher(topologyGraph);

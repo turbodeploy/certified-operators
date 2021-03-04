@@ -22,6 +22,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Edit;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Replaced;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -57,11 +59,14 @@ public class MergePolicyStorageClusterTest extends MergePolicyTestBase {
                 new PolicyEntities(group1));
         final Map<Long, TopologyEntity.Builder> topologyMap = new HashMap<>();
         topologyMap.put(1L, topologyEntity(1L, EntityType.STORAGE));
+        topologyMap.get(1L).getEntityBuilder()
+            .setEdit(Edit.newBuilder().setReplaced(Replaced.newBuilder().setPlanId(0L).setReplacementId(100L)));
         topologyMap.put(2L, topologyEntity(2L, EntityType.STORAGE));
         topologyMap.put(3L, topologyEntity(3L, EntityType.PHYSICAL_MACHINE));
         topologyMap.put(4L, topologyEntity(4L, EntityType.VIRTUAL_MACHINE, 1));
         topologyMap.put(5L, topologyEntity(5L, EntityType.VIRTUAL_MACHINE, 2));
         topologyMap.put(6L, topologyEntity(6L, EntityType.VIRTUAL_MACHINE));
+        topologyMap.put(100L, topologyEntity(100L, EntityType.STORAGE));
 
         super.topologyGraph = TopologyEntityTopologyGraphCreator.newGraph(topologyMap);
         super.policyMatcher = new PolicyMatcher(topologyGraph);
