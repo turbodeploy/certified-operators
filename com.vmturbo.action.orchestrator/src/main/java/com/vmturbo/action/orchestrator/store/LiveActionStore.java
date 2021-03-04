@@ -65,6 +65,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.action.ActionEnvironmentType;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.memory.MemoryMeasurer;
@@ -1070,55 +1071,34 @@ public class LiveActionStore implements ActionStore {
      * @param action record the given action
      */
     private void updateActionMetricsDescriptor(final Action action) {
-        ActionInfo ai = action.getRecommendation().getInfo();
         String actionSeverity  = action.getActionSeverity().name();
         String actionCategory  = action.getActionCategory().name();
         String actionState  = action.getState().name();
-        ActionEntity actionTarget = null;
         String entityType = null;
         String env = null;
-        switch (ai.getActionTypeCase()) {
-            case MOVE:
-                actionTarget = ai.getMove().getTarget();
-                break;
-            case RECONFIGURE:
-                actionTarget = ai.getReconfigure().getTarget();
-                break;
-            case PROVISION:
-                actionTarget = ai.getProvision().getEntityToClone();
-                break;
-            case RESIZE:
-                actionTarget = ai.getResize().getTarget();
-                break;
-            case ACTIVATE:
-                actionTarget = ai.getActivate().getTarget();
-                break;
-            case DEACTIVATE:
-                actionTarget = ai.getDeactivate().getTarget();
-                break;
-            case DELETE:
-                actionTarget = ai.getDelete().getTarget();
-                break;
-            case BUYRI:
-                actionTarget = ai.getBuyRi().getComputeTier();
-                break;
-            case SCALE:
-                actionTarget = ai.getScale().getTarget();
-                break;
-            case ALLOCATE:
-                actionTarget = ai.getAllocate().getTarget();
-                break;
-            case ATOMICRESIZE:
-                actionTarget = ai.getAtomicResize().getExecutionTarget();
-                break;
-            default:
-                env = EnvironmentType.UNKNOWN_ENV.name();
-                entityType = EntityType.UNKNOWN.name();
+        try {
+            final ActionEntity actionTarget = ActionDTOUtil.getPrimaryEntity(action.getTranslationResultOrOriginal(), false);
+            if (actionTarget != null) {
+                entityType = EntityType.forNumber(actionTarget.getType()).name();
+            }
+
+            final ActionEnvironmentType envType =
+                ActionEnvironmentType.forAction(action.getTranslationResultOrOriginal());
+            switch (envType) {
+                case ON_PREM:
+                    env = EnvironmentType.ON_PREM.name();
+                    break;
+                case CLOUD:
+                    env = EnvironmentType.CLOUD.name();
+                    break;
+                case ON_PREM_AND_CLOUD:
+                    env = EnvironmentType.HYBRID.name();
+                    break;
+            }
+        } catch (UnsupportedActionException e) {
+            logger.error("Unsupported action {} found in action store: {}", action, e.getMessage());
         }
-        if (actionTarget != null) {
-            env = actionTarget.getEnvironmentType().name();
-            entityType = EntityType.forNumber(actionTarget.getType()).name();
-        }
+
         Metrics.ACTION_COUNTS_GAUGE.labels(action.getTranslationResultOrOriginal().getInfo().getActionTypeCase().name(),
             entityType, env, actionCategory, actionSeverity, actionState).increment();
     }
