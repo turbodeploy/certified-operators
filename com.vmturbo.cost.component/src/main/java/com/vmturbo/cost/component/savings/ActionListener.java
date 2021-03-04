@@ -291,10 +291,9 @@ public class ActionListener implements ActionsListener {
                                                        newPendingActionsEntityIdToActionId);
         Set<SavingsEvent> newPendingActionEvents = new HashSet<>();
         actionChanges.entriesOnlyOnLeft().keySet().forEach(newActionSpec -> {
-            final Long newActionId = newActionSpec.getRecommendationId();
+            final Long newActionId = newActionSpec.getRecommendation().getId();
             final ActionState actionState = newActionSpec.getActionState();
-            final EntityPriceChange actionPriceChange = entityPriceChangeMap
-                            .get(newPendingActionSpecsToEntityId.get(newActionSpec));
+            final EntityPriceChange actionPriceChange = entityPriceChangeMap.get(newActionId);
             if (actionPriceChange != null) {
                 logger.debug("New action price change for {}, {}, {}, {}:",
                              newActionSpec,
@@ -330,7 +329,7 @@ public class ActionListener implements ActionsListener {
         if (!currentPendingActionSpecsToEntityId.isEmpty()) {
             Set<SavingsEvent> staleActionEvents = new HashSet<>();
             actionChanges.entriesOnlyOnRight().keySet().forEach(staleActionSpec -> {
-                final Long staleActionId = staleActionSpec.getRecommendationId();
+                final Long staleActionId = staleActionSpec.getRecommendation().getId();
                 final Long entityId = currentPendingActionSpecsToEntityId
                                 .get(staleActionSpec);
                 SavingsEvent pendingActionEvent =
