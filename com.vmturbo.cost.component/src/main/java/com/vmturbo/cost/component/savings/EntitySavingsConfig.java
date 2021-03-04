@@ -158,7 +158,7 @@ public class EntitySavingsConfig {
     @Bean
     public EntitySavingsTracker entitySavingsTracker() {
         return new EntitySavingsTracker(entitySavingsStore(), entityEventsJournal(), entityStateStore(),
-                getClock(), auditLogWriter());
+                getClock(), auditLogWriter(), persistEntityCostChunkSize);
     }
 
     /**

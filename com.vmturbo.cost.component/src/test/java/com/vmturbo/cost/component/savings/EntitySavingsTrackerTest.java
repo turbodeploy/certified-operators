@@ -23,7 +23,6 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableSet;
 
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
@@ -65,6 +64,7 @@ public class EntitySavingsTrackerTest {
     private static final long vm1Id = 101L;
     private static final long vm2Id = 201L;
     private static final long vm3Id = 301L;
+    private static final long vm4Id = 401L;
 
     private static final long action1Id = 1001L;
     private static final long action2Id = 1002L;
@@ -92,12 +92,13 @@ public class EntitySavingsTrackerTest {
         entitySavingsStore = mock(EntitySavingsStore.class);
         EntityStateStore entityStateStore = mock(SqlEntityStateStore.class);
         tracker = spy(new EntitySavingsTracker(entitySavingsStore, entityEventsJournal,
-                entityStateStore, Clock.systemUTC(), mock(AuditLogWriter.class)));
+                entityStateStore, Clock.systemUTC(), mock(AuditLogWriter.class), 2));
 
         Set<EntityState> stateSet = ImmutableSet.of(
                 createEntityState(vm1Id, 2d, null, null, null),
                 createEntityState(vm2Id, null, null, null, 0d),
-                createEntityState(vm3Id, 1d, 2d, 3d, 4d));
+                createEntityState(vm3Id, 1d, 2d, 3d, 4d),
+                createEntityState(vm4Id, 1d, null, null, null));
         Answer<Stream> stateStream = new Answer<Stream>() {
             public Stream answer(InvocationOnMock invocation) throws Throwable {
                 return stateSet.stream();
@@ -215,9 +216,11 @@ public class EntitySavingsTrackerTest {
         stats.add(new EntitySavingsStats(vm3Id, time1000am, EntitySavingsStatsType.MISSED_SAVINGS, 3d));
         stats.add(new EntitySavingsStats(vm3Id, time1000am, EntitySavingsStatsType.MISSED_INVESTMENTS, 4d));
 
-        verify(entitySavingsStore).addHourlyStats(statsCaptor.capture());
-        Assert.assertEquals(6, statsCaptor.getValue().size());
-        Assert.assertTrue(statsCaptor.getValue().containsAll(stats));
+        // addHourlyStats is called three times.
+        // First 2 states will generate 2 stats records => 1 call
+        // Third state will generate 4 stats records => 1 call
+        // Forth state will generate 1 stats (less than 1 page) and flushed at the end => 1 call
+        verify(entitySavingsStore, times(3)).addHourlyStats(statsCaptor.capture());
     }
 
     private EntityState createEntityState(long entityId, Double realizedSavings, Double realizedInvestments,

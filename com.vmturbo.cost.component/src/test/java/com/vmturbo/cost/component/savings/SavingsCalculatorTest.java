@@ -61,7 +61,7 @@ public class SavingsCalculatorTest {
         EntitySavingsStore entitySavingsStore = new SavingsCapture();
         AuditLogWriter auditLogWriter = mock(AuditLogWriter.class);
         EntitySavingsTracker tracker = new EntitySavingsTracker(entitySavingsStore,
-                entityEventsJournal, entityStateStore, Clock.systemUTC(), auditLogWriter);
+                entityEventsJournal, entityStateStore, Clock.systemUTC(), auditLogWriter, 1000);
         // Inject some events
         addTestEvents("src/test/resources/savings/unit-test.json", entityEventsJournal);
         tracker.processEvents(roundTime(entityEventsJournal.getNewestEventTime(), true).getTimeInMillis()

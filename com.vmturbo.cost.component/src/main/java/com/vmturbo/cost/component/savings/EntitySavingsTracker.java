@@ -49,6 +49,8 @@ public class EntitySavingsTracker {
 
     private final TimeZone timeZone;
 
+    private final int chunkSize;
+
     /**
      * Constructor.
      *
@@ -56,19 +58,22 @@ public class EntitySavingsTracker {
      * @param entityEventsJournal entityEventsJournal
      * @param entityStateStore Persistent state store.
      * @param clock clock
+     * @param chunkSize chunkSize for database batch operations
      * @param auditLogWriter Audit log writer helper.
      */
     EntitySavingsTracker(@Nonnull EntitySavingsStore entitySavingsStore,
                          @Nonnull EntityEventsJournal entityEventsJournal,
                          @Nonnull EntityStateStore entityStateStore,
                          @Nonnull final Clock clock,
-                         @Nonnull AuditLogWriter auditLogWriter) {
+                         @Nonnull AuditLogWriter auditLogWriter,
+                         final int chunkSize) {
         this.entitySavingsStore = Objects.requireNonNull(entitySavingsStore);
         this.entityEventsJournal = Objects.requireNonNull(entityEventsJournal);
         this.entityStateStore = Objects.requireNonNull(entityStateStore);
         this.savingsCalculator = new SavingsCalculator();
         timeZone = TimeZone.getTimeZone(clock.getZone());
         this.auditLogWriter = auditLogWriter;
+        this.chunkSize = chunkSize;
     }
 
     /**
@@ -233,9 +238,28 @@ public class EntitySavingsTracker {
         // Use try with resource here because the stream implementation uses an open cursor that
         // need to be closed.
         try (Stream<EntityState> stateStream = entityStateStore.getAllEntityStates()) {
-            stateStream.forEach(state -> stats.addAll(stateToStats(state, statTime)));
+            stateStream.forEach(state -> {
+                stats.addAll(stateToStats(state, statTime));
+                if (stats.size() >= chunkSize) {
+                    try {
+                        entitySavingsStore.addHourlyStats(stats);
+                    } catch (EntitySavingsException e) {
+                        // Wrap exception in RuntimeException and rethrow because it is within a lambda.
+                        throw new RuntimeException(e);
+                    }
+                    stats.clear();
+                }
+            });
+            if (!stats.isEmpty()) {
+                // Flush partial chunk
+                entitySavingsStore.addHourlyStats(stats);
+            }
+        } catch (RuntimeException e) {
+            if (e.getCause() instanceof EntitySavingsException) {
+                throw new EntitySavingsException("Error occurred when adding stats to database.", e.getCause());
+            }
+            throw e;
         }
-        entitySavingsStore.addHourlyStats(stats);
     }
 
     private Set<EntitySavingsStats> stateToStats(@Nonnull EntityState state, long statTime) {
