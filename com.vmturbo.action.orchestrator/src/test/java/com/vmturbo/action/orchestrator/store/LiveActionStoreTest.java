@@ -507,7 +507,7 @@ public class LiveActionStoreTest {
                         Collections.emptySet(), TOPOLOGY_CONTEXT_ID, topologyId);
         when(entitySettingsCache.newSnapshot(any(), anySet(), anyLong(), anyLong())).thenReturn(snapshot);
 
-        Mockito.doNothing().when(listener).sendOnGenerationEvents(actionsCaptor.capture());
+        Mockito.doNothing().when(listener).sendOnGenerationEvents(actionsCaptor.capture(), any());
         actionStore.populateRecommendedActions(firstPlan);
         final Collection<ActionView> actions = actionsCaptor.getValue();
         Assert.assertEquals(ActionState.READY, ((Action)((ArrayList)actions).get(0)).getState());
@@ -1643,7 +1643,7 @@ public class LiveActionStoreTest {
                 .collect(Collectors.toList())));
 
         Mockito.verify(actionAuditSender, Mockito.times(1))
-                .sendOnGenerationEvents(actionsCaptor.capture());
+                .sendOnGenerationEvents(actionsCaptor.capture(), any());
         final Collection<ActionView> auditedActions = actionsCaptor.getValue();
         Assert.assertTrue(isAllActionAreAtomic(auditedActions.stream()
                 .map(ActionView::getRecommendation)

@@ -28,6 +28,9 @@ import com.vmturbo.action.orchestrator.exception.ActionStoreOperationException;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.components.common.setting.ActionSettingSpecs;
+import com.vmturbo.components.common.setting.ActionSettingType;
+import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 
 /**
  * Verifies that AuditActionsPersistenceDiagnostics can save and load diagnostics.
@@ -44,21 +47,30 @@ public class AuditActionsPersistenceDiagnosticsTest {
     private static final long WORKFLOW_OID1 = 4;
     private static final long WORKFLOW_OID2 = 5;
     private static final long WORKFLOW_OID3 = 6;
+    private static final long TARGET_ENTITY_OID1 = 7;
+    private static final long TARGET_ENTITY_OID2 = 8;
+    private static final long TARGET_ENTITY_OID3 = 9;
     private static final long CLEARED_TIMESTAMP = 1000L;
+    private static final String VMEM_RESIZE_UP_ONGEN = ActionSettingSpecs.getSubSettingFromActionModeSetting(
+        ConfigurableActionSettings.ResizeVmemUpInBetweenThresholds,
+        ActionSettingType.ON_GEN);
     private static final AuditedActionInfo SENT_RECORD1 =
-        new AuditedActionInfo(ACTION_OID1, WORKFLOW_OID1, Optional.empty());
+        new AuditedActionInfo(ACTION_OID1, WORKFLOW_OID1, TARGET_ENTITY_OID1, VMEM_RESIZE_UP_ONGEN, Optional.empty());
     private static final AuditedActionInfo SENT_RECORD2 =
-        new AuditedActionInfo(ACTION_OID2, WORKFLOW_OID2, Optional.empty());
+        new AuditedActionInfo(ACTION_OID2, WORKFLOW_OID2, TARGET_ENTITY_OID2, VMEM_RESIZE_UP_ONGEN, Optional.empty());
     private static final AuditedActionInfo CLEARED_RECORD1 =
-        new AuditedActionInfo(ACTION_OID3, WORKFLOW_OID3, Optional.of(CLEARED_TIMESTAMP));
+        new AuditedActionInfo(ACTION_OID3, WORKFLOW_OID3, TARGET_ENTITY_OID3, VMEM_RESIZE_UP_ONGEN, Optional.of(CLEARED_TIMESTAMP));
 
     /**
      * Input taken from 8.1.1 so that we know which future version breaks backwards compatibility.
      */
     private static final List<String> BACKWARDS_COMPATIBILITY_INPUT = Arrays.asList(
-        "{\"recommendationId\":\"1\",\"workflowId\":\"4\",\"clearedTimestamp\":{}}",
-        "{\"recommendationId\":\"2\",\"workflowId\":\"5\",\"clearedTimestamp\":{}}",
-        "{\"recommendationId\":\"3\",\"workflowId\":\"6\",\"clearedTimestamp\":{\"value\":\"1000\"}}"
+        "{\"recommendationId\":\"1\",\"workflowId\":\"4\",\"targetEntityId\":\"7\","
+            + "\"settingName\":\"onGenResizeVmemUpInBetweenThresholdsActionWorkflow\",\"clearedTimestamp\":{}}",
+        "{\"recommendationId\":\"2\",\"workflowId\":\"5\",\"targetEntityId\":\"8\","
+            + "\"settingName\":\"onGenResizeVmemUpInBetweenThresholdsActionWorkflow\",\"clearedTimestamp\":{}}",
+        "{\"recommendationId\":\"3\",\"workflowId\":\"6\",\"targetEntityId\":\"9\","
+            + "\"settingName\":\"onGenResizeVmemUpInBetweenThresholdsActionWorkflow\",\"clearedTimestamp\":{\"value\":\"1000\"}}"
     );
 
     @Mock
@@ -110,6 +122,9 @@ public class AuditActionsPersistenceDiagnosticsTest {
         verify(diagnosticsAppender, times(1)).appendString(GSON.toJson(SENT_RECORD1));
         verify(diagnosticsAppender, times(1)).appendString(GSON.toJson(SENT_RECORD2));
         verify(diagnosticsAppender, times(1)).appendString(GSON.toJson(CLEARED_RECORD1));
+        System.out.println(GSON.toJson(SENT_RECORD1));
+        System.out.println(GSON.toJson(SENT_RECORD2));
+        System.out.println(GSON.toJson(CLEARED_RECORD1));
     }
 
     /**

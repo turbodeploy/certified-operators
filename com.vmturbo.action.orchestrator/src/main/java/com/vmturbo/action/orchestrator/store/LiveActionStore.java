@@ -570,7 +570,7 @@ public class LiveActionStore implements ActionStore {
             // We need to call auditOnGeneration once so that the book keeping can determine what
             // is new and what needs to be cleared by comparing what was provided in the last cycle.
             // As a result, this should not be called multiple times per market cycle.
-            auditOnGeneration(actionsForAudit);
+            auditOnGeneration(actionsForAudit, snapshot);
             if (deletedActions > 0) {
                 severityCache.refresh(this);
             }
@@ -584,13 +584,15 @@ public class LiveActionStore implements ActionStore {
         return true;
     }
 
-    private void auditOnGeneration(@Nonnull Collection<? extends ActionView> newActions)
+    private void auditOnGeneration(
+            @Nonnull Collection<? extends ActionView> newActions,
+            @Nonnull EntitiesAndSettingsSnapshot entitiesAndSettingsSnapshot)
             throws InterruptedException {
         try {
             // Even if the list is empty, we need ActionAuditSender to update it's book keeping.
             // Previously there was an optimization that checked if the list was non-empty.
-            actionAuditSender.sendOnGenerationEvents(newActions);
-        } catch (CommunicationException e) {
+            actionAuditSender.sendOnGenerationEvents(newActions, entitiesAndSettingsSnapshot);
+        } catch (CommunicationException | UnsupportedActionException e) {
             logger.warn(
                     "Failed sending audit event \"on generation event\" for actions " + newActions,
                     e);

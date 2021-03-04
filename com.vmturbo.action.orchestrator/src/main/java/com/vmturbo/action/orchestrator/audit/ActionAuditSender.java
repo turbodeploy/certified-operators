@@ -2,6 +2,7 @@ package com.vmturbo.action.orchestrator.audit;
 
 import java.time.Clock;
 import java.util.Collection;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -11,6 +12,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.time.StopWatch;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -21,10 +23,14 @@ import com.vmturbo.action.orchestrator.action.AuditedActionsManager;
 import com.vmturbo.action.orchestrator.action.AuditedActionsManager.AuditedActionsUpdate;
 import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionEvent;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
+import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStoreException;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
+import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.action.UnsupportedActionException;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.Workflow;
@@ -39,6 +45,8 @@ import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
  * Audit events sender for internal action states.
  */
 public class ActionAuditSender {
+
+    private static final long DOES_NOT_EXIST_WORKFLOW_OID = -1L;
 
     private final WorkflowStore workflowStore;
     private final IMessageSender<ActionEvent> messageSender;
@@ -150,18 +158,22 @@ public class ActionAuditSender {
      * Receives new actions.
      *
      * @param actions new actions received.
+     * @param entitiesAndSettingsSnapshot mapping of entity id to the entity's settings.
      * @throws CommunicationException if communication error occurred while sending
      *         notifications
      * @throws InterruptedException if current thread has been interrupted
+     * @throws UnsupportedActionException when primary entity of an action cannot be found.
      */
-    public void sendOnGenerationEvents(@Nonnull Collection<? extends ActionView> actions)
-            throws CommunicationException, InterruptedException {
+    public void sendOnGenerationEvents(
+            @Nonnull Collection<? extends ActionView> actions,
+            @Nonnull EntitiesAndSettingsSnapshot entitiesAndSettingsSnapshot)
+            throws CommunicationException, InterruptedException, UnsupportedActionException {
         final StopWatch stopWatch = new StopWatch();
         stopWatch.start();
         final AuditedActionsUpdate auditedActionsUpdates = new AuditedActionsUpdate();
         final int auditedActionsCount =
                 processActionsForAudit(actions, auditedActionsUpdates, false);
-        processCanceledActions(actions, auditedActionsUpdates);
+        processCanceledActions(actions, auditedActionsUpdates, entitiesAndSettingsSnapshot);
         // persist all updates of audited actions
         auditedActionsManager.persistAuditedActionsUpdates(auditedActionsUpdates);
         stopWatch.stop();
@@ -177,9 +189,10 @@ public class ActionAuditSender {
      * @throws CommunicationException if communication error occurred while sending
      * notifications
      * @throws InterruptedException if current thread has been interrupted
+     * @throws UnsupportedActionException when primary entity of an action cannot be found.
      */
     public int resendActionEvents(@Nonnull Collection<? extends ActionView> actions)
-            throws CommunicationException, InterruptedException {
+            throws CommunicationException, InterruptedException, UnsupportedActionException {
         final StopWatch stopWatch = new StopWatch();
         stopWatch.start();
         final int reAuditedActionsCount = processActionsForAudit(actions, null, true);
@@ -188,9 +201,11 @@ public class ActionAuditSender {
         return reAuditedActionsCount;
     }
 
-    private int processActionsForAudit(@Nonnull Collection<? extends ActionView> actions,
-            @Nullable AuditedActionsUpdate auditedActionsUpdates, boolean allowRepeatedAudit)
-            throws CommunicationException, InterruptedException {
+    private int processActionsForAudit(
+            @Nonnull Collection<? extends ActionView> actions,
+            @Nullable AuditedActionsUpdate auditedActionsUpdates,
+            boolean allowRepeatedAudit)
+            throws CommunicationException, InterruptedException, UnsupportedActionException {
         int auditedActionsCount = 0;
         for (ActionView action : actions) {
             Optional<WorkflowDTO.Workflow> workflowOptional;
@@ -217,10 +232,12 @@ public class ActionAuditSender {
         return auditedActionsCount;
     }
 
-    private boolean processWorkflow(@Nonnull ActionView action, @Nonnull Workflow workflow,
+    private boolean processWorkflow(
+            @Nonnull ActionView action,
+            @Nonnull Workflow workflow,
             @Nullable AuditedActionsUpdate auditedActionsUpdates,
             boolean allowRepeatedAudit)
-            throws CommunicationException, InterruptedException {
+            throws CommunicationException, InterruptedException, UnsupportedActionException {
         Optional<String> probeTypeOpt = getProbeType(workflow);
         if (probeTypeOpt.isPresent()) {
             // TODO OM-64606 remove this ServiceNow specific logic after changing the ServiceNow app
@@ -243,8 +260,10 @@ public class ActionAuditSender {
         return auditTarget.map(thinTargetInfo -> thinTargetInfo.probeInfo().type());
     }
 
-    private void processCanceledActions(@Nonnull Collection<? extends ActionView> actions,
-            @Nonnull AuditedActionsUpdate auditedActionsUpdates)
+    private void processCanceledActions(
+            @Nonnull Collection<? extends ActionView> actions,
+            @Nonnull AuditedActionsUpdate auditedActionsUpdates,
+            @Nonnull EntitiesAndSettingsSnapshot entitiesAndSettingsSnapshot)
             throws CommunicationException, InterruptedException {
         final Set<Long> currentActions =
                 actions.stream().map(ActionView::getRecommendationOid).collect(Collectors.toSet());
@@ -252,8 +271,50 @@ public class ActionAuditSender {
                 auditedActionsManager.getAlreadySentActions();
         for (AuditedActionInfo auditedAction : alreadySentActions) {
             final long recommendationId = auditedAction.getRecommendationId();
+            final long targetEntityId = auditedAction.getTargetEntityId();
+            final String auditSettingName = auditedAction.getSettingName();
+            final Map<String, Setting> settings =
+                    entitiesAndSettingsSnapshot.getSettingsForEntity(targetEntityId);
+            final Setting auditOnGenSetting = settings.get(auditSettingName);
+            final long mostRecentWorkflowId;
+            if (auditOnGenSetting != null && StringUtils.isNotBlank(
+                    auditOnGenSetting.getStringSettingValue().getValue())) {
+                try {
+                    mostRecentWorkflowId = Long.parseLong(
+                        settings.get(auditSettingName).getStringSettingValue().getValue());
+                } catch (NumberFormatException e) {
+                    logger.error("Could not process ON_GENERATION audit for"
+                        + " action {} because"
+                        + " target entity {}'s"
+                        + " setting {} had"
+                        + " non integer value {}.",
+                        auditedAction.getRecommendationId(),
+                        targetEntityId,
+                        auditSettingName,
+                        settings.get(auditSettingName).getStringSettingValue()
+                    );
+                    // Skip processing this action since the action's target entity's policy does not
+                    // have a valid workflow id.
+                    continue;
+                }
+            } else {
+                mostRecentWorkflowId = DOES_NOT_EXIST_WORKFLOW_OID;
+            }
             final long workflowId = auditedAction.getWorkflowId();
             final Optional<Long> clearedTimestamp = auditedAction.getClearedTimestamp();
+
+            // This removal expects that we accumulate all updates in auditedActionsUpdates and
+            // apply them after processing the broadcast. If we change this to apply the updates
+            // immediately instead of building them up, then this removal logic will need to be
+            // updated.
+            // Handles changes:
+            // WorkflowA to WorkflowB
+            // WorkflowA to no Workflow
+            if (mostRecentWorkflowId != workflowId) {
+                auditedActionsUpdates.addAuditedActionForRemoval(auditedAction);
+                continue;
+            }
+
             if (!currentActions.contains(recommendationId)) {
                 final Long clearedTime;
                 if (!clearedTimestamp.isPresent()) {
@@ -261,7 +322,7 @@ public class ActionAuditSender {
                     // this action earlier for ON_GEN audit
                     clearedTime = clock.millis();
                     auditedActionsUpdates.addRecentlyClearedAction(
-                            new AuditedActionInfo(recommendationId, workflowId, Optional.of(clearedTime)));
+                            new AuditedActionInfo(recommendationId, workflowId, targetEntityId, auditSettingName, Optional.of(clearedTime)));
                 } else {
                     clearedTime = clearedTimestamp.get();
                 }
@@ -269,13 +330,13 @@ public class ActionAuditSender {
                     // if earlier audited action is not recommended during certain time and met
                     // cleared criteria, then we send it as CLEARED
                     sendCanceledAction(recommendationId, workflowId);
-                    auditedActionsUpdates.addExpiredClearedAction(
-                            new AuditedActionInfo(recommendationId, workflowId, Optional.empty()));
+                    auditedActionsUpdates.addAuditedActionForRemoval(
+                            new AuditedActionInfo(recommendationId, workflowId, targetEntityId, auditSettingName, Optional.empty()));
                 }
             } else if (clearedTimestamp.isPresent()) {
                 // reset cleared_timestamp, because action which wasn't recommended during certain time is came back
                 auditedActionsUpdates.addAuditedAction(
-                        new AuditedActionInfo(recommendationId, workflowId, Optional.empty()));
+                        new AuditedActionInfo(recommendationId, workflowId, targetEntityId, auditSettingName, Optional.empty()));
             }
         }
     }
@@ -335,9 +396,12 @@ public class ActionAuditSender {
         return true;
     }
 
-    private boolean processAuditWorkflow(@Nonnull ActionView action, @Nonnull Workflow workflow,
-            @Nullable AuditedActionsUpdate auditedActionsUpdates, boolean allowRepeatedAudit)
-            throws CommunicationException, InterruptedException {
+    private boolean processAuditWorkflow(
+            @Nonnull ActionView action,
+            @Nonnull Workflow workflow,
+            @Nullable AuditedActionsUpdate auditedActionsUpdates,
+            boolean allowRepeatedAudit)
+            throws CommunicationException, InterruptedException, UnsupportedActionException {
         if (!isAlreadySent(action.getRecommendationOid(), workflow.getId()) || allowRepeatedAudit) {
             final ActionResponseState oldState;
             final ActionResponseState newState;
@@ -364,8 +428,14 @@ public class ActionAuditSender {
             // action and persist them in bookkeeping cache
             if (auditedActionsUpdates != null) {
                 auditedActionsUpdates.addAuditedAction(
-                        new AuditedActionInfo(action.getRecommendationOid(), workflow.getId(),
-                                Optional.empty()));
+                        new AuditedActionInfo(
+                            action.getRecommendationOid(),
+                            workflow.getId(),
+                            ActionDTOUtil.getPrimaryEntityId(action.getRecommendation()),
+                            action.getWorkflowSetting(ActionState.READY)
+                                .map(Setting::getSettingSpecName)
+                                .orElse(""),
+                            Optional.empty()));
             }
             logger.debug("Sending action {} audit event to external audit", action.getId());
             messageSender.sendMessage(event);

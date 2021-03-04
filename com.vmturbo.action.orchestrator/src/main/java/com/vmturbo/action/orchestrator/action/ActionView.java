@@ -17,6 +17,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
+import com.vmturbo.common.protobuf.setting.SettingProto;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 
 /**
@@ -271,6 +272,19 @@ public interface ActionView {
      * @return  true, if the action has at least one remaining step to execute
      */
     boolean hasPendingExecution();
+
+
+    /**
+     * Find the Setting for a Workflow Orchestration Policy, if there is one, that applies to
+     * the current Action in the given state (e.g. PRE, POST).
+     * The calculation uses the ActionDTO.Action and the EntitySettingsCache.
+     *
+     * @param actionState the state for which to retrieve the workflow
+     * @return an Optional containing the Setting for a Workflow Orchestration Policy, if there
+     * is one defined for this action, or Optional.empty() otherwise
+     */
+    @Nonnull
+    Optional<SettingProto.Setting> getWorkflowSetting(ActionState actionState);
 
     /**
      * Fetch an Optional of the {@link WorkflowDTO.Workflow} corresponding to this Action for
