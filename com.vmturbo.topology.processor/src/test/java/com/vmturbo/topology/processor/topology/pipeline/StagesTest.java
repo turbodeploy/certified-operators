@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.topology.pipeline;
 import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.topologyEntityBuilder;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -50,8 +51,8 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo.Type;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyResponse;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.Stitching.JournalOptions;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
@@ -71,6 +72,7 @@ import com.vmturbo.matrix.component.TheMatrix;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.Pair;
+import com.vmturbo.proactivesupport.DataMetricGauge.GaugeData;
 import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.TopologyEntity;
@@ -601,6 +603,108 @@ public class StagesTest {
 
         verify(broadcast).append(any());
         verify(broadcast).append(eq(entity.build()));
+    }
+
+    /**
+     * Test realtime BROADCAST_ENTITIES_GAUGE.
+     *
+     * @throws Exception exception
+     */
+    @Test
+    public void testRealtimeBroadcastMetric() throws Exception {
+        final TopoBroadcastManager broadcastManager = mock(TopoBroadcastManager.class);
+        final BroadcastStage stage = new BroadcastStage(Arrays.asList(broadcastManager), TheMatrix.instance());
+
+        final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
+            .setTopologyType(TopologyType.REALTIME)
+            .setTopologyContextId(1L)
+            .setTopologyId(2L)
+            .build();
+        @SuppressWarnings("unchecked")
+        final TopologyPipelineContext context = mock(TopologyPipelineContext.class);
+        when(context.getTopologyInfo()).thenReturn(topologyInfo);
+        stage.setContext(context);
+
+        final TopologyBroadcast broadcast = mock(TopologyBroadcast.class);
+        when(broadcast.finish()).thenReturn(1L);
+        when(broadcastManager.broadcastLiveTopology(eq(topologyInfo)))
+            .thenReturn(broadcast);
+
+        final TopologyEntity entity1 = mock(TopologyEntity.class);
+        when(entity1.getTopologyEntityDtoBuilder()).thenReturn(
+            TopologyEntityDTO.newBuilder().setEntityType(EntityType.VIRTUAL_MACHINE_VALUE).setOid(1L));
+        final TopologyEntity entity2 = mock(TopologyEntity.class);
+        when(entity2.getTopologyEntityDtoBuilder()).thenReturn(
+            TopologyEntityDTO.newBuilder().setEntityType(EntityType.VIRTUAL_MACHINE_VALUE).setOid(2L));
+        final TopologyEntity entity3 = mock(TopologyEntity.class);
+        when(entity3.getTopologyEntityDtoBuilder()).thenReturn(
+            TopologyEntityDTO.newBuilder().setEntityType(EntityType.STORAGE_VALUE).setOid(3L));
+        final TopologyEntity entity4 = mock(TopologyEntity.class);
+        when(entity4.getTopologyEntityDtoBuilder()).thenReturn(
+            TopologyEntityDTO.newBuilder().setEntityType(EntityType.PHYSICAL_MACHINE_VALUE).setOid(4L));
+
+        final TopologyBroadcastInfo broadcastInfo =
+            stage.execute(Stream.of(entity1, entity2, entity3, entity4)).getResult();
+        assertEquals(4, broadcastInfo.getEntityCount());
+
+        // Assert that metric values are correct.
+        final Map<List<String>, GaugeData> values = BroadcastStage.BROADCAST_ENTITIES_GAUGE.getLabeledMetrics();
+        assertEquals(3, values.size());
+
+        double delta = 0.001d;
+        assertEquals(2, values.get(Collections.singletonList(ApiEntityType.VIRTUAL_MACHINE.sdkType().toString())).getData(), delta);
+        assertEquals(1, values.get(Collections.singletonList(ApiEntityType.STORAGE.sdkType().toString())).getData(), delta);
+        assertEquals(1, values.get(Collections.singletonList(ApiEntityType.PHYSICAL_MACHINE.sdkType().toString())).getData(), delta);
+    }
+
+    /**
+     * Test plan BROADCAST_ENTITIES_GAUGE. Metric shouldn't be updated.
+     *
+     * @throws Exception exception
+     */
+    @Test
+    public void testPlanBroadcastMetric() throws Exception {
+        final TopoBroadcastManager broadcastManager = mock(TopoBroadcastManager.class);
+        final BroadcastStage stage = new BroadcastStage(Arrays.asList(broadcastManager), TheMatrix.instance());
+
+        BroadcastStage.BROADCAST_ENTITIES_GAUGE.labels(ApiEntityType.VIRTUAL_MACHINE.sdkType().toString()).setData(2d);
+        BroadcastStage.BROADCAST_ENTITIES_GAUGE.labels(ApiEntityType.STORAGE.sdkType().toString()).setData(1d);
+        BroadcastStage.BROADCAST_ENTITIES_GAUGE.labels(ApiEntityType.PHYSICAL_MACHINE.sdkType().toString()).setData(3d);
+
+        final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
+            .setTopologyType(TopologyType.PLAN)
+            .setTopologyContextId(1L)
+            .setTopologyId(2L)
+            .build();
+        @SuppressWarnings("unchecked")
+        final TopologyPipelineContext context = mock(TopologyPipelineContext.class);
+        when(context.getTopologyInfo()).thenReturn(topologyInfo);
+        stage.setContext(context);
+
+        final TopologyBroadcast broadcast = mock(TopologyBroadcast.class);
+        when(broadcast.finish()).thenReturn(1L);
+        when(broadcastManager.broadcastUserPlanTopology(eq(topologyInfo)))
+            .thenReturn(broadcast);
+
+        final TopologyEntity entity1 = mock(TopologyEntity.class);
+        when(entity1.getTopologyEntityDtoBuilder()).thenReturn(
+            TopologyEntityDTO.newBuilder().setEntityType(EntityType.NETWORK_VALUE).setOid(1L));
+        final TopologyEntity entity2 = mock(TopologyEntity.class);
+        when(entity2.getTopologyEntityDtoBuilder()).thenReturn(
+            TopologyEntityDTO.newBuilder().setEntityType(EntityType.SWITCH_VALUE).setOid(2L));
+
+        final TopologyBroadcastInfo broadcastInfo =
+            stage.execute(Stream.of(entity1, entity2)).getResult();
+        assertEquals(2, broadcastInfo.getEntityCount());
+
+        // Assert that metric values don't change.
+        final Map<List<String>, GaugeData> values = BroadcastStage.BROADCAST_ENTITIES_GAUGE.getLabeledMetrics();
+        assertEquals(3, values.size());
+
+        double delta = 0.001d;
+        assertEquals(2, values.get(Collections.singletonList(ApiEntityType.VIRTUAL_MACHINE.sdkType().toString())).getData(), delta);
+        assertEquals(1, values.get(Collections.singletonList(ApiEntityType.STORAGE.sdkType().toString())).getData(), delta);
+        assertEquals(3, values.get(Collections.singletonList(ApiEntityType.PHYSICAL_MACHINE.sdkType().toString())).getData(), delta);
     }
 
     @Test
