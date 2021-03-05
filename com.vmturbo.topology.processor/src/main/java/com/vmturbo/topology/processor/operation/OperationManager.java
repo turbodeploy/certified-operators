@@ -14,25 +14,27 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.jooq.exception.DataAccessException;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.jooq.exception.DataAccessException;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.communication.CommunicationException;
@@ -145,7 +147,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
 
     protected final IdentityProvider identityProvider;
 
-    private final OperationListener operationListener;
+    private final List<OperationListener> operationListeners = new CopyOnWriteArrayList<>();
 
     private final EntityStore entityStore;
 
@@ -258,6 +260,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
 
     public OperationManager(@Nonnull final IdentityProvider identityProvider,
                             @Nonnull final TargetStore targetStore,
+                            @Nonnull final FailedDiscoveryTracker failedDiscoveryTracker,
                             @Nonnull final ProbeStore probeStore,
                             @Nonnull final RemoteMediation remoteMediationServer,
                             @Nonnull final OperationListener operationListener,
@@ -285,7 +288,8 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         this.targetStore = Objects.requireNonNull(targetStore);
         this.probeStore = Objects.requireNonNull(probeStore);
         this.remoteMediationServer = Objects.requireNonNull(remoteMediationServer);
-        this.operationListener = Objects.requireNonNull(operationListener);
+        this.operationListeners.add(operationListener);
+        this.operationListeners.add(failedDiscoveryTracker);
         this.entityStore = Objects.requireNonNull(entityStore);
         this.discoveredGroupUploader = Objects.requireNonNull(discoveredGroupUploader);
         this.discoveredWorkflowUploader = Objects.requireNonNull(discoveredWorkflowUploader);
@@ -757,6 +761,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
      * @param message The message from the probe containing the response.
      * @return a Future representing pending completion of the task
      */
+    @Override
     public Future<?> notifyDiscoveryResult(@Nonnull final Discovery operation,
                              @Nonnull final DiscoveryResponse message) {
         return resultExecutor.submit(() -> {
@@ -806,7 +811,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
             @Nonnull ActionProgress progress) {
         resultExecutor.execute(() -> {
             action.updateProgress(progress.getResponse());
-            operationListener.notifyOperationState(action);
+            operationListeners.forEach(operationListener -> operationListener.notifyOperationState(action));
             if (shouldUpdateEntityActionTable(action)) {
                 updateControllableAndSuspendableState(action);
             }
@@ -1193,7 +1198,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         ongoingOperations.put(operation.getId(), handler);
         // Send the same notification as the complete notification,
         // just that completionTime is not yet set.
-        operationListener.notifyOperationState(operation);
+        operationListeners.forEach(operationListener -> operationListener.notifyOperationState(operation));
         ONGOING_OPERATION_GAUGE.labels(operation.getClass().getName().toLowerCase()).increment();
     }
 
@@ -1216,7 +1221,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                 return null;
             });
         }
-        operationListener.notifyOperationState(operation);
+        operationListeners.forEach(operationListener -> operationListener.notifyOperationState(operation));
         ONGOING_OPERATION_GAUGE.labels(operation.getClass().getName().toLowerCase()).decrement();
     }
 
