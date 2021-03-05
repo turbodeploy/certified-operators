@@ -196,12 +196,17 @@ public class StableMarriageAlgorithm {
         }
         // for non ASG vms compute the savings again and see if it still makes sense to
         // stay in the RI template or its better to move to natural template.
+
+        // If the natural template is better then move..If the natural template saving
+        // is same as the saving with coverage and the vm is already on the ri template
+        // it better be using up the RIs.
         for (SMAMatch smaMatch : nonASGMatch) {
             if (smaMatch.getReservedInstance() != null) {
                 float saving = smaMatch.getReservedInstance()
                         .computeSaving(smaMatch.getVirtualMachine(),
                                 new HashMap<>(), smaMatch.getDiscountedCoupons());
-                if (saving < SMAUtils.EPSILON) {
+                if (saving <  -1 * SMAUtils.EPSILON || (saving <  SMAUtils.EPSILON &&
+                        smaMatch.getVirtualMachine().getCurrentTemplate().getOid() != smaMatch.getTemplate().getOid())) {
                     float current_leftover = leftoverCoupons.getOrDefault(smaMatch
                             .getReservedInstance().getRiKeyOid(),0f);
                     current_leftover += smaMatch.getDiscountedCoupons();
@@ -238,7 +243,9 @@ public class StableMarriageAlgorithm {
                             .computeSaving(smaMatch.getVirtualMachine(),
                                     new HashMap<>(), smaMatch.getDiscountedCoupons());
                 }
-                if (saving < SMAUtils.EPSILON) {
+                if (saving <  -1 * SMAUtils.EPSILON || (saving <  SMAUtils.EPSILON &&
+                        matchWithCoverage.get().getVirtualMachine().getCurrentTemplate().getOid()
+                                != matchWithCoverage.get().getTemplate().getOid())) {
                     SMAReservedInstance coveredRI = matchWithCoverage.get().getReservedInstance();
                     riKeyOidToSMAReservedInstance.put(coveredRI.getRiKeyOid(),
                             coveredRI);

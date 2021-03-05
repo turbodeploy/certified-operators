@@ -20,8 +20,12 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableSet;
+
 import org.apache.commons.collections4.MultiValuedMap;
 import org.apache.commons.collections4.multimap.HashSetValuedHashMap;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -34,6 +38,7 @@ import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.EntityCloudScopeRecord;
+import com.vmturbo.cost.component.savings.EntitySavingsStore.LastRollupTimes;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
@@ -42,6 +47,8 @@ import com.vmturbo.sql.utils.DbConfigurationRule;
  * Used to test savings related DB read/write codebase.
  */
 public class SqlEntitySavingsStoreTest {
+    private final Logger logger = LogManager.getLogger();
+
     /**
      * Handle to store for DB access.
      */
@@ -77,12 +84,12 @@ public class SqlEntitySavingsStoreTest {
     /**
      * ID of VM 1.
      */
-    private static final long vm1Id = 101L;
+    private static final long vm1Id = 100L;
 
     /**
      * ID of VM 2.
      */
-    private static final long vm2Id = 201L;
+    private static final long vm2Id = 200L;
 
     /**
      * Account id.
@@ -102,22 +109,33 @@ public class SqlEntitySavingsStoreTest {
     /**
      * Realized savings test value.
      */
-    private static final double realizedSavings = 10.532d;
+    private static final double realizedSavings = 1.0d;
 
     /**
      * Missed savings test value.
      */
-    private static final double missedSavings = 5.21d;
+    private static final double missedSavings = 2.0d;
 
     /**
      * Realized investments test value.
      */
-    private static final double realizedInvestments = 35.2d;
+    private static final double realizedInvestments = 4.0d;
 
     /**
      * Missed investments test value.
      */
-    private static final double missedInvestments = 551.34d;
+    private static final double missedInvestments = 8.0d;
+
+    /**
+     * Get exact time, strip of the minute part: 1970-01-12T13:00
+     */
+    private final LocalDateTime timeExact1PM = Instant.now(clock).atZone(ZoneOffset.UTC)
+            .toLocalDateTime().truncatedTo(ChronoUnit.HOURS);
+
+    /**
+     * For testing rollups.
+     */
+    private RollupSavingsProcessor rollupProcessor;
 
     /**
      * Initializing store.
@@ -126,7 +144,8 @@ public class SqlEntitySavingsStoreTest {
      */
     @Before
     public void setup() throws Exception {
-        store = new SqlEntitySavingsStore(dsl, clock, 1);
+        store = new SqlEntitySavingsStore(dsl, clock, 5);
+        rollupProcessor = new RollupSavingsProcessor(store, clock);
     }
 
     /**
@@ -146,22 +165,19 @@ public class SqlEntitySavingsStoreTest {
         // Set scope
         insertScopeRecords();
 
-        // Get exact time, strip of the hour part.
-        final LocalDateTime timeExact1PM = Instant.now(clock).atZone(ZoneOffset.UTC)
-                .toLocalDateTime().truncatedTo(ChronoUnit.HOURS); // 1970-01-12T13:00
         final LocalDateTime timeExact0PM = timeExact1PM.minusHours(1); // 1970-01-12T12:00
         final LocalDateTime timeExact2PM = timeExact1PM.plusHours(1); // 1970-01-12T14:00
         final LocalDateTime timeExact3PM = timeExact1PM.plusHours(2); // 1970-01-12T15:00
         final LocalDateTime timeExact4PM = timeExact1PM.plusHours(3); // 1970-01-12T16:00
 
-        setStatsValues(hourlyStats, vm1Id, timeExact1PM, 10); // VM1 at 1PM.
-        setStatsValues(hourlyStats, vm2Id, timeExact1PM, 20); // VM2 at 1PM.
+        setStatsValues(hourlyStats, vm1Id, timeExact1PM, 10, null); // VM1 at 1PM.
+        setStatsValues(hourlyStats, vm2Id, timeExact1PM, 20, null); // VM2 at 1PM.
 
-        setStatsValues(hourlyStats, vm1Id, timeExact2PM, 30); // VM1 at 2PM.
-        setStatsValues(hourlyStats, vm2Id, timeExact2PM, 40); // VM2 at 2PM.
+        setStatsValues(hourlyStats, vm1Id, timeExact2PM, 30, null); // VM1 at 2PM.
+        setStatsValues(hourlyStats, vm2Id, timeExact2PM, 40, null); // VM2 at 2PM.
 
-        setStatsValues(hourlyStats, vm1Id, timeExact3PM, 50); // VM1 at 3PM.
-        setStatsValues(hourlyStats, vm2Id, timeExact3PM, 50); // VM2 at 3PM.
+        setStatsValues(hourlyStats, vm1Id, timeExact3PM, 50, null); // VM1 at 3PM.
+        setStatsValues(hourlyStats, vm2Id, timeExact3PM, 50, null); // VM2 at 3PM.
 
         // Write it.
         store.addHourlyStats(hourlyStats);
@@ -178,7 +194,7 @@ public class SqlEntitySavingsStoreTest {
         entitiesByType.put(EntityType.VIRTUAL_MACHINE, vm1Id);
         entitiesByType.put(EntityType.VIRTUAL_MACHINE, vm2Id);
 
-        Set<AggregatedSavingsStats> statsReadBack = store.getHourlyStats(allStatsTypes,
+        List<AggregatedSavingsStats> statsReadBack = store.getHourlyStats(allStatsTypes,
                 TimeUtil.localDateTimeToMilli(timeExact0PM, clock),
                 TimeUtil.localDateTimeToMilli(timeExact1PM, clock),
                 entitiesByType);
@@ -218,6 +234,103 @@ public class SqlEntitySavingsStoreTest {
         checkStatsValues(statsReadBack, vm1Id, timeExact3PM, 50, null);
     }
 
+    @Test
+    public void rollupToDailyAndMonthly() throws IOException, EntitySavingsException {
+        final Set<EntitySavingsStats> hourlyStats = new HashSet<>();
+
+        // Verify getMaxStatsTime returns null when table is empty.
+        Long maxStatsTime = store.getMaxStatsTime();
+        assertNull(maxStatsTime);
+
+        // Set scope
+        insertScopeRecords();
+
+        final Set<EntitySavingsStatsType> statsTypes = ImmutableSet.of(
+                EntitySavingsStatsType.REALIZED_SAVINGS);
+
+        // Start of day range query.
+        final long dayRangeStart = TimeUtil.localDateTimeToMilli(timeExact1PM.minusDays(1), clock);
+        final long monthRangeStart = 0L;
+
+        final LocalDateTime startTime = timeExact1PM.plusHours(12); // 01/13 1:00 AM
+        final List<Long> hourlyTimes = new ArrayList<>();
+
+        // Times being inserted are like this:
+        // Jan-13: 23 hrs - Starting at 1:00 AM (inclusive), up to midnight 12:00 AM (exclusive)
+        // Jan-14: 24 hrs - 12:00 AM (inclusive) up to 12:00 AM midnight (exclusive)
+        // Jan-15: 03 hrs - 12:00 AM (inclusive) up to 3:00 AM (exclusive)
+
+        // This results in following rollup scenario:
+        // Hourly to Daily: All 50 hours get rolled up to their respective daily table, as these
+        //      hourly stats are 'complete' and hence can be safely rolled up to daily.
+        // Daily to Monthly: 'Complete' days get rolled up to monthly (end of month time).
+        //      Jan-13: Done as we noticed next day Jan-14.
+        //      Jan-14: Done as we noticed next day Jan-15
+        // Jan-15: Day is still 'in progress', so doesn't get rolled up to monthly yet.
+        for (int hour = 0; hour < 50; hour++) {
+            final LocalDateTime thisTime = startTime.plusHours(hour);
+            setStatsValues(hourlyStats, vm1Id, thisTime, 1, statsTypes);
+
+            long timestamp = TimeUtil.localDateTimeToMilli(thisTime, clock);
+            hourlyTimes.add(timestamp);
+        }
+
+        // Start of day range query.
+        final long dayRangeEnd = TimeUtil.localDateTimeToMilli(timeExact1PM.plusDays(7), clock);
+        final long monthRangeEnd = SavingsUtil.getMonthEndTime(timeExact1PM.plusMonths(2), clock);
+
+        store.addHourlyStats(hourlyStats);
+        rollupProcessor.process(hourlyTimes);
+
+        final LastRollupTimes newLastTimes = store.getLastRollupTimes();
+        assertNotNull(newLastTimes);
+        logger.info("New last rollup times: {}", newLastTimes);
+        // First hour inserted into DB - Thu Jan 13 1970 01:00:00
+        final long firstHourExpected = 1040400000L;
+
+        // Last hourly data that was rolled up - Thu Jan 15 1970 02:00:00
+        final long lastHourExpected = 1216800000L;
+
+        // Last day that was rolled up - Wed Jan 14 1970 00:00:00
+        // Jan 15 is still 'in progress', so its daily rollup is not yet completed.
+        final long lastDayExpected = 1123200000L;
+
+        // Month end to which daily data has been rolled up - Sat Jan 31 1970 00:00:00
+        final long lastMonthExpected = 2592000000L;
+        assertEquals(lastHourExpected, newLastTimes.getLastTimeByHour());
+        assertEquals(lastHourExpected, (long)hourlyTimes.get(hourlyTimes.size() - 1));
+        assertEquals(lastDayExpected, newLastTimes.getLastTimeByDay());
+        assertEquals(lastMonthExpected, newLastTimes.getLastTimeByMonth());
+
+        MultiValuedMap<EntityType, Long> entitiesByType = new HashSetValuedHashMap<>();
+        entitiesByType.put(EntityType.VIRTUAL_MACHINE, vm1Id);
+
+        final List<AggregatedSavingsStats> statsByHour = store.getHourlyStats(statsTypes,
+                firstHourExpected, (lastHourExpected + 1), entitiesByType);
+        assertNotNull(statsByHour);
+        int sizeHourly = statsByHour.size();
+        assertEquals(50, sizeHourly);
+        assertEquals(firstHourExpected, statsByHour.get(0).getTimestamp());
+        assertEquals(lastHourExpected, statsByHour.get(sizeHourly - 1).getTimestamp());
+
+        final List<AggregatedSavingsStats> statsByDay = store.getDailyStats(statsTypes,
+                dayRangeStart, dayRangeEnd, entitiesByType);
+        assertNotNull(statsByDay);
+        assertEquals(3, statsByDay.size());
+        // 23 hours Jan-13, $100/hr
+        assertEquals(2300.0, statsByDay.get(0).getValue(), EPSILON_PRECISION);
+        // 24 hours Jan-14, $100/hr
+        assertEquals(2400.0, statsByDay.get(1).getValue(), EPSILON_PRECISION);
+        // 3 hours Jan-15, $100/hr
+        assertEquals(300.0, statsByDay.get(2).getValue(), EPSILON_PRECISION);
+
+        final List<AggregatedSavingsStats> statsByMonth = store.getMonthlyStats(statsTypes,
+                monthRangeStart, monthRangeEnd, entitiesByType);
+        assertNotNull(statsByMonth);
+        assertEquals(1, statsByMonth.size());
+        assertEquals(4700.0, statsByMonth.get(0).getValue(), EPSILON_PRECISION);
+    }
+
     /**
      * Inserts entries into scope table, required because of join with that table.
      *
@@ -238,7 +351,7 @@ public class SqlEntitySavingsStoreTest {
         rec2.setServiceProviderOid(csp1Id);
         scopeRecords.add(rec2);
 
-        ((SqlEntitySavingsStore)store).getDsl().loadInto(Tables.ENTITY_CLOUD_SCOPE)
+        (store).getDsl().loadInto(Tables.ENTITY_CLOUD_SCOPE)
                 .batchAll()
                 .onDuplicateKeyUpdate()
                 .loadRecords(scopeRecords)
@@ -257,25 +370,35 @@ public class SqlEntitySavingsStoreTest {
      * @param vmId ID of VM.
      * @param dateTime Stats time.
      * @param multiple Multiple value used for dummy stats data.
+     * @param requiredStatsTypes Stats types to set values for.
      */
     private void setStatsValues(@Nonnull final Set<EntitySavingsStats> hourlyStats, long vmId,
-            @Nonnull final LocalDateTime dateTime, int multiple) {
+            @Nonnull final LocalDateTime dateTime, int multiple,
+            @Nullable Set<EntitySavingsStatsType> requiredStatsTypes) {
         long timestamp = TimeUtil.localDateTimeToMilli(dateTime, clock);
         EntitySavingsStatsType statsType = EntitySavingsStatsType.REALIZED_SAVINGS;
-        hourlyStats.add(new EntitySavingsStats(vmId, timestamp,
-                statsType, getDummyValue(statsType, multiple, vmId)));
+        if (requiredStatsTypes == null || requiredStatsTypes.contains(statsType)) {
+            hourlyStats.add(new EntitySavingsStats(vmId, timestamp, statsType,
+                    getDummyValue(statsType, multiple, vmId)));
+        }
 
         statsType = EntitySavingsStatsType.MISSED_SAVINGS;
-        hourlyStats.add(new EntitySavingsStats(vmId, timestamp,
-                statsType, getDummyValue(statsType, multiple, vmId)));
+        if (requiredStatsTypes == null || requiredStatsTypes.contains(statsType)) {
+            hourlyStats.add(new EntitySavingsStats(vmId, timestamp, statsType,
+                    getDummyValue(statsType, multiple, vmId)));
+        }
 
         statsType = EntitySavingsStatsType.REALIZED_INVESTMENTS;
-        hourlyStats.add(new EntitySavingsStats(vmId, timestamp,
-                statsType, getDummyValue(statsType, multiple, vmId)));
+        if (requiredStatsTypes == null || requiredStatsTypes.contains(statsType)) {
+            hourlyStats.add(new EntitySavingsStats(vmId, timestamp, statsType,
+                    getDummyValue(statsType, multiple, vmId)));
+        }
 
         statsType = EntitySavingsStatsType.MISSED_INVESTMENTS;
-        hourlyStats.add(new EntitySavingsStats(vmId, timestamp,
-                statsType, getDummyValue(statsType, multiple, vmId)));
+        if (requiredStatsTypes == null || requiredStatsTypes.contains(statsType)) {
+            hourlyStats.add(new EntitySavingsStats(vmId, timestamp, statsType,
+                    getDummyValue(statsType, multiple, vmId)));
+        }
     }
 
     /**
@@ -287,7 +410,7 @@ public class SqlEntitySavingsStoreTest {
      * @param multiple Multiple value used for dummy stats data.
      * @param vm2Id Id of 2nd VM, if non-null.
      */
-    private void checkStatsValues(@Nonnull final Set<AggregatedSavingsStats> statsReadBack, long vmId,
+    private void checkStatsValues(@Nonnull final List<AggregatedSavingsStats> statsReadBack, long vmId,
             @Nonnull final LocalDateTime dateTime, int multiple, @Nullable Long vm2Id) {
         assertNotNull(statsReadBack);
         statsReadBack.forEach(stats -> {
@@ -314,13 +437,13 @@ public class SqlEntitySavingsStoreTest {
     private double getDummyValue(EntitySavingsStatsType statsType, int multiple, long vmId) {
         switch (statsType) {
             case REALIZED_SAVINGS:
-                return realizedSavings + multiple * vmId;
+                return realizedSavings * multiple * vmId;
             case MISSED_SAVINGS:
-                return missedSavings + multiple * vmId;
+                return missedSavings * multiple * vmId;
             case REALIZED_INVESTMENTS:
-                return realizedInvestments + multiple * vmId;
+                return realizedInvestments * multiple * vmId;
             case MISSED_INVESTMENTS:
-                return missedInvestments + multiple * vmId;
+                return missedInvestments * multiple * vmId;
         }
         return 0d;
     }

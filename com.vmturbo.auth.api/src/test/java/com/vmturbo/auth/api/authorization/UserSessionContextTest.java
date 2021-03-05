@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import com.google.common.collect.ImmutableList;
@@ -25,11 +26,10 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
-import io.jsonwebtoken.lang.Collections;
-
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.userscope.UserScope.EntityAccessScopeContents;
 import com.vmturbo.common.protobuf.userscope.UserScope.EntityAccessScopeResponse;
 import com.vmturbo.common.protobuf.userscope.UserScope.OidSetDTO;
@@ -82,10 +82,10 @@ public class UserSessionContextTest {
         Assert.assertTrue(entityAccessScope.getEntityAccessFilter().containsAll());
         Assert.assertEquals(0, entityAccessScope.getScopeGroupMembers().size());
         Assert.assertEquals(0, entityAccessScope.getScopeGroupIds().size());
-        long[] testOids = {0,1,2};
+        List<Long> testOids = Arrays.asList(0L, 1L,  2L);
         // default filtering behavior shouldn't filter anything out
-        OidSet filteredSet = entityAccessScope.filter(testOids);
-        Assert.assertTrue(filteredSet.contains(Collections.arrayToList(testOids)));
+        List<Long> filteredSet = entityAccessScope.filter(testOids);
+        Assert.assertTrue(filteredSet.containsAll(testOids));
     }
 
     @Test
@@ -227,6 +227,38 @@ public class UserSessionContextTest {
         accessScope = userSessionContext.getUserAccessScope();
         Assert.assertEquals(4, accessScope.accessibleOids().size());
         Assert.assertTrue(accessScope.contains(newOids));
+    }
+
+    /**
+     * Test that a scoped user has access limited by entity type, and that an unscoped user does not.
+     */
+    @Test
+    public void testScopedUser() {
+        final Authentication scopedUser = new UsernamePasswordAuthenticationToken(
+            new AuthUserDTO(null, "user", "password", "10.10.10.10", "11111", "token",
+                ImmutableList.of("ADVISOR"), Collections.singletonList(12345L)),
+            "admin000",
+            CollectionUtils.emptyCollection());
+
+        SecurityContextHolder.getContext().setAuthentication(scopedUser);
+
+        Assert.assertTrue(userSessionContext.isUserScoped());
+        UserScopeUtils.SCOPED_USER_PROHIBITED_ENTITY_TYPES.forEach(type ->
+            Assert.assertFalse(userSessionContext.isEntityTypeAllowedForUser(type)));
+        Assert.assertTrue(userSessionContext.isEntityTypeAllowedForUser(ApiEntityType.VIRTUAL_MACHINE));
+
+        final Authentication unscopedUser = new UsernamePasswordAuthenticationToken(
+            new AuthUserDTO(null, "user", "password", "10.10.10.10", "11111", "token",
+                ImmutableList.of("ADVISOR"), Collections.emptyList()),
+            "admin000",
+            CollectionUtils.emptyCollection());
+
+        SecurityContextHolder.getContext().setAuthentication(unscopedUser);
+
+        Assert.assertFalse(userSessionContext.isUserScoped());
+        UserScopeUtils.SCOPED_USER_PROHIBITED_ENTITY_TYPES.forEach(type ->
+            Assert.assertTrue(userSessionContext.isEntityTypeAllowedForUser(type)));
+        Assert.assertTrue(userSessionContext.isEntityTypeAllowedForUser(ApiEntityType.VIRTUAL_MACHINE));
     }
 
     private void populateUserSessionWithScope(List<Long> groupIds) {

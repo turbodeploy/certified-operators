@@ -14,6 +14,8 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.kafka.clients.producer.RecordMetadata;
@@ -22,6 +24,10 @@ import org.apache.kafka.common.serialization.StringSerializer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.api.conversion.action.ActionToApiConverter;
+import com.vmturbo.api.conversion.action.SdkActionInformationProvider;
+import com.vmturbo.api.dto.action.ActionApiDTO;
+import com.vmturbo.api.enums.ActionState;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionErrorDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionEventDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionResponseState;
@@ -36,6 +42,7 @@ import com.vmturbo.platform.sdk.probe.IActionAudit;
 import com.vmturbo.platform.sdk.probe.IDiscoveryProbe;
 import com.vmturbo.platform.sdk.probe.IProbeContext;
 import com.vmturbo.platform.sdk.probe.ProbeConfiguration;
+import com.vmturbo.platform.sdk.probe.TargetOperationException;
 
 /**
  * Sends action events to an external Kafka instance. We must use an external kafka because we are
@@ -43,12 +50,14 @@ import com.vmturbo.platform.sdk.probe.ProbeConfiguration;
  */
 public class ActionStreamKafkaProbe implements IDiscoveryProbe<ActionStreamKafkaProbeAccount>, IActionAudit<ActionStreamKafkaProbeAccount> {
 
+    private static final ActionToApiConverter CONVERTER = new ActionToApiConverter();
     private static final String KAFKA_ON_GEN_WORKFLOW_ID = "ActionStreamKafkaOnGen";
     private static final String KAFKA_ON_GEN_WORKFLOW_DISPLAY_NAME = "Audit on action generation using Action Stream Kafka";
     private static final String KAFKA_AFTER_EXEC_WORKFLOW_ID = "ActionStreamKafkaAfterExec";
     private static final String KAFKA_AFTER_EXEC_WORKFLOW_DISPLAY_NAME = "Audit after action execution fails or completes using Action Stream Kafka";
+    private static final boolean USE_API_FORMAT = true;
+    private static final ObjectMapper JSON_FORMAT = new ObjectMapper();
 
-    private IProbeContext probeContext;
     private ActionStreamKafkaProbeProperties probeConfiguration;
 
     private final Logger logger = LogManager.getLogger(getClass());
@@ -59,7 +68,6 @@ public class ActionStreamKafkaProbe implements IDiscoveryProbe<ActionStreamKafka
     @Override
     public void initialize(@Nonnull IProbeContext probeContext,
                            @Nullable ProbeConfiguration configuration) {
-        this.probeContext = probeContext;
         this.probeConfiguration =
                 new ActionStreamKafkaProbeProperties(probeContext.getPropertyProvider());
     }
@@ -78,6 +86,11 @@ public class ActionStreamKafkaProbe implements IDiscoveryProbe<ActionStreamKafka
     @Override
     public Class<ActionStreamKafkaProbeAccount> getAccountDefinitionClass() {
         return ActionStreamKafkaProbeAccount.class;
+    }
+
+    @Override
+    public boolean supportsVersion2ActionTypes() {
+        return true;
     }
 
     /**
@@ -126,12 +139,14 @@ public class ActionStreamKafkaProbe implements IDiscoveryProbe<ActionStreamKafka
                     .setDisplayName(KAFKA_ON_GEN_WORKFLOW_DISPLAY_NAME)
                     .setDescription(KAFKA_ON_GEN_WORKFLOW_DISPLAY_NAME)
                     .setPhase(ActionScriptPhase.ON_GENERATION)
+                    .setApiMessageFormatEnabled(USE_API_FORMAT)
                     .build())
                 .addWorkflow(Workflow.newBuilder()
                     .setId(KAFKA_AFTER_EXEC_WORKFLOW_ID)
                     .setDisplayName(KAFKA_AFTER_EXEC_WORKFLOW_DISPLAY_NAME)
                     .setDescription(KAFKA_AFTER_EXEC_WORKFLOW_DISPLAY_NAME)
                     .setPhase(ActionScriptPhase.AFTER_EXECUTION)
+                    .setApiMessageFormatEnabled(USE_API_FORMAT)
                     .build())
                 .build();
         } else {
@@ -156,20 +171,47 @@ public class ActionStreamKafkaProbe implements IDiscoveryProbe<ActionStreamKafka
     @Override
     public Collection<ActionErrorDTO> auditActions(
             @Nonnull final ActionStreamKafkaProbeAccount actionStreamKafkaProbeAccount,
-            @Nonnull final Collection<ActionEventDTO> actionEvents) throws InterruptedException {
+            @Nonnull final Collection<ActionEventDTO> actionEvents) throws TargetOperationException, InterruptedException {
         final List<ActionAuditFuture> auditActionsFutures = new ArrayList<>();
         for (ActionEventDTO actionEventDTO : actionEvents) {
             final ActionResponseState newState = actionEventDTO.getNewState();
             final ActionResponseState oldState = actionEventDTO.getOldState();
             long actionOid = actionEventDTO.getAction().getActionOid();
-            logger.info("Send action {} with states transition {} -> {} for audit.", actionOid,
+            logger.debug("Send action {} with states transition {} -> {} for audit.", actionOid,
                     oldState, newState);
             final Future<RecordMetadata> auditActionFuture =
-                    getKafkaProducer(actionStreamKafkaProbeAccount).sendMessage(actionEventDTO,
+                    getKafkaProducer(actionStreamKafkaProbeAccount).sendMessage(getMessage(actionEventDTO),
                             actionStreamKafkaProbeAccount.getTopic());
             auditActionsFutures.add(new ActionAuditFuture(auditActionFuture, actionOid));
         }
         return waitActionsDeliveryAndCreateResponse(auditActionsFutures);
+    }
+
+    private static String getMessage(ActionEventDTO actionEventDTO) throws TargetOperationException {
+        try {
+            final ActionApiDTO apiMessage;
+            if (actionEventDTO.getNewState() == ActionResponseState.CLEARED) {
+                // By the time the action is recognized as cleared by action orchestrator, the action
+                // details are no longer available. As a result, the only information we have to work
+                // with is the stable actionOid and the action state. To over come this, we manually
+                // construct the ActionApiDTO instead of using the api converter.
+                apiMessage = new ActionApiDTO();
+                long actionOid = actionEventDTO.getAction().getActionOid();
+                apiMessage.setUuid(String.valueOf(actionOid));
+                apiMessage.setActionID(actionOid);
+                apiMessage.setActionImpactID(actionOid);
+                apiMessage.setActionState(ActionState.CLEARED);
+            } else {
+                apiMessage = CONVERTER.convert(
+                    new SdkActionInformationProvider(actionEventDTO.getAction()),
+                    true,
+                    0L,
+                    false);
+            }
+            return JSON_FORMAT.writeValueAsString(apiMessage);
+        } catch (JsonProcessingException e) {
+            throw new TargetOperationException("Unable to translate ActionApiDTO to json", e);
+        }
     }
 
     @Nonnull

@@ -46,6 +46,9 @@ public class SdkServerConfig {
     @Value("${applyPermitsToContainers:false}")
     private boolean applyPermitsToContainers;
 
+    @Value("${discoveryWorkerPollingTimeoutSecs:10}")
+    private long discoveryWorkerPollingTimeoutSecs;
+
     @Autowired
     private ProbeConfig probeConfig;
 
@@ -74,7 +77,8 @@ public class SdkServerConfig {
                 probeConfig.probeStore(), targetConfig.probePropertyStore(),
                 new ProbeContainerChooserImpl(probeConfig.probeStore()), discoveryQueue(),
                 maxConcurrentTargetDiscoveriesPerContainerCount,
-                maxConcurrentTargetIncrementalDiscoveriesPerContainerCount)
+                maxConcurrentTargetIncrementalDiscoveriesPerContainerCount,
+                discoveryWorkerPollingTimeoutSecs)
                 : new RemoteMediationServer(probeConfig.probeStore(),
                         targetConfig.probePropertyStore(),
                         new ProbeContainerChooserImpl(probeConfig.probeStore()));

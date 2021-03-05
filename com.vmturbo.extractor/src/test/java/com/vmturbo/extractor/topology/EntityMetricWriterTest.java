@@ -11,12 +11,14 @@ import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_TYPE;
 import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_UTILIZATION;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_OID;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_OID_AS_OID;
+import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_TYPE_ENUM;
 import static com.vmturbo.extractor.models.ModelDefinitions.FILE_PATH;
 import static com.vmturbo.extractor.models.ModelDefinitions.FILE_SIZE;
 import static com.vmturbo.extractor.models.ModelDefinitions.MODIFICATION_TIME;
 import static com.vmturbo.extractor.models.ModelDefinitions.STORAGE_NAME;
 import static com.vmturbo.extractor.models.ModelDefinitions.STORAGE_OID;
 import static com.vmturbo.extractor.models.ModelDefinitions.TIME;
+import static com.vmturbo.extractor.schema.enums.EntityType.COMPUTE_CLUSTER;
 import static com.vmturbo.extractor.topology.EntityMetricWriter.VM_QX_VCPU_NAME;
 import static com.vmturbo.extractor.util.RecordTestUtil.MapMatchesLaxly.mapMatchesLaxly;
 import static com.vmturbo.extractor.util.RecordTestUtil.captureSink;
@@ -52,10 +54,12 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 
 import java.io.IOException;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
@@ -142,8 +146,10 @@ public class EntityMetricWriterTest {
     private List<Record> entitiesUpdateCapture;
     private List<Record> metricInsertCapture;
     private List<Record> wastedFileReplacerCapture;
+    private List<Grouping> allGroups = new ArrayList<>();
     private WriterConfig config;
     private static final ObjectMapper objectMapper = new ObjectMapper();
+    private ScopeManager scopeManager;
 
     /**
      * Set up for tests.
@@ -189,9 +195,10 @@ public class EntityMetricWriterTest {
         final DataPack<Long> oidPack = new LongDataPack();
         final EntityHashManager entityHashManager = new EntityHashManager(new LongDataPack(), config);
         entityHashManager.injectPriorTopology();
+        this.scopeManager = mock(ScopeManager.class);
         this.writer = spy(new EntityMetricWriter(endpoint,
                 entityHashManager,
-                mock(ScopeManager.class), oidPack,
+                scopeManager, oidPack,
                 Executors.newSingleThreadScheduledExecutor()));
         doReturn(entitiesUpserterSink).when(writer).getEntityUpsertSink(
                 any(), any());
@@ -199,7 +206,7 @@ public class EntityMetricWriterTest {
         doReturn(metricInserterSink).when(writer).getMetricInserterSink();
         // note that EntityMetricWriter consumes groups multiple times, so we need to
         // construct a new stream each time.
-        doAnswer(i -> Stream.empty()).when(dataProvider).getAllGroups();
+        doAnswer(i -> allGroups.stream()).when(dataProvider).getAllGroups();
         doReturn(wastedFileReplacerSink).when(writer).getWastedFileReplacerSink();
         LongSet relatedEntities = new LongOpenHashSet();
         doReturn(relatedEntities).when(dataProvider).getRelatedEntities(anyLong());
@@ -500,6 +507,7 @@ public class EntityMetricWriterTest {
      * @throws SQLException                if there's a db problem
      * @throws IOException                 if an IO error
      */
+    @Test
     public void testClusterMetrics() throws UnsupportedDialectException, InterruptedException,
             SQLException, IOException {
         final double used = 10.0;
@@ -524,7 +532,7 @@ public class EntityMetricWriterTest {
             .addStatSnapshots(statSnapshot).build());
 
         doReturn(entityStats).when(dataProvider).getClusterStats();
-        doReturn(Stream.of(cluster)).when(dataProvider).getAllGroups();
+        doAnswer(i -> Stream.of(cluster)).when(dataProvider).getAllGroups();
 
         EntitiesProcessor.of(writer, info, config).finish(dataProvider);
         assertThat(metricInsertCapture.size(), is(statSnapshot.getStatRecordsCount()));
@@ -532,6 +540,7 @@ public class EntityMetricWriterTest {
 
         Map<String, Object>  expectedValues = ImmutableList.<Pair<String, Object>>of(
             Pair.of(TIME.getName(), time),
+            Pair.of(ENTITY_TYPE_ENUM.getName(), COMPUTE_CLUSTER),
             Pair.of(ENTITY_OID.getName(), oid),
             Pair.of(COMMODITY_TYPE.getName(), MetricType.CPU_HEADROOM),
             Pair.of(COMMODITY_KEY.getName(), key),
@@ -554,9 +563,9 @@ public class EntityMetricWriterTest {
      * @throws SQLException                if there's a db problem
      * @throws IOException                 if an IO error
      */
+    @Test
     public void testNullClusterMetrics() throws UnsupportedDialectException, InterruptedException,
         SQLException, IOException {
-        final String key = "key";
         final long oid = 12345L;
 
         final Grouping cluster =
@@ -566,8 +575,7 @@ public class EntityMetricWriterTest {
         final Timestamp time = new Timestamp(System.currentTimeMillis());
         final StatSnapshot statSnapshot = StatSnapshot.newBuilder()
             .setSnapshotDate(time.toInstant().toEpochMilli())
-            .addStatRecords(StatRecord.newBuilder().setName(CPU_HEADROOM).setUsed(StatValue.newBuilder())
-                .setCapacity(StatValue.newBuilder()))
+            .addStatRecords(StatRecord.newBuilder().setName(CPU_HEADROOM).build())
             .build();
 
         List<EntityStats> entityStats = Collections.singletonList(EntityStats.newBuilder()
@@ -575,7 +583,7 @@ public class EntityMetricWriterTest {
             .addStatSnapshots(statSnapshot).build());
 
         doReturn(entityStats).when(dataProvider).getClusterStats();
-        doReturn(Stream.of(cluster)).when(dataProvider).getAllGroups();
+        doAnswer(i -> Stream.of(cluster)).when(dataProvider).getAllGroups();
 
         EntitiesProcessor.of(writer, info, config).finish(dataProvider);
         assertThat(metricInsertCapture.size(), is(statSnapshot.getStatRecordsCount()));
@@ -583,9 +591,10 @@ public class EntityMetricWriterTest {
 
         Map<String, Object>  expectedValues = ImmutableList.<Pair<String, Object>>of(
             Pair.of(TIME.getName(), time),
+            Pair.of(ENTITY_TYPE_ENUM.getName(), COMPUTE_CLUSTER),
             Pair.of(ENTITY_OID.getName(), oid),
             Pair.of(COMMODITY_TYPE.getName(), MetricType.CPU_HEADROOM),
-            Pair.of(COMMODITY_KEY.getName(), key),
+            Pair.of(COMMODITY_KEY.getName(), null),
             Pair.of(COMMODITY_CURRENT.getName(), null),
             Pair.of(COMMODITY_CAPACITY.getName(), null),
             Pair.of(COMMODITY_UTILIZATION.getName(), null),
@@ -740,4 +749,22 @@ public class EntityMetricWriterTest {
             assertThat(record.get(STORAGE_NAME), is(storageById.get(storageId).getDisplayName()));
         }
     }
+
+    /**
+     * Check that groups are added to their own scope.
+     *
+     * @throws UnsupportedDialectException if misconfigured db endpoint
+     * @throws InterruptedException        if interrupted
+     * @throws SQLException                if db error
+     * @throws IOException                 if other IO error
+     */
+    @Test
+    public void testGroupsHaveReflexiveScope() throws UnsupportedDialectException, InterruptedException, SQLException, IOException {
+        allGroups.add(Grouping.newBuilder().setId(1L).build());
+        setupWriterAndSinks(Collections.emptyList(), Collections.emptyMap());
+        writer.startTopology(info, config, timer);
+        writer.finish(dataProvider);
+        verify(scopeManager).addInCurrentScope(1L, 1L);
+    }
+
 }

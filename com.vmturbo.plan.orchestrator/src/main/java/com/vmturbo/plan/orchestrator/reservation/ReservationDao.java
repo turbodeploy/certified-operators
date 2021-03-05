@@ -96,6 +96,19 @@ public interface ReservationDao extends DiagsRestorable<Void> {
     Reservation deleteReservationById(final long id) throws NoSuchObjectException;
 
     /**
+     * Delete the existing reservation which reservation' ID equal to parameter id.
+     *
+     * @param id The id of reservation needs to delete.
+     * @param deployed true if the associated VM is deployed.
+     * @param delayedDeletionTimeInMillis if deployed is true set expiration date based on delayedDeletionTimeInMillis
+     * @return deleted Reservation object.
+     * @throws NoSuchObjectException if can not find existing reservation.
+     */
+    @Nonnull
+    Reservation deleteReservationById(long id, boolean deployed, long delayedDeletionTimeInMillis) throws NoSuchObjectException;
+
+
+    /**
      * Input a list of template ids, return all reservations which use anyone of these templates.
      *
      * @param templateIds a set of template ids.

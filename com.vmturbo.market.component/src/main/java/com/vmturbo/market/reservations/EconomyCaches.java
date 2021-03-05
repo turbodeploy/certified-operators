@@ -312,7 +312,7 @@ public class EconomyCaches {
             logger.debug(logPrefix + "Adding reservation {} with buyers {} on real time economy cache",
                     existingReservations.keySet(), buyerOidToPlacement.keySet());
             addExistingReservationEntities(newEconomy, HashBiMap.create(commTypeToSpecMap),
-                    buyerOidToPlacement, existingReservations);
+                    buyerOidToPlacement, existingReservations, false, true);
         } catch (Exception exception) {
             realtimeCacheEndUpdateTime = clock.instant();
             logger.error(logPrefix + "Skip refresh real time economy cache because of exception {}", exception);
@@ -335,9 +335,17 @@ public class EconomyCaches {
                 return;
             }
             updateAccessCommoditiesInHistoricalEconomyCache(realtimeCachedEconomy, realtimeCachedCommTypeMap);
-            // Clone a new historical economy with new InvertedIndex object constructed based on updated traders(all new commodities
-            // will be included in the InvertedIndex look up table).
+            // Clone a new historical economy with new InvertedIndex object constructed based on
+            // updated traders(all new commodities will be included in the InvertedIndex look up table).
+            // NOTE: the cloned economy has only host and storages, but the utilization of them
+            // includes the reservation utils.
             Economy newHistEconomy = InitialPlacementUtils.cloneEconomy(historicalCachedEconomy, false);
+            // In case of traders are deleted in the real time, historical cache may not catch it up
+            // immediately, so we have to mark those traders in historical cache canAcceptNewCustomers false.
+            // NOTE: We are not handling the case of traders are recently added in the real time.
+            updateTradersInHistoricalEconomyCache(realtimeCachedEconomy, newHistEconomy);
+            addExistingReservationEntities(newHistEconomy, historicalCachedCommTypeMap,
+                    buyerOidToPlacement, existingReservations, true, false);
             historicalCachedEconomy = newHistEconomy;
         } catch (Exception e) {
             logger.error(logPrefix + "Updating access commodity in historical economy cache encounter error {},"
@@ -346,6 +354,26 @@ public class EconomyCaches {
                     buyerOidToPlacement, existingReservations);
         }
 
+    }
+
+    /**
+     * Mark the traders that are removed in real time but still exists in historical economy as
+     * canAcceptNewCustomers false.
+     *
+     * @param realtimeEconomy the real time economy cache.
+     * @param histEconomy the historical economy cache.
+     */
+    @VisibleForTesting
+    protected void updateTradersInHistoricalEconomyCache(Economy realtimeEconomy, Economy histEconomy) {
+        Set<Long> realtimeTraderOids = realtimeEconomy.getTopology().getTradersByOid().keySet();
+        Set<Long> histTraderOids = histEconomy.getTopology().getTradersByOid().keySet();
+        for (Long oid : histTraderOids) {
+            // For trader exists in historical but not in real time, change the flag.
+            if (!realtimeTraderOids.contains(oid)) {
+                Trader t = histEconomy.getTopology().getTradersByOid().get(oid);
+                t.getSettings().setCanAcceptNewCustomers(false);
+            }
+        }
     }
 
     /**
@@ -417,11 +445,14 @@ public class EconomyCaches {
      * @param commTypeToSpecMap the commodity type to commodity specification mapping.
      * @param buyerOidToPlacement a map of buyer oid to its placement decisions.
      * @param existingReservations a map of existing reservations by oid.
+     * @param includeDeployed if true include the reservations which has deployed = true too.
+     * @param shouldApplyUtilization if false dont add the utilization of reserved vms to host and storages.
      */
     private void addExistingReservationEntities(@Nonnull final Economy economy,
             @Nonnull final BiMap<CommodityType, Integer> commTypeToSpecMap,
             @Nonnull final Map<Long, List<InitialPlacementDecision>> buyerOidToPlacement,
-            @Nonnull final Map<Long, List<InitialPlacementBuyer>> existingReservations) {
+            @Nonnull final Map<Long, List<InitialPlacementBuyer>> existingReservations, boolean includeDeployed,
+                                                final boolean shouldApplyUtilization) {
         if (existingReservations.isEmpty() || buyerOidToPlacement.isEmpty()) {
             return;
         }
@@ -429,7 +460,7 @@ public class EconomyCaches {
         // boundaries.
         List<TraderTO> currentlyPlacedBuyers = InitialPlacementUtils
                 .constructTraderTOListWithBoundary(economy, commTypeToSpecMap, buyerOidToPlacement,
-                        existingReservations).stream().flatMap(List::stream).collect(Collectors.toList());
+                        existingReservations, includeDeployed).stream().flatMap(List::stream).collect(Collectors.toList());
         List<Trader> addedTraders = new ArrayList();
         // Add reservation traders into economy. The economy only contains host and storage at this point.
         currentlyPlacedBuyers.forEach(traderTO -> {
@@ -452,7 +483,11 @@ public class EconomyCaches {
                     Trader supplierInEconomy = economy.getTopology().getTradersByOid()
                             .get(initialPlacementDecisions.get(0).supplier.get());
                     if (supplierInEconomy != null) {
-                        new Move(economy, sl, supplierInEconomy).take();
+                        if (shouldApplyUtilization) {
+                            new Move(economy, sl, supplierInEconomy).take();
+                        } else {
+                            sl.move(supplierInEconomy);
+                        }
                     }
                     // Make sure the previous reservation buyers not movable in real time cache
                     sl.setMovable(false);
@@ -486,7 +521,7 @@ public class EconomyCaches {
         // Replay the reservation one by one following the order they were added
         List<List<TraderTO>> placedBuyersPerRes = InitialPlacementUtils
                 .constructTraderTOListWithBoundary(economy, commTypeToSpecMap, buyerOidToPlacement,
-                        existingReservations);
+                        existingReservations, true);
         // Run placement in historical economy cache and override the old placement result with new ones
         // The replay order follows the order reservations were added.
         for (List<TraderTO> tradersPerRes : placedBuyersPerRes) {
@@ -542,7 +577,7 @@ public class EconomyCaches {
             // Adds latest reservation buyers fetched from plan orchestrator.
             if (!existingReservations.isEmpty() && !buyerOidToPlacement.isEmpty()) {
                 addExistingReservationEntities(historicalCachedEconomy, historicalCachedCommTypeMap,
-                        buyerOidToPlacement, existingReservations);
+                        buyerOidToPlacement, existingReservations, true, true);
                 logger.info(logPrefix + "Historical economy cache added reservation entities oid {}",
                         buyerOidToPlacement.keySet());
             }
@@ -558,14 +593,17 @@ public class EconomyCaches {
      * for already placed reservation buyers.
      *
      * @param buyersToBeDeleted oids of reservation buyers to be removed
+     * @param deployed if true the buyers have deployed = true. so don't deleted from historical.
      */
-    public void clearDeletedBuyersFromCache(@Nonnull final Set<Long> buyersToBeDeleted) {
+    public void clearDeletedBuyersFromCache(@Nonnull final Set<Long> buyersToBeDeleted, boolean deployed) {
         if (!getState().isEconomyReady()) {
             logger.warn(logPrefix + "Economy caches are not ready to remove any buyers");
             return;
         }
         removeDeletedTraders(realtimeCachedEconomy, buyersToBeDeleted);
-        removeDeletedTraders(historicalCachedEconomy, buyersToBeDeleted);
+        if (!deployed) {
+            removeDeletedTraders(historicalCachedEconomy, buyersToBeDeleted);
+        }
 
     }
 
@@ -755,7 +793,7 @@ public class EconomyCaches {
                 pl.supplier = Optional.empty();
                 slToClusterMap.remove(pl.slOid);
             });
-            clearDeletedBuyersFromCache(result.keySet());
+            clearDeletedBuyersFromCache(result.keySet(), false);
             isSuccessful = false;
         }
         return isSuccessful;
@@ -783,7 +821,7 @@ public class EconomyCaches {
                 .collect(Collectors.toSet());
         logger.info(logPrefix + "Retrying for buyers {} in reservation {}", buyerOids, buyersToRetry.get(0).getReservationId());
         // Remove buyersToRetry from both economy caches.
-        clearDeletedBuyersFromCache(buyerOids);
+        clearDeletedBuyersFromCache(buyerOids, false);
         // We are going to make sellers that sell cluster commodity as CanAcceptNewCustomers
         // false. This can avoid choosing sellers from the previously failed cluster.
         Set<Long> failedClusterSellers = InitialPlacementUtils.setSellersNotAcceptCustomers(

@@ -229,10 +229,8 @@ public class PercentilePersistenceTaskTest {
     }
 
     /**
-     * Test if {@link PercentilePersistenceTask#save} doesn't actual write
-     * the data when it gets empty counts. More formally the method
-     * shouldn't write if result of {@link PercentileCounts#toByteArray()}
-     * for first argument is empty.
+     * Test if {@link PercentilePersistenceTask#save} actual write
+     * the data when it gets empty counts.
      *
      * @throws InterruptedException when failed
      * @throws HistoryCalculationException when failed
@@ -244,8 +242,11 @@ public class PercentilePersistenceTaskTest {
 
         PercentilePersistenceTask task = new PercentilePersistenceTask(
                 StatsHistoryServiceGrpc.newStub(grpcServer.getChannel()), DEFAULT_RANGE);
-        task.save(PercentileCounts.newBuilder().build(), 0, config);
-        Mockito.verify(writer, Mockito.never()).onNext(Mockito.any());
+        final PercentileCounts counts = PercentileCounts.newBuilder().build();
+        task.save(counts, 0, config);
+
+        Assert.assertArrayEquals(counts.toByteArray(), writer.getResult());
+        Mockito.verify(writer, Mockito.times(1)).onNext(Mockito.any());
 
         // Call of onCompleted is implementation details.
         Mockito.verify(writer, Mockito.atMost(1)).onCompleted();

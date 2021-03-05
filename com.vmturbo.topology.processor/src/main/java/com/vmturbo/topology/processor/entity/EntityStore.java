@@ -162,7 +162,7 @@ public class EntityStore {
     /**
      * Exports the entity count per target category, target type and entity type from entity store.
      */
-    private static final DataMetricGauge DISCOVERED_ENTITIES_GAUGE = DataMetricGauge.builder()
+    static final DataMetricGauge DISCOVERED_ENTITIES_GAUGE = DataMetricGauge.builder()
         .withName(StringConstants.METRICS_TURBO_PREFIX + "discovered_entities")
         .withHelp("Number of (pre-stitching) entities that were discovered per entity type and " +
             "category and type of probe that discovered them.")
@@ -173,7 +173,7 @@ public class EntityStore {
     /**
      * Exports the number of targets per target category and target type from the stitching context.
      */
-    private static final DataMetricGauge TARGET_COUNT_GAUGE = DataMetricGauge.builder()
+    static final DataMetricGauge TARGET_COUNT_GAUGE = DataMetricGauge.builder()
             .withName(StringConstants.METRICS_TURBO_PREFIX + "targets")
             .withHelp("Number of targets per target category and target type")
             .withLabelNames("target_category", "target_type")
@@ -662,13 +662,14 @@ public class EntityStore {
         if (logger.isDebugEnabled()) {
             entities.forEach((t, e) -> {
                 if (logger.isTraceEnabled()) {
-                    logger.trace("{} {} {} entities: {}", logPrefix, e.size(), t, e.stream()
-                            .map(en -> String.format("%s | %s | %s", en.getEntityType(), en.getId(),
-                                    en.getEntityInfo(targetId)
-                                            .map(PerTargetInfo::getEntityInfo)
-                                            .map(EntityDTO::getDisplayName)
-                                            .orElse("missing display name")))
-                            .collect(Collectors.joining(System.lineSeparator())));
+                    logger.trace("{} {} {} entities from target {} : {}", logPrefix, e.size(), t,
+                            targetId, e.stream()
+                                    .map(en -> String.format("%s | %s | %s", en.getEntityType(),
+                                            en.getId(), en.getEntityInfo(targetId)
+                                                    .map(PerTargetInfo::getEntityInfo)
+                                                    .map(EntityDTO::getDisplayName)
+                                                    .orElse("missing display name")))
+                                    .collect(Collectors.joining(System.lineSeparator())));
                 } else {
                     logger.debug("{} {} {} entities from target {}", logPrefix, e.size(), t,
                             targetId);
@@ -1019,18 +1020,20 @@ public class EntityStore {
                 target.getProbeInfo().getProbeType()).increment());
 
         DISCOVERED_ENTITIES_GAUGE.getLabeledMetrics().forEach((key, val) -> val.setData(0.0));
-        targetEntities.forEach((targetId, targetEntityIdInfo) ->
-            targetStore.getTarget(targetId).ifPresent(target -> {
-                final String targetCategory = getUserFacingCategoryString(target.getProbeInfo().getUiProbeCategory());
-                final String targetType = target.getProbeInfo().getProbeType();
-                targetEntityIdInfo.getEntityIds().forEach(entityId -> {
-                    final Entity entity = entityMap.get(entityId);
-                    if (entity != null) {
-                        final String entityType = entity.getEntityType().toString();
-                        DISCOVERED_ENTITIES_GAUGE.labels(targetCategory, targetType, entityType).increment();
-                    }
-                });
-            }));
+        synchronized (topologyUpdateLock) {
+            targetEntities.forEach((targetId, targetEntityIdInfo) ->
+                targetStore.getTarget(targetId).ifPresent(target -> {
+                    final String targetCategory = getUserFacingCategoryString(target.getProbeInfo().getUiProbeCategory());
+                    final String targetType = target.getProbeInfo().getProbeType();
+                    targetEntityIdInfo.getEntityIds().forEach(entityId -> {
+                        final Entity entity = entityMap.get(entityId);
+                        if (entity != null) {
+                            final String entityType = entity.getEntityType().toString();
+                            DISCOVERED_ENTITIES_GAUGE.labels(targetCategory, targetType, entityType).increment();
+                        }
+                    });
+                }));
+        }
     }
 
     /**

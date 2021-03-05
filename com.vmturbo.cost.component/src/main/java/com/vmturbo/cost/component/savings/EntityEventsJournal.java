@@ -252,32 +252,43 @@ interface EntityEventsJournal {
             /**
              * A new action recommendation was detected, trigger for missed savings.
              */
-            RECOMMENDATION_ADDED(4),
+            RECOMMENDATION_ADDED(4, 10),
 
             /**
              * A existing action recommendation is no longer detected, stops missed savings.
              */
-            RECOMMENDATION_REMOVED(2),
+            RECOMMENDATION_REMOVED(2, 11),
 
             /**
              * Action executed successfully, trigger for realized savings.
              */
-            EXECUTION_SUCCESS(3);
+            EXECUTION_SUCCESS(3, 12);
 
             private final int sortingPriority;
+
+            /**
+             * Unique type code across all event types.
+             */
+            private final int typeCode;
 
             /**
              * Get the sorting priority for the event. Higher priority events sort before lower
              * priority events. This is used when two events have the same timestamp.
              *
              * @param sortingPriority ordering for the event.
+             * @param typeCode Code to make the event unique across all events (including TEP).
              */
-            ActionEventType(int sortingPriority) {
+            ActionEventType(int sortingPriority, int typeCode) {
                 this.sortingPriority = sortingPriority;
+                this.typeCode = typeCode;
             }
 
             public int getSortingPriority() {
                 return this.sortingPriority;
+            }
+
+            public int getTypeCode() {
+                return typeCode;
             }
         }
     }

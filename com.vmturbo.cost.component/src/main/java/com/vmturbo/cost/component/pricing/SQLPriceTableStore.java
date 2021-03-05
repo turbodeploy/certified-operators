@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
@@ -129,6 +130,14 @@ public class SQLPriceTableStore implements PriceTableStore {
                         .where(filterByOidsCondition(oids))
                         .fetchMap(Tables.PRICE_TABLE.OID, Tables.PRICE_TABLE.RI_PRICE_TABLE_DATA);
         return priceTables;
+    }
+
+    @Override
+    public Optional<ReservedInstancePriceTable> getRiPriceTable(final long priceTableOid) {
+        return dsl.select(Tables.PRICE_TABLE.RI_PRICE_TABLE_DATA)
+                .from(Tables.PRICE_TABLE)
+                .where(Tables.PRICE_TABLE.OID.eq(priceTableOid))
+                .fetchOptional(Tables.PRICE_TABLE.RI_PRICE_TABLE_DATA);
     }
 
     /**

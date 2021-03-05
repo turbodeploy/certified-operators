@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
@@ -29,6 +30,7 @@ import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.sdk.common.MediationMessage.ContainerInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
+import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.discovery.DiscoveryBundle;
@@ -104,9 +106,8 @@ public class AggregatingDiscoveryQueueImpl implements AggregatingDiscoveryQueue 
             final ITransport<MediationServerMessage, MediationClientMessage> existingTransport =
                     transportByTargetId.get(lookupKey);
             if (existingTransport != null && !targetHasUpdatedChannel(target, existingTransport)) {
-                final IDiscoveryQueueElement retVal = discoveryQueueByTransport
-                    .computeIfAbsent(existingTransport,
-                        key -> Maps.newHashMap()).computeIfAbsent(discoveryType,
+                final IDiscoveryQueueElement retVal = discoveryQueueByTransport.get(existingTransport)
+                    .computeIfAbsent(discoveryType,
                         key -> new DiscoveryQueue(target.getProbeId(), discoveryType)).add(element);
                 logger.debug("Added element to queue {}", retVal);
                 return retVal;
@@ -211,14 +212,18 @@ public class AggregatingDiscoveryQueueImpl implements AggregatingDiscoveryQueue 
     @Override
     public synchronized Optional<IDiscoveryQueueElement> takeNextQueuedDiscovery(
             @NotNull ITransport<MediationServerMessage, MediationClientMessage> transport,
-            @NotNull Collection<Long> probeTypes, @NotNull DiscoveryType discoveryType)
+            @NotNull Collection<Long> probeTypes, @NotNull DiscoveryType discoveryType,
+            long timeoutMillis)
             throws InterruptedException {
         Optional<IDiscoveryQueueElement> optElement = pollNextQueuedDiscovery(transport, probeTypes,
                 discoveryType);
-        while (!optElement.isPresent()) {
-            wait();
+        final long startTime = System.currentTimeMillis();
+        long timeToWaitMillis = timeoutMillis;
+        while (!optElement.isPresent() && timeToWaitMillis > 0) {
+            wait(timeToWaitMillis);
             optElement = pollNextQueuedDiscovery(transport, probeTypes,
                     discoveryType);
+            timeToWaitMillis = timeoutMillis - (System.currentTimeMillis() - startTime);
         }
         logger.debug("takeNextQueuedDiscovery returning {}", optElement.map(element -> element.toString()));
         return optElement;
@@ -233,6 +238,13 @@ public class AggregatingDiscoveryQueueImpl implements AggregatingDiscoveryQueue 
     @Override
     public synchronized void parseContainerInfoWithTransport(ContainerInfo containerInfo,
                                                              ITransport<MediationServerMessage, MediationClientMessage> serverEndpoint) {
+        // create an entry for this transport in discoveryQueueByTransport if it supports a
+        // persistent probe type or it has a channel associated with it
+        if (containerInfo.hasCommunicationBindingChannel() || containerInfo.getProbesList()
+                .stream()
+                .anyMatch(ProbeInfo::hasIncrementalRediscoveryIntervalSeconds)) {
+            discoveryQueueByTransport.put(serverEndpoint, new HashMap<>());
+        }
         if (containerInfo.hasCommunicationBindingChannel()) {
             assignChannelToTransport(containerInfo.getCommunicationBindingChannel(), serverEndpoint);
         }
@@ -267,6 +279,11 @@ public class AggregatingDiscoveryQueueImpl implements AggregatingDiscoveryQueue 
         @Nonnull ITransport<MediationServerMessage, MediationClientMessage> transport,
         @Nonnull String probeType,
         @Nonnull String targetId) {
+        if (!discoveryQueueByTransport.containsKey(transport)) {
+            logger.warn("Ignoring attempt to assign target {} to transport {}. "
+                    + "Transport is no longer open.", targetId, transport);
+            return;
+        }
         final Pair<String, String> key = new Pair<>(probeType, targetId);
         final ITransport<MediationServerMessage, MediationClientMessage> transportFromMap =
             transportByTargetId.get(key);
@@ -384,7 +401,7 @@ public class AggregatingDiscoveryQueueImpl implements AggregatingDiscoveryQueue 
                     .stream()
                     .forEach(entry -> reassignQueueContents(entry.getValue(), entry.getKey(),
                             transport));
-
+            discoveryQueueByTransport.remove(transport);
             transportToChannel.keySet().removeIf(transport::equals);
 
             // for any probes that are no longer connected, flush the related queues and collect

@@ -7,6 +7,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.BiMap;
@@ -24,10 +25,13 @@ import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.market.reservations.InitialPlacementFinderResult.FailureInfo;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.Market;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunctionFactory;
@@ -41,6 +45,8 @@ import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.analysis.protobuf.QuoteFunctionDTOs.QuoteFunctionDTO;
 import com.vmturbo.platform.analysis.protobuf.QuoteFunctionDTOs.QuoteFunctionDTO.SumOfCommodity;
 import com.vmturbo.platform.analysis.topology.Topology;
+import com.vmturbo.platform.analysis.utilities.InfiniteQuoteExplanation;
+import com.vmturbo.platform.analysis.utilities.InfiniteQuoteExplanation.CommodityBundle;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -57,11 +63,13 @@ public class EconomyCachesTest {
     private static final int CLUSTER1_COMM_SPEC_TYPE = 300;
     private static final int CLUSTER2_COMM_SPEC_TYPE = 400;
     private static final int MERGE_CLUSTERS_COMM_SPEC_TYPE = 500;
+    private static final int SEGMENTATION_COMM_SPEC_TYPE = 600;
     private static final int ST_CLUSTER1_COMM_SPEC_TYPE = 700;
     private static final int ST_CLUSTER2_COMM_SPEC_TYPE = 800;
     private static final String cluster1Key = "cluster1";
     private static final String cluster2Key = "cluster2";
     private static final String mergeClusterKey = "merge";
+    private static final String placePolicyKey = "AtMostNBound";
     private static final double pmMemCapacity = 100;
     private static final long pm1Oid = 1111L;
     private static final double pm1MemUsed = 20;
@@ -102,6 +110,8 @@ public class EconomyCachesTest {
                 ST_CLUSTER2_COMM_SPEC_TYPE);
         commTypeToSpecMap.put(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.CLUSTER_VALUE).setKey(mergeClusterKey).build(),
                 MERGE_CLUSTERS_COMM_SPEC_TYPE);
+        commTypeToSpecMap.put(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.SEGMENTATION_VALUE).setKey(placePolicyKey).build(),
+                SEGMENTATION_COMM_SPEC_TYPE);
     }
 
     /**
@@ -814,6 +824,96 @@ public class EconomyCachesTest {
                 new HashMap());
         Mockito.verify(spy).updateHistoricalCachedEconomy(Mockito.any(), Mockito.any(),
                 Mockito.any(), Mockito.any());
+    }
+
+    /**
+     * Test the traders removed in realtime when a target is deleted.
+     */
+    @Test
+    public void testUpdateTradersInHistoricalEconomyCache() {
+        // Historical and real time has the same 4 hosts.
+        Economy economy = economyWithCluster(new double[]{pm1MemUsed, pm2MemUsed, pm3MemUsed, pm4MemUsed});
+        // Simulate the real time topology as if all pms are in controllable state. It should not affect
+        // reservation cache as we force all of them to be canAcceptNewCustomers true while cloning.
+        economy.getTraders().stream().forEach(t -> {
+            t.getSettings().setCanAcceptNewCustomers(false);
+        });
+        economyCaches.getState().setReservationReceived(true);
+        economyCaches.updateHistoricalCachedEconomy(economy, commTypeToSpecMap, new HashMap<>(),
+                new HashMap<>());
+        economyCaches.updateRealtimeCachedEconomy(economy, commTypeToSpecMap, new HashMap<>(),
+                new HashMap<>());
+
+        // Now simulate the target deletion. Assuming the pm3 and pm4 are removed in real time.
+        Trader pm3 = economy.getTopology().getTradersByOid().get(pm3Oid);
+        Trader pm4 = economy.getTopology().getTradersByOid().get(pm4Oid);
+        economy.removeTrader(pm3);
+        economy.removeTrader(pm4);
+        economy.getTopology().getModifiableTraderOids().remove(pm3Oid);
+        economy.getTopology().getModifiableTraderOids().remove(pm4Oid);
+        economyCaches.updateRealtimeCachedEconomy(economy, commTypeToSpecMap, new HashMap<>(), new HashMap<>());
+        long buyer1Oid = 1234L;
+        long buyer1SlOid = 1000L;
+        double buyerMemUsed = 20;
+        InitialPlacementBuyer buyer1 = initialPlacementBuyer(buyer1Oid, buyer1SlOid, VM_TYPE, new HashMap() {{
+            put(TopologyDTO.CommodityType.newBuilder().setType(MEM_TYPE).build(), new Double(buyerMemUsed));
+        }});
+
+        Assert.assertEquals(2, economyCaches.historicalCachedEconomy.getTraders().stream()
+                .filter(t -> !t.getSettings().canAcceptNewCustomers()).count());
+        Map<Long, List<InitialPlacementDecision>> placements = economyCaches.findInitialPlacement(
+                Arrays.asList(buyer1), new HashMap<>(), 1);
+        // Only pm1 and pm2 can be considered for placement, so buyer should be on pm1.
+        Assert.assertTrue(placements.values().stream().flatMap(List::stream).allMatch(p -> p.supplier.get() == pm1Oid));
+        Assert.assertTrue(economyCaches.historicalCachedEconomy.getMarkets().size() == 1);
+        economyCaches.historicalCachedEconomy.getMarkets().stream().forEach(m -> {
+            Assert.assertTrue(m.getActiveSellersAvailableForPlacement().get(0).getOid() == pm1Oid
+                    || m.getActiveSellersAvailableForPlacement().get(1).getOid() == pm2Oid);
+        });
+
+        // Now if the removed pm3 and pm4 added back. Update the real time with all 4 pms
+        // and the already placed reservation.
+        economyCaches.updateRealtimeCachedEconomy(
+                economyWithCluster(new double[]{pm1MemUsed, pm2MemUsed, pm3MemUsed, pm4MemUsed}),
+                commTypeToSpecMap, placements, new HashMap() {{
+                    put(1L, Arrays.asList(buyer1));
+                }});
+        long buyer2Oid = 2234L;
+        long buyer2SlOid = 2000L;
+        InitialPlacementBuyer buyer2 = initialPlacementBuyer(buyer2Oid, buyer2SlOid, VM_TYPE, new HashMap() {{
+            put(TopologyDTO.CommodityType.newBuilder().setType(MEM_TYPE).build(), new Double(buyerMemUsed));
+        }});
+        economyCaches.findInitialPlacement(Arrays.asList(buyer2), new HashMap<>(), 1);
+        List<Trader> providers = economyCaches.historicalCachedEconomy.getTraders().stream().filter(
+                t -> InitialPlacementUtils.PROVIDER_ENTITY_TYPES.contains(t.getType())).collect(
+                Collectors.toList());
+
+        Assert.assertEquals(4, providers.size());
+        Assert.assertTrue(providers.stream().allMatch(t -> t.getSettings().canAcceptNewCustomers()));
+        for (Market mkt : economyCaches.historicalCachedEconomy.getMarkets()) {
+            if (mkt.getBuyers().stream().anyMatch(sl -> sl.getBuyer().getOid() == buyer2Oid)) {
+                Assert.assertTrue(mkt.getActiveSellersAvailableForPlacement().size() == 4);
+            }
+        }
+    }
+
+    /**
+     * Test InitialPlacementUtils.populateFailureInfos when the failed commodity is a segmentation
+     * commodity.
+     */
+    @Test
+    public void testPopulateFailureInfos() {
+        Trader trader = Mockito.mock(Trader.class);
+        ShoppingList sl = Mockito.mock(ShoppingList.class);
+        Set<CommodityBundle> commBundles = new HashSet();
+        // maxAvailable is 0.1 because of the small delta value added to capacity.See
+        // AtMostNBoundPolicyApplication.applyInternal.
+        commBundles.add(new CommodityBundle(new CommoditySpecification(SEGMENTATION_COMM_SPEC_TYPE),
+                1, Optional.of(0.1)));
+        InfiniteQuoteExplanation explanation = new InfiniteQuoteExplanation(false, commBundles,
+                Optional.of(trader), Optional.of(EntityType.PHYSICAL_MACHINE_VALUE), sl);
+        List<FailureInfo> failureInfo = InitialPlacementUtils.populateFailureInfos(explanation, commTypeToSpecMap);
+        Assert.assertEquals(0, failureInfo.get(0).getMaxQuantity(), 0.0001);
     }
 
     /**

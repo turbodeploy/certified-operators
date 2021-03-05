@@ -1,8 +1,12 @@
 package com.vmturbo.cost.component.savings;
 
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -10,75 +14,153 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent;
 import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent.EntityStateChangeDetails;
-import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent.ResourceCreationDetails;
-import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent.ResourceDeletionDetails;
 import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent.TopologyEventType;
+import com.vmturbo.cost.component.savings.Algorithm.SavingsInvestments;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent.ActionEventType;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.SavingsEvent;
-import com.vmturbo.cost.component.savings.EntityStateCache.EntityState;
 
 /**
  * This class implements the algorithm for calculating entity savings and investments.
+ * TODO Remove this class or change the implementation to work with the new definition of EntityState and the new calculate API.
  */
 class SavingsCalculator {
     /**
      * Logger.
      */
     private final Logger logger = LogManager.getLogger();
-    private final EntityStateCache entityStateCache;
 
     /**
      * Constructor.
-     *
-     * @param entityStateCache entity state to apply events to.
      */
-    SavingsCalculator(EntityStateCache entityStateCache) {
-        this.entityStateCache = entityStateCache;
+    SavingsCalculator() {
+    }
+
+    /**
+     * Gets state of entity given the oid.  Optionally creates a new entity state if the entity
+     * doesn't currently exist.
+     *
+     * @param stateMap current map of entities keyed by entity ID.
+     * @param entityOid Oid of entity to get state for.
+     * @param segmentStart time that the segment was opened.
+     * @param createIfNotFound if true, create the entity state if it doesn't already exist.
+     * @return Instance of EntityState, can be null if not found.
+     */
+    @Nullable
+    public Algorithm getAlgorithmState(@Nonnull Map<Long, Algorithm> stateMap, long entityOid,
+            long segmentStart, boolean createIfNotFound) {
+        Algorithm algorithmState = stateMap.get(entityOid);
+        if (algorithmState == null && createIfNotFound) {
+            algorithmState = new Algorithm2(entityOid, segmentStart);
+            stateMap.put(entityOid, algorithmState);
+        }
+        return algorithmState;
+    }
+
+    /**
+     * Write state modified by the algorithm back to the entity state.
+     *
+     * @param algorithmState algorithm state
+     * @param entityStates map of entity states currently being tracked
+     * @param periodStartTime timestamp of the start of the calculcation period
+     * @param periodEndTime timestamp of the enf of the calculcation period
+     */
+    public void updateEntityState(Algorithm algorithmState,
+            @Nonnull Map<Long, EntityState> entityStates,
+            long periodStartTime, long periodEndTime) {
+        // Check for an existing entity state. The state will not exist if this is newly-tracked.
+        Long entityOid = algorithmState.getEntityOid();
+        EntityState entityState = entityStates.get(entityOid);
+        if (entityState == null) {
+            entityState = new EntityState(entityOid);
+            entityStates.put(entityOid, entityState);
+        }
+        entityState.setPowerFactor(algorithmState.getPowerFactor());
+        entityState.setActionList(algorithmState.getActionList());
+        entityState.setCurrentRecommendation(algorithmState.getCurrentRecommendation());
+        entityState.setDeletePending(algorithmState.getDeletePending());
+        long periodLength = periodEndTime - periodStartTime;
+        if (periodLength <= 0) {
+            logger.warn("Period start time {} is the same as or after the end time {}",
+                    periodStartTime, periodEndTime);
+            return;
+        }
+        SavingsInvestments realized = algorithmState.getRealized();
+        SavingsInvestments missed = algorithmState.getMissed();
+        if (entityState.getRealizedInvestments() != null || realized.getInvestments() != 0) {
+            entityState.setRealizedInvestments(realized.getInvestments() / periodLength);
+        }
+        if (entityState.getRealizedSavings() != null || realized.getSavings() != 0) {
+            entityState.setRealizedSavings(realized.getSavings() / periodLength);
+        }
+        if (entityState.getMissedInvestments() != null || missed.getInvestments() != 0) {
+            entityState.setMissedInvestments(missed.getInvestments() / periodLength);
+        }
+        if (entityState.getMissedSavings() != null || missed.getSavings() != 0) {
+            entityState.setMissedSavings(missed.getSavings() / periodLength);
+        }
     }
 
     /**
      * Calculates savings and investments.
      *
-     * @param events List of events
+     * @param entityStates a map of entity states for entities whose states are being tracked
+     * @param events list of events
      * @param periodStartTime start time of the period
      * @param periodEndTime end time of the period
      */
-    void calculate(@Nonnull final List<SavingsEvent> events,
-            long periodStartTime, long periodEndTime) {
+    public void calculate(@Nonnull Map<Long, EntityState> entityStates,
+                   @Nonnull final List<SavingsEvent> events, long periodStartTime,
+                    long periodEndTime) {
         logger.debug("Calculating savings/investment from {} to {}", periodStartTime, periodEndTime);
-        for (SavingsEvent event : events) {
+        // Initialize algorithm state from the entity state list
+        Map<Long, Algorithm> states = entityStates.values().stream()
+                .map(entityState -> {
+                    Algorithm algorithmState = new Algorithm2(entityState.getEntityId(), periodStartTime);
+                    algorithmState.initState(entityState);
+                    return algorithmState;
+                })
+                .collect(Collectors.toMap(Algorithm::getEntityOid, Function.identity()));
+
+        // Process the events
+         for (SavingsEvent event : events) {
             long timestamp = event.getTimestamp();
             long entityId = event.getEntityId();
             if (event.hasActionEvent()) {
-                handleActionEvent(timestamp, entityId, event);
+                handleActionEvent(states, timestamp, entityId, event);
             }
             if (event.hasTopologyEvent()) {
-                handleTopologyEvent(timestamp, entityId, event);
+                handleTopologyEvent(states, timestamp, entityId, event);
             }
         }
-        // Close out the period.
-        entityStateCache.getAll()
-                .forEach(entityState -> entityState.endPeriod(periodStartTime, periodEndTime));
+        // Close out the period and update the entity state.  This also creates new entity state
+        // for newly-tracked entities.
+        states.values()
+                .forEach(state -> {
+                    state.endPeriod(periodStartTime, periodEndTime);
+                    updateEntityState(state, entityStates, periodStartTime, periodEndTime);
+                });
     }
 
     /**
      * Handle action related events: RECOMMENDATION_ADDED, RECOMMENDATION_REMOVED, and
      * EXECUTION_SUCCESS.
      *
+     * @param states a map of algorithm states for entities whose states are being tracked
      * @param timestamp time of the event
      * @param entityId affected entity ID
      * @param savingsEvent the savings event to process
      */
-    private void handleActionEvent(long timestamp, long entityId, SavingsEvent savingsEvent) {
+    private void handleActionEvent(@Nonnull Map<Long, Algorithm> states,
+            long timestamp, long entityId, SavingsEvent savingsEvent) {
         ActionEvent event = savingsEvent.getActionEvent().get();
         ActionEventType eventType = event.getEventType();
         if (ActionEventType.EXECUTION_SUCCESS.equals(eventType)) {
-            handleExecutionSuccess(timestamp, entityId, savingsEvent);
+            handleExecutionSuccess(states, timestamp, entityId, savingsEvent);
         } else if (ActionEventType.RECOMMENDATION_ADDED.equals(eventType)) {
-            handleRecommendationAdded(timestamp, entityId, savingsEvent);
+            handleRecommendationAdded(states, timestamp, entityId, savingsEvent);
         } else if (ActionEventType.RECOMMENDATION_REMOVED.equals(eventType)) {
-            handleRecommendationRemoved(timestamp, entityId, savingsEvent);
+            handleRecommendationRemoved(states, timestamp, entityId, savingsEvent);
         } else {
             logger.warn("Dropping unhandled action event type {}", eventType);
         }
@@ -88,21 +170,23 @@ class SavingsCalculator {
      * Handle events from the topology event processor: RESOURCE_CREATION, RESOURCE_DELETION,
      * STATE_CHANGE, and PROVIDER_CHANGE.
      *
+     * @param states a map of algorithm states for entities whose states are being tracked
      * @param timestamp time of the event
      * @param entityId affected entity ID
      * @param topologyEvent the topology event to process
      */
-    private void handleTopologyEvent(long timestamp, long entityId, SavingsEvent topologyEvent) {
+    private void handleTopologyEvent(@Nonnull Map<Long, Algorithm> states,
+            long timestamp, long entityId, SavingsEvent topologyEvent) {
         TopologyEvent event = topologyEvent.getTopologyEvent().get();
         TopologyEventType eventType = event.getType();
         if (TopologyEventType.RESOURCE_CREATION.equals(eventType)) {
-            handleResourceCreation(timestamp, entityId, event.getEventInfo().getResourceCreation());
+            handleResourceCreation(timestamp, entityId);
         } else if (TopologyEventType.RESOURCE_DELETION.equals(eventType)) {
-            handleResourceDeletion(timestamp, entityId, event.getEventInfo().getResourceDeletion());
+            handleResourceDeletion(states, timestamp, entityId);
         } else if (TopologyEventType.STATE_CHANGE.equals(eventType)) {
-            handleStateChange(timestamp, entityId, event.getEventInfo().getStateChange());
+            handleStateChange(states, timestamp, entityId, event.getEventInfo().getStateChange());
         } else if (TopologyEventType.PROVIDER_CHANGE.equals(eventType)) {
-            handleProviderChange(timestamp, entityId, topologyEvent);
+            handleProviderChange(states, timestamp, entityId, topologyEvent);
         } else {
             logger.warn("Dropping unhandled topology event type {}", eventType);
         }
@@ -113,29 +197,33 @@ class SavingsCalculator {
      * investments incurred by a previous resize recommendation and start accumulating realized
      * savings and investments.
      *
+     * @param states a map of algorithm states for entities whose states are being tracked
      * @param timestamp time of the event
      * @param entityId affected entity ID
      * @param savingsEvent action execution details
      */
-    private void handleExecutionSuccess(long timestamp, long entityId, SavingsEvent savingsEvent) {
+    private void handleExecutionSuccess(@Nonnull Map<Long, Algorithm> states,
+            long timestamp, long entityId, SavingsEvent savingsEvent) {
         logger.debug("Handle ExecutionSuccess for {} at {}", entityId, timestamp);
         if (!savingsEvent.hasEntityPriceChange()) {
             logger.warn("Cannot track action execution for {} at {} - missing price data",
                     entityId, timestamp);
             return;
         }
-         commonResizeHandler(timestamp, entityId, savingsEvent.getEntityPriceChange().get(), false);
+         commonResizeHandler(states, timestamp, entityId,
+                 savingsEvent.getEntityPriceChange().get(), false);
     }
 
     /**
      * Handle a resize recommendation that has not yet been executed.  This starts accumulating
      * missed savings or investments.
-     *
+     * @param states a map of algorithm states for entities whose states are being tracked
      * @param timestamp time of the event
      * @param entityId affected entity ID
      * @param savingsEvent savings event containing the recommendation
      */
-    private void handleRecommendationAdded(long timestamp, long entityId, SavingsEvent savingsEvent) {
+    private void handleRecommendationAdded(@Nonnull Map<Long, Algorithm> states,
+            long timestamp, long entityId, SavingsEvent savingsEvent) {
         logger.debug("Handle RecommendationAdded for {} at {}", entityId, timestamp);
         // We have a recommendation for an entity, so we are going to start tracking savings/investments.  Get the
         // current savings for this entity, or create a new savings tracker for it.
@@ -145,49 +233,25 @@ class SavingsCalculator {
                     entityId, timestamp);
             return;
         }
-        EntityState entityState = entityStateCache.getEntityState(savingsEvent.getEntityId(), timestamp, true);
+        Algorithm algorithmState = getAlgorithmState(states, savingsEvent.getEntityId(), timestamp, true);
 
         // Close out the current segment and open a new with the new periodic missed savings/investment
-        entityState.endSegment(timestamp);
-
-        // If there is an existing recommendation, the new one overrides the old one.  Back it out.
-        EntityPriceChange currentRecommendation = entityState.getCurrentRecommendation();
-        if (currentRecommendation != null) {
-            entityState.adjustCurrentMissed(-getSavings(currentRecommendation), -getInvestment(currentRecommendation));
-        }
-
-        EntityPriceChange newRecommendation = savingsEvent.getEntityPriceChange().get();
-        entityState.adjustCurrentMissed(getSavings(newRecommendation), getInvestment(newRecommendation));
+        algorithmState.endSegment(timestamp);
 
         // Save the current recommendation so that we can match it up with a future action execution.
-        entityState.setCurrentRecommendation(newRecommendation);
+        algorithmState.setCurrentRecommendation(savingsEvent.getEntityPriceChange().get());
     }
 
-    private double getSavings(EntityPriceChange priceChange) {
-        return -Math.min(0.0, priceChange.getDelta());
-    }
-
-    private double getInvestment(EntityPriceChange priceChange) {
-        return Math.max(0.0, priceChange.getDelta());
-    }
-
-    private void handleRecommendationRemoved(long timestamp, long entityId, SavingsEvent savingsEvent) {
+    private void handleRecommendationRemoved(@Nonnull Map<Long, Algorithm> entityStates,
+            long timestamp, long entityId, SavingsEvent savingsEvent) {
         logger.debug("Handle RecommendationRemoved for {} at {}", entityId, timestamp);
-        EntityState entityState = entityStateCache.getEntityState(savingsEvent.getEntityId(), timestamp, true);
+        Algorithm algorithmState = getAlgorithmState(entityStates, savingsEvent.getEntityId(), timestamp, true);
 
         // Close out the current segment and open a new with the new periodic missed savings/investment
-        entityState.endSegment(timestamp);
-
-        // If there is an existing recommendation, back it out.  In normal cases, this will reset
-        // the current missed savings/investments to zero.
-        // BCTODO What if the removed recommendation isn't the current one?
-        EntityPriceChange currentRecommendation = entityState.getCurrentRecommendation();
-        if (currentRecommendation != null) {
-            entityState.adjustCurrentMissed(-getSavings(currentRecommendation), -getInvestment(currentRecommendation));
-        }
+        algorithmState.endSegment(timestamp);
 
         // Clear the current recommendation.
-        entityState.setCurrentRecommendation(null);
+        algorithmState.setCurrentRecommendation(null);
     }
 
     /**
@@ -196,10 +260,8 @@ class SavingsCalculator {
      *
      * @param timestamp time of the event
      * @param entityId affected entity ID
-     * @param topologyEvent topology event with details of the entity creation
      */
-    private void handleResourceCreation(long timestamp, long entityId,
-            ResourceCreationDetails topologyEvent) {
+    private void handleResourceCreation(long timestamp, long entityId) {
         logger.debug("Handle ResourceCreation for entity ID {} at {}", entityId, timestamp);
     }
 
@@ -207,61 +269,63 @@ class SavingsCalculator {
      * Handle a resource deletion event.  We treat this as a poweroff event.  After the entity is
      * processed, its state will be removed.
      *
+     * @param states a map of algorithm states for entities whose states are being tracked
      * @param timestamp time of the event
      * @param entityId affected entity ID
-     * @param topologyEvent resource deletion details
      */
-    private void handleResourceDeletion(long timestamp, long entityId,
-            ResourceDeletionDetails topologyEvent) {
+    private void handleResourceDeletion(@Nonnull Map<Long, Algorithm> states,
+            long timestamp, long entityId) {
         logger.debug("Handle ResourceDeletion for {} at {}", entityId, timestamp);
         // Turn the power off to prevent further savings/investment accumulation and mark the entity
         // as inactive, which will cause its state to be removed after the next processing pass.
-        EntityState entityState = entityStateCache.getEntityState(entityId, timestamp, false);
-        if (entityState != null) {
-            entityState.endSegment(timestamp);
-            entityState.setPowerFactor(0L);
-            entityState.setActive(false);
+        Algorithm algorithmState = getAlgorithmState(states, entityId, timestamp, false);
+        if (algorithmState != null) {
+            algorithmState.endSegment(timestamp);
+            algorithmState.setPowerFactor(0L);
+            algorithmState.setDeletePending(true);
         }
     }
 
     /**
      * Handle power state change.  Powering off suspends accumulation of savings and investments.
      * Powering on resumes accumulation.
-     *
+     * @param states a map of algorithm states for entities whose states are being tracked
      * @param timestamp time of the event
      * @param entityId affected entity ID
      * @param event topology entity state change details
      */
-    private void handleStateChange(long timestamp, long entityId, EntityStateChangeDetails event) {
+    private void handleStateChange(@Nonnull Map<Long, Algorithm> states,
+            long timestamp, long entityId, EntityStateChangeDetails event) {
         logger.debug("Handle StateChange for {} at {}", entityId, timestamp);
         // Locate existing state.  If we aren't tracking, then ignore the event
-        EntityState entityState = entityStateCache.getEntityState(entityId);
-        if (entityState == null) {
+        Algorithm algorithmState = getAlgorithmState(states, entityId, 0L, false);
+        if (algorithmState == null) {
             return;
         }
-
         TopologyDTO.EntityState newState = event.getDestinationState();
         if (logger.isDebugEnabled()) {
             TopologyDTO.EntityState oldState = event.getSourceState();
             logger.debug("Handling power event for {}: {} -> {}", entityId, oldState, newState);
         }
-        entityState.endSegment(timestamp);
-        entityState.setPowerFactor(TopologyDTO.EntityState.POWERED_ON.equals(newState) ? 1L : 0L);
+        algorithmState.endSegment(timestamp);
+        algorithmState
+                .setPowerFactor(TopologyDTO.EntityState.POWERED_ON.equals(newState) ? 1L : 0L);
     }
 
     /**
      * Handle provider change.  This occurs when an entity has changed size due to a previous action
      * execution or a resize not due to an action execution.
      *
+     * @param states a map of algorithm states for entities whose states are being tracked
      * @param timestamp time of the event
      * @param entityId affected entity ID
      * @param event SavingsEvent containing details of the topology provider change as well as the
-     *              price change information.
      */
-    private void handleProviderChange(long timestamp, long entityId, SavingsEvent event) {
+    private void handleProviderChange(@Nonnull Map<Long, Algorithm> states,
+            long timestamp, long entityId, SavingsEvent event) {
         logger.debug("Handle ProviderChange for {} at {}", entityId, timestamp);
         if (event.getEntityPriceChange().isPresent()) {
-            commonResizeHandler(timestamp, entityId, event.getEntityPriceChange().get(), true);
+            commonResizeHandler(states, timestamp, entityId, event.getEntityPriceChange().get(), true);
         } else {
             logger.warn("ProviderChange event for {} at {} is missing price data - skipping",
                     entityId, timestamp);
@@ -272,40 +336,37 @@ class SavingsCalculator {
      * Shared logic to track a resize.  This can be called by the action execution success logic
      * (solicited resize) or when an entity has changed providers (unsolicited resize due to
      * discovery or action script action executed).
-     *
+     *  @param states a map of algorithm states for entities whose states are being tracked
      * @param timestamp time of the event
      * @param entityId affected entity ID
      * @param change price change information
      * @param activeRecommendationRequired true if an active recommendation must exist.  If true
-     *        and there is no outstanding resize action, this method does nothing.
      */
-    private void commonResizeHandler(long timestamp, long entityId, EntityPriceChange change,
+    private void commonResizeHandler(@Nonnull Map<Long, Algorithm> states,
+            long timestamp, long entityId, EntityPriceChange change,
             boolean activeRecommendationRequired) {
         // If this is an action execution, it's okay that we haven't seen this entity yet.
         // Create state for it and continue.
-        EntityState entityState = entityStateCache.getEntityState(entityId, timestamp, !activeRecommendationRequired);
-        if (entityState == null) {
+        Algorithm algorithmState = getAlgorithmState(states, entityId, timestamp,
+                !activeRecommendationRequired);
+        if (algorithmState == null) {
             // An active recommendation is required, which means the entity state must already
             // exist.  If it does not, there is nothing to do.
             logger.debug("Not processing resize - state for entity {} is missing", entityId);
             return;
         }
-        entityState.endSegment(timestamp);
-        EntityPriceChange currentRecommendation = entityState.getCurrentRecommendation();
+        algorithmState.endSegment(timestamp);
+        EntityPriceChange currentRecommendation = algorithmState.getCurrentRecommendation();
         if (currentRecommendation != null) {
-            // BCTODO in the code, this is dangerous if we are processing an action from before the
-            //  feature was enabled.  Figure out what this means.
             if (activeRecommendationRequired && !currentRecommendation.equals(change)) {
                 // There's a current recommendation, but it doesn't match this resize, so ignore it
                 return;
             }
-            // Back out missed savings/investment incurred by this recommendation.
-            entityState.adjustCurrentMissed(-getSavings(currentRecommendation), -getInvestment(currentRecommendation));
-            entityState.setCurrentRecommendation(null);
+            algorithmState.setCurrentRecommendation(null);
         } else if (activeRecommendationRequired) {
             // No active resize action, so ignore this.
             return;
         }
-        entityState.adjustCurrent(change.getDelta());
+        algorithmState.addAction(change.getDelta());
     }
 }

@@ -41,6 +41,7 @@ message TypeSpecificInfo {
         DatabaseServerTierInfo database_server_tier = 79;
         CloudCommitmentInfo cloud_commitment_data = 80;
         NamespaceInfo namespace = 81;
+        ContainerPlatformClusterInfo container_platform_cluster = 82;
     }
 
     message ApplicationInfo {
@@ -468,6 +469,18 @@ message TypeSpecificInfo {
         // CPU commodities (ie LimitQuota and RequestQuota) from MHz to millicores.
         // The units on this value are in MHz/core (not MHz/millicore)
         optional double average_node_cpu_frequency = 1 [default = 1.0];
+    }
+
+    // Data specific to a ContainerPlatformCluster entity.
+    message ContainerPlatformClusterInfo {
+        // Container CPU limits overcommitment ratio on the nodes (VMs) in a container platform
+        // cluster. The value represents the ratio of total containers VCPU capacity / total nodes
+        // VCPU capacity.
+        optional double vcpu_overcommitment = 1;
+        // Container memory limits overcommitment ratio on the nodes (VMs) in a container platform
+        // cluster. The value represents the ratio of total containers VMem capacity / total nodes
+        // VMem capacity.
+        optional double vmem_overcommitment = 2;
     }
 }
 

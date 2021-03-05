@@ -26,6 +26,9 @@ message InitialPlacementBuyer {
     }
     // The reservation id, a reservation may contain many reservation entities.
     optional int64 reservationId = 3;
+
+    // reservation set for delayed deletion. if true keep reservation in historical cache.
+    optional bool deployed = 4  [default = false];
 }
 
 message InitialPlacementBuyerPlacementInfo {
@@ -56,6 +59,8 @@ message FindInitialPlacementResponse {
 
 message DeleteInitialPlacementBuyerRequest {
     repeated int64 buyerId = 1;
+    // reservation set for delayed deletion. if true keep reservation in historical cache.
+    optional bool deployed = 2  [default = false];
 }
 
 message DeleteInitialPlacementBuyerResponse {

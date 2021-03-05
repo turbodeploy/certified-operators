@@ -329,7 +329,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                                 "calculation.", entityId, regionId, storageTierId);
                     }
                 } else {
-                    logger.error("calculateVirtualVolumeCost: Global price table has no entry for region {}." +
+                    logger.debug("calculateVirtualVolumeCost: Global price table has no entry for region {}." +
                             "  This means there is some inconsistency between the topology and pricing data.", regionId);
                 }
             } else {
@@ -505,7 +505,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                 final long regionId = context.getRegionid();
                 final Optional<OnDemandPriceTable> onDemandPriceTable = context.getOnDemandPriceTable();
                 if (!onDemandPriceTable.isPresent()) {
-                    logger.warn("calculateVirtualMachineCost: Global price table has no entry for region {}." +
+                    logger.debug("calculateVirtualMachineCost: Global price table has no entry for region {}." +
                                     "  This means there is some inconsistency between the topology and pricing data.",
                             regionId);
                 } else {
@@ -513,12 +513,16 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                             .getComputePricesByTierIdMap()
                             .get(entityInfoExtractor.getId(computeTier));
                     LicensePriceTuple licensePrice = null;
-                    if (computePriceList != null && isBillable(entity) && (isProjectedTopology || computeConfig.getBillingType() != VMBillingType.BIDDING)) {
-                        final boolean burstableCPU = entityInfoExtractor.getComputeTierConfig(computeTier)
-                                .map(ComputeTierConfig::isBurstableCPU)
-                                .orElse(false);
-                        licensePrice = accountPricingData.getLicensePrice(computeConfig.getOs(),
-                                computeConfig.getNumCores(), computePriceList, burstableCPU);
+                    final Optional<ComputeTierConfig> computeTierConfig = entityInfoExtractor.getComputeTierConfig(computeTier);
+                    if (computePriceList != null && isBillable(entity)
+                            && (isProjectedTopology || computeConfig.getBillingType() != VMBillingType.BIDDING)
+                            // The compute tier should always be present, if we made is this far, given the
+                            // cloudTopology.getComputeTier() call above has already checked that the computeTier
+                            // has the appropriate entity type
+                            && computeTierConfig.isPresent()) {
+
+                        licensePrice = accountPricingData.getLicensePrice(
+                                computeTierConfig.get(), computeConfig.getOs(), computePriceList);
                         final ComputeTierConfigPrice basePrice = computePriceList.getBasePrice();
                         // For compute tiers, we're working with "hourly" costs, and the amount
                         // of "compute" bought from the tier is 1 unit. Note: This cost is purely
@@ -697,7 +701,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                         recordDatabaseCost(dbPriceList, context.getCostJournal(), databaseTier, databaseConfig, entity);
                     }
                 } else {
-                    logger.warn("calculateDatabaseCost: Global price table has no entry for region {}." +
+                    logger.debug("calculateDatabaseCost: Global price table has no entry for region {}." +
                             "  This means there is some inconsistency between the topology and pricing data.", regionId);
                 }
             });

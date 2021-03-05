@@ -806,7 +806,7 @@ public class Action implements ActionView {
      * is one defined for this action, or Optional.empty() otherwise
      */
     @Nonnull
-    private Optional<SettingProto.Setting> getWorkflowSetting(ActionState actionState) {
+    public Optional<SettingProto.Setting> getWorkflowSetting(ActionState actionState) {
         return Optional.ofNullable(workflowSettingsForState.get(actionState));
     }
 

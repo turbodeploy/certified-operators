@@ -14,7 +14,10 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.MapDifference;
+import com.google.common.collect.Maps;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -72,9 +75,11 @@ public class ActionListener implements ActionsListener {
     private final EntityEventsJournal entityEventsJournal;
 
     /**
-     * The set of active pending action UUIDs.
+     * The Map of current (active action) actionSpec to entityId.
+     *
+     * <p>This mapping is preserved in order to process stale action events.
      */
-    private final Set<Long> currentPendingActionUuids = new HashSet<Long>();
+    private Map<ActionSpec, Long> currentPendingActionSpecsToEntityId = new ConcurrentHashMap<>();
 
     /**
      * For making Grpc calls to Action Orchestrator.
@@ -148,9 +153,9 @@ public class ActionListener implements ActionsListener {
         // Locate the target entity in the internal entity state.  If not present, create an
         //  - entry for it.
         //  - Log a provider change event into the event log.
-        // TODO: The way we're processing update and success, we may not need synchronized blocks
-        // However this may need to be re-evaluated in the future, because of potential modifications to
-        // shared data structures, by multiple threads.
+        // TODO: The way we're processing update and success, we may not need synchronization.
+        // However this may need to be re-evaluated in the future, because of potential race conditions,
+        // in the presence of multiple threads.
         final Long actionId = actionSuccess.getActionId();
         ActionState prevActionState = entityActionStateMap.get(actionId);
         // Check if a SUCCEEDED for the action id hasn't already been added, in order to
@@ -181,7 +186,10 @@ public class ActionListener implements ActionsListener {
                                                       actionPriceChange);
                         entityEventsJournal.addEvent(successEvent);
                         entityActionStateMap.put(actionId, ActionState.SUCCEEDED);
-                        logger.info("Added action {}, journal size {}", actionId, entityEventsJournal.size());
+                        logger.debug("Added action {} for entity {}, completion time {}, recommendation time {}, journal size {}",
+                                    actionId, entityId, completionTime,
+                                    actionSuccess.getActionSpec().getRecommendationTime(),
+                                    entityEventsJournal.size());
                     }
                 }
             } catch (UnsupportedActionException e) {
@@ -228,11 +236,8 @@ public class ActionListener implements ActionsListener {
          */
         final Long topologyContextId = info.getTopologyContextId();
         Set<Long> newPendingActionUuids = new HashSet<>();
-        Map<Long, Long> newPendingActionsActionIdToEntityIdMap = new HashMap<>();
-        Map<Long, Long> newPendingActionsEntityIdToActionIdMap = new HashMap<>();
-        Map<Long, ActionSpec> newPendingActionsActionIdToSpecMap = new HashMap<>();
-        Set<SavingsEvent> newPendingActionEvents = new HashSet<>();
-
+        Map<ActionSpec, Long> newPendingActionSpecsToEntityId = new HashMap<>();
+        Map<Long, Long> newPendingActionsEntityIdToActionId = new HashMap<>();
         final List<ActionSpec> actionSpecs = new ArrayList<>();
         Iterator<FilteredActionResponse> responseIterator = getUpdatedActions(topologyContextId);
         while (responseIterator.hasNext()) {
@@ -259,41 +264,57 @@ public class ActionListener implements ActionsListener {
                 final Long entityId = entity.getId();
                 logger.debug("Processing savings for action {}, entity {}", actionId, entityId);
                 newPendingActionUuids.add(actionId);
-                // TODO: Optimized Check if some of these maps can be combined,
-                // in the future pending actions processing task.
-                newPendingActionsActionIdToEntityIdMap.put(actionId, entityId);
-                newPendingActionsEntityIdToActionIdMap.put(entityId, actionId);
-                newPendingActionsActionIdToSpecMap.put(actionId, actionSpec);
-
+                // Since we're looping through actions here, it's more  efficient to maintain this local
+                // mapping and reverse mapping for O(1) lookup, rather than searching through
+                // one data structure during events creation or retrieval of costs.
+                newPendingActionSpecsToEntityId.put(actionSpec, entityId);
+                newPendingActionsEntityIdToActionId.put(entityId, actionId);
+                logger.debug("Adding Pending Action {}, at {} for entity {}", actionId,
+                             actionSpec.getRecommendationTime(),
+                            entityId);
             }
             actionSpecs.clear();
         }
 
-        // Compare the two sets and create SavingsEvents for new ActionId's.
+        // TODO: The way we're processing update and success, we may not need synchronization.
+        // However this may need to be re-evaluated in the future, because of potential race conditions,
+        // in the presence of multiple threads.
+
+        // Add new pending action events.
+        // Compare the old and new actions and create SavingsEvents for new ActionId's.
+        // entriesOnlyOnLeft() returns newly added actions, and entriesOnlyOnRight()
+        // returns actions no longer being generated by market.
+        MapDifference<ActionSpec, Long> actionChanges = Maps.difference(newPendingActionSpecsToEntityId,
+                                                            currentPendingActionSpecsToEntityId);
         Map<Long, EntityPriceChange> entityPriceChangeMap =
                                       getOnDemandRates(realTimeTopologyContextId,
-                                                       newPendingActionsEntityIdToActionIdMap);
-        // TODO: The way we're processing update and success, we may not need synchronized blocks
-        // However this may need to be re-evaluated in the future, because of potential modifications to
-        // shared data structures, by multiple threads.
-        // Add new pending action events.
-        newPendingActionUuids.removeAll(currentPendingActionUuids);
-        newPendingActionUuids.forEach(actionId -> {
-            final EntityPriceChange actionPriceChange = entityPriceChangeMap.get(actionId);
+                                                       newPendingActionsEntityIdToActionId);
+        Set<SavingsEvent> newPendingActionEvents = new HashSet<>();
+        actionChanges.entriesOnlyOnLeft().keySet().forEach(newActionSpec -> {
+            final Long newActionId = newActionSpec.getRecommendation().getId();
+            final ActionState actionState = newActionSpec.getActionState();
+            final EntityPriceChange actionPriceChange = entityPriceChangeMap.get(newActionId);
             if (actionPriceChange != null) {
-                final ActionState actionState = newPendingActionsActionIdToSpecMap.get(actionId)
-                            .getActionState();
-                SavingsEvent pendingActionEvent =
-                                createActionEvent(newPendingActionsActionIdToEntityIdMap
-                                    .get(actionId),
-                                      newPendingActionsActionIdToSpecMap
-                                                      .get(actionId)
-                                                      .getRecommendationTime(),
-                                      ActionEventType.RECOMMENDATION_ADDED,
-                                      actionId,
-                                      actionPriceChange);
-                newPendingActionEvents.add(pendingActionEvent);
-                entityActionStateMap.put(actionId, actionState);
+                logger.debug("New action price change for {}, {}, {}, {}:",
+                             newActionSpec,
+                             actionState, actionPriceChange.getSourceCost(),
+                             actionPriceChange.getDestinationCost());
+                ActionState prevActionState = entityActionStateMap.get(newActionId);
+                if (prevActionState != ActionState.SUCCEEDED) {
+                    entityActionStateMap.put(newActionId, actionState);
+                    final Long entityId = newPendingActionSpecsToEntityId
+                                    .get(newActionSpec);
+                    SavingsEvent pendingActionEvent =
+                                            createActionEvent(entityId,
+                                                  newActionSpec.getRecommendationTime(),
+                                                  ActionEventType.RECOMMENDATION_ADDED,
+                                                  newActionId,
+                                                  actionPriceChange);
+                    newPendingActionEvents.add(pendingActionEvent);
+                    logger.debug("Added new pending event for action {}, entity {},"
+                                    + " action state {}",
+                                 newActionId, entityId, actionState);
+                }
             }
         });
         entityEventsJournal.addEvents(newPendingActionEvents);
@@ -305,28 +326,28 @@ public class ActionListener implements ActionsListener {
                                                     .destinationCost(0.0)
                                                     .build();
         // Add events related to stale pending actions.
-        if (!currentPendingActionUuids.isEmpty()) {
-            currentPendingActionUuids.removeAll(newPendingActionUuids);
+        if (!currentPendingActionSpecsToEntityId.isEmpty()) {
             Set<SavingsEvent> staleActionEvents = new HashSet<>();
-            currentPendingActionUuids.forEach(actionId -> {
+            actionChanges.entriesOnlyOnRight().keySet().forEach(staleActionSpec -> {
+                final Long staleActionId = staleActionSpec.getRecommendation().getId();
+                final Long entityId = currentPendingActionSpecsToEntityId
+                                .get(staleActionSpec);
                 SavingsEvent pendingActionEvent =
-                            createActionEvent(newPendingActionsActionIdToEntityIdMap
-                                            .get(actionId),
-                                              newPendingActionsActionIdToSpecMap
-                                                  .get(actionId)
-                                                  .getRecommendationTime(),
-                                              ActionEventType.RECOMMENDATION_REMOVED,
-                                              actionId,
-                                              emptyPriceChange);
+                                                createActionEvent(entityId,
+                                                  staleActionSpec.getRecommendationTime(),
+                                                  ActionEventType.RECOMMENDATION_REMOVED,
+                                                  staleActionId,
+                                                  emptyPriceChange);
                 staleActionEvents.add(pendingActionEvent);
-                entityActionStateMap.remove(actionId);
+                logger.debug("Added stale event for {}, entity {}", staleActionId, entityId);
+                entityActionStateMap.remove(staleActionId);
             });
             entityEventsJournal.addEvents(staleActionEvents);
 
-            // Same the latest set of new pending actions.
-            currentPendingActionUuids.clear();
+            // Clear the old and save the latest set of new pending actions.
+            currentPendingActionSpecsToEntityId.clear();
         }
-        currentPendingActionUuids.addAll(newPendingActionUuids);
+        currentPendingActionSpecsToEntityId.putAll(newPendingActionSpecsToEntityId);
     }
 
     /**
@@ -393,9 +414,21 @@ public class ActionListener implements ActionsListener {
      *
      * @return entityActionStateMap;
      */
-    public Map<Long, ActionState> getEntityActionStateMap() {
+    @VisibleForTesting
+    protected Map<Long, ActionState> getEntityActionStateMap() {
         return entityActionStateMap;
     }
+
+    /**
+     * Getter for currentPendingActionsActionSpecToEntityIdMap.
+     *
+     * @return currentPendingActionsActionSpecToEntityIdMap.
+     */
+    @VisibleForTesting
+    protected Map<ActionSpec, Long> getCurrentPendingActionsActionSpecToEntityIdMap() {
+        return currentPendingActionSpecsToEntityId;
+    }
+
 
     /**
      * Get on-demand template rates for a list of target entities.

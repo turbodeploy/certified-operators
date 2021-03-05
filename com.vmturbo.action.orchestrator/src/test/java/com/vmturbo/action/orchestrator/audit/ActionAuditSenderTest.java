@@ -1,6 +1,7 @@
 package com.vmturbo.action.orchestrator.audit;
 
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -8,11 +9,15 @@ import static org.mockito.Mockito.when;
 import java.time.Clock;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nullable;
+
+import com.google.common.collect.ImmutableMap;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -31,6 +36,7 @@ import com.vmturbo.action.orchestrator.action.AuditedActionInfo;
 import com.vmturbo.action.orchestrator.action.AuditedActionsManager;
 import com.vmturbo.action.orchestrator.action.AuditedActionsManager.AuditedActionsUpdate;
 import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionEvent;
+import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStoreException;
@@ -42,10 +48,15 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeactivateExplanation;
+import com.vmturbo.common.protobuf.setting.SettingProto;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.Workflow;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo;
-import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.server.IMessageSender;
+import com.vmturbo.components.common.setting.ActionSettingSpecs;
+import com.vmturbo.components.common.setting.ActionSettingType;
+import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionResponseState;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
@@ -60,9 +71,11 @@ public class ActionAuditSenderTest {
 
     private static final long ACTION_PLAN_ID = 1001L;
     private static final long KAFKA_ONGEN_WORKFLOW_ID = 2001L;
-    private static final long KAFKA_AFTEREXEC_WORKFLOW_ID = 2002L;
-    private static final long SERVICENOW_ONGEN_WORKFLOW_ID = 2003L;
-    private static final long SERVICENOW_AFTEREXEC_WORKFLOW_ID = 2004L;
+    private static final long KAFKA_ONGEN_WORKFLOW_ID_2 = 2002L;
+    private static final long KAFKA_AFTEREXEC_WORKFLOW_ID = 2003L;
+    private static final long SERVICENOW_ONGEN_WORKFLOW_ID = 2004L;
+    private static final long SERVICENOW_ONGEN_WORKFLOW_ID_2 = 2005L;
+    private static final long SERVICENOW_AFTEREXEC_WORKFLOW_ID = 2006L;
     private static final long WORKFLOW_ID3 = 2003L;
     private static final long KAFKA_TARGET_ID = 3001L;
     private static final long SERVICENOW_TARGET_ID = 3002L;
@@ -70,6 +83,23 @@ public class ActionAuditSenderTest {
     private static final long ACTION2_ID = 4002L;
     private static final long ACTION3_ID = 4003L;
     private static final long ACTION4_ID = 4004L;
+    private static final long ACTION5_ID = 4005L;
+    private static final long ACTION6_ID = 4006L;
+    private static final long ACTION7_ID = 4007L;
+    private static final long ACTION8_ID = 4008L;
+    private static final long TARGET_ENTITY_ID_1 = 5001L;
+    private static final long TARGET_ENTITY_ID_2 = 5002L;
+    private static final long TARGET_ENTITY_ID_3 = 5003L;
+    private static final long TARGET_ENTITY_ID_4 = 5004L;
+    private static final long TARGET_ENTITY_ID_5 = 5005L;
+    private static final long TARGET_ENTITY_ID_6 = 5006L;
+    private static final long TARGET_ENTITY_ID_7 = 5007L;
+    private static final long TARGET_ENTITY_ID_8 = 5008L;
+    private static final String VMEM_RESIZE_UP_ONGEN = ActionSettingSpecs.getSubSettingFromActionModeSetting(
+        ConfigurableActionSettings.ResizeVmemUpInBetweenThresholds,
+        ActionSettingType.ON_GEN);
+    private static final String UNRELATED_SETTING_NAME = "unrelatedSetting";
+    private static final String INVALID_SETTING_VALUE = "ThisIsNotANumber";
 
     /**
      * We override the current time in milliseconds to Mon Jan 18 2021 20:25:18 EST for convenience
@@ -83,9 +113,10 @@ public class ActionAuditSenderTest {
     private WorkflowStore workflowStore;
     @Mock
     private ThinTargetCache thinTargetCache;
-
     @Mock
     private AuditedActionsManager auditedActionsManager;
+    @Mock
+    private EntitiesAndSettingsSnapshot entitiesAndSettingsSnapshot;
 
     private final ActionTranslator actionTranslator =
             ActionOrchestratorTestUtils.passthroughTranslator();
@@ -127,28 +158,49 @@ public class ActionAuditSenderTest {
                     .build())
             .build();
 
-    private static final Workflow KAFKA_ONGEN_WORKFLOW = Workflow.newBuilder().setId(KAFKA_ONGEN_WORKFLOW_ID).setWorkflowInfo(
-        WorkflowInfo.newBuilder()
-            .setActionPhase(ActionPhase.ON_GENERATION)
-            .setTargetId(KAFKA_TARGET_ID))
+    private static final Workflow KAFKA_ONGEN_WORKFLOW = Workflow.newBuilder()
+        .setId(KAFKA_ONGEN_WORKFLOW_ID)
+        .setWorkflowInfo(
+            WorkflowInfo.newBuilder()
+                .setActionPhase(ActionPhase.ON_GENERATION)
+                .setTargetId(KAFKA_TARGET_ID))
+        .build();
+    private static final Workflow KAFKA_ONGEN_WORKFLOW_2 = Workflow.newBuilder()
+        .setId(KAFKA_ONGEN_WORKFLOW_ID_2)
+        .setWorkflowInfo(
+            WorkflowInfo.newBuilder()
+                .setActionPhase(ActionPhase.ON_GENERATION)
+                .setTargetId(KAFKA_TARGET_ID))
         .build();
 
-    private static final Workflow KAFKA_AFTEREXEC_WORKFLOW = Workflow.newBuilder().setId(KAFKA_AFTEREXEC_WORKFLOW_ID).setWorkflowInfo(
-        WorkflowInfo.newBuilder()
-            .setActionPhase(ActionPhase.AFTER_EXECUTION)
-            .setTargetId(KAFKA_TARGET_ID))
+    private static final Workflow KAFKA_AFTEREXEC_WORKFLOW = Workflow.newBuilder()
+        .setId(KAFKA_AFTEREXEC_WORKFLOW_ID)
+        .setWorkflowInfo(
+            WorkflowInfo.newBuilder()
+                .setActionPhase(ActionPhase.AFTER_EXECUTION)
+                .setTargetId(KAFKA_TARGET_ID))
         .build();
 
-    private static final Workflow SERVICENOW_ONGEN_WORKFLOW = Workflow.newBuilder().setId(SERVICENOW_ONGEN_WORKFLOW_ID).setWorkflowInfo(
-        WorkflowInfo.newBuilder()
-            .setActionPhase(ActionPhase.ON_GENERATION)
-            .setTargetId(SERVICENOW_TARGET_ID))
+    private static final Workflow SERVICENOW_ONGEN_WORKFLOW = Workflow.newBuilder()
+        .setId(SERVICENOW_ONGEN_WORKFLOW_ID)
+        .setWorkflowInfo(
+            WorkflowInfo.newBuilder()
+                .setActionPhase(ActionPhase.ON_GENERATION)
+                .setTargetId(SERVICENOW_TARGET_ID))
+        .build();
+    private static final Workflow SERVICENOW_ONGEN_WORKFLOW_2 = Workflow.newBuilder()
+        .setId(SERVICENOW_ONGEN_WORKFLOW_ID_2)
+        .setWorkflowInfo(
+            WorkflowInfo.newBuilder()
+                .setActionPhase(ActionPhase.ON_GENERATION)
+                .setTargetId(SERVICENOW_TARGET_ID))
         .build();
 
-    private static final Workflow SERVICENOW_AFTEREXEC_WORKFLOW = Workflow.newBuilder().setId(SERVICENOW_AFTEREXEC_WORKFLOW_ID).setWorkflowInfo(
-        WorkflowInfo.newBuilder()
-            .setActionPhase(ActionPhase.AFTER_EXECUTION)
-            .setTargetId(SERVICENOW_TARGET_ID))
+    private static final Workflow SERVICENOW_AFTEREXEC_WORKFLOW = Workflow.newBuilder()
+        .setId(SERVICENOW_AFTEREXEC_WORKFLOW_ID).setWorkflowInfo(
+            WorkflowInfo.newBuilder()
+                .setActionPhase(ActionPhase.AFTER_EXECUTION)
+                .setTargetId(SERVICENOW_TARGET_ID))
         .build();
 
     /**
@@ -163,9 +215,13 @@ public class ActionAuditSenderTest {
         when(clock.millis()).thenReturn(CURRENT_TIME);
 
         when(workflowStore.fetchWorkflow(KAFKA_ONGEN_WORKFLOW_ID)).thenReturn(Optional.of(KAFKA_ONGEN_WORKFLOW));
+        when(workflowStore.fetchWorkflow(SERVICENOW_ONGEN_WORKFLOW_ID)).thenReturn(Optional.of(SERVICENOW_ONGEN_WORKFLOW));
+        when(workflowStore.fetchWorkflow(SERVICENOW_ONGEN_WORKFLOW_ID_2)).thenReturn(Optional.of(SERVICENOW_ONGEN_WORKFLOW_2));
 
         when(thinTargetCache.getTargetInfo(KAFKA_TARGET_ID)).thenReturn(Optional.of(KAFKA_TARGET));
         when(thinTargetCache.getTargetInfo(SERVICENOW_TARGET_ID)).thenReturn(Optional.of(SERVICENOW_TARGET));
+
+        when(entitiesAndSettingsSnapshot.getSettingsForEntity(anyLong())).thenReturn(Collections.emptyMap());
 
         actionAuditSender = new ActionAuditSender(
             workflowStore,
@@ -194,7 +250,7 @@ public class ActionAuditSenderTest {
         when(action2.getState()).thenReturn(ActionState.SUCCEEDED);
         final Action action3 = createAction(ACTION3_ID, workflow3);
         final Action action4 = createAction(ACTION4_ID, null);
-        actionAuditSender.sendOnGenerationEvents(Arrays.asList(action1, action2, action3, action4));
+        actionAuditSender.sendOnGenerationEvents(Arrays.asList(action1, action2, action3, action4), entitiesAndSettingsSnapshot);
         Mockito.verify(messageSender, Mockito.times(2)).sendMessage(sentActionEventMessageCaptor.capture());
 
         final ActionEvent event1 = sentActionEventMessageCaptor.getAllValues().get(0);
@@ -222,7 +278,7 @@ public class ActionAuditSenderTest {
         final Action action1 = createAction(ACTION1_ID, KAFKA_ONGEN_WORKFLOW);
         final Action action2 = createAction(ACTION2_ID, KAFKA_ONGEN_WORKFLOW);
         final Action action3 = createAction(ACTION3_ID, SERVICENOW_ONGEN_WORKFLOW);
-        actionAuditSender.sendOnGenerationEvents(Arrays.asList(action1, action2));
+        actionAuditSender.sendOnGenerationEvents(Arrays.asList(action1, action2), entitiesAndSettingsSnapshot);
         Mockito.verify(messageSender, Mockito.times(2)).sendMessage(sentActionEventMessageCaptor.capture());
 
         final ActionEvent event1 = sentActionEventMessageCaptor.getAllValues().get(0);
@@ -234,7 +290,7 @@ public class ActionAuditSenderTest {
                 event2.getActionRequest().getActionId());
 
         Mockito.reset(messageSender);
-        actionAuditSender.sendOnGenerationEvents(Arrays.asList(action1, action2, action3));
+        actionAuditSender.sendOnGenerationEvents(Arrays.asList(action1, action2, action3), entitiesAndSettingsSnapshot);
         // all actions will be send for ServiceNow audit
         Mockito.verify(messageSender, Mockito.times(3)).sendMessage(sentActionEventMessageCaptor.capture());
 
@@ -258,11 +314,21 @@ public class ActionAuditSenderTest {
      */
     @Test
     public void testNoActionsBookKeptYet() throws Exception {
-        final Action action1 = createAction(ACTION1_ID, KAFKA_ONGEN_WORKFLOW);
-        final Action action2 = createAction(ACTION2_ID, KAFKA_ONGEN_WORKFLOW);
-        final Action action3 = createAction(ACTION3_ID, SERVICENOW_ONGEN_WORKFLOW);
-        final Action action4 = createAction(ACTION4_ID, SERVICENOW_AFTEREXEC_WORKFLOW);
-        actionAuditSender.sendOnGenerationEvents(Arrays.asList(action1, action2, action3, action4));
+        final Action action1 = createAction(ACTION1_ID, TARGET_ENTITY_ID_1, KAFKA_ONGEN_WORKFLOW);
+        when(action1.getWorkflowSetting(ActionState.READY))
+            .thenReturn(Optional.of(createWorkflowSetting(VMEM_RESIZE_UP_ONGEN, KAFKA_ONGEN_WORKFLOW_ID)));
+        final Action action2 = createAction(ACTION2_ID, TARGET_ENTITY_ID_2, KAFKA_ONGEN_WORKFLOW);
+        when(action2.getWorkflowSetting(ActionState.READY))
+            .thenReturn(Optional.of(createWorkflowSetting(VMEM_RESIZE_UP_ONGEN, KAFKA_ONGEN_WORKFLOW_ID)));
+        final Action action3 = createAction(ACTION3_ID, TARGET_ENTITY_ID_3, SERVICENOW_ONGEN_WORKFLOW);
+        when(action3.getWorkflowSetting(ActionState.READY))
+            .thenReturn(Optional.of(createWorkflowSetting(VMEM_RESIZE_UP_ONGEN, SERVICENOW_ONGEN_WORKFLOW_ID)));
+        final Action action4 = createAction(ACTION4_ID, TARGET_ENTITY_ID_4, SERVICENOW_AFTEREXEC_WORKFLOW);
+        when(action4.getWorkflowSetting(ActionState.READY))
+            .thenReturn(Optional.of(createWorkflowSetting(VMEM_RESIZE_UP_ONGEN, SERVICENOW_ONGEN_WORKFLOW_ID)));
+        actionAuditSender.sendOnGenerationEvents(
+            Arrays.asList(action1, action2, action3, action4),
+            entitiesAndSettingsSnapshot);
 
         // Only 3 actions because the 4th action is AFTEREXEC. AFTEREXEC needs to come through
         // Action sendAfterExecutionEvents instead of sendOnGenerationEvents.
@@ -284,12 +350,13 @@ public class ActionAuditSenderTest {
         AuditedActionsUpdate actualUpdate = persistedActionsCaptor.getValue();
         Assert.assertEquals(
             Arrays.asList(
-                new AuditedActionInfo(ACTION1_ID, KAFKA_ONGEN_WORKFLOW_ID, Optional.empty()),
-                new AuditedActionInfo(ACTION2_ID, KAFKA_ONGEN_WORKFLOW_ID, Optional.empty())
+                new AuditedActionInfo(ACTION1_ID, KAFKA_ONGEN_WORKFLOW_ID, TARGET_ENTITY_ID_1, VMEM_RESIZE_UP_ONGEN, Optional.empty()),
+                new AuditedActionInfo(ACTION2_ID, KAFKA_ONGEN_WORKFLOW_ID, TARGET_ENTITY_ID_2, VMEM_RESIZE_UP_ONGEN, Optional.empty())
             ),
             actualUpdate.getAuditedActions());
         Assert.assertEquals(Collections.emptyList(), actualUpdate.getRecentlyClearedActions());
-        Assert.assertEquals(Collections.emptyList(), actualUpdate.getExpiredClearedActions());
+        Assert.assertEquals(Collections.emptyList(), actualUpdate.getRemovedAudits());
+        Assert.assertEquals(Collections.emptyList(), actualUpdate.getRemovedActionRecommendationOid());
     }
 
     /**
@@ -310,11 +377,15 @@ public class ActionAuditSenderTest {
         when(auditedActionsManager.isAlreadySent(ACTION2_ID, KAFKA_ONGEN_WORKFLOW_ID)).thenReturn(false);
         when(auditedActionsManager.isAlreadySent(ACTION3_ID, SERVICENOW_ONGEN_WORKFLOW_ID)).thenReturn(true);
 
-        final Action actionAlreadySentToKafka = createAction(ACTION1_ID, KAFKA_ONGEN_WORKFLOW);
-        final Action actionNotSentToKafka = createAction(ACTION2_ID, KAFKA_ONGEN_WORKFLOW);
-        final Action actionSentToServiceNOW = createAction(ACTION3_ID, SERVICENOW_ONGEN_WORKFLOW);
+        final Action actionAlreadySentToKafka = createAction(ACTION1_ID, TARGET_ENTITY_ID_1, KAFKA_ONGEN_WORKFLOW);
+        when(actionAlreadySentToKafka.getWorkflowSetting(ActionState.READY))
+            .thenReturn(Optional.of(createWorkflowSetting(VMEM_RESIZE_UP_ONGEN, KAFKA_ONGEN_WORKFLOW_ID)));
+        final Action actionNotSentToKafka = createAction(ACTION2_ID, TARGET_ENTITY_ID_2, KAFKA_ONGEN_WORKFLOW);
+        when(actionNotSentToKafka.getWorkflowSetting(ActionState.READY))
+            .thenReturn(Optional.of(createWorkflowSetting(VMEM_RESIZE_UP_ONGEN, KAFKA_ONGEN_WORKFLOW_ID)));
+        final Action actionSentToServiceNOW = createAction(ACTION3_ID, TARGET_ENTITY_ID_3, SERVICENOW_ONGEN_WORKFLOW);
         actionAuditSender.sendOnGenerationEvents(Arrays.asList(actionAlreadySentToKafka,
-                actionNotSentToKafka, actionSentToServiceNOW));
+                actionNotSentToKafka, actionSentToServiceNOW), entitiesAndSettingsSnapshot);
 
         // only action3 will be send for audit. action1 and action2 were already sent
         Mockito.verify(messageSender, Mockito.times(2)).sendMessage(sentActionEventMessageCaptor.capture());
@@ -328,10 +399,11 @@ public class ActionAuditSenderTest {
             .persistAuditedActionsUpdates(persistedActionsCaptor.capture());
         AuditedActionsUpdate actualUpdate = persistedActionsCaptor.getValue();
         Assert.assertEquals(
-            Arrays.asList(new AuditedActionInfo(ACTION2_ID, KAFKA_ONGEN_WORKFLOW_ID, Optional.empty())),
+            Arrays.asList(new AuditedActionInfo(ACTION2_ID, KAFKA_ONGEN_WORKFLOW_ID, TARGET_ENTITY_ID_2, VMEM_RESIZE_UP_ONGEN, Optional.empty())),
             actualUpdate.getAuditedActions());
         Assert.assertEquals(Collections.emptyList(), actualUpdate.getRecentlyClearedActions());
-        Assert.assertEquals(Collections.emptyList(), actualUpdate.getExpiredClearedActions());
+        Assert.assertEquals(Collections.emptyList(), actualUpdate.getRemovedAudits());
+        Assert.assertEquals(Collections.emptyList(), actualUpdate.getRemovedActionRecommendationOid());
     }
 
     /**
@@ -357,18 +429,35 @@ public class ActionAuditSenderTest {
         final List<AuditedActionInfo> alreadySentActions = Arrays.asList(
                 new AuditedActionInfo(actionClearedButNotExpired.getRecommendationOid(),
                         KAFKA_ONGEN_WORKFLOW_ID,
+                        TARGET_ENTITY_ID_1, VMEM_RESIZE_UP_ONGEN,
                         // still 1 millisecond until expiry, so this action should not be cleared
                         Optional.of(CURRENT_TIME - TimeUnit.MINUTES.toMillis(MINUTES_UNTIL_MARKED_CLEARED) + 1)),
                 new AuditedActionInfo(actionClearedAndExpired.getRecommendationOid(),
                         KAFKA_ONGEN_WORKFLOW_ID,
+                        TARGET_ENTITY_ID_2, VMEM_RESIZE_UP_ONGEN,
                         // still 1 millisecond after expiry, so this action should be cleared
                         Optional.of(CURRENT_TIME - TimeUnit.MINUTES.toMillis(MINUTES_UNTIL_MARKED_CLEARED) - 1)),
                 // actionJustExpiring was sent last cycle, but not this cycle
                 new AuditedActionInfo(actionJustExpiring.getRecommendationOid(), KAFKA_ONGEN_WORKFLOW_ID,
+                        TARGET_ENTITY_ID_3, VMEM_RESIZE_UP_ONGEN,
                         // was recommended in the last market cycle, so no cleared timestamp
                         Optional.empty()));
         when(auditedActionsManager.getAlreadySentActions()).thenReturn(alreadySentActions);
-        actionAuditSender.sendOnGenerationEvents(Collections.singletonList(actionGoingToServiceNOW));
+        final Map<String, Setting> settingsMap = new HashMap<>();
+        settingsMap.put(VMEM_RESIZE_UP_ONGEN, Setting.newBuilder()
+                .setStringSettingValue(StringSettingValue.newBuilder()
+                        .setValue(String.valueOf(KAFKA_ONGEN_WORKFLOW_ID))
+                        .build())
+                .setSettingSpecName(VMEM_RESIZE_UP_ONGEN)
+                .build());
+        when(entitiesAndSettingsSnapshot.getSettingsForEntity(TARGET_ENTITY_ID_1)).thenReturn(
+                settingsMap);
+        when(entitiesAndSettingsSnapshot.getSettingsForEntity(TARGET_ENTITY_ID_2)).thenReturn(
+                settingsMap);
+        when(entitiesAndSettingsSnapshot.getSettingsForEntity(TARGET_ENTITY_ID_3)).thenReturn(
+                settingsMap);
+
+        actionAuditSender.sendOnGenerationEvents(Collections.singletonList(actionGoingToServiceNOW), entitiesAndSettingsSnapshot);
 
         // action3 will be send for audit as a new action.
         // action1 will be send as CLEARED actions
@@ -389,10 +478,162 @@ public class ActionAuditSenderTest {
         Assert.assertEquals(Collections.emptyList(), actualUpdate.getAuditedActions());
         Assert.assertEquals(Collections.singletonList(
                 new AuditedActionInfo(ACTION3_ID, KAFKA_ONGEN_WORKFLOW_ID,
+                        TARGET_ENTITY_ID_3, VMEM_RESIZE_UP_ONGEN,
                         Optional.of(CURRENT_TIME))), actualUpdate.getRecentlyClearedActions());
         Assert.assertEquals(Collections.singletonList(
-                new AuditedActionInfo(ACTION2_ID, KAFKA_ONGEN_WORKFLOW_ID, Optional.empty())),
-                actualUpdate.getExpiredClearedActions());
+                new AuditedActionInfo(ACTION2_ID, KAFKA_ONGEN_WORKFLOW_ID,
+                    TARGET_ENTITY_ID_2, VMEM_RESIZE_UP_ONGEN,
+                    Optional.empty())),
+                actualUpdate.getRemovedAudits());
+        Assert.assertEquals(Collections.emptyList(), actualUpdate.getRemovedActionRecommendationOid());
+    }
+
+    /**
+     * Test removing all earlier audited actions from bookkeeping cache because they don't have
+     * associated audit ON_GEN workflow.
+     *
+     * @throws Exception shouldn't be thrown
+     */
+    @Test
+    public void testRemovingClearedActionWithoutAssociatedWorkflow() throws Exception {
+        final Action actionClearedButNotExpired = createAction(ACTION1_ID, KAFKA_ONGEN_WORKFLOW);
+        final AuditedActionInfo auditClearedButNotExpired = new AuditedActionInfo(
+            actionClearedButNotExpired.getRecommendationOid(),
+            KAFKA_ONGEN_WORKFLOW_ID, TARGET_ENTITY_ID_1, VMEM_RESIZE_UP_ONGEN,
+            // still 1 millisecond until expiry, so this action should not be cleared
+            Optional.of(CURRENT_TIME - TimeUnit.MINUTES.toMillis(
+                MINUTES_UNTIL_MARKED_CLEARED) + 1));
+        final Action actionClearedAndExpired = createAction(ACTION2_ID, KAFKA_ONGEN_WORKFLOW);
+        final AuditedActionInfo auditClearedAndExpired = new AuditedActionInfo(
+            actionClearedAndExpired.getRecommendationOid(),
+            KAFKA_ONGEN_WORKFLOW_ID, TARGET_ENTITY_ID_2, VMEM_RESIZE_UP_ONGEN,
+            // still 1 millisecond after expiry, so this action should be cleared
+            Optional.of(CURRENT_TIME - TimeUnit.MINUTES.toMillis(
+                MINUTES_UNTIL_MARKED_CLEARED) - 1));
+        final Action actionJustExpiring = createAction(ACTION3_ID, KAFKA_ONGEN_WORKFLOW);
+        // actionJustExpiring was sent last cycle, but not this cycle
+        final AuditedActionInfo auditJustExpiring = new AuditedActionInfo(
+            actionJustExpiring.getRecommendationOid(),
+                KAFKA_ONGEN_WORKFLOW_ID, TARGET_ENTITY_ID_3, VMEM_RESIZE_UP_ONGEN,
+                // was recommended in the last market cycle, so no cleared timestamp
+                Optional.empty());
+        final Action actionGoingToServiceNOW = createAction(ACTION4_ID, SERVICENOW_ONGEN_WORKFLOW);
+
+        final List<AuditedActionInfo> alreadySentActions = Arrays.asList(
+            auditClearedButNotExpired,
+            auditClearedAndExpired,
+            auditJustExpiring);
+        when(auditedActionsManager.getAlreadySentActions()).thenReturn(alreadySentActions);
+        when(entitiesAndSettingsSnapshot.getSettingsForEntity(TARGET_ENTITY_ID_1)).thenReturn(
+                Collections.emptyMap());
+        when(entitiesAndSettingsSnapshot.getSettingsForEntity(TARGET_ENTITY_ID_2)).thenReturn(
+                Collections.emptyMap());
+        when(entitiesAndSettingsSnapshot.getSettingsForEntity(TARGET_ENTITY_ID_3)).thenReturn(
+                Collections.emptyMap());
+
+        actionAuditSender.sendOnGenerationEvents(Collections.singletonList(actionGoingToServiceNOW),
+                entitiesAndSettingsSnapshot);
+
+        // Check which actions ActionAuditSender wanted to persist
+        Mockito.verify(auditedActionsManager, Mockito.times(1))
+                .persistAuditedActionsUpdates(persistedActionsCaptor.capture());
+        AuditedActionsUpdate actualUpdate = persistedActionsCaptor.getValue();
+
+        // Check that we remove all actions (besides actionGoingToServiceNOW, because we don't
+        // persist SNOW-related actions in bookkeeping) from bookkeeping cache because they don't have
+        // associated audit ON_GEN workflow
+        Assert.assertEquals(Arrays.asList(auditClearedButNotExpired, auditClearedAndExpired, auditJustExpiring),
+                actualUpdate.getRemovedAudits());
+        Assert.assertEquals(Collections.emptyList(), actualUpdate.getRemovedActionRecommendationOid());
+    }
+
+    /**
+     * Only non-ServiceNOW actions with changed or removed workflows should have their book keeping
+     * removed.
+     * <ol>
+     *     <li>When the action stays the same, no message should be sent and no new book keeping is
+     *         needed.</li>
+     *     <li>When the action has a new workflow, a message for the new workflow should be sent,
+     *         the old book keeping removed, and the new book keeping added.</li>
+     *     <li>When the workflow is removed from the action, no message should be sent and the
+     *         book keeping should be removed.</li>
+     *     <li>When all the settings for the action is removed, a message should not be sent and the
+     *         book keeping should be removed.</li>
+     *     <li>All ServiceNOW actions should always be resent and no book keeping should be recorded.</li>
+     * </ol>
+     *
+     * @throws Exception should not be thrown.
+     */
+    @Test
+    public void testRemovedOrChangedWorkflows() throws Exception {
+        // Actions we previously sent under the previous workflow.
+        when(auditedActionsManager.isAlreadySent(ACTION1_ID, KAFKA_ONGEN_WORKFLOW_ID)).thenReturn(true);
+        when(auditedActionsManager.isAlreadySent(ACTION2_ID, KAFKA_ONGEN_WORKFLOW_ID)).thenReturn(true);
+        when(auditedActionsManager.isAlreadySent(ACTION3_ID, KAFKA_ONGEN_WORKFLOW_ID)).thenReturn(true);
+        when(auditedActionsManager.isAlreadySent(ACTION4_ID, KAFKA_ONGEN_WORKFLOW_ID)).thenReturn(true);
+        when(auditedActionsManager.getAlreadySentActions()).thenReturn(Arrays.asList(
+            new AuditedActionInfo(ACTION1_ID, KAFKA_ONGEN_WORKFLOW_ID, TARGET_ENTITY_ID_1, VMEM_RESIZE_UP_ONGEN, Optional.empty()),
+            new AuditedActionInfo(ACTION2_ID, KAFKA_ONGEN_WORKFLOW_ID, TARGET_ENTITY_ID_2, VMEM_RESIZE_UP_ONGEN, Optional.empty()),
+            new AuditedActionInfo(ACTION3_ID, KAFKA_ONGEN_WORKFLOW_ID, TARGET_ENTITY_ID_3, VMEM_RESIZE_UP_ONGEN, Optional.empty()),
+            new AuditedActionInfo(ACTION4_ID, KAFKA_ONGEN_WORKFLOW_ID, TARGET_ENTITY_ID_4, VMEM_RESIZE_UP_ONGEN, Optional.empty())
+        ));
+
+        final Action actionStaysTheSame = createAction(ACTION1_ID, TARGET_ENTITY_ID_1, KAFKA_ONGEN_WORKFLOW);
+        when(entitiesAndSettingsSnapshot.getSettingsForEntity(TARGET_ENTITY_ID_1)).thenReturn(
+            ImmutableMap.<String, SettingProto.Setting>builder()
+                .put(VMEM_RESIZE_UP_ONGEN, createWorkflowSetting(VMEM_RESIZE_UP_ONGEN, KAFKA_ONGEN_WORKFLOW_ID))
+                .build());
+        final Action actionNewWorkflow = createAction(ACTION2_ID, TARGET_ENTITY_ID_2, KAFKA_ONGEN_WORKFLOW_2);
+        when(actionNewWorkflow.getWorkflowSetting(ActionState.READY))
+            .thenReturn(Optional.of(createWorkflowSetting(VMEM_RESIZE_UP_ONGEN, KAFKA_ONGEN_WORKFLOW_ID_2)));
+        when(entitiesAndSettingsSnapshot.getSettingsForEntity(TARGET_ENTITY_ID_2)).thenReturn(
+            ImmutableMap.<String, SettingProto.Setting>builder()
+                .put(VMEM_RESIZE_UP_ONGEN, createWorkflowSetting(VMEM_RESIZE_UP_ONGEN, KAFKA_ONGEN_WORKFLOW_ID_2))
+                .build());
+        final Action actionRemovedWorkflow = createAction(ACTION3_ID, TARGET_ENTITY_ID_3, null);
+        when(entitiesAndSettingsSnapshot.getSettingsForEntity(TARGET_ENTITY_ID_3)).thenReturn(
+            ImmutableMap.<String, SettingProto.Setting>builder()
+                .put(UNRELATED_SETTING_NAME, createWorkflowSetting(UNRELATED_SETTING_NAME, KAFKA_ONGEN_WORKFLOW_ID))
+                .build());
+        // actionRemovedPolicy intentionally has no settings
+        final Action actionRemovedPolicy = createAction(ACTION4_ID, TARGET_ENTITY_ID_4, null);
+        final Action actionSNOWStaysTheSame = createAction(ACTION5_ID, TARGET_ENTITY_ID_5, SERVICENOW_ONGEN_WORKFLOW);
+        final Action actionSNOWNewWorkflow = createAction(ACTION6_ID, TARGET_ENTITY_ID_6, SERVICENOW_ONGEN_WORKFLOW_2);
+        actionAuditSender.sendOnGenerationEvents(
+            Arrays.asList(
+                actionStaysTheSame,
+                actionNewWorkflow,
+                actionRemovedWorkflow,
+                actionRemovedPolicy,
+                actionSNOWStaysTheSame,
+                actionSNOWNewWorkflow
+            ), entitiesAndSettingsSnapshot);
+
+        // One action that changed ActionStream workflows, and 2 ServiceNOW actions that
+        // ActionAuditSender always resends.
+        Mockito.verify(messageSender, Mockito.times(3)).sendMessage(sentActionEventMessageCaptor.capture());
+        Assert.assertEquals(actionNewWorkflow.getRecommendationOid(),
+            sentActionEventMessageCaptor.getAllValues().get(0).getActionRequest().getActionId());
+        Assert.assertEquals(actionSNOWStaysTheSame.getRecommendationOid(),
+            sentActionEventMessageCaptor.getAllValues().get(1).getActionRequest().getActionId());
+        Assert.assertEquals(actionSNOWNewWorkflow.getRecommendationOid(),
+            sentActionEventMessageCaptor.getAllValues().get(2).getActionRequest().getActionId());
+
+        // Check which actions ActionAuditSender wanted to persist
+        Mockito.verify(auditedActionsManager, Mockito.times(1))
+            .persistAuditedActionsUpdates(persistedActionsCaptor.capture());
+        AuditedActionsUpdate actualUpdate = persistedActionsCaptor.getValue();
+        Assert.assertEquals(
+            Arrays.asList(new AuditedActionInfo(ACTION2_ID, KAFKA_ONGEN_WORKFLOW_ID_2, TARGET_ENTITY_ID_2, VMEM_RESIZE_UP_ONGEN, Optional.empty())),
+            actualUpdate.getAuditedActions());
+        Assert.assertEquals(Collections.emptyList(), actualUpdate.getRecentlyClearedActions());
+        Assert.assertEquals(Collections.emptyList(), actualUpdate.getRemovedActionRecommendationOid());
+        final List<AuditedActionInfo> expectedRemovedAudits = Arrays.asList(
+            new AuditedActionInfo(actionNewWorkflow.getRecommendationOid(), KAFKA_ONGEN_WORKFLOW_ID, TARGET_ENTITY_ID_2, VMEM_RESIZE_UP_ONGEN, Optional.empty()),
+            new AuditedActionInfo(actionRemovedWorkflow.getRecommendationOid(), KAFKA_ONGEN_WORKFLOW_ID, TARGET_ENTITY_ID_3, VMEM_RESIZE_UP_ONGEN, Optional.empty()),
+            new AuditedActionInfo(actionRemovedPolicy.getRecommendationOid(), KAFKA_ONGEN_WORKFLOW_ID, TARGET_ENTITY_ID_4, VMEM_RESIZE_UP_ONGEN, Optional.empty())
+        );
+        Assert.assertEquals(expectedRemovedAudits, actualUpdate.getRemovedAudits());
     }
 
     /**
@@ -405,17 +646,14 @@ public class ActionAuditSenderTest {
      *     it (without sending it as CLEARED because action don't met cleared criteria yet)
      * III. market again recommends `actionForAudit` so we need to reset cleared_timestamp for it
      *
-     * @throws WorkflowStoreException shouldn't be thrown
-     * @throws CommunicationException shouldn't be thrown
-     * @throws InterruptedException shouldn't be thrown
+     * @throws Exception shouldn't be thrown
      */
     @Test
-    public void testResetOfClearedTimestamp()
-            throws WorkflowStoreException, CommunicationException, InterruptedException {
+    public void testResetOfClearedTimestamp() throws Exception {
         final Action actionForAudit = createAction(ACTION1_ID, KAFKA_ONGEN_WORKFLOW);
         when(auditedActionsManager.getAlreadySentActions()).thenReturn(Collections.emptyList());
         // I. send `actionForAudit` first time
-        actionAuditSender.sendOnGenerationEvents(Collections.singletonList(actionForAudit));
+        actionAuditSender.sendOnGenerationEvents(Collections.singletonList(actionForAudit), entitiesAndSettingsSnapshot);
 
         // `actionForAudit` will be send for audit as a new action.
         Mockito.verify(messageSender, Mockito.times(1))
@@ -438,14 +676,24 @@ public class ActionAuditSenderTest {
         final List<AuditedActionInfo> alreadySentActions =
                 Collections.singletonList(
                         new AuditedActionInfo(actionForAudit.getRecommendationOid(), KAFKA_ONGEN_WORKFLOW_ID,
+                                TARGET_ENTITY_ID_1, VMEM_RESIZE_UP_ONGEN,
                                 Optional.empty()));
 
         when(auditedActionsManager.getAlreadySentActions()).thenReturn(alreadySentActions);
         when(auditedActionsManager.isAlreadySent(ACTION1_ID, KAFKA_ONGEN_WORKFLOW_ID)).thenReturn(true);
+        final Map<String, Setting> settingsMap = new HashMap<>();
+        settingsMap.put(VMEM_RESIZE_UP_ONGEN, Setting.newBuilder()
+                .setStringSettingValue(StringSettingValue.newBuilder()
+                        .setValue(String.valueOf(KAFKA_ONGEN_WORKFLOW_ID))
+                        .build())
+                .setSettingSpecName(VMEM_RESIZE_UP_ONGEN)
+                .build());
+        when(entitiesAndSettingsSnapshot.getSettingsForEntity(TARGET_ENTITY_ID_1)).thenReturn(
+                settingsMap);
         // II. `actionForAudit` is not recommended now, but we audited it before, so we need to
         // update cleared_timestamp for it (without sending it as CLEARED, because don't met
         // cleared criteria)
-        actionAuditSender.sendOnGenerationEvents(Collections.emptyList());
+        actionAuditSender.sendOnGenerationEvents(Collections.emptyList(), entitiesAndSettingsSnapshot);
 
         // don't send any actions for audit
         Mockito.verify(messageSender, Mockito.times(0))
@@ -467,13 +715,14 @@ public class ActionAuditSenderTest {
         final List<AuditedActionInfo> alreadySentActions2 =
                 Collections.singletonList(
                         new AuditedActionInfo(actionForAudit.getRecommendationOid(), KAFKA_ONGEN_WORKFLOW_ID,
+                                TARGET_ENTITY_ID_1, VMEM_RESIZE_UP_ONGEN,
                                 // still 1 millisecond until expiry, so this action should not be cleared
                                 Optional.of(CURRENT_TIME - MINUTES_UNTIL_MARKED_CLEARED + 1)));
         when(auditedActionsManager.getAlreadySentActions()).thenReturn(alreadySentActions2);
         when(auditedActionsManager.isAlreadySent(ACTION1_ID, KAFKA_ONGEN_WORKFLOW_ID)).thenReturn(true);
         // III. `actionForAudit` is come back before meeting CLEARED criteria, so we don't send
         // it as CLEARED and reset cleared_timestamp
-        actionAuditSender.sendOnGenerationEvents(Collections.singletonList(actionForAudit));
+        actionAuditSender.sendOnGenerationEvents(Collections.singletonList(actionForAudit), entitiesAndSettingsSnapshot);
 
         // don't send any actions for audit (`actionForAudit` was already sent for ON_GEN audit
         // and it shouldn't be send as CLEARED)
@@ -504,7 +753,7 @@ public class ActionAuditSenderTest {
         final Action actionForAudit = createAction(ACTION1_ID, KAFKA_ONGEN_WORKFLOW);
         when(auditedActionsManager.getAlreadySentActions()).thenReturn(Collections.emptyList());
         // I. send `actionForAudit` first time
-        actionAuditSender.sendOnGenerationEvents(Collections.singletonList(actionForAudit));
+        actionAuditSender.sendOnGenerationEvents(Collections.singletonList(actionForAudit), entitiesAndSettingsSnapshot);
 
         // `actionForAudit` will be send for audit as a new action.
         Mockito.verify(messageSender, Mockito.times(1))
@@ -587,20 +836,104 @@ public class ActionAuditSenderTest {
             serviceNowActionSent.getNewState());
     }
 
+    /**
+     * When the actions' target entity has a setting value that is not an integer, skip processing
+     * it and do not fail action processing.
+     *
+     * @throws Exception should not be thrown.
+     */
+    @Test
+    public void testNonLongSettingShouldNotBreakAuditSender() throws Exception {
+        // Actions we previously sent under the previous workflow.
+        when(auditedActionsManager.isAlreadySent(ACTION1_ID, KAFKA_ONGEN_WORKFLOW_ID)).thenReturn(true);
+        when(auditedActionsManager.isAlreadySent(ACTION2_ID, KAFKA_ONGEN_WORKFLOW_ID)).thenReturn(true);
+        when(auditedActionsManager.getAlreadySentActions()).thenReturn(Arrays.asList(
+            new AuditedActionInfo(ACTION1_ID, KAFKA_ONGEN_WORKFLOW_ID, TARGET_ENTITY_ID_1, VMEM_RESIZE_UP_ONGEN, Optional.empty()),
+            new AuditedActionInfo(ACTION2_ID, KAFKA_ONGEN_WORKFLOW_ID, TARGET_ENTITY_ID_2, VMEM_RESIZE_UP_ONGEN, Optional.empty())
+        ));
+
+        final Action actionGetsInvalidSetting = createAction(ACTION1_ID, TARGET_ENTITY_ID_1, KAFKA_ONGEN_WORKFLOW);
+        when(entitiesAndSettingsSnapshot.getSettingsForEntity(TARGET_ENTITY_ID_1)).thenReturn(
+            ImmutableMap.<String, SettingProto.Setting>builder()
+                .put(VMEM_RESIZE_UP_ONGEN, createWorkflowSetting(VMEM_RESIZE_UP_ONGEN, INVALID_SETTING_VALUE))
+                .build());
+        // action cleared, but there is still a setting for the target entity
+        when(entitiesAndSettingsSnapshot.getSettingsForEntity(TARGET_ENTITY_ID_2)).thenReturn(
+            ImmutableMap.<String, SettingProto.Setting>builder()
+                .put(VMEM_RESIZE_UP_ONGEN, createWorkflowSetting(VMEM_RESIZE_UP_ONGEN, KAFKA_ONGEN_WORKFLOW_ID))
+                .build());
+        actionAuditSender.sendOnGenerationEvents(
+            Arrays.asList(actionGetsInvalidSetting),
+            entitiesAndSettingsSnapshot);
+
+        // No action is sent because they are already in book keeping.
+        Mockito.verify(messageSender, Mockito.times(0)).sendMessage(sentActionEventMessageCaptor.capture());
+        // Check which actions ActionAuditSender wanted to persist
+        Mockito.verify(auditedActionsManager, Mockito.times(1))
+            .persistAuditedActionsUpdates(persistedActionsCaptor.capture());
+        AuditedActionsUpdate actualUpdate = persistedActionsCaptor.getValue();
+        // no new audits since the action was already sent and had an invalid setting value
+        Assert.assertEquals(Collections.emptyList(), actualUpdate.getAuditedActions());
+        // the other action was not in the most recent broadcast so it recently cleared
+        Assert.assertEquals(
+            Arrays.asList(
+                new AuditedActionInfo(ACTION2_ID, KAFKA_ONGEN_WORKFLOW_ID, TARGET_ENTITY_ID_2, VMEM_RESIZE_UP_ONGEN, Optional.of(CURRENT_TIME))
+            ),
+            actualUpdate.getRecentlyClearedActions());
+        Assert.assertEquals(Collections.emptyList(), actualUpdate.getRemovedActionRecommendationOid());
+        Assert.assertEquals(Collections.emptyList(), actualUpdate.getRemovedAudits());
+    }
+
+    private Setting createWorkflowSetting(String settingName, long workflowOid) {
+        return createWorkflowSetting(settingName, String.valueOf(workflowOid));
+    }
+
+    private Setting createWorkflowSetting(String settingName, String settingValue) {
+        return Setting.newBuilder()
+            .setSettingSpecName(settingName)
+            .setStringSettingValue(
+                StringSettingValue.newBuilder()
+                    .setValue(String.valueOf(settingValue))
+                    .build()
+            )
+            .build();
+    }
+
     private Action createAction(
         long oid,
         @Nullable Workflow workflow) throws WorkflowStoreException {
-        return createAction(oid, workflow, null);
+        return createAction(oid, null, workflow);
+    }
+
+    private Action createAction(
+        long oid,
+        @Nullable Long nullableTargetEntityId,
+        @Nullable Workflow workflow) throws WorkflowStoreException {
+        return createAction(oid, nullableTargetEntityId, workflow, null);
+    }
+
+    private Action createAction(
+        long oid,
+        @Nullable Workflow workflow,
+        @Nullable ActionState state) throws WorkflowStoreException {
+        return createAction(oid, null, workflow, state);
     }
 
     private Action createAction(
             long oid,
+            @Nullable Long nullableTargetEntityId,
             @Nullable Workflow workflow,
             @Nullable ActionState state) throws WorkflowStoreException {
+        final long targetEntityId;
+        if (nullableTargetEntityId == null) {
+            targetEntityId = 10;
+        } else {
+            targetEntityId = nullableTargetEntityId;
+        }
         final ActionDTO.Action actionDTO = ActionDTO.Action.newBuilder().setId(oid).setInfo(
                 ActionInfo.newBuilder()
                         .setDelete(Delete.newBuilder().setTarget(ActionEntity.newBuilder()
-                                .setId(10)
+                                .setId(targetEntityId)
                                 .setType(12)
                                 .build()))).setExplanation(Explanation.newBuilder()
                 .setDeactivate(DeactivateExplanation.newBuilder().build())

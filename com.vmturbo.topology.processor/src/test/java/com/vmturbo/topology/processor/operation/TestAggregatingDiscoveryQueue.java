@@ -172,7 +172,8 @@ public class TestAggregatingDiscoveryQueue implements AggregatingDiscoveryQueue 
     @Override
     public synchronized Optional<IDiscoveryQueueElement> takeNextQueuedDiscovery(
             @Nonnull ITransport<MediationServerMessage, MediationClientMessage> transport,
-            @Nonnull Collection<Long> probeTypes, @Nonnull DiscoveryType discoveryType)
+            @Nonnull Collection<Long> probeTypes, @Nonnull DiscoveryType discoveryType,
+            long timeoutMillis)
             throws InterruptedException {
         Optional<IDiscoveryQueueElement> element = pollNextQueuedDiscovery(transport, probeTypes,
                 discoveryType);

@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
@@ -22,7 +23,10 @@ import com.google.common.collect.ImmutableList;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
+import org.apache.commons.io.FileUtils;
+import org.assertj.core.util.Files;
 import org.assertj.core.util.Lists;
+import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -118,7 +122,10 @@ public class RestTest {
     @Autowired
     private WebApplicationContext wac;
 
-    @Rule public TemporaryFolder tempFolder = new TemporaryFolder();
+    /**
+     * temp directory used by auth store.
+     */
+    private static File tempFolder = Files.newTemporaryFolder();
 
     /**
      * The KV store
@@ -139,12 +146,6 @@ public class RestTest {
 
     static final SsoUtil ssoUtil = new SsoUtil();
 
-    static {
-        authStore = new AuthProvider(kvStore, null,
-                () -> System.getProperty("com.vmturbo.kvdir"), null, new UserPolicy(LoginPolicy.ALL,
-                new ReportPolicy(1)), ssoUtil, false, false);
-    }
-
     /**
      * The verifier.
      */
@@ -154,19 +155,25 @@ public class RestTest {
 
     @BeforeClass
     public static void staticSetUp() {
+        System.setProperty("com.vmturbo.keydir", tempFolder.getAbsolutePath());
+        System.setProperty("com.vmturbo.kvdir", tempFolder.getAbsolutePath());
         System.setProperty("instance_id", "auth-1");
         System.setProperty("identityGeneratorPrefix", "7");
     }
 
     @Before
     public void setUp() throws IOException {
-        System.setProperty("com.vmturbo.keydir", tempFolder.newFolder().getAbsolutePath());
-        System.setProperty("com.vmturbo.kvdir", tempFolder.newFolder().getAbsolutePath());
+        FileUtils.cleanDirectory(tempFolder);
         mockMvc = MockMvcBuilders.webAppContextSetup(wac).build();
         kvStore.removeKeysWithPrefix("users");
         kvStore.removeKeysWithPrefix("groups");
         kvStore.removeKeysWithPrefix("ad");
         ssoUtil.reset();
+    }
+
+    @AfterClass
+    public static void staticTearDown() throws IOException {
+        FileUtils.deleteDirectory(tempFolder);
     }
 
     private static final String RET_TYPE = MediaType.APPLICATION_JSON_UTF8_VALUE;
@@ -214,6 +221,9 @@ public class RestTest {
 
         @Bean
         public AuthProvider targetStore() {
+            authStore = new AuthProvider(kvStore, null,
+                    () -> System.getProperty("com.vmturbo.kvdir"), null, new UserPolicy(LoginPolicy.ALL,
+                    new ReportPolicy(1)), ssoUtil, false, false);
             return authStore;
         }
 

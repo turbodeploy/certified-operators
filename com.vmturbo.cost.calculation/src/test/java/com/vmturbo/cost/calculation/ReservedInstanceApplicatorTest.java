@@ -168,7 +168,12 @@ public class ReservedInstanceApplicatorTest {
                 .putCouponsCoveredByRi(RI_ID, 5.0)
                 .build());
         final TestEntityClass computeTier = TestEntityClass.newBuilder(COMPUTE_TIER_ID)
-                .setComputeTierConfig(new ComputeTierConfig(TOTAL_COUPONS_REQUIRED, DEFAULT_CORE_NUM, BURSTABLE_CPU))
+                .setComputeTierConfig(ComputeTierConfig.builder()
+                        .computeTierOid(COMPUTE_TIER_ID)
+                        .numCoupons(TOTAL_COUPONS_REQUIRED)
+                        .numCores(DEFAULT_CORE_NUM)
+                        .isBurstableCPU(BURSTABLE_CPU)
+                        .build())
                 .build(infoExtractor);
         final ReservedInstanceApplicator<TestEntityClass> applicator =
             applicatorFactory.newReservedInstanceApplicator(costJournal, infoExtractor,
@@ -198,7 +203,12 @@ public class ReservedInstanceApplicatorTest {
                 .putCouponsCoveredByRi(RI_ID, 100)
                 .build());
         final TestEntityClass computeTier = TestEntityClass.newBuilder(COMPUTE_TIER_ID)
-                .setComputeTierConfig(new ComputeTierConfig(TOTAL_COUPONS_REQUIRED, DEFAULT_CORE_NUM, BURSTABLE_CPU))
+                .setComputeTierConfig(ComputeTierConfig.builder()
+                        .computeTierOid(COMPUTE_TIER_ID)
+                        .numCoupons(TOTAL_COUPONS_REQUIRED)
+                        .numCores(DEFAULT_CORE_NUM)
+                        .isBurstableCPU(BURSTABLE_CPU)
+                        .build())
                 .build(infoExtractor);
         final ReservedInstanceApplicator<TestEntityClass> applicator =
             applicatorFactory.newReservedInstanceApplicator(costJournal, infoExtractor,
@@ -232,7 +242,12 @@ public class ReservedInstanceApplicatorTest {
         final TestEntityClass entity = TestEntityClass.newBuilder(ENTITY_ID)
                 .build(infoExtractor);
         final TestEntityClass computeTier = TestEntityClass.newBuilder(COMPUTE_TIER_ID)
-                .setComputeTierConfig(new ComputeTierConfig(TOTAL_COUPONS_REQUIRED, DEFAULT_CORE_NUM, BURSTABLE_CPU))
+                .setComputeTierConfig(ComputeTierConfig.builder()
+                        .computeTierOid(COMPUTE_TIER_ID)
+                        .numCoupons(TOTAL_COUPONS_REQUIRED)
+                        .numCores(DEFAULT_CORE_NUM)
+                        .isBurstableCPU(BURSTABLE_CPU)
+                        .build())
                 .build(infoExtractor);
         when(costJournal.getEntity()).thenReturn(entity);
         TraxNumber coveredPercentage = applicator.recordRICoverage(computeTier, price, true);
@@ -251,7 +266,12 @@ public class ReservedInstanceApplicatorTest {
         final TestEntityClass computeTier = TestEntityClass.newBuilder(COMPUTE_TIER_ID)
                 // 0 coupons required - this would mainly happens if the coupon number is not set
                 // in the topology.
-                .setComputeTierConfig(new ComputeTierConfig(0, DEFAULT_CORE_NUM, BURSTABLE_CPU))
+                .setComputeTierConfig(ComputeTierConfig.builder()
+                        .computeTierOid(COMPUTE_TIER_ID)
+                        .numCoupons(0)
+                        .numCores(DEFAULT_CORE_NUM)
+                        .isBurstableCPU(BURSTABLE_CPU)
+                        .build())
                 .build(infoExtractor);
         when(costJournal.getEntity()).thenReturn(entity);
 
@@ -272,7 +292,12 @@ public class ReservedInstanceApplicatorTest {
                 applicatorFactory.newReservedInstanceApplicator(costJournal, infoExtractor,
                         cloudCostData, topologyRiCoverage);
         final TestEntityClass computeTier = TestEntityClass.newBuilder(COMPUTE_TIER_ID)
-                .setComputeTierConfig(new ComputeTierConfig(TOTAL_COUPONS_REQUIRED, DEFAULT_CORE_NUM, BURSTABLE_CPU))
+                .setComputeTierConfig(ComputeTierConfig.builder()
+                        .computeTierOid(COMPUTE_TIER_ID)
+                        .numCoupons(TOTAL_COUPONS_REQUIRED)
+                        .numCores(DEFAULT_CORE_NUM)
+                        .isBurstableCPU(BURSTABLE_CPU)
+                        .build())
                 .build(infoExtractor);
         when(costJournal.getEntity()).thenReturn(entity);
         when(cloudCostData.getExistingRiBoughtData(RI_ID)).thenReturn(Optional.empty());
@@ -296,7 +321,12 @@ public class ReservedInstanceApplicatorTest {
                 applicatorFactory.newReservedInstanceApplicator(journalBuilder, infoExtractor,
                         cloudCostData, topologyRiCoverage);
         final TestEntityClass computeTier = TestEntityClass.newBuilder(COMPUTE_TIER_ID)
-                .setComputeTierConfig(new ComputeTierConfig(TOTAL_COUPONS_REQUIRED, DEFAULT_CORE_NUM, BURSTABLE_CPU))
+                .setComputeTierConfig(ComputeTierConfig.builder()
+                        .computeTierOid(COMPUTE_TIER_ID)
+                        .numCoupons(TOTAL_COUPONS_REQUIRED)
+                        .numCores(DEFAULT_CORE_NUM)
+                        .isBurstableCPU(BURSTABLE_CPU)
+                        .build())
                 .build(infoExtractor);
 
         final ReservedInstanceData riData = new ReservedInstanceData(RI_BOUGHT, RI_SPEC);

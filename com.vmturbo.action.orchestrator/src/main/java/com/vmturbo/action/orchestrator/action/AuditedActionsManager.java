@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.ScheduledExecutorService;
@@ -16,6 +15,7 @@ import javax.annotation.Nonnull;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.Table;
+import com.google.common.collect.Table.Cell;
 
 import org.apache.commons.lang3.time.StopWatch;
 import org.apache.logging.log4j.LogManager;
@@ -35,7 +35,7 @@ public class AuditedActionsManager {
      * workflowId, value - cleared time).
      * Action can be send for audit to several targets (defines by discovered workflow).
      */
-    private final Table<Long, Long, Optional<Long>> sentActionsToWorkflowCache;
+    private final Table<Long, Long, AuditedActionInfo> sentActionsToWorkflowCache;
 
     /**
      * Queue containing new audited actions that we need to write into DB or CLEARED actions for
@@ -161,8 +161,8 @@ public class AuditedActionsManager {
         } else {
             logger.trace("No actions to persist.");
         }
-        if (!batch.expiredClearedAuditedActionInfos.isEmpty()) {
-            auditActionsPersistenceManager.removeActionWorkflows(batch.expiredClearedAuditedActionInfos.stream()
+        if (!batch.removedAuditedActionInfos.isEmpty()) {
+            auditActionsPersistenceManager.removeActionWorkflows(batch.removedAuditedActionInfos.stream()
                     .map(auditedActionInfo -> new Pair<>(auditedActionInfo.getRecommendationId(),
                             auditedActionInfo.getWorkflowId()))
                     .collect(Collectors.toList()));
@@ -174,14 +174,14 @@ public class AuditedActionsManager {
         }
     }
 
-    private Table<Long, Long, Optional<Long>> restoreAuditedActionsFromDB() {
+    private Table<Long, Long, AuditedActionInfo> restoreAuditedActionsFromDB() {
         final StopWatch stopWatch = StopWatch.createStarted();
         final Collection<AuditedActionInfo> auditedActionsInfo =
                 auditActionsPersistenceManager.getActions();
-        final Table<Long, Long, Optional<Long>> result = HashBasedTable.create();
+        final Table<Long, Long, AuditedActionInfo> result = HashBasedTable.create();
         for (AuditedActionInfo auditedActionInfo : auditedActionsInfo) {
             result.put(auditedActionInfo.getRecommendationId(), auditedActionInfo.getWorkflowId(),
-                    auditedActionInfo.getClearedTimestamp());
+                    auditedActionInfo);
         }
         logger.info("Restored bookkeeping cache for {} audited actions from DB in {} ms.",
                 result.size(), stopWatch.getTime(TimeUnit.MILLISECONDS));
@@ -207,7 +207,7 @@ public class AuditedActionsManager {
     public Collection<AuditedActionInfo> getAlreadySentActions() {
         return sentActionsToWorkflowCache.cellSet()
                 .stream()
-                .map(el -> new AuditedActionInfo(el.getRowKey(), el.getColumnKey(), el.getValue()))
+                .map(Cell::getValue)
                 .collect(Collectors.toList());
     }
 
@@ -222,7 +222,7 @@ public class AuditedActionsManager {
         return sentActionsToWorkflowCache.cellSet()
                 .stream()
                 .filter(el -> el.getColumnKey() == workflowId)
-                .map(el -> new AuditedActionInfo(el.getRowKey(), el.getColumnKey(), el.getValue()))
+                .map(Cell::getValue)
                 .collect(Collectors.toList());
     }
 
@@ -242,11 +242,11 @@ public class AuditedActionsManager {
     private void updateInMemoryCache(@Nonnull final AuditedActionsUpdate batch) {
         batch.addedAuditedActionInfos.forEach(
                 act -> sentActionsToWorkflowCache.put(act.getRecommendationId(),
-                        act.getWorkflowId(), act.getClearedTimestamp()));
+                        act.getWorkflowId(), act));
         batch.recentlyClearedAuditedActionInfos.forEach(
                 act -> sentActionsToWorkflowCache.put(act.getRecommendationId(),
-                        act.getWorkflowId(), act.getClearedTimestamp()));
-        batch.expiredClearedAuditedActionInfos.forEach(
+                        act.getWorkflowId(), act));
+        batch.removedAuditedActionInfos.forEach(
                 act -> sentActionsToWorkflowCache.remove(act.getRecommendationId(),
                         act.getWorkflowId()));
         batch.removedActionRecommendationOids.forEach(
@@ -266,7 +266,7 @@ public class AuditedActionsManager {
 
         private final List<AuditedActionInfo> addedAuditedActionInfos;
         private final List<AuditedActionInfo> recentlyClearedAuditedActionInfos;
-        private final List<AuditedActionInfo> expiredClearedAuditedActionInfos;
+        private final List<AuditedActionInfo> removedAuditedActionInfos;
         private final List<Long> removedActionRecommendationOids;
 
         /**
@@ -275,7 +275,7 @@ public class AuditedActionsManager {
         public AuditedActionsUpdate() {
             this.addedAuditedActionInfos = new ArrayList<>();
             this.recentlyClearedAuditedActionInfos = new ArrayList<>();
-            this.expiredClearedAuditedActionInfos = new ArrayList<>();
+            this.removedAuditedActionInfos = new ArrayList<>();
             this.removedActionRecommendationOids = new ArrayList<>();
         }
 
@@ -304,11 +304,13 @@ public class AuditedActionsManager {
          * Adds action that was audited recently, but it is not recommended during certain
          * time (TTL for CLEARED audited actions).
          *
-         * @param actionInfo contains information about action id, workflow id and
-         * cleared_timestamp if present
+         * <p>Could also be an audit that needs to be removed because the setting policy changed.</p>
+         *
+         * @param removedAudit contains information about action id, workflow id that needs to be
+         *                     removed.
          */
-        public void addExpiredClearedAction(@Nonnull final AuditedActionInfo actionInfo) {
-            expiredClearedAuditedActionInfos.add(actionInfo);
+        public void addAuditedActionForRemoval(@Nonnull final AuditedActionInfo removedAudit) {
+            removedAuditedActionInfos.add(removedAudit);
         }
 
         /**
@@ -340,12 +342,12 @@ public class AuditedActionsManager {
         }
 
         /**
-         * Returns the expired actions accumulated so far.
+         * Returns the expired actions and audits that need to be removed.
          *
-         * @return the expired actions accumulated so far.
+         * @return the expired actions and audits that need to be removed.
          */
-        public List<AuditedActionInfo> getExpiredClearedActions() {
-            return expiredClearedAuditedActionInfos;
+        public List<AuditedActionInfo> getRemovedAudits() {
+            return removedAuditedActionInfos;
         }
 
         /**
@@ -362,7 +364,7 @@ public class AuditedActionsManager {
             return "AuditedActionsUpdate{"
                 + "addedAuditedActionInfos=" + addedAuditedActionInfos
                 + ", recentlyClearedAuditedActionInfos=" + recentlyClearedAuditedActionInfos
-                + ", expiredClearedAuditedActionInfos=" + expiredClearedAuditedActionInfos
+                + ", expiredClearedAuditedActionInfos=" + removedAuditedActionInfos
                 + ", removedActionRecommendationOids=" + removedActionRecommendationOids
                 + '}';
         }

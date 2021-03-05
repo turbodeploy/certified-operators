@@ -180,12 +180,27 @@ public class InitialPlacementFinder {
      * from both economy caches.
      *
      * @param deleteBuyerOids the list of reservation buyer oids.
+     * @param deployed if true the vm is just deployed. don't delete from historical.
      * @return true if removal from the cached economy completes.
      */
-    public boolean buyersToBeDeleted(List<Long> deleteBuyerOids) {
+    public boolean buyersToBeDeleted(List<Long> deleteBuyerOids, boolean deployed) {
         synchronized (reservationLock) {
-            logger.info(logPrefix + "Prepare to delete reservation entities {} from both cached economies",
-                    deleteBuyerOids);
+            if (deployed) {
+                for (Map.Entry<Long, List<InitialPlacementBuyer>> entry : existingReservations.entrySet()) {
+                    List<InitialPlacementBuyer> modifiedBuyers = new ArrayList<>();
+                    for (InitialPlacementBuyer buyer : entry.getValue()) {
+                        InitialPlacementBuyer.Builder modifiedBuyer = buyer.toBuilder();
+                        if (deleteBuyerOids.contains(buyer.getBuyerId())) {
+                            modifiedBuyer.setDeployed(true);
+                        }
+                        modifiedBuyers.add(modifiedBuyer.build());
+                    }
+                    existingReservations.get(entry.getKey()).clear();
+                    existingReservations.get(entry.getKey()).addAll(modifiedBuyers);
+                }
+            }
+            logger.info(logPrefix + "Prepare to delete reservation entities {} from {} cached economies",
+                    deleteBuyerOids, deployed ? "realtime" : "both");
             Set<Long> reservationsToRemove = new HashSet();
             for (Map.Entry<Long, List<InitialPlacementBuyer>> entry : existingReservations.entrySet()) {
                 Set<Long> existingBuyerOids = entry.getValue().stream()
@@ -202,9 +217,11 @@ public class InitialPlacementFinder {
                         .map(InitialPlacementBuyer::getBuyerId)
                         .collect(Collectors.toSet());
                 try {
-                    economyCaches.clearDeletedBuyersFromCache(buyerOids);
-                    buyerPlacements.keySet().removeAll(buyerOids);
-                    existingReservations.remove(oid);
+                    economyCaches.clearDeletedBuyersFromCache(buyerOids, deployed);
+                    if (!deployed) {
+                        buyerPlacements.keySet().removeAll(buyerOids);
+                        existingReservations.remove(oid);
+                    }
                     logger.info(logPrefix + "Reservation {} is successfully remove with {} entities.", oid,
                             buyerOids.size());
                 } catch (Exception exception) {
@@ -276,7 +293,7 @@ public class InitialPlacementFinder {
                     // or buyerPlacements and no such buyers exist in both economy caches.
                     existingReservations.remove(buyersPerReservation.getKey());
                     buyersInOneRes.stream().forEach(buyerOid -> buyerPlacements.remove(buyerOid));
-                    economyCaches.clearDeletedBuyersFromCache(buyersInOneRes);
+                    economyCaches.clearDeletedBuyersFromCache(buyersInOneRes, false);
                     buyersPerReservation.getValue().stream()
                             .map(buyer -> buyer.getInitialPlacementCommoditiesBoughtFromProviderList())
                             .flatMap(List::stream)

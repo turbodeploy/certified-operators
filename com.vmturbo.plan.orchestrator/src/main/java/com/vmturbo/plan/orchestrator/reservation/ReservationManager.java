@@ -428,7 +428,9 @@ public class ReservationManager implements ReservationDeletedListener {
                 for (ReservationInstance reservationInstance : reservationTemplate.getReservationInstanceList()) {
                     long buyerId = reservationInstance.getEntityId();
                     InitialPlacementBuyer.Builder intialPlacementBuyerBuilder =
-                            InitialPlacementBuyer.newBuilder().setBuyerId(buyerId).setReservationId(reservation.getId());
+                            InitialPlacementBuyer.newBuilder().setBuyerId(buyerId)
+                                    .setReservationId(reservation.getId())
+                                    .setDeployed(reservation.getDeployed());
                     for (PlacementInfo placementInfo : reservationInstance.getPlacementInfoList()) {
                         intialPlacementBuyerBuilder.addInitialPlacementCommoditiesBoughtFromProvider(
                                 InitialPlacementCommoditiesBoughtFromProvider.newBuilder()
@@ -880,10 +882,12 @@ public class ReservationManager implements ReservationDeletedListener {
     /**
      * Delete the reservation from the market Cache.
      * @param reservations the reservations to be deleted.
+     * @param deployed true if the associated VM is deployed.
      */
-    public void deleteReservationFromMarketCache(@Nonnull final Set<Reservation> reservations) {
+    public void deleteReservationFromMarketCache(@Nonnull final Set<Reservation> reservations, boolean deployed) {
         DeleteInitialPlacementBuyerRequest.Builder deleteInitialPlacementBuyerRequest =
                 DeleteInitialPlacementBuyerRequest.newBuilder();
+        deleteInitialPlacementBuyerRequest.setDeployed(deployed);
         for (Reservation reservation : reservations) {
             reservation.getReservationTemplateCollection().getReservationTemplateList()
                     .stream().forEach(template -> template.getReservationInstanceList()
@@ -898,11 +902,11 @@ public class ReservationManager implements ReservationDeletedListener {
     }
 
     @Override
-    public void onReservationDeleted(@Nonnull final Reservation reservation) {
+    public void onReservationDeleted(@Nonnull final Reservation reservation, boolean deployed) {
         logger.info(logPrefix + " Deleted reservation: " + reservation.getName()
                 + " id: " + reservation.getId());
         RESERVATION_STATUS_COUNTER.labels(DELETED_STATUS).increment();
-        deleteReservationFromMarketCache(Collections.singleton(reservation));
+        deleteReservationFromMarketCache(Collections.singleton(reservation), deployed);
         checkAndStartReservationPlan();
     }
 

@@ -1,6 +1,5 @@
 package com.vmturbo.topology.processor.actions.data.context;
 
-import java.util.Collections;
 import java.util.List;
 
 import javax.annotation.Nonnull;
@@ -139,7 +138,8 @@ public class ResizeContext extends AbstractActionExecutionContext {
         // set VMem/Vcpu data which includes info on hot add/hot remove
         if (sdkCommodityType == CommodityDTO.CommodityType.VMEM) {
             commodity.setVmemData(VMemData.newBuilder()
-                .setHotAddSupported(resizeInfo.getHotAddSupported()).build());
+                .setHotAddSupported(resizeInfo.getHotAddSupported())
+                .setHotRemoveSupported(resizeInfo.getHotRemoveSupported()).build());
         } else if (sdkCommodityType == CommodityDTO.CommodityType.VCPU) {
             commodity.setVcpuData(VCpuData.newBuilder()
                 .setHotAddSupported(resizeInfo.getHotAddSupported())
@@ -147,11 +147,5 @@ public class ResizeContext extends AbstractActionExecutionContext {
         }
 
         return commodity;
-    }
-
-    @Nonnull
-    @Override
-    public List<CommodityType> getRiskCommodities() {
-        return Collections.singletonList(getActionInfo().getResize().getCommodityType());
     }
 }

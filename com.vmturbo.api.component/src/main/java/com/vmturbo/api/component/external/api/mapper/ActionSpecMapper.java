@@ -48,6 +48,7 @@ import com.vmturbo.api.component.external.api.mapper.ReservedInstanceMapper.NotF
 import com.vmturbo.api.component.external.api.mapper.ReservedInstanceMapper.NotFoundMatchTenancyException;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
+import com.vmturbo.api.conversion.entity.CommodityTypeMapping;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
@@ -140,7 +141,6 @@ import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.common.protobuf.utils.HCIUtils;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.Units;
-import com.vmturbo.components.common.ClassicEnumMapper;
 import com.vmturbo.components.common.setting.OsMigrationSettingsEnum.OperatingSystem;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -794,6 +794,8 @@ public class ActionSpecMapper {
             AspectName.VIRTUAL_MACHINE, vmAspect));
         context.getDBAspect(targetEntityId).map(dbAspect -> aspects.put(
             AspectName.DATABASE, dbAspect));
+        context.getContainerPlatformContext(targetEntityId).map(cnpAspect -> aspects.put(
+                AspectName.CONTAINER_PLATFORM_CONTEXT, cnpAspect));
         targetEntity.setAspectsByName(aspects);
 
         // add volume aspects if delete volume action
@@ -998,6 +1000,31 @@ public class ActionSpecMapper {
     }
 
     /**
+     * Sets the currentValue and newValue of {@param wrapperDto} to the {@param primaryProvider} ID,
+     * and sets currentEntity and newEntity to a newly created {@link ServiceEntityApiDTO}
+     * representing {@param primaryProvider}.
+     *
+     * @param primaryProvider The primary provider of an action target
+     * @param wrapperDto The API DTO to be delivered
+     * @param context From which to fetch an entity reference
+     */
+    private void setCurrentAndNewToPrimaryProvider(
+            @Nonnull ActionDTO.ActionEntity primaryProvider,
+            @Nonnull final ActionApiDTO wrapperDto,
+            @Nonnull final ActionSpecMappingContext context) {
+        Long primaryProviderId = primaryProvider.getId();
+        String primaryProviderIdString = Long.toString(primaryProviderId);
+        wrapperDto.setCurrentValue(primaryProviderIdString);
+        wrapperDto.setNewValue(primaryProviderIdString);
+
+        ServiceEntityApiDTO primaryProviderSeApiDTO = getServiceEntityDTO(context, primaryProvider);
+        wrapperDto.setCurrentEntity(primaryProviderSeApiDTO);
+        wrapperDto.setNewEntity(primaryProviderSeApiDTO);
+
+        setRelatedDatacenter(primaryProviderId, wrapperDto, context, false);
+    }
+
+    /**
      * Populate various fields of the {@link ActionApiDTO} representing a (compound) move.
      *
      * @param wrapperDto the DTO that represents the move recommendation and
@@ -1044,10 +1071,15 @@ public class ActionSpecMapper {
             wrapperDto.setCurrentEntity(getServiceEntityDTO(context, primaryChange.getSource()));
             setRelatedDatacenter(primarySourceId, wrapperDto, context, false);
         } else {
-            // For less brittle UI integration, we set the current entity to an empty object.
-            // The UI sometimes checks the validity of the "currentEntity.uuid" field,
-            // which throws an error if current entity is unset.
-            wrapperDto.setCurrentEntity(new ServiceEntityApiDTO());
+            final Optional<ActionDTO.ActionEntity> primaryProviderOptional = ActionDTOUtil.getPrimaryProvider(action);
+            if (primaryProviderOptional.isPresent()) {
+                setCurrentAndNewToPrimaryProvider(primaryProviderOptional.get(), wrapperDto, context);
+            } else {
+                // For less brittle UI integration, we set the current entity to an empty object.
+                // The UI sometimes checks the validity of the "currentEntity.uuid" field,
+                // which throws an error if current entity is unset.
+                wrapperDto.setCurrentEntity(new ServiceEntityApiDTO());
+            }
         }
         if (primaryChange != null) {
             long primaryDestinationId = primaryChange.getDestination().getId();
@@ -1425,8 +1457,9 @@ public class ActionSpecMapper {
         actionApiDTO.setNewValue(String.format(FORMAT_FOR_ACTION_VALUES, resizeInfo.getNewCapacity()));
         actionApiDTO.setResizeToValue(String.format(FORMAT_FOR_ACTION_VALUES, resizeInfo.getNewCapacity()));
         // set units if available
-        ClassicEnumMapper.getCommodityUnits(resizeInfo.getCommodityType().getType(), resizeInfo.getTarget().getType())
-                .ifPresent(actionApiDTO::setValueUnits);
+
+        CommodityTypeMapping.getCommodityUnitsForActions(resizeInfo.getCommodityType().getType(),
+            resizeInfo.getTarget().getType()).ifPresent(actionApiDTO::setValueUnits);
 
         // set current location, new location and cloud aspects for cloud resize actions
         if (resizeInfo.getTarget().getEnvironmentType() == EnvironmentTypeEnum.EnvironmentType.CLOUD) {
@@ -1491,7 +1524,7 @@ public class ActionSpecMapper {
         actionApiDTO.setNewValue(String.format(FORMAT_FOR_ACTION_VALUES, resize.getNewCapacity()));
         actionApiDTO.setResizeToValue(String.format(FORMAT_FOR_ACTION_VALUES, resize.getNewCapacity()));
         // set units if available
-        ClassicEnumMapper.getCommodityUnits(resize.getCommodityType().getType(), null)
+        CommodityTypeMapping.getCommodityUnitsForActions(resize.getCommodityType().getType(), null)
                 .ifPresent(actionApiDTO::setValueUnits);
 
         // set current location, new location and cloud aspects for cloud resize actions
@@ -2538,11 +2571,19 @@ public class ActionSpecMapper {
     private ServiceEntityApiDTO getServiceEntityDTO(@Nonnull ActionSpecMappingContext context,
             @Nonnull ActionEntity actionEntity) {
         final Optional<ServiceEntityApiDTO> targetEntity = context.getEntity(actionEntity.getId());
+        final ServiceEntityApiDTO serviceEntityApiDTO;
         if (targetEntity.isPresent()) {
-            return ServiceEntityMapper.copyServiceEntityAPIDTO(targetEntity.get());
+            serviceEntityApiDTO = ServiceEntityMapper.copyServiceEntityAPIDTO(targetEntity.get());
         } else {
-            return getMinimalServiceEntityApiDTO(actionEntity);
+            serviceEntityApiDTO = getMinimalServiceEntityApiDTO(actionEntity);
         }
+
+        // set the cluster if the entity has a cluster
+        context.getCluster(actionEntity.getId())
+            .map(Collections::singletonList)
+            .ifPresent(serviceEntityApiDTO::setConnectedEntities);
+
+        return serviceEntityApiDTO;
     }
 
     /**

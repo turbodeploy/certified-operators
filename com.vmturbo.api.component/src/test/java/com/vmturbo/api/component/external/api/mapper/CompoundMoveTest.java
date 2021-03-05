@@ -55,6 +55,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc;
+import com.vmturbo.common.protobuf.group.GroupDTOMoles;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
@@ -83,6 +85,8 @@ public class CompoundMoveTest {
 
     private PolicyServiceMole policyMole = spy(PolicyServiceMole.class);
 
+    private GroupDTOMoles.GroupServiceMole groupMole = spy(GroupDTOMoles.GroupServiceMole.class);
+
     private SupplyChainServiceMole supplyChainMole = spy(new SupplyChainServiceMole());
 
     private RepositoryApi repositoryApi;
@@ -90,6 +94,8 @@ public class CompoundMoveTest {
     private GrpcTestServer grpcServer;
 
     private PolicyServiceGrpc.PolicyServiceBlockingStub policyService;
+
+    private GroupServiceGrpc.GroupServiceBlockingStub groupService;
 
     private GrpcTestServer supplyChainGrpcServer;
 
@@ -131,9 +137,10 @@ public class CompoundMoveTest {
                     .setName("policy")))
                 .build());
         when(policyMole.getPolicies(Mockito.any())).thenReturn(policyResponses);
-        grpcServer = GrpcTestServer.newServer(policyMole);
+        grpcServer = GrpcTestServer.newServer(policyMole, groupMole);
         grpcServer.start();
         policyService = PolicyServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        groupService = GroupServiceGrpc.newBlockingStub(grpcServer.getChannel());
         RIBuyContextFetchServiceGrpc.RIBuyContextFetchServiceBlockingStub riBuyContextFetchServiceStub =
                 RIBuyContextFetchServiceGrpc.newBlockingStub(grpcServer.getChannel());
 
@@ -161,7 +168,7 @@ public class CompoundMoveTest {
                 mock(EntityAspectMapper.class), virtualVolumeAspectMapper,
                 REAL_TIME_TOPOLOGY_CONTEXT_ID, null, null, serviceEntityMapper,
                 supplyChainService, Mockito.mock(PoliciesService.class),
-                mock(ReservedInstancesService.class));
+                mock(ReservedInstancesService.class), groupService);
 
         CostServiceGrpc.CostServiceBlockingStub costServiceBlockingStub =
                 CostServiceGrpc.newBlockingStub(grpcServer.getChannel());

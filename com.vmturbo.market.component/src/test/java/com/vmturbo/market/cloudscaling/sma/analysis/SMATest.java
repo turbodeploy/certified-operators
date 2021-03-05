@@ -159,6 +159,8 @@ public class SMATest {
         // subroutine to utilize unused coupons.
         testExactResult("2vm1ripostprocessingunusedcoupons.json");
 
+        //current template returns null cost. The vms should remain in same template.
+        testExactResult("3vm1rinocost.json");
 
 
     }

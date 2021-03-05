@@ -1,0 +1,47 @@
+package com.vmturbo.cost.component.savings;
+
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Stream;
+
+import javax.annotation.Nonnull;
+
+/**
+ * Interface for read/write of entity states.
+ */
+public interface EntityStateStore {
+
+    /**
+     * Get a map of entity states given a set of entity IDs.
+     *
+     * @param entityIds a set of entity IDs
+     * @return a map of entity Id to entity states
+     * @throws EntitySavingsException error during operation
+     */
+    @Nonnull
+    Map<Long, EntityState> getEntityStates(@Nonnull Set<Long> entityIds) throws EntitySavingsException;
+
+    /**
+     * Delete entity states given a set of entity IDs.
+     *
+     * @param entityIds a set of entity IDs
+     * @throws EntitySavingsException error during operation
+     */
+    void deleteEntityStates(@Nonnull Set<Long> entityIds) throws EntitySavingsException;
+
+    /**
+     * Update entity states. If the state of the entity is not already in the store, create it.
+     *
+     * @param entityStateMap entity ID mapped to entity state
+     * @throws EntitySavingsException error during operation
+     */
+    void updateEntityStates(@Nonnull Map<Long, EntityState> entityStateMap) throws EntitySavingsException;
+
+    /**
+     * Get all entity states.
+     *
+     * @return all entity states
+     * @throws EntitySavingsException error durring operation
+     */
+    Stream<EntityState> getAllEntityStates() throws EntitySavingsException;
+}

@@ -6,6 +6,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -21,6 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Query;
+import org.jooq.Record1;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 
@@ -157,6 +160,14 @@ public class BusinessAccountPriceTableKeyStore implements DiagsRestorable<Void> 
                 .where(filterCondition(businessAccountOIDs))
                 .fetchMap(Tables.BUSINESS_ACCOUNT_PRICE_TABLE_KEY.BUSINESS_ACCOUNT_OID,
                         Tables.BUSINESS_ACCOUNT_PRICE_TABLE_KEY.PRICE_TABLE_KEY_OID);
+    }
+
+    public Optional<Long> fetchPriceTableKeyOidForAccount(long accountOid) {
+        return dsl.select(Tables.BUSINESS_ACCOUNT_PRICE_TABLE_KEY.PRICE_TABLE_KEY_OID)
+                .from(Tables.BUSINESS_ACCOUNT_PRICE_TABLE_KEY)
+                .where(filterCondition(Collections.singleton(accountOid)))
+                .fetchOptional()
+                .map(Record1::value1);
     }
 
     /**

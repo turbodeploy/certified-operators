@@ -118,7 +118,12 @@ public class TopologyEntityInfoExtractor implements EntityInfoExtractor<Topology
             return Optional.empty();
         }
         final ComputeTierInfo tierInfo = entity.getTypeSpecificInfo().getComputeTier();
-        return Optional.of(new ComputeTierConfig(tierInfo.getNumCoupons(), tierInfo.getNumCores(), tierInfo.getBurstableCPU()));
+        return Optional.of(ComputeTierConfig.builder()
+                .computeTierOid(entity.getOid())
+                .numCores(tierInfo.getNumCores())
+                .numCoupons(tierInfo.getNumCoupons())
+                .isBurstableCPU(tierInfo.getBurstableCPU())
+                .build());
     }
 
     @Override

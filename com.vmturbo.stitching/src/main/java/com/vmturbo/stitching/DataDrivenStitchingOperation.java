@@ -254,17 +254,14 @@ public class DataDrivenStitchingOperation<InternalSignatureT, ExternalSignatureT
                 Optional<StitchingEntity> externalEntityProvider =
                         getReplacedEntity(provider, externalEntity);
 
-                // remove the provider from the externalEntity
+                // Remove the externalProvider from the externalEntity provider-relationship.
                 externalEntityProvider.ifPresent(externalProvider -> {
                     resultBuilder.queueChangeRelationships(externalEntity, toUpdate ->
                             toUpdate.removeProvider(externalProvider));
-                    // if the external provider is replaceable, merge it onto the internal
-                    // provider and then delete it.  Merging adds the oid and target of the replaced
-                    // entity to the entity we are keeping.
+                    // Remove external provider from the topology if it is replaceable.
                     if (externalProvider.getEntityBuilder().getOrigin()
-                                    == EntityOrigin.REPLACEABLE) {
-                        resultBuilder.queueEntityMerger(MergeEntities
-                                .mergeEntity(externalProvider).onto(provider));
+                            == EntityOrigin.REPLACEABLE) {
+                        resultBuilder.queueEntityRemoval(externalProvider);
                     }
                 });
             });
@@ -283,9 +280,7 @@ public class DataDrivenStitchingOperation<InternalSignatureT, ExternalSignatureT
         // This MergeEntitiesDetails also handles merging of properties and entity fields.
         MergeEntities.MergeEntitiesDetails mergeEntitiesDetails =
                 MergeEntities.mergeEntity(internalEntity)
-                        .onto(externalEntity,
-                                new MetaDataAwareMergeCommoditySoldStrategy(
-                                        matchingInformation.getCommoditiesSoldToPatch()));
+                        .onto(externalEntity, getMergeCommoditySoldStrategy());
         matchingInformation.getPropertiesToPatch().forEach(prop -> {
             mergeEntitiesDetails.addFieldMerger(EntityFieldMergers.getPropertyFieldMerger(prop));
         });
@@ -307,6 +302,26 @@ public class DataDrivenStitchingOperation<InternalSignatureT, ExternalSignatureT
     }
 
     /**
+     * Get a collection of {@link CommoditySoldMetadata} defined in the stitching metadata.
+     *
+     * @return a collection of commodity sold metadata
+     */
+    @Nonnull
+    protected Collection<CommoditySoldMetadata> getCommoditiesSoldToPatch() {
+        return matchingInformation.getCommoditiesSoldToPatch();
+    }
+
+    /**
+     * Get the {@link MergeCommoditySoldStrategy} used by this stitching operation.
+     *
+     * @return the merge commodity sold strategy for this stitching operation
+     */
+    @Nonnull
+    protected MergeCommoditySoldStrategy getMergeCommoditySoldStrategy() {
+        return new MetaDataAwareMergeCommoditySoldStrategy(getCommoditiesSoldToPatch());
+    }
+
+    /**
      * A {@link MergeCommoditySoldStrategy} that only merges commodities sold that are listed in the
      * meta data.  This allows us to have extra sold commodities in the DTO returned from the probe
      * that don't get pushed.  This is useful, for example, in the case of standalone entities where
@@ -321,6 +336,11 @@ public class DataDrivenStitchingOperation<InternalSignatureT, ExternalSignatureT
             commoditySoldMergeSpecByType = soldMetaData.stream()
                 .collect(Collectors.toMap(CommoditySoldMetadata::getCommodityType,
                     CommoditySoldMergeSpec::new));
+        }
+
+        @Nonnull
+        protected Optional<CommoditySoldMergeSpec> getCommoditySoldMergeSpec(final CommodityType commodityType) {
+            return Optional.ofNullable(commoditySoldMergeSpecByType.get(commodityType));
         }
 
         @Nonnull
@@ -364,11 +384,11 @@ public class DataDrivenStitchingOperation<InternalSignatureT, ExternalSignatureT
      * A wrapper class around {@link CommoditySoldMetadata} which contains information about how to
      * merge the sold commodity during stitching.
      */
-    private static class CommoditySoldMergeSpec {
+    public static class CommoditySoldMergeSpec {
 
-        private boolean ignoreIfPresent;
+        private final boolean ignoreIfPresent;
 
-        private List<DTOFieldSpec> patchedFields;
+        private final List<DTOFieldSpec> patchedFields;
 
         CommoditySoldMergeSpec(@Nonnull CommoditySoldMetadata commoditySoldMetadata) {
             this.ignoreIfPresent = commoditySoldMetadata.getIgnoreIfPresent();
@@ -380,12 +400,9 @@ public class DataDrivenStitchingOperation<InternalSignatureT, ExternalSignatureT
             return ignoreIfPresent;
         }
 
-        List<DTOFieldSpec> getPatchedFields() {
+        @Nonnull
+        public List<DTOFieldSpec> getPatchedFields() {
             return patchedFields;
         }
     }
 }
-
-
-
-

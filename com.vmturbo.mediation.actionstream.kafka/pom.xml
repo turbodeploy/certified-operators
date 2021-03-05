@@ -5,7 +5,7 @@
     <parent>
         <artifactId>xl-sdk-probe-parent</artifactId>
         <groupId>com.vmturbo</groupId>
-        <version>8.1.1-SNAPSHOT</version>
+        <version>8.1.2-SNAPSHOT</version>
         <relativePath>../com.vmturbo.mediation.probe.parent/pom.xml</relativePath>
     </parent>
     <modelVersion>4.0.0</modelVersion>
@@ -14,12 +14,8 @@
     <packaging>jar</packaging>
 
     <properties>
-        <!-- This must match protobuf from SDK because we are using dependency
-            protobuf-java libraries from SDK framework -->
-        <protobuf.version>3.5.0</protobuf.version>
         <jackson-core.version>2.10.0</jackson-core.version>
-        <apache.commons.io.version>2.5</apache.commons.io.version>
-        <apache.commons.collections4.version>4.1</apache.commons.collections4.version>
+        <hamcrest.version>1.3</hamcrest.version>
     </properties>
 
     <build>
@@ -53,23 +49,19 @@
             <artifactId>guava</artifactId>
             <version>${guava.version}</version>
         </dependency>
+        <!-- Converting to Json -->
         <dependency>
-            <groupId>commons-io</groupId>
-            <artifactId>commons-io</artifactId>
-            <version>${apache.commons.io.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-collections4</artifactId>
-            <version>${apache.commons.collections4.version}</version>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>${jackson-core.version}</version>
         </dependency>
 
+        <!-- Logging -->
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-slf4j-impl</artifactId>
             <version>${log4j2.Version}</version>
         </dependency>
-
         <!-- Logging comes from SDK class loader, so scope is provided -->
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
@@ -78,40 +70,17 @@
             <version>${log4j2.Version}</version>
         </dependency>
 
-        <!-- Protobuf -->
+        <!-- SDK -->
         <dependency>
-            <groupId>com.google.protobuf</groupId>
-            <artifactId>protobuf-java-util</artifactId>
-            <version>${protobuf.version}</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>com.google.protobuf</groupId>
-                    <artifactId>protobuf-java</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-        <dependency>
-            <groupId>com.googlecode.protobuf-java-format</groupId>
-            <artifactId>protobuf-java-format</artifactId>
-            <version>1.4</version>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.platform.sdk.common</artifactId>
+            <scope>provided</scope>
         </dependency>
 
-
-        <!-- JSON serialization -->
+        <!-- Convert SDK Action message to API format -->
         <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-databind</artifactId>
-            <version>${jackson-core.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-databind</artifactId>
-            <version>${jackson-core.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.fasterxml.jackson.dataformat</groupId>
-            <artifactId>jackson-dataformat-yaml</artifactId>
-            <version>${jackson-core.version}</version>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.api.conversion</artifactId>
         </dependency>
 
         <!-- Unit testing related libraries: junit and mockito -->
@@ -125,13 +94,15 @@
             <artifactId>mockito-core</artifactId>
             <scope>test</scope>
         </dependency>
-
-        <!-- kafka -->
+        <!-- CoreMatchers used in assertions of unit tests -->
         <dependency>
-            <groupId>org.apache.kafka</groupId>
-            <artifactId>kafka-streams</artifactId>
-            <version>2.5.0</version>
+            <groupId>org.hamcrest</groupId>
+            <artifactId>hamcrest-core</artifactId>
+            <version>${hamcrest.version}</version>
+            <scope>test</scope>
         </dependency>
+
+        <!-- Kafka Producer libraries -->
         <dependency>
             <groupId>org.apache.kafka</groupId>
             <artifactId>kafka-clients</artifactId>

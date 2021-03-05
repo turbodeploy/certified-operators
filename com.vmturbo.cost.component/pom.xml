@@ -6,7 +6,7 @@
     <parent>
         <groupId>com.vmturbo</groupId>
         <artifactId>com.vmturbo.components</artifactId>
-        <version>8.1.1-SNAPSHOT</version>
+        <version>8.1.2-SNAPSHOT</version>
         <relativePath>../com.vmturbo.components/pom.xml</relativePath>
     </parent>
     <modelVersion>4.0.0</modelVersion>
@@ -295,6 +295,12 @@
         <dependency>
             <groupId>org.immutables</groupId>
             <artifactId>value</artifactId>
+            <version>${immutables.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.immutables</groupId>
+            <artifactId>gson</artifactId>
             <version>${immutables.version}</version>
             <scope>provided</scope>
         </dependency>

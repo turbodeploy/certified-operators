@@ -5,7 +5,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.cloud.commitment.analysis.spec.catalog.ReservedInstanceCatalog.ReservedInstanceCatalogFactory;
 import com.vmturbo.cloud.common.identity.IdentityProvider;
+import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver.ComputeTierFamilyResolverFactory;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
@@ -24,7 +26,9 @@ import com.vmturbo.cost.component.reserved.instance.action.ReservedInstanceActio
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.demand.RIBuyAnalysisContextProvider;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.demand.RIBuyHistoricalDemandProvider;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.demand.calculator.RIBuyDemandCalculatorFactory;
+import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.inventory.RISpecPurchaseFilter.RISpecPurchaseFilterFactory;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.inventory.RegionalRIMatcherCacheFactory;
+import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.inventory.ReservedInstanceCatalogMatcher.ReservedInstanceCatalogMatcherFactory;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.inventory.ReservedInstanceInventoryMatcherFactory;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.inventory.ReservedInstanceSpecMatcherFactory;
 import com.vmturbo.group.api.GroupClientConfig;
@@ -79,6 +83,13 @@ public class ReservedInstanceAnalysisConfig {
     @Autowired
     private IdentityProvider identityProvider;
 
+    // Defined in LocalCloudCommitmentAnalysisConfig
+    @Autowired
+    private ReservedInstanceCatalogFactory reservedInstanceCatalogFactory;
+
+    @Autowired
+    private ComputeTierFamilyResolverFactory computeTierFamilyResolverFactory;
+
     @Bean
     public SettingServiceBlockingStub settingServiceClient() {
         return SettingServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
@@ -105,7 +116,7 @@ public class ReservedInstanceAnalysisConfig {
     public RIBuyAnalysisContextProvider riBuyAnalysisContextProvider() {
         return new RIBuyAnalysisContextProvider(
                 computeTierDemandStatsConfig.riDemandStatsStore(),
-                regionalRIMatcherCacheFactory(),
+                reservedInstanceCatalogMatcherFactory(),
                 realtimeTopologyContextId,
                 allowStandaloneAccountRIBuyAnalysis);
     }
@@ -114,7 +125,8 @@ public class ReservedInstanceAnalysisConfig {
     public RegionalRIMatcherCacheFactory regionalRIMatcherCacheFactory() {
         return new RegionalRIMatcherCacheFactory(
                 reservedInstanceSpecMatcherFactory(),
-                reservedInstanceInventoryMatcherFactory());
+                reservedInstanceInventoryMatcherFactory(),
+                computeTierFamilyResolverFactory);
     }
 
     @Bean
@@ -131,9 +143,23 @@ public class ReservedInstanceAnalysisConfig {
     }
 
     @Bean
+    public RISpecPurchaseFilterFactory riSpecPurchaseFilterFactory() {
+        return new RISpecPurchaseFilterFactory();
+    }
+
+    @Bean
+    public ReservedInstanceCatalogMatcherFactory reservedInstanceCatalogMatcherFactory() {
+        return new ReservedInstanceCatalogMatcherFactory(
+                riSpecPurchaseFilterFactory(),
+                reservedInstanceCatalogFactory);
+    }
+
+    @Bean
     public RIBuyDemandCalculatorFactory riBuyDemandCalculatorFactory() {
         return new RIBuyDemandCalculatorFactory(
+                regionalRIMatcherCacheFactory(),
                 riBuyAnalysisDemandProvider(),
+                reservedInstanceBoughtStore(),
                 preferredCurrentWeight);
     }
 

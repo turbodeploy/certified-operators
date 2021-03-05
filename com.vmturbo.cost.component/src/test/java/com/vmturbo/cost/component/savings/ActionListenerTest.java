@@ -6,6 +6,7 @@ import static org.mockito.Matchers.any;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.junit.Before;
@@ -38,6 +39,8 @@ import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent.ActionEventType;
+import com.vmturbo.cost.component.savings.EntityEventsJournal.SavingsEvent;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
@@ -155,6 +158,12 @@ public class ActionListenerTest {
         // an additional entry should not be created.
         actionListener.onActionSuccess(actionSuccess2);
         assertEquals(2, store.size());
+
+        List<SavingsEvent> savingsEvents = store.removeAllEvents();
+        savingsEvents.stream().forEach(se -> {
+            assertEquals(se.getActionEvent().get().getEventType(),
+                         ActionEventType.EXECUTION_SUCCESS);
+        });
     }
 
     /**
@@ -208,7 +217,7 @@ public class ActionListenerTest {
                         .setActionState(com.vmturbo.common.protobuf.action.ActionDTO.ActionState.READY)
                         .build();
         ActionSpec actionSpec3 = ActionDTO.ActionSpec.newBuilder()
-                        .setRecommendationId(5658L)
+                        .setRecommendationId(5654L)
                         .setRecommendation(ActionDTO.Action.newBuilder().setId(3L)
                                         .setDeprecatedImportance(1.0)
                                         .setExplanation(ActionDTO.Explanation.getDefaultInstance())
@@ -252,6 +261,36 @@ public class ActionListenerTest {
         // We're only monitoring savings for VM Scale actions at the moment.
         assertEquals(1, store.size());
         assertEquals(1, actionListener.getEntityActionStateMap().size());
+        assertEquals(1, actionListener.getCurrentPendingActionsActionSpecToEntityIdMap().size());
+
+        List<SavingsEvent> savingsEvents = store.removeAllEvents();
+        savingsEvents.stream().forEach(se -> {
+            assertEquals(se.getActionEvent().get().getEventType(),
+                         ActionEventType.RECOMMENDATION_ADDED);
+        });
+
+        Mockito.doReturn(Arrays.asList(filteredResponse2, filteredResponse3))
+        .when(actionsServiceRpc).getAllActions(any(FilteredActionRequest.class));
+
+        actionListener.onActionsUpdated(ActionsUpdated.newBuilder()
+        .setActionPlanId(actionPlanId)
+        .setActionPlanInfo(ActionPlanInfo.newBuilder()
+            .setMarket(MarketActionPlanInfo.newBuilder()
+                            .setSourceTopologyInfo(TopologyInfo
+                                .newBuilder()
+                                .setTopologyContextId(realTimeTopologyContextId))))
+        .build());
+
+        // We're only monitoring savings for VM Scale actions at the moment.
+        assertEquals(1, store.size());
+        assertEquals(0, actionListener.getEntityActionStateMap().size());
+        assertEquals(0, actionListener.getCurrentPendingActionsActionSpecToEntityIdMap().size());
+
+        savingsEvents = store.removeAllEvents();
+        savingsEvents.stream().forEach(se -> {
+            assertEquals(se.getActionEvent().get().getEventType(),
+                         ActionEventType.RECOMMENDATION_REMOVED);
+        });
     }
 
     /**

@@ -5,20 +5,29 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import com.google.common.collect.Lists;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 
+import org.junit.Before;
 import org.junit.Test;
 
+import com.vmturbo.cloud.commitment.analysis.spec.catalog.CloudCommitmentCatalog.SpecAccountGrouping;
+import com.vmturbo.cloud.commitment.analysis.spec.catalog.ReservedInstanceCatalog;
+import com.vmturbo.cloud.commitment.analysis.spec.catalog.ReservedInstanceCatalog.ReservedInstanceCatalogFactory;
+import com.vmturbo.cloud.commitment.analysis.spec.catalog.SpecCatalogKey;
+import com.vmturbo.cloud.commitment.analysis.spec.catalog.SpecCatalogKey.OrganizationType;
 import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver.ComputeTierFamilyResolverFactory;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CommitmentPurchaseProfile;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CommitmentPurchaseProfile.ReservedInstancePurchaseProfile;
@@ -40,14 +49,15 @@ import com.vmturbo.platform.sdk.common.CommonCost.PaymentOption;
 
 public class RISpecPurchaseFilterTest {
 
-    private final CloudCommitmentSpecResolver<ReservedInstanceSpec> riSpecResolver =
-            mock(CloudCommitmentSpecResolver.class);
+    private final ReservedInstanceCatalogFactory reservedInstanceCatalogFactory = mock(ReservedInstanceCatalogFactory.class);
+
+    private final ReservedInstanceCatalog reservedInstanceCatalog = mock(ReservedInstanceCatalog.class);
 
     private final ComputeTierFamilyResolverFactory computeTierFamilyResolverFactory =
             new ComputeTierFamilyResolverFactory();
 
     private final RISpecPurchaseFilterFactory riSpecPurchaseFilterFactory =
-            new RISpecPurchaseFilterFactory(riSpecResolver, computeTierFamilyResolverFactory);
+            new RISpecPurchaseFilterFactory(reservedInstanceCatalogFactory, computeTierFamilyResolverFactory);
 
 
     private final TopologyEntityDTO computeTierSmallFamilyA = TopologyEntityDTO.newBuilder()
@@ -88,6 +98,7 @@ public class RISpecPurchaseFilterTest {
                             computeTierSmallFamilyB));
 
     private final long regionOid = 123L;
+    private final long accountOid = 456L;
     private final ReservedInstanceType targetRIType = ReservedInstanceType.newBuilder()
             .setOfferingClass(OfferingClass.STANDARD)
             .setPaymentOption(PaymentOption.ALL_UPFRONT)
@@ -111,6 +122,14 @@ public class RISpecPurchaseFilterTest {
             .osType(OSType.RHEL)
             .tenancy(Tenancy.DEFAULT)
             .build();
+
+    private final SpecCatalogKey specCatalogKey = SpecCatalogKey.of(
+            OrganizationType.STANDALONE_ACCOUNT, accountOid);
+
+    @Before
+    public void setup() {
+        when(reservedInstanceCatalogFactory.createAccountRestrictedCatalog(any())).thenReturn(reservedInstanceCatalog);
+    }
 
     /**
      * Tests that the purchase filter correctly filters out RI specs that do not match the
@@ -150,8 +169,10 @@ public class RISpecPurchaseFilterTest {
                 .build();
 
         // setup RI spec resolver mock
-        when(riSpecResolver.getSpecsForRegion(eq(regionOid)))
-                .thenReturn(Lists.newArrayList(targetRISpec, otherRISpecA, otherRISpecB));
+        when(reservedInstanceCatalog.getRegionalSpecs(eq(specCatalogKey), eq(regionOid))).thenReturn(
+                ImmutableSet.of(SpecAccountGrouping.of(
+                        Sets.newHashSet(targetRISpec, otherRISpecA, otherRISpecB),
+                        Collections.EMPTY_SET)));
 
 
         // Invoke the ri spec filter
@@ -159,7 +180,7 @@ public class RISpecPurchaseFilterTest {
                 cloudTopology, commitmentPurchaseProfile);
 
         final Map<VirtualMachineCoverageScope, ReservedInstanceSpecData> riSpecsByCoverageScope =
-                riSpecPurchaseFilter.getSpecsByCoverageScope(regionOid);
+                riSpecPurchaseFilter.getAvailableRegionalSpecs(specCatalogKey, regionOid);
 
         // expected result
         final ReservedInstanceSpecData expectedRISpecData = ImmutableReservedInstanceSpecData.builder()
@@ -199,15 +220,17 @@ public class RISpecPurchaseFilterTest {
                         .setTierId(computeTierLargeFamilyA.getOid()))
                 .build();
 
-        when(riSpecResolver.getSpecsForRegion(eq(regionOid)))
-                .thenReturn(Lists.newArrayList(smallSpec, largeSpec));
+        when(reservedInstanceCatalog.getRegionalSpecs(eq(specCatalogKey), eq(regionOid))).thenReturn(
+                ImmutableSet.of(SpecAccountGrouping.of(
+                        Sets.newHashSet(smallSpec, largeSpec),
+                        Collections.EMPTY_SET)));
 
         // Invoke the ri spec filter
         final RISpecPurchaseFilter riSpecPurchaseFilter = riSpecPurchaseFilterFactory.createFilter(
                 cloudTopology, commitmentPurchaseProfile);
 
         final Map<VirtualMachineCoverageScope, ReservedInstanceSpecData> riSpecsByCoverageScope =
-                riSpecPurchaseFilter.getSpecsByCoverageScope(regionOid);
+                riSpecPurchaseFilter.getAvailableRegionalSpecs(specCatalogKey, regionOid);
 
         // expected result
         final ReservedInstanceSpecData expectedRISpecData = ImmutableReservedInstanceSpecData.builder()
@@ -238,15 +261,17 @@ public class RISpecPurchaseFilterTest {
                         .setType(targetRIType))
                 .build();
 
-        when(riSpecResolver.getSpecsForRegion(eq(regionOid)))
-                .thenReturn(Lists.newArrayList(riSpec));
+        when(reservedInstanceCatalog.getRegionalSpecs(eq(specCatalogKey), eq(regionOid))).thenReturn(
+                ImmutableSet.of(SpecAccountGrouping.of(
+                        Sets.newHashSet(riSpec),
+                        Collections.EMPTY_SET)));
 
         // Invoke the ri spec filter
         final RISpecPurchaseFilter riSpecPurchaseFilter = riSpecPurchaseFilterFactory.createFilter(
                 cloudTopology, commitmentPurchaseProfile);
 
         final Map<VirtualMachineCoverageScope, ReservedInstanceSpecData> riSpecsByCoverageScope =
-                riSpecPurchaseFilter.getSpecsByCoverageScope(regionOid);
+                riSpecPurchaseFilter.getAvailableRegionalSpecs(specCatalogKey, regionOid);
 
         // expected result
         final Set<VirtualMachineCoverageScope> expectedCoverageScopes = Arrays.asList(OSType.values())
@@ -291,15 +316,17 @@ public class RISpecPurchaseFilterTest {
                         .setSizeFlexible(false))
                 .build();
 
-        when(riSpecResolver.getSpecsForRegion(eq(regionOid)))
-                .thenReturn(Lists.newArrayList(sizeFlexibleSpec, sizeInflexibleSpec));
+        when(reservedInstanceCatalog.getRegionalSpecs(eq(specCatalogKey), eq(regionOid))).thenReturn(
+                ImmutableSet.of(SpecAccountGrouping.of(
+                        Sets.newHashSet(sizeFlexibleSpec, sizeInflexibleSpec),
+                        Collections.EMPTY_SET)));
 
         // Invoke the ri spec filter
         final RISpecPurchaseFilter riSpecPurchaseFilter = riSpecPurchaseFilterFactory.createFilter(
                 cloudTopology, commitmentPurchaseProfile);
 
         final Map<VirtualMachineCoverageScope, ReservedInstanceSpecData> riSpecsByCoverageScope =
-                riSpecPurchaseFilter.getSpecsByCoverageScope(regionOid);
+                riSpecPurchaseFilter.getAvailableRegionalSpecs(specCatalogKey, regionOid);
 
         // expected result
         final ReservedInstanceSpecData expectedRISpecData = ImmutableReservedInstanceSpecData.builder()
@@ -336,15 +363,17 @@ public class RISpecPurchaseFilterTest {
                         .setPlatformFlexible(true))
                 .build();
 
-        when(riSpecResolver.getSpecsForRegion(eq(regionOid)))
-                .thenReturn(Lists.newArrayList(sizeFlexibleSpec, platformFlexibleSpec));
+        when(reservedInstanceCatalog.getRegionalSpecs(eq(specCatalogKey), eq(regionOid))).thenReturn(
+                ImmutableSet.of(SpecAccountGrouping.of(
+                        Sets.newHashSet(sizeFlexibleSpec, platformFlexibleSpec),
+                        Collections.EMPTY_SET)));
 
         // Invoke the ri spec filter
         final RISpecPurchaseFilter riSpecPurchaseFilter = riSpecPurchaseFilterFactory.createFilter(
                 cloudTopology, commitmentPurchaseProfile);
 
         final Map<VirtualMachineCoverageScope, ReservedInstanceSpecData> riSpecsByCoverageScope =
-                riSpecPurchaseFilter.getSpecsByCoverageScope(regionOid);
+                riSpecPurchaseFilter.getAvailableRegionalSpecs(specCatalogKey, regionOid);
 
         // verify nothing is recommended for the overlapping coverage scope
         assertFalse(riSpecsByCoverageScope.containsKey(coverageScopeSmall));
@@ -357,7 +386,9 @@ public class RISpecPurchaseFilterTest {
                 cloudTopology, commitmentPurchaseProfile);
 
         final Map<VirtualMachineCoverageScope, ReservedInstanceSpecData> riSpecsByCoverageScope =
-                riSpecPurchaseFilter.getSpecsByCoverageScope(regionOid + 1);
+                riSpecPurchaseFilter.getAvailableRegionalSpecs(
+                        SpecCatalogKey.of(OrganizationType.STANDALONE_ACCOUNT, accountOid),
+                        regionOid + 1);
 
         // Asserts
         assertTrue(riSpecsByCoverageScope.isEmpty());

@@ -141,7 +141,7 @@ public class InitialPlacementFinderTest {
                 PM_TYPE, MEM_TYPE, 10))));
         pf.buyerPlacements.put(vmID, new ArrayList(Arrays.asList(new InitialPlacementDecision(pmSlOid,
                 Optional.of(pm1Oid), new ArrayList()))));
-        pf.buyersToBeDeleted(Arrays.asList(vmID));
+        pf.buyersToBeDeleted(Arrays.asList(vmID), false);
         assertTrue(pf.existingReservations.isEmpty());
         assertTrue(pf.buyerPlacements.isEmpty());
     }
@@ -383,6 +383,154 @@ public class InitialPlacementFinderTest {
         assertTrue(pf.buyerPlacements.size() == 2);
     }
 
+
+    /**
+     * Test reservation delayed deletion in the findPlacement.
+     */
+    @Test
+    public void testDelayedDeletion() {
+        InitialPlacementFinder pf = new InitialPlacementFinder(Mockito.mock(DSLContext.class),
+                reservationServiceBlockingStub, true, 1);
+        Economy originalEconomy = getOriginalEconomy();
+        pf.economyCaches.getState().setReservationReceived(true);
+        pf.updateCachedEconomy(originalEconomy, commTypeToSpecMap, true);
+        pf.updateCachedEconomy(originalEconomy, commTypeToSpecMap, false);
+        // PM1 mem used 25, capacity 100. PM2 mem used 20, capacity 100.
+        long vm2Oid = 10002L;
+        long vm2SlOid = 20002L;
+        long vm2Used = 10;
+        InitialPlacementBuyer vm2Buyer = getTradersToPlace(vm2Oid, vm2SlOid, PM_TYPE, MEM_TYPE, vm2Used)
+                .toBuilder().setReservationId(900002L).build();
+        Table<Long, Long, InitialPlacementFinderResult> vm2Result = pf.findPlacement(
+                Arrays.asList(vm2Buyer));
+        assertTrue(vm2Result.get(vm2Oid, vm2SlOid).getProviderOid().get() == pm2Oid);
+        /*
+        Historical:
+        PM1 mem used 25, capacity 100. PM2 mem used 30, capacity 100. vm2 placed in PM2
+        RealTime:
+        PM1 mem used 25, capacity 100. PM2 mem used 30, capacity 100. vm2 placed in PM2
+        */
+        assertEquals(pf.economyCaches.historicalCachedEconomy.getTraders()
+                .get(0).getCommoditiesSold().get(0).getQuantity(), 25d, 0.01);
+        assertEquals(pf.economyCaches.historicalCachedEconomy.getTraders()
+                .get(1).getCommoditiesSold().get(0).getQuantity(), 30d, 0.01);
+        assertEquals(pf.economyCaches.realtimeCachedEconomy.getTraders()
+                .get(0).getCommoditiesSold().get(0).getQuantity(), 25d, 0.01);
+        assertEquals(pf.economyCaches.realtimeCachedEconomy.getTraders()
+                .get(1).getCommoditiesSold().get(0).getQuantity(), 30d, 0.01);
+
+        long vm3Oid = 10003L;
+        long vm3SlOid = 20003L;
+        long vm3Used = 10;
+        InitialPlacementBuyer vm3Buyer = getTradersToPlace(vm3Oid, vm3SlOid, PM_TYPE, MEM_TYPE, vm3Used)
+                .toBuilder().setReservationId(900003L).build();
+        Table<Long, Long, InitialPlacementFinderResult> vm3Result = pf.findPlacement(
+                Arrays.asList(vm3Buyer));
+        assertTrue(vm3Result.get(vm3Oid, vm3SlOid).getProviderOid().get() == pm1Oid);
+        /*
+        Historical:
+        PM1 mem used 35, capacity 100. PM2 mem used 30, capacity 100. vm3 placed in PM1
+        RealTime:
+        PM1 mem used 35, capacity 100. PM2 mem used 30, capacity 100. vm3 placed in PM1
+        */
+
+        assertEquals(pf.economyCaches.historicalCachedEconomy.getTraders()
+                .get(0).getCommoditiesSold().get(0).getQuantity(), 35d, 0.01);
+        assertEquals(pf.economyCaches.historicalCachedEconomy.getTraders()
+                .get(1).getCommoditiesSold().get(0).getQuantity(), 30d, 0.01);
+        assertEquals(pf.economyCaches.realtimeCachedEconomy.getTraders()
+                .get(0).getCommoditiesSold().get(0).getQuantity(), 35d, 0.01);
+        assertEquals(pf.economyCaches.realtimeCachedEconomy.getTraders()
+                .get(1).getCommoditiesSold().get(0).getQuantity(), 30d, 0.01);
+        List vmsTobeDeleted = new ArrayList();
+        vmsTobeDeleted.add(vm3Oid);
+        // delete the VM3 from PM1, now the utilization of PM1 is lower only in realtime
+        pf.buyersToBeDeleted(Arrays.asList(vm3Oid), true);
+        vmsTobeDeleted.clear();
+        /*
+        Historical:
+        PM1 mem used 35, capacity 100. PM2 mem used 30, capacity 100. vm3 and vm2 present
+        RealTime:
+        PM1 mem used 25, capacity 100. PM2 mem used 30, capacity 100. only vm2 is present.
+        */
+        assertEquals(pf.economyCaches.historicalCachedEconomy.getTraders()
+                .get(0).getCommoditiesSold().get(0).getQuantity(), 35d, 0.01);
+        assertEquals(pf.economyCaches.historicalCachedEconomy.getTraders()
+                .get(1).getCommoditiesSold().get(0).getQuantity(), 30d, 0.01);
+        assertEquals(pf.economyCaches.realtimeCachedEconomy.getTraders()
+                .get(0).getCommoditiesSold().get(0).getQuantity(), 25d, 0.01);
+        assertEquals(pf.economyCaches.realtimeCachedEconomy.getTraders()
+                .get(1).getCommoditiesSold().get(0).getQuantity(), 30d, 0.01);
+        assertTrue(pf.existingReservations.get(900003L).get(0).getDeployed());
+        assertTrue(!pf.existingReservations.get(900002L).get(0).getDeployed());
+
+        //Next VM will be placed on PM2 in historical and in PM1 in realtime.
+        long vm4Oid = 10004L;
+        long vm4SlOid = 20004L;
+        long vm4Used = 10;
+        InitialPlacementBuyer vm4Buyer = getTradersToPlace(vm4Oid, vm4SlOid, PM_TYPE, MEM_TYPE, vm4Used)
+                .toBuilder().setReservationId(900004L).build();
+        Table<Long, Long, InitialPlacementFinderResult> vm4Result = pf.findPlacement(
+                Arrays.asList(vm4Buyer));
+        assertTrue(vm4Result.get(vm4Oid, vm4SlOid).getProviderOid().get() == pm1Oid);
+         /*
+        Historical:
+        PM1 mem used 35, capacity 100. PM2 mem used 40, capacity 100. vm3 and vm2 present
+        RealTime:
+        PM1 mem used 35, capacity 100. PM2 mem used 30, capacity 100. only vm2 is present.
+        */
+        assertEquals(pf.economyCaches.historicalCachedEconomy.getTraders()
+                .get(0).getCommoditiesSold().get(0).getQuantity(), 35d, 0.01);
+        assertEquals(pf.economyCaches.historicalCachedEconomy.getTraders()
+                .get(1).getCommoditiesSold().get(0).getQuantity(), 40d, 0.01);
+        assertEquals(pf.economyCaches.realtimeCachedEconomy.getTraders()
+                .get(0).getCommoditiesSold().get(0).getQuantity(), 35d, 0.01);
+        assertEquals(pf.economyCaches.realtimeCachedEconomy.getTraders()
+                .get(1).getCommoditiesSold().get(0).getQuantity(), 30d, 0.01);
+        vmsTobeDeleted.add(vm4Oid);
+        // delete vm4 full delete..vm4 delete from pm1 in realtime and pm2 in historical
+        pf.buyersToBeDeleted(vmsTobeDeleted, false);
+        /*
+        Historical:
+        PM1 mem used 35, capacity 100. PM2 mem used 30, capacity 100. vm3 and vm2 present
+        RealTime:
+        PM1 mem used 25, capacity 100. PM2 mem used 30, capacity 100. only vm2 is present.
+        */
+        assertEquals(pf.economyCaches.historicalCachedEconomy.getTraders()
+                .get(0).getCommoditiesSold().get(0).getQuantity(), 35d, 0.01);
+        assertEquals(pf.economyCaches.historicalCachedEconomy.getTraders()
+                .get(1).getCommoditiesSold().get(0).getQuantity(), 30d, 0.01);
+        assertEquals(pf.economyCaches.realtimeCachedEconomy.getTraders()
+                .get(0).getCommoditiesSold().get(0).getQuantity(), 25d, 0.01);
+        assertEquals(pf.economyCaches.realtimeCachedEconomy.getTraders()
+                .get(1).getCommoditiesSold().get(0).getQuantity(), 30d, 0.01);
+        // vm4 remains unchanged
+        assertTrue(pf.existingReservations.get(900003L).get(0).getDeployed());
+        assertTrue(!pf.existingReservations.get(900002L).get(0).getDeployed());
+        assertEquals(pf.existingReservations.size(), 2);
+
+        vmsTobeDeleted.clear();
+        vmsTobeDeleted.add(vm3Oid);
+        //delete vm3 full delete..vm3 deleted from historical from pm1
+        pf.buyersToBeDeleted(vmsTobeDeleted, false);
+        /*
+        Historical:
+        PM1 mem used 25, capacity 100. PM2 mem used 30, capacity 100. vm3 and vm2 present
+        RealTime:
+        PM1 mem used 25, capacity 100. PM2 mem used 30, capacity 100. only vm2 is present.
+        */
+        assertEquals(pf.economyCaches.historicalCachedEconomy.getTraders()
+                .get(0).getCommoditiesSold().get(0).getQuantity(), 25d, 0.01);
+        assertEquals(pf.economyCaches.historicalCachedEconomy.getTraders()
+                .get(1).getCommoditiesSold().get(0).getQuantity(), 30d, 0.01);
+        assertEquals(pf.economyCaches.realtimeCachedEconomy.getTraders()
+                .get(0).getCommoditiesSold().get(0).getQuantity(), 25d, 0.01);
+        assertEquals(pf.economyCaches.realtimeCachedEconomy.getTraders()
+                .get(1).getCommoditiesSold().get(0).getQuantity(), 30d, 0.01);
+        assertEquals(pf.existingReservations.size(), 1);
+
+    }
+
     /**
      * Test reservation deletion in the findPlacement. The original economy contains VM1, PM1 and PM2.
      * VM1 resides on PM1. PM1 mem used 25, capacity 100. PM2 mem used 20, capacity 100.
@@ -405,7 +553,7 @@ public class InitialPlacementFinderTest {
                 Arrays.asList(getTradersToPlace(vm2Oid, vm2SlOid, PM_TYPE, MEM_TYPE, vm2Used)));
         assertTrue(vm2Result.get(vm2Oid, vm2SlOid).getProviderOid().get() == pm2Oid);
         // delete the VM1 which stays on PM1, now the utilization of PM1 is lower
-        pf.buyersToBeDeleted(Arrays.asList(vm2Oid));
+        pf.buyersToBeDeleted(Arrays.asList(vm2Oid), false);
         long vm3Oid = 10003L;
         long vm3SlOid = 20003L;
         long vm3Used = 10;

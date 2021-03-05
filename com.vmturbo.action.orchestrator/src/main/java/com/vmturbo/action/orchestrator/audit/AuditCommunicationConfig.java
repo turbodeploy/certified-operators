@@ -131,4 +131,14 @@ public class AuditCommunicationConfig {
     public AuditActionsPersistenceManager auditedActionsStore() {
         return new AuditActionsStore(databaseConfig.dsl());
     }
+
+    /**
+     * Bean to handle diagnostics import/export for worfklows.
+     *
+     * @return the bean created
+     */
+    @Bean
+    public AuditActionsPersistenceDiagnostics auditActionsPersistenceDiagnostics() {
+        return new AuditActionsPersistenceDiagnostics(auditedActionsStore());
+    }
 }

@@ -18,6 +18,7 @@ import com.vmturbo.api.component.external.api.mapper.SettingsMapper.Feature;
 import com.vmturbo.api.component.external.api.mapper.aspect.BusinessUserAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.CloudAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.CloudCommitmentAspectMapper;
+import com.vmturbo.api.component.external.api.mapper.aspect.ContainerPlatformContextAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.ComputeTierAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.DatabaseAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.DatabaseServerTierAspectMapper;
@@ -140,7 +141,8 @@ public class MapperConfig {
             communicationConfig.serviceEntityMapper(),
             communicationConfig.supplyChainRpcService(),
             serviceConfig.policiesService(),
-            serviceConfig.reservedInstancesService());
+            serviceConfig.reservedInstancesService(),
+            communicationConfig.groupRpcService());
     }
 
     @Bean
@@ -460,6 +462,12 @@ public class MapperConfig {
         return new CloudCommitmentAspectMapper();
     }
 
+    @Bean
+    protected ContainerPlatformContextAspectMapper cloudNativeAspectMapper() {
+        return new ContainerPlatformContextAspectMapper(communicationConfig.supplyChainRpcService(),
+                communicationConfig.repositoryRpcService(), communicationConfig.getRealtimeTopologyContextId());
+    }
+
     /**
      * Returns a common {@link EntityAspectMapper} of the combining aspect mappers of different
      * entities types.
@@ -476,7 +484,7 @@ public class MapperConfig {
                 regionAspectMapper(), workloadControllerAspectMapper(), computeTierAspectMapper(),
                 databaseServerTierAspectMapper(), databaseTierAspectMapper(),
                 businessUserAspectMapper(), virtualVolumeEntityAspectMapper(),
-                cloudCommitmentAspectMapper());
+                cloudCommitmentAspectMapper(), cloudNativeAspectMapper());
     }
 
     @Bean

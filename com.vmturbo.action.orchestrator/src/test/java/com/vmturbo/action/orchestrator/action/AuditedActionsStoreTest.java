@@ -20,6 +20,9 @@ import org.junit.rules.ExpectedException;
 
 import com.vmturbo.action.orchestrator.db.Action;
 import com.vmturbo.action.orchestrator.exception.ActionStoreOperationException;
+import com.vmturbo.components.common.setting.ActionSettingSpecs;
+import com.vmturbo.components.common.setting.ActionSettingType;
+import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
@@ -54,6 +57,12 @@ public class AuditedActionsStoreTest {
     private static final long RECOMMENDATION_ID_3 = 3L;
     private static final long WORKFLOW_ID_1 = 10L;
     private static final long WORKFLOW_ID_2 = 11L;
+    private static final long TARGET_ENTITY_ID_1 = 21L;
+    private static final long TARGET_ENTITY_ID_2 = 22L;
+    private static final long TARGET_ENTITY_ID_3 = 23L;
+    private static final String VMEM_RESIZE_UP_ONGEN = ActionSettingSpecs.getSubSettingFromActionModeSetting(
+        ConfigurableActionSettings.ResizeVmemUpInBetweenThresholds,
+        ActionSettingType.ON_GEN);
 
     /**
      * We override the current time in milliseconds to Mon Jan 18 2021 20:25:18 EST for convenience
@@ -78,9 +87,9 @@ public class AuditedActionsStoreTest {
     @Test
     public void testPersistingAuditedActions() throws ActionStoreOperationException {
         final AuditedActionInfo auditedAction1 =
-                new AuditedActionInfo(RECOMMENDATION_ID_1, WORKFLOW_ID_1, Optional.empty());
+                new AuditedActionInfo(RECOMMENDATION_ID_1, WORKFLOW_ID_1, TARGET_ENTITY_ID_1, VMEM_RESIZE_UP_ONGEN, Optional.empty());
         final AuditedActionInfo auditedAction2 =
-                new AuditedActionInfo(RECOMMENDATION_ID_2, WORKFLOW_ID_2, Optional.empty());
+                new AuditedActionInfo(RECOMMENDATION_ID_2, WORKFLOW_ID_2, TARGET_ENTITY_ID_2, VMEM_RESIZE_UP_ONGEN, Optional.empty());
         final HashSet<AuditedActionInfo> actionsForAudit =
                 Sets.newHashSet(auditedAction1, auditedAction2);
         auditedActionsStore.persistActions(actionsForAudit);
@@ -100,11 +109,11 @@ public class AuditedActionsStoreTest {
     @Test
     public void testPersistingClearedActions() throws ActionStoreOperationException {
         final AuditedActionInfo auditedOnGenAction =
-                new AuditedActionInfo(RECOMMENDATION_ID_1, WORKFLOW_ID_1, Optional.empty());
+                new AuditedActionInfo(RECOMMENDATION_ID_1, WORKFLOW_ID_1, TARGET_ENTITY_ID_1, VMEM_RESIZE_UP_ONGEN, Optional.empty());
         auditedActionsStore.persistActions(Collections.singletonList(auditedOnGenAction));
 
         final AuditedActionInfo clearedAction =
-                new AuditedActionInfo(RECOMMENDATION_ID_1, WORKFLOW_ID_1,
+                new AuditedActionInfo(RECOMMENDATION_ID_1, WORKFLOW_ID_1, TARGET_ENTITY_ID_1, VMEM_RESIZE_UP_ONGEN,
                         Optional.of(CURRENT_TIME));
         auditedActionsStore.persistActions(Collections.singletonList(clearedAction));
 
@@ -146,11 +155,11 @@ public class AuditedActionsStoreTest {
     @Test
     public void testRemovingAuditedActions() throws ActionStoreOperationException {
         final AuditedActionInfo auditedOnGenAction =
-                new AuditedActionInfo(RECOMMENDATION_ID_1, WORKFLOW_ID_1, Optional.empty());
+                new AuditedActionInfo(RECOMMENDATION_ID_1, WORKFLOW_ID_1, TARGET_ENTITY_ID_1, VMEM_RESIZE_UP_ONGEN, Optional.empty());
         auditedActionsStore.persistActions(Collections.singletonList(auditedOnGenAction));
 
         final AuditedActionInfo clearedAction =
-                new AuditedActionInfo(RECOMMENDATION_ID_1, WORKFLOW_ID_1,
+                new AuditedActionInfo(RECOMMENDATION_ID_1, WORKFLOW_ID_1, TARGET_ENTITY_ID_1, VMEM_RESIZE_UP_ONGEN,
                         Optional.of(CURRENT_TIME));
         auditedActionsStore.persistActions(Collections.singletonList(clearedAction));
 
@@ -171,11 +180,11 @@ public class AuditedActionsStoreTest {
     @Test
     public void testRemovingAuditedActionsRelatedToWorkflow() throws ActionStoreOperationException {
         final AuditedActionInfo auditedAction1 =
-                new AuditedActionInfo(RECOMMENDATION_ID_1, WORKFLOW_ID_1, Optional.empty());
+                new AuditedActionInfo(RECOMMENDATION_ID_1, WORKFLOW_ID_1, TARGET_ENTITY_ID_1, VMEM_RESIZE_UP_ONGEN, Optional.empty());
         final AuditedActionInfo auditedAction2 =
-                new AuditedActionInfo(RECOMMENDATION_ID_2, WORKFLOW_ID_2, Optional.empty());
+                new AuditedActionInfo(RECOMMENDATION_ID_2, WORKFLOW_ID_2, TARGET_ENTITY_ID_2, VMEM_RESIZE_UP_ONGEN, Optional.empty());
         final AuditedActionInfo auditedAction3 =
-                new AuditedActionInfo(RECOMMENDATION_ID_3, WORKFLOW_ID_2, Optional.empty());
+                new AuditedActionInfo(RECOMMENDATION_ID_3, WORKFLOW_ID_2, TARGET_ENTITY_ID_3, VMEM_RESIZE_UP_ONGEN, Optional.empty());
         final HashSet<AuditedActionInfo> actionsForAudit =
                 Sets.newHashSet(auditedAction1, auditedAction2, auditedAction3);
         auditedActionsStore.persistActions(actionsForAudit);

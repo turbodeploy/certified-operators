@@ -938,7 +938,8 @@ public class RepositoryApiTest {
         Mockito.when(
                 businessAccountMapper.convert(Collections.singletonList(businessAccount), false))
                 .thenReturn(Collections.singletonList(buDto));
-        Mockito.when(serviceEntityMapper.toServiceEntityApiDTO(vm)).thenReturn(vmDto);
+        Mockito.when(serviceEntityMapper.toServiceEntityApiDTO(Collections.singletonList(vm)))
+                .thenReturn(Collections.singletonList(vmDto));
         final RepositoryRequestResult repositoryResult =
                 repositoryApi.getByIds(Arrays.asList(1L, 2L),
                         EnumSet.of(EntityType.BUSINESS_ACCOUNT, EntityType.VIRTUAL_MACHINE), false);
@@ -980,7 +981,8 @@ public class RepositoryApiTest {
                         .build()));
         final ServiceEntityApiDTO vmDto = new ServiceEntityApiDTO();
         vmDto.setUuid("2");
-        Mockito.when(serviceEntityMapper.toServiceEntityApiDTO(vm)).thenReturn(vmDto);
+        Mockito.when(serviceEntityMapper.toServiceEntityApiDTO(Collections.singletonList(vm)))
+                .thenReturn(Collections.singletonList(vmDto));
         final RepositoryRequestResult repositoryResult =
                 repositoryApi.getByIds(Arrays.asList(1L, 2L),
                         EnumSet.of(EntityType.BUSINESS_ACCOUNT, EntityType.VIRTUAL_MACHINE), false);

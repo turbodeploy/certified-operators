@@ -7,6 +7,10 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 
+import org.immutables.value.Value;
+import org.immutables.value.Value.Style;
+import org.immutables.value.Value.Style.ImplementationVisibility;
+
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.IpAddress;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -252,43 +256,38 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
     /**
      * A wrapper class around the compute tier configuration of an entity.
      */
-    @Immutable
-    class ComputeTierConfig {
+    @Style(visibility = ImplementationVisibility.PACKAGE,
+            overshadowImplementation = true,
+            depluralize = true)
+    @Value.Immutable
+    interface ComputeTierConfig {
+
+        long computeTierOid();
+
         /**
          * The number of coupons sold by this compute tier.
          * See: {@link ComputeTierInfo#getNumCoupons()}
          */
-        private final double numCoupons;
+        double numCoupons();
 
         /**
          * The number of cores of this compute tier.
          * See: {@link ComputeTierInfo#getNumCores()}
          */
-        private final int numCores;
+        int numCores();
 
         /**
          * Determine if this compute tier support burstableCPUs.
          * See: {@link ComputeTierInfo#getBurstableCPU()}
          */
-        private final boolean burstableCPU;
+        boolean isBurstableCPU();
 
-        public ComputeTierConfig(final double numCoupons, final int numCores, final boolean burstableCPU) {
-            this.numCoupons = numCoupons;
-            this.numCores = numCores;
-            this.burstableCPU = burstableCPU;
+        @Nonnull
+        static Builder builder() {
+            return new Builder();
         }
 
-        public double getNumCoupons() {
-            return numCoupons;
-        }
-
-        public int getNumCores() {
-            return numCores;
-        }
-
-        public boolean isBurstableCPU() {
-            return burstableCPU;
-        }
+        class Builder extends ImmutableComputeTierConfig.Builder {}
     }
 
     /**

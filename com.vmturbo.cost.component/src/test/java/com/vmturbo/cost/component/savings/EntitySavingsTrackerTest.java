@@ -8,6 +8,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
@@ -22,7 +23,6 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableSet;
 
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
@@ -35,8 +35,6 @@ import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent.ActionEventType;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.SavingsEvent;
-import com.vmturbo.cost.component.savings.EntityStateCache.EntityState;
-import com.vmturbo.cost.component.savings.EntityStateCache.SavingsInvestments;
 
 /**
  * Verify operation of the entity savings tracker.
@@ -45,8 +43,6 @@ public class EntitySavingsTrackerTest {
     private static EntitySavingsStore entitySavingsStore;
 
     private static EntityEventsJournal entityEventsJournal;
-
-    private static EntityStateCache entityStateCache;
 
     private EntitySavingsTracker tracker;
 
@@ -68,6 +64,7 @@ public class EntitySavingsTrackerTest {
     private static final long vm1Id = 101L;
     private static final long vm2Id = 201L;
     private static final long vm3Id = 301L;
+    private static final long vm4Id = 401L;
 
     private static final long action1Id = 1001L;
     private static final long action2Id = 1002L;
@@ -81,9 +78,11 @@ public class EntitySavingsTrackerTest {
 
     /**
      * Set up before each test case.
+     *
+     * @throws Exception any exception
      */
     @Before
-    public void setup() {
+    public void setup() throws Exception {
         MockitoAnnotations.initMocks(this);
         entityEventsJournal = mock(EntityEventsJournal.class);
         createEvents();
@@ -91,19 +90,21 @@ public class EntitySavingsTrackerTest {
         when(entityEventsJournal.removeEventsBetween(time1000am, time1100am)).thenReturn(eventsByPeriod.get(time1000am));
         when(entityEventsJournal.removeEventsBetween(time1100am, time1200pm)).thenReturn(eventsByPeriod.get(time1100am));
         entitySavingsStore = mock(EntitySavingsStore.class);
-        entityStateCache = mock(InMemoryEntityStateCache.class);
-        tracker = spy(new EntitySavingsTracker(entitySavingsStore, entityEventsJournal, entityStateCache));
+        EntityStateStore entityStateStore = mock(SqlEntityStateStore.class);
+        tracker = spy(new EntitySavingsTracker(entitySavingsStore, entityEventsJournal,
+                entityStateStore, Clock.systemUTC(), mock(AuditLogWriter.class), 2));
 
         Set<EntityState> stateSet = ImmutableSet.of(
-                createEntityState(vm1Id, 2, 0, 0, 0),
-                createEntityState(vm2Id, 0, 0, 0, 3),
-                createEntityState(vm3Id, 1, 2, 3, 4));
+                createEntityState(vm1Id, 2d, null, null, null),
+                createEntityState(vm2Id, null, null, null, 0d),
+                createEntityState(vm3Id, 1d, 2d, 3d, 4d),
+                createEntityState(vm4Id, 1d, null, null, null));
         Answer<Stream> stateStream = new Answer<Stream>() {
             public Stream answer(InvocationOnMock invocation) throws Throwable {
                 return stateSet.stream();
             }
         };
-        when(entityStateCache.getAll()).thenAnswer(stateStream);
+        when(entityStateStore.getAllEntityStates()).thenAnswer(stateStream);
     }
 
     private static void createEvents() {
@@ -215,26 +216,27 @@ public class EntitySavingsTrackerTest {
         stats.add(new EntitySavingsStats(vm3Id, time1000am, EntitySavingsStatsType.MISSED_SAVINGS, 3d));
         stats.add(new EntitySavingsStats(vm3Id, time1000am, EntitySavingsStatsType.MISSED_INVESTMENTS, 4d));
 
-        verify(entitySavingsStore).addHourlyStats(statsCaptor.capture());
-        Assert.assertEquals(12, statsCaptor.getValue().size());
-        Assert.assertTrue(statsCaptor.getValue().containsAll(stats));
+        // addHourlyStats is called three times.
+        // First 2 states will generate 2 stats records => 1 call
+        // Third state will generate 4 stats records => 1 call
+        // Forth state will generate 1 stats (less than 1 page) and flushed at the end => 1 call
+        verify(entitySavingsStore, times(3)).addHourlyStats(statsCaptor.capture());
     }
 
-    private EntityState createEntityState(long entityId, double realizedSavings, double realizedInvestments,
-                                          double missedSavings, double missedInvestments) {
+    private EntityState createEntityState(long entityId, Double realizedSavings, Double realizedInvestments,
+                                          Double missedSavings, Double missedInvestments) {
         EntityState state = new EntityState(entityId);
-        if (realizedSavings != 0 || realizedInvestments != 0) {
-            SavingsInvestments realized = new SavingsInvestments();
-            realized.setSavings(realizedSavings);
-            realized.setInvestments(realizedInvestments);
-            state.setRealized(realized, 1L);
+        if (realizedSavings != null) {
+            state.setRealizedSavings(realizedSavings);
         }
-
-        if (missedSavings != 0 || missedInvestments != 0) {
-            SavingsInvestments missed = new SavingsInvestments();
-            missed.setSavings(missedSavings);
-            missed.setInvestments(missedInvestments);
-            state.setMissed(missed, 1L);
+        if (realizedInvestments != null) {
+            state.setRealizedInvestments(realizedInvestments);
+        }
+        if (missedSavings != null) {
+            state.setMissedSavings(missedSavings);
+        }
+        if (missedInvestments != null) {
+            state.setMissedInvestments(missedInvestments);
         }
         return state;
     }

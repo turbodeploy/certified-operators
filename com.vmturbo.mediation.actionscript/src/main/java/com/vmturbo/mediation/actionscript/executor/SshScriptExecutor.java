@@ -14,8 +14,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.protobuf.util.JsonFormat;
 
 import org.apache.sshd.client.channel.ClientChannelEvent;
@@ -54,7 +53,7 @@ class SshScriptExecutor implements RemoteCommand<CompletionInfo> {
     private ActionScriptExecutor actionScriptExecutor;
 
     private final ActionToApiConverter converter;
-    private final Gson jsonConverter = (new GsonBuilder()).create();
+    private final ObjectMapper jsonConverter = new ObjectMapper();
 
     SshScriptExecutor(final ActionScriptExecutor actionScriptExecutor,
                       @Nonnull ActionToApiConverter converter) {
@@ -311,7 +310,7 @@ class SshScriptExecutor implements RemoteCommand<CompletionInfo> {
                     actionExecutionDTO.getWorkflow().getDisplayName());
                 final ActionApiDTO apiMessage = converter.convert(
                     new SdkActionInformationProvider(actionExecutionDTO), false, 0L, false);
-                converted = jsonConverter.toJson(apiMessage);
+                converted = jsonConverter.writeValueAsString(apiMessage);
             } else {
                 logger.debug("Using SDK message format when sending action with ID \"{}\" to "
                         + "workflow \"{}\".", actionExecutionDTO.getActionOid(),

@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.stitching.integration;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -18,6 +19,7 @@ import org.junit.Test;
 
 import com.vmturbo.common.protobuf.topology.Stitching.JournalOptions;
 import com.vmturbo.common.protobuf.topology.Stitching.Verbosity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.builders.CommodityBuilders;
@@ -32,6 +34,7 @@ import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingOperation;
 import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.journal.JournalRecorder.StringBuilderRecorder;
+import com.vmturbo.stitching.serviceslo.ServiceSLOStitchingOperation;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingIntegrationTest;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
@@ -51,73 +54,72 @@ public class KubernetesPrometheusStitchingIntegrationTest extends StitchingInteg
     private static final long kubernetesProbeId = 2333L;
     private static final long prometheusProbeId = 6666L;
 
-    private static final long oid_service1 = 11L;
+    private static final long oid_service = 11L;
     private static final long oid_app1 = 21L;
-    private static final long oid_app1_1 = 22L;
+    private static final long oid_app1_sidecar = 22L;
+    private static final long oid_app2 = 31L;
+    private static final long oid_app2_sidecar = 33L;
 
     private static final long oid_service1_proxy = 111L;
     private static final long oid_app1_proxy = 211L;
-    private static final long oid_service1_1_proxy = 112L;
-    private static final long oid_app1_1_proxy = 212L;
-    private static final long oid_service1_proxy_future = 113L;
+    private static final long oid_service2_proxy = 112L;
+    private static final long oid_app2_proxy = 212L;
 
-    // kubernetes entities
-    private final EntityDTO service = EntityBuilders.service("service1")
-        .buying(CommodityBuilders.transactionsPerSecond().from("app1").key("10.2.1.31"))
-        .buying(CommodityBuilders.responseTimeMillis().from("app1").key("10.2.1.31"))
-        .buying(CommodityBuilders.transactionsPerSecond().from("app1-1").key("10.2.1.31-1"))
-        .buying(CommodityBuilders.responseTimeMillis().from("app1-1").key("10.2.1.31-1"))
-        .property("IP", "service-10.2.1.31,service-10.2.1.31-1")
-        .build();
-
+    // kubernetes entities only trade keyed Application commodities, but don't trade SLO commodities
     private final EntityDTO app1 = EntityBuilders.applicationComponent("app1")
-        .selling(CommodityBuilders.transactionsPerSecond().sold().key("10.2.1.31"))
-        .selling(CommodityBuilders.responseTimeMillis().sold().key("10.2.1.31"))
+        .selling(CommodityBuilders.application().sold().key("d74685aa-8b98-4e02-a95f-82da8e84c934"))
         .property("IP", "10.2.1.31")
         .build();
 
-    private final EntityDTO app1_1 = EntityBuilders.applicationComponent("app1-1")
-        .selling(CommodityBuilders.transactionsPerSecond().sold().key("10.2.1.31-1"))
-        .selling(CommodityBuilders.responseTimeMillis().sold().key("10.2.1.31-1"))
+    private final EntityDTO app1_sidecar = EntityBuilders.applicationComponent("app1-sidecar")
+        .selling(CommodityBuilders.application().sold().key("d74685aa-8b98-4e02-a95f-82da8e84c934-1"))
         .property("IP", "10.2.1.31-1")
         .build();
 
-    // prometheus proxy entities
+    private final EntityDTO app2 = EntityBuilders.applicationComponent("app2")
+            .selling(CommodityBuilders.application().sold().key("d74685aa-8b98-4e02-a95f-82da8e84c934"))
+            .property("IP", "10.2.1.32")
+            .build();
+
+    private final EntityDTO app2_sidecar = EntityBuilders.applicationComponent("app2-sidecar")
+            .selling(CommodityBuilders.application().sold().key("d74685aa-8b98-4e02-a95f-82da8e84c934-1"))
+            .property("IP", "10.2.1.32-1")
+            .build();
+
+    // prometheus proxy entities trade non-keyed SLO commodities and keyed Application commodities
     private final EntityDTO service1_proxy = EntityBuilders.service("service1-proxy")
-        .buying(CommodityBuilders.transactionsPerSecond().from("app1-proxy").key("10.2.1.31").used(12d))
-        .buying(CommodityBuilders.responseTimeMillis().from("app1-proxy").key("10.2.1.31").used(10d))
+        .buying(CommodityBuilders.transactionsPerSecond().from("app1-proxy").used(12d))
+        .buying(CommodityBuilders.responseTimeMillis().from("app1-proxy").used(10d))
+        .buying(CommodityBuilders.application().from("app1-proxy").key("Service-10.2.1.31-demoapp"))
+        .selling(CommodityBuilders.transactionsPerSecond().sold().used(12d))
+        .selling(CommodityBuilders.responseTimeMillis().sold().used(10d))
         .property("IP", "service-10.2.1.31")
         .proxy()
         .build();
 
     private final EntityDTO app1_proxy = EntityBuilders.applicationComponent("app1-proxy")
-        .selling(CommodityBuilders.transactionsPerSecond().sold().key("10.2.1.31").used(12d))
-        .selling(CommodityBuilders.responseTimeMillis().sold().key("10.2.1.31").used(10d))
+        .selling(CommodityBuilders.transactionsPerSecond().sold().used(12d))
+        .selling(CommodityBuilders.responseTimeMillis().sold().used(10d))
+        .selling(CommodityBuilders.application().sold().key("Service-10.2.1.31-demoapp"))
         .property("IP", "10.2.1.31")
         .proxy()
         .build();
 
-    private final EntityDTO service1_1_proxy = EntityBuilders.service("service1-1-proxy")
-        .buying(CommodityBuilders.transactionsPerSecond().from("app1-1-proxy").key("10.2.1.31-1").used(15d))
-        .buying(CommodityBuilders.responseTimeMillis().from("app1-1-proxy").key("10.2.1.31-1").used(8d))
-        .property("IP", "service-10.2.1.31-1")
+    private final EntityDTO service2_proxy = EntityBuilders.service("service2-proxy")
+        .buying(CommodityBuilders.transactionsPerSecond().from("app2-proxy").used(15d))
+        .buying(CommodityBuilders.responseTimeMillis().from("app2-proxy").used(8d))
+        .buying(CommodityBuilders.application().from("app2-proxy").key("Service-10.2.1.32-demoapp"))
+        .selling(CommodityBuilders.transactionsPerSecond().sold().used(15d))
+        .selling(CommodityBuilders.responseTimeMillis().sold().used(8d))
+        .property("IP", "service-10.2.1.32")
         .proxy()
         .build();
 
-    private final EntityDTO app1_1_proxy = EntityBuilders.applicationComponent("app1-1-proxy")
-        .selling(CommodityBuilders.transactionsPerSecond().sold().key("10.2.1.31-1").used(15d))
-        .selling(CommodityBuilders.responseTimeMillis().sold().key("10.2.1.31-1").used(8d))
-        .property("IP", "10.2.1.31-1")
-        .proxy()
-        .build();
-
-    // prometheus proxy entities (new service DTO after potential change in probe in future)
-    private final EntityDTO service1_proxy_future = EntityBuilders.service("service1-proxy-future")
-        .buying(CommodityBuilders.transactionsPerSecond().from("app1-proxy").key("10.2.1.31").used(12d))
-        .buying(CommodityBuilders.responseTimeMillis().from("app1-proxy").key("10.2.1.31").used(10d))
-        .buying(CommodityBuilders.transactionsPerSecond().from("app1-1-proxy").key("10.2.1.31-1").used(15d))
-        .buying(CommodityBuilders.responseTimeMillis().from("app1-1-proxy").key("10.2.1.31-1").used(8d))
-        .property("IP", "service-10.2.1.31,service-10.2.1.31-1")
+    private final EntityDTO app2_proxy = EntityBuilders.applicationComponent("app2-proxy")
+        .selling(CommodityBuilders.transactionsPerSecond().sold().used(15d))
+        .selling(CommodityBuilders.responseTimeMillis().sold().used(8d))
+        .selling(CommodityBuilders.application().sold().key("Service-10.2.1.32-demoapp"))
+        .property("IP", "10.2.1.32")
         .proxy()
         .build();
 
@@ -130,40 +132,50 @@ public class KubernetesPrometheusStitchingIntegrationTest extends StitchingInteg
      *
      * Before stitching:
      *
-     *     Kubernetes                  Prometheus
+     *     Kubernetes           Prometheus
      *
-     *       service1             service1-proxy    service1-1-proxy
-     *       /   \                  |               |
-     *    app1  app1-1          app1-proxy     app1-1-proxy
+     *      service1          service1-proxy
+     *       /   \                  |
+     *    app1  app1-sidecar    app1-proxy
      *
      * After stitching:
      *
      *     Kubernetes
      *
-     *       servicep1          (bought commodities got used value from Prometheus)
+     *       service1          (bought commodities got used value from Prometheus)
      *       /   \
-     *    app1  app1-1      (sold commodities got used value from Prometheus)
+     *    app1  app1-sidecar   (sold commodities got used value from Prometheus)
      *
      * @throws Exception if anything goes wrong.
      */
     @Test
     public void testPrometheusOneServiceBuyingFromOneApp() throws Exception {
         init(getDataDrivenStitchingOperations());
-        final Map<Long, EntityDTO> kubernetesEntities = ImmutableMap.of(oid_service1, service,
-            oid_app1, app1,
-            oid_app1_1, app1_1
+        final EntityDTO service = EntityBuilders.service("service")
+            .buying(CommodityBuilders.application()
+                    .from("app1")
+                    .key("d74685aa-8b98-4e02-a95f-82da8e84c934"))
+            .buying(CommodityBuilders.application()
+                    .from("app1-sidecar")
+                    .key("d74685aa-8b98-4e02-a95f-82da8e84c934-1"))
+            .property("IP", "service-10.2.1.31")
+            .build();
+        final Map<Long, EntityDTO> kubernetesEntities = ImmutableMap.of(
+                oid_service, service,
+                oid_app1, app1,
+                oid_app1_sidecar, app1_sidecar
         );
-        final Map<Long, EntityDTO> prometheusEntities = ImmutableMap.of(oid_service1_proxy, service1_proxy,
-            oid_app1_proxy, app1_proxy, oid_service1_1_proxy, service1_1_proxy,
-            oid_app1_1_proxy, app1_1_proxy
+        final Map<Long, EntityDTO> prometheusEntities = ImmutableMap.of(
+                oid_service1_proxy, service1_proxy,
+                oid_app1_proxy, app1_proxy
         );
         addEntities(kubernetesEntities, kubernetesTargetId);
         addEntities(prometheusEntities, prometheusTargetId);
 
         final StitchingContext stitchingContext = entityStore.constructStitchingContext();
 
-        // verify that there are 7 entities before stitching
-        assertEquals(7, stitchingContext.getStitchingGraph().entityCount());
+        // verify that there are 5 entities before stitching
+        assertEquals(5, stitchingContext.getStitchingGraph().entityCount());
 
         // stitch
         Map<Long, TopologyEntityDTO.Builder> topology = stitch(stitchingContext);
@@ -171,88 +183,127 @@ public class KubernetesPrometheusStitchingIntegrationTest extends StitchingInteg
         // verify that only entities from Kubernetes are left after stitching
         assertEquals(3, topology.size());
 
-        final TopologyEntityDTO.Builder service = topology.get(oid_service1);
+        final TopologyEntityDTO.Builder svc = topology.get(oid_service);
         final TopologyEntityDTO.Builder app1 = topology.get(oid_app1);
-        final TopologyEntityDTO.Builder app11 = topology.get(oid_app1_1);
 
         // verify that service buys commodities from app1 with used value patched from prometheus
-        CommoditiesBoughtFromProvider cb1 = verifyAndGetCommoditiesBought(service, app1);
-        assertEquals(2, cb1.getCommodityBoughtCount());
-        verifyBuyingCommodity(cb1, CommodityType.TRANSACTION_VALUE, "10.2.1.31", 12d);
-        verifyBuyingCommodity(cb1, CommodityType.RESPONSE_TIME_VALUE, "10.2.1.31", 10d);
-
-        // verify that service buys commodities from app1_1 with used value patched from prometheus
-        CommoditiesBoughtFromProvider cb11 = verifyAndGetCommoditiesBought(service, app11);
-        assertEquals(2, cb11.getCommodityBoughtCount());
-        verifyBuyingCommodity(cb11, CommodityType.TRANSACTION_VALUE, "10.2.1.31-1", 15d);
-        verifyBuyingCommodity(cb11, CommodityType.RESPONSE_TIME_VALUE, "10.2.1.31-1", 8d);
+        final CommoditiesBoughtFromProvider cb1 = verifyAndGetCommoditiesBought(svc, app1);
+        assertEquals(3, cb1.getCommodityBoughtCount());
+        verifyBuyingCommodity(cb1, CommodityType.TRANSACTION_VALUE, "", 12d);
+        verifyBuyingCommodity(cb1, CommodityType.RESPONSE_TIME_VALUE, "", 10d);
+        verifyBuyingCommodity(cb1, CommodityType.APPLICATION_VALUE,
+                "d74685aa-8b98-4e02-a95f-82da8e84c934", 0d);
     }
 
-
     /**
-     * Test the stitching between Kubernetes and Prometheus. After checking with probe writer,
-     * there may be a change in Prometheus to return DTOs in new structure: it returns same
-     * structure as Kubernetes, rather than in pairs. This tests the stitching after possible
-     * changes in probe.
+     * Test the stitching between Kubernetes and Prometheus, and verify that after stitching, the
+     * used value of sold commodities of service are aggregated
      *
      * The EntityDTOs used in the test will be the following:
      *
      * Before stitching:
      *
-     *     Kubernetes                  Prometheus
+     *             Kubernetes                                     Prometheus
      *
-     *       service1                  service1-proxy-future
-     *       /   \                     /         \
-     *    app1  app1-1          app1-proxy    app1-1-proxy
+     *      ------ service ------                       service1-proxy    service2-proxy
+     *     /  \              \   \                            /                 \
+     *  app1  app1-sidecar app2  app2-sidecar           app1-proxy          app2-proxy
      *
      * After stitching:
      *
-     *     Kubernetes
+     *          Kubernetes
      *
-     *       service1          <- bought commodities got used value from Prometheus
-     *       /   \
-     *    app1  app1-1      <- sold commodities got used value from Prometheus
+     *      ------ service ------               <- sold commodities: aggregates used value from Prometheus
+     *     /  \             \    \              <- bought commodities: sets used value from Prometheus
+     *    /    \             \    \
+     *  app1 app1-sidecar  app2  app2-sidecar   <- sold commodities: sets used value from Prometheus
      */
     @Test
     public void testPrometheusOneServiceBuyingFromMultipleApps() throws Exception {
-        init(getDataDrivenStitchingOperationsFuture());
-        final Map<Long, EntityDTO> kubernetesEntities = ImmutableMap.of(oid_service1, service,
-            oid_app1, app1,
-            oid_app1_1, app1_1
+        init(getDataDrivenStitchingOperations());
+        final EntityDTO service = EntityBuilders.service("service")
+            .selling(CommodityBuilders.application().sold()
+                    .key("TwitterApp-demoapp-http://prometheus.istio-system:9090")
+                    .used(0d).capacity(100000d))
+            .buying(CommodityBuilders.application().
+                    from("app1")
+                    .key("d74685aa-8b98-4e02-a95f-82da8e84c934"))
+            .buying(CommodityBuilders.application()
+                    .from("app1-sidecar")
+                    .key("d74685aa-8b98-4e02-a95f-82da8e84c934-1"))
+            .buying(CommodityBuilders.application().
+                    from("app2")
+                    .key("d74685aa-8b98-4e02-a95f-82da8e84c934"))
+            .buying(CommodityBuilders.application()
+                    .from("app2-sidecar")
+                    .key("d74685aa-8b98-4e02-a95f-82da8e84c934-1"))
+            .property("IP", "service-10.2.1.31,service-10.2.1.32")
+            .build();
+        final Map<Long, EntityDTO> kubernetesEntities = ImmutableMap.of(
+                oid_service, service,
+                oid_app1, app1,
+                oid_app1_sidecar, app1_sidecar,
+                oid_app2, app2,
+                oid_app2_sidecar, app2_sidecar
         );
-        final Map<Long, EntityDTO> prometheusEntities = ImmutableMap.of(oid_service1_proxy_future, service1_proxy_future,
-            oid_app1_proxy, app1_proxy,
-            oid_app1_1_proxy, app1_1_proxy
+        final Map<Long, EntityDTO> prometheusEntities = ImmutableMap.of(
+                oid_service1_proxy, service1_proxy,
+                oid_app1_proxy, app1_proxy,
+                oid_service2_proxy, service2_proxy,
+                oid_app2_proxy, app2_proxy
         );
         addEntities(kubernetesEntities, kubernetesTargetId);
         addEntities(prometheusEntities, prometheusTargetId);
 
         final StitchingContext stitchingContext = entityStore.constructStitchingContext();
 
-        // verify that there are 6 entities before stitching
-        assertEquals(6, stitchingContext.getStitchingGraph().entityCount());
+        // verify that there are 9 entities before stitching
+        assertEquals(9, stitchingContext.getStitchingGraph().entityCount());
 
         // stitch
         Map<Long, TopologyEntityDTO.Builder> topology = stitch(stitchingContext);
 
         // verify that only entities from Kubernetes are left after stitching
-        assertEquals(3, topology.size());
+        assertEquals(5, topology.size());
 
-        final TopologyEntityDTO.Builder service = topology.get(oid_service1);
+        final TopologyEntityDTO.Builder svc = topology.get(oid_service);
         final TopologyEntityDTO.Builder app1 = topology.get(oid_app1);
-        final TopologyEntityDTO.Builder app11 = topology.get(oid_app1_1);
+        final TopologyEntityDTO.Builder app2 = topology.get(oid_app2);
 
         // verify that service buys commodities from app1 with used value patched from prometheus
-        CommoditiesBoughtFromProvider cb1 = verifyAndGetCommoditiesBought(service, app1);
-        assertEquals(2, cb1.getCommodityBoughtCount());
-        verifyBuyingCommodity(cb1, CommodityType.TRANSACTION_VALUE, "10.2.1.31", 12d);
-        verifyBuyingCommodity(cb1, CommodityType.RESPONSE_TIME_VALUE, "10.2.1.31", 10d);
+        final CommoditiesBoughtFromProvider cb1 = verifyAndGetCommoditiesBought(svc, app1);
+        verifyBuyingCommodity(cb1, CommodityType.TRANSACTION_VALUE, "", 12d);
+        verifyBuyingCommodity(cb1, CommodityType.RESPONSE_TIME_VALUE, "", 10d);
+        verifyBuyingCommodity(cb1, CommodityType.APPLICATION_VALUE,
+                "d74685aa-8b98-4e02-a95f-82da8e84c934", 0d);
 
-        // verify that service buys commodities from app1_1 with used value patched from prometheus
-        CommoditiesBoughtFromProvider cb11 = verifyAndGetCommoditiesBought(service, app11);
-        assertEquals(2, cb11.getCommodityBoughtCount());
-        verifyBuyingCommodity(cb11, CommodityType.TRANSACTION_VALUE, "10.2.1.31-1", 15d);
-        verifyBuyingCommodity(cb11, CommodityType.RESPONSE_TIME_VALUE, "10.2.1.31-1", 8d);
+        // verify that service buys commodities from app2 with used value patched from prometheus
+        final CommoditiesBoughtFromProvider cb2 = verifyAndGetCommoditiesBought(svc, app2);
+        verifyBuyingCommodity(cb2, CommodityType.TRANSACTION_VALUE, "", 15d);
+        verifyBuyingCommodity(cb2, CommodityType.RESPONSE_TIME_VALUE, "", 8d);
+        verifyBuyingCommodity(cb2, CommodityType.APPLICATION_VALUE,
+                "d74685aa-8b98-4e02-a95f-82da8e84c934", 0d);
+
+        // verify that app1 sells merged sold commodities
+        final List<CommoditySoldDTO> app1Sold = verifyAndGetCommoditiesSold(app1);
+        verifySoldCommodity(app1Sold, CommodityType.TRANSACTION_VALUE, "", 12d);
+        verifySoldCommodity(app1Sold, CommodityType.RESPONSE_TIME_VALUE, "", 10d);
+        verifySoldCommodity(app1Sold, CommodityType.APPLICATION_VALUE,
+                "d74685aa-8b98-4e02-a95f-82da8e84c934", 0d);
+
+        // verify that app2 sells merged sold commodities
+        final List<CommoditySoldDTO> app2Sold = verifyAndGetCommoditiesSold(app2);
+        verifySoldCommodity(app2Sold, CommodityType.TRANSACTION_VALUE, "", 15d);
+        verifySoldCommodity(app2Sold, CommodityType.RESPONSE_TIME_VALUE, "", 8d);
+        verifySoldCommodity(app2Sold, CommodityType.APPLICATION_VALUE,
+                "d74685aa-8b98-4e02-a95f-82da8e84c934", 0d);
+
+        // verify that service sells aggregated commodities from all proxy services
+        final List<CommoditySoldDTO> svcSold = verifyAndGetCommoditiesSold(svc);
+        verifySoldCommodity(svcSold, CommodityType.TRANSACTION_VALUE, "", 27);
+        verifySoldCommodity(svcSold, CommodityType.RESPONSE_TIME_VALUE, "", 18);
+        verifySoldCommodity(svcSold, CommodityType.APPLICATION_VALUE,
+                "TwitterApp-demoapp-http://prometheus.istio-system:9090", 0);
     }
 
     public void init(List<StitchingOperation<?, ?>> dataDrivenStitchingOperations) {
@@ -308,44 +359,31 @@ public class KubernetesPrometheusStitchingIntegrationTest extends StitchingInteg
             .count());
     }
 
-    private List<StitchingOperation<?, ?>> getDataDrivenStitchingOperations() {
-        final MergedEntityMetadata serviceMergedEntityMetadata = new MergedEntityMetadataBuilder()
-            .internalMatchingProperty("IP")
-            .externalMatchingProperty("IP", ",")
-            .mergedBoughtCommodity(EntityType.APPLICATION_COMPONENT, ImmutableList.of(
-                CommodityType.TRANSACTION, CommodityType.RESPONSE_TIME))
-            .build();
-
-        final MergedEntityMetadata appMergedEntityMetadata = new MergedEntityMetadataBuilder()
-            .internalMatchingProperty("IP")
-            .externalMatchingProperty("IP")
-            .mergedSoldCommodity(CommodityType.TRANSACTION)
-            .mergedSoldCommodity(CommodityType.RESPONSE_TIME)
-            .build();
-
-        return ImmutableList.of(createDataDrivenStitchingOperation(serviceMergedEntityMetadata,
-                EntityType.SERVICE, ProbeCategory.CLOUD_NATIVE),
-                createDataDrivenStitchingOperation(appMergedEntityMetadata,
-                        EntityType.APPLICATION_COMPONENT, ProbeCategory.CLOUD_NATIVE));
+    private List<CommoditySoldDTO> verifyAndGetCommoditiesSold(TopologyEntityDTO.Builder entity) {
+        final List<CommoditySoldDTO> sold = entity.getCommoditySoldListList();
+        assertTrue(sold.size() > 0);
+        return sold;
     }
 
-    private List<StitchingOperation<?, ?>> getDataDrivenStitchingOperationsFuture() {
-        final MergedEntityMetadata serviceMergedEntityMetadata = new MergedEntityMetadataBuilder()
-            .internalMatchingProperty("IP",",")
-            .externalMatchingProperty("IP", ",")
-            .mergedBoughtCommodity(EntityType.APPLICATION_COMPONENT, ImmutableList.of(
-                CommodityType.TRANSACTION, CommodityType.RESPONSE_TIME))
-            .build();
+    private void verifySoldCommodity(final List<CommoditySoldDTO> soldCommodities,
+                                     int commodityType, final String key, double used) {
+        assertEquals(1, soldCommodities.stream()
+                .filter(comm -> comm.getCommodityType().getType() == commodityType)
+                .filter(comm -> comm.getCommodityType().getKey().equals(key))
+                .filter(comm -> comm.getUsed() == used)
+                .count());
+    }
 
+    private List<StitchingOperation<?, ?>> getDataDrivenStitchingOperations() {
         final MergedEntityMetadata appMergedEntityMetadata = new MergedEntityMetadataBuilder()
             .internalMatchingProperty("IP")
             .externalMatchingProperty("IP")
             .mergedSoldCommodity(CommodityType.TRANSACTION)
             .mergedSoldCommodity(CommodityType.RESPONSE_TIME)
             .build();
-
-        return ImmutableList.of(createDataDrivenStitchingOperation(serviceMergedEntityMetadata,
-                EntityType.SERVICE, ProbeCategory.CLOUD_NATIVE),
+        // Making sure stitching operation for Service is before that for ApplicationComponent
+        return ImmutableList.of(
+                new ServiceSLOStitchingOperation(),
                 createDataDrivenStitchingOperation(appMergedEntityMetadata,
                         EntityType.APPLICATION_COMPONENT, ProbeCategory.CLOUD_NATIVE));
     }

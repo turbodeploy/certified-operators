@@ -67,6 +67,7 @@ public interface AggregatingDiscoveryQueue {
      * @param transport the transport that will carry out the discovery.
      * @param probeTypes the collection of probe types this transport can service.
      * @param discoveryType the {@link DiscoveryType} to get.
+     * @param timeoutMillis how long to wait in milliseconds before returning Optional.empty
      * @return IDiscoveryQueueElement that represents the details of the
      * discovery to be carried out.
      * @throws InterruptedException if thread is interrupted while waiting.
@@ -74,7 +75,8 @@ public interface AggregatingDiscoveryQueue {
     Optional<IDiscoveryQueueElement> takeNextQueuedDiscovery(
             @Nonnull ITransport<MediationServerMessage, MediationClientMessage> transport,
             @Nonnull Collection<Long> probeTypes,
-            @Nonnull DiscoveryType discoveryType)
+            @Nonnull DiscoveryType discoveryType,
+            long timeoutMillis)
             throws InterruptedException;
 
     /**

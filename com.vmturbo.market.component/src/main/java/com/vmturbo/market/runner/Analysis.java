@@ -14,7 +14,6 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -1021,7 +1020,9 @@ public class Analysis {
                                 .setCommType(commType.get())
                                 .setRequestedAmount(bundle.requestedAmount);
                         if (bundle.maxAvailable.isPresent()) {
-                            failedResources.setMaxAvailable(bundle.maxAvailable.get());
+                            double maxAvailable = MarketAnalysisUtils.getMaxAvailableForUnplacementReason(
+                                    commType.get(), bundle);
+                            failedResources.setMaxAvailable(maxAvailable);
                         }
                         reason.addFailedResources(failedResources.build());
                     }

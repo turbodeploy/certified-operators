@@ -55,18 +55,23 @@ public class ReservationRpcService extends ReservationServiceImplBase {
 
     private final ReservationManager reservationManager;
 
+    private final long delayedDeletionTimeInMillis;
+
     /**
      * constructor for ReservationRpcService.
      * @param templateDao to get template information from db.
      * @param reservationDao for updating reservation to db.
      * @param reservationManager method with all reservation related changes.
+     * @param delayedDeletionTimeInMillis if deployed is true set expiration date based on delayedDeletionTimeInMillis
      */
     public ReservationRpcService(@Nonnull final TemplatesDao templateDao,
                                  @Nonnull final ReservationDao reservationDao,
-                                 @Nonnull final ReservationManager reservationManager) {
+                                 @Nonnull final ReservationManager reservationManager,
+                                 long delayedDeletionTimeInMillis) {
         this.templatesDao = Objects.requireNonNull(templateDao);
         this.reservationDao = Objects.requireNonNull(reservationDao);
         this.reservationManager = Objects.requireNonNull(reservationManager);
+        this.delayedDeletionTimeInMillis = delayedDeletionTimeInMillis;
 
     }
 
@@ -201,7 +206,8 @@ public class ReservationRpcService extends ReservationServiceImplBase {
             return;
         }
         try {
-            final Reservation reservation = reservationDao.deleteReservationById(request.getReservationId());
+            boolean deployed = request.hasDeployed() && request.getDeployed();
+            final Reservation reservation = reservationDao.deleteReservationById(request.getReservationId(), deployed, delayedDeletionTimeInMillis);
             responseObserver.onNext(reservation);
             responseObserver.onCompleted();
         } catch (NoSuchObjectException e) {
@@ -281,7 +287,7 @@ public class ReservationRpcService extends ReservationServiceImplBase {
                     reservationsToStart.add(reservation);
                 }
             });
-            reservationManager.deleteReservationFromMarketCache(reservationsToUpdateMarket);
+            reservationManager.deleteReservationFromMarketCache(reservationsToUpdateMarket, false);
             for (Reservation reservation : reservationsToRemove) {
                 reservationDao.deleteReservationById(reservation.getId());
                 logger.info(logPrefix + "Deleted Expired Reservation: " + reservation.getName());

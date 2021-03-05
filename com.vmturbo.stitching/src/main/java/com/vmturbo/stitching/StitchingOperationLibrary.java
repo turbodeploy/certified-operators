@@ -19,6 +19,7 @@ import com.vmturbo.stitching.cloudfoundry.CloudFoundryVMStitchingOperation;
 import com.vmturbo.stitching.compute.IaasVMStitchingOperation;
 import com.vmturbo.stitching.fabric.FabricChassisStitchingOperation;
 import com.vmturbo.stitching.fabric.FabricPMStitchingOperation;
+import com.vmturbo.stitching.serviceslo.ServiceSLOStitchingOperation;
 import com.vmturbo.stitching.vcd.ElasticVDCStitchingOperation;
 import com.vmturbo.stitching.vcd.VcdVMStitchingOperation;
 import com.vmturbo.stitching.vdi.DesktopPoolMasterImageStitchingOperation;
@@ -91,9 +92,8 @@ public class StitchingOperationLibrary {
                 }
                 return Collections.singletonList(new IaasVMStitchingOperation());
             case GUEST_OS_PROCESSES:
-                return Collections.emptyList();
             case CUSTOM:
-                return Collections.emptyList();
+                return Collections.singletonList(new ServiceSLOStitchingOperation());
             case BILLING:
                 if (probeType.equals(SDKProbeType.AWS_BILLING.getProbeType())) {
                     return Arrays.asList(new AwsBillingStitchingOperation(),

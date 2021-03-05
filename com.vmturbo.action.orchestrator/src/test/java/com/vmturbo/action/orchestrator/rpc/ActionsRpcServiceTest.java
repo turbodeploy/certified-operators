@@ -73,6 +73,9 @@ import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByDateRespons
 import com.vmturbo.common.protobuf.action.ActionDTO.ResendAuditedActionsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.ResendAuditedActionsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
+import com.vmturbo.components.common.setting.ActionSettingSpecs;
+import com.vmturbo.components.common.setting.ActionSettingType;
+import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 
 /**
  * test helper methods {@link ActionsRpcService#getActionCountsByDateResponseBuilder}.
@@ -375,10 +378,15 @@ public class ActionsRpcServiceTest {
         final long actualActionStableId = 1L;
         final long clearedActionStableId = 2L;
         final long auditWorkflowId = 3L;
+        final long targetEntityId = 4L;
+        final long clearedTargetEntityId = 5L;
+        final String settingName = ActionSettingSpecs.getSubSettingFromActionModeSetting(
+            ConfigurableActionSettings.ResizeVmemUpInBetweenThresholds,
+            ActionSettingType.ON_GEN);
         final AuditedActionInfo auditedAction =
-                new AuditedActionInfo(actualActionStableId, auditWorkflowId, Optional.empty());
+                new AuditedActionInfo(actualActionStableId, auditWorkflowId, targetEntityId, settingName, Optional.empty());
         final AuditedActionInfo auditedAndClearedAction =
-                new AuditedActionInfo(clearedActionStableId, auditWorkflowId,
+                new AuditedActionInfo(clearedActionStableId, auditWorkflowId, clearedTargetEntityId, settingName,
                         Optional.of(System.currentTimeMillis()));
         Mockito.when(auditedActionsManager.getAlreadySentActions(auditWorkflowId))
                 .thenReturn(Arrays.asList(auditedAction, auditedAndClearedAction));

@@ -150,6 +150,7 @@ public class CloudTopologyConverter {
                 Map<TraderTO.Builder, MarketTier> traderTOBuildersForEntity =
                         converter.createMarketTierTraderTOs(entity, topology, businessAccounts, uniqueAccountPricingData);
                 traderTOBuilders.addAll(traderTOBuildersForEntity.keySet());
+                // Only add compute tiers.
                 if (entity.getEntityType() == EntityType.COMPUTE_TIER_VALUE) {
                     computeMarketTierBuilders.addAll(traderTOBuildersForEntity.keySet());
                 }

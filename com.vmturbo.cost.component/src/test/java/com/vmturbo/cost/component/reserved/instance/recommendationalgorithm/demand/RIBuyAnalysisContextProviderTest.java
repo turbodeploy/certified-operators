@@ -60,6 +60,8 @@ import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.Rese
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.inventory.ImmutableReservedInstanceSpecData;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.inventory.RegionalRIMatcherCache;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.inventory.RegionalRIMatcherCacheFactory;
+import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.inventory.ReservedInstanceCatalogMatcher;
+import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.inventory.ReservedInstanceCatalogMatcher.ReservedInstanceCatalogMatcherFactory;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.inventory.ReservedInstanceSpecMatcher;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.inventory.ReservedInstanceSpecMatcher.ReservedInstanceSpecData;
 import com.vmturbo.group.api.GroupAndMembers;
@@ -104,8 +106,10 @@ public class RIBuyAnalysisContextProviderTest {
     private DSLContext dsl = dbConfig.getDslContext();
 
     private final RepositoryServiceMole repositoryService = spy(new RepositoryServiceMole());
-    private final RegionalRIMatcherCache matcherCache = mock(RegionalRIMatcherCache.class);
-    private final ReservedInstanceSpecMatcher matcher = mock(ReservedInstanceSpecMatcher.class);
+    private final ReservedInstanceCatalogMatcherFactory reservedInstanceCatalogMatcherFactory =
+            mock(ReservedInstanceCatalogMatcherFactory.class);
+    private final ReservedInstanceCatalogMatcher reservedInstanceCatalogMatcher =
+            mock(ReservedInstanceCatalogMatcher.class);
 
     /**
      * gRPC test server.
@@ -141,10 +145,10 @@ public class RIBuyAnalysisContextProviderTest {
         ReservedInstanceSpecData data =
                 ImmutableReservedInstanceSpecData.builder().computeTier(entityMap.get(TIER_ID))
                         .reservedInstanceSpec(spec).couponsPerInstance(1).build();
-        when(matcher.matchToPurchasingRISpecData(any(TopologyEntityDTO.class),
-                any(TopologyEntityDTO.class), any(OSType.class), any(Tenancy.class)))
+        when(reservedInstanceCatalogMatcher.matchToPurchasingRISpecData(any()))
                 .thenReturn(Optional.of(data));
-        when(matcherCache.getOrCreateRISpecMatchForRegion(REGION_ID)).thenReturn(matcher);
+        when(reservedInstanceCatalogMatcherFactory.newMatcher(any(), any(), any()))
+                .thenReturn(reservedInstanceCatalogMatcher);
     }
 
     /**
@@ -164,16 +168,12 @@ public class RIBuyAnalysisContextProviderTest {
 
         TopologyEntityCloudTopologyFactory cloudTopologyFactory = new DefaultTopologyEntityCloudTopologyFactory(mock(GroupMemberRetriever.class));
 
-        RegionalRIMatcherCacheFactory regionalRIMatcherCacheFactory = mock(RegionalRIMatcherCacheFactory.class);
-        when(regionalRIMatcherCacheFactory.createNewCache(any(CloudTopology.class),
-                any(Map.class), any(TopologyInfo.class))).thenReturn(matcherCache);
-
 
         final StartBuyRIAnalysisRequest startBuyRIAnalysisRequest = StartBuyRIAnalysisRequest.newBuilder()
                 .addAllAccounts(Lists.newArrayList(ACCOUNT_ID, MASTER_ACCOUNT_1_OID)).build();
         ReservedInstanceAnalysisScope scope = new ReservedInstanceAnalysisScope(startBuyRIAnalysisRequest);
         RIBuyAnalysisContextProvider contextProvider =
-                new RIBuyAnalysisContextProvider(computeTierDemandStatsStore, regionalRIMatcherCacheFactory, CONTEXT_ID, true);
+                new RIBuyAnalysisContextProvider(computeTierDemandStatsStore, reservedInstanceCatalogMatcherFactory, CONTEXT_ID, true);
 
         final CloudTopology<TopologyEntityDTO> cloudTopology = createCloudTopology(repositoryClient,
                 cloudTopologyFactory);
@@ -231,17 +231,13 @@ public class RIBuyAnalysisContextProviderTest {
 
         TopologyEntityCloudTopologyFactory cloudTopologyFactory = new DefaultTopologyEntityCloudTopologyFactory(groupMemberRetriever);
 
-        RegionalRIMatcherCacheFactory regionalRIMatcherCacheFactory = mock(RegionalRIMatcherCacheFactory.class);
-        when(regionalRIMatcherCacheFactory.createNewCache(any(CloudTopology.class),
-                any(Map.class), any(TopologyInfo.class))).thenReturn(matcherCache);
-
 
         final StartBuyRIAnalysisRequest startBuyRIAnalysisRequest = StartBuyRIAnalysisRequest.newBuilder()
                 .addAllAccounts(Lists.newArrayList(ACCOUNT_ID, MASTER_ACCOUNT_1_OID)).build();
         ReservedInstanceAnalysisScope scope = new ReservedInstanceAnalysisScope(startBuyRIAnalysisRequest);
         RIBuyAnalysisContextProvider contextProvider =
                 new RIBuyAnalysisContextProvider(computeTierDemandStatsStore,
-                        regionalRIMatcherCacheFactory, CONTEXT_ID, true);
+                        reservedInstanceCatalogMatcherFactory, CONTEXT_ID, true);
 
         final CloudTopology<TopologyEntityDTO> cloudTopology = createCloudTopology(repositoryClient,
                 cloudTopologyFactory);

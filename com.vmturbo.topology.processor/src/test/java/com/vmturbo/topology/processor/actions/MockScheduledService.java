@@ -189,6 +189,7 @@ public class MockScheduledService implements ScheduledExecutorService {
      */
     private static class FakeScheduledFuture<T> extends CompletableFuture<T>
             implements ScheduledFuture<T> {
+
         @Override
         public long getDelay(@Nonnull TimeUnit unit) {
             return 0;
@@ -206,22 +207,26 @@ public class MockScheduledService implements ScheduledExecutorService {
      * @param <T> type of a future result
      */
     private static class FakeFuture<T> implements Future<T> {
+
+        private boolean isCancelled = false;
+
         private FakeFuture() {
         }
 
         @Override
         public boolean cancel(boolean mayInterruptIfRunning) {
+            isCancelled = true;
             return false;
         }
 
         @Override
         public boolean isCancelled() {
-            return false;
+            return isCancelled;
         }
 
         @Override
         public boolean isDone() {
-            return false;
+            return isCancelled;
         }
 
         @Override

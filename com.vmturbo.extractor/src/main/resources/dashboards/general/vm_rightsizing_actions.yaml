@@ -11,22 +11,22 @@ annotations:
 description: This dashboard displays current scaling actions for virtual machines
   in your on-prem environment.
 editable: false
-gnetId: null
+gnetId:
 graphTooltip: 0
-iteration: 1600435993718
+iteration: 1613752850955
 links: []
 panels:
 - datasource: $DB
   fieldConfig:
     defaults:
       custom:
-        align: null
+        align:
       mappings: []
       thresholds:
         mode: absolute
         steps:
         - color: green
-          value: null
+          value:
         - color: red
           value: 80
     overrides:
@@ -80,6 +80,18 @@ panels:
       properties:
       - id: custom.width
         value: 259
+    - matcher:
+        id: byName
+        options: Unit
+      properties:
+      - id: custom.width
+        value: 63
+    - matcher:
+        id: byName
+        options: VM Name
+      properties:
+      - id: custom.width
+        value: 225
   gridPos:
     h: 15
     w: 24
@@ -89,7 +101,7 @@ panels:
   options:
     showHeader: true
     sortBy: []
-  pluginVersion: 7.0.1
+  pluginVersion: 7.1.1
   targets:
   - format: table
     group: []
@@ -97,49 +109,78 @@ panels:
     rawQuery: true
     rawSql: |-
       WITH action_data AS (
+        SELECT
+          target_entity_id,
+          description,
+          resource_type,
+          (resize_info -> resource_type ->> 'from')::numeric as from_value,
+          (resize_info -> resource_type ->> 'to')::numeric as to_value
+        FROM (
           SELECT DISTINCT
-                 target_entity_id
-                ,savings
-                ,description
-           FROM pending_action
-          WHERE type = 'RESIZE'
+            target_entity_id,
+            attrs -> 'resizeInfo' as resize_info,
+            jsonb_object_keys(attrs -> 'resizeInfo') as resource_type,
+            description
+          FROM pending_action
+          WHERE type = 'RESIZE') as resize_actions
       ),
-      vms_by_cluster as (
-          SELECT DISTINCT on (e.oid) g.name as cluster_name
-                ,e.oid as vm_oid
-                ,e.name as vm_name
-            FROM entity g
-            JOIN scope s ON s.seed_oid = g.oid
-            JOIN entity e ON s.scoped_oid = e.oid AND s.scoped_type = 'VIRTUAL_MACHINE'
-            WHERE g."type" = 'COMPUTE_CLUSTER'
-             AND e.environment = 'ON_PREM'
-             AND (e.first_seen, e.last_seen) overlaps ($__timeFrom(),$__timeTo())
-             AND g.oid IN (SELECT * FROM unnest(ARRAY[$VMGroup]::bigint[]))
+      vms_by_cluster AS (
+        SELECT DISTINCT ON (e.oid)
+          g.name AS cluster_name,
+          e.oid AS vm_oid,
+          e.name AS vm_name,
+          -- this will allow us to prefer clusters to non-cluster groups
+          CASE WHEN g.type = 'COMPUTE_CLUSTER' THEN 1 ELSE 0 END AS priority
+        FROM
+          scope_to($__timeFrom(), $__timeTo(), 'VIRTUAL_MACHINE', ARRAY[${VMGroup}]::bigint[], false) AS s,
+          entity AS e,
+          entity AS g
+        WHERE
+          s.seed = g.oid
+          AND s.oid = e.oid
+          AND e.environment = 'ON_PREM'
+          AND (e.first_seen, e.last_seen) OVERLAPS ($__timeFrom(), $__timeTo())
+          AND (g.first_seen, g.last_seen) OVERLAPS ($__timeFrom(), $__timeTo())
+        ORDER BY e.oid, priority DESC, s.to_time DESC, s.from_time DESC, g.oid
+      ),
+      data AS (
+        SELECT
+          cluster_name as "Host Cluster",
+          vm_name as "VM Name",
+          description as "Action Details",
+          CASE
+            WHEN resource_type in ('VMEM', 'MEM', 'VSTORAGE') THEN from_value/1024/1024
+            ELSE from_value
+          END as "From",
+          CASE
+            WHEN resource_type in ('VMEM', 'MEM', 'VSTORAGE') THEN to_value/1024/1024
+            ELSE to_value
+          END as "To",
+          CASE
+            WHEN resource_type in ('VMEM', 'MEM', 'VSTORAGE') THEN 'GB'
+            ELSE 'Cores'
+          END as "Unit",
+          resource_type as "Resource Type",
+          CASE
+             WHEN to_value > from_value THEN 'Upsize'
+             WHEN to_value < from_value THEN 'Downsize'
+             ELSE null
+          END as "Resize Type"
+        FROM action_data, vms_by_cluster
+        WHERE vm_oid = action_data.target_entity_id
       )
       SELECT *
-      FROM (
-          SELECT cluster_name as "Host Cluster"
-                ,vm_name as "VM Name"
-                --,MAX(m.current) FILTER (WHERE m.type = 'VCPU') as "Peak VCPU"
-                --,MAX(m.current) FILTER (WHERE m.type = 'VMEM') as "Peak VMem"
-                ,description as "Action Details"
-                ,btrim(regexp_matches(description, 'from ([0-9]{0,4}|[0-9]{0,4}.[0-9] GB)')::text, '{}"')  as "From"
-                ,btrim(regexp_matches(description, 'to ([0-9]{0,4}|[0-9]{0,4}.[0-9] GB)')::text, '{}"') as "To"
-                ,btrim(regexp_matches(description, 'VMem|VCPU')::text, '{}"') as "Resource Type"
-                ,CASE
-                      WHEN description similar to 'Resize down%' THEN 'Downsize'
-                      WHEN description similar to 'Resize up%' THEN 'Upsize'
-                 END as "Resize Type"
-            FROM metric as m, action_data, vms_by_cluster
-           WHERE m.entity_oid = vm_oid
-             AND vm_oid = action_data.target_entity_id
-             AND $__timeFilter("time")
-           GROUP BY vm_oid, description, 2, 1
-           ) as data
-      WHERE CASE WHEN ARRAY[ $ResizeType ] = ARRAY[ '0' ] THEN true ELSE ("Resize Type" = $ResizeType) END
-        AND CASE WHEN ARRAY[ $ResourceType ] = ARRAY[ '0' ] THEN true ELSE ("Resource Type" = $ResourceType) END
+      FROM data
+      WHERE
+        CASE
+          WHEN ARRAY[ $ResizeType ] = ARRAY[ '0' ] THEN true
+          ELSE "Resize Type" = $ResizeType
+        END
+        AND CASE
+          WHEN ARRAY[ $ResourceType ] = ARRAY[ '0' ] THEN true
+          ELSE "Resource Type" = $ResourceType
+        END
       ORDER BY 2
-      ;
     refId: A
     select:
     - - params:
@@ -152,25 +193,25 @@ panels:
     - name: $__timeFilter
       params: []
       type: macro
-  timeFrom: null
-  timeShift: null
+  timeFrom:
+  timeShift:
   title: Rightsizing Recommendations
   type: table
-schemaVersion: 25
+schemaVersion: 26
 style: dark
 tags: []
 templating:
   list:
   - hide: 2
     includeAll: false
-    label: null
+    label:
     multi: false
     name: DB
     options: []
     query: postgres
-    queryValue: ""
+    queryValue: ''
     refresh: 1
-    regex: ""
+    regex: ''
     skipUrlSync: false
     type: datasource
   - allValue:
@@ -180,14 +221,13 @@ templating:
              oid as __value
       FROM entity
       WHERE ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)
-      AND ((entity.type = 'GROUP'
-                AND attrs -> 'member_types' ? 'VIRTUAL_MACHINE')
-      OR entity.type = 'COMPUTE_CLUSTER')
+        AND ((entity.type = 'GROUP' AND attrs -> 'member_types' ? 'VIRTUAL_MACHINE')
+          OR entity.type = 'COMPUTE_CLUSTER')
       GROUP BY name, oid
       ORDER BY 1
     hide: 0
     includeAll: true
-    label: null
+    label:
     multi: false
     name: VMGroup
     options: []
@@ -196,52 +236,54 @@ templating:
              oid as __value
       FROM entity
       WHERE ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)
-      AND ((entity.type = 'GROUP'
-                AND attrs -> 'member_types' ? 'VIRTUAL_MACHINE')
-      OR entity.type = 'COMPUTE_CLUSTER')
+        AND ((entity.type = 'GROUP' AND attrs -> 'member_types' ? 'VIRTUAL_MACHINE')
+          OR entity.type = 'COMPUTE_CLUSTER')
       GROUP BY name, oid
       ORDER BY 1
     refresh: 2
-    regex: ""
+    regex: ''
     skipUrlSync: false
     sort: 0
-    tagValuesQuery: ""
+    tagValuesQuery: ''
     tags: []
-    tagsQuery: ""
+    tagsQuery: ''
     type: query
     useTags: false
-  - allValue: '''0'''
-    current:
-      selected: false
-      text: All
-      value: $__all
+  - allValue: "'0'"
+    datasource: $DB
+    definition: |-
+      SELECT DISTINCT jsonb_object_keys(pending_action.attrs -> 'resizeInfo')
+      FROM pending_action
+      JOIN entity on entity.oid = pending_action.target_entity_id
+      WHERE entity.type = 'VIRTUAL_MACHINE'
     hide: 0
     includeAll: true
-    label: null
+    label:
     multi: false
     name: ResourceType
-    options:
-    - selected: true
-      text: All
-      value: $__all
-    - selected: false
-      text: VMem
-      value: VMem
-    - selected: false
-      text: VCPU
-      value: VCPU
-    query: VMem,VCPU
-    queryValue: ""
+    options: []
+    query: |-
+      SELECT DISTINCT jsonb_object_keys(pending_action.attrs -> 'resizeInfo')
+      FROM pending_action
+      JOIN entity on entity.oid = pending_action.target_entity_id
+      WHERE entity.type = 'VIRTUAL_MACHINE'
+    refresh: 2
+    regex: ''
     skipUrlSync: false
-    type: custom
-  - allValue: '''0'''
+    sort: 0
+    tagValuesQuery: ''
+    tags: []
+    tagsQuery: ''
+    type: query
+    useTags: false
+  - allValue: "'0'"
     current:
-      selected: false
+      selected: true
       text: All
       value: $__all
     hide: 0
     includeAll: true
-    label: null
+    label:
     multi: false
     name: ResizeType
     options:
@@ -255,7 +297,7 @@ templating:
       text: Downsize
       value: Downsize
     query: Upsize,Downsize
-    queryValue: ""
+    queryValue: ''
     skipUrlSync: false
     type: custom
 timepicker:
@@ -269,6 +311,6 @@ timepicker:
   - 1h
   - 2h
   - 1d
-timezone: ""
+timezone: ''
 title: On-Prem Virtual Machine Rightsizing Recommendations
 uid: vm_rightsizing_actions

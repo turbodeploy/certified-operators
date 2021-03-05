@@ -29,6 +29,9 @@ import org.mockito.MockitoAnnotations;
 
 import com.vmturbo.action.orchestrator.action.AuditedActionsManager.AuditedActionsUpdate;
 import com.vmturbo.action.orchestrator.exception.ActionStoreOperationException;
+import com.vmturbo.components.common.setting.ActionSettingSpecs;
+import com.vmturbo.components.common.setting.ActionSettingType;
+import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.platform.sdk.common.util.Pair;
 
 /**
@@ -39,6 +42,9 @@ import com.vmturbo.platform.sdk.common.util.Pair;
 public class AuditedActionsManagerTest {
 
     private static final long RECOVERY_INTERNAL_MINUTES = 1L;
+    private static final String VMEM_RESIZE_UP_ONGEN = ActionSettingSpecs.getSubSettingFromActionModeSetting(
+        ConfigurableActionSettings.ResizeVmemUpInBetweenThresholds,
+        ActionSettingType.ON_GEN);
 
     @Mock
     private AuditActionsPersistenceManager auditActionsPersistenceManager;
@@ -86,8 +92,8 @@ public class AuditedActionsManagerTest {
     @Test
     public void testLoadPersisted() {
         when(auditActionsPersistenceManager.getActions()).thenReturn(Arrays.asList(
-            new AuditedActionInfo(1L, 1L, Optional.empty()),
-            new AuditedActionInfo(1L, 2L, Optional.of(1000L))
+            new AuditedActionInfo(1L, 1L, 1L, VMEM_RESIZE_UP_ONGEN, Optional.empty()),
+            new AuditedActionInfo(1L, 2L, 1L, VMEM_RESIZE_UP_ONGEN, Optional.of(1000L))
         ));
         // need to create a new instance since the load happens in the constructor
         auditedActionsManager = new AuditedActionsManager(
@@ -118,9 +124,10 @@ public class AuditedActionsManagerTest {
     @Test
     public void testChangingCache() {
         final AuditedActionsUpdate update = new AuditedActionsUpdate();
-        final AuditedActionInfo newAuditedAction = new AuditedActionInfo(1L, 1L, Optional.empty());
+        final AuditedActionInfo newAuditedAction =
+            new AuditedActionInfo(1L, 1L, 1L, VMEM_RESIZE_UP_ONGEN, Optional.empty());
         final AuditedActionInfo recentlyClearedAuditedAction =
-                new AuditedActionInfo(1L, 2L, Optional.of(1000L));
+            new AuditedActionInfo(1L, 2L, 1L, VMEM_RESIZE_UP_ONGEN, Optional.of(1000L));
         update.addAuditedAction(newAuditedAction);
         update.addRecentlyClearedAction(recentlyClearedAuditedAction);
         auditedActionsManager.persistAuditedActionsUpdates(update);
@@ -145,13 +152,13 @@ public class AuditedActionsManagerTest {
         AuditedActionsUpdate actualUpdate = auditedActionsUpdateCaptor.getValue();
         Assert.assertEquals(update.getAuditedActions(), actualUpdate.getAuditedActions());
         Assert.assertEquals(update.getRecentlyClearedActions(), actualUpdate.getRecentlyClearedActions());
-        Assert.assertEquals(update.getExpiredClearedActions(), actualUpdate.getExpiredClearedActions());
+        Assert.assertEquals(update.getRemovedAudits(), actualUpdate.getRemovedAudits());
 
         // now clearing an expired entry from the cache
         Mockito.reset(auditedActionsUpdateBatches);
         final AuditedActionsUpdate expiredUpdate = new AuditedActionsUpdate();
-        final AuditedActionInfo expiredClearedAuditedAction = new AuditedActionInfo(1L, 2L, null);
-        expiredUpdate.addExpiredClearedAction(expiredClearedAuditedAction);
+        final AuditedActionInfo expiredClearedAuditedAction = new AuditedActionInfo(1L, 2L, 1L, VMEM_RESIZE_UP_ONGEN, null);
+        expiredUpdate.addAuditedActionForRemoval(expiredClearedAuditedAction);
         auditedActionsManager.persistAuditedActionsUpdates(expiredUpdate);
 
         // still in the cache because it wasn't removed
@@ -174,7 +181,7 @@ public class AuditedActionsManagerTest {
         AuditedActionsUpdate actualExpireUpdate = auditedActionsUpdateCaptor.getValue();
         Assert.assertEquals(expiredUpdate.getAuditedActions(), actualExpireUpdate.getAuditedActions());
         Assert.assertEquals(expiredUpdate.getRecentlyClearedActions(), actualExpireUpdate.getRecentlyClearedActions());
-        Assert.assertEquals(expiredUpdate.getExpiredClearedActions(), actualExpireUpdate.getExpiredClearedActions());
+        Assert.assertEquals(expiredUpdate.getRemovedAudits(), actualExpireUpdate.getRemovedAudits());
     }
 
     /**
@@ -185,13 +192,13 @@ public class AuditedActionsManagerTest {
     @Test
     public void testQueueProcessed() throws Exception {
         final AuditedActionsUpdate update = new AuditedActionsUpdate();
-        final AuditedActionInfo newAuditedAction = new AuditedActionInfo(1L, 1L, Optional.empty());
+        final AuditedActionInfo newAuditedAction = new AuditedActionInfo(1L, 1L, 1L, VMEM_RESIZE_UP_ONGEN, Optional.empty());
         final AuditedActionInfo recentlyClearedAuditedAction =
-                new AuditedActionInfo(1L, 2L, Optional.of(1000L));
-        final AuditedActionInfo expiredAction = new AuditedActionInfo(1L, 3L, Optional.empty());
+                new AuditedActionInfo(1L, 2L, 1L, VMEM_RESIZE_UP_ONGEN, Optional.of(1000L));
+        final AuditedActionInfo expiredAction = new AuditedActionInfo(1L, 3L, 1L, VMEM_RESIZE_UP_ONGEN, Optional.empty());
         update.addAuditedAction(newAuditedAction);
         update.addRecentlyClearedAction(recentlyClearedAuditedAction);
-        update.addExpiredClearedAction(expiredAction);
+        update.addAuditedActionForRemoval(expiredAction);
         when(auditedActionsUpdateBatches.take()).thenReturn(update);
 
         Runnable queueProcessRunnable = runnableCaptor.getValue();
@@ -217,13 +224,13 @@ public class AuditedActionsManagerTest {
     @Test
     public void testPersistFailed() throws Exception {
         final AuditedActionsUpdate update = new AuditedActionsUpdate();
-        final AuditedActionInfo newAuditedAction = new AuditedActionInfo(1L, 1L, Optional.empty());
+        final AuditedActionInfo newAuditedAction = new AuditedActionInfo(1L, 1L, 1L, VMEM_RESIZE_UP_ONGEN, Optional.empty());
         final AuditedActionInfo recentlyClearedAuditedAction =
-                new AuditedActionInfo(1L, 2L, Optional.of(1000L));
-        final AuditedActionInfo expiredAction = new AuditedActionInfo(1L, 3L, Optional.empty());
+                new AuditedActionInfo(1L, 2L, 1L, VMEM_RESIZE_UP_ONGEN, Optional.of(1000L));
+        final AuditedActionInfo expiredAction = new AuditedActionInfo(1L, 3L, 1L, VMEM_RESIZE_UP_ONGEN, Optional.empty());
         update.addAuditedAction(newAuditedAction);
         update.addRecentlyClearedAction(recentlyClearedAuditedAction);
-        update.addExpiredClearedAction(expiredAction);
+        update.addAuditedActionForRemoval(expiredAction);
         when(auditedActionsUpdateBatches.take()).thenReturn(update);
         doThrow(new ActionStoreOperationException("Testing storage failure"))
             .when(auditActionsPersistenceManager).persistActions(any());
@@ -246,13 +253,13 @@ public class AuditedActionsManagerTest {
     @Test
     public void testInterruptDoesNotCrash() throws InterruptedException {
         final AuditedActionsUpdate update = new AuditedActionsUpdate();
-        final AuditedActionInfo newAuditedAction = new AuditedActionInfo(1L, 1L, Optional.empty());
+        final AuditedActionInfo newAuditedAction = new AuditedActionInfo(1L, 1L, 1L, VMEM_RESIZE_UP_ONGEN, Optional.empty());
         final AuditedActionInfo recentlyClearedAuditedAction =
-                new AuditedActionInfo(1L, 2L, Optional.of(1000L));
-        final AuditedActionInfo expiredAction = new AuditedActionInfo(1L, 3L, Optional.empty());
+                new AuditedActionInfo(1L, 2L, 1L, VMEM_RESIZE_UP_ONGEN, Optional.of(1000L));
+        final AuditedActionInfo expiredAction = new AuditedActionInfo(1L, 3L, 1L, VMEM_RESIZE_UP_ONGEN, Optional.empty());
         update.addAuditedAction(newAuditedAction);
         update.addRecentlyClearedAction(recentlyClearedAuditedAction);
-        update.addExpiredClearedAction(expiredAction);
+        update.addAuditedActionForRemoval(expiredAction);
         doThrow(new InterruptedException())
             .when(auditedActionsUpdateBatches).take();
 

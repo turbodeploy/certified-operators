@@ -3,17 +3,16 @@ package com.vmturbo.extractor.export;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
 import com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility;
 import com.fasterxml.jackson.annotation.PropertyAccessor;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
@@ -117,29 +116,20 @@ public class ExportUtils {
     }
 
     /**
-     * Serialize the given {@link ExportedObject} collection as a byte array.
+     * Convert the given byte array to an {@link ExportedObject}.
      *
-     * @param objects collection of objects to serialize
-     * @return array of bytes
-     * @throws JsonProcessingException error in serialization
-     */
-    public static byte[] toBytes(Collection<ExportedObject> objects) throws JsonProcessingException {
-        return objectMapper.writeValueAsBytes(objects);
-    }
-
-    /**
-     * Convert the given byte array to a collection of {@link ExportedObject}s.
-     *
-     * @param bytes byte array of a collection of entities
-     * @return collection of entities
+     * @param bytes json byte array of an {@link ExportedObject}
+     * @return an {@link ExportedObject}
      * @throws IOException error in json bytes deserialization
      */
-    public static Collection<ExportedObject> fromBytes(byte[] bytes) throws IOException {
-        return objectMapper.readValue(bytes, new TypeReference<Collection<ExportedObject>>() {});
+    public static ExportedObject fromBytes(byte[] bytes) throws IOException {
+        return objectMapper.readValue(bytes, ExportedObject.class);
     }
 
     /**
-     * Convert given {@link Tags} to a map from tag key to tag values list.
+     * Convert given {@link Tags} to a map from tag key to tag values list. Make sure the values
+     * are sorted alphabetically, so that if the tags for the same entity appear in a
+     * different order on a new EntityDTO we will still end up with the same hash code.
      *
      * @param tags {@link Tags}
      * @return map from tag key to tag values list
@@ -148,7 +138,8 @@ public class ExportUtils {
         Map<String, List<String>> map = new HashMap<>();
         tags.getTagsMap().forEach((key, values) -> {
             map.computeIfAbsent(key, t -> new ArrayList<>())
-                    .addAll(values.getValuesList());
+                    .addAll(values.getValuesList()
+                        .stream().sorted().collect(Collectors.toList()));
         });
         return map;
     }

@@ -1,5 +1,7 @@
 package com.vmturbo.cost.component.savings;
 
+import java.util.List;
+
 import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
@@ -15,6 +17,8 @@ class EntitySavingsProcessor {
 
     private EntitySavingsTracker entitySavingsTracker;
 
+    private RollupSavingsProcessor rollupProcessor;
+
     /**
      * Logger.
      */
@@ -25,25 +29,31 @@ class EntitySavingsProcessor {
      *
      * @param entitySavingsTracker entitySavingsTracker
      * @param topologyEventsPoller topologyEventsPoller
+     * @param rollupProcessor For rolling up savings records.
      */
     EntitySavingsProcessor(@Nonnull EntitySavingsTracker entitySavingsTracker,
-                                  @Nonnull TopologyEventsPoller topologyEventsPoller) {
+                                  @Nonnull TopologyEventsPoller topologyEventsPoller,
+            @Nonnull RollupSavingsProcessor rollupProcessor) {
         this.topologyEventsPoller = topologyEventsPoller;
         this.entitySavingsTracker = entitySavingsTracker;
+        this.rollupProcessor = rollupProcessor;
     }
 
     /**
      * This method is invoked once an hour.
      */
     void execute() {
-        logger.debug("Processing savings/investment.");
+        logger.info("START: Processing savings/investment.");
 
         logger.debug("Calling TopologyEventPoller to get TEP events.");
         topologyEventsPoller.poll();
 
         logger.debug("Invoke EntitySavingsTracker to process events.");
-        entitySavingsTracker.processEvents();
+        final List<Long> hourlyStatsTimes = entitySavingsTracker.processEvents();
 
-        logger.debug("Savings/investment processing complete.");
+        logger.debug("Invoking RollupSavingsProcessor to process rollup.");
+        rollupProcessor.process(hourlyStatsTimes);
+
+        logger.info("END: Processing savings/investment. {} Hourly stats.", hourlyStatsTimes.size());
     }
 }

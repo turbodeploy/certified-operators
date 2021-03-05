@@ -28,6 +28,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.StorageInfo;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.platform.common.builders.SDKConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -96,11 +97,12 @@ public class HCIPhysicalMachineEntityConstructor {
         logger.info("Creating HCI storage '{}'", newStorage.getDisplayName());
 
         // Create Storage Cluster commodity for the new storage
-        CommoditySoldDTO.Builder comm = TopologyEntityConstructor.createAccessCommodity(
-                CommodityDTO.CommodityType.STORAGE_CLUSTER, newStorage.getOid(), null);
-        newStorage.addCommoditySoldList(comm);
+        CommoditySoldDTO.Builder storageClusterComm = TopologyEntityConstructor
+                .createAccessCommodity(CommodityDTO.CommodityType.STORAGE_CLUSTER,
+                        newStorage.getOid(), null);
+        newStorage.addCommoditySoldList(storageClusterComm);
+        setStorageClusterCommodities(hostsToReplace, storageClusterComm);
 
-        setHciClusterCommodities(hostsToReplace, newStorage);
         setResizable(newStorage, CommodityType.STORAGE_AMOUNT);
         setResizable(newStorage, CommodityType.STORAGE_PROVISIONED);
         setStoragePolicy(newStorage);
@@ -238,33 +240,25 @@ public class HCIPhysicalMachineEntityConstructor {
     }
 
     /**
-     * Add Cluster commodities for the VMs and the related non-vSAN storages.
+     * Add Storage Cluster commodities for the VMs and the related non-vSAN
+     * storages.
      *
      * @param hostsToReplace hosts to replace
-     * @param newStorage new vSAN storage
+     * @param storageClusterComm Storage Cluster sold commodity
      * @throws TopologyEntityConstructorException error setting the commodities
      */
-    private void setHciClusterCommodities(
+    private void setStorageClusterCommodities(
             @Nonnull Collection<TopologyEntity.Builder> hostsToReplace,
-            @Nonnull TopologyEntityDTO.Builder newStorage)
+            @Nonnull CommoditySoldDTO.Builder storageClusterComm)
             throws TopologyEntityConstructorException {
-        List<CommoditySoldDTO.Builder> clusterSoldComms = getSoldCommodities(newStorage,
-                CommodityType.STORAGE_CLUSTER);
+        for (TopologyEntity.Builder host : hostsToReplace) {
+            for (TopologyEntity consumer : host.getConsumers()) {
+                setStorageClusterCommForVm(consumer.getTopologyEntityDtoBuilder(),
+                        storageClusterComm.getCommodityType());
+            }
 
-        for (CommoditySoldDTO.Builder clusterSoldComm : clusterSoldComms) {
-            String clusterKey = clusterSoldComm.getCommodityType().getKey();
-            TopologyDTO.CommodityType clusterTypeWithKey = TopologyDTO.CommodityType.newBuilder()
-                    .setType(CommodityType.STORAGE_CLUSTER_VALUE).setKey(clusterKey).build();
-
-            for (TopologyEntity.Builder host : hostsToReplace) {
-                for (TopologyEntity consumer : host.getConsumers()) {
-                    setStorageClusterKeyForVm(consumer.getTopologyEntityDtoBuilder(),
-                            clusterTypeWithKey);
-                }
-
-                for (Long providerId : host.getProviderIds()) {
-                    addClusterCommodityToHciStorage(clusterSoldComm, providerId);
-                }
+            for (Long providerId : host.getProviderIds()) {
+                addClusterCommodityToHciStorage(storageClusterComm, providerId);
             }
         }
     }
@@ -287,27 +281,41 @@ public class HCIPhysicalMachineEntityConstructor {
         storage.getEntityBuilder().addCommoditySoldList(clusterSoldComm);
     }
 
-    private void setStorageClusterKeyForVm(@Nonnull TopologyEntityDTO.Builder vm,
+    private void setStorageClusterCommForVm(@Nonnull TopologyEntityDTO.Builder vm,
             @Nonnull TopologyDTO.CommodityType clusterTypeWithKey) {
         if (vm.getEntityType() != EntityType.VIRTUAL_MACHINE_VALUE) {
             return;
         }
 
-        List<CommoditiesBoughtFromProvider.Builder> storageBoughtComms = vm
+        List<CommoditiesBoughtFromProvider.Builder> storageBoughtGroups = vm
                 .getCommoditiesBoughtFromProvidersBuilderList().stream()
                 .filter(comm -> comm.getProviderEntityType() == EntityType.STORAGE_VALUE)
                 .collect(Collectors.toList());
 
-        if (storageBoughtComms.isEmpty()) {
+        if (storageBoughtGroups.isEmpty()) {
             logger.warn("VM '{}' does not have any storage providers", vm.getDisplayName());
             return;
         }
 
-        for (CommoditiesBoughtFromProvider.Builder boughtComm : storageBoughtComms) {
-            for (CommodityBoughtDTO.Builder comm : boughtComm.getCommodityBoughtBuilderList()) {
-                if (comm.getCommodityType().getType() == CommodityType.STORAGE_CLUSTER_VALUE) {
-                    comm.setCommodityType(clusterTypeWithKey);
+        for (CommoditiesBoughtFromProvider.Builder boughtGroup : storageBoughtGroups) {
+            List<CommodityBoughtDTO.Builder> existingComm = boughtGroup
+                    .getCommodityBoughtBuilderList().stream()
+                    .filter(c -> c.getCommodityType()
+                            .getType() == CommodityType.STORAGE_CLUSTER_VALUE)
+                    .collect(Collectors.toList());
+
+            if (existingComm.isEmpty()) {
+                CommodityBoughtDTO comm = TopologyEntityConstructor.createCommodityBoughtDTO(
+                        CommodityType.STORAGE_CLUSTER_VALUE, clusterTypeWithKey.getKey(),
+                        SDKConstants.ACCESS_COMMODITY_USED);
+                boughtGroup.addCommodityBought(comm);
+            } else {
+                if (existingComm.size() > 1) {
+                    logger.warn("VM '{}' has {} Storage Cluster commodities bought from {}",
+                            vm.getDisplayName(), existingComm.size(), boughtGroup.getProviderId());
                 }
+
+                existingComm.get(0).setCommodityType(clusterTypeWithKey);
             }
         }
     }

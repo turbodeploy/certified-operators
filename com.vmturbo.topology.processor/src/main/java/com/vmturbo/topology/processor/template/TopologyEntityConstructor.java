@@ -38,6 +38,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.platform.common.builders.SDKConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -51,8 +52,6 @@ import com.vmturbo.topology.processor.identity.IdentityProvider;
 public class TopologyEntityConstructor {
 
     protected static final String COMMODITY_KEY_PREFIX = "AddFromTemplate::";
-    private static final double COMMODITY_ACCESS_CAPACITY = 1.0E9;
-    private static final double COMMODITY_ACCESS_USED = 1.0;
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -574,8 +573,8 @@ public class TopologyEntityConstructor {
                 .setType(commType.getNumber());
         CommoditySoldDTO.Builder result = CommoditySoldDTO.newBuilder()
                 .setCommodityType(commTypeBuilder).setIsResizeable(false).setIsThin(true)
-                .setActive(true).setUsed(COMMODITY_ACCESS_USED)
-                .setCapacity(COMMODITY_ACCESS_CAPACITY);
+                .setActive(true).setUsed(SDKConstants.ACCESS_COMMODITY_USED)
+                .setCapacity(SDKConstants.ACCESS_COMMODITY_CAPACITY);
         setKeyAndAccess(result, oid, key);
 
         return result;
@@ -620,7 +619,15 @@ public class TopologyEntityConstructor {
         return createCommodityBoughtDTO(commodityType, null, used);
     }
 
-    protected static CommodityBoughtDTO createCommodityBoughtDTO(int commodityType,
+    /**
+     * Create commodity bought DTO.
+     *
+     * @param commodityType commodity type
+     * @param key key
+     * @param used used value
+     * @return commodity DTO
+     */
+    public static CommodityBoughtDTO createCommodityBoughtDTO(int commodityType,
             @Nullable String key, double used) {
         final TopologyDTO.CommodityType.Builder commType = TopologyDTO.CommodityType.newBuilder()
                 .setType(commodityType);

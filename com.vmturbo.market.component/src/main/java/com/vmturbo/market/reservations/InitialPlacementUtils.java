@@ -24,6 +24,7 @@ import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.market.reservations.InitialPlacementFinderResult.FailureInfo;
+import com.vmturbo.market.topology.conversions.MarketAnalysisUtils;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySoldSettings;
@@ -119,7 +120,7 @@ public final class InitialPlacementUtils {
 
                     // Copy bare minimum trader properties
                     cloneTrader.setDebugInfoNeverUseInCode(
-                            trader.getDebugInfoNeverUseInCode() + (cloneForDiags ? "" : PLACEMENT_CLONE_SUFFIX));
+                            trader.getDebugInfoNeverUseInCode());
                     cloneTrader.getSettings().setQuoteFunction(
                             trader.getSettings().getQuoteFunction());
                     cloneTrader.getSettings().setCanAcceptNewCustomers(true);
@@ -277,6 +278,7 @@ public final class InitialPlacementUtils {
      * @param commTypeToSpecMap the commodity type to commodity specification mapping.
      * @param buyerOidToPlacement the reservation buyers and their placement decisions.
      * @param existingReservations  map of existing reservations by oid.
+     * @param includeDeployed if true add the reservations with deployed = true into economy cache.
      * @return a list of {@link TraderTO} lists. The order of reservation buyers follows the order
      * they were added.
      */
@@ -284,22 +286,25 @@ public final class InitialPlacementUtils {
             @Nonnull final Economy economy,
             @Nonnull final BiMap<CommodityType, Integer> commTypeToSpecMap,
             @Nonnull final Map<Long, List<InitialPlacementDecision>> buyerOidToPlacement,
-            @Nonnull final Map<Long, List<InitialPlacementBuyer>> existingReservations) {
+            @Nonnull final Map<Long, List<InitialPlacementBuyer>> existingReservations,
+            boolean includeDeployed) {
         List<List<TraderTO>> placedBuyersPerRes = new ArrayList();
         // Create the reservations one by one following the order they were added
         existingReservations.values().forEach( buyers -> {
             List<TraderTO> placedBuyers = new ArrayList();
             buyers.forEach(buyer -> {
-                List<InitialPlacementDecision> placementPerBuyer =
-                        buyerOidToPlacement.get(buyer.getBuyerId());
-                if (placementPerBuyer != null && placementPerBuyer.stream()
-                        .allMatch(r -> r.supplier.isPresent())) {
-                    // When all shopping lists of a buyer have a supplier, figure out the cluster
-                    // boundaries from the suppliers.
-                    Optional<TraderTO> traderTO = constructTraderTOWithBoundary(economy, commTypeToSpecMap,
-                            placementPerBuyer, buyer);
-                    if (traderTO.isPresent()) {
-                        placedBuyers.add(traderTO.get());
+                if (includeDeployed || !buyer.getDeployed()) {
+                    List<InitialPlacementDecision> placementPerBuyer =
+                            buyerOidToPlacement.get(buyer.getBuyerId());
+                    if (placementPerBuyer != null && placementPerBuyer.stream()
+                            .allMatch(r -> r.supplier.isPresent())) {
+                        // When all shopping lists of a buyer have a supplier, figure out the cluster
+                        // boundaries from the suppliers.
+                        Optional<TraderTO> traderTO = constructTraderTOWithBoundary(economy, commTypeToSpecMap,
+                                placementPerBuyer, buyer);
+                        if (traderTO.isPresent()) {
+                            placedBuyers.add(traderTO.get());
+                        }
                     }
                 }
             });
@@ -432,9 +437,10 @@ public final class InitialPlacementUtils {
             @Nonnull final BiMap<CommodityType, Integer> commTypeToSpecMap) {
         List<FailureInfo> failureInfos = new ArrayList();
         for (CommodityBundle bundle : exp.commBundle) {
-            failureInfos.add(new FailureInfo(commTypeToSpecMap.inverse().get(bundle.commSpec.getType()),
-                    exp.seller.isPresent() ? exp.seller.get().getOid() : 0,
-                    bundle.maxAvailable.get(), bundle.requestedAmount));
+            CommodityType commType = commTypeToSpecMap.inverse().get(bundle.commSpec.getType());
+            double maxQuantity = MarketAnalysisUtils.getMaxAvailableForUnplacementReason(commType, bundle);
+            failureInfos.add(new FailureInfo(commType, exp.seller.isPresent()
+                    ? exp.seller.get().getOid() : 0, maxQuantity, bundle.requestedAmount));
         }
         return failureInfos;
     }

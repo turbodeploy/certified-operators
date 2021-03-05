@@ -55,13 +55,17 @@ public class UserScopeUtils {
             ApiEntityType.APPLICATION_COMPONENT,
             ApiEntityType.BUSINESS_APPLICATION,
             ApiEntityType.BUSINESS_TRANSACTION,
+            ApiEntityType.CONTAINER,
+            ApiEntityType.CONTAINER_PLATFORM_CLUSTER,
+            ApiEntityType.CONTAINER_POD,
+            ApiEntityType.CONTAINER_SPEC,
+            ApiEntityType.DATABASE,
+            ApiEntityType.DATABASE_SERVER,
+            ApiEntityType.NAMESPACE,
             ApiEntityType.SERVICE,
             ApiEntityType.VIRTUAL_MACHINE,
-            ApiEntityType.DATABASE_SERVER,
-            ApiEntityType.DATABASE,
-            ApiEntityType.CONTAINER,
-            ApiEntityType.CONTAINER_POD,
-            ApiEntityType.VIRTUAL_DATACENTER
+            ApiEntityType.VIRTUAL_DATACENTER,
+            ApiEntityType.WORKLOAD_CONTROLLER
             );
 
     /**
@@ -74,6 +78,12 @@ public class UserScopeUtils {
             ApiEntityType.STORAGE_TIER,
             ApiEntityType.DATABASE_SERVER_TIER,
             ApiEntityType.DATABASE_TIER);
+
+    /**
+     * Entity types that should not be shown to scoped users.
+     */
+    public static final Set<ApiEntityType> SCOPED_USER_PROHIBITED_ENTITY_TYPES =
+        ImmutableSet.of(ApiEntityType.RESERVED_INSTANCE, ApiEntityType.CLOUD_COMMITMENT);
 
 
     public static boolean isUserScoped() {

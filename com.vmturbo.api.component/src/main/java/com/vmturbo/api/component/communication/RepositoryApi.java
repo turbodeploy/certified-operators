@@ -337,9 +337,7 @@ public class RepositoryApi {
                 }
             }
         }
-        return serviceEntitiesTE.stream()
-                .map(serviceEntityMapper::toServiceEntityApiDTO)
-                .collect(Collectors.toList());
+        return serviceEntityMapper.toServiceEntityApiDTO(serviceEntitiesTE);
     }
 
     @Nonnull

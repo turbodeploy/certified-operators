@@ -169,7 +169,11 @@ public class EventInjector implements Runnable {
             // Remove the events available file.
             availableFile.delete();
         }
-        // call the tracker here to handle the injected events.
+        // call the tracker here to handle the injected events.  We first null out the period end
+        // time in the savings tracker to force it to recalculate the period start time.  This
+        // prevents the savings tracker discarding the injected events due to their timestamps
+        // potentially occurring before the previous processing period.
+        entitySavingsTracker.setLastPeriodEndTime(null);
         entitySavingsTracker.processEvents();
     }
 
@@ -193,6 +197,14 @@ public class EventInjector implements Runnable {
                     .eventType(ActionEventType.RECOMMENDATION_ADDED)
                     .build();
             result.actionEvent(actionEvent).entityPriceChange(entityPriceChange);
+        } else if ("CANCEL_RECOMMENDATION".equals(event.eventType)) {
+            EntityPriceChange dummyPriceChange =  new EntityPriceChange.Builder()
+                    .sourceCost(0d).destinationCost(0d).build();
+            ActionEvent actionEvent = new ActionEvent.Builder()
+                    .actionId(event.uuid)
+                    .eventType(ActionEventType.RECOMMENDATION_REMOVED)
+                    .build();
+            result.actionEvent(actionEvent).entityPriceChange(dummyPriceChange);
         } else if ("POWER_STATE".equals(event.eventType)) {
             result.topologyEvent(createTopologyEvent(TopologyEventType.STATE_CHANGE,
                     event.timestamp)

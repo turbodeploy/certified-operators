@@ -468,6 +468,37 @@ public class TopologyConverter {
     }
 
     /**
+     * A non-shop-together TopologyConverter.
+     *
+     * @param topologyInfo information about topology
+     * @param marketCloudRateExtractor market price table
+     * @param cloudCostData cloud cost data
+     * @param commodityIndexFactory commodity index factory
+     * @param tierExcluderFactory tier excluder factory
+     * @param consistentScalingHelperFactory CSM helper factory
+     * @param reversibilitySettingFetcher fetcher for "Savings vs Reversibility" policy settings
+     * @param cloudTopology The cloud topology.
+     */
+    @VisibleForTesting
+    public TopologyConverter(@Nonnull final TopologyInfo topologyInfo,
+            @Nonnull final CloudRateExtractor marketCloudRateExtractor,
+            @Nonnull final CloudCostData cloudCostData,
+            @Nonnull final CommodityIndexFactory commodityIndexFactory,
+            @Nonnull final TierExcluderFactory tierExcluderFactory,
+            @Nonnull final ConsistentScalingHelperFactory
+                    consistentScalingHelperFactory,
+            @Nonnull final ReversibilitySettingFetcher
+                    reversibilitySettingFetcher,
+            @Nonnull CloudTopology cloudTopology) {
+        this(topologyInfo, INCLUDE_GUARANTEED_BUYER_DEFAULT, MarketAnalysisUtils.QUOTE_FACTOR,
+                MarketMode.M2Only, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+                marketCloudRateExtractor, null, cloudCostData,
+                commodityIndexFactory, tierExcluderFactory, consistentScalingHelperFactory,
+                cloudTopology, reversibilitySettingFetcher, MarketAnalysisUtils.PRICE_WEIGHT_SCALE);
+    }
+
+
+    /**
      * Constructor with analysisConfig parameter. Entry point from Analysis.
      * TODO: consider using a builder pattern since the constructors have many parameters.
      *
@@ -554,6 +585,42 @@ public class TopologyConverter {
         this(topologyInfo, includeGuaranteedBuyer, quoteFactor, MarketMode.M2Only, liveMarketMoveCostFactor,
             marketCloudRateExtractor, null, cloudCostData, commodityIndexFactory, tierExcluderFactory,
             consistentScalingHelperFactory, null, reversibilitySettingFetcher, licensePriceWeightScale);
+    }
+
+    /**
+     * Constructor with includeGuaranteedBuyer parameter.
+     *
+     * @param topologyInfo Information about the topology.
+     * @param includeGuaranteedBuyer whether to include guaranteed buyers (VDC, VPod, DPod) or not
+     * @param quoteFactor to be used by move recommendations.
+     * @param liveMarketMoveCostFactor used by the live market to control aggressiveness of move actions.
+     * @param marketCloudRateExtractor the market price table
+     * @param cloudCostData cloud cost data
+     * @param commodityIndexFactory commodity index factory
+     * @param tierExcluderFactory tier excluder factory
+     * @param consistentScalingHelperFactory CSM helper factory
+     * @param reversibilitySettingFetcher fetcher for "Savings vs Reversibility" policy settings
+     * @param licensePriceWeightScale value to scale the price weight of commodities for every
+     *            softwareLicenseCommodity sold by a provider.
+     */
+    @VisibleForTesting
+    public TopologyConverter(@Nonnull final TopologyInfo topologyInfo,
+            final boolean includeGuaranteedBuyer,
+            final float quoteFactor,
+            final float liveMarketMoveCostFactor,
+            @Nonnull final CloudRateExtractor marketCloudRateExtractor,
+            @Nonnull final CloudCostData cloudCostData,
+            @Nonnull final CommodityIndexFactory commodityIndexFactory,
+            @Nonnull final TierExcluderFactory tierExcluderFactory,
+            @Nonnull final ConsistentScalingHelperFactory
+                    consistentScalingHelperFactory,
+            @Nonnull final ReversibilitySettingFetcher
+                    reversibilitySettingFetcher,
+            final int licensePriceWeightScale,
+            final CloudTopology cloudTopology) {
+        this(topologyInfo, includeGuaranteedBuyer, quoteFactor, MarketMode.M2Only, liveMarketMoveCostFactor,
+                marketCloudRateExtractor, null, cloudCostData, commodityIndexFactory, tierExcluderFactory,
+                consistentScalingHelperFactory, cloudTopology, reversibilitySettingFetcher, licensePriceWeightScale);
     }
 
 
@@ -2801,8 +2868,8 @@ public class TopologyConverter {
                 stitchingErrors.isNone();
 
             final boolean reconfigurable = topologyDTO.getAnalysisSettings().hasReconfigurable()
-                ? topologyDTO.getAnalysisSettings().getReconfigurable()
-                : EntitySettings.BooleanKey.ENABLE_RECONFIGURE.value(topologyDTO);
+                && topologyDTO.getAnalysisSettings().getReconfigurable()
+                && EntitySettings.BooleanKey.ENABLE_RECONFIGURE.value(topologyDTO);
 
             boolean isEntityFromCloud = TopologyConversionUtils.isEntityConsumingCloud(topologyDTO);
             TraderSettingsTO.Builder settingsBuilder = TopologyConversionUtils

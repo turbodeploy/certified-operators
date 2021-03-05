@@ -20,6 +20,7 @@ import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.
 import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO;
 import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO.MM1Commodity;
 import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO.MM1Distribution;
+import com.vmturbo.platform.analysis.utilities.InfiniteQuoteExplanation.CommodityBundle;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -569,5 +570,20 @@ public final class MarketAnalysisUtils {
         } else {
             return UpdatingFunctionTO.getDefaultInstance();
         }
+    }
+
+    /**
+     * Extract the max quantity from a given {@link com.vmturbo.platform.analysis.utilities.InfiniteQuoteExplanation}.
+     *
+     * @param commType the given commodity type whose max available quantity has to be provided.
+     * @param bundle the {@link CommodityBundle} in the InfiniteQuoteExplanation.
+     */
+    public static double getMaxAvailableForUnplacementReason(@Nonnull final CommodityType commType,
+            @Nonnull final CommodityBundle bundle) {
+        // Certain segmentation commodities have a small delta value added to capacity to avoid
+        // floating round off errors, it should be get rid of when we populate that capacity in
+        // the unplacement reason.
+        return commType.getType() == CommodityDTO.CommodityType.SEGMENTATION_VALUE
+                ? Math.floor(bundle.maxAvailable.get()) : bundle.maxAvailable.get();
     }
 }

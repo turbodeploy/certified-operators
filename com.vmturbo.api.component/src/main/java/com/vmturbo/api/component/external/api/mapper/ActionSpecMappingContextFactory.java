@@ -35,11 +35,11 @@ import com.vmturbo.api.component.external.api.mapper.aspect.VirtualVolumeAspectM
 import com.vmturbo.api.component.external.api.service.PoliciesService;
 import com.vmturbo.api.component.external.api.service.ReservedInstancesService;
 import com.vmturbo.api.component.external.api.util.StatsUtils;
+import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.entityaspect.VirtualDiskApiDTO;
-import com.vmturbo.api.dto.entityaspect.VirtualDisksAspectApiDTO;
 import com.vmturbo.api.dto.policy.PolicyApiDTO;
 import com.vmturbo.api.dto.reservedinstance.ReservedInstanceApiDTO;
 import com.vmturbo.api.enums.AccountFilterType;
@@ -64,6 +64,8 @@ import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceSpecByIdsRespons
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceSpecServiceGrpc.ReservedInstanceSpecServiceBlockingStub;
+import com.vmturbo.common.protobuf.group.GroupDTO;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsRequest;
@@ -75,6 +77,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartial
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
+import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -85,6 +89,8 @@ public class ActionSpecMappingContextFactory {
     private static final Logger logger = LogManager.getLogger();
 
     private final PolicyServiceBlockingStub policyService;
+
+    private final GroupServiceBlockingStub groupsService;
 
     private final ExecutorService executorService;
 
@@ -121,7 +127,8 @@ public class ActionSpecMappingContextFactory {
                                            @Nonnull ServiceEntityMapper serviceEntityMapper,
                                            @Nonnull SupplyChainServiceBlockingStub supplyChainServiceClient,
                                            @Nonnull PoliciesService policiesService,
-                                           @Nonnull ReservedInstancesService reservedInstancesService) {
+                                           @Nonnull ReservedInstancesService reservedInstancesService,
+                                           @Nonnull GroupServiceBlockingStub groupServiceBlockingStub) {
         this.policyService = Objects.requireNonNull(policyService);
         this.executorService = Objects.requireNonNull(executorService);
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
@@ -134,6 +141,7 @@ public class ActionSpecMappingContextFactory {
         this.supplyChainServiceClient = Objects.requireNonNull(supplyChainServiceClient);
         this.policiesService = Objects.requireNonNull(policiesService);
         this.reservedInstancesService = Objects.requireNonNull(reservedInstancesService);
+        this.groupsService  = Objects.requireNonNull(groupServiceBlockingStub);
     }
 
     /**
@@ -268,16 +276,23 @@ public class ActionSpecMappingContextFactory {
         final Map<Long, EntityAspect> cloudAspects = getEntityToAspectMapping(entitiesById.values(),
             Collections.emptySet(), Sets.newHashSet(EnvironmentType.CLOUD), AspectName.CLOUD);
 
+        // fetch all container platform context aspects
+        final Map<Long, EntityAspect> containerPlatformAspects =
+                entityAspectMapper.getAspectsByEntitiesPartial(entitiesById.values(), AspectName.CONTAINER_PLATFORM_CONTEXT);
+
         // fetch all volume aspects
         final Map<Long, List<VirtualDiskApiDTO>> volumesAspectsByEntity = fetchVolumeAspects(actions, topologyContextId);
 
+        // fetch entity to cluster info
+        final Map<Long, BaseApiDTO> entityToCluster = getEntityClusters(entitiesById);
 
         datacenterById.values().forEach(e -> entitiesById.put(e.getOid(), e));
 
         if (topologyContextId == realtimeTopologyContextId) {
             return new ActionSpecMappingContext(entitiesById, policies.get(), entityIdToRegion,
-                volumesAspectsByEntity, cloudAspects, Collections.emptyMap(), Collections.emptyMap(),
-                buyRIIdToRIBoughtandRISpec, datacenterById, serviceEntityMapper, false, policiesApiDto.get());
+                volumesAspectsByEntity, cloudAspects, containerPlatformAspects, Collections.emptyMap(), Collections.emptyMap(),
+                buyRIIdToRIBoughtandRISpec, datacenterById, serviceEntityMapper, false,
+                policiesApiDto.get(), entityToCluster);
         }
 
         // fetch all vm aspects
@@ -296,8 +311,9 @@ public class ActionSpecMappingContextFactory {
 
         final ActionSpecMappingContext context = new ActionSpecMappingContext(entitiesById,
                 policies.get(), entityIdToRegion,
-            volumesAspectsByEntity, cloudAspects, vmAspects, dbAspects,
-            buyRIIdToRIBoughtandRISpec, datacenterById, serviceEntityMapper, true, policiesApiDto.get());
+            volumesAspectsByEntity, cloudAspects, containerPlatformAspects, vmAspects, dbAspects,
+            buyRIIdToRIBoughtandRISpec, datacenterById, serviceEntityMapper, true,
+            policiesApiDto.get(), entityToCluster);
 
         if (hasMigrationActions(actions)) {
             final Map<Long, EntityAspect> vmProjectedAspects =
@@ -321,6 +337,51 @@ public class ActionSpecMappingContextFactory {
             }
         }
         return context;
+    }
+
+    private Map<Long, BaseApiDTO> getEntityClusters(Map<Long, ApiPartialEntity> entitiesById) {
+        // Get physical machine entities involved in the action
+        Set<Long> entitiesToGetClusterFor = entitiesById
+            .values()
+            .stream()
+            .filter(e -> e.getEntityType() == EntityType.PHYSICAL_MACHINE.getNumber())
+            .map(ApiPartialEntity::getOid)
+            .collect(Collectors.toSet());
+
+        if (entitiesToGetClusterFor.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        // call to get the clusters for pms
+        GroupDTO.GetGroupsForEntitiesResponse groupsForEntitiesResponse = groupsService
+            .getGroupsForEntities(GroupDTO.GetGroupsForEntitiesRequest.newBuilder()
+            .addAllEntityId(entitiesToGetClusterFor)
+            .addGroupType(CommonDTO.GroupDTO.GroupType.COMPUTE_HOST_CLUSTER)
+            .setLoadGroupObjects(true)
+            .build());
+
+        // create a map from groups to display name
+        final Map<Long, String> groupToDisplayName = groupsForEntitiesResponse.getGroupsList()
+            .stream()
+            .collect(Collectors.toMap(GroupDTO.Grouping::getId,
+                g -> g.getDefinition().getDisplayName(), (i, j) -> i));
+
+        Map<Long, BaseApiDTO> serviceEntityApiDTOMap = new HashMap<>();
+        for (Entry<Long, GroupDTO.Groupings> entry : groupsForEntitiesResponse.getEntityGroupMap().entrySet()) {
+            if (entry.getValue().getGroupIdCount() > 0) {
+                final Long groupId = entry.getValue().getGroupId(0);
+                final String groupDisplayName =
+                    groupToDisplayName.get(groupId);
+
+                ServiceEntityApiDTO clusterInfo = new ServiceEntityApiDTO();
+                clusterInfo.setUuid(String.valueOf(entry.getKey()));
+                clusterInfo.setDisplayName(groupDisplayName);
+                clusterInfo.setClassName(StringConstants.CLUSTER);
+                serviceEntityApiDTOMap.put(entry.getKey(), clusterInfo);
+            }
+        }
+
+        return serviceEntityApiDTOMap;
     }
 
     /**
@@ -688,6 +749,8 @@ public class ActionSpecMappingContextFactory {
 
         private final Map<Long, EntityAspect> vmAspects;
 
+        private final Map<Long, EntityAspect> containerPlatformAspects;
+
         private final Map<Long, EntityAspect> dbAspects;
 
         private final Map<Long, Pair<ReservedInstanceBought, ReservedInstanceSpec>> buyRIIdToRIBoughtandRISpec;
@@ -710,12 +773,18 @@ public class ActionSpecMappingContextFactory {
          */
         private boolean hasMigrationActions = false;
 
+        /**
+         * A map from entity IDs to their corresponding clusters.
+         */
+        private Map<Long, BaseApiDTO> entityClusters;
+
 
         ActionSpecMappingContext(@Nonnull Map<Long, ApiPartialEntity> topologyEntityDTOs,
                                  @Nonnull Map<Long, PolicyDTO.Policy> policies,
                                  @Nonnull Map<Long, ApiPartialEntity> entityIdToRegion,
                                  @Nonnull Map<Long, List<VirtualDiskApiDTO>> volumeAspectsByEntity,
                                  @Nonnull Map<Long, EntityAspect> cloudAspects,
+                                 @Nonnull Map<Long, EntityAspect> containerPlatformAspects,
                                  @Nonnull Map<Long, EntityAspect> vmAspects,
                                  @Nonnull Map<Long, EntityAspect> dbAspects,
                                  @Nonnull Map<Long, Pair<ReservedInstanceBought, ReservedInstanceSpec>>
@@ -723,7 +792,8 @@ public class ActionSpecMappingContextFactory {
                                  @Nonnull Map<Long, ApiPartialEntity> oidToDatacenter,
                                  @Nonnull ServiceEntityMapper serviceEntityMapper,
                                  final boolean isPlan,
-                                 final Collection<PolicyApiDTO> policiesApiDto) {
+                                 final Collection<PolicyApiDTO> policiesApiDto,
+                                 @Nonnull Map<Long, BaseApiDTO> entityClusters) {
 
             /* topologyEntityDTOs contain some ZoneId -> Region entries,
                so we can't just use serviceEntityMapper.toServiceEntityApiDTOMap() output
@@ -737,13 +807,15 @@ public class ActionSpecMappingContextFactory {
             this.entityIdToRegion = Objects.requireNonNull(entityIdToRegion);
             this.volumeAspectsByEntity = Objects.requireNonNull(volumeAspectsByEntity);
             this.cloudAspects = Objects.requireNonNull(cloudAspects);
+            this.containerPlatformAspects = Objects.requireNonNull(containerPlatformAspects);
             this.vmAspects = Objects.requireNonNull(vmAspects);
             this.dbAspects = Objects.requireNonNull(dbAspects);
             this.buyRIIdToRIBoughtandRISpec = buyRIIdToRIBoughtandRISpec;
             this.oidToDatacenter = oidToDatacenter;
             this.isPlan = isPlan;
             this.policiesApiDto = policiesApiDto.stream()
-                    .collect(Collectors.toMap(PolicyApiDTO::getUuid, Function.identity()));;
+                    .collect(Collectors.toMap(PolicyApiDTO::getUuid, Function.identity()));
+            this.entityClusters = entityClusters;
         }
 
         PolicyDTO.Policy getPolicy(long id) {
@@ -779,6 +851,14 @@ public class ActionSpecMappingContextFactory {
 
         Optional<EntityAspect> getVMAspect(@Nonnull Long entityId) {
             return Optional.ofNullable(vmAspects.get(entityId));
+        }
+
+        Optional<EntityAspect> getContainerPlatformContext(long entityId) {
+            return Optional.ofNullable(containerPlatformAspects.get(entityId));
+        }
+
+        Optional<BaseApiDTO> getCluster(long entityId) {
+            return Optional.ofNullable(entityClusters.get(entityId));
         }
 
         /**

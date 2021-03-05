@@ -9,6 +9,8 @@ import java.util.function.Predicate;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import io.opentracing.SpanContext;
 
 import org.apache.logging.log4j.LogManager;
@@ -18,6 +20,7 @@ import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionEvent;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.common.RequiresDataInitialization;
 import com.vmturbo.topology.processor.actions.data.context.ActionExecutionContextFactory;
+import com.vmturbo.topology.processor.api.TargetListener;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 import com.vmturbo.topology.processor.operation.IOperationManager;
 
@@ -25,7 +28,7 @@ import com.vmturbo.topology.processor.operation.IOperationManager;
  * Action audit service is expected to accumulate simple action state transitions from Kafka topic
  * and send them periodically in batches to SDK probe.
  */
-public class ActionAuditService implements RequiresDataInitialization {
+public class ActionAuditService implements RequiresDataInitialization, TargetListener {
 
     private final Logger logger = LogManager.getLogger(getClass());
     // TODO remove entries on target removal
@@ -107,5 +110,25 @@ public class ActionAuditService implements RequiresDataInitialization {
     @Override
     public int priority() {
         return initializationPriority;
+    }
+
+    @Override
+    public void onTargetRemoved(long target) {
+        final TargetActionAuditService targetActionAuditService = targetSenders.get(target);
+        if (targetActionAuditService != null) {
+            targetActionAuditService.purgeAuditEvents();
+            logger.debug("Purged all audit-related stuff related to removed {} target", target);
+            targetSenders.remove(target);
+        }
+    }
+
+    /**
+     * Return audit target senders.
+     *
+     * @return map with targets and related audit event senders.
+     */
+    @VisibleForTesting
+    public Map<Long, TargetActionAuditService> getTargetSenders() {
+        return targetSenders;
     }
 }

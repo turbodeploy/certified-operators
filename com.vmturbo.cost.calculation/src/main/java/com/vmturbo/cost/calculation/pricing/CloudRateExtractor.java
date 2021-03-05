@@ -58,7 +58,6 @@ import com.vmturbo.platform.sdk.common.PricingDTO.DatabaseServerTierPriceList;
 import com.vmturbo.platform.sdk.common.PricingDTO.DatabaseServerTierPriceList.DatabaseServerTierConfigPrice;
 import com.vmturbo.platform.sdk.common.PricingDTO.DatabaseTierConfigPrice;
 import com.vmturbo.platform.sdk.common.PricingDTO.DatabaseTierPriceList;
-import com.vmturbo.platform.sdk.common.PricingDTO.LicensePriceEntry.LicensePrice;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price.Unit;
 import com.vmturbo.platform.sdk.common.PricingDTO.StorageTierPriceList;
@@ -128,7 +127,7 @@ public class CloudRateExtractor {
      */
     @Nonnull
     public ComputePriceBundle getComputePriceBundle(final TopologyEntityDTO tier, final long regionId,
-            final AccountPricingData accountPricingData) {
+            @Nonnull final AccountPricingData<TopologyEntityDTO> accountPricingData) {
         long tierId = tier.getOid();
         final ComputePriceBundle.Builder priceBuilder = ComputePriceBundle.newBuilder();
 
@@ -143,7 +142,7 @@ public class CloudRateExtractor {
 
         ComputeTierPriceList computeTierPrices = regionPriceTable.getComputePricesByTierIdMap().get(tierId);
         if (computeTierPrices == null) {
-            logger.warn("Price list not found for tier {} in region {}'s price table."
+            logger.debug("Price list not found for tier {} in region {}'s price table."
                             + " Cost data might not have been uploaded, or the tier is not available in the region.",
                     tierId, regionId);
             return priceBuilder.build();
@@ -165,8 +164,8 @@ public class CloudRateExtractor {
                     .forEach(osType -> {
                         // let cost calculation component figure out the correct
                         // license price that should be added to the base price
-                        final LicensePriceTuple licensePrice = accountPricingData.getLicensePrice(osType,
-                                computeTierConfig.getNumCores(), computeTierPrices, computeTierConfig.isBurstableCPU());
+                        final LicensePriceTuple licensePrice = accountPricingData.getLicensePrice(
+                                computeTierConfig, osType, computeTierPrices);
                         final double totalLicensePrice = licensePrice.getImplicitOnDemandLicensePrice() * discount
                                 + licensePrice.getExplicitOnDemandLicensePrice();
                         priceBuilder.addPrice(accountPricingData.getAccountPricingDataOid(), osType,
@@ -191,12 +190,10 @@ public class CloudRateExtractor {
      */
     @Nonnull
     public DatabasePriceBundle getDatabasePriceBundle(final long tierId, final long regionId,
-            final AccountPricingData accountPricingData) {
+            @Nonnull final AccountPricingData<TopologyEntityDTO> accountPricingData) {
+
         final DatabasePriceBundle.Builder priceBuilder = DatabasePriceBundle.newBuilder();
-        if (accountPricingData == null || accountPricingData.getPriceTable() == null) {
-            logger.error("No account pricing data found for business account oid {}");
-            return priceBuilder.build();
-        }
+
         OnDemandPriceTable regionPriceTable = getOnDemandPriceTable(tierId, regionId, accountPricingData);
         if (regionPriceTable == null) {
             return priceBuilder.build();
@@ -205,7 +202,7 @@ public class CloudRateExtractor {
         DbTierOnDemandPriceTable dbTierPriceTable =
                 regionPriceTable.getDbPricesByInstanceIdMap().get(tierId);
         if (dbTierPriceTable == null) {
-            logger.warn("Price list not found for tier {} in region {}'s price table."
+            logger.debug("Price list not found for tier {} in region {}'s price table."
                             + " Cost data might not have been uploaded, or the tier is not available in the region.",
                     tierId, regionId);
             return priceBuilder.build();
@@ -407,7 +404,6 @@ public class CloudRateExtractor {
     public StoragePriceBundle getStoragePriceBundle(final long tierId, final long regionId, final AccountPricingData accountPricingData) {
         final StoragePriceBundle.Builder priceBuilder = StoragePriceBundle.newBuilder();
         if (accountPricingData == null || accountPricingData.getPriceTable() == null) {
-            logger.error("No account pricing data found to generate StoragePriceBundle.");
             return priceBuilder.build();
         }
         final Optional<TopologyEntityDTO> storageTierOpt = cloudTopology.getEntity(tierId);
@@ -578,12 +574,10 @@ public class CloudRateExtractor {
 
                             final OSType osType = OS_TYPE_MAP.get(licenseCommodityType.getKey());
 
-                            final Optional<LicensePrice> reservedLicensePrice =
-                                    accountPricingData.getReservedLicensePrice(osType, numCores, burstableCPU);
+                            final Optional<CurrencyAmount> reservedLicensePrice =
+                                    accountPricingData.getReservedLicensePrice(computeTierConfig, osType);
 
-                            final Optional<Double> discountedPrice = reservedLicensePrice.map(LicensePrice::getPrice)
-                                    .map(Price::getPriceAmount)
-                                    .map(CurrencyAmount::getAmount)
+                            final Optional<Double> discountedPrice = reservedLicensePrice.map(CurrencyAmount::getAmount)
                                     .map(fullPrice -> fullPrice * discount);
 
 

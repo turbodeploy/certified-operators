@@ -25,15 +25,15 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.mockito.Mockito;
-
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.protobuf.util.JsonFormat;
+
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.mockito.Mockito;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
@@ -69,6 +69,7 @@ import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceSpecServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceSpecServiceGrpc.ReservedInstanceSpecServiceBlockingStub;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyDTOMoles.PolicyServiceMole;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
@@ -166,6 +167,8 @@ public class ActionSpecMappingContextFactoryTest {
                 .newBlockingStub(grpcTestServer.getChannel());
         final PolicyServiceBlockingStub policyService = PolicyServiceGrpc
                 .newBlockingStub(grpcTestServer.getChannel());
+        final GroupServiceGrpc.GroupServiceBlockingStub groupService = GroupServiceGrpc
+            .newBlockingStub(grpcTestServer.getChannel());
         final ReservedInstanceSpecServiceBlockingStub riSpecService = ReservedInstanceSpecServiceGrpc
                 .newBlockingStub(grpcTestServer.getChannel());
         final SupplyChainServiceBlockingStub supplyChainService = SupplyChainServiceGrpc
@@ -180,7 +183,8 @@ public class ActionSpecMappingContextFactoryTest {
                             777777,
                             buyRIServiceClient, riSpecService,
                             Mockito.mock(ServiceEntityMapper.class),
-                            supplyChainService, policiesService, reservedInstancesService);
+                            supplyChainService, policiesService, reservedInstancesService,
+                            groupService);
 
         final Map<Long, Pair<ReservedInstanceBought, ReservedInstanceSpec>>
                 buyRIIdToRIBoughtandRISpec = actionSpecMappingContextFactory
@@ -205,6 +209,8 @@ public class ActionSpecMappingContextFactoryTest {
         final BuyReservedInstanceServiceBlockingStub buyRIServiceClient = BuyReservedInstanceServiceGrpc
             .newBlockingStub(grpcTestServer.getChannel());
         final PolicyServiceBlockingStub policyService = PolicyServiceGrpc
+            .newBlockingStub(grpcTestServer.getChannel());
+        final GroupServiceGrpc.GroupServiceBlockingStub groupService = GroupServiceGrpc
             .newBlockingStub(grpcTestServer.getChannel());
         final ReservedInstanceSpecServiceBlockingStub riSpecService = ReservedInstanceSpecServiceGrpc
             .newBlockingStub(grpcTestServer.getChannel());
@@ -275,11 +281,12 @@ public class ActionSpecMappingContextFactoryTest {
 
         ThinTargetCache thinTargetCache = Mockito.mock(ThinTargetCache.class);
         ConnectedEntityMapper connectedEntityMapper = Mockito.mock(ConnectedEntityMapper.class);
+        ContainerPlatformContextMapper containerPlatformContextMapper = Mockito.mock(ContainerPlatformContextMapper.class);
         Mockito.when(thinTargetCache.getTargetInfo(Mockito.anyLong()))
             .thenAnswer(invocation -> Optional.empty());
         ServiceEntityMapper serviceEntityMapper = new ServiceEntityMapper(
                         thinTargetCache,
-                        costService, supplyChainRpc, connectedEntityMapper);
+                        costService, supplyChainRpc, connectedEntityMapper, containerPlatformContextMapper);
 
         final VirtualDiskApiDTO virtualDiskApiDTO = new VirtualDiskApiDTO();
         final String volumeName = "ejf-f2s-test_OsDisk_1_57c13b26afc846c2a2af75421a48294e";
@@ -298,7 +305,7 @@ public class ActionSpecMappingContextFactoryTest {
             777777,
             buyRIServiceClient, riSpecService,
             serviceEntityMapper,
-            supplyChainService, policiesService, reservedInstancesService);
+            supplyChainService, policiesService, reservedInstancesService, groupService);
 
         long topologyContextId = 777777L;
         ActionSpecMappingContext result = null;
@@ -379,6 +386,9 @@ public class ActionSpecMappingContextFactoryTest {
         final long realtimeContextId = 777777L;
         final long planContextId = 888888L;
 
+        final GroupServiceGrpc.GroupServiceBlockingStub groupService = GroupServiceGrpc
+            .newBlockingStub(grpcTestServer.getChannel());
+
         RepositoryApi repositoryApiMock = Mockito.mock(RepositoryApi.class);
         final ActionSpecMappingContextFactory actionSpecMappingContextFactory = new
                 ActionSpecMappingContextFactory(PolicyServiceGrpc.newBlockingStub(
@@ -393,7 +403,7 @@ public class ActionSpecMappingContextFactoryTest {
                 Mockito.mock(ServiceEntityMapper.class),
                 SupplyChainServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
                 policiesService,
-                reservedInstancesService);
+                reservedInstancesService, groupService);
 
         List<ApiPartialEntity> planPartialEntities = new ArrayList<>();
         planPartialEntities.add(ApiPartialEntity.newBuilder().setDisplayName("aws-EU (Paris)")

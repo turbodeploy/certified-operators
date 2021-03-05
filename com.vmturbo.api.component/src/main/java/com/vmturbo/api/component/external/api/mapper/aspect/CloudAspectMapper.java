@@ -8,7 +8,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.stream.Collectors;
@@ -109,43 +109,67 @@ public class CloudAspectMapper extends AbstractAspectMapper {
      * @param entities the {@link ApiPartialEntity}
      * @return the {@link CloudAspectApiDTO}
      */
-    @Nullable
     @Override
-    public Optional<Map<Long, EntityAspect>> mapEntityToAspectBatchPartial(@Nonnull final List<ApiPartialEntity> entities) {
-        List<Long> cloudEntities = entities.stream()
-                .filter(e -> isCloudEntity(e))
-                .map(e -> e.getOid())
-                .collect(Collectors.toList());
+    public Optional<Map<Long, EntityAspect>> mapEntityToAspectBatchPartial(
+            @Nonnull final List<ApiPartialEntity> entities) {
+        final Set<Long> cloudEntities = new HashSet<>();
+        final Set<Long> entityIdsForUptimeQuery = new HashSet<>();
+        for (ApiPartialEntity entity : entities) {
+            if (isCloudEntity(entity)) {
+                cloudEntities.add(entity.getOid());
+                if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
+                    entityIdsForUptimeQuery.add(entity.getOid());
+                }
+            }
+        }
 
         if (cloudEntities.isEmpty()) {
             return Optional.empty();
         }
 
-        GraphRequest request = GraphRequest.newBuilder().addAllOids(cloudEntities)
-                        .putNodes("account", SearchProtoUtil.node(Type.MINIMAL, TraversalDirection.OWNED_BY, EntityType.BUSINESS_ACCOUNT).build())
-                        .build();
-        GraphResponse response = repositoryApi.graphSearch(request);
+        final Map<Long, EntityAspect> retMap = new HashMap<>();
 
-        Map<Long, EntityAspect> retMap = new HashMap<>();
-        SearchProtoUtil.getMapMinimal(response.getNodesOrThrow("account")).forEach((oid, accounts) -> {
-            final CloudAspectApiDTO aspect = new CloudAspectApiDTO();
-            if (accounts != null && !accounts.isEmpty()) {
-                aspect.setBusinessAccount(ServiceEntityMapper.toBaseApiDTO(accounts.get(0)));
-            }
-            retMap.put(oid, aspect);
-        });
+        final GraphRequest request = GraphRequest.newBuilder().addAllOids(cloudEntities).putNodes(
+                "account", SearchProtoUtil.node(Type.MINIMAL, TraversalDirection.OWNED_BY,
+                        EntityType.BUSINESS_ACCOUNT).build()).build();
+        final Future<GraphResponse> graphResponseF = executorService.submit(
+                () -> repositoryApi.graphSearch(request));
+        final Future<Map<Long, EntityUptimeDTO>> uptimeByEntityF = executorService.submit(
+                () -> getEntityUptimeForEntities(entityIdsForUptimeQuery));
+        try {
+            final GraphResponse graphResponse = graphResponseF.get();
+            final Map<Long, EntityUptimeDTO> uptimeByEntity = uptimeByEntityF.get();
 
+            final Map<Long, MinimalEntity> accounts = SearchProtoUtil.getMapMinimalWithFirst(
+                    graphResponse.getNodesOrThrow("account"));
+            cloudEntities.forEach(oid -> {
+                final CloudAspectApiDTO aspect = new CloudAspectApiDTO();
+                retMap.put(oid, aspect);
+                final MinimalEntity account = accounts.get(oid);
+                if (account != null) {
+                    aspect.setBusinessAccount(ServiceEntityMapper.toBaseApiDTO(account));
+                }
+                final EntityUptimeDTO entityUptime = uptimeByEntity.get(oid);
+                if (entityUptime != null) {
+                    setEntityUptime(aspect, entityUptime);
+                }
+            });
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return Optional.empty();
+        } catch (ExecutionException | IllegalArgumentException e) {
+            logger.error("mapEntityToAspectBatchPartial failed with exception", e);
+            return Optional.empty();
+        }
         return Optional.of(retMap);
     }
 
     @Override
     @Nullable
     public EntityAspect mapEntityToAspect(@Nonnull final TopologyEntityDTO entity) {
-        Optional<Map<Long, EntityAspect>> result = mapEntityToAspectBatch(Collections.singletonList(entity));
-        if (result.isPresent()) {
-            return result.get().get(entity.getOid());
-        }
-        return null;
+        return mapEntityToAspectBatch(Collections.singletonList(entity))
+                .map(longEntityAspectMap -> longEntityAspectMap.get(entity.getOid()))
+                .orElse(null);
     }
 
     /**
@@ -154,7 +178,6 @@ public class CloudAspectMapper extends AbstractAspectMapper {
      * @return map containing aspect
      */
     @Override
-    @Nullable
     public Optional<Map<Long, EntityAspect>> mapEntityToAspectBatch(@Nonnull List<TopologyEntityDTO> entities) {
         // this aspect only applies to cloud service entities
         List<TopologyEntityDTO> cloudEntities = entities.stream().filter(CloudAspectMapper::isCloudEntity).collect(Collectors.toList());
@@ -186,18 +209,18 @@ public class CloudAspectMapper extends AbstractAspectMapper {
                 .filter(Optional::isPresent).map(Optional::get)
                 .collect(Collectors.toSet());
 
-        Future<GraphResponse> graphResponseF = executorService.submit(() -> repositoryApi.graphSearch(request));
-        Future<Map<Long, MinimalEntity>> templatesF = executorService.submit(() -> repositoryApi.entitiesRequest(templateIds).getMinimalEntities().collect(Collectors.toMap(MinimalEntity::getOid, e -> e)));
-        Future<Map<Long, Grouping>> resourceGroupMapF = executorService.submit(() -> retrieveResourceGroupsForEntities(entityIds));
-        Future<Map<Long, EntityReservedInstanceCoverage>> riMapF = executorService.submit(() -> getRiCoverageRelatedInformation(entityIdsForRIQuery));
-        Future<Map<Long, EntityUptimeDTO>> uptimeByEntityF =
-                entityIdsForUptimeQuery.isEmpty() ? CompletableFuture.completedFuture(
-                        Collections.emptyMap()) : executorService.submit(
-                        () -> entityUptimeService.getEntityUptimeByFilter(
-                                GetEntityUptimeByFilterRequest.newBuilder()
-                                        .setFilter(CloudScopeFilter.newBuilder()
-                                                .addAllEntityOid(entityIdsForUptimeQuery))
-                                        .build()).getEntityUptimeByOidMap());
+        final Future<GraphResponse> graphResponseF = executorService.submit(
+                () -> repositoryApi.graphSearch(request));
+        final Future<Map<Long, MinimalEntity>> templatesF = executorService.submit(
+                () -> repositoryApi.entitiesRequest(templateIds)
+                        .getMinimalEntities()
+                        .collect(Collectors.toMap(MinimalEntity::getOid, e -> e)));
+        final Future<Map<Long, Grouping>> resourceGroupMapF = executorService.submit(
+                () -> retrieveResourceGroupsForEntities(entityIds));
+        final Future<Map<Long, EntityReservedInstanceCoverage>> riMapF = executorService.submit(
+                () -> getRiCoverageRelatedInformation(entityIdsForRIQuery));
+        final Future<Map<Long, EntityUptimeDTO>> uptimeByEntityF = executorService.submit(
+                () -> getEntityUptimeForEntities(entityIdsForUptimeQuery));
 
         Map<Long, EntityAspect> resp = new HashMap<>();
         try {
@@ -310,6 +333,17 @@ public class CloudAspectMapper extends AbstractAspectMapper {
         return Collections.unmodifiableMap(containedEntityToContainingGrouping);
     }
 
+    @Nonnull
+    private Map<Long, EntityUptimeDTO> getEntityUptimeForEntities(
+            final Set<Long> entityIdsForUptimeQuery) {
+        return entityIdsForUptimeQuery.isEmpty() ? Collections.emptyMap()
+                : entityUptimeService.getEntityUptimeByFilter(
+                        GetEntityUptimeByFilterRequest.newBuilder()
+                                .setFilter(CloudScopeFilter.newBuilder()
+                                        .addAllEntityOid(entityIdsForUptimeQuery))
+                                .build()).getEntityUptimeByOidMap();
+    }
+
     /**
      * Get RI coverage information for a list of oids.
      * @param oids list of oids
@@ -334,6 +368,9 @@ public class CloudAspectMapper extends AbstractAspectMapper {
     private void setEntityUptime(@Nonnull final CloudAspectApiDTO cloudAspectApiDTO,
             @Nonnull final EntityUptimeDTO entityUptime) {
         final EntityUptimeApiDTO entityUptimeApiDTO = new EntityUptimeApiDTO();
+        if (entityUptime.hasCreationTimeMs()) {
+            entityUptimeApiDTO.setCreationTimestamp(entityUptime.getCreationTimeMs());
+        }
         if (entityUptime.hasUptimeDurationMs()) {
             entityUptimeApiDTO.setUptimeDurationInMilliseconds(entityUptime.getUptimeDurationMs());
         }

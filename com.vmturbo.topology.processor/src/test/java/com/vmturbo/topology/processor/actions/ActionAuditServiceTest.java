@@ -3,7 +3,9 @@ package com.vmturbo.topology.processor.actions;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
@@ -182,8 +184,9 @@ public class ActionAuditServiceTest {
                                 .uiCategory(ProbeCategory.ORCHESTRATOR.getCategory())
                                 .build())
                         .build()));
-        actionAuditService = new ActionAuditService(eventsReceiver, operationManager,
-                contextFactory, threadPool, 10, 2, 0, thinTargetCache);
+        actionAuditService =
+                new ActionAuditService(eventsReceiver, operationManager, contextFactory, threadPool,
+                        10, 2, 0, thinTargetCache);
         Mockito.verify(eventsReceiver).addListener(eventCaptor.capture());
         messageConsumer = eventCaptor.getValue();
     }
@@ -354,6 +357,71 @@ public class ActionAuditServiceTest {
         expectedException.expectMessage("batchSize must be a positive value");
         new ActionAuditService(eventsReceiver, operationManager, contextFactory, threadPool, 10, 0,
                 0, thinTargetCache);
+    }
+
+    /**
+     * Tests that when audit target is deleted then we need to cancel all tasks (sending audit
+     * events to probe) and also clean queue with audit events related to deleted target and
+     * commit all undelivered messages in internal kafka in order not to resend them again when
+     * target will be added again.
+     *
+     * @throws Exception if something goes wrong
+     */
+    @Test
+    public void testRemovingAuditTarget() throws Exception {
+        // ARRANGE
+        Mockito.when(thinTargetCache.getTargetInfo(AUDIT_TARGET))
+                .thenReturn(Optional.of(ImmutableThinTargetInfo.builder()
+                        .oid(AUDIT_TARGET)
+                        .displayName("ActionStreamKafka")
+                        .isHidden(false)
+                        .probeInfo(ImmutableThinProbeInfo.builder()
+                                .type("ActionStreamKafka")
+                                .oid(AUDIT_TARGET)
+                                .category(ProbeCategory.ORCHESTRATOR.getCategory())
+                                .uiCategory(ProbeCategory.ORCHESTRATOR.getCategory())
+                                .build())
+                        .build()));
+        actionAuditService.initialize();
+        final Runnable commit1 = Mockito.mock(Runnable.class);
+        final Runnable commit2 = Mockito.mock(Runnable.class);
+        final ActionEvent event1 = createAction(ACTION1);
+        final ActionEvent event2 = createAction(ACTION2);
+        messageConsumer.accept(event1, commit1, spanContext);
+        messageConsumer.accept(event2, commit2, spanContext);
+        threadPool.executeTasks();
+        Mockito.verify(operationManager, Mockito.timeout(TIMEOUT_SEC * 1000))
+                .sendActionAuditEvents(Mockito.eq(AUDIT_TARGET), sdkEventsCaptor.capture(),
+                        operationCaptor.capture());
+        final OperationCallback<ActionErrorsResponse> callback = operationCaptor.getValue();
+
+        callback.onSuccess(ActionErrorsResponse.newBuilder()
+                .addErrors(ActionErrorDTO.newBuilder()
+                        .setActionOid(ACTION1)
+                        .setMessage("Failed to audit action")
+                        .build())
+                .build());
+        Mockito.verify(commit1, Mockito.never()).run();
+
+        final Map<Long, TargetActionAuditService> targetSenders = actionAuditService.getTargetSenders();
+        final TargetActionAuditService targetAuditService =
+                Mockito.spy(targetSenders.get(AUDIT_TARGET));
+        Assert.assertNotNull(targetAuditService);
+        Assert.assertFalse(targetAuditService.getEvents().isEmpty());
+
+        // ACT
+        actionAuditService.onTargetRemoved(AUDIT_TARGET);
+
+        // ASSERT
+        // Checks that all undelivered audit messages were committed in internal kafka (in order
+        // not to resend them later if target will be added again), removed from events queue
+        // and all submitted tasks were canceled
+        Assert.assertTrue(targetAuditService.getEvents().isEmpty());
+        Assert.assertTrue(
+                targetAuditService.getActionAuditFutures().stream().allMatch(Future::isDone));
+        Assert.assertNull(actionAuditService.getTargetSenders().get(AUDIT_TARGET));
+        Mockito.verify(commit1, Mockito.times(1)).run();
+        Mockito.verify(commit2, Mockito.times(1)).run();
     }
 
     @Nonnull

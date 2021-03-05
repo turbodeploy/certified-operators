@@ -1,9 +1,12 @@
 package com.vmturbo.repository.service;
 
+import static com.vmturbo.common.protobuf.utils.StringConstants.VCPU_OVERCOMMITMENT;
 import static com.vmturbo.common.protobuf.utils.StringConstants.KEY;
+import static com.vmturbo.common.protobuf.utils.StringConstants.VMEM_OVERCOMMITMENT;
 import static com.vmturbo.common.protobuf.utils.StringConstants.PRICE_INDEX;
 import static com.vmturbo.common.protobuf.utils.StringConstants.VIRTUAL_DISK;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -17,11 +20,14 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.collect.HashMultimap;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Multimap;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.api.conversion.entity.CommodityTypeMapping;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.StatEpoch;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
@@ -35,8 +41,10 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ContainerPlatformClusterInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.TypeCase;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
-import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.components.common.stats.StatsAccumulator;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.repository.service.AbridgedSoldCommoditiesForProvider.AbridgedSoldCommodity;
@@ -80,6 +88,14 @@ interface PlanEntityStatsExtractor {
     class DefaultPlanEntityStatsExtractor implements PlanEntityStatsExtractor {
 
         private static final Logger logger = LogManager.getLogger();
+
+        /**
+         * Map of entity type to list of attribute types. This map is used to extract plan entity
+         * attributes and return these attributes as stats records.
+         */
+        private static final Map<TypeCase, List<String>> ENTITY_TYPE_TO_ATTRIBUTE_MAP =
+                ImmutableMap.of(TypeCase.CONTAINER_PLATFORM_CLUSTER,
+                        ImmutableList.of(VCPU_OVERCOMMITMENT, VMEM_OVERCOMMITMENT));
 
         @Nonnull
         @Override
@@ -134,7 +150,6 @@ interface PlanEntityStatsExtractor {
                 commoditiesBoughtToAggregate.asMap().values().forEach(commodityBoughtDTOS -> {
                     // The commodity type for all commodities being aggregated must be the same
                     CommodityType commodityType = commodityBoughtDTOS.iterator().next().getCommodityType();
-                    final String commodityName = getCommodityName(commodityType);
                     // Set the key only if there are not multiple commodities being aggregated
                     final String key = commodityBoughtDTOS.size() == 1 ? commodityType.getKey() : "";
                     final Optional<Double> capacity = extractCapacityFromSoldCommodities(
@@ -150,7 +165,7 @@ interface PlanEntityStatsExtractor {
                     final HistUtilizationValue percentileValue =
                         createPercentileUtilization(commodityBoughtDTOS, capacityValues);
                     final StatRecord statRecord =
-                        buildStatRecord(commodityName, key, usedValues, capacityValues,
+                        buildStatRecord(commodityType, key, usedValues, capacityValues,
                             providerOidString, StringConstants.RELATION_BOUGHT, percentileValue);
                     snapshot.addStatRecords(statRecord);
                 });
@@ -172,7 +187,6 @@ interface PlanEntityStatsExtractor {
             commoditiesSoldToAggregate.asMap().values().forEach(commoditySoldDTOS -> {
                 // The commodity type for all commodities being aggregated must be the same
                 CommodityType commodityType = commoditySoldDTOS.iterator().next().getCommodityType();
-                final String commodityName = getCommodityName(commodityType);
                 // Set the key only if there are not multiple commodities being aggregated
                 final String key = commoditySoldDTOS.size() == 1 ? commodityType.getKey() : "";
                 StatsAccumulator accumulator = new StatsAccumulator();
@@ -192,7 +206,7 @@ interface PlanEntityStatsExtractor {
                     createPercentileUtilization(commoditySoldDTOS, capacityValue);
 
                 final StatRecord statRecord =
-                    buildStatRecord(commodityName, key, usedValues, capacityValue, entityOidString,
+                    buildStatRecord(commodityType, key, usedValues, capacityValue, entityOidString,
                         StringConstants.RELATION_SOLD, percentileValue);
                 snapshot.addStatRecords(statRecord);
             });
@@ -209,6 +223,10 @@ interface PlanEntityStatsExtractor {
                     .build();
                 snapshot.addStatRecords(priceIdxStatRecord);
             }
+
+            List<StatRecord> attributeStatsRecords =
+                    extractEntityAttributeStatsRecords(projectedEntity.getEntity());
+            snapshot.addAllStatRecords(attributeStatsRecords);
 
             return EntityStats.newBuilder()
                 .setOid(projectedEntity.getEntity().getOid())
@@ -307,9 +325,64 @@ interface PlanEntityStatsExtractor {
         }
 
         /**
+         * Extract attributes from given TopologyEntityDTO and create stats records for the attributes.
+         *
+         * @param entityDTO Given plan TopologyEntityDTO.
+         * @return List of {@link StatRecord} created from entity attributes.
+         */
+        private List<StatRecord> extractEntityAttributeStatsRecords(@Nonnull final TopologyEntityDTO entityDTO) {
+            List<StatRecord> statRecords = new ArrayList<>();
+            if (!entityDTO.hasTypeSpecificInfo()) {
+                return statRecords;
+            }
+            TypeSpecificInfo entityInfo = entityDTO.getTypeSpecificInfo();
+            List<String> attributeNames = ENTITY_TYPE_TO_ATTRIBUTE_MAP.get(entityInfo.getTypeCase());
+            if (attributeNames == null) {
+                return statRecords;
+            }
+            for (String attributeName : attributeNames) {
+                Optional<Double> attributeValue = extractAttributeValue(entityInfo, attributeName);
+                attributeValue.ifPresent(value -> {
+                    final StatValue statValue = PlanEntityStatsExtractorUtil.buildStatValue(value.floatValue());
+                    final StatRecord attributeStatRecord = StatRecord.newBuilder()
+                            .setName(attributeName)
+                            .setCurrentValue(value.floatValue())
+                            .setUsed(statValue)
+                            .setPeak(statValue)
+                            .setCapacity(statValue)
+                            .build();
+                    statRecords.add(attributeStatRecord);
+                });
+            }
+            return statRecords;
+        }
+
+        private Optional<Double> extractAttributeValue(@Nonnull TypeSpecificInfo entityInfo,
+                                                       @Nonnull String attributeName) {
+            TypeCase entityTypeCase = entityInfo.getTypeCase();
+            if (entityTypeCase == TypeCase.CONTAINER_PLATFORM_CLUSTER) {
+                ContainerPlatformClusterInfo containerPlatformCluster = entityInfo.getContainerPlatformCluster();
+                switch (attributeName) {
+                    case VCPU_OVERCOMMITMENT:
+                        return containerPlatformCluster.hasVcpuOvercommitment()
+                                ? Optional.of(containerPlatformCluster.getVcpuOvercommitment())
+                                : Optional.empty();
+                    case VMEM_OVERCOMMITMENT:
+                        return containerPlatformCluster.hasVmemOvercommitment()
+                                ? Optional.of(containerPlatformCluster.getVmemOvercommitment())
+                                : Optional.empty();
+                    default:
+                        logger.error("Unsupported attribute {} to extract for {}.", attributeName,
+                                entityInfo.getTypeCase());
+                }
+            }
+            return Optional.empty();
+        }
+
+        /**
          * Create a new StatRecord with values populated.
          *
-         * @param commodityName the name of the commodity
+         * @param commodityType the name of the commodity
          * @param key the key associate with the commodity, or empty if no key
          * @param used used (or current) value recorded for one sample
          * @param capacity the total capacity for the commodity
@@ -319,7 +392,7 @@ interface PlanEntityStatsExtractor {
          * @param histUtilizationValue historical utilization value
          * @return a new StatRecord initialized from the given values
          */
-        private StatRecord buildStatRecord(@Nonnull final String commodityName,
+        private StatRecord buildStatRecord(@Nonnull final CommodityType commodityType,
                                            @Nonnull final String key,
                                            @Nonnull final StatValue used,
                                            @Nonnull final StatValue capacity,
@@ -327,7 +400,7 @@ interface PlanEntityStatsExtractor {
                                            @Nonnull final String relation,
                                            @Nullable final HistUtilizationValue histUtilizationValue) {
             StatRecord.Builder statRecordBuilder = StatRecord.newBuilder()
-                .setName(commodityName)
+                .setName(CommodityTypeMapping.getApiCommodityType(commodityType.getType()))
                 .setCurrentValue(used.getAvg())
                 .setUsed(used)
                 .setPeak(used)
@@ -338,9 +411,9 @@ interface PlanEntityStatsExtractor {
             if (histUtilizationValue != null) {
                 statRecordBuilder.addHistUtilizationValue(histUtilizationValue);
             }
-            final CommodityTypeUnits typeUnits = CommodityTypeUnits.fromString(commodityName);
+            final String typeUnits = CommodityTypeMapping.getUnitForCommodityType(commodityType.getType());
             if (typeUnits != null) {
-                statRecordBuilder.setUnits(typeUnits.getUnits());
+                statRecordBuilder.setUnits(typeUnits);
             }
             return statRecordBuilder.build();
         }
