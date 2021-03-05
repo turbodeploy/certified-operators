@@ -30,6 +30,7 @@ import org.junit.Ignore;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;
+import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.cost.component.savings.EventInjector.ScriptEvent;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -142,6 +143,15 @@ public class SavingsCalculatorTest {
         public void addHourlyStats(@Nonnull Set<EntitySavingsStats> hourlyStats)
                 throws EntitySavingsException {
             stats.addAll(hourlyStats);
+        }
+
+        @Nonnull
+        @Override
+        public List<AggregatedSavingsStats> getSavingsStats(TimeFrame timeFrame,
+                @Nonnull Set<EntitySavingsStatsType> statsTypes, @Nonnull Long startTime,
+                @Nonnull Long endTime, @Nonnull MultiValuedMap<EntityType, Long> entitiesByType)
+                throws EntitySavingsException {
+            return null;
         }
 
         List<EntitySavingsStats> getStats() {

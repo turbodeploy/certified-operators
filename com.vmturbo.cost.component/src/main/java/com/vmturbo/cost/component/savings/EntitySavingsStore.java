@@ -10,6 +10,7 @@ import javax.annotation.Nullable;
 import org.apache.commons.collections4.MultiValuedMap;
 
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;
+import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -25,6 +26,24 @@ public interface EntitySavingsStore {
      * @throws EntitySavingsException Thrown on write error.
      */
     void addHourlyStats(@Nonnull Set<EntitySavingsStats> hourlyStats)
+            throws EntitySavingsException;
+
+    /**
+     * Gets stats related to savings and investments, based on the given time frame.
+     *
+     * @param timeFrame Info about what time range to fetch stats for.
+     * @param statsTypes Type of stats to query for.
+     * @param startTime Start time (epoch millis) to fetch stats for. Inclusive.
+     * @param endTime End time (epoch millis) to fetch stats for. Exclusive.
+     * @param entitiesByType EntityType to a set of entities of that type to scope by.
+     * @return List of queried stats, in increasing order of timestamp.
+     * @throws EntitySavingsException Thrown on storage error.
+     */
+    @Nonnull
+    List<AggregatedSavingsStats> getSavingsStats(TimeFrame timeFrame,
+            @Nonnull Set<EntitySavingsStatsType> statsTypes,
+            @Nonnull Long startTime, @Nonnull Long endTime,
+            @Nonnull MultiValuedMap<EntityType, Long> entitiesByType)
             throws EntitySavingsException;
 
     /**

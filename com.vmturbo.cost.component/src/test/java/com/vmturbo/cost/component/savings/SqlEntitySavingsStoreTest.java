@@ -33,6 +33,7 @@ import org.junit.Rule;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;
+import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.api.TimeUtil;
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.cost.component.db.Cost;
@@ -127,13 +128,13 @@ public class SqlEntitySavingsStoreTest {
     private static final double missedInvestments = 8.0d;
 
     /**
-     * Get exact time, strip of the minute part: 1970-01-12T13:00
+     * Get exact time, strip of the minute part: 1990-01-12T13:00
      */
     private final LocalDateTime timeExact1PM = Instant.now(clock).atZone(ZoneOffset.UTC)
-            .toLocalDateTime().truncatedTo(ChronoUnit.HOURS);
+            .toLocalDateTime().plusYears(20).truncatedTo(ChronoUnit.HOURS);
 
     /**
-     * For testing rollups.
+     * For testing rollup processing.
      */
     private RollupSavingsProcessor rollupProcessor;
 
@@ -165,10 +166,10 @@ public class SqlEntitySavingsStoreTest {
         // Set scope
         insertScopeRecords();
 
-        final LocalDateTime timeExact0PM = timeExact1PM.minusHours(1); // 1970-01-12T12:00
-        final LocalDateTime timeExact2PM = timeExact1PM.plusHours(1); // 1970-01-12T14:00
-        final LocalDateTime timeExact3PM = timeExact1PM.plusHours(2); // 1970-01-12T15:00
-        final LocalDateTime timeExact4PM = timeExact1PM.plusHours(3); // 1970-01-12T16:00
+        final LocalDateTime timeExact0PM = timeExact1PM.minusHours(1); // 1990-01-12T12:00
+        final LocalDateTime timeExact2PM = timeExact1PM.plusHours(1); // 1990-01-12T14:00
+        final LocalDateTime timeExact3PM = timeExact1PM.plusHours(2); // 1990-01-12T15:00
+        final LocalDateTime timeExact4PM = timeExact1PM.plusHours(3); // 1990-01-12T16:00
 
         setStatsValues(hourlyStats, vm1Id, timeExact1PM, 10, null); // VM1 at 1PM.
         setStatsValues(hourlyStats, vm2Id, timeExact1PM, 20, null); // VM2 at 1PM.
@@ -285,18 +286,18 @@ public class SqlEntitySavingsStoreTest {
         final LastRollupTimes newLastTimes = store.getLastRollupTimes();
         assertNotNull(newLastTimes);
         logger.info("New last rollup times: {}", newLastTimes);
-        // First hour inserted into DB - Thu Jan 13 1970 01:00:00
-        final long firstHourExpected = 1040400000L;
+        // First hour inserted into DB - Thu Jan 13 1990 01:00:00
+        final long firstHourExpected = 632192400000L;
 
-        // Last hourly data that was rolled up - Thu Jan 15 1970 02:00:00
-        final long lastHourExpected = 1216800000L;
+        // Last hourly data that was rolled up - Thu Jan 15 1990 02:00:00
+        final long lastHourExpected = 632368800000L;
 
-        // Last day that was rolled up - Wed Jan 14 1970 00:00:00
+        // Last day that was rolled up - Wed Jan 14 1990 00:00:00
         // Jan 15 is still 'in progress', so its daily rollup is not yet completed.
-        final long lastDayExpected = 1123200000L;
+        final long lastDayExpected = 632275200000L;
 
-        // Month end to which daily data has been rolled up - Sat Jan 31 1970 00:00:00
-        final long lastMonthExpected = 2592000000L;
+        // Month end to which daily data has been rolled up - Sat Jan 31 1990 00:00:00
+        final long lastMonthExpected = 633744000000L;
         assertEquals(lastHourExpected, newLastTimes.getLastTimeByHour());
         assertEquals(lastHourExpected, (long)hourlyTimes.get(hourlyTimes.size() - 1));
         assertEquals(lastDayExpected, newLastTimes.getLastTimeByDay());
@@ -329,6 +330,121 @@ public class SqlEntitySavingsStoreTest {
         assertNotNull(statsByMonth);
         assertEquals(1, statsByMonth.size());
         assertEquals(4700.0, statsByMonth.get(0).getValue(), EPSILON_PRECISION);
+    }
+
+    /**
+     * Check if query based on various time frames (hour/day/month/year) works as expected.
+     *
+     * @throws IOException On IO error.
+     * @throws EntitySavingsException On DB access error.
+     */
+    @Test
+    public void timeframeStatsQuery() throws IOException, EntitySavingsException {
+        final Set<EntitySavingsStats> hourlyStats = new HashSet<>();
+        final List<Long> hourlyTimes = new ArrayList<>();
+
+        // Verify getMaxStatsTime returns null when table is empty.
+        Long maxStatsTime = store.getMaxStatsTime();
+        assertNull(maxStatsTime);
+
+        // Set scope
+        insertScopeRecords();
+
+        final Set<EntitySavingsStatsType> statsTypes = ImmutableSet.of(
+                EntitySavingsStatsType.REALIZED_INVESTMENTS);
+
+        final LocalDateTime year1monthBack = timeExact1PM.minusMonths(11);
+        final LocalDateTime anHourLater = timeExact1PM.plusHours(1);
+
+        // Start at 2 AM.
+        final LocalDateTime startTime = year1monthBack.toLocalDate().atStartOfDay().plusHours(2);
+        int hour = 0;
+        long timestamp;
+        long endTimeMillis = TimeUtil.localDateTimeToMilli(anHourLater, clock);
+        do {
+            final LocalDateTime thisTime = startTime.plusHours(hour++);
+            setStatsValues(hourlyStats, vm1Id, thisTime, 1, statsTypes);
+
+            timestamp = TimeUtil.localDateTimeToMilli(thisTime, clock);
+            hourlyTimes.add(timestamp);
+        } while (timestamp < endTimeMillis);
+
+        store.addHourlyStats(hourlyStats);
+        rollupProcessor.process(hourlyTimes);
+
+        final LastRollupTimes newLastTimes = store.getLastRollupTimes();
+        assertNotNull(newLastTimes);
+        logger.info("Total {} times. New last rollup times: {}", hourlyTimes.size(),
+                newLastTimes);
+
+        MultiValuedMap<EntityType, Long> entitiesByType = new HashSetValuedHashMap<>();
+        entitiesByType.put(EntityType.VIRTUAL_MACHINE, vm1Id);
+
+        long startTimeMillis = TimeUtil.localDateTimeToMilli(year1monthBack.minusHours(1), clock);
+        final List<AggregatedSavingsStats> hourlyResult = store.getSavingsStats(TimeFrame.HOUR,
+                statsTypes,
+                startTimeMillis, endTimeMillis + 1000,
+                entitiesByType);
+        assertNotNull(hourlyResult);
+
+        final List<AggregatedSavingsStats> dailyResult = store.getSavingsStats(TimeFrame.DAY,
+                statsTypes,
+                startTimeMillis, endTimeMillis + 1000,
+                entitiesByType);
+        assertNotNull(dailyResult);
+
+        final List<AggregatedSavingsStats> monthlyResult = store.getSavingsStats(TimeFrame.MONTH,
+                statsTypes,
+                startTimeMillis, endTimeMillis + 1000,
+                entitiesByType);
+        assertNotNull(monthlyResult);
+
+        logger.info("Hourly result count: {}, Daily count: {}, Monthly count: {}",
+                hourlyResult.size(), dailyResult.size(), monthlyResult.size());
+
+        assertEquals(8018, hourlyResult.size());
+        // 400.0 each day.
+        AggregatedSavingsStats result = hourlyResult.get(0);
+        assertEquals(400.0, result.value, EPSILON_PRECISION);
+        assertEquals(603288000000L, result.getTimestamp());
+
+        result = hourlyResult.get(hourlyResult.size() - 2);
+        assertEquals(400.0, result.value, EPSILON_PRECISION);
+        assertEquals(632149200000L, result.getTimestamp());
+
+        result = hourlyResult.get(hourlyResult.size() - 1);
+        assertEquals(400.0, result.value, EPSILON_PRECISION);
+        assertEquals(632152800000L, result.getTimestamp());
+
+        assertEquals(334, dailyResult.size());
+        // 400.0 per hour over 24 hours.
+        result = dailyResult.get(0);
+        assertEquals(9600.0, result.value, EPSILON_PRECISION);
+        assertEquals(603331200000L, result.getTimestamp());
+
+        // 400.0 per hour over 24 hours.
+        result = dailyResult.get(dailyResult.size() - 2);
+        assertEquals(9600.0, result.value, EPSILON_PRECISION);
+        assertEquals(632016000000L, result.getTimestamp());
+
+        // Last day, only 15, not full 24 hours.
+        result = dailyResult.get(dailyResult.size() - 1);
+        assertEquals(6000.0, result.value, EPSILON_PRECISION);
+        assertEquals(632102400000L, result.getTimestamp());
+
+        assertEquals(11, monthlyResult.size());
+        // Month totals varies by days in the month.
+        result = monthlyResult.get(0);
+        assertEquals(162400.0, result.value, EPSILON_PRECISION);
+        assertEquals(604627200000L, result.getTimestamp());
+
+        result = monthlyResult.get(monthlyResult.size() - 2);
+        assertEquals(288000.0, result.value, EPSILON_PRECISION);
+        assertEquals(628387200000L, result.getTimestamp());
+
+        result = monthlyResult.get(monthlyResult.size() - 1);
+        assertEquals(297600.0, result.value, EPSILON_PRECISION);
+        assertEquals(631065600000L, result.getTimestamp());
     }
 
     /**
@@ -410,8 +526,8 @@ public class SqlEntitySavingsStoreTest {
      * @param multiple Multiple value used for dummy stats data.
      * @param vm2Id Id of 2nd VM, if non-null.
      */
-    private void checkStatsValues(@Nonnull final List<AggregatedSavingsStats> statsReadBack, long vmId,
-            @Nonnull final LocalDateTime dateTime, int multiple, @Nullable Long vm2Id) {
+    private void checkStatsValues(@Nonnull final List<AggregatedSavingsStats> statsReadBack,
+            long vmId, @Nonnull final LocalDateTime dateTime, int multiple, @Nullable Long vm2Id) {
         assertNotNull(statsReadBack);
         statsReadBack.forEach(stats -> {
                     assertEquals(TimeUtil.localDateTimeToMilli(dateTime, clock),
