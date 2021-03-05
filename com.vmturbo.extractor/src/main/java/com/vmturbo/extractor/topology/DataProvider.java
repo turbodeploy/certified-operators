@@ -1,5 +1,6 @@
 package com.vmturbo.extractor.topology;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -12,8 +13,6 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.google.common.collect.ImmutableList;
-
 import it.unimi.dsi.fastutil.ints.Int2DoubleArrayMap;
 import it.unimi.dsi.fastutil.ints.Int2DoubleMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectArrayMap;
@@ -25,10 +24,10 @@ import it.unimi.dsi.fastutil.longs.LongSet;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
-import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.components.common.utils.MultiStageTimer;
+import com.vmturbo.extractor.ExtractorGlobalConfig.ExtractorFeatureFlags;
 import com.vmturbo.extractor.schema.enums.Severity;
 import com.vmturbo.extractor.search.SearchMetadataUtils;
 import com.vmturbo.extractor.topology.fetcher.ClusterStatsFetcherFactory;
@@ -37,8 +36,9 @@ import com.vmturbo.extractor.topology.fetcher.GroupFetcher;
 import com.vmturbo.extractor.topology.fetcher.GroupFetcher.GroupData;
 import com.vmturbo.extractor.topology.fetcher.SupplyChainFetcher;
 import com.vmturbo.extractor.topology.fetcher.SupplyChainFetcher.SupplyChain;
+import com.vmturbo.extractor.topology.fetcher.TopDownCostFetcherFactory;
+import com.vmturbo.extractor.topology.fetcher.TopDownCostFetcherFactory.TopDownCostData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.topology.graph.TopologyGraph;
 
 /**
@@ -48,7 +48,6 @@ import com.vmturbo.topology.graph.TopologyGraph;
 public class DataProvider {
 
     private final GroupServiceBlockingStub groupService;
-    private final StatsHistoryServiceBlockingStub historyService;
     // commodity values cached for use later in finish stage
     private final Long2ObjectMap<Int2DoubleMap> entityToCommodityUsed = new Long2ObjectArrayMap<>();
     private final Long2ObjectMap<Int2DoubleMap> entityToCommodityCapacity = new Long2ObjectArrayMap<>();
@@ -58,24 +57,22 @@ public class DataProvider {
     private volatile GroupData groupData;
     private volatile SupplyChain supplyChain;
     private volatile TopologyGraph<SupplyChainEntity> graph;
-    private List<EntityStats> clusterStats;
+    private volatile List<EntityStats> clusterStats;
+    private volatile TopDownCostData topDownCostData;
 
     private final ClusterStatsFetcherFactory clusterStatsFetcherFactory;
+    private final TopDownCostFetcherFactory topDownCostFetcherFactory;
+    private final ExtractorFeatureFlags extractorFeatureFlags;
 
-    /**
-     * This interval represents how much we backfill headroom properties. This time range should
-     * strictly be less or equal to the retention policy of the metric table.
-     * If we insert data that is not in the active chunk, but that belongs to an already
-     * compressed chunk, we will end up with an exception during the data insertion.
-     */
-    private final int headroomMaxBackfillingDays = 2;
 
     DataProvider(GroupServiceBlockingStub groupService,
-                 StatsHistoryServiceBlockingStub historyService, DbEndpoint dbEndpoint, final int headroomCheckInterval) {
+                 ClusterStatsFetcherFactory clusterStatsFetcherFactory,
+                 TopDownCostFetcherFactory topDownCostFetcherFactory,
+                 ExtractorFeatureFlags extractorFeatureFlags) {
         this.groupService = groupService;
-        this.historyService = historyService;
-        this.clusterStatsFetcherFactory = new ClusterStatsFetcherFactory(historyService,
-            dbEndpoint, headroomMaxBackfillingDays, headroomCheckInterval);
+        this.clusterStatsFetcherFactory = clusterStatsFetcherFactory;
+        this.topDownCostFetcherFactory = topDownCostFetcherFactory;
+        this.extractorFeatureFlags = extractorFeatureFlags;
     }
 
     private final Long2ObjectMap<Boolean> virtualVolumeToEphemeral = new Long2ObjectOpenHashMap<>();
@@ -156,12 +153,18 @@ public class DataProvider {
                           boolean requireFullSupplyChain, final long topologyCreationTime) {
         this.graph = graph;
         // prepare all needed fetchers
-        final List<DataFetcher<?>> dataFetchers = ImmutableList.of(
-            new GroupFetcher(groupService, timer, this::setGroupData),
-            new SupplyChainFetcher(graph, timer, this::setSupplyChain, requireFullSupplyChain),
-            clusterStatsFetcherFactory.getClusterStatsFetcher(this::setClusterStats, topologyCreationTime)
-                // todo: add more fetchers for cost, etc
-        );
+        final List<DataFetcher<?>> dataFetchers = new ArrayList<>();
+        dataFetchers.add(new GroupFetcher(groupService, timer, this::setGroupData));
+        dataFetchers.add(new SupplyChainFetcher(graph, timer, this::setSupplyChain, requireFullSupplyChain));
+        if (extractorFeatureFlags.isReportingEnabled()) {
+            dataFetchers.add(clusterStatsFetcherFactory.getClusterStatsFetcher(this::setClusterStats,
+                    topologyCreationTime));
+        }
+        if (extractorFeatureFlags.isExtractionEnabled()) {
+            dataFetchers.add(topDownCostFetcherFactory.newFetcher(timer, this::setTopDownCostData));
+        }
+        // todo: add more fetchers for cost, etc
+
         // run all fetchers in parallel
         dataFetchers.parallelStream().forEach(DataFetcher::fetchAndConsume);
     }
@@ -186,6 +189,10 @@ public class DataProvider {
 
     private void setClusterStats(List<EntityStats> clusterStats) {
         this.clusterStats = clusterStats;
+    }
+
+    private void setTopDownCostData(TopDownCostData topDownCostData) {
+        this.topDownCostData = topDownCostData;
     }
 
     /**
@@ -526,6 +533,11 @@ public class DataProvider {
      */
     public TopologyGraph<SupplyChainEntity> getTopologyGraph() {
         return graph;
+    }
+
+    @Nullable
+    public TopDownCostData getTopDownCostData() {
+        return topDownCostData;
     }
 
     /**

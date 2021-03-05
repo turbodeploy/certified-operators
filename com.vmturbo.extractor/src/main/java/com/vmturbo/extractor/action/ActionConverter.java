@@ -23,7 +23,6 @@ import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.CostProtoUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
@@ -45,10 +44,9 @@ import com.vmturbo.extractor.schema.enums.Severity;
 import com.vmturbo.extractor.schema.enums.TerminalState;
 import com.vmturbo.extractor.schema.json.common.ActionAttributes;
 import com.vmturbo.extractor.schema.json.export.Action;
-import com.vmturbo.extractor.schema.json.export.ActionSavings;
+import com.vmturbo.extractor.schema.json.export.CostAmount;
 import com.vmturbo.extractor.topology.DataProvider;
 import com.vmturbo.extractor.topology.SupplyChainEntity;
-import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 import com.vmturbo.topology.graph.TopologyGraph;
 
 /**
@@ -347,11 +345,7 @@ public class ActionConverter {
 
             // set action savings if available
             if (recommendation.hasSavingsPerHour()) {
-                CurrencyAmount savingsPerHour = recommendation.getSavingsPerHour();
-                ActionSavings actionSavings = new ActionSavings();
-                actionSavings.setUnit(CostProtoUtil.getCurrencyUnit(savingsPerHour));
-                actionSavings.setAmount(savingsPerHour.getAmount());
-                action.setSavings(actionSavings);
+                action.setSavings(CostAmount.newAmount(recommendation.getSavingsPerHour()));
             }
 
             final ActionDTO.ActionType actionType = ActionDTOUtil.getActionInfoActionType(actionSpec.getRecommendation());
