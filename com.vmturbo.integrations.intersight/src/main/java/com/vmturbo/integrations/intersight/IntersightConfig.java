@@ -56,6 +56,18 @@ public class IntersightConfig {
     @Value("${intersightTargetSyncNoUpdateOnChangePeriodSeconds:180}")
     private long intersightTargetSyncNoUpdateOnChangePeriodSeconds;
 
+    /**
+     * Whether to inject the assist MOID as the communication binding channel when calling the
+     * topology processor API to add targets.  Set to true to support multiple assists in a
+     * single Intersight account.
+     *
+     * <p>The injected assist id is the MOID of the assist DeviceRegistration, not the assist
+     * AssetTarget.  On the assist side, it is the "Identity" field in the "connector.db", not
+     * the device id.
+     */
+    @Value("${intersightTargetSyncInjectAssistId:false}")
+    private boolean intersightTargetSyncInjectAssistId;
+
     @Autowired
     private TopologyProcessorClientConfig topologyProcessorClientConfig;
 
@@ -92,7 +104,8 @@ public class IntersightConfig {
                 new IntersightTargetSyncService(
                         intersightConnectionConfig.getIntersightConnection(),
                         topologyProcessorClientConfig.topologyProcessorRpcOnly(),
-                        intersightTargetSyncNoUpdateOnChangePeriodSeconds),
+                        intersightTargetSyncNoUpdateOnChangePeriodSeconds,
+                        intersightTargetSyncInjectAssistId),
                 intersightTargetSyncIntervalSeconds,
                 intersightTargetSyncIntervalSeconds,
                 TimeUnit.SECONDS);
