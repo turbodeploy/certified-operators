@@ -82,6 +82,7 @@ public class ServiceEntityMapper {
     private final CostServiceBlockingStub costServiceBlockingStub;
     private final SupplyChainServiceBlockingStub supplyChainBlockingStub;
     private final ConnectedEntityMapper connectedEntityMapper;
+    private final ContainerPlatformContextMapper containerPlatformContextMapper;
 
     /**
      * Creates {@link ServiceEntityMapper} instance.
@@ -96,11 +97,13 @@ public class ServiceEntityMapper {
     public ServiceEntityMapper(@Nonnull final ThinTargetCache thinTargetCache,
                                @Nonnull CostServiceBlockingStub costServiceBlockingStub,
                                @Nonnull SupplyChainServiceBlockingStub supplyChainBlockingStub,
-                               @Nonnull ConnectedEntityMapper connectedEntityMapper) {
+                               @Nonnull ConnectedEntityMapper connectedEntityMapper,
+                               @Nonnull ContainerPlatformContextMapper containerPlatformContextMapper) {
         this.thinTargetCache = thinTargetCache;
         this.costServiceBlockingStub = Objects.requireNonNull(costServiceBlockingStub);
         this.supplyChainBlockingStub = Objects.requireNonNull(supplyChainBlockingStub);
         this.connectedEntityMapper = Objects.requireNonNull(connectedEntityMapper);
+        this.containerPlatformContextMapper = Objects.requireNonNull(containerPlatformContextMapper);
     }
 
     /**
@@ -178,6 +181,10 @@ public class ServiceEntityMapper {
             }
         }
 
+        // Retrieve context information for entities that belong to container cluster platforms.
+        Map<Long, EntityAspect> contextAspectApiDTOMap
+                = containerPlatformContextMapper.bulkMapContainerPlatformContext(apiEntities);
+
         final Map<Long, Integer> numVmsPerEntity = computeNrOfVmsPerEntity(numberOfVmEntities);
 
         apiEntities.forEach(apiEntity -> {
@@ -192,6 +199,13 @@ public class ServiceEntityMapper {
             // Retrieves the connected entities which are just region and account used for Cloud Commitments.
             final Set<BaseApiDTO> connectedEntities = connectedEntityMapper.mapConnectedEntities(apiEntity);
             result.setConnectedEntities(new ArrayList<>(connectedEntities));
+
+            if (contextAspectApiDTOMap.containsKey(apiEntity.getOid())) {
+                final Map<AspectName, EntityAspect> aspectMap = new HashMap<>();
+                aspectMap.put(AspectName.CONTAINER_PLATFORM_CONTEXT,
+                                contextAspectApiDTOMap.get(apiEntity.getOid()));
+                result.setAspectsByName(aspectMap);
+            }
 
             setDiscoveredBy(apiEntity::getDiscoveredTargetDataMap, result);
 

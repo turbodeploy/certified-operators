@@ -902,7 +902,7 @@ public class ActionSpecMapperTest {
         policyDto.setDisplayName(policyName);
         ActionSpecMappingContext context = new ActionSpecMappingContext(entitiesMap,
             policyMap, Collections.emptyMap(), Collections.emptyMap(),
-            Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
+            Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
             Collections.emptyMap(), serviceEntityMapper, false, policyApiDto, Collections.emptyMap());
 
         final ReasonCommodity placement =

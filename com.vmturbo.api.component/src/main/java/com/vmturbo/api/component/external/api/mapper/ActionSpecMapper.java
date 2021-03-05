@@ -794,6 +794,8 @@ public class ActionSpecMapper {
             AspectName.VIRTUAL_MACHINE, vmAspect));
         context.getDBAspect(targetEntityId).map(dbAspect -> aspects.put(
             AspectName.DATABASE, dbAspect));
+        context.getContainerPlatformContext(targetEntityId).map(cnpAspect -> aspects.put(
+                AspectName.CONTAINER_PLATFORM_CONTEXT, cnpAspect));
         targetEntity.setAspectsByName(aspects);
 
         // add volume aspects if delete volume action
