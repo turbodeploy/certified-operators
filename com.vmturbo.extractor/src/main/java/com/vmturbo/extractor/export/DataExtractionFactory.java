@@ -6,6 +6,7 @@ import com.vmturbo.extractor.patchers.PrimitiveFieldsOnTEDPatcher;
 import com.vmturbo.extractor.topology.DataProvider;
 import com.vmturbo.extractor.topology.SupplyChainEntity;
 import com.vmturbo.extractor.topology.fetcher.SupplyChainFetcher.SupplyChain;
+import com.vmturbo.extractor.topology.fetcher.TopDownCostFetcherFactory.TopDownCostData;
 import com.vmturbo.topology.graph.TopologyGraph;
 
 /**
@@ -45,5 +46,22 @@ public class DataExtractionFactory {
         }
         return Optional.of(new RelatedEntitiesExtractor(topologyGraph, supplyChain,
                 dataProvider.getGroupData()));
+    }
+
+    /**
+     * Create a new instance of {@link TopDownCostExtractor}.
+     *
+     * @param dataProvider providing topology and top-down cost data.
+     * @return The {@link TopDownCostExtractor} if the data provider contains sufficient data
+     *         to extract top-down costs, or an empty optional.
+     */
+    public Optional<TopDownCostExtractor> newTopDownCostExtractor(DataProvider dataProvider) {
+        TopDownCostData topDownCostData = dataProvider.getTopDownCostData();
+        TopologyGraph<SupplyChainEntity> topologyGraph = dataProvider.getTopologyGraph();
+        if (topDownCostData != null && topologyGraph != null) {
+            return Optional.of(new TopDownCostExtractor(topDownCostData, topologyGraph));
+        } else {
+            return Optional.empty();
+        }
     }
 }
