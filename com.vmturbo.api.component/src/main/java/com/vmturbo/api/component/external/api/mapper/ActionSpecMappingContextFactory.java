@@ -276,10 +276,6 @@ public class ActionSpecMappingContextFactory {
         final Map<Long, EntityAspect> cloudAspects = getEntityToAspectMapping(entitiesById.values(),
             Collections.emptySet(), Sets.newHashSet(EnvironmentType.CLOUD), AspectName.CLOUD);
 
-        // fetch all container platform context aspects
-        final Map<Long, EntityAspect> containerPlatformAspects =
-                entityAspectMapper.getAspectsByEntitiesPartial(entitiesById.values(), AspectName.CONTAINER_PLATFORM_CONTEXT);
-
         // fetch all volume aspects
         final Map<Long, List<VirtualDiskApiDTO>> volumesAspectsByEntity = fetchVolumeAspects(actions, topologyContextId);
 
@@ -290,7 +286,7 @@ public class ActionSpecMappingContextFactory {
 
         if (topologyContextId == realtimeTopologyContextId) {
             return new ActionSpecMappingContext(entitiesById, policies.get(), entityIdToRegion,
-                volumesAspectsByEntity, cloudAspects, containerPlatformAspects, Collections.emptyMap(), Collections.emptyMap(),
+                volumesAspectsByEntity, cloudAspects, Collections.emptyMap(), Collections.emptyMap(),
                 buyRIIdToRIBoughtandRISpec, datacenterById, serviceEntityMapper, false,
                 policiesApiDto.get(), entityToCluster);
         }
@@ -311,7 +307,7 @@ public class ActionSpecMappingContextFactory {
 
         final ActionSpecMappingContext context = new ActionSpecMappingContext(entitiesById,
                 policies.get(), entityIdToRegion,
-            volumesAspectsByEntity, cloudAspects, containerPlatformAspects, vmAspects, dbAspects,
+            volumesAspectsByEntity, cloudAspects, vmAspects, dbAspects,
             buyRIIdToRIBoughtandRISpec, datacenterById, serviceEntityMapper, true,
             policiesApiDto.get(), entityToCluster);
 
@@ -749,8 +745,6 @@ public class ActionSpecMappingContextFactory {
 
         private final Map<Long, EntityAspect> vmAspects;
 
-        private final Map<Long, EntityAspect> containerPlatformAspects;
-
         private final Map<Long, EntityAspect> dbAspects;
 
         private final Map<Long, Pair<ReservedInstanceBought, ReservedInstanceSpec>> buyRIIdToRIBoughtandRISpec;
@@ -784,7 +778,6 @@ public class ActionSpecMappingContextFactory {
                                  @Nonnull Map<Long, ApiPartialEntity> entityIdToRegion,
                                  @Nonnull Map<Long, List<VirtualDiskApiDTO>> volumeAspectsByEntity,
                                  @Nonnull Map<Long, EntityAspect> cloudAspects,
-                                 @Nonnull Map<Long, EntityAspect> containerPlatformAspects,
                                  @Nonnull Map<Long, EntityAspect> vmAspects,
                                  @Nonnull Map<Long, EntityAspect> dbAspects,
                                  @Nonnull Map<Long, Pair<ReservedInstanceBought, ReservedInstanceSpec>>
@@ -807,7 +800,6 @@ public class ActionSpecMappingContextFactory {
             this.entityIdToRegion = Objects.requireNonNull(entityIdToRegion);
             this.volumeAspectsByEntity = Objects.requireNonNull(volumeAspectsByEntity);
             this.cloudAspects = Objects.requireNonNull(cloudAspects);
-            this.containerPlatformAspects = Objects.requireNonNull(containerPlatformAspects);
             this.vmAspects = Objects.requireNonNull(vmAspects);
             this.dbAspects = Objects.requireNonNull(dbAspects);
             this.buyRIIdToRIBoughtandRISpec = buyRIIdToRIBoughtandRISpec;
@@ -851,10 +843,6 @@ public class ActionSpecMappingContextFactory {
 
         Optional<EntityAspect> getVMAspect(@Nonnull Long entityId) {
             return Optional.ofNullable(vmAspects.get(entityId));
-        }
-
-        Optional<EntityAspect> getContainerPlatformContext(long entityId) {
-            return Optional.ofNullable(containerPlatformAspects.get(entityId));
         }
 
         Optional<BaseApiDTO> getCluster(long entityId) {

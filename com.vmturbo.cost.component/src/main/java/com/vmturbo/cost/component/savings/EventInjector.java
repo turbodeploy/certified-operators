@@ -169,11 +169,7 @@ public class EventInjector implements Runnable {
             // Remove the events available file.
             availableFile.delete();
         }
-        // call the tracker here to handle the injected events.  We first null out the period end
-        // time in the savings tracker to force it to recalculate the period start time.  This
-        // prevents the savings tracker discarding the injected events due to their timestamps
-        // potentially occurring before the previous processing period.
-        entitySavingsTracker.setLastPeriodEndTime(null);
+        // call the tracker here to handle the injected events.
         entitySavingsTracker.processEvents();
     }
 

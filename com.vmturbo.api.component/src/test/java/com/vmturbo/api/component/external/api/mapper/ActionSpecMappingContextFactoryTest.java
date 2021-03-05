@@ -25,15 +25,15 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
-import com.google.common.util.concurrent.MoreExecutors;
-import com.google.protobuf.util.JsonFormat;
-
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
+
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
+import com.google.common.util.concurrent.MoreExecutors;
+import com.google.protobuf.util.JsonFormat;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
@@ -281,12 +281,11 @@ public class ActionSpecMappingContextFactoryTest {
 
         ThinTargetCache thinTargetCache = Mockito.mock(ThinTargetCache.class);
         ConnectedEntityMapper connectedEntityMapper = Mockito.mock(ConnectedEntityMapper.class);
-        ContainerPlatformContextMapper containerPlatformContextMapper = Mockito.mock(ContainerPlatformContextMapper.class);
         Mockito.when(thinTargetCache.getTargetInfo(Mockito.anyLong()))
             .thenAnswer(invocation -> Optional.empty());
         ServiceEntityMapper serviceEntityMapper = new ServiceEntityMapper(
                         thinTargetCache,
-                        costService, supplyChainRpc, connectedEntityMapper, containerPlatformContextMapper);
+                        costService, supplyChainRpc, connectedEntityMapper);
 
         final VirtualDiskApiDTO virtualDiskApiDTO = new VirtualDiskApiDTO();
         final String volumeName = "ejf-f2s-test_OsDisk_1_57c13b26afc846c2a2af75421a48294e";

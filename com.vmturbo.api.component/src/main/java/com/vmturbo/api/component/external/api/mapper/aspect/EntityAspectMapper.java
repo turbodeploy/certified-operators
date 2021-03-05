@@ -56,8 +56,7 @@ public class EntityAspectMapper {
                               @Nonnull final DatabaseTierAspectMapper databaseTierAspectMapper,
                               @Nonnull final BusinessUserAspectMapper businessUserAspectMapper,
                               @Nonnull final VirtualVolumeEntityAspectMapper virtualVolumeEntityAspecMapper,
-                              @Nonnull final CloudCommitmentAspectMapper cloudCommitmentAspectMapper,
-                              @Nonnull final ContainerPlatformContextAspectMapper containerPlatformContextAspectMapper) {
+                              @Nonnull final CloudCommitmentAspectMapper cloudCommitmentAspectMapper) {
 
         aspectMappers = new ImmutableMap.Builder<Integer, List<IAspectMapper>>()
             .put(EntityType.DATABASE_VALUE, ImmutableList.of(
@@ -91,7 +90,6 @@ public class EntityAspectMapper {
             .put(EntityType.VIRTUAL_MACHINE_VALUE, ImmutableList.of(
                 virtualMachineMapper,
                 cloudAspectMapper,
-                containerPlatformContextAspectMapper,
                 virtualVolumeAspectMapper,
                 desktopPoolAspectMapper,
                 masterImageEntityAspectMapper))
@@ -104,16 +102,8 @@ public class EntityAspectMapper {
                 virtualVolumeEntityAspecMapper))
             .put(EntityType.REGION_VALUE, ImmutableList.of(
                 regionAspectMapper))
-            .put(EntityType.CONTAINER_VALUE,
-                ImmutableList.of(containerPlatformContextAspectMapper))
-            .put(EntityType.CONTAINER_SPEC_VALUE,
-                ImmutableList.of(containerPlatformContextAspectMapper))
-            .put(EntityType.CONTAINER_POD_VALUE,
-                ImmutableList.of(containerPlatformContextAspectMapper))
             .put(EntityType.WORKLOAD_CONTROLLER_VALUE,
-                ImmutableList.of(workloadControllerAspectMapper,
-                                containerPlatformContextAspectMapper))
-            .put(EntityType.SERVICE_VALUE, ImmutableList.of(containerPlatformContextAspectMapper))
+                ImmutableList.of(workloadControllerAspectMapper))
             .put(EntityType.COMPUTE_TIER_VALUE, ImmutableList.of(
                     computeTierAspectMapper))
             .put(EntityType.DATABASE_SERVER_TIER_VALUE, ImmutableList.of(

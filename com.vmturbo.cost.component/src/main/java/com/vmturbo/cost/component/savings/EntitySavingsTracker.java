@@ -183,18 +183,6 @@ public class EntitySavingsTracker {
     }
 
     /**
-     * Set the last period end time.  This is used by the event injector to set the end time to
-     * null, which will force the savings tracker to recalculate the period start time.  Doing this
-     * enables processing of events with older timestamps.
-     *
-     * @param endTime Calendar representing the new lastPeriodEndTime.  Can be set to null to force
-     *                recalculation of the period start time.
-     */
-    public void setLastPeriodEndTime(@Nullable Calendar endTime) {
-        this.lastPeriodEndTime = endTime;
-    }
-
-    /**
      * Gets the period start time.
      * If the timestamp of the end time of the period the tracker last executed was cached, simply
      * return it.

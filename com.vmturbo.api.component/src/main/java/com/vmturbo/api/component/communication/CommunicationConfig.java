@@ -19,7 +19,6 @@ import com.vmturbo.api.ReportNotificationDTO.ReportStatusNotification;
 import com.vmturbo.api.ReportNotificationDTO.ReportStatusNotification.ReportStatus;
 import com.vmturbo.api.component.ApiComponentGlobalConfig;
 import com.vmturbo.api.component.external.api.mapper.ConnectedEntityMapper;
-import com.vmturbo.api.component.external.api.mapper.ContainerPlatformContextMapper;
 import com.vmturbo.api.component.external.api.mapper.MapperConfig;
 import com.vmturbo.api.component.external.api.mapper.PriceIndexPopulator;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
@@ -656,8 +655,7 @@ public class CommunicationConfig {
     public ServiceEntityMapper serviceEntityMapper() {
         // Normally this would be in MapperConfig, but RepositoryApi needs it and we don't want
         // to introduce a circular dependency.
-        return new ServiceEntityMapper(thinTargetCache(), costServiceBlockingStub(), supplyChainRpcService(),
-                connectedEntityMapper(), containerPlatformContextMapper());
+        return new ServiceEntityMapper(thinTargetCache(), costServiceBlockingStub(), supplyChainRpcService(), connectedEntityMapper());
     }
 
     /**
@@ -668,16 +666,6 @@ public class CommunicationConfig {
     @Bean
     public ConnectedEntityMapper connectedEntityMapper() {
         return new ConnectedEntityMapper(repositoryRpcService(), realtimeTopologyContextId, searchServiceBlockingStub());
-    }
-
-    /**
-     * Returns a mapper to retrieve the container platform context for a collection of entities.
-     *
-     * @return The ContainerPlatformContextMapper.
-     */
-    @Bean
-    public ContainerPlatformContextMapper containerPlatformContextMapper() {
-        return new ContainerPlatformContextMapper(supplyChainRpcService(), repositoryRpcService(),  realtimeTopologyContextId);
     }
 
     /**
