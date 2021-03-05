@@ -769,6 +769,12 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
                                                     Mockito.eq(TIMESTAMP_AUG_29_2019_12_00),
                                                     Mockito.refEq(PERCENTILE_HISTORICAL_EDITOR_CONFIG));
 
+        // Save current LATEST day percentiles during maintenance.
+        Mockito.verify(percentilePersistenceTasks.get(4), Mockito.times(1)).save(
+                Mockito.eq(PercentileCounts.newBuilder().build()),
+                Mockito.eq(MAINTENANCE_WINDOW_MS),
+                Mockito.refEq(PERCENTILE_HISTORICAL_EDITOR_CONFIG));
+
         // We load exactly two times in maintenance because we have two different periods in graph.
         Mockito.verify(percentilePersistenceTasks.get(1), Mockito.times(1))
                         .load(Mockito.any(), Mockito.refEq(PERCENTILE_HISTORICAL_EDITOR_CONFIG));

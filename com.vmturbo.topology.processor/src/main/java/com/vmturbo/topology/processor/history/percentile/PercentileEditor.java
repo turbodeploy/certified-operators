@@ -205,11 +205,14 @@ public class PercentileEditor extends
 
         loadPersistedData(context, eligibleComms, checkpoint -> {
             // read the latest and full window blobs if haven't yet, set into cache
-            final PercentilePersistenceTask task = createTask(checkpoint);
-            return Pair.create(task.getLastCheckpointMs(),
-                            task.load(Collections.emptyList(), getConfig()));
-        }, maintenance -> Pair.create(maintenance,
-                        createTask(maintenance).load(Collections.emptyList(), getConfig())));
+            return Pair.create(null,
+                    createTask(checkpoint).load(Collections.emptyList(), getConfig()));
+        }, maintenance -> {
+            final PercentilePersistenceTask fullTask = createTask(maintenance);
+            final Map<EntityCommodityFieldReference, PercentileRecord> records = fullTask.load(
+                    Collections.emptyList(), getConfig());
+            return Pair.create(fullTask.getLastCheckpointMs(), records);
+        });
 
         if (!context.isPlan()) {
             checkObservationPeriodsChanged(context);
@@ -267,7 +270,7 @@ public class PercentileEditor extends
             enforcedMaintenance(context, checkpointMs);
 
             // persist the daily blob
-            persistDailyRecord(checkpointMs);
+            persistDailyRecord();
 
             // perform daily maintenance if needed - synchronously within broadcast (consider scheduling)
             maintenance(context, checkpointMs);
@@ -297,16 +300,11 @@ public class PercentileEditor extends
         reassembleFullPage(getCache(), maxPeriod, false);
     }
 
-    private void persistDailyRecord(long checkpointMs) throws InterruptedException, HistoryCalculationException {
-        // When we are in checkpoint time, we persist the latest in previous days record. For
-        // two reasons: this  ensures the sum of all records in the observation period is the
-        // same as full record. The maintenance step is going to clear today's record in
-        // memory which result that last datapoint getting lost.
-        long checkpointTime = lastCheckpointMs >= checkpointMs
-            ? checkpointMs : checkpointMs - getMaintenanceWindowInMs();
-
-        persistBlob(checkpointTime, getMaintenanceWindowInMs(),
-            UtilizationCountStore::getLatestCountsRecord);
+    private void persistDailyRecord() throws InterruptedException, HistoryCalculationException {
+        // When we are in checkpoint time, we persist the latest in last successfully written day record.
+        // For reason: this ensures the sum of all records in the observation period is the same as full record.
+        persistBlob(lastCheckpointMs, getMaintenanceWindowInMs(),
+                UtilizationCountStore::getLatestCountsRecord);
     }
 
     private void persistBlob(long taskTimestamp, long periodMs,
@@ -338,11 +336,16 @@ public class PercentileEditor extends
                     @Nonnull ThrowingFunction<Long, Pair<Long, Map<EntityCommodityFieldReference, PercentileRecord>>, HistoryCalculationException> fullLoader)
                     throws HistoryCalculationException, InterruptedException {
         if (!historyInitialized) {
+            lastCheckpointMs = getCheckpoint();
             Stopwatch sw = Stopwatch.createStarted();
             // read the latest and full window blobs if haven't yet, set into cache
+            long fullTimestamp = 0;
             try {
+                final Pair<Long, Map<EntityCommodityFieldReference, PercentileRecord>> full =
+                        fullLoader.apply(PercentilePersistenceTask.TOTAL_TIMESTAMP);
+                fullTimestamp = full.getFirst();
                 final Map<EntityCommodityFieldReference, PercentileRecord> fullPage =
-                                fullLoader.apply(PercentilePersistenceTask.TOTAL_TIMESTAMP).getSecond();
+                        full.getSecond();
                 for (Map.Entry<EntityCommodityFieldReference, PercentileRecord> fullEntry : fullPage.entrySet()) {
                     EntityCommodityFieldReference field = fullEntry.getKey();
                     PercentileRecord record = fullEntry.getValue();
@@ -361,14 +364,14 @@ public class PercentileEditor extends
                 initializeCacheValues(context, eligibleComms);
                 reassembleFullPage();
             }
-
             sw.reset();
             sw.start();
-            long checkpointMs = getCheckpoint();
+            if (fullTimestamp > 0) {
+                lastCheckpointMs = fullTimestamp;
+            }
             try {
                 final Pair<Long, Map<EntityCommodityFieldReference, PercentileRecord>> loaded =
-                                latestLoader.apply(checkpointMs);
-                checkpointMs = loaded.getFirst() != 0 ? loaded.getFirst() : checkpointMs;
+                                latestLoader.apply(lastCheckpointMs);
                 final Map<EntityCommodityFieldReference, PercentileRecord> latestPage =
                                 loaded.getSecond();
                 for (Map.Entry<EntityCommodityFieldReference, PercentileRecord> latestEntry : latestPage.entrySet()) {
@@ -384,13 +387,11 @@ public class PercentileEditor extends
                     }
                 }
                 logger.info("Initialized percentile latest window data for timestamp {} and {} commodities in {}",
-                             checkpointMs, latestPage.size(), sw);
+                        lastCheckpointMs, latestPage.size(), sw);
             } catch (InvalidHistoryDataException e) {
                 logger.warn("Failed to load percentile latest window data, proceeding with empty", e);
             }
-
             historyInitialized = true;
-            lastCheckpointMs = checkpointMs;
         }
     }
 
@@ -585,6 +586,8 @@ public class PercentileEditor extends
                 }
             }
             writeBlob(total, checkpointMs, PercentilePersistenceTask.TOTAL_TIMESTAMP);
+            persistBlob(checkpointMs, getMaintenanceWindowInMs(),
+                    UtilizationCountStore::getLatestCountsRecord);
             lastCheckpointMs = checkpointMs;
 
             backup.keepCacheOnClose();
