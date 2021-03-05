@@ -884,8 +884,10 @@ public class CostRpcService extends CostServiceImplBase {
             // Currently entities are assumed to be only VMs, later sprints will add more support.
             entitiesByType.putAll(EntityType.VIRTUAL_MACHINE, entityIds);
 
-            final List<AggregatedSavingsStats> stats = entitySavingsStore.getHourlyStats(statsTypes,
-                    request.getStartDate(), request.getEndDate(), entitiesByType);
+            final TimeFrame timeFrame = timeFrameCalculator.millis2TimeFrame(request.getStartDate());
+            final List<AggregatedSavingsStats> stats = entitySavingsStore.getSavingsStats(
+                    timeFrame, statsTypes, request.getStartDate(), request.getEndDate(),
+                    entitiesByType);
 
             final Set<EntitySavingsStatsRecord> records = createSavingsStatsRecords(stats);
             records.forEach(responseObserver::onNext);
