@@ -9,6 +9,7 @@ import java.util.Optional;
 import java.util.function.Supplier;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 
 import io.jsonwebtoken.Claims;
@@ -21,6 +22,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.auth.api.JWTKeyCodec;
+import com.vmturbo.auth.api.authorization.keyprovider.IKeyImportIndicator;
 import com.vmturbo.auth.api.authorization.keyprovider.KeyProvider;
 import com.vmturbo.auth.api.authorization.kvstore.IAuthStore;
 import com.vmturbo.components.crypto.CryptoFacility;
@@ -95,16 +97,47 @@ public class AuthInitProvider {
     public AuthInitProvider(@Nonnull final KeyValueStore keyValueStore,
                             @Nonnull final Supplier<String> keyValueDir,
                             boolean enableExternalSecrets,
-                            @Nonnull final KeyProvider keyProvider) {
+                            @Nonnull final KeyProvider keyProvider,
+                            @Nullable IKeyImportIndicator keyImportIndicator) {
         this.keyValueStore_ = Objects.requireNonNull(keyValueStore);
         this.keyValueDir = Objects.requireNonNull(keyValueDir);
         this.enableExternalSecrets = enableExternalSecrets;
         this.keyProvider = Objects.requireNonNull(keyProvider);
+        checkForImportedKey(keyImportIndicator);
     }
 
     private void initKeys() {
         // Make sure we have initialized the site secret.
         keyProvider.getPrivateKey();
+    }
+
+    /**
+     * Check whether an existing encryption key was recently imported (i.e., from the legacy PV storage). If so,
+     * then we need to ensure that the admin JWT is set so that users won't be prompted to re-create the
+     * administrator user in existing environments.
+     * @param keyImportIndicator
+     */
+    private void checkForImportedKey(@Nullable IKeyImportIndicator keyImportIndicator) {
+        if (keyImportIndicator != null) {
+            // Ensure the security keys have been initialized
+            initKeys();
+            // If the encryption key was just imported...
+            if (keyImportIndicator.wasEncryptionKeyImported()) {
+                // ... then we know this is an existing installation which has just been upgraded.
+                // Specifically, we expect this to happen when migrating from the legacy Persistent Volume-based
+                // approach for storing encryption keys to the newer, "Master Key" approach.
+                // Mark the administrator user as already initialized. This is necessary since the admin JWT will not
+                // be migrated.
+                try {
+                    logger_.info("Setting the admin init flag to 'true' as part of a data migration.");
+                    initAdminUsingSecrets();
+                    logger_.info("Successfully set the admin init flag.");
+                } catch (Exception e) {
+                    // Do not blow up spring initialization if an error occurs--just log it.
+                    logger_.error(e.getMessage(), e);
+                }
+            }
+        }
     }
 
     /**

@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
+import com.vmturbo.auth.api.authorization.keyprovider.IKeyImportIndicator;
 import org.apache.commons.io.FileUtils;
 import org.assertj.core.util.Files;
 import org.assertj.core.util.Lists;
@@ -223,7 +224,7 @@ public class RestTest {
         public AuthProvider targetStore() {
             authStore = new AuthProvider(kvStore, null,
                     () -> System.getProperty("com.vmturbo.kvdir"), null, new UserPolicy(LoginPolicy.ALL,
-                    new ReportPolicy(1)), ssoUtil, false, false);
+                    new ReportPolicy(1)), ssoUtil, false, false, () -> false);
             return authStore;
         }
 
