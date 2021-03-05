@@ -540,36 +540,6 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
         Assert.assertThat(fullRecord.getCapacity(), Matchers.is(CAPACITY * 2));
     }
 
-    /**
-     * Tests that the method {@link UtilizationCountStore#addPoints(java.util.List, double, long)},
-     * since the timestamp has not changed, even if the latest was cleared.
-     */
-    @Test
-    public void checkAddPointsLatestEmpty()
-            throws HistoryCalculationException, InterruptedException {
-        final HistoryAggregationContext context = new HistoryAggregationContext(topologyInfo,
-                graphWithSettings, false);
-        // initializing history from db.
-        percentileEditor.initContext(context, Collections.emptyList());
-        UtilizationCountStore store = percentileEditor.getCache()
-                .get(VCPU_COMMODITY_REFERENCE)
-                .getUtilizationCountStore();
-        // filling full and latest
-        store.addPoints(Collections.singletonList(20d), CAPACITY * 2,
-                TIMESTAMP_INIT_START_SEP_1_2019);
-        // clear latest
-        percentileEditor.getCache()
-                .get(VCPU_COMMODITY_REFERENCE)
-                .getUtilizationCountStore()
-                .checkpoint(Collections.emptyList(), true);
-        final List<Integer> oldFullUtilization = store.getFullCountsRecord().getUtilizationList();
-        final PercentileRecord.Builder oldLatest = store.getLatestCountsRecord();
-        store.addPoints(Collections.singletonList(20d), CAPACITY * 2,
-                TIMESTAMP_INIT_START_SEP_1_2019);
-        Assert.assertEquals(oldFullUtilization, store.getFullCountsRecord().getUtilizationList());
-        Assert.assertEquals(oldLatest, store.getLatestCountsRecord());
-    }
-
     private void checkMaintenance(long periodMsForTotalBlob,
                                   List<List<Integer>> expectedTotalUtilizations,
                                   boolean enforceMaintenanceIsExpected, int dayPersistenceIdx,
