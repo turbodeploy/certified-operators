@@ -28,6 +28,10 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
      * Default value how often to checkpoint observation window.
      */
     public static final int DEFAULT_MAINTENANCE_WINDOW_HOURS = 24;
+    private static final int DEFAULT_FULL_PAGE_REASSEMBLY_PERIOD_DAYS = 7;
+    private static final String CONSUL_FOLDER_NAME = "history-aggregation/";
+    private static final String FULL_PAGE_REASSEMBLY_LAST_CHECKPOINT = "fullPageReassemblyLastCheckpoint";
+    private static final String FULL_PAGE_REASSEMBLY_PERIOD = "fullPageReassemblyPeriod";
 
     /**
      * The property name in the topology processor key value store whose value represents boolean
@@ -174,6 +178,49 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
                     ss -> ss.getNumericSettingValueType().getDefault()))
             .orElse(defaultValue);
     }
+
+    /**
+     * Get the full page reassembly period in days.
+     *
+     * @return the full page reassembly period in days.
+     */
+    public int getFullPageReassemblyPeriodInDays() {
+        return (int)getFullPageConsulValue(FULL_PAGE_REASSEMBLY_PERIOD,
+                DEFAULT_FULL_PAGE_REASSEMBLY_PERIOD_DAYS);
+    }
+
+    private long getFullPageConsulValue(String consulPropertyName, long defaultValue){
+        long result;
+        try {
+            result = Long.parseLong(
+                    getConsulValue(CONSUL_FOLDER_NAME, consulPropertyName).orElse(""));
+            if (result < 0) {
+                result = defaultValue;
+            }
+        } catch (NumberFormatException ex) {
+            result = defaultValue;
+        }
+        return result;
+    }
+
+    /**
+     * Get the full page reassembly checkpoint in milliseconds.
+     *
+     * @return the full page reassembly checkpoint in millisecond
+     */
+    public long getFullPageReassemblyLastCheckpointInMs() {
+        return getFullPageConsulValue(FULL_PAGE_REASSEMBLY_LAST_CHECKPOINT, 0);
+    }
+
+    /**
+     * Set the full page reassembly checkpoint in milliseconds.
+     *
+     * @param checkpointMs checkpoint value in milliseconds
+     */
+    public void setFullPageReassemblyLastCheckpoint(long checkpointMs) {
+        setConsulValue(CONSUL_FOLDER_NAME, FULL_PAGE_REASSEMBLY_LAST_CHECKPOINT, String.valueOf(checkpointMs));
+    }
+
 
     @Override
     protected String getDiagnosticsEnabledPropertyName() {

@@ -16,6 +16,7 @@ public abstract class CachingHistoricalEditorConfig extends HistoricalEditorConf
      * represents the OID of the entity for which percentile counts are logged.
      */
     private static final String OID_FOR_PERCENTILE_COUNTS_LOG_PROPERTY = "oidForPercentileCountsLog";
+    private static final String NO_FOLDER_NAME = "";
 
     private final int loadingChunkSize;
     private final int calculationChunkSize;
@@ -55,7 +56,7 @@ public abstract class CachingHistoricalEditorConfig extends HistoricalEditorConf
      * @return the configured OID.
      */
     public Optional<String> getOidToBeTracedInLog() {
-        return getConsulValue(OID_FOR_PERCENTILE_COUNTS_LOG_PROPERTY);
+        return getConsulValue(NO_FOLDER_NAME, OID_FOR_PERCENTILE_COUNTS_LOG_PROPERTY);
     }
 
     /**
@@ -78,14 +79,33 @@ public abstract class CachingHistoricalEditorConfig extends HistoricalEditorConf
         // TODO Alexander Vasin this property needs to be moved to yaml file, when properties reload
         //  implementation will be completed, i.e. when
         //  https://vmturbo.atlassian.net/browse/PLAT-218 will be closed
-        return getConsulValue(getDiagnosticsEnabledPropertyName()).map(
+        return getConsulValue(NO_FOLDER_NAME, getDiagnosticsEnabledPropertyName()).map(
                 Boolean.TRUE.toString()::equals).orElse(false);
     }
 
+    /**
+     * Getting the value of the consul property.
+     *
+     * @param folderName folder name
+     * @param propertyName property name
+     * @return the value of the consul property
+     */
     @Nonnull
-    private Optional<String> getConsulValue(@Nonnull String propertyName) {
+    protected Optional<String> getConsulValue(@Nonnull String folderName, @Nonnull String propertyName) {
         return Optional.ofNullable(kvConfig).map(KVConfig::keyValueStore)
-                        .flatMap(store -> store.get(propertyName));
+                        .flatMap(store -> store.get(folderName + propertyName));
+    }
+
+    /**
+     * Setting the value of the consul property.
+     *
+     * @param folderName folder name
+     * @param propertyName property name
+     * @param value the value to be set
+     */
+    protected void setConsulValue(@Nonnull String folderName, @Nonnull String propertyName,
+            @Nonnull String value) {
+        kvConfig.keyValueStore().put(folderName + propertyName, value);
     }
 
     /**

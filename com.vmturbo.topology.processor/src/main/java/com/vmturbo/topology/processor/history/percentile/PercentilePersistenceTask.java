@@ -176,7 +176,6 @@ public class PercentilePersistenceTask extends
                      long periodMs,
                      @Nonnull PercentileHistoricalEditorConfig config)
                     throws HistoryCalculationException, InterruptedException {
-
         Stopwatch sw = Stopwatch.createStarted();
         WriterObserver observer = new WriterObserver(config.getGrpcStreamTimeoutSec());
         StreamObserver<PercentileChunk> writer = statsHistoryClient.setPercentileCounts(observer);
