@@ -12,7 +12,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
@@ -85,6 +84,7 @@ import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityProviderImpl;
 import com.vmturbo.topology.processor.identity.storage.IdentityDatabaseStore;
 import com.vmturbo.topology.processor.notification.SystemNotificationProducer;
+import com.vmturbo.topology.processor.operation.FailedDiscoveryTracker;
 import com.vmturbo.topology.processor.operation.Operation;
 import com.vmturbo.topology.processor.operation.OperationListener;
 import com.vmturbo.topology.processor.operation.OperationManager;
@@ -150,6 +150,11 @@ public class OperationControllerTest {
         TargetStore targetStore() {
             GroupScopeResolver groupScopeResolver = Mockito.mock(GroupScopeResolver.class);
             return new CachingTargetStore(targetDao(), probeStore(), targetIdentityStore());
+        }
+
+        @Bean
+        FailedDiscoveryTracker failedDiscoveryTracker() {
+            return new FailedDiscoveryTracker();
         }
 
         /**
@@ -250,7 +255,7 @@ public class OperationControllerTest {
         AggregatingDiscoveryQueue discoveryQueue() {
             @SuppressWarnings("unchecked")
             final ITransport<MediationServerMessage, MediationClientMessage> transport =
-                    (ITransport<MediationServerMessage, MediationClientMessage>)mock(ITransport.class);
+                    mock(ITransport.class);
             return new TestAggregatingDiscoveryQueue(transport);
         }
 
@@ -258,6 +263,7 @@ public class OperationControllerTest {
         OperationManager operationManager() {
             return new OperationManager(identityProvider(),
                                         targetStore(),
+                                        failedDiscoveryTracker(),
                                         probeStore(),
                                         mockRemoteMediation(),
                                         operationListener(),
