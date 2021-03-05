@@ -18,6 +18,7 @@ import javax.annotation.Nonnull;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.protobuf.Empty;
 
+import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 
 import org.apache.logging.log4j.LogManager;
@@ -33,6 +34,10 @@ import com.vmturbo.common.protobuf.licensing.LicenseCheckServiceGrpc.LicenseChec
 import com.vmturbo.common.protobuf.licensing.Licensing.GetLicenseSummaryResponse;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseSummary;
+import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.setting.SettingProto.UpdateGlobalSettingRequest;
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.server.ComponentNotificationSender;
 import com.vmturbo.components.api.server.IMessageSender;
@@ -40,6 +45,7 @@ import com.vmturbo.components.common.mail.MailConfigException;
 import com.vmturbo.components.common.mail.MailEmptyConfigException;
 import com.vmturbo.components.common.mail.MailException;
 import com.vmturbo.components.common.mail.MailManager;
+import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.licensing.utils.LicenseUtil;
 import com.vmturbo.notification.api.NotificationSender;
 import com.vmturbo.notification.api.dto.SystemNotificationDTO.SystemNotification;
@@ -122,6 +128,8 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
     @Nonnull
     private final LicenseManagerService licenseManagerService;
 
+    private final SettingServiceBlockingStub settingService;
+
     @Nonnull
     private final LicensedEntitiesCountCalculator licensedEntitiesCountCalculator;
 
@@ -149,15 +157,17 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 
     LicenseCheckService(@Nonnull final LicenseManagerService licenseManagerService,
-                       @Nonnull final LicensedEntitiesCountCalculator licensedEntitiesCountCalculator,
-                       @Nonnull final RepositoryNotificationReceiver repositoryListener,
-                       @Nonnull final IMessageSender<LicenseSummary> licenseSummarySender,
-                       @Nonnull final NotificationSender notificationSender,
-                       @Nonnull final MailManager mailManager,
-                       @Nonnull final Clock clock,
-                       final int numBeforeLicenseExpirationDays,
-                       boolean scheduleUpdates) {
+                        @Nonnull final SettingServiceBlockingStub settingService,
+                        @Nonnull final LicensedEntitiesCountCalculator licensedEntitiesCountCalculator,
+                        @Nonnull final RepositoryNotificationReceiver repositoryListener,
+                        @Nonnull final IMessageSender<LicenseSummary> licenseSummarySender,
+                        @Nonnull final NotificationSender notificationSender,
+                        @Nonnull final MailManager mailManager,
+                        @Nonnull final Clock clock,
+                        final int numBeforeLicenseExpirationDays,
+                        boolean scheduleUpdates) {
         this.licenseManagerService = licenseManagerService;
+        this.settingService = settingService;
         // subscribe to the license manager event stream. This will trigger license check updates
         // whenever licenses are added / removed
         licenseManagerService.getEventStream().subscribe(this::handleLicenseManagerEvent);
@@ -298,6 +308,31 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
         LicenseSummary licenseSummary = LicenseDTOUtils.createLicenseSummary(licenseDTOs, licensedEntitiesCount);
         // publish the news!!
         publishNewLicenseSummary(licenseSummary);
+
+        // If CWOM license exists, disable telemetry.
+        updateTelemetrySetting(licenseDTOs);
+    }
+
+    /**
+     * If CWOM license exists, disable telemetry.
+     *
+     * @param licenses collection of licenses
+     */
+    private void updateTelemetrySetting(@Nonnull final Collection<LicenseDTO> licenses) {
+        if (licenses.stream().anyMatch(license -> license.hasTurbo()
+                && license.getTurbo().hasExternalLicenseKey()
+                && !StringUtils.isEmpty(license.getTurbo().getExternalLicenseKey()))) {
+            try {
+                settingService.updateGlobalSetting(UpdateGlobalSettingRequest.newBuilder().addSetting(
+                    Setting.newBuilder()
+                        .setSettingSpecName(GlobalSettingSpecs.TelemetryEnabled.getSettingName())
+                        .setBooleanSettingValue(BooleanSettingValue.newBuilder().setValue(false))).build());
+                logger.info("Set TelemetryEnabled to false.");
+            } catch (StatusRuntimeException e) {
+                logger.error("Failed to set TelemetryEnabled to false.", e);
+            }
+
+        }
     }
 
     /**
