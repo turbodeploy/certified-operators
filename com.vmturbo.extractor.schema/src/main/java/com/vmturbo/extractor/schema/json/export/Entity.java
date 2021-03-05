@@ -30,8 +30,6 @@ public class Entity {
     // mapping from related entity type key to list of related entities
     private Map<String, List<RelatedEntity>> related;
 
-    private AccountExpenses accountExpenses;
-
     public Long getOid() {
         return oid;
     }
@@ -94,14 +92,6 @@ public class Entity {
 
     public void setRelated(Map<String, List<RelatedEntity>> related) {
         this.related = related;
-    }
-
-    public AccountExpenses getAccountExpenses() {
-        return accountExpenses;
-    }
-
-    public void setAccountExpenses(AccountExpenses expenses) {
-        this.accountExpenses = expenses;
     }
 
     @Override

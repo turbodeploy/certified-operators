@@ -1,6 +1,7 @@
 package com.vmturbo.extractor.export;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -13,6 +14,8 @@ import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableTable;
 import com.google.common.collect.Table;
+
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
@@ -50,7 +53,8 @@ public class RelatedEntitiesExtractor {
     private final TopologyGraph<SupplyChainEntity> graph;
     private final SupplyChain supplyChain;
     private final GroupData groupData;
-    private final RelatedEntityMapper relatedEntityMapper = new RelatedEntityMapper();
+    // cache of relatedEntity by id, so it can be reused to reduce memory footprint
+    private final Map<Long, RelatedEntity> relatedEntityById;
 
     /**
      * Constructor for {@link RelatedEntitiesExtractor}.
@@ -64,6 +68,8 @@ public class RelatedEntitiesExtractor {
         this.graph = graph;
         this.supplyChain = supplyChain;
         this.groupData = groupData;
+        // synchronized to allow for parallel extraction of related entities
+        this.relatedEntityById = Collections.synchronizedMap(new Long2ObjectOpenHashMap<>());
     }
 
     /**
@@ -83,9 +89,8 @@ public class RelatedEntitiesExtractor {
                 if (relatedEntityId == entityOid) {
                     continue;
                 }
-                graph.getEntity(relatedEntityId)
-                    .map(relatedEntityMapper::createRelatedEntity)
-                    .ifPresent(relatedEntityList::add);
+                graph.getEntity(relatedEntityId).ifPresent(entity -> relatedEntityList.add(
+                        getOrCreateRelatedEntity(relatedEntityId, entity.getDisplayName())));
             }
 
             if (!relatedEntityList.isEmpty()) {
@@ -110,7 +115,8 @@ public class RelatedEntitiesExtractor {
                         .flatMap(List::stream)
                         .filter(g -> g.getDefinition().getType() == cell.getRowKey())
                         .distinct()
-                        .map(relatedEntityMapper::createRelatedEntity)
+                        .map(group -> getOrCreateRelatedEntity(group.getId(),
+                                group.getDefinition().getDisplayName()))
                         .collect(Collectors.toList());
                 if (!relatedGroups.isEmpty()) {
                     relatedEntities.put(cell.getValue(), relatedGroups);
@@ -121,4 +127,19 @@ public class RelatedEntitiesExtractor {
         return relatedEntities.isEmpty() ? null : relatedEntities;
     }
 
+    /**
+     * Get or create a new instance of {@link RelatedEntity}.
+     *
+     * @param id id of the entity
+     * @param name name of the entity
+     * @return instance of {@link RelatedEntity}
+     */
+    private RelatedEntity getOrCreateRelatedEntity(long id, String name) {
+        return relatedEntityById.computeIfAbsent(id, k -> {
+            final RelatedEntity relatedEntity = new RelatedEntity();
+            relatedEntity.setOid(id);
+            relatedEntity.setName(name);
+            return relatedEntity;
+        });
+    }
 }

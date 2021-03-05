@@ -17,7 +17,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.AtomicResize;
-import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeleteExplanation;
@@ -30,7 +29,6 @@ import com.vmturbo.extractor.action.percentile.ActionPercentileDataRetriever;
 import com.vmturbo.extractor.export.ExportUtils;
 import com.vmturbo.extractor.schema.json.common.ActionAttributes;
 import com.vmturbo.extractor.schema.json.common.ActionEntity;
-import com.vmturbo.extractor.schema.json.common.BuyRiInfo;
 import com.vmturbo.extractor.schema.json.common.CommodityChange;
 import com.vmturbo.extractor.schema.json.common.DeleteInfo;
 import com.vmturbo.extractor.schema.json.common.MoveChange;
@@ -114,9 +112,6 @@ public class ActionAttributeExtractor {
             case DELETE:
                 attributes.setDeleteInfo(getDeleteInfo(actionInfo.getDelete(),
                         recommendation.getExplanation().getDelete()));
-                break;
-            case BUY_RI:
-                attributes.setBuyRiInfo(getBuyRiInfo(actionInfo.getBuyRi(), topologyGraph));
                 break;
             // add additional info for other action types if needed
             default:
@@ -254,33 +249,6 @@ public class ActionAttributeExtractor {
             deleteInfo.setFilePath(delete.getFilePath());
         }
         return deleteInfo;
-    }
-
-    /**
-     * Get the type specific info for buyRI action.
-     *
-     * @param buyRi the buyRI action from AO
-     * @param topologyGraph The {@link TopologyGraph} to use to obtain entity information from.
-     * @return {@link BuyRiInfo}
-     */
-    private BuyRiInfo getBuyRiInfo(BuyRI buyRi, TopologyGraph<SupplyChainEntity> topologyGraph) {
-        BuyRiInfo buyRiInfo = new BuyRiInfo();
-        if (buyRi.hasCount()) {
-            buyRiInfo.setCount(buyRi.getCount());
-        }
-        if (buyRi.hasComputeTier()) {
-            buyRiInfo.setComputeTier(getActionEntityWithoutType(buyRi.getComputeTier(), topologyGraph));
-        }
-        if (buyRi.hasRegion()) {
-            buyRiInfo.setRegion(getActionEntityWithoutType(buyRi.getRegion(), topologyGraph));
-        }
-        if (buyRi.hasMasterAccount()) {
-            buyRiInfo.setMasterAccount(getActionEntityWithoutType(buyRi.getMasterAccount(), topologyGraph));
-        }
-        if (buyRi.hasTargetEntity()) {
-            buyRiInfo.setTarget(getActionEntityWithoutType(buyRi.getTargetEntity(), topologyGraph));
-        }
-        return buyRiInfo;
     }
 
     /**

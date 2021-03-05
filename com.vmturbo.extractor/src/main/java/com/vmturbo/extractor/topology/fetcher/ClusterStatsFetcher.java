@@ -38,7 +38,7 @@ public class ClusterStatsFetcher extends DataFetcher<List<EntityStats>> {
     private static final int MAX_N_ITERATIONS = 100;
     private static final long ONE_DAY_IN_MILLIS = TimeUnit.DAYS.toMillis(1);
 
-    private final long headroomCheckIntervalMs;
+    private final Duration headroomCheckInterval;
     private final StatsHistoryServiceBlockingStub historyService;
     private Instant latestFetchedPropsTime;
     private final long topologyCreationTime;
@@ -53,7 +53,6 @@ public class ClusterStatsFetcher extends DataFetcher<List<EntityStats>> {
      * @param topologyCreationTime the creation time of the current topology
      * @param onComplete consumer that will be called once the run method is done
      * @param headroomCheckInterval interval at which we will check for cluster headroom props
-     * @param timeUnit Time unit for the interval.
      */
     public ClusterStatsFetcher(@Nonnull StatsHistoryServiceBlockingStub historyService,
                                @Nonnull MultiStageTimer timer,
@@ -61,14 +60,13 @@ public class ClusterStatsFetcher extends DataFetcher<List<EntityStats>> {
                                @Nonnull final Instant latestFetchedPropsTime,
                                @Nonnull long topologyCreationTime,
                                @Nonnull Consumer<Instant> onComplete,
-                               final int headroomCheckInterval,
-                               final TimeUnit timeUnit) {
+                               final int headroomCheckInterval) {
         super(timer, consumer);
         this.historyService = historyService;
         this.latestFetchedPropsTime = latestFetchedPropsTime;
         this.topologyCreationTime = topologyCreationTime;
         this.onComplete = onComplete;
-        this.headroomCheckIntervalMs = timeUnit.toMillis(headroomCheckInterval);
+        this.headroomCheckInterval = Duration.ofHours(headroomCheckInterval);
     }
 
 
@@ -85,7 +83,7 @@ public class ClusterStatsFetcher extends DataFetcher<List<EntityStats>> {
     @Override
     protected List<EntityStats> fetch() {
         Instant topologyCreationInstant = Instant.ofEpochMilli(topologyCreationTime);
-        if (topologyCreationInstant.isAfter(latestFetchedPropsTime.plusMillis(headroomCheckIntervalMs))) {
+        if (topologyCreationInstant.isAfter(latestFetchedPropsTime.plus(headroomCheckInterval))) {
             // We want to look for props starting the day after the last results we had
             final long startingDay =
                 truncateToDay(latestFetchedPropsTime.plus(Duration.ofDays(1)).toEpochMilli());

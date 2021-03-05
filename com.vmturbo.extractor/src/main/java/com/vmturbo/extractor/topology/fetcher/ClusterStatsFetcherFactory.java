@@ -33,36 +33,31 @@ import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
  */
 public class ClusterStatsFetcherFactory {
 
+    private final int headroomMaxBackfillingDays;
+
     protected final Logger logger = LogManager.getLogger(getClass());
 
     private final StatsHistoryServiceBlockingStub historyService;
     private Instant latestFetchedPropsTime;
     private final Future initializationTask;
-    private final int headroomCheckInterval;
-    private final TimeUnit timeUnit;
+    final int headroomCheckInterval;
 
-    /**
-     * This interval represents how much we backfill headroom properties. This time range should
-     * strictly be less or equal to the retention policy of the metric table.
-     * If we insert data that is not in the active chunk, but that belongs to an already
-     * compressed chunk, we will end up with an exception during the data insertion.
-     */
-    private final int headroomMaxBackfillingDays = 2;
 
     /**
      * Create a new instance.
      * @param historyService history service endpoint
      * @param dbEndpoint db endpoint
+     * @param headroomMaxBackfillingDays max amount of days for which the fetcher will backfill data
      * @param headroomCheckInterval interval at which we will check for cluster headroom props
-     * @param timeUnit Unit for the headroom interval.
      */
     public ClusterStatsFetcherFactory(@Nonnull StatsHistoryServiceBlockingStub historyService,
                                       @Nonnull final DbEndpoint dbEndpoint,
-                                      final int headroomCheckInterval,
-                                      final TimeUnit timeUnit) {
+                                      final int headroomMaxBackfillingDays,
+                                      final int headroomCheckInterval) {
+
         this.historyService = historyService;
         this.headroomCheckInterval = headroomCheckInterval;
-        this.timeUnit = timeUnit;
+        this.headroomMaxBackfillingDays = headroomMaxBackfillingDays;
         ExecutorService executor = Executors.newSingleThreadExecutor();
         initializationTask = executor.submit(new RecentClusterStatsLoader(dbEndpoint,
             this::setLatestFetchedPropsTime, headroomMaxBackfillingDays));
@@ -90,7 +85,7 @@ public class ClusterStatsFetcherFactory {
         }
         return new ClusterStatsFetcher(historyService, new MultiStageTimer(logger), consumer,
             latestFetchedPropsTime,
-            topologyCreationTime, this::setLatestFetchedPropsTime, headroomCheckInterval, timeUnit);
+            topologyCreationTime, this::setLatestFetchedPropsTime, headroomCheckInterval);
     }
 
     private void setLatestFetchedPropsTime(Instant time) {

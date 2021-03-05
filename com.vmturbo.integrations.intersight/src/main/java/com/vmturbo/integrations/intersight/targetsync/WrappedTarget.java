@@ -16,18 +16,18 @@ import com.vmturbo.topology.processor.api.TargetInfo;
  * A wrapper combining both representations of the same target: the {@link AssetTarget} discovered
  * from Intersight and the {@link TargetInfo} from the topology processor.
  */
-public class IntersightWrappedTarget {
+public class WrappedTarget {
     private final AssetTarget intersightAssetTarget;
     private final TargetInfo tpTargetInfo;
 
     /**
-     * Construct a {@link IntersightWrappedTarget}.  The input {@link AssetTarget} and the
+     * Construct a {@link WrappedTarget}.  The input {@link AssetTarget} and the
      * {@link TargetInfo} represent the same target.
      *
      * @param intersightAssetTarget the {@link AssetTarget} discovered from Intersight
      * @param tpTargetInfo the {@link TargetInfo} from topology processor
      */
-    public IntersightWrappedTarget(@Nonnull final AssetTarget intersightAssetTarget,
+    public WrappedTarget(@Nonnull final AssetTarget intersightAssetTarget,
                          @Nonnull final TargetInfo tpTargetInfo) {
         this.intersightAssetTarget = Objects.requireNonNull(intersightAssetTarget);
         this.tpTargetInfo = Objects.requireNonNull(tpTargetInfo);
@@ -57,9 +57,9 @@ public class IntersightWrappedTarget {
      * @return true if the Intersight target is recently created; false otherwise.
      */
     public boolean ifRecentlyCreated(final long recentInSeconds) {
-        return intersightAssetTarget.getStatus() == AssetTarget.StatusEnum.CLAIMINPROGRESS
-                && intersightAssetTarget.getCreateTime() != null
-                && intersightAssetTarget.getCreateTime().isAfter(OffsetDateTime.now().minusSeconds(recentInSeconds));
+        return intersightAssetTarget.getStatus() == AssetTarget.StatusEnum.CLAIMINPROGRESS &&
+                intersightAssetTarget.getCreateTime() != null && intersightAssetTarget.getCreateTime()
+                .isAfter(OffsetDateTime.now().minusSeconds(recentInSeconds));
     }
 
     /**
@@ -70,9 +70,9 @@ public class IntersightWrappedTarget {
      * @return true if the Intersight target is recently modified"; false otherwise.
      */
     public boolean ifRecentlyModified(final long recentInSeconds) {
-        return intersightAssetTarget.getStatus() == AssetTarget.StatusEnum.EMPTY
-                && intersightAssetTarget.getModTime() != null
-                && intersightAssetTarget.getModTime().isAfter(OffsetDateTime.now().minusSeconds(recentInSeconds));
+        return intersightAssetTarget.getStatus() == AssetTarget.StatusEnum.EMPTY &&
+                intersightAssetTarget.getModTime() != null && intersightAssetTarget.getModTime()
+                .isAfter(OffsetDateTime.now().minusSeconds(recentInSeconds));
     }
 
     /**
@@ -123,8 +123,8 @@ public class IntersightWrappedTarget {
      * @return the newly computed {@link StatusEnum}
      */
     public StatusEnum getNewStatusEnum(@Nonnull final AssetService service) {
-        return isValidated() ? StatusEnum.CONNECTED : isInProgress()
-                ? Objects.requireNonNull(service).getStatus() : StatusEnum.NOTCONNECTED;
+        return isValidated() ? StatusEnum.CONNECTED : isInProgress() ?
+                Objects.requireNonNull(service).getStatus() : StatusEnum.NOTCONNECTED;
     }
 
     /**
