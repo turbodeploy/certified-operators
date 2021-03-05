@@ -95,6 +95,14 @@ public class PostStitchingTestUtilities {
     }
 
     static TopologyEntity makeTopologyEntity(final int entityType,
+                                             final String name, final long oid,
+                                             final List<TopologyEntity.Builder> providers) {
+        final TopologyEntityBuilder a = TopologyEntityBuilder.newBuilder().withEntityType(entityType).withProviders(providers);
+        a.builder.getEntityBuilder().setDisplayName(name).setOid(oid).build();
+        return a.build();
+    }
+
+    static TopologyEntity makeTopologyEntity(final int entityType,
             @Nonnull final List<CommoditySoldDTO> commoditiesSold,
             @Nonnull final Set<CommoditiesBoughtFromProvider> commoditiesBoughtFromProvider,
             @Nonnull final List<TopologyEntity.Builder> providers) {
@@ -140,6 +148,14 @@ public class PostStitchingTestUtilities {
             .withCommoditiesBought(commoditiesBought)
             .withCommoditiesSold(commoditiesSold)
             .getBuilder();
+    }
+
+    static TopologyEntity.Builder makeTopologyEntityBuilder(final int entityType,
+                                                            String name, long oid) {
+        final TopologyEntityBuilder a = TopologyEntityBuilder.newBuilder()
+                .withEntityType(entityType);
+        a.builder.getEntityBuilder().setOid(oid).setDisplayName(name).build();
+        return a.getBuilder();
     }
 
     static TopologyEntity.Builder makeTopologyEntityBuilder(final int entityType,
