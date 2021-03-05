@@ -7,6 +7,11 @@ import java.util.concurrent.ThreadFactory;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
+import com.vmturbo.auth.api.authorization.keyprovider.EncryptionKeyProvider;
+import com.vmturbo.auth.api.authorization.keyprovider.MasterKeyReader;
+import com.vmturbo.components.common.BaseVmtComponentConfig;
+import com.vmturbo.components.crypto.CryptoFacility;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -35,6 +40,7 @@ import com.vmturbo.topology.processor.probes.ProbeConfig;
  * Configuration for the target package.
  */
 @Configuration
+@SuppressFBWarnings
 @Import({ProbeConfig.class, KVConfig.class, TopologyProcessorDBConfig.class,
     GroupClientConfig.class, RepositoryClientConfig.class, SecureKeyValueStoreConfig.class})
 public class TargetConfig {
@@ -78,6 +84,24 @@ public class TargetConfig {
                 identityStore());
         probeConfig.probeStore().addListener(store);
         return store;
+    }
+
+    /**
+     * If true, use Kubernetes secrets to read in a master encryption key which is used to encrypt
+     * and decrypt the internal, component-specific encryption keys.
+     * If false, this data will be read from (legacy) persistent volumes.
+     *
+     * <p>Note: This feature flag is exposed in a static way to avoid having to refactor the
+     * many static methods that already exist in {@link CryptoFacility}. This is expected to be a
+     * short-lived situation, until enabling external secrets becomes the default.</p>
+     */
+    @Value("${" + BaseVmtComponentConfig.ENABLE_EXTERNAL_SECRETS_FLAG + ":false}")
+    public void setKeyProviderStatic(boolean enableExternalSecrets){
+        CryptoFacility.ENABLE_EXTERNAL_SECRETS = enableExternalSecrets;
+        if (enableExternalSecrets) {
+            CryptoFacility.encryptionKeyProvider =
+                    new EncryptionKeyProvider(kvConfig.keyValueStore(), new MasterKeyReader());
+        }
     }
 
     /**

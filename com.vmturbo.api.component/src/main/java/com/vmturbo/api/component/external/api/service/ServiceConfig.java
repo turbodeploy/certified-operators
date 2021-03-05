@@ -5,6 +5,10 @@ import java.time.Duration;
 
 import javax.servlet.ServletContext;
 
+import com.vmturbo.auth.api.authorization.keyprovider.*;
+import com.vmturbo.components.common.BaseVmtComponentConfig;
+import com.vmturbo.components.crypto.CryptoFacility;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -57,9 +61,6 @@ import com.vmturbo.auth.api.AuthClientConfig;
 import com.vmturbo.auth.api.SpringSecurityConfig;
 import com.vmturbo.auth.api.authorization.UserSessionConfig;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
-import com.vmturbo.auth.api.authorization.keyprovider.KVKeyProvider;
-import com.vmturbo.auth.api.authorization.keyprovider.KeyProvider;
-import com.vmturbo.auth.api.authorization.keyprovider.PersistentVolumeKeyProvider;
 import com.vmturbo.auth.api.authorization.kvstore.ComponentJwtStore;
 import com.vmturbo.auth.api.licensing.LicenseCheckClientConfig;
 import com.vmturbo.common.protobuf.search.SearchFilterResolver;
@@ -82,6 +83,7 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
  * <p>For readability purposes, the services should appear in alphabetical order.
  */
 @Configuration
+@SuppressFBWarnings
 @Import({SpringSecurityConfig.class,
         MapperConfig.class,
         CommunicationConfig.class,
@@ -760,6 +762,24 @@ public class ServiceConfig {
     @Bean
     public IClassicMigrationService classicMigrationService() {
         return new ClassicMigrationService(targetService());
+    }
+
+    /**
+     * If true, use Kubernetes secrets to read in a master encryption key which is used to encrypt
+     * and decrypt the internal, component-specific encryption keys.
+     * If false, this data will be read from (legacy) persistent volumes.
+     *
+     * <p>Note: This feature flag is exposed in a static way to avoid having to refactor the
+     * many static methods that already exist in {@link CryptoFacility}. This is expected to be a
+     * short-lived situation, until enabling external secrets becomes the default.</p>
+     */
+    @Value("${" + BaseVmtComponentConfig.ENABLE_EXTERNAL_SECRETS_FLAG + ":false}")
+    public void setKeyProviderStatic(boolean enableExternalSecrets){
+        CryptoFacility.ENABLE_EXTERNAL_SECRETS = enableExternalSecrets;
+        if (enableExternalSecrets) {
+            CryptoFacility.encryptionKeyProvider =
+                    new EncryptionKeyProvider(keyValueStoreConfig.keyValueStore(), new MasterKeyReader());
+        }
     }
 
     /**

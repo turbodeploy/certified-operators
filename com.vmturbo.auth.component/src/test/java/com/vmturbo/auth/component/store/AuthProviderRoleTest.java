@@ -26,6 +26,7 @@ import java.util.function.Supplier;
 
 import com.google.common.collect.ImmutableList;
 
+import com.vmturbo.auth.api.authorization.keyprovider.IKeyImportIndicator;
 import org.assertj.core.util.Lists;
 import org.junit.Before;
 import org.junit.Test;
@@ -71,6 +72,7 @@ public class AuthProviderRoleTest {
 
     AuthProvider authProviderUnderTest;
 
+    private static final IKeyImportIndicator keyImportIndicator = () -> false;
 
     /**
      * Set up the Spring context with a security context.
@@ -81,7 +83,7 @@ public class AuthProviderRoleTest {
         Supplier<String> keyValueDir = () -> "/";
         authProviderUnderTest = new AuthProvider(mockKeystore, null, keyValueDir, null, new UserPolicy(LoginPolicy.ALL,
                 new ReportPolicy(1)),
-                new SsoUtil(), false, false);
+                new SsoUtil(), false, false, null);
     }
 
     /**

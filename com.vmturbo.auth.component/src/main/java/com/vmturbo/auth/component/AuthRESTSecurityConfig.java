@@ -1,5 +1,11 @@
 package com.vmturbo.auth.component;
 
+import com.vmturbo.auth.api.authorization.keyprovider.EncryptionKeyProvider;
+import com.vmturbo.auth.api.authorization.keyprovider.IKeyImportIndicator;
+import com.vmturbo.auth.api.authorization.keyprovider.MasterKeyReader;
+import com.vmturbo.auth.api.authorization.kvstore.AuthApiKVConfig;
+import com.vmturbo.components.common.BaseVmtComponentConfig;
+import com.vmturbo.components.crypto.CryptoFacility;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -29,6 +35,8 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.group.api.GroupClientConfig;
 
+import javax.annotation.Nonnull;
+
 /**
  * Configure security for the REST API Dispatcher here.
  *
@@ -36,7 +44,7 @@ import com.vmturbo.group.api.GroupClientConfig;
  */
 @Configuration
 @EnableWebSecurity
-@Import({SpringSecurityConfig.class, AuthKVConfig.class, GroupClientConfig.class, WidgetsetConfig.class})
+@Import({AuthApiKVConfig.class, SpringSecurityConfig.class, AuthKVConfig.class, GroupClientConfig.class, WidgetsetConfig.class})
 public class AuthRESTSecurityConfig extends WebSecurityConfigurerAdapter {
 
     @Value("${com.vmturbo.kvdir:/home/turbonomic/data/kv}")
@@ -75,6 +83,9 @@ public class AuthRESTSecurityConfig extends WebSecurityConfigurerAdapter {
 
     @Autowired
     private WidgetsetConfig widgetsetConfig;
+
+    @Autowired
+    private AuthApiKVConfig authApiKvConfig;
 
     @Override
     protected void configure(HttpSecurity http) throws Exception {
@@ -168,11 +179,35 @@ public class AuthRESTSecurityConfig extends WebSecurityConfigurerAdapter {
         return GroupServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
     }
 
+    /**
+     * If true, use Kubernetes secrets to read in a master encryption key which is used to encrypt
+     * and decrypt the internal, component-specific encryption keys.
+     * If false, this data will be read from (legacy) persistent volumes.
+     *
+     * <p>Note: This feature flag is exposed in a static way to avoid having to refactor the
+     * many static methods that already exist in {@link CryptoFacility}. This is expected to be a
+     * short-lived situation, until enabling external secrets becomes the default.</p>
+     */
+    @Value("${" + BaseVmtComponentConfig.ENABLE_EXTERNAL_SECRETS_FLAG + ":false}")
+    public void setKeyProviderStatic(boolean enableExternalSecrets){
+        CryptoFacility.ENABLE_EXTERNAL_SECRETS = enableExternalSecrets;
+        if (enableExternalSecrets) {
+            CryptoFacility.encryptionKeyProvider =
+                    getEncryptionKeyProvider();
+        }
+    }
+
+    @Nonnull
+    @Bean
+    public EncryptionKeyProvider getEncryptionKeyProvider() {
+        return new EncryptionKeyProvider(authApiKvConfig.authKeyValueStore(), new MasterKeyReader());
+    }
+
     @Bean
     public AuthProvider targetStore() {
         return new AuthProvider(authKVConfig.authKeyValueStore(), groupRpcService(), () -> keyDir,
                 widgetsetConfig.widgetsetDbStore(), userPolicy(), new SsoUtil(),
-                enableMultiADGroupSupport, enableExternalSecrets);
+                enableMultiADGroupSupport, enableExternalSecrets, getEncryptionKeyProvider());
     }
 
     /**
