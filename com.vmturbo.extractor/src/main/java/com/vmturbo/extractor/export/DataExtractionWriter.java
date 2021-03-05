@@ -98,6 +98,8 @@ public class DataExtractionWriter extends TopologyWriterBase {
     public int finish(final DataProvider dataProvider) {
         final Optional<RelatedEntitiesExtractor> relatedEntitiesExtractor =
                 dataExtractionFactory.newRelatedEntitiesExtractor(dataProvider);
+        final Optional<TopDownCostExtractor> topDownCostExtractor =
+                dataExtractionFactory.newTopDownCostExtractor(dataProvider);
 
         // set related entities and related groups
         final String relatedStageLabel = "Populate related entities and groups";
@@ -106,7 +108,9 @@ public class DataExtractionWriter extends TopologyWriterBase {
         final List<ExportedObject> exportedObjects = entities.parallelStream()
                 .map(entity -> {
                     relatedEntitiesExtractor.ifPresent(extractor -> entity.setRelated(
-                            extractor.extractRelatedEntities(entity.getOid())));
+                        extractor.extractRelatedEntities(entity.getOid())));
+                    topDownCostExtractor.flatMap(extractor -> extractor.getExpenses(entity.getOid()))
+                        .ifPresent(entity::setAccountExpenses);
                     final ExportedObject exportedObject = new ExportedObject();
                     exportedObject.setTimestamp(formattedTopologyCreationTime);
                     exportedObject.setEntity(entity);

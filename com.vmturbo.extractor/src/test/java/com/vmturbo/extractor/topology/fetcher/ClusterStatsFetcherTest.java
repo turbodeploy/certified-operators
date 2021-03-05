@@ -116,7 +116,7 @@ public class ClusterStatsFetcherTest {
         // mock internal history gRPC call
         final AtomicReference<List<EntityStats>> gd = new AtomicReference<>();
         final ClusterStatsFetcherFactory factory =
-            new ClusterStatsFetcherFactory(historyServiceStub, queryEndpoint, 2, 2);
+            new ClusterStatsFetcherFactory(historyServiceStub, queryEndpoint, 2, TimeUnit.HOURS);
 
         final List<ClusterStatsResponse> clusterStatsResponse =
             getClusterStatsResponse(Arrays.asList(clusterId1, clusterId2));
@@ -151,7 +151,7 @@ public class ClusterStatsFetcherTest {
         final List<ClusterStatsResponse> clusterStatsResponse =
             getClusterStatsResponse(Collections.singletonList(clusterId1));
         final ClusterStatsFetcherFactory factory = new ClusterStatsFetcherFactory(historyServiceStub,
-            queryEndpoint, headroomMaxBackfillingDays, headroomCheckIntervalHrs);
+            queryEndpoint, headroomCheckIntervalHrs, TimeUnit.HOURS);
 
         when(statsHistoryServiceSpy.getClusterStats(anyObject())).thenReturn(clusterStatsResponse);
 
@@ -196,7 +196,7 @@ public class ClusterStatsFetcherTest {
             getClusterStatsResponse(Collections.singletonList(clusterId1));
         final ClusterStatsFetcherFactory factory =
             new ClusterStatsFetcherFactory(historyServiceStub, queryEndpoint,
-                headroomMaxBackfillingDays, headroomCheckIntervalHrs);
+                headroomCheckIntervalHrs, TimeUnit.HOURS);
 
         when(statsHistoryServiceSpy.getClusterStats(anyObject())).thenReturn(clusterStatsResponse);
 
