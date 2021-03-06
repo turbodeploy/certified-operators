@@ -16,15 +16,15 @@ import com.vmturbo.integrations.intersight.IntersightApiQuery;
 /**
  * class for {@link AssetTarget} query.
  */
-public class AssetTargetQuery
+public class IntersightAssetTargetQuery
         extends IntersightApiQuery<AssetTarget, AssetTargetList> {
 
     /**
-     * Constructs a {@link AssetTargetQuery} with a customer "select".
+     * Constructs a {@link IntersightAssetTargetQuery} with a customer "select".
      *
      * @param select custom "select" for this query
      */
-    public AssetTargetQuery(@Nonnull final String select) {
+    public IntersightAssetTargetQuery(@Nonnull final String select) {
         this.select = select;
     }
 
