@@ -18,6 +18,8 @@ public class ActionAttributes {
     private Map<String, CommodityChange> resizeInfo;
     // info for delete action
     private DeleteInfo deleteInfo;
+    // info for buyRI action
+    private BuyRiInfo buyRiInfo;
 
     public Map<String, MoveChange> getMoveInfo() {
         return moveInfo;
@@ -43,4 +45,11 @@ public class ActionAttributes {
         this.deleteInfo = deleteInfo;
     }
 
+    public BuyRiInfo getBuyRiInfo() {
+        return buyRiInfo;
+    }
+
+    public void setBuyRiInfo(BuyRiInfo buyRiInfo) {
+        this.buyRiInfo = buyRiInfo;
+    }
 }

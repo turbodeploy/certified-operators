@@ -21,11 +21,13 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.AtomicResize;
+import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
@@ -40,6 +42,7 @@ import com.vmturbo.extractor.action.percentile.ActionPercentileData;
 import com.vmturbo.extractor.action.percentile.ActionPercentileDataRetriever;
 import com.vmturbo.extractor.schema.enums.MetricType;
 import com.vmturbo.extractor.schema.json.common.ActionAttributes;
+import com.vmturbo.extractor.schema.json.common.BuyRiInfo;
 import com.vmturbo.extractor.schema.json.common.CommodityChange;
 import com.vmturbo.extractor.schema.json.common.CommodityPercentileChange;
 import com.vmturbo.extractor.schema.json.common.DeleteInfo;
@@ -68,6 +71,9 @@ public class ActionAttributeExtractorTest {
     private static final long volume3 = 43L;
     private static final long workloadController1 = 51L;
     private static final long containerSpec1 = 61L;
+    private static final long computeTier1 = 71L;
+    private static final long region1 = 81L;
+    private static final long account1 = 91L;
 
     private static final ActionDTO.ActionSpec COMPOUND_MOVE = ActionSpec.newBuilder()
         .setRecommendation(ActionDTO.Action.newBuilder()
@@ -186,6 +192,34 @@ public class ActionAttributeExtractorTest {
                                     .setSizeKb(Units.NUM_OF_KB_IN_MB * 2))))
             .build();
 
+    private static final ActionDTO.ActionSpec BUY_RI = ActionSpec.newBuilder()
+            .setRecommendation(Action.newBuilder()
+                    .setId(10004L)
+                    .setDeprecatedImportance(0)
+                    .setInfo(ActionInfo.newBuilder()
+                            .setBuyRi(BuyRI.newBuilder()
+                                    .setBuyRiId(51234L)
+                                    .setCount(2)
+                                    .setComputeTier(ActionEntity.newBuilder()
+                                            .setId(computeTier1)
+                                            .setType(EntityType.COMPUTE_TIER_VALUE)
+                                            .build())
+                                    .setMasterAccount(ActionEntity.newBuilder()
+                                            .setId(account1)
+                                            .setType(EntityType.BUSINESS_ACCOUNT_VALUE)
+                                            .build())
+                                    .setRegion(ActionEntity.newBuilder()
+                                            .setId(region1)
+                                            .setType(EntityType.REGION_VALUE)
+                                            .build())
+                                    .setTargetEntity(ActionEntity.newBuilder()
+                                            .setId(vm1)
+                                            .setType(EntityType.VIRTUAL_MACHINE_VALUE)
+                                            .build())
+                                    .build()))
+                    .setExplanation(Explanation.getDefaultInstance()))
+            .build();
+
     private TopologyGraph<SupplyChainEntity> topologyGraph = mock(TopologyGraph.class);
 
     private ActionPercentileDataRetriever actionPercentileDataRetriever = mock(
@@ -216,6 +250,9 @@ public class ActionAttributeExtractorTest {
         mockEntity(volume3, EntityType.VIRTUAL_VOLUME_VALUE);
         mockEntity(workloadController1, EntityType.WORKLOAD_CONTROLLER_VALUE);
         mockEntity(containerSpec1, EntityType.CONTAINER_SPEC_VALUE);
+        mockEntity(computeTier1, EntityType.COMPUTE_TIER_VALUE);
+        mockEntity(region1, EntityType.REGION_VALUE);
+        mockEntity(account1, EntityType.BUSINESS_ACCOUNT_VALUE);
         when(actionPercentileDataRetriever.getActionPercentiles(any())).thenReturn(
                 actionPercentileData);
     }
@@ -295,6 +332,25 @@ public class ActionAttributeExtractorTest {
     public void testDeleteExtraction() {
         ActionAttributes actionAttributes = extractSingleAction(DELETE);
         validateDeleteInfo(actionAttributes.getDeleteInfo());
+    }
+
+    /**
+     * Test extracting {@link ActionAttributes} from a buyRI action.
+     */
+    @Test
+    public void testBuyRiInfo() {
+        ActionAttributes actionAttributes = extractSingleAction(BUY_RI);
+        BuyRiInfo buyRiInfo = actionAttributes.getBuyRiInfo();
+        BuyRI expectedBuyRI = BUY_RI.getRecommendation().getInfo().getBuyRi();
+        assertThat(buyRiInfo.getCount(), is(expectedBuyRI.getCount()));
+        assertThat(buyRiInfo.getComputeTier().getOid(), is(expectedBuyRI.getComputeTier().getId()));
+        assertThat(buyRiInfo.getComputeTier().getName(), is(String.valueOf(computeTier1)));
+        assertThat(buyRiInfo.getMasterAccount().getOid(), is(expectedBuyRI.getMasterAccount().getId()));
+        assertThat(buyRiInfo.getMasterAccount().getName(), is(String.valueOf(account1)));
+        assertThat(buyRiInfo.getRegion().getOid(), is(expectedBuyRI.getRegion().getId()));
+        assertThat(buyRiInfo.getRegion().getName(), is(String.valueOf(region1)));
+        assertThat(buyRiInfo.getTarget().getOid(), is(expectedBuyRI.getTargetEntity().getId()));
+        assertThat(buyRiInfo.getTarget().getName(), is(String.valueOf(vm1)));
     }
 
     /**
