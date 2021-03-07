@@ -22,6 +22,7 @@ import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.cost.api.CostClientConfig;
 import com.vmturbo.cost.component.CostComponentGlobalConfig;
 import com.vmturbo.cost.component.CostDBConfig;
+import com.vmturbo.cost.component.cca.CloudCommitmentAnalysisStoreConfig;
 
 /**
  * Configuration for cloud savings/investment tracking.  Interesting event types are: entity
@@ -30,7 +31,8 @@ import com.vmturbo.cost.component.CostDBConfig;
 @Configuration
 @Import({ActionOrchestratorClientConfig.class,
         CostComponentGlobalConfig.class,
-        CostClientConfig.class})
+        CostClientConfig.class,
+        CloudCommitmentAnalysisStoreConfig.class})
 public class EntitySavingsConfig {
 
     private final Logger logger = LogManager.getLogger();
@@ -46,6 +48,9 @@ public class EntitySavingsConfig {
 
     @Autowired
     private CostClientConfig costClientConfig;
+
+    @Autowired
+    private CloudCommitmentAnalysisStoreConfig cloudCommitmentAnalysisStoreConfig;
 
     /**
      * Chunk size configuration.
@@ -146,7 +151,8 @@ public class EntitySavingsConfig {
      */
     @Bean
     public TopologyEventsPoller topologyEventsPoller() {
-        return new TopologyEventsPoller();
+        return new TopologyEventsPoller(cloudCommitmentAnalysisStoreConfig.topologyEventProvider(),
+                                        entityEventsJournal());
     }
 
     /**
