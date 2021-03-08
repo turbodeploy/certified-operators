@@ -52,4 +52,13 @@ public interface EntityUptimeStore {
      */
     @Nonnull
     Optional<EntityUptime> getDefaultUptime();
+
+
+    /**
+     * Queries for all recorded entity uptime.
+     * @return An immutable map of entity uptime by entity OID that meet the provided {@code filter}.
+     */
+    @Nonnull
+    Map<Long, EntityUptime> getAllEntityUptime();
+
 }

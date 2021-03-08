@@ -166,8 +166,7 @@ public class CloudCostCalculatorTest {
     private static final PriceTable PRICE_TABLE = thePriceTable();
 
     private static final CloudCostData CLOUD_COST_DATA = new CloudCostData(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
-        Collections.emptyMap(), Collections.emptyMap());
-
+        Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Optional.empty());
     private static final double DELTA = 0.0001;
 
     private static Price price = Price.newBuilder().setPriceAmount(CurrencyAmount.newBuilder().setAmount(0)).build();
@@ -971,7 +970,7 @@ public class CloudCostCalculatorTest {
         Map<Long, AccountPricingData> accountPricingDataByBusinessAccount = new HashMap<>();
         accountPricingDataByBusinessAccount.put(baOid, accountPricingData);
         return new CloudCostData(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
-                Collections.emptyMap(), accountPricingDataByBusinessAccount);
+                Collections.emptyMap(), accountPricingDataByBusinessAccount, Collections.emptyMap(), Optional.empty());
     }
 
     private static TestEntityClass createStorageTier(final long storageTierId) {

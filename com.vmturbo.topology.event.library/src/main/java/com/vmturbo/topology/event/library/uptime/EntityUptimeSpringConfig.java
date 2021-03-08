@@ -53,6 +53,7 @@ public class EntityUptimeSpringConfig {
     @Value("${entityUptime.uptimeWindowDuration:PT730H}")
     private String uptimeWindowDuration;
 
+
     /**
      * Creates a {@link EntityUptimeStore} instance.
      * @return The {@link EntityUptimeStore} instance.

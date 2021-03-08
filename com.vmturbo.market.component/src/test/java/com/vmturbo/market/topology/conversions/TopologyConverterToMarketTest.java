@@ -147,7 +147,7 @@ public class TopologyConverterToMarketTest {
     private CommodityType topologyCommodity2;
     private CloudRateExtractor marketCloudRateExtractor = mock(CloudRateExtractor.class);
     private CloudCostData ccd = spy(new CloudCostData<>(new HashMap<>(), new HashMap<>(), new HashMap<>(),
-            new HashMap<>(), new HashMap<>(), new HashMap<>()));
+            new HashMap<>(), new HashMap<>(), new HashMap<>(), new HashMap<>(), Optional.empty()));
     private TierExcluderFactory tierExcluderFactory = mock(TierExcluderFactory.class);
     private AccountPricingData accountPricingData = mock(AccountPricingData.class);
     private ConsistentScalingHelperFactory consistentScalingHelperFactory;
