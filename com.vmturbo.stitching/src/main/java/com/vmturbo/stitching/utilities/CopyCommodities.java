@@ -140,6 +140,7 @@ public class CopyCommodities {
         if (source.getCommodityBoughtListByProvider().isEmpty()) {
             logger.warn("Attempting to copy commodities from {} when it has no commodities to copy. " +
                     "Was this entity already removed from the topology?", source);
+            return;
         }
 
         // iterate over providers in the source and copy the commodities there over to destination
