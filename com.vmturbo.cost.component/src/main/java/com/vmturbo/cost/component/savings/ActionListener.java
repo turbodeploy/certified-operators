@@ -1,13 +1,16 @@
 package com.vmturbo.cost.component.savings;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -16,7 +19,6 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.MapDifference;
 import com.google.common.collect.Maps;
 
-import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -236,47 +238,43 @@ public class ActionListener implements ActionsListener {
         Set<Long> newPendingActionUuids = new HashSet<>();
         Map<ActionSpec, Long> newPendingActionSpecsToEntityId = new HashMap<>();
         Map<Long, Long> newPendingActionsEntityIdToActionId = new HashMap<>();
-        AtomicReference<String> cursor = new AtomicReference<>("0");
-        do {
-            final FilteredActionRequest filteredActionRequest =
-                    filteredActionRequest(topologyContextId, cursor);
-            actionsService.getAllActions(filteredActionRequest)
-                    .forEachRemaining(filteredActionResponse -> {
-                        if (filteredActionResponse.hasActionChunk()) {
-                            for (ActionOrchestratorAction action
-                                    : filteredActionResponse.getActionChunk().getActionsList()) {
-                                ActionSpec actionSpec = action.getActionSpec();
-                                if (actionSpec == null || !actionSpec.hasRecommendation()) {
-                                    continue;
-                                }
-                                final Long actionId = actionSpec.getRecommendation().getId();
-                                ActionEntity entity;
-                                try {
-                                    entity = ActionDTOUtil.getPrimaryEntity(actionSpec.getRecommendation());
-                                } catch (UnsupportedActionException e) {
-                                    logger.warn("Cannot create action Savings event due to"
-                                        + " unsupported action type for action {}", actionId, e);
-                                    continue;
-                                }
-                                if (!pendingActionWorkloadTypes.contains(entity.getType())) {
-                                    continue;
-                                }
-                                final Long entityId = entity.getId();
-                                logger.debug("Processing savings for action {}, entity {}", actionId, entityId);
-                                newPendingActionUuids.add(actionId);
-                                // Since we're looping through actions here, it's more  efficient to maintain this local
-                                // mapping and reverse mapping for O(1) lookup, rather than searching through
-                                // one data structure during events creation or retrieval of costs.
-                                newPendingActionSpecsToEntityId.put(actionSpec, entityId);
-                                newPendingActionsEntityIdToActionId.put(entityId, actionId);
-                                logger.debug("Adding Pending Action {}, at {} for entity {}", actionId,
-                                        actionSpec.getRecommendationTime(), entityId);
-                            }
-                        } else if (filteredActionResponse.hasPaginationResponse()) {
-                            cursor.set(filteredActionResponse.getPaginationResponse().getNextCursor());
-                        }
-                    });
-        } while (!StringUtils.isEmpty(cursor.get()));
+        final List<ActionSpec> actionSpecs = new ArrayList<>();
+        Iterator<FilteredActionResponse> responseIterator = getUpdatedActions(topologyContextId);
+        while (responseIterator.hasNext()) {
+            actionSpecs.addAll(responseIterator.next().getActionChunk().getActionsList().stream()
+                            .map(ActionOrchestratorAction::getActionSpec)
+                            .collect(Collectors.toList()));
+            for (ActionSpec actionSpec : actionSpecs) {
+                if (actionSpec == null || !actionSpec.hasRecommendation()) {
+                    continue;
+                }
+                final Long actionId = actionSpec.getRecommendation().getId();
+                ActionEntity entity;
+                try {
+                    entity = ActionDTOUtil.getPrimaryEntity(actionSpec.getRecommendation());
+                } catch (UnsupportedActionException e) {
+                    logger.warn("Cannot create action Savings event due to unsupported action"
+                                    + " type for action {}",
+                                actionId, e);
+                    continue;
+                }
+                if (!pendingActionWorkloadTypes.contains(entity.getType())) {
+                    continue;
+                }
+                final Long entityId = entity.getId();
+                logger.debug("Processing savings for action {}, entity {}", actionId, entityId);
+                newPendingActionUuids.add(actionId);
+                // Since we're looping through actions here, it's more  efficient to maintain this local
+                // mapping and reverse mapping for O(1) lookup, rather than searching through
+                // one data structure during events creation or retrieval of costs.
+                newPendingActionSpecsToEntityId.put(actionSpec, entityId);
+                newPendingActionsEntityIdToActionId.put(entityId, actionId);
+                logger.debug("Adding Pending Action {}, at {} for entity {}", actionId,
+                             actionSpec.getRecommendationTime(),
+                            entityId);
+            }
+            actionSpecs.clear();
+        }
 
         // TODO: The way we're processing update and success, we may not need synchronization.
         // However this may need to be re-evaluated in the future, because of potential race conditions,
@@ -287,10 +285,10 @@ public class ActionListener implements ActionsListener {
         // entriesOnlyOnLeft() returns newly added actions, and entriesOnlyOnRight()
         // returns actions no longer being generated by market.
         MapDifference<ActionSpec, Long> actionChanges = Maps.difference(newPendingActionSpecsToEntityId,
-                currentPendingActionSpecsToEntityId);
+                                                            currentPendingActionSpecsToEntityId);
         Map<Long, EntityPriceChange> entityPriceChangeMap =
-                getOnDemandRates(realTimeTopologyContextId,
-                        newPendingActionsEntityIdToActionId);
+                                      getOnDemandRates(realTimeTopologyContextId,
+                                                       newPendingActionsEntityIdToActionId);
         Set<SavingsEvent> newPendingActionEvents = new HashSet<>();
         actionChanges.entriesOnlyOnLeft().keySet().forEach(newActionSpec -> {
             final Long newActionId = newActionSpec.getRecommendation().getId();
@@ -298,48 +296,48 @@ public class ActionListener implements ActionsListener {
             final EntityPriceChange actionPriceChange = entityPriceChangeMap.get(newActionId);
             if (actionPriceChange != null) {
                 logger.debug("New action price change for {}, {}, {}, {}:",
-                        newActionSpec,
-                        actionState, actionPriceChange.getSourceCost(),
-                        actionPriceChange.getDestinationCost());
+                             newActionSpec,
+                             actionState, actionPriceChange.getSourceCost(),
+                             actionPriceChange.getDestinationCost());
                 ActionState prevActionState = entityActionStateMap.get(newActionId);
                 if (prevActionState != ActionState.SUCCEEDED) {
                     entityActionStateMap.put(newActionId, actionState);
                     final Long entityId = newPendingActionSpecsToEntityId
-                            .get(newActionSpec);
+                                    .get(newActionSpec);
                     SavingsEvent pendingActionEvent =
-                            createActionEvent(entityId,
-                                    newActionSpec.getRecommendationTime(),
-                                    ActionEventType.RECOMMENDATION_ADDED,
-                                    newActionId,
-                                    actionPriceChange);
+                                            createActionEvent(entityId,
+                                                  newActionSpec.getRecommendationTime(),
+                                                  ActionEventType.RECOMMENDATION_ADDED,
+                                                  newActionId,
+                                                  actionPriceChange);
                     newPendingActionEvents.add(pendingActionEvent);
                     logger.debug("Added new pending event for action {}, entity {},"
                                     + " action state {}",
-                            newActionId, entityId, actionState);
+                                 newActionId, entityId, actionState);
                 }
             }
         });
         entityEventsJournal.addEvents(newPendingActionEvents);
 
         final EntityPriceChange emptyPriceChange = new EntityPriceChange.Builder()
-                .sourceOid(0L)
-                .sourceCost(0.0)
-                .destinationOid(0L)
-                .destinationCost(0.0)
-                .build();
+                                                    .sourceOid(0L)
+                                                    .sourceCost(0.0)
+                                                    .destinationOid(0L)
+                                                    .destinationCost(0.0)
+                                                    .build();
         // Add events related to stale pending actions.
         if (!currentPendingActionSpecsToEntityId.isEmpty()) {
             Set<SavingsEvent> staleActionEvents = new HashSet<>();
             actionChanges.entriesOnlyOnRight().keySet().forEach(staleActionSpec -> {
                 final Long staleActionId = staleActionSpec.getRecommendation().getId();
                 final Long entityId = currentPendingActionSpecsToEntityId
-                        .get(staleActionSpec);
+                                .get(staleActionSpec);
                 SavingsEvent pendingActionEvent =
-                        createActionEvent(entityId,
-                                staleActionSpec.getRecommendationTime(),
-                                ActionEventType.RECOMMENDATION_REMOVED,
-                                staleActionId,
-                                emptyPriceChange);
+                                                createActionEvent(entityId,
+                                                  staleActionSpec.getRecommendationTime(),
+                                                  ActionEventType.RECOMMENDATION_REMOVED,
+                                                  staleActionId,
+                                                  emptyPriceChange);
                 staleActionEvents.add(pendingActionEvent);
                 logger.debug("Added stale event for {}, entity {}", staleActionId, entityId);
                 entityActionStateMap.remove(staleActionId);
@@ -356,11 +354,10 @@ public class ActionListener implements ActionsListener {
      * Return a request to fetch filtered set of market actions.
      *
      * @param topologyContextId The topology context id of the Market.
-     * @param cursor current page to request
      * @return The FilteredActionRequest.
      */
-    private FilteredActionRequest filteredActionRequest(final Long topologyContextId,
-            AtomicReference<String> cursor) {
+    private FilteredActionRequest filteredActionRequest(final Long topologyContextId) {
+        AtomicReference<String> cursor = new AtomicReference<>("0");
         return FilteredActionRequest.newBuilder()
                         .setTopologyContextId(topologyContextId)
                         .setPaginationParams(PaginationParameters.newBuilder()
@@ -381,13 +378,11 @@ public class ActionListener implements ActionsListener {
      * Get the set of market actions filtered by filters specified in FilteredActionRequest.
      *
      * @param topologyContextId The topology context id.
-     * @param cursor current page to request
      * @return Iterable collection of FilteredActionResponse.
      */
-    private Iterator<FilteredActionResponse> getUpdatedActions(@Nonnull final Long topologyContextId,
-            AtomicReference cursor) {
-        final FilteredActionRequest filteredActionRequest = filteredActionRequest(topologyContextId,
-                cursor);
+    private Iterator<FilteredActionResponse> getUpdatedActions(@Nonnull final Long topologyContextId) {
+        final FilteredActionRequest filteredActionRequest =
+                                                          filteredActionRequest(topologyContextId);
         return actionsService.getAllActions(filteredActionRequest);
     }
 
