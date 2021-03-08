@@ -94,6 +94,9 @@ import com.vmturbo.platform.sdk.common.util.ProbeLicense;
 @ThreadSafe
 public class PlanActionStore implements ActionStore {
     private static final int BATCH_SIZE = 1000;
+    private static final String TRUNCATED = "...";
+    private static final int DESCRIPTION_MAX_LENGTH =
+        MARKET_ACTION.DESCRIPTION.getDataType().length();
     private static final Logger logger = LogManager.getLogger();
 
     private final IActionFactory actionFactory;
@@ -424,11 +427,24 @@ public class PlanActionStore implements ActionStore {
                                 MARKET_ACTION.ASSOCIATED_ACCOUNT_ID, MARKET_ACTION.ASSOCIATED_RESOURCE_GROUP_ID);
 
                         for (ActionAndInfo actionAndInfo : actionBatch) {
+                            // truncate the action description
+                            final String actionDescription;
+                            if (actionAndInfo.description().length() <= DESCRIPTION_MAX_LENGTH) {
+                                actionDescription = actionAndInfo.description();
+                            } else {
+                                logger.warn("The description {} was truncated as it is longer " +
+                                    "than DB column size({}).", actionAndInfo.description(),
+                                    DESCRIPTION_MAX_LENGTH);
+                                actionDescription = actionAndInfo.description()
+                                    .substring(0, DESCRIPTION_MAX_LENGTH - TRUNCATED.length())
+                                    + TRUNCATED;
+                            }
+
                             step = step.values(actionAndInfo.translatedAction().getId(),
                                 planData.getId(),
                                 planData.getTopologyContextId(),
                                 actionAndInfo.translatedAction(),
-                                actionAndInfo.description(),
+                                actionDescription,
                                 actionAndInfo.associatedAccountId().orElse(null),
                                 actionAndInfo.associatedResourceGroupId().orElse(null));
                         }
