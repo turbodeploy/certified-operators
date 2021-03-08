@@ -40,22 +40,15 @@ public class TopologyEventsPoller {
     private final EntityEventsJournal entityEventsJournal;
 
     /**
-     * Flag to enable or disable the polling/processing of topology events.
-     */
-    private final boolean isEnabledTopologyEventsPolling;
-
-    /**
      * Constructor.
      *
      * @param tep The Topology Event Provider.
      * @param entityEventsInMemoryJournal The Entity Events Journal.
      */
     TopologyEventsPoller(@Nonnull final TopologyEventProvider tep,
-                         @Nonnull final EntityEventsJournal entityEventsInMemoryJournal,
-                         final boolean isEnabled) {
+                         @Nonnull final EntityEventsJournal entityEventsInMemoryJournal) {
         topologyEventProvider = Objects.requireNonNull(tep);
         entityEventsJournal = Objects.requireNonNull(entityEventsInMemoryJournal);
-        isEnabledTopologyEventsPolling = isEnabled;
     }
 
     /**
@@ -72,9 +65,7 @@ public class TopologyEventsPoller {
         final TopologyEvents topologyEvents =
                         topologyEventProvider.getTopologyEvents(eventWindow, TopologyEventFilter.ALL);
 
-        if (isEnabledTopologyEventsPolling) {
-            processTopologyEvents(topologyEvents);
-        }
+        processTopologyEvents(topologyEvents);
     }
 
     /**

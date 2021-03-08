@@ -65,12 +65,6 @@ public class EntitySavingsConfig {
     private boolean enableEntitySavings;
 
     /*
-     * Enable cloud savings tracking.
-     */
-    @Value("${enableTopologyEventsPolling:false}")
-    private boolean enableTopologyEventsPolling;
-
-    /*
      * The amount of time to retain state in the internal savings event log.
      */
     @Value("${entitySavingsEventLogRetentionHours:2400}")
@@ -158,7 +152,7 @@ public class EntitySavingsConfig {
     @Bean
     public TopologyEventsPoller topologyEventsPoller() {
         return new TopologyEventsPoller(cloudCommitmentAnalysisStoreConfig.topologyEventProvider(),
-                                        entityEventsJournal(), enableTopologyEventsPolling);
+                                        entityEventsJournal());
     }
 
     /**
