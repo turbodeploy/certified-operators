@@ -47,6 +47,7 @@ import com.vmturbo.cost.component.topology.cloud.listener.RIBuyRunner;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
+import com.vmturbo.topology.event.library.uptime.EntityUptimeStore;
 
 /**
  * Setup listener for topologies from Topology Processor. Does not directly configured
@@ -117,6 +118,9 @@ public class TopologyListenerConfig {
 
     @Autowired
     private CostNotificationConfig costNotificationConfig;
+
+    @Autowired
+    private EntityUptimeStore entityUptimeStore;
 
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
@@ -234,7 +238,8 @@ public class TopologyListenerConfig {
                 reservedInstanceSpecConfig.reservedInstanceSpecStore(),
                 reservedInstanceConfig.entityReservedInstanceMappingStore(),
                 identityProviderConfig.identityProvider(),
-                discountApplicatorFactory(), topologyEntityInfoExtractor());
+                discountApplicatorFactory(), topologyEntityInfoExtractor(),
+                entityUptimeStore);
     }
 
     @Bean

@@ -121,4 +121,15 @@ public class InMemoryEntityUptimeStore implements EntityUptimeStore {
     public Optional<EntityUptime> getDefaultUptime() {
         return Optional.ofNullable(defaultUptime);
     }
+
+    @Nonnull
+    @Override
+    public Map<Long, EntityUptime> getAllEntityUptime() {
+        uptimeDataLock.readLock().lock();
+        try {
+            return ImmutableMap.copyOf(entityUptimeMap);
+        } finally {
+            uptimeDataLock.readLock().unlock();
+        }
+    }
 }

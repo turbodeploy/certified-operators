@@ -1,8 +1,12 @@
 package com.vmturbo.cost.component.topology;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -11,7 +15,7 @@ import javax.annotation.Nonnull;
 import com.vmturbo.cloud.common.identity.IdentityProvider;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
-import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.cost.calculation.DiscountApplicator.DiscountApplicatorFactory;
@@ -26,7 +30,9 @@ import com.vmturbo.cost.component.reserved.instance.EntityReservedInstanceMappin
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecStore;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
-import com.vmturbo.repository.api.RepositoryClient;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.topology.event.library.uptime.EntityUptime;
+import com.vmturbo.topology.event.library.uptime.EntityUptimeStore;
 
 /**
  * A {@link CloudCostDataProvider} that gets the data locally from within the cost component.
@@ -47,6 +53,8 @@ public class LocalCostDataProvider implements CloudCostDataProvider {
 
     private final EntityReservedInstanceMappingStore entityRiMappingStore;
 
+    private final EntityUptimeStore entityUptimeStore;
+
     public LocalCostDataProvider(@Nonnull final PriceTableStore priceTableStore,
                  @Nonnull final DiscountStore discountStore,
                  @Nonnull final ReservedInstanceBoughtStore riBoughtStore,
@@ -55,7 +63,8 @@ public class LocalCostDataProvider implements CloudCostDataProvider {
                  @Nonnull final EntityReservedInstanceMappingStore entityRiMappingStore,
                                  IdentityProvider identityProvider,
                                  @Nonnull DiscountApplicatorFactory discountApplicatorFactory,
-                                 @Nonnull TopologyEntityInfoExtractor topologyEntityInfoExtractor) {
+                                 @Nonnull TopologyEntityInfoExtractor topologyEntityInfoExtractor,
+                                 @Nonnull EntityUptimeStore entityUptimeStore) {
         this.priceTableStore = Objects.requireNonNull(priceTableStore);
         this.discountStore = Objects.requireNonNull(discountStore);
         this.riBoughtStore = Objects.requireNonNull(riBoughtStore);
@@ -65,6 +74,7 @@ public class LocalCostDataProvider implements CloudCostDataProvider {
         this.localCostPricingResolver = new LocalCostPricingResolver(priceTableStore,
                 businessAccountPriceTableKeyStore, identityProvider, discountStore,
                 discountApplicatorFactory, topologyEntityInfoExtractor);
+        this.entityUptimeStore = entityUptimeStore;
     }
 
     @Nonnull
@@ -79,8 +89,22 @@ public class LocalCostDataProvider implements CloudCostDataProvider {
                 .collect(Collectors.toMap(ReservedInstanceBought::getId, Function.identity()));
         final Map<Long, ReservedInstanceSpec> riSpecById = riSpecStore.getAllReservedInstanceSpec().stream()
                 .collect(Collectors.toMap(ReservedInstanceSpec::getId, Function.identity()));
+        final Map<Long, Double> entityUptimePercentageByOid = new HashMap<>();
+        Map<Long, EntityUptime> entityUptimeByOid = entityUptimeStore.getAllEntityUptime();
+        if (TopologyDTO.TopologyType.PLAN == topoInfo.getTopologyType()) {
+            final Set<Long> vmOidsSet = cloudTopo.getAllEntitiesOfType(EntityType.VIRTUAL_MACHINE_VALUE).stream()
+                    .map(TopologyEntityDTO::getOid).collect(Collectors.toSet());
+            entityUptimeByOid = entityUptimeByOid.entrySet().stream()
+                    .filter(entry -> vmOidsSet.contains(entry.getKey()))
+                    .collect(Collectors.toMap(Entry::getKey, Entry::getValue));
+        }
+        entityUptimeByOid.entrySet().forEach(entry ->
+                        entityUptimePercentageByOid.put(entry.getKey(), entry.getValue().uptimePercentage()));
+        Optional<EntityUptime> defaultUptime = entityUptimeStore.getDefaultUptime();
+        final Optional<Double> defaultUptimePercentage = defaultUptime.map(EntityUptime::uptimePercentage);
         return new CloudCostData<>(entityRiMappingStore.getEntityRiCoverage(), entityRiMappingStore.getEntityRiCoverage(),
-                riBoughtById, riSpecById, Collections.emptyMap(), accountPricingIdByBusinessAccountOid);
+                riBoughtById, riSpecById, Collections.emptyMap(),
+                accountPricingIdByBusinessAccountOid, entityUptimePercentageByOid, defaultUptimePercentage);
     }
 }
 
