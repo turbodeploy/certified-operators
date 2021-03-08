@@ -155,16 +155,16 @@ dns_not_strick_group="#docker_dns_servers_strict: false"
 sed -i "s/${dns_strict}/${dns_not_strick}/g" ${kubesprayPath}/roles/container-engine/docker/defaults/main.yml
 sed -i "s/${dns_strict}/${dns_not_strick_group}/g" ${inventoryPath}/group_vars/all/all.yml
 
-# Check if the /tmp/releases directory exists, and kubeadm/calicoctl/hyperkube are available for the offline install
+# Check if the /tmp/releases directory exists, and kubeadm/calicoctl are available for the offline install
 if [[ -d "/tmp/releases" ]]
 then
     # Check if the /tmp/releases/kubeadm file exists
     if [[ ! -f "/tmp/releases/kubeadm" ]]; then
-      sudo cp /usr/local/bin/{kubeadm,calicoctl,hyperkube} /tmp/releases/.
+      sudo cp /usr/local/bin/{kubeadm,calicoctl} /tmp/releases/.
     fi
 else
     sudo mkdir /tmp/releases
-    sudo cp /usr/local/bin/{kubeadm,calicoctl,hyperkube} /tmp/releases/.
+    sudo cp /usr/local/bin/{kubeadm,calicoctl} /tmp/releases/.
 fi
 
 # Run ansible kubespray install
