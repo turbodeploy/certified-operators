@@ -15,6 +15,15 @@ echo
 echo "Enter the mysql password:"
 dbPassword=$(systemd-ask-password password:)
 
+# Check to ensure the password is correct
+mysql -uroot -p${dbPassword} -e"quit" > /dev/null 2>&1
+result=$?
+if [ $result -ne 0 ]
+then
+  echo "You have entered an invalid database password"
+  exit 1
+fi
+
 # Upgrade Mariadb - Requires the Turbonomic system to be stopped
 # Scale down the operator
 echo "Scale down the Operator"
