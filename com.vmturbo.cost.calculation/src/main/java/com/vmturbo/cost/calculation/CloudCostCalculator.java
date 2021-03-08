@@ -6,6 +6,7 @@ import static com.vmturbo.trax.Trax.trax;
 import static com.vmturbo.trax.Trax.traxConstant;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -18,6 +19,8 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
 import org.apache.logging.log4j.LogManager;
@@ -25,6 +28,7 @@ import org.apache.logging.log4j.Logger;
 import org.springframework.util.CollectionUtils;
 
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
+import com.vmturbo.common.protobuf.cost.Cost.CostSource;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Pricing.DbTierOnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
@@ -253,7 +257,6 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                     logger.error("Received invalid entity " + entity.toString());
                     break;
             }
-
             final CostJournal<ENTITY_CLASS> builtJournal = journal.build();
             if (traxContext.on()) {
                 logger.debug("Cost calculation stack for {} \"{}\" {}:\n{}",
@@ -539,20 +542,28 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                     reservedInstanceApplicator.recordRICoverage(computeTier, price, recordLicenseCost);
                     recordVMIpCost(entity, computeTier, onDemandPriceTable.get(), journal);
                 }
+                // Add entity uptime discounts to all categories
+                Double entityUptimePercentage = cloudCostData.getEntityUptimePercentage(entityId);
+                TraxNumber entityUptimeDiscountValue = trax((entityUptimePercentage),
+                            "EntityUptimeDiscountMultiplier");
+                entityUptimeDiscountValue = entityUptimeDiscountValue.times(-1).compute()
+                            .plus(100F).compute()
+                            .dividedBy(100f).compute();
+                journal.addUptimeDiscountToAllCategories( entityUptimeDiscountValue);
+
             });
         });
     }
 
     /**
      * Calculate vm price and add it to the journal, taking into consideration the licence, OS, and RI.
-     *
-     * @param journal                  Used to add the costs to.
+     *  @param journal                  Used to add the costs to.
      * @param computeTier              Compute Tier that we are calculating.
-     * @param unitsBought              Amount of units bought.
      * @param computeConfig            Compute configuration of a the computeTier.
+     * @param unitsBought              Amount of units bought.
      * @param licensePrice             The license price tuple.
      */
-    private void recordOnDemandVMLicenseCost(CostJournal.Builder<ENTITY_CLASS> journal, ENTITY_CLASS computeTier,
+    private void recordOnDemandVMLicenseCost(Builder<ENTITY_CLASS> journal, ENTITY_CLASS computeTier,
                                              ComputeConfig computeConfig, TraxNumber unitsBought,
                                              LicensePriceTuple licensePrice) {
         // The units bought for both implicit and explicit license prices will be 1.
@@ -577,6 +588,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                     Price.newBuilder().setPriceAmount(CurrencyAmount.newBuilder()
                             .setAmount(0).build()).build(), trax(0, "bring-your-own-license price"));
         }
+
     }
 
     private void recordOnDemandVmCost(CostJournal.Builder<ENTITY_CLASS> journal, TraxNumber unitsBought,
@@ -584,6 +596,8 @@ public class CloudCostCalculator<ENTITY_CLASS> {
         journal.recordOnDemandCost(CostCategory.ON_DEMAND_COMPUTE, computeTier,
             basePrice.getPricesList().get(0), unitsBought);
     }
+
+
 
     /**
      * Compute IP price and add it to the compute cost journal.
