@@ -13,6 +13,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -99,6 +100,9 @@ public class CloudCostCalculator<ENTITY_CLASS> {
     private final DependentCostLookup<ENTITY_CLASS> dependentCostLookup;
 
     private final Map<Long, EntityReservedInstanceCoverage> topologyRICoverage;
+
+    private static final Predicate<Price> IS_STORAGE_PRICE = price -> price.getUnit().equals(Unit.GB_MONTH);
+
 
     private CloudCostCalculator(@Nonnull final CloudCostData<ENTITY_CLASS> cloudCostData,
                @Nonnull final CloudTopology<ENTITY_CLASS> cloudTopology,
@@ -804,7 +808,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
             //add storage price
             journal.recordOnDemandCost(CostCategory.STORAGE,
                     databaseTier,
-                    calculateDBStorageCost(storagePrices,
+                    calculateRDBStorageCost(storagePrices,
                             entity),
                     FULL);
         }
@@ -826,35 +830,42 @@ public class CloudCostCalculator<ENTITY_CLASS> {
         for (DatabaseServerTierConfigPrice serverConfigPrice : dbsPriceList.getConfigPricesList()) {
             final DatabaseTierConfigPrice configPrice =
                     serverConfigPrice.getDatabaseTierConfigPrice();
-
             if (databaseConfig.matchesPriceTableConfig(configPrice)) {
-
                 journal.recordOnDemandCost(CostCategory.ON_DEMAND_COMPUTE, dbsTier,
                         configPrice.getPricesList().get(0), FULL);
-                break;
-                //TODO: PaaS Team - implement storage cost calculation
+                //add storage price
+                List<Price> storagePrices = serverConfigPrice.getDependentPricesList()
+                        .stream().filter(IS_STORAGE_PRICE).collect(Collectors.toList());
+                journal.recordOnDemandCost(CostCategory.STORAGE,
+                        dbsTier,
+                        calculateRDBStorageCost(storagePrices,
+                                entity),
+                        FULL);
+                //TODO: PaaS Team - implement IOPS cost calculation.
             }
         }
     }
 
     /**
-     * Helper Method to calculate dependent storage for DB cost in a cumulative fashion.
+     * Helper Method to calculate dependent storage for DB or DBS cost in a cumulative fashion.
      *
      * @param dependentPricesList List of {@link Price} for various storage amounts.
      * @param entity          current DB entity.
      * @return {@link Price} final price for storage.
      */
     @Nonnull
-    private Price calculateDBStorageCost(@Nonnull final List<Price> dependentPricesList,
-                                         @Nonnull final ENTITY_CLASS entity) {
+    private Price calculateRDBStorageCost(@Nonnull final List<Price> dependentPricesList,
+                                          @Nonnull final ENTITY_CLASS entity) {
+        final String entityTypeName = EntityType.forNumber(entityInfoExtractor.getEntityType(entity)).name();
         final float storageAmount;
         final float storageAmountInMB;
-        final Optional<Float> dbStorageCapacity = entityInfoExtractor.getDBStorageCapacity(entity);
+        final Optional<Float> dbStorageCapacity = entityInfoExtractor.getRDBStorageCapacity(entity);
         final Price defaultPrice = Price.getDefaultInstance();
         if (!dbStorageCapacity.isPresent()) {
+            logger.warn("No {} storage capacity found for {}.", entityTypeName, entityInfoExtractor.getName(entity));
             return defaultPrice;
         } else if (dependentPricesList.isEmpty()) {
-            logger.warn("No storage prices found for {}.", entityInfoExtractor.getName(entity));
+            logger.warn("No storage prices found for {} of type {}.", entityInfoExtractor.getName(entity), entityTypeName);
             return defaultPrice;
         } else {
             storageAmountInMB = dbStorageCapacity.get();
@@ -866,7 +877,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
          */
         storageAmount = storageUnit.equals(Unit.GB_MONTH) ?
                 storageAmountInMB / (float)(GBYTE / MBYTE) : storageAmountInMB;
-        TraxNumber totalCost = trax(0.0d, "DB Storage cost");
+        TraxNumber totalCost = trax(0.0d, String.format("%s Storage cost", entityTypeName));
         float currentSize = 0f;
         final ArrayList<Price> sortedDependentPrices = new ArrayList<>(dependentPricesList);
         sortedDependentPrices.sort(Comparator.comparingLong(Price::getEndRangeInUnits));
@@ -897,8 +908,8 @@ public class CloudCostCalculator<ENTITY_CLASS> {
             }
         }
         if (currentSize < storageAmount) {
-            logger.error("The storage tier was unable to satisfy DB: {} storage requirement."
-                    + "This will lead to incorrect cost calculation.", entityInfoExtractor.getName(entity));
+            logger.error("The storage tier was unable to satisfy {}: {} storage requirement."
+                    + "This will lead to incorrect cost calculation.", entityTypeName, entityInfoExtractor.getName(entity));
         }
         // final calculated storage price.
         return Price.newBuilder().setPriceAmount(CurrencyAmount
