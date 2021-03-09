@@ -57,6 +57,7 @@ import org.springframework.web.context.support.AnnotationConfigWebApplicationCon
 import org.springframework.web.servlet.DispatcherServlet;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 
+import com.vmturbo.api.enums.DeploymentMode;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.api.ServerStartedNotifier;
 import com.vmturbo.components.api.SetOnce;
@@ -92,6 +93,8 @@ import com.vmturbo.proactivesupport.DataMetricGauge;
 @Import({BaseVmtComponentConfig.class, ComponentStatusNotifierConfig.class})
 public abstract class BaseVmtComponent implements IVmtComponent,
         ApplicationListener<ContextRefreshedEvent> {
+
+    private static final String PRODUCT = "Turbonomic Operations Manager";
 
     /**
      * The environment key for the "type" (or category) for the current component.
@@ -159,6 +162,12 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     @Value("${" + BaseVmtComponent.PROP_INSTANCE_ID + '}')
     private String instanceId;
 
+    /**
+     * Deployment configuration used to expose areas of the application front or backend.
+     */
+    @Value("${deploymentMode:SERVER}")
+    private DeploymentMode deploymentMode;
+
     private static SetOnce<String> instanceIp = new SetOnce<>();
 
     /**
@@ -167,7 +176,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     private static final DataMetricGauge VERSION_GAUGE = DataMetricGauge.builder()
             .withName(StringConstants.METRICS_TURBO_PREFIX + "version_info")
             .withHelp("Version and build of the component")
-            .withLabelNames("version", "build")
+            .withLabelNames("version", "build", "product_name", "deployment_mode")
             .build()
             .register();
 
@@ -413,7 +422,8 @@ public abstract class BaseVmtComponent implements IVmtComponent,
             }
         });
         BuildProperties buildProperties = BuildProperties.get();
-        VERSION_GAUGE.labels(buildProperties.getVersion(), buildProperties.getBuildNumber()).setData(1.0);
+        VERSION_GAUGE.labels(buildProperties.getVersion(), buildProperties.getBuildNumber(),
+            PRODUCT, deploymentMode.toString()).setData(1.0);
         svc.shutdown();
     }
 
