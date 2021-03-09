@@ -1,7 +1,6 @@
 package com.vmturbo.market.cloudscaling.sma.analysis;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Deque;
@@ -35,85 +34,17 @@ public class StableMarriagePerContext {
     private static final Logger logger = LogManager.getLogger();
 
     /**
-     * Run the StableMarriage algorithm until it converges.
-     * So we might have to run the algorithm multiple times for it to converge.
-     * @param inputContext the input of SMA partitioned on a per context basis.
-     * @return the matching in the inputContext.
-     */
-    public static SMAOutputContext execute(final SMAInputContext inputContext) {
-        // Set the scaleUp boolean for virtual machines. This has to be done before we start
-        // iterations because the current template will be updated after that and it will
-        // mess up this calculation.
-
-        for (SMAVirtualMachine vm : inputContext.getVirtualMachines()) {
-            vm.setScaleUp(vm.getProviders() != null
-                    && !vm.getProviders().stream()
-                    .anyMatch(a -> a.getOid() == vm.getCurrentTemplate().getOid()));
-        }
-        long mismatch = 1;
-        int iterations = 0;
-        SMAInputContext modifiableInputContext = new SMAInputContext(inputContext);
-        SMAOutputContext outputContext = null;
-        while (mismatch > 0 && iterations < SMAUtils.MAX_ITERATIONS) {
-            outputContext = executeOnce(modifiableInputContext);
-            mismatch = computeMismatch(outputContext, modifiableInputContext);
-            modifiableInputContext = new SMAInputContext(modifiableInputContext, outputContext);
-            iterations++;
-        }
-        updateOutputWithActualVirtualMachines(outputContext, inputContext);
-        return outputContext;
-    }
-
-    /**
-     * Update the vm's in the outPutContext with the actual vms.
-     * @param outputContext the output context to be modified
-     * @param inputContext the unmodified inout context
-     */
-    public static void updateOutputWithActualVirtualMachines(SMAOutputContext outputContext,
-                                                             SMAInputContext inputContext) {
-        Collections.sort(inputContext.getVirtualMachines(), new SortVmByOID());
-        Collections.sort(outputContext.getMatches(), new SortMatchesByVMOID());
-        for (int i = 0; i < outputContext.getMatches().size(); i++) {
-            outputContext.getMatches().get(i)
-                    .setVirtualMachine(inputContext.getVirtualMachines().get(i));
-        }
-    }
-
-    /**
-     * Calculate the number of mismatch between the outputContext and inputContext. mismatch occurs if
-     * template or RI coverage change.
-     * @param outputContext the output context
-     * @param inputContext the input context
-     * @return the number of VMs whose template or RI coverage changed during the SMA.
-     */
-    public static long computeMismatch(SMAOutputContext outputContext, SMAInputContext inputContext) {
-        long mismatch = 0;
-        for (SMAMatch match : outputContext.getMatches()) {
-            SMAVirtualMachine vm = match.getVirtualMachine();
-            SMATemplate currentTemplate = vm.getCurrentTemplate();
-            SMATemplate matchTemplate = match.getTemplate();
-            if (currentTemplate.getOid() != matchTemplate.getOid()
-                    || (Math.abs(vm.getCurrentRICoverage()
-                    - match.getDiscountedCoupons()) > SMAUtils.EPSILON)) {
-                mismatch++;
-            }
-        }
-        return mismatch;
-    }
-
-    /**
-     * Given a inputContext, run SMA.
+     * Run the StableMarriage algorithm.
      *
      * @param inputContext the input of SMA partitioned on a per context basis.
-     * @return the generated SMAOutputContext .
+     * @param virtualMachineGroupMap map from group name to virtualMachine Group
+     *
+     * @return the matching in the inputContext.
      */
-    public static SMAOutputContext executeOnce(SMAInputContext inputContext) {
+    public static SMAOutputContext execute(final SMAInputContext inputContext,
+                                           Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap) {
         final List<SMAVirtualMachine> virtualMachines = inputContext.getVirtualMachines();
-        /*
-         * Map from the group name to the virtual machine groups (auto scaling group)
-         */
-        Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap =
-                createVirtualMachineGroupMap(virtualMachines);
+
         /*
          *  List of templates; that is, providers
          */
@@ -127,27 +58,9 @@ public class StableMarriagePerContext {
          */
         final List<SMAReservedInstance> reservedInstances = (inputContext.getReservedInstances() == null ?
             Collections.EMPTY_LIST : new ArrayList<>(inputContext.getReservedInstances()));
-        /*
-         * If instance size flexible (ISF), move all RIs in a
-         * family to the smallest instance type in that family.
-         * For ISF and non-ISF: update count and coverage appropriately.
-         * Two RIs can be combined if their RI template, and zone match.
-         * We already scale the isf to the cheapest template. so we can safely compare template.
-         */
-        normalizeReservedInstances(reservedInstances, familyNameToTemplates);
-        /*
-         * Sort RIs based on OID. This is to create consistency.
-         */
-        Collections.sort(reservedInstances, new SortByRIOID());
+
+
         final SMAContext context = inputContext.getContext();
-        /*
-         * Update RI Coverage for groups.
-         */
-        for (SMAReservedInstance reservedInstance : reservedInstances) {
-            for (SMAVirtualMachineGroup group : virtualMachineGroupMap.values()) {
-                reservedInstance.updateRICoveragePerGroup(group);
-            }
-        }
         /*
          * Queue that keeps track of all the RI's that are not engaged.
          */
@@ -181,7 +94,7 @@ public class StableMarriagePerContext {
         /*
          * This is the main function in SMA. This is where RIs get matched to VMs.
          */
-        runIterations(freeRIs, remainingCoupons,
+        runSMA(freeRIs, remainingCoupons,
                 currentEngagements, virtualMachineGroupMap,
                 inputContext.getSmaConfig().isReduceDependency());
 
@@ -203,6 +116,7 @@ public class StableMarriagePerContext {
 
         // generate the SMAOutputContext
         SMAOutputContext outputContext = new SMAOutputContext(context, matches);
+        Collections.sort(outputContext.getMatches(), new SortMatchesByVMOID());
         return outputContext;
     }
 
@@ -213,75 +127,6 @@ public class StableMarriagePerContext {
         @Override
         public int compare(SMAMatch match1, SMAMatch match2) {
             return (match1.getVirtualMachine().getOid() - match2.getVirtualMachine().getOid() > 0) ? 1 : -1;
-        }
-    }
-
-    /**
-     * Given two VirtualMachines, compare by virtual machine oid.
-     */
-    public static class SortVmByOID implements Comparator<SMAVirtualMachine> {
-        @Override
-        public int compare(SMAVirtualMachine vm1, SMAVirtualMachine vm2) {
-            return (vm1.getOid() - vm2.getOid() > 0) ? 1 : -1;
-        }
-    }
-
-    /**
-     * ISF RIs are first scaled down to the template in the family with the fewest coupons.
-     * We combine RI's that are same (businessAccount, normalizedTemplate zone).
-     * We pick a representative that will go to SMA for all.
-     * The other RIs are captured in the representative's members field.
-     * Market component will take care of redistributing the coupons.
-     *
-     * @param reservedInstances the reserved instances to normalize. This is used to store output too.
-     * @param familyNameToTemplates map from family name to the templates
-     */
-    public static void normalizeReservedInstances(List<SMAReservedInstance> reservedInstances,
-                                                  Map<String, List<SMATemplate>> familyNameToTemplates) {
-        Map<String, SMATemplate> familyNameToSmallestTemplate = new HashMap<>();
-        for (Map.Entry<String, List<SMATemplate>> entry : familyNameToTemplates.entrySet()) {
-            String familyName = entry.getKey();
-            List<SMATemplate> templatesInFamily = entry.getValue();
-            SMATemplate smallestTemplateInFamily = templatesInFamily.get(0);
-            for (SMATemplate template : templatesInFamily) {
-                if (smallestTemplateInFamily.getCoupons() > template.getCoupons() + SMAUtils.BIG_EPSILON) {
-                    smallestTemplateInFamily = template;
-                }
-            }
-            familyNameToSmallestTemplate.put(familyName, smallestTemplateInFamily);
-
-        }
-        for (SMAReservedInstance reservedInstance : reservedInstances) {
-            reservedInstance.normalizeTemplate(familyNameToSmallestTemplate
-                    .get(reservedInstance.getTemplate().getFamily()));
-        }
-
-        Map<Long, List<SMAReservedInstance>> distinctRIs = new HashMap<>();
-        for (SMAReservedInstance ri : reservedInstances) {
-            Long riKeyOid = ri.getRiKeyOid();
-            List<SMAReservedInstance> instances = distinctRIs.get(riKeyOid);
-            if (instances == null) {
-                distinctRIs.put(riKeyOid, new ArrayList<>(Arrays.asList(ri)));
-
-            } else {
-                instances.add(ri);
-            }
-        }
-        reservedInstances.clear();
-        for (List<SMAReservedInstance> members : distinctRIs.values()) {
-            if (members == null || members.size() < 1) {
-                // this is an error. Can be handled as an error if required.
-                continue;
-            }
-            Collections.sort(members, new SortByRIOID());
-            SMAReservedInstance representative = members.get(0);
-            float representativeTotalCount = 0;
-            for (SMAReservedInstance ri : members) {
-                representativeTotalCount = representativeTotalCount + ri.getNormalizedCount();
-                ri.setNormalizedCount(0);
-            }
-            representative.setNormalizedCount(representativeTotalCount);
-            reservedInstances.add(representative);
         }
     }
 
@@ -350,7 +195,6 @@ public class StableMarriagePerContext {
      * @param remainingCoupons       remaining coupons for each RI
      * @param virtualMachineGroupMap map from group name to virtualMachine Group
      * @param familyNameToTemplates  map from family name to list of SMATemplates
-     * @param statistics the statistics of the SMA
      * @param reduceDependency if true will reduce relinquishing
      */
     public static void
@@ -424,61 +268,7 @@ public class StableMarriagePerContext {
         virtualMachineList.stream().forEach(vm -> ri.addVMToDiscountableVMs(vm, false));
     }
 
-    /**
-     * create the virtualMachineGroup for the list of virtual machines and map it to the group oid.
-     *
-     * @param virtualMachines the list of virtual machines.
-     * @return map from group oid to the newly created virtualMachineGroups
-     */
-    public static Map<String, SMAVirtualMachineGroup> createVirtualMachineGroupMap(
-            List<SMAVirtualMachine> virtualMachines) {
-        Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap = new HashMap<>();
-        // collect all the vms for each ASG to create a smaVirtualMachineGroup
-        Map<String, List<SMAVirtualMachine>> groupNameToVirtualMachineList = new HashMap<>();
-        for (SMAVirtualMachine vm : virtualMachines) {
-            if (!vm.getGroupName().equals(SMAUtils.NO_GROUP_ID)) {
-                if (!groupNameToVirtualMachineList.containsKey(vm.getGroupName())) {
-                    List<SMAVirtualMachine> smaVirtualMachineListForGroup = new ArrayList<>();
-                    groupNameToVirtualMachineList.put(vm.getGroupName(), smaVirtualMachineListForGroup);
-                }
-                groupNameToVirtualMachineList.get(vm.getGroupName()).add(vm);
-            }
-        }
-        for (Map.Entry<String, List<SMAVirtualMachine>> entry : groupNameToVirtualMachineList.entrySet()) {
-            String groupName = entry.getKey();
-            List<SMATemplate> groupProviderList = findProviderIntersection(entry.getValue());
-            if (!groupProviderList.isEmpty()) {
-                SMAVirtualMachineGroup smaVirtualMachineGroup = new SMAVirtualMachineGroup(groupName,
-                        entry.getValue(), groupProviderList);
-                virtualMachineGroupMap.put(groupName, smaVirtualMachineGroup);
-            }
-        }
-        return virtualMachineGroupMap;
-    }
 
-    /**
-     * Find intersection of providers of all vms in the group.
-     * @param virtualMachines list of member virtual machines.
-     *
-     * @return the intersection of providers of all vms in the group.
-     */
-    public static List<SMATemplate>  findProviderIntersection(List<SMAVirtualMachine> virtualMachines) {
-        if (virtualMachines.isEmpty()) {
-            return new ArrayList<>();
-        }
-        List<SMATemplate> groupProviderList = virtualMachines.get(0).getGroupProviders();
-        for (SMAVirtualMachine virtualMachine : virtualMachines) {
-            if (virtualMachine != virtualMachines.get(0)) {
-                Set<SMATemplate> memberGroupProviders = new HashSet<>(virtualMachine
-                        .getGroupProviders());
-                // update the groupLeader provider with the intersection of all member providers.
-                groupProviderList = groupProviderList.stream()
-                        .filter(memberGroupProviders::contains)
-                        .collect(Collectors.toList());
-            }
-        }
-        return groupProviderList;
-    }
 
 
     /**
@@ -676,11 +466,11 @@ public class StableMarriagePerContext {
      * @param reduceDependency  if true will reduce relinquishing
      */
 
-    public static void runIterations(Deque<SMAReservedInstance> freeRIs,
-                                     Map<SMAReservedInstance, Float> remainingCoupons,
-                                     Map<SMAVirtualMachine, SMAMatch> currentEngagements,
-                                     Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap,
-                                     boolean reduceDependency) {
+    public static void runSMA(Deque<SMAReservedInstance> freeRIs,
+                              Map<SMAReservedInstance, Float> remainingCoupons,
+                              Map<SMAVirtualMachine, SMAMatch> currentEngagements,
+                              Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap,
+                              boolean reduceDependency) {
         while (!freeRIs.isEmpty()) {
             SMAReservedInstance currentRI = freeRIs.poll();
             float currentRICoupons = (currentRI == null) ? 0f : remainingCoupons.get(currentRI);

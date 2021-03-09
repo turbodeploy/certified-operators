@@ -79,7 +79,8 @@ public class JsonToSMAInputTranslator {
             smaInputContext.setSmaConfig(new SMAConfig());
         }
         smaInputContext.decompress();
-        return smaInputContext;
+        // this will initialize fields which are not set in json.
+        return (new SMAInputContext(smaInputContext));
     }
 
 }
