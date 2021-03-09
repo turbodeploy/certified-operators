@@ -33,7 +33,7 @@ import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeTierCostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CostTuple;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CostTuple.DependentCostTuple;
-import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CostTuple.DependentCostTuple.DependentResourceOption;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.DatabaseServerTierCostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.DatabaseTierCostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.RangeTuple;
@@ -411,6 +411,54 @@ public class CostFunctionFactoryTest {
     }
 
     /**
+     * Tests generating a quote for a DB Server with NO dependent options.
+     */
+    @Test
+    public void testDbServerWithoutDependentOptionsQuoteGeneration() {
+
+        final double cost = 100.0;
+
+        CostTuple costTuple = CostTuple.newBuilder()
+                .setBusinessAccountId(DB_BUSINESS_ACCOUNT_ID)
+                .setRegionId(DB_REGION_ID)
+                .setLicenseCommodityType(TestUtils.WINDOWS_COMM_TYPE)
+                .setPrice(cost)
+                .setBusinessAccountId(DB_BUSINESS_ACCOUNT_ID)
+                .build();
+        DatabaseServerTierCostDTO serverTierCostDTO = DatabaseServerTierCostDTO.newBuilder()
+                .addCostTupleList(costTuple)
+                .setCouponBaseType(couponBaseType)
+                .setLicenseCommodityBaseType(licenseAccessCommBaseType)
+                .build();
+
+        final CostFunction storageCostFunction = CostFunctionFactory.createCostFunction(
+                CostDTO.newBuilder().setDatabaseServerTierCost(serverTierCostDTO).build());
+
+        CommoditySpecification dbLicense = new CommoditySpecification(TestUtils.WINDOWS_COMM_TYPE,
+                licenseAccessCommBaseType);
+
+        List<CommoditySpecification> commList = Arrays.asList(TestUtils.VCPU, TestUtils.VMEM,
+                dbLicense);
+
+        Trader vm = TestUtils.createVM(economy);
+
+        Trader tier = TestUtils.createTrader(economy, TestUtils.DBS_TYPE, Arrays.asList(0L),
+                commList, new double[]{10000, 10000, 1}, false, false);
+        ShoppingList sl = TestUtils.createAndPlaceShoppingList(economy, commList, vm,
+                new double[]{20, 118, 1}, new double[]{80, 300, 1}, tier);
+
+        BalanceAccount balanceAccount = Mockito.mock(BalanceAccount.class);
+        Context context = Mockito.mock(Context.class);
+        when(context.getRegionId()).thenReturn(DB_REGION_ID);
+        when(context.getBalanceAccount()).thenReturn(balanceAccount);
+        when(balanceAccount.getPriceId()).thenReturn(DB_BUSINESS_ACCOUNT_ID);
+        sl.getBuyer().getSettings().setContext(context);
+
+        MutableQuote quote = storageCostFunction.calculateCost(sl, tier, true, economy);
+        Assert.assertEquals(cost, quote.quoteValues[0], DELTA);
+    }
+
+    /**
      * Test case for cost calculation with range dependency.
      */
     @Test
@@ -539,28 +587,28 @@ public class CostFunctionFactoryTest {
     private DatabaseTierCostDTO createDBCostDTO() {
         DependentCostTuple dependentCostTuple = DependentCostTuple.newBuilder()
                 .setDependentResourceType(DB_STORAGE_AMOUNT_TYPE)
-                .addDependentResourceOptions(DependentResourceOption.newBuilder()
-                        .setIncrement(250)
+                .addDependentResourceOptions(DependentCostTuple.DependentResourceOption.newBuilder()
+                        .setAbsoluteIncrement(250)
                         .setEndRange(250)
                         .setPrice(0.0)
                         .build())
-                .addDependentResourceOptions(DependentResourceOption.newBuilder()
-                        .setIncrement(50)
+                .addDependentResourceOptions(DependentCostTuple.DependentResourceOption.newBuilder()
+                        .setAbsoluteIncrement(50)
                         .setEndRange(300)
                         .setPrice(0.2)
                         .build())
-                .addDependentResourceOptions(DependentResourceOption.newBuilder()
-                        .setIncrement(100)
+                .addDependentResourceOptions(DependentCostTuple.DependentResourceOption.newBuilder()
+                        .setAbsoluteIncrement(100)
                         .setEndRange(500)
                         .setPrice(0.2)
                         .build())
-                .addDependentResourceOptions(DependentResourceOption.newBuilder()
-                        .setIncrement(250)
+                .addDependentResourceOptions(DependentCostTuple.DependentResourceOption.newBuilder()
+                        .setAbsoluteIncrement(250)
                         .setEndRange(750)
                         .setPrice(0.2)
                         .build())
-                .addDependentResourceOptions(DependentResourceOption.newBuilder()
-                        .setIncrement(274)
+                .addDependentResourceOptions(DependentCostTuple.DependentResourceOption.newBuilder()
+                        .setAbsoluteIncrement(274)
                         .setEndRange(1024)
                         .setPrice(0.2)
                         .build())
@@ -571,8 +619,8 @@ public class CostFunctionFactoryTest {
     private DatabaseTierCostDTO createDBCostDTOWithBasicFamily() {
         DependentCostTuple dependentCostTuple = DependentCostTuple.newBuilder()
                 .setDependentResourceType(DB_STORAGE_AMOUNT_TYPE)
-                .addDependentResourceOptions(DependentResourceOption.newBuilder()
-                        .setIncrement(2)
+                .addDependentResourceOptions(DependentCostTuple.DependentResourceOption.newBuilder()
+                        .setAbsoluteIncrement(2)
                         .setEndRange(2)
                         .setPrice(1.0)
                         .build())
@@ -585,8 +633,7 @@ public class CostFunctionFactoryTest {
                 .setBusinessAccountId(DB_BUSINESS_ACCOUNT_ID)
                 .setRegionId(DB_REGION_ID)
                 .setLicenseCommodityType(licenseAccessCommBaseType)
-                .setPrice(DB_S3_DTU_PRICE)
-                .addDependentCostTuples(dependentCostTuple)
+                .setPrice(DB_S3_DTU_PRICE).addDependentCostTuples(dependentCostTuple)
                 .setBusinessAccountId(DB_BUSINESS_ACCOUNT_ID)
                 .build();
         return DatabaseTierCostDTO.newBuilder()

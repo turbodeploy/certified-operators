@@ -378,6 +378,8 @@ public final class ProtobufToAnalysis {
             // DB is not a shop together provider so no need to populate context
             case DATABASE_TIER_COST:
                 return new ArrayList<>();
+            case DATABASE_SERVER_TIER_COST:
+                return new ArrayList<>();
             case CBTP_RESOURCE_BUNDLE:
                 return populateAllContextCbtp(costDTO.getCbtpResourceBundle());
             default:
