@@ -25,7 +25,8 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.LicenseModel;
 public class GenericDbPriceBundle<T extends GenericPrice> {
 
     private static final Map<DatabaseEngine, String> DB_ENGINE_MAP =
-            ImmutableMap.<DatabaseEngine, String>builder().put(DatabaseEngine.AURORA, "Aurora")
+            ImmutableMap.<DatabaseEngine, String>builder().put(DatabaseEngine.AURORAMYSQL, "AuroraMySQL")
+                    .put(DatabaseEngine.AURORAPOSTGRESQL, "AuroraPostgreSQL")
                     .put(DatabaseEngine.MARIADB, "MariaDb")
                     .put(DatabaseEngine.MYSQL, "MySql")
                     .put(DatabaseEngine.ORACLE, "Oracle")
