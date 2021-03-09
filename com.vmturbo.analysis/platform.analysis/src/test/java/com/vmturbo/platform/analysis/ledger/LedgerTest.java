@@ -622,6 +622,9 @@ public class LedgerTest {
         buyer.getSettings().setMinDesiredUtil(0.6);
         buyer.getSettings().setMaxDesiredUtil(0.7);
 
+        final double buyerDesiredUtil = (buyer.getSettings().getMaxDesiredUtil()
+            + buyer.getSettings().getMinDesiredUtil()) / 2;
+
         seller.getSettings().setMinDesiredUtil(0.6);
         seller.getSettings().setMaxDesiredUtil(0.7);
 
@@ -644,11 +647,9 @@ public class LedgerTest {
         double revenues = pf.unitPrice(cs.getHistoricalOrElseCurrentUtilization(), null, buyer, cs,
                         economy) * cs.getHistoricalOrElseCurrentUtilization();
         double expense =
-                  (( pf.unitPrice(buyer.getSettings().getMaxDesiredUtil(), null, buyer, cs, economy)
-                  + pf.unitPrice(buyer.getSettings().getMinDesiredUtil(), null, buyer, cs, economy))
-                  / 2)
-                  * 0.65;
-
+                  pf.unitPrice(buyerDesiredUtil, null, buyer, cs, economy)
+                  * buyerDesiredUtil * (buyer.getCommoditiesSold().get(0).getCapacity()
+                      / seller.getCommoditiesSold().get(0).getCapacity());
 
         assertEquals(revenues, incomeStatements.getRevenues(), 0.001);
         assertEquals(expense, incomeStatements.getExpenses(), 0.001);

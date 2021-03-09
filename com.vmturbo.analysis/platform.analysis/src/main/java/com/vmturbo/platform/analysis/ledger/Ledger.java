@@ -262,8 +262,8 @@ public class Ledger {
                                                                          , null , seller, cs, economy);
                     tempCurrMinMaxRev[2] = tempCurrMinMaxRev[2] + pf.unitPrice(sellerMaxDesUtil
                                                                           , null , seller, cs, economy);
-                    tempCurrMinMaxRev[3] = tempCurrMinMaxRev[3] + pf.unitPrice((sellerMaxDesUtil +
-                                    sellerMinDesUtil) / 2, null , seller, cs, economy);
+                    tempCurrMinMaxRev[3] = tempCurrMinMaxRev[3] + pf.unitPrice((sellerMaxDesUtil
+                        + sellerMinDesUtil) / 2, null , seller, cs, economy);
                 }
             }
         });
@@ -342,7 +342,7 @@ public class Ledger {
      */
     private void calculateExpensesForSeller(Economy economy, Trader seller) {
         IncomeStatement sellerIncomeStmt = getTraderIncomeStatements().get(seller.getEconomyIndex());
-        double[] quote = {0,0,0};
+        double[] quote = {0, 0, 0, 0};
         // calculate expenses using the quote from every supplier that this trader buys from
         for (ShoppingList sl : economy.getMarketsAsBuyer(seller).keySet()) {
             // skip markets in which the trader in question is unplaced and
@@ -351,13 +351,13 @@ public class Ledger {
                 try {
                     double[] tempQuote = EdeCommon.quote(economy, sl, sl.getSupplier()
                                             , Double.POSITIVE_INFINITY, true).getQuoteValues();
-                    for (int i=0; i<3; i++) {
+                    for (int i=0; i<4; i++) {
                         quote[i] = quote[i] + tempQuote[i];
                     }
                 } catch (IndexOutOfBoundsException e) {
                     // TODO (shravan): move try catch inside edeCommon
                     // setting expense to INFINITY
-                    for (int i=0; i<3; i++) {
+                    for (int i=0; i<4; i++) {
                         quote[i] = Double.POSITIVE_INFINITY;
                     }
                     logWrongProvider(sl);
@@ -371,7 +371,8 @@ public class Ledger {
         if (quote[0] != 0) {
             sellerIncomeStmt.setExpenses(quote[0])
                             .setMinDesiredExpenses(quote[1])
-                            .setMaxDesiredExpenses(quote[2]);
+                            .setMaxDesiredExpenses(quote[2])
+                            .setDesiredExpenses(quote[3]);
         }
     }
 
@@ -383,7 +384,7 @@ public class Ledger {
      */
     private void calculateExpensesForBuyer(Economy economy, ShoppingList shoppingList) {
         IncomeStatement buyerIncomeStmt = getTraderIncomeStatements().get(shoppingList.getBuyer().getEconomyIndex());
-        double[] quote = {0,0,0};
+        double[] quote = {0,0,0,0};
         // skip markets in which the trader in question is unplaced and
         // not consider expense for this trader in those markets
         if (shoppingList.getSupplier() != null) {
@@ -396,7 +397,7 @@ public class Ledger {
             } catch (IndexOutOfBoundsException e) {
                 // TODO (shravan): move try catch inside edeCommon
                 // setting expense to INFINITY
-                for (int i=0; i<3; i++) {
+                for (int i=0; i<4; i++) {
                     quote[i] = Double.POSITIVE_INFINITY;
                 }
                 logWrongProvider(shoppingList);
@@ -407,7 +408,8 @@ public class Ledger {
         if (quote[0] != 0) {
             buyerIncomeStmt.setExpenses(buyerIncomeStmt.getExpenses() + quote[0])
                             .setMinDesiredExpenses(buyerIncomeStmt.getMinDesiredExpenses() + quote[1])
-                            .setMaxDesiredExpenses(buyerIncomeStmt.getMaxDesiredExpenses() + quote[2]);
+                            .setMaxDesiredExpenses(buyerIncomeStmt.getMaxDesiredExpenses() + quote[2])
+                            .setDesiredExpenses(buyerIncomeStmt.getDesiredExpenses() + quote[3]);
         }
     }
 
@@ -561,9 +563,7 @@ public class Ledger {
                                 // Otherwise, the expense are calculated based on current quantity
                                 // of the shopping list.
                                 double historicalExpenses = cs.isHistoricalQuantitySet()
-                                                                ? ((incomeStatementExpenses[1]
-                                                                                + incomeStatementExpenses[2])
-                                                                                / 2)
+                                                                ? incomeStatementExpenses[3]
                                                                 : incomeStatementExpenses[0];
 
                                 commSoldIS.setExpenses(relevantShoppingListProcessed
@@ -575,6 +575,9 @@ public class Ledger {
                                 commSoldIS.setMinDesiredExpenses(relevantShoppingListProcessed
                                     ? (commSoldIS.getMinDesiredExpenses() + incomeStatementExpenses[2])
                                         : incomeStatementExpenses[2]);
+                                commSoldIS.setDesiredExpenses(relevantShoppingListProcessed
+                                    ? (commSoldIS.getDesiredExpenses() + incomeStatementExpenses[3])
+                                        : incomeStatementExpenses[3]);
                                 relevantShoppingListProcessed = true;
                             }
                         } else if (!commBoughtExists) {
@@ -591,6 +594,7 @@ public class Ledger {
                             commSoldIS.setExpenses(1.0);
                             commSoldIS.setMaxDesiredExpenses(1.0);
                             commSoldIS.setMinDesiredExpenses(1.0);
+                            commSoldIS.setDesiredExpenses(1.0);
                             if (logger.isTraceEnabled() || isDebugTrader) {
                                 logger.info("No raw material found for the trader "
                                         + buyerDebugInfo + " and shopping list " + shoppingList.getDebugInfoNeverUseInCode()
@@ -618,15 +622,17 @@ public class Ledger {
                         commSoldIS.setExpenses(relevantShoppingListProcessed ? commSoldIS.getExpenses() : 1.0);
                         commSoldIS.setMaxDesiredExpenses(relevantShoppingListProcessed ? commSoldIS.getMaxDesiredExpenses() : 1.0);
                         commSoldIS.setMinDesiredExpenses(relevantShoppingListProcessed ? commSoldIS.getMinDesiredExpenses() : 1.0);
+                        commSoldIS.setDesiredExpenses(relevantShoppingListProcessed ? commSoldIS.getDesiredExpenses() : 1.0);
                     } else {
                         // Use desired utilization if we are using historical quantity for populating
                         // income statement otherwise calculate the utilization based on shopping list
                         // quantity
                         // the boughtUtil is still a constant when the resizing commodity is using percentile
                         double commBoughtUtil = cs.isHistoricalQuantitySet()
-                                        ? (minDesUtil + maxDesUtil) / 2
-                                        : shoppingList.getQuantity(boughtIndex)
-                                                        / commSoldBySeller.getEffectiveCapacity();
+                            ? ((minDesUtil + maxDesUtil) / 2)
+                                * (cs.getEffectiveCapacity() / commSoldBySeller.getEffectiveCapacity())
+                            : shoppingList.getQuantity(boughtIndex)
+                                            / commSoldBySeller.getEffectiveCapacity();
                         if (commBoughtUtil != 0) {
                             double[] incomeStatementExpenses = calculateIncomeStatementExpenses(commSoldBySeller,
                                     shoppingList, supplier, economy, commBoughtUtil, maxDesUtil, minDesUtil);
@@ -634,7 +640,7 @@ public class Ledger {
                             // quantity for resizing otherwise use current expenses
                             double historicalExpenses = cs.isHistoricalQuantitySet()
                                             ? (commSoldBySeller.isHistoricalQuantitySet() ? incomeStatementExpenses[0]
-                                                : ((incomeStatementExpenses[1] + incomeStatementExpenses[2]) / 2))
+                                                : incomeStatementExpenses[3])
                                             : incomeStatementExpenses[0];
                             commSoldIS.setExpenses(relevantShoppingListProcessed
                                 ? (commSoldIS.getExpenses() + historicalExpenses)
@@ -645,6 +651,9 @@ public class Ledger {
                             commSoldIS.setMinDesiredExpenses(relevantShoppingListProcessed
                                 ? (commSoldIS.getMinDesiredExpenses() + incomeStatementExpenses[2])
                                     : incomeStatementExpenses[2]);
+                            commSoldIS.setDesiredExpenses(relevantShoppingListProcessed
+                                ? (commSoldIS.getDesiredExpenses() + incomeStatementExpenses[3])
+                                    : incomeStatementExpenses[3]);
                             // Set relevantShoppingList as it contains a valid bought index in current shopping list.
                             relevantShoppingListProcessed = true;
 
@@ -689,7 +698,9 @@ public class Ledger {
                 commSold, economy) * commUtil;
             double minDesiredExpenses = commPriceFunction.unitPrice(minDesUtil, shoppingList, supplier,
                 commSold, economy) * commUtil;
-            double[] allExpenses = {expenses, maxDesiredExpenses, minDesiredExpenses};
+            double desiredExpenses = commPriceFunction.unitPrice((minDesUtil + maxDesUtil) / 2, shoppingList, supplier,
+                    commSold, economy) * commUtil;
+            double[] allExpenses = {expenses, maxDesiredExpenses, minDesiredExpenses, desiredExpenses};
             return allExpenses;
     }
 

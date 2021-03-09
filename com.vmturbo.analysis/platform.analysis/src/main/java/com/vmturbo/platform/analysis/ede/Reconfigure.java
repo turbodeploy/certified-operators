@@ -237,9 +237,7 @@ public class Reconfigure {
                     .collect(Collectors.toList())
                     .containsAll(commTypesToAdd)
                     // If the ROI is less than the Desired ROI.
-                && ((incomeStatement.getROI()
-                        < ((incomeStatement.getMinDesiredROI() + incomeStatement.getMaxDesiredROI())
-                            / 2))
+                && (incomeStatement.getROI() < incomeStatement.getDesiredROI()
                     // If the ROI is 0 because the trader has no consumers on it, then we should still
                     // consider it as a candidate to add Reconfigurable commodities to.
                     || incomeStatement.getROI() == 0)) {

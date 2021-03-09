@@ -61,6 +61,7 @@ public class QuoteFunctionFactory {
                 if (forTraderIncomeStmt) {
                     quote.addCostToMinQuote(tempQuote[1]);
                     quote.addCostToMaxQuote(tempQuote[2]);
+                    quote.addCostToDesiredQuote(tempQuote[3]);
                 }
             }
             if ((logger.isTraceEnabled() || seller.isDebugEnabled())

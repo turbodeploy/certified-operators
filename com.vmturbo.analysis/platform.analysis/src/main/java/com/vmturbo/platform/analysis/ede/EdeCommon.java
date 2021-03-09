@@ -64,11 +64,11 @@ public final class EdeCommon {
         final double[] peakQuantities = shoppingList.getPeakQuantities();
         double boughtQnty = quantities[boughtIndex];
         if (boughtQnty == 0) {
-            return new double[] {0, 0, 0};
+            return new double[] {0, 0, 0, 0};
         }
 
         double[] costCurrentMinMax = {Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY,
-                        Double.POSITIVE_INFINITY};
+                        Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY};
         boolean isCurrentSupplier = seller == shoppingList.getSupplier();
         final CommoditySold commSold = seller.getCommoditiesSold().get(soldIndex);
         final UpdatingFunction addition = UpdatingFunctionFactory.ADD_COMM;
@@ -144,8 +144,11 @@ public final class EdeCommon {
                                                 , commSold, economy)*(boughtQnty / effectiveCapacity);
             costCurrentMinMax[2] = pf.unitPrice(seller.getSettings().getMaxDesiredUtil(), shoppingList, seller
                                                 , commSold, economy)*(boughtQnty / effectiveCapacity);
+            costCurrentMinMax[3] = pf.unitPrice((seller.getSettings().getMinDesiredUtil()
+                + seller.getSettings().getMaxDesiredUtil()) / 2, shoppingList, seller,
+                    commSold, economy) * (boughtQnty / effectiveCapacity);
         } else {
-            costCurrentMinMax[1] = costCurrentMinMax[2] = 0;
+            costCurrentMinMax[1] = costCurrentMinMax[2] = costCurrentMinMax[3] = 0;
         }
         return costCurrentMinMax;
 

@@ -24,6 +24,7 @@ public class IncomeStatement {
     private double minDesiredRevenues_;
     private double maxDesiredRevenues_;
     private double desiredRevenues_;
+    private double desiredExpenses_;
 
     // Constructors
 
@@ -39,6 +40,7 @@ public class IncomeStatement {
         minDesiredRevenues_ = 0;
         maxDesiredRevenues_ = 0;
         desiredRevenues_ = 0;
+        desiredExpenses_ = 0;
     }
 
 
@@ -283,6 +285,22 @@ public class IncomeStatement {
     }
 
     /**
+     * @return the desired expenses.
+     */
+    public double getDesiredExpenses() {
+        return desiredExpenses_;
+    }
+
+    /**
+     * @param desiredExpenses - the desired expenses.
+     * @return the IS
+     */
+    protected @NonNull IncomeStatement setDesiredExpenses(final double desiredExpenses) {
+        this.desiredExpenses_ = desiredExpenses;
+        return this;
+    }
+
+    /**
      * Returns the "Return On Investment" of a Trader or a Commodity sold, using the corresponding
      * revenues and expenses of the Trader or Commodity.
      *
@@ -294,6 +312,17 @@ public class IncomeStatement {
             return revenues_;
         } else {
             return revenues_ / expenses_;
+        }
+    }
+
+    /**
+     * Returns the desired ROI.
+     */
+    public double getDesiredROI() {
+        if (desiredExpenses_ == 0) {
+            return desiredRevenues_;
+        } else {
+            return desiredRevenues_ / desiredExpenses_;
         }
     }
 
@@ -336,6 +365,7 @@ public class IncomeStatement {
         minDesiredRevenues_ = 0;
         maxDesiredRevenues_ = 0;
         desiredRevenues_ = 0;
+        desiredExpenses_ = 0;
 
         return this;
     }

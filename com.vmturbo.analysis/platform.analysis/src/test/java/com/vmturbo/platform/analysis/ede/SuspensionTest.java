@@ -709,12 +709,15 @@ public class SuspensionTest {
                 .setProviderMustClone(true)
                 .setSuspendable(true)
                 .setMaxDesiredUtil(0.75)
-                .setMaxDesiredUtil(0.65)
+                .setMinDesiredUtil(0.65)
                 .setMaxReplicas(2);
         // Container1
         Trader container1 = TestUtils.createTrader(e, TestUtils.CONTAINER_TYPE, Collections.singletonList(0L),
                 Collections.singletonList(TestUtils.VCPU),
                 new double[]{575}, true, false);
+        container1.getSettings()
+            .setMinDesiredUtil(0.65)
+            .setMaxDesiredUtil(0.75);
         container1.setDebugInfoNeverUseInCode("container1");
         // Move App1 on Container1
         Basket basketVCPU = new Basket(TestUtils.VCPU);
@@ -729,12 +732,15 @@ public class SuspensionTest {
                 .setProviderMustClone(true)
                 .setSuspendable(true)
                 .setMaxDesiredUtil(0.75)
-                .setMaxDesiredUtil(0.65)
+                .setMinDesiredUtil(0.65)
                 .setMaxReplicas(2);
         // Container2
         Trader container2 = TestUtils.createTrader(e, TestUtils.CONTAINER_TYPE, Collections.singletonList(0L),
                 Collections.singletonList(TestUtils.VCPU),
                 new double[]{575}, true, false);
+        container2.getSettings()
+            .setMinDesiredUtil(0.65)
+            .setMaxDesiredUtil(0.75);
         container2.setDebugInfoNeverUseInCode("container2");
         // Move App2 on Container2
         ShoppingList slApp2Container2 = e.addBasketBought(app2, basketVCPU);

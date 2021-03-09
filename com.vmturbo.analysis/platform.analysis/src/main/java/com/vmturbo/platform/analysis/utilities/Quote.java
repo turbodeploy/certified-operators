@@ -76,7 +76,7 @@ public abstract class Quote {
      *
      * The value of a quote is commonly used, but the min and max are used less frequently.
      */
-    protected double[] quoteValues = new double[3];
+    protected double[] quoteValues = new double[4];
 
     protected boolean isQuoteComplete = true;
     /**
@@ -108,12 +108,15 @@ public abstract class Quote {
      * @param quoteValue The value for the quote.
      * @param minQuoteValue The min value for the quote.
      * @param maxQuoteValue The max value for the quote.
+     * @param desiredQuoteValue The desired value for the quote.
      */
     protected Quote(@Nullable final Trader seller, final double quoteValue,
-                 final double minQuoteValue, final double maxQuoteValue) {
+                 final double minQuoteValue, final double maxQuoteValue,
+                 final double desiredQuoteValue) {
         quoteValues[0] = quoteValue;
         quoteValues[1] = minQuoteValue;
         quoteValues[2] = maxQuoteValue;
+        quoteValues[3] = desiredQuoteValue;
         this.seller = seller;
     }
 
@@ -160,6 +163,15 @@ public abstract class Quote {
      */
     public double getQuoteMax() {
         return quoteValues[2];
+    }
+
+    /**
+     * Get the desired value for this {@link Quote}.
+     *
+     * @return the desired value for this {@link Quote}.
+     */
+    public double getQuoteDesired() {
+        return quoteValues[3];
     }
 
     /**
@@ -272,7 +284,7 @@ public abstract class Quote {
          * @param quoteValue The value for this quote.
          */
         protected MutableQuote(@Nullable final Trader seller, final double quoteValue) {
-            super(seller, quoteValue, 0, 0);
+            super(seller, quoteValue, 0, 0, 0);
         }
 
         /**
@@ -282,10 +294,12 @@ public abstract class Quote {
          * @param quoteValue The value for this quote.
          * @param minQuoteValue The min for this quote.
          * @param maxQuoteValue The max for this quote.
+         * @param maxQuoteValue The desired value for this quote.
          */
         protected MutableQuote(@Nullable final Trader seller, final double quoteValue,
-                              final double minQuoteValue, final double maxQuoteValue) {
-            super(seller, quoteValue, minQuoteValue, maxQuoteValue);
+                              final double minQuoteValue, final double maxQuoteValue,
+                              final double desiredQuoteValue) {
+            super(seller, quoteValue, minQuoteValue, maxQuoteValue, desiredQuoteValue);
         }
 
         /**
@@ -303,26 +317,30 @@ public abstract class Quote {
          * @param quoteValue The new value for this quote.
          * @param minQuoteValue The new min for this quote.
          * @param maxQuoteValue The new max for this quote.
+         * @param desiredQuoteValue The new max for this quote.
          */
         public void setQuoteValues(final double quoteValue, final double minQuoteValue,
-                                   final double maxQuoteValue) {
+                                   final double maxQuoteValue, final double desiredQuoteValue) {
             quoteValues[0] = quoteValue;
             quoteValues[1] = minQuoteValue;
             quoteValues[2] = maxQuoteValue;
+            quoteValues[3] = desiredQuoteValue;
         }
 
         /**
          * Set the values for this quote.
          *
-         * @param quoteValues The new values for this quote. Should be an array of 3 values.
+         * @param quoteValues The new values for this quote. Should be an array of 4 values.
          *                    At index 0, the value.
          *                    At index 1, the min,
          *                    At index 2, the max.
+         *                    At index 3, the desired value.
          */
         public void setQuoteValues(final double[] quoteValues) {
             this.quoteValues[0] = quoteValues[0];
             this.quoteValues[1] = quoteValues[1];
             this.quoteValues[2] = quoteValues[2];
+            this.quoteValues[3] = quoteValues[3];
         }
 
         /**
@@ -345,6 +363,17 @@ public abstract class Quote {
         public double addCostToMaxQuote(final double additiveCost) {
             quoteValues[2] += additiveCost;
             return quoteValues[2];
+        }
+
+        /**
+         * Add a cost to the desired value of the quote.
+         *
+         * @param additiveCost The cost to add.
+         * @return The new desired value of the quote after adding the additiveCost.
+         */
+        public double addCostToDesiredQuote(final double additiveCost) {
+            quoteValues[3] += additiveCost;
+            return quoteValues[3];
         }
     }
 
@@ -440,7 +469,8 @@ public abstract class Quote {
     public static class InitialInfiniteQuote extends Quote {
 
         public InitialInfiniteQuote() {
-            super(null, Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY);
+            super(null, Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY,
+                Double.POSITIVE_INFINITY);
         }
 
         @Override
@@ -484,7 +514,7 @@ public abstract class Quote {
          * @param quoteValue The value of the quote.
          */
         protected CommodityQuote(@Nullable final Trader seller, final double quoteValue) {
-            super(seller, quoteValue, 0, 0);
+            super(seller, quoteValue, 0, 0, 0);
         }
 
         /**
@@ -494,10 +524,12 @@ public abstract class Quote {
          * @param quoteValue The value of the quote.
          * @param minQuoteValue The min of the quote.
          * @param maxQuoteValue The max of the quote.
+         * @param desiredQuoteValue The max of the quote.
          */
         public CommodityQuote(@Nullable final Trader seller, final double quoteValue,
-                            final double minQuoteValue, final double maxQuoteValue) {
-            super(seller, quoteValue, minQuoteValue, maxQuoteValue);
+                            final double minQuoteValue, final double maxQuoteValue,
+                            final double desiredQuoteValue) {
+            super(seller, quoteValue, minQuoteValue, maxQuoteValue, desiredQuoteValue);
         }
 
         /**
@@ -977,7 +1009,7 @@ public abstract class Quote {
          */
         public CostUnavailableQuote(final Trader seller, final Long regionId,
                                     final Long baId, final Long priceId) {
-            super(seller, Double.POSITIVE_INFINITY, 0, 0);
+            super(seller, Double.POSITIVE_INFINITY, 0, 0, 0);
             this.regionId = regionId;
             this.baId = baId;
             this.priceId = priceId;
