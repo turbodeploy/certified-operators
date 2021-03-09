@@ -97,6 +97,11 @@ public class SettingsService implements ISettingsService {
      */
     public static final String MARKETSETTINGS_MANAGER = "marketsettingsmanager";
 
+    /**
+     * The name of the manager for health check settings.
+     */
+    public static final String HEALTHCHECK_MANAGER = "healthcheckmanager";
+
     public SettingsService(@Nonnull final SettingServiceBlockingStub settingServiceBlockingStub,
                     @Nonnull final StatsHistoryServiceBlockingStub statsServiceClient,
                     @Nonnull final SettingsMapper settingsMapper,

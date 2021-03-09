@@ -314,7 +314,15 @@ public enum GlobalSettingSpecs {
 
     TelemetryTermsAccepted("telemetryTermsAccepted", "Determine whether user has accepted the use of Telemetry",
             new BooleanSettingDataType(false),
-            Collections.emptyList());
+            Collections.emptyList()),
+
+    /**
+     * Targets Health Check settings: failed discovery count to notify user.
+     */
+    FailedDiscoveryCount("failedDiscoveryCount", "Number of successive failed discoveries after which we report the target as unhealthy",
+                           numeric(1, 100, 3),
+                           Collections.emptyList());
+
     /**
      * A list of global settings that are visible to the UI.
      */
