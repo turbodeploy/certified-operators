@@ -1,12 +1,13 @@
 package com.vmturbo.market.runner.cost;
 
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -25,21 +26,27 @@ import com.vmturbo.common.protobuf.cost.Cost.GetDiscountRequest;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.Pricing.GetAccountPriceTableRequest;
 import com.vmturbo.common.protobuf.cost.Pricing.GetPriceTablesRequest;
+import com.vmturbo.common.protobuf.cost.Pricing.GetPriceTablesResponse;
+import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
+import com.vmturbo.common.protobuf.cost.Pricing.PriceTableChunk;
+import com.vmturbo.common.protobuf.cost.Pricing.PriceTableChunk.OnDemandLicensePriceEntrySegment;
+import com.vmturbo.common.protobuf.cost.Pricing.PriceTableChunk.OnDemandPriceTableByRegionSegment;
+import com.vmturbo.common.protobuf.cost.Pricing.PriceTableChunk.ReservedLicenseSegment;
+import com.vmturbo.common.protobuf.cost.Pricing.PriceTableChunk.SpotInstancePriceTableByRegionSegment;
 import com.vmturbo.common.protobuf.cost.Pricing.ReservedInstancePriceTable;
+import com.vmturbo.common.protobuf.cost.Pricing.SpotInstancePriceTable;
 import com.vmturbo.common.protobuf.cost.PricingServiceGrpc.PricingServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.commons.idgen.IdentityGenerator;
-import com.vmturbo.cost.calculation.DiscountApplicator;
 import com.vmturbo.cost.calculation.DiscountApplicator.DiscountApplicatorFactory;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostDataRetrievalException;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
-import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
 import com.vmturbo.cost.calculation.integration.ResolverPricing;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.cost.calculation.topology.PricingDataIdentifier;
 import com.vmturbo.cost.calculation.topology.TopologyEntityInfoExtractor;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.PricingDTO.LicensePriceEntry;
 
 /**
  * The Market pricing resolver class.
@@ -106,9 +113,7 @@ public class MarketPricingResolver extends ResolverPricing {
         logger.debug("priceTableKeyOidByBusinessAccountOid = {}", priceTableKeyOidByBusinessAccountOid);
 
         // Get a mapping of price table key oid to price table.
-        final Map<Long, PriceTable> priceTableByPriceTableKeyOid = pricingServiceClient.getPriceTables(
-                GetPriceTablesRequest.newBuilder().addAllOid(priceTableKeyOidByBusinessAccountOid.values())
-                        .build()).getPriceTablesByOidMap();
+        final Map<Long, PriceTable> priceTableByPriceTableKeyOid = getPriceTablesSegments(priceTableKeyOidByBusinessAccountOid);
 
         Map<Long, PriceTable> priceTableByBusinessAccountOid = getPriceTableByBusinessAccountOid(
                 priceTableKeyOidByBusinessAccountOid, priceTableByPriceTableKeyOid);
@@ -126,6 +131,118 @@ public class MarketPricingResolver extends ResolverPricing {
         logAccountPricingDataByBA(accountPricingDataByBusinessAccountOid);
 
         return accountPricingDataByBusinessAccountOid;
+    }
+
+
+    @Nonnull
+    private Map<Long, PriceTable> getPriceTablesSegments(@Nonnull final Map<Long, Long> priceTableKeyOidByBusinessAccountOid) {
+        final Map<Long, PriceTable.Builder> priceTableBuilderByOidMap = new HashMap<>();
+        final Map<Long, Long> priceTableSerializedSizeByOid = new HashMap<>();
+        Iterator<GetPriceTablesResponse> priceTableSegmentIter = pricingServiceClient.getPriceTables(
+                GetPriceTablesRequest.newBuilder().addAllOid(priceTableKeyOidByBusinessAccountOid.values())
+                        .build());
+        while (priceTableSegmentIter.hasNext()) {
+            final GetPriceTablesResponse response = priceTableSegmentIter.next();
+            final long serializedSize = response.getPriceTableSerializedSize();
+            final List<PriceTableChunk> priceTableChunks = response.getPriceTableChunkList();
+            for (PriceTableChunk priceTableChunk : priceTableChunks) {
+                final long priceTableOid = priceTableChunk.getPriceTableOid();
+                priceTableSerializedSizeByOid.putIfAbsent(priceTableOid, serializedSize);
+                try {
+                    switch (priceTableChunk.getPriceTableSegmentCase()) {
+                        case ONDEMAND_PRICE_TABLE_BY_REGION:
+                            captureOndemandPriceTable(priceTableBuilderByOidMap, priceTableOid,
+                                    priceTableChunk.getOndemandPriceTableByRegion());
+                            break;
+                        case SPOT_INSTANCE_PRICE_TABLE_BY_REGION:
+                            captureSpotInstancePrice(priceTableBuilderByOidMap, priceTableOid,
+                                    priceTableChunk.getSpotInstancePriceTableByRegion());
+                            break;
+                        case RESERVED_LICENSE_SEGMENT:
+                            captureReservedLicensePrice(priceTableBuilderByOidMap, priceTableOid,
+                                    priceTableChunk.getReservedLicenseSegment());
+                            break;
+                        case ONDEMAND_LICENSE_PRICE_ENTRY_SEGMENT:
+                            captureOndemandLicensePriceEntry(priceTableBuilderByOidMap, priceTableOid,
+                                    priceTableChunk.getOndemandLicensePriceEntrySegment());
+                            break;
+                        case PRICETABLESEGMENT_NOT_SET:
+                        default:
+                            logger.error("Price table segment not found for priceTable OID {}",
+                                    priceTableChunk.getPriceTableOid());
+                            break;
+                    }
+                } catch (Exception e) {
+                    logger.error("Error occurred while capturing priceTableSegment for priceTable OID {}.",
+                            priceTableChunk.getPriceTableOid(), e);
+                }
+            }
+        }
+        final Map<Long, PriceTable> resultMap = priceTableBuilderByOidMap.entrySet().stream()
+                .collect(Collectors.toMap(Entry::getKey, entry -> entry.getValue().build()));
+        final boolean transferSuccessful = priceTableSerializedSizeByOid.entrySet().stream().noneMatch((entry) -> {
+            final PriceTable priceTable = resultMap.get(entry.getKey());
+            return (priceTable == null || priceTable.getSerializedSize() != entry.getValue());
+        });
+        if (!transferSuccessful) {
+            logger.error("Price table serialized sizes did not match. This can lead to inconsistent prices");
+        }
+        return resultMap;
+    }
+
+    private void captureOndemandLicensePriceEntry(@Nonnull final Map<Long, PriceTable.Builder> result,
+                                                  final long priceTableOid,
+                                                  @Nonnull final OnDemandLicensePriceEntrySegment ondemandLicensePriceEntrySegment) {
+        final List<LicensePriceEntry> licensePriceEntries = ondemandLicensePriceEntrySegment.getLicensePriceEntryList();
+        result.compute(priceTableOid, (currentOid, currentPriceTable) -> {
+            if (currentPriceTable == null) {
+                currentPriceTable = PriceTable.newBuilder();
+            }
+            currentPriceTable.addAllOnDemandLicensePrices(licensePriceEntries);
+            return currentPriceTable;
+        });
+    }
+
+    private void captureReservedLicensePrice(@Nonnull final Map<Long, PriceTable.Builder> priceTableByRegionId,
+                                             final long priceTableOid,
+                                             @Nonnull final ReservedLicenseSegment reservedLicenseSegment) {
+        final List<LicensePriceEntry> reservedLicensePriceEntryList = reservedLicenseSegment.getReservedLicensePriceEntryList();
+        priceTableByRegionId.compute(priceTableOid, (currentOid, currentPriceTable) -> {
+            if (currentPriceTable == null) {
+                currentPriceTable = PriceTable.newBuilder();
+            }
+            currentPriceTable.addAllReservedLicensePrices(reservedLicensePriceEntryList);
+            return currentPriceTable;
+        });
+
+    }
+
+    private void captureSpotInstancePrice(@Nonnull final Map<Long, PriceTable.Builder> priceTableByRegionId,
+                                          final long priceTableOid,
+                                          @Nonnull final SpotInstancePriceTableByRegionSegment spotInstancePriceTableByRegion) {
+        final long regionId = spotInstancePriceTableByRegion.getRegionId();
+        final SpotInstancePriceTable spotInstancePriceTable = spotInstancePriceTableByRegion.getSpotInstancePriceTable();
+        priceTableByRegionId.compute(priceTableOid, (currentOid, currentPriceTable) -> {
+            if (currentPriceTable == null) {
+                currentPriceTable = PriceTable.newBuilder();
+            }
+            currentPriceTable.putSpotPriceByZoneOrRegionId(regionId, spotInstancePriceTable);
+            return currentPriceTable;
+        });
+    }
+
+    private void captureOndemandPriceTable(@Nonnull final Map<Long, PriceTable.Builder> priceTableByRegionId,
+                                           final long priceTableOid,
+                                           @Nonnull final OnDemandPriceTableByRegionSegment ondemandPriceTableByRegion) {
+        final long regionId = ondemandPriceTableByRegion.getRegionId();
+        final OnDemandPriceTable onDemandPriceTable = ondemandPriceTableByRegion.getOnDemandPriceTable();
+        priceTableByRegionId.compute(priceTableOid, (currentOid, currentPriceTable) -> {
+            if (currentPriceTable == null) {
+                currentPriceTable = PriceTable.newBuilder();
+            }
+            currentPriceTable.putOnDemandPriceByRegionId(regionId, onDemandPriceTable);
+            return currentPriceTable;
+        });
     }
 
     @Override
