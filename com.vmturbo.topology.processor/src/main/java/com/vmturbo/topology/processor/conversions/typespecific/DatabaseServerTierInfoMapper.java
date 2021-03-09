@@ -22,6 +22,7 @@ public class DatabaseServerTierInfoMapper extends TypeSpecificInfoMapper {
         return TypeSpecificInfo.newBuilder()
                 .setDatabaseServerTier(DatabaseServerTierInfo.newBuilder()
                         .setFamily(dbData.getFamily())
+                        .setStorageTier(dbData.getStorageIdentifier())
                         .build())
                 .build();
     }

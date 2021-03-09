@@ -24,8 +24,7 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.DeploymentType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.LicenseModel;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
-import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList.ComputeTierConfigPrice;
-import com.vmturbo.platform.sdk.common.PricingDTO.DatabaseTierPriceList.DatabaseTierConfigPrice;
+import com.vmturbo.platform.sdk.common.PricingDTO.DatabaseTierConfigPrice;
 
 /**
  * An interface provided by users of the cost calculation library to extract the
@@ -115,13 +114,13 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
     Optional<VirtualVolumeConfig> getVolumeConfig(@Nonnull ENTITY_CLASS entity);
 
     /**
-     * Get storage amount for DB entity.
+     * Get storage amount for DB or DBS  entity (which are referred to as RDB).
      *
      * @param entity The entity.
      * @return An Optional StorageAmount in float.
      */
     @Nonnull
-    Optional<Float> getDBStorageCapacity(@Nonnull ENTITY_CLASS entity);
+    Optional<Float> getRDBStorageCapacity(@Nonnull ENTITY_CLASS entity);
 
     /*
      * Get the compute tier configuration of a particular entity.
