@@ -33,8 +33,8 @@ public class PlanMetricsListener implements PlanStatusListener {
      */
     private static final DataMetricCounter PLAN_TYPES_COUNTER = DataMetricCounter.builder()
             .withName(StringConstants.METRICS_TURBO_PREFIX + "plans_total")
-            .withHelp("Counter for Plans that have been run.")
-            .withLabelNames("type", "status")
+            .withHelp("Number of plans run since Plan Orchestrator was started.")
+            .withLabelNames("plan_type", "status")
             .build()
             .register();
 
