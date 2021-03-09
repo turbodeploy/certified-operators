@@ -59,6 +59,60 @@ public class ResizerTest {
     }
 
     /**
+     * Testing that resize up actions will drive new capacity to desired utilization value for vm.
+     */
+    @Test
+    public void testNormalResizeUp() {
+        Economy economy = setupTopologyForResizeTest(10000, 10000, 1000, 1000, 900, 850, 900, 850,
+            0.65, 0.75, RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
+        vm.getCommoditiesSold().forEach(comm -> {
+            comm.setHistoricalQuantity(comm.getQuantity());
+        });
+
+        List<Action> actions = Resizer.resizeDecisions(economy, ledger);
+
+        //Assert that VCPU and VMEM of VM1 were resized up.
+        assertEquals(2, actions.size());
+        assertEquals(ActionType.RESIZE, actions.get(0).getType());
+        Resize resize1 = (Resize)actions.get(0);
+        assertEquals(resize1.getActionTarget(), vm);
+        assertTrue(resize1.getOldCapacity() < resize1.getNewCapacity());
+        assertEquals(1286, (int) resize1.getNewCapacity());
+        assertEquals(ActionType.RESIZE, actions.get(1).getType());
+        Resize resize2 = (Resize)actions.get(1);
+        assertEquals(resize2.getActionTarget(), vm);
+        assertTrue(resize2.getOldCapacity() < resize2.getNewCapacity());
+        assertEquals(1215, (int) resize2.getNewCapacity());
+    }
+
+    /**
+     * Testing that resize down actions will drive new capacity to desired utilization value for vm.
+     */
+    @Test
+    public void testNormalResizeDown() {
+        Economy economy = setupTopologyForResizeTest(10000, 10000, 1000, 1000, 50, 40, 50, 40,
+            0.65, 0.75, RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
+        vm.getCommoditiesSold().forEach(comm -> {
+            comm.setHistoricalQuantity(comm.getQuantity());
+        });
+
+        List<Action> actions = Resizer.resizeDecisions(economy, ledger);
+
+        //Assert that VCPU and VMEM of VM1 were resized up.
+        assertEquals(2, actions.size());
+        assertEquals(ActionType.RESIZE, actions.get(0).getType());
+        Resize resize1 = (Resize)actions.get(0);
+        assertEquals(resize1.getActionTarget(), vm);
+        assertTrue(resize1.getOldCapacity() > resize1.getNewCapacity());
+        assertEquals(72, (int) resize1.getNewCapacity());
+        assertEquals(ActionType.RESIZE, actions.get(1).getType());
+        Resize resize2 = (Resize)actions.get(1);
+        assertEquals(resize2.getActionTarget(), vm);
+        assertTrue(resize2.getOldCapacity() > resize2.getNewCapacity());
+        assertEquals(58, (int) resize2.getNewCapacity());
+    }
+
+    /**
      * In this scenario, the used value of VMem (150) sold by the VM is over capacity (100).
      * The VM is expected to resize to the used value. Resize decision depends solely on the
      * commodity sold however topology has to be setup for integration test.

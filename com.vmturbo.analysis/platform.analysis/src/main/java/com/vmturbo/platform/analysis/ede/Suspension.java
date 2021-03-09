@@ -193,10 +193,8 @@ public class Suspension {
                                 // Handle case where all commodities sold in the trader are selling
                                 // a quantity of zero. In this case, there is an optimization in the income
                                 // statement where the desired ROI is not calculated when the ROI is zero.
-                                && ((incomeStmt.getROI() == 0.0
-                                    || incomeStmt.getROI() < (incomeStmt.getMinDesiredROI() +
-                                                           incomeStmt.getMaxDesiredROI())
-                                                          / 2))) {
+                                && (incomeStmt.getROI() == 0.0
+                                    || incomeStmt.getROI() < incomeStmt.getMinDesiredROI())) {
                                 suspensionCandidateHeap_.offer(seller);
                                 if (logger.isTraceEnabled() || isDebugTrader) {
                                     logger.info("Inserting " + sellerDebugInfo

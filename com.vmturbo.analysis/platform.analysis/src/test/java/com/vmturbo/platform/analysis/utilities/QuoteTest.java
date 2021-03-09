@@ -65,7 +65,7 @@ public class QuoteTest {
 
     @Test
     public void testQuoteValues() {
-        final Quote quote = new CommodityQuote(null, 1.0, 2.0, 3.0);
+        final Quote quote = new CommodityQuote(null, 1.0, 2.0, 3.0, 2.5);
         assertEquals(1.0, quote.getQuoteValue(), 0);
         assertEquals(2.0, quote.getQuoteMin(), 0);
         assertEquals(3.0, quote.getQuoteMax(), 0);
@@ -73,6 +73,7 @@ public class QuoteTest {
         assertEquals(quote.getQuoteValue(), quote.getQuoteValues()[0], 0);
         assertEquals(quote.getQuoteMin(), quote.getQuoteValues()[1], 0);
         assertEquals(quote.getQuoteMax(), quote.getQuoteValues()[2], 0);
+        assertEquals(quote.getQuoteDesired(), quote.getQuoteValues()[3], 0);
     }
 
     @Test

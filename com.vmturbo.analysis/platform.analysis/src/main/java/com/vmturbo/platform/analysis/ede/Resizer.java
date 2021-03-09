@@ -101,6 +101,25 @@ public class Resizer {
                             boolean consistentResizing = seller.isInScalingGroup(economy);
                             boolean engage = evaluateEngageCriteria(economy, seller, commoditySold,
                                     incomeStatement);
+                            Map<CommoditySold, Trader> rawMaterialMapping = null;
+                            Set<CommoditySold> rawMaterials = null;
+                            Optional<RawMaterials> rawMaterialDescriptor = null;
+                            // Set the raw materials or continue to next commodity if missing.
+                            if ((engage && incomeStatement.getExpenses() > 0) || consistentResizing) {
+                                rawMaterialMapping =
+                                        RawMaterials.findSellerCommodityAndSupplier(economy, seller, soldIndex);
+                                rawMaterials = (rawMaterialMapping != null) ? rawMaterialMapping.keySet() : null;
+
+                                // If raw rawMaterialDescriptor can't be found and raw rawMaterialDescriptor is required, don't resize.
+                                // TODO: There may be some issue with consistent scaling. For example:
+                                // Two containers in one CSG. One has raw rawMaterialDescriptor and the other one doesn't.
+                                // Then we'll only generate one resize action instead of two.
+                                rawMaterialDescriptor = economy.getRawMaterials(resizedCommodity.getBaseType());
+                                if ((rawMaterials == null || rawMaterials.isEmpty())
+                                    && rawMaterialDescriptor.map(RawMaterials::isRawMaterialRequired).orElse(true)) {
+                                    continue;
+                                }
+                            }
                             /*
                              * All members of a scaling group are forced to generate a resize so that each
                              * trader can generate (but not take) a resize with a potential new capacity.
@@ -109,11 +128,11 @@ public class Resizer {
                              * consistent resizer will then evaluate all of these partial resizes to determine
                              * the best new capacity for the entire group.
                              */
-                            if (engage || consistentResizing) {
+                            if (engage) {
                                 double expenses = incomeStatement.getExpenses();
                                 if (consistentResizing || expenses > 0) {
                                     try {
-                                        double desiredROI = getDesiredROI(incomeStatement);
+                                        double desiredROI = incomeStatement.getDesiredROI();
                                         double newRevenue = expenses < incomeStatement.getMinDesiredExpenses()
                                                 ? incomeStatement.getDesiredRevenues()
                                                 : desiredROI * (Double.isInfinite(expenses)
@@ -122,20 +141,6 @@ public class Resizer {
                                         double currentRevenue = incomeStatement.getRevenues();
                                         double desiredCapacity =
                                                 calculateDesiredCapacity(commoditySold, newRevenue, seller, economy);
-                                        Map<CommoditySold, Trader> rawMaterialMapping =
-                                                RawMaterials.findSellerCommodityAndSupplier(economy, seller, soldIndex);
-                                        Set<CommoditySold> rawMaterials = (rawMaterialMapping != null) ? rawMaterialMapping.keySet() : null;
-
-                                        // If raw rawMaterialDescriptor can't be found and raw rawMaterialDescriptor is required, don't resize.
-                                        // TODO: There may be some issue with consistent scaling. For example:
-                                        // Two containers in one CSG. One has raw rawMaterialDescriptor and the other one doesn't.
-                                        // Then we'll only generate one resize action instead of two.
-                                        final Optional<RawMaterials> rawMaterialDescriptor =
-                                            economy.getRawMaterials(resizedCommodity.getBaseType());
-                                        if ((rawMaterials == null || rawMaterials.isEmpty())
-                                            && rawMaterialDescriptor.map(RawMaterials::isRawMaterialRequired).orElse(true)) {
-                                            continue;
-                                        }
                                         float rateOfResize = seller.getSettings().getRateOfResize();
                                         double newEffectiveCapacity = calculateEffectiveCapacity(economy, seller,
                                                 resizedCommodity, desiredCapacity, commoditySold, rawMaterials, rateOfResize);
@@ -195,6 +200,11 @@ public class Resizer {
                                                 + " because expenses are 0.");
                                     }
                                 }
+                            } else if (consistentResizing) {
+                                Resize resizeAction = new Resize(economy, seller,
+                                        resizedCommodity, commoditySold, soldIndex, commoditySold.getCapacity());
+                                consistentResizer.addResize(resizeAction,
+                                    false, rawMaterialMapping, rawMaterialDescriptor);
                             } else {
                                 if (logger.isTraceEnabled() || isDebugTrader) {
                                     logger.info("{" + sellerDebugInfo
@@ -605,17 +615,6 @@ public class Resizer {
             return 0;
         }
         return amount;
-    }
-
-    /**
-     * Returns the desired ROI for a commodity.
-     *
-     * @param incomeStatement The income statement of the commodity.
-     * @return The desired ROI.
-     */
-    private static double getDesiredROI(IncomeStatement incomeStatement) {
-        // approximate as the average of min and max desired ROIs
-        return (incomeStatement.getMinDesiredROI() + incomeStatement.getMaxDesiredROI()) / 2;
     }
 
     /**
