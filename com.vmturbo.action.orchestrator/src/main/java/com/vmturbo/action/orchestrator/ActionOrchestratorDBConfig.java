@@ -1,19 +1,15 @@
 package com.vmturbo.action.orchestrator;
 
-import java.util.Collections;
 import java.util.Optional;
 
 import javax.sql.DataSource;
 
 import org.apache.logging.log4j.util.Strings;
-import org.flywaydb.core.api.callback.FlywayCallback;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Primary;
 
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
-import com.vmturbo.sql.utils.flyway.ResetMigrationChecksumCallback;
 
 /**
  * Configuration for action-orchestrator component interaction with a schema.
@@ -50,22 +46,4 @@ public class ActionOrchestratorDBConfig extends SQLDatabaseConfig {
         return getDataSource(dbSchemaName, actionDbUsername,
                 Optional.ofNullable(!Strings.isEmpty(actionDbPassword) ? actionDbPassword : null));
     }
-
-    /**
-     * Flyway callbacks required for action-orchestrator.
-     *
-     * @return active callbacks
-     */
-    @Primary
-    @Bean
-    public FlywayCallback[] flywayCallbacks() {
-        return new FlywayCallback[]{
-                // V1.19 migration was replaced due to performance-related failures at large
-                // installations - see OM-67686
-                new ResetMigrationChecksumCallback("1.19",
-                        Collections.singleton(1998263184), -814613695)
-        };
-    }
 }
-
-
