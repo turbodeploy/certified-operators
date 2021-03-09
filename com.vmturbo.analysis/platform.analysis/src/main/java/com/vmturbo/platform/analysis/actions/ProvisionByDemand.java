@@ -228,6 +228,7 @@ public class ProvisionByDemand extends ProvisionBase implements Action {
                 provCommSold.setCapacity(modelCommSold.getCapacity());
             }
         }
+        getProvisionedSeller().setReconfigurableCommodityCount(getModelSeller().getReconfigurableCommodityCount());
 
         // Generate Capacity Resize actions on resizeThroughSupplier traders whose Provider is
         // cloning.

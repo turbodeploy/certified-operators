@@ -1,5 +1,6 @@
 package com.vmturbo.platform.analysis.ede;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import java.util.List;
@@ -100,6 +101,7 @@ public class ReconfigureIntegrationTest {
 
         economy.populateMarketsWithSellersAndMergeConsumerCoverage();
         Ledger ledger = new Ledger(economy);
+        assertEquals(pm1.getReconfigurableCommodityCount(), 0);
 
         List<Action> actions = Reconfigure.reconfigureAdditionDecisions(economy, ledger);
         Optional<Action> action = actions.stream()
@@ -112,6 +114,7 @@ public class ReconfigureIntegrationTest {
         assertTrue(pm1.getBasketSold().size() == 2);
         assertTrue(pm1.getCommoditiesSold().size() == 2);
         assertTrue(pm1.getCommoditySold(TestUtils.SOFTWARE_LICENSE_COMMODITY) != null);
+        assertEquals(pm1.getReconfigurableCommodityCount(), 1);
     }
 
     /**
@@ -143,6 +146,7 @@ public class ReconfigureIntegrationTest {
         pm1.getCommoditySold(TestUtils.CPU).setQuantity(65).setPeakQuantity(65);
         pm2.getCommoditySold(TestUtils.CPU).setQuantity(65).setPeakQuantity(65);
         pm3.getCommoditySold(TestUtils.CPU).setCapacity(100).setQuantity(65).setPeakQuantity(65);
+        assertEquals(pm3.getReconfigurableCommodityCount(), 1);
 
         economy.populateMarketsWithSellersAndMergeConsumerCoverage();
         Ledger ledger = new Ledger(economy);
@@ -160,6 +164,7 @@ public class ReconfigureIntegrationTest {
         assertTrue(pm3.getCommoditiesSold().size() == 1);
         assertTrue(pm3.getCommoditySold(TestUtils.SOFTWARE_LICENSE_COMMODITY) == null);
         assertTrue(sl3.getSupplier() == pm2);
+        assertEquals(pm3.getReconfigurableCommodityCount(), 0);
 
         // Covert the Move action after license removal.
         ActionTO actionto = AnalysisToProtobuf.actionTO(actions.get(1), topology.getShoppingListOids(), topology);

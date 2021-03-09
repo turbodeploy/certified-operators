@@ -493,9 +493,6 @@ public class MarketTest {
                 .setPeakQuantity(1000).setMaxQuantity(1000).setCapacity(2000)
                 .setSettings(standardSettingTO).build();
 
-
-
-
         TraderTO shopAloneVMTO = TraderTO.newBuilder().setOid(23456).setType(55555)
                 .setState(TraderStateTO.ACTIVE)
                 .setSettings(shoptogetherFalseTO)

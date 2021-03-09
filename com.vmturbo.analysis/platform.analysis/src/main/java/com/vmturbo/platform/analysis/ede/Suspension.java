@@ -57,9 +57,9 @@ public class Suspension {
     // and then the roi of the trader in order to prioritize suspensions of traders
     // with more reconfigurable commodities and lower roi.
     private PriorityQueue<Trader> suspensionCandidateHeap_ = new PriorityQueue<>((t1, t2) -> {
-        if (t1.getReconfigureableCount(economy_) > t2.getReconfigureableCount(economy_)) {
+        if (t1.getReconfigurableCommodityCount() > t2.getReconfigurableCommodityCount()) {
             return -1;
-        } else if (t1.getReconfigureableCount(economy_) < t2.getReconfigureableCount(economy_)) {
+        } else if (t1.getReconfigurableCommodityCount() < t2.getReconfigurableCommodityCount()) {
             return 1;
         } else {
             IncomeStatement is1 = ledger_.getTraderIncomeStatements().get(t1.getEconomyIndex());

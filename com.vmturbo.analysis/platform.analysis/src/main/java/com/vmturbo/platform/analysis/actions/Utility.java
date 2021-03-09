@@ -465,12 +465,11 @@ public final class Utility {
      * Check if the Market contains a seller that has reconfigurable commodities.
      *
      * @param m The Market.
-     * @param e The Economy.
      *
      * @return If the market contains reconfigurable seller or not.
      */
-    public static boolean marketContainsReconfigurableSeller(Market m, Economy e) {
-        return m.getActiveSellers().stream().anyMatch(trader -> trader.getReconfigureableCount(e) > 0)
-            || m.getInactiveSellers().stream().anyMatch(trader -> trader.getReconfigureableCount(e) > 0);
+    public static boolean marketContainsReconfigurableSeller(Market m) {
+        return m.getActiveSellers().stream().anyMatch(trader -> trader.getReconfigurableCommodityCount() > 0)
+            || m.getInactiveSellers().stream().anyMatch(trader -> trader.getReconfigurableCommodityCount() > 0);
     }
 } // end Utility class

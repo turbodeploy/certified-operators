@@ -1397,7 +1397,7 @@ public class BootstrapSupply {
                                                   Optional<Long> clique) {
         // Attempt to Activate traders with the least amount of reconfigurable commodities first.
         for (Trader seller : market.getInactiveSellers().stream().sorted((t1, t2) -> {
-                return Integer.compare(t1.getReconfigureableCount(economy), t2.getReconfigureableCount(economy));
+                return Integer.compare(t1.getReconfigurableCommodityCount(), t2.getReconfigurableCommodityCount());
             }).collect(Collectors.toList())) {
             // the seller clique list must contains input cliqueId.
             if ((!clique.isPresent() || seller.getCliques().contains(clique.get())) &&
@@ -1407,7 +1407,7 @@ public class BootstrapSupply {
         }
         // Attempt to Provision traders with the least amount of reconfigurable commodities first.
         for (Trader seller : candidateSellers.stream().sorted((t1, t2) -> {
-                return Integer.compare(t1.getReconfigureableCount(economy), t2.getReconfigureableCount(economy));
+                return Integer.compare(t1.getReconfigurableCommodityCount(), t2.getReconfigurableCommodityCount());
             }).collect(Collectors.toList())) {
             // pick the first candidate seller that can fit the demand through either cloning
             // or resizing through provisioning its own supplier.

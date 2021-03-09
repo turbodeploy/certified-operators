@@ -68,6 +68,7 @@ public abstract class Trader implements Serializable {
     private String scalingGroupId_ = NO_SCALING_GROUP;
     // Trader coming in to analysis in deploy market as new entity for placement.
     private boolean isPlacementEntity_ = false;
+    private int reconfigurableCommodityCount_ = 0;
 
     // Constructors
     /**
@@ -468,17 +469,6 @@ public abstract class Trader implements Serializable {
     }
 
     /**
-     * Returns the number of reconfigureable commodities on this trader.
-     * @param e The economy.
-     *
-     * @return count of reconfigureable commodities.
-     */
-    public int getReconfigureableCount(Economy e) {
-        return (int)basketSold_.stream().filter(commSpec -> e.getSettings()
-            .getReconfigureableCommodities().contains(commSpec.getBaseType())).count();
-    }
-
-    /**
      * Sets the cloneOf field. It contains economyIndex of the modelSeller
      * @param modelSeller the {@link Trader} that we clone
      */
@@ -590,5 +580,13 @@ public abstract class Trader implements Serializable {
     public void clearShoppingAndMarketData() {
         cliques_.clear();
         customers_.clear();
+    }
+
+    public int getReconfigurableCommodityCount() {
+        return reconfigurableCommodityCount_;
+    }
+
+    public void setReconfigurableCommodityCount(int reconfigurableCommodityCount) {
+        reconfigurableCommodityCount_ = reconfigurableCommodityCount;
     }
 } // end interface Trader
