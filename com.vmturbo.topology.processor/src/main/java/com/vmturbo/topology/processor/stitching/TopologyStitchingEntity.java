@@ -251,16 +251,31 @@ public class TopologyStitchingEntity implements StitchingEntity {
         return commodityBoughtListByProvider;
     }
 
+    /**
+     * Returns an optional of {@link CommoditiesBought} from the given provider {@link StitchingEntity}.
+     *
+     * @param provider the provider from which to find commodity bought
+     * @param commoditiesBought the {@link CommoditiesBought} instance used to match the
+     * CommoditiesBought on this entity
+     * @return an optional of commodities bought from the given provider. If there is no commodities
+     * bought from the given provider, return an empty Optional instance.
+     */
     @Override
     public Optional<CommoditiesBought> getMatchingCommoditiesBought(@Nonnull StitchingEntity provider,
             @Nonnull CommoditiesBought commoditiesBought) {
-        List<CommoditiesBought> commoditiesBoughtList = commodityBoughtListByProvider.get(provider);
-        if (commoditiesBoughtList == null) {
-            return Optional.empty();
-        }
-        return commoditiesBoughtList.stream()
-                .filter(cb -> cb.equals(commoditiesBought))
-                .findAny();
+        // TODO: After the volume model change in OM-62262, there will not be multiple sets of
+        //   CommoditiesBought from the same provider. As a result, the value of the
+        //   commodityBoughtListByProvider map should contain only one element.
+        //   We should create a follow up task to change:
+        //       Map<StitchingEntity, List<CommoditiesBought>> commodityBoughtListByProvider
+        //   to:
+        //       Map<StitchingEntity, CommoditiesBought> commoditiesBoughtByProvider
+        //   and then change all places referencing this variable.
+        return Optional
+                .ofNullable(commodityBoughtListByProvider.get(provider))
+                .flatMap(cbList -> cbList.stream()
+                        .filter(Objects::nonNull)
+                        .findFirst());
     }
 
     public List<CommoditySold> getTopologyCommoditiesSold() {
