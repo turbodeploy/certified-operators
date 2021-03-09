@@ -21,6 +21,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
@@ -302,12 +303,14 @@ public class RemoteMediationServerWithDiscoveryWorkersTest {
     }
 
     /**
+     * Currently Ignored due to intermittent test failures on Jenkins. See OM-67791.
      * Test that TransportDiscoveryWorker is able to process a containerClosed message even though
      * it is actively polling for discoveries off the queue.
      *
      * @throws InterruptedException if Thread.sleep is interrupted.
      * @throws ProbeException if a problem occurs with the probe
      */
+    @Ignore
     @Test
     public void testTransportClosed() throws InterruptedException, ProbeException {
         remoteMediationServer.registerTransport(containerInfo, transport1);
