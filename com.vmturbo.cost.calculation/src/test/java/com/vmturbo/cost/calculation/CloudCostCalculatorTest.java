@@ -575,7 +575,7 @@ public class CloudCostCalculatorTest {
         when(topology.getConnectedAvailabilityZone(dbId)).thenReturn(Optional.of(availabilityZone));
         when(topology.getOwner(dbId)).thenReturn(Optional.of(businessAccount));
         when(topology.getDatabaseTier(dbId)).thenReturn(Optional.of(databaseTier));
-        when(infoExtractor.getDBStorageCapacity(any())).thenReturn(Optional.of((float)STORAGE_RANGE));
+        when(infoExtractor.getRDBStorageCapacity(any())).thenReturn(Optional.of((float)STORAGE_RANGE));
         final DiscountApplicator<TestEntityClass> discountApplicator = setupDiscountApplicator(0.0);
         AccountPricingData accountPricingData = new AccountPricingData(discountApplicator, PRICE_TABLE,
             ACCOUNT_PRICING_DATA_OID, 15L, 20L);
@@ -623,7 +623,7 @@ public class CloudCostCalculatorTest {
         when(topology.getOwner(dbId)).thenReturn(Optional.of(businessAccount));
         when(topology.getDatabaseTier(dbId)).thenReturn(Optional.of(databaseTier));
         // 21 GB.
-        when(infoExtractor.getDBStorageCapacity(any()))
+        when(infoExtractor.getRDBStorageCapacity(any()))
                 .thenReturn(Optional.of((float)STORAGE_RANGE + (extraStorageInGB * Units.KBYTE)));
         final DiscountApplicator<TestEntityClass> discountApplicator = setupDiscountApplicator(0.0);
         AccountPricingData accountPricingData = new AccountPricingData(discountApplicator, PRICE_TABLE,
@@ -666,7 +666,7 @@ public class CloudCostCalculatorTest {
                 DatabaseEdition.ENTERPRISE,
                 DatabaseEngine.MYSQL, LicenseModel.LICENSE_INCLUDED, DeploymentType.SINGLE_AZ))
             .build(infoExtractor);
-
+        when(infoExtractor.getRDBStorageCapacity(any())).thenReturn(Optional.of(10f));
         when(topology.getConnectedRegion(dbId)).thenReturn(Optional.of(region));
         when(topology.getConnectedAvailabilityZone(dbId)).thenReturn(Optional.of(availabilityZone));
         when(topology.getOwner(dbId)).thenReturn(Optional.of(businessAccount));
@@ -686,8 +686,8 @@ public class CloudCostCalculatorTest {
         assertThat(journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_COMPUTE).getValue(), is(BASE_PRICE + MYSQL_ADJUSTMENT));
         assertThat(journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_LICENSE).getValue(), is(0.0));
 
-        // Once for the compute, no license cost
-        verify(discountApplicator, times(1)).getDiscountPercentage(databaseServerTier);
+        // Once for the compute, once for storage,  no license cost
+        verify(discountApplicator, times(2)).getDiscountPercentage(databaseServerTier);
     }
 
     /**

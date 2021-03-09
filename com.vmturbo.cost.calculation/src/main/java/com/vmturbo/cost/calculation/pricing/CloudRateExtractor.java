@@ -1,5 +1,7 @@
 package com.vmturbo.cost.calculation.pricing;
 
+import static com.vmturbo.platform.sdk.common.PricingDTO.Price.Unit.GB_MONTH;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -355,16 +357,22 @@ public class CloudRateExtractor {
             DiscountApplicator<TopologyEntityDTO> discountApplicator =
                     accountPricingData.getDiscountApplicator();
 
-            //TODO: PaaS team: for database server depended prices should be indexed by commodity type
-            List<DbsStorageOption> storageOptions = new ArrayList<>();
-            for (Price dependentPrice : serverConfigPrice.getDependentPricesList()) {
-                storageOptions.add(new DbsStorageOption(dependentPrice.getIncrementInterval(),
-                        dependentPrice.getEndRangeInUnits(),
-                        CostProtoUtil.getHourlyPriceAmount(dependentPrice)));
-            }
+            final List<DbsStorageOption> storageOptions = new ArrayList<>();
+            serverConfigPrice.getDependentPricesList().forEach(dependentPrice -> {
+                switch (dependentPrice.getUnit()) {
+                    case GB_MONTH:
+                        storageOptions.add(new DbsStorageOption(dependentPrice.getIncrementInterval(),
+                                dependentPrice.getEndRangeInUnits(),
+                                CostProtoUtil.getHourlyPriceAmount(dependentPrice)));
+                        break;
+                    case MILLION_IOPS:
+                    default:
+                        // not yet supported.
+                        // TODO: PaaS team: for database server IOPS prices coming soon.
+                }
+            });
 
-            Collections.sort(storageOptions,
-                    (a, b) -> Long.valueOf(a.getEndRange() - b.getEndRange()).intValue());
+            storageOptions.sort((a, b) -> Long.valueOf(a.getEndRange() - b.getEndRange()).intValue());
             // Add the base configuration price.
             priceBuilder.addPrice(accountPricingData.getAccountPricingDataOid(), dbEngine,
                     dbEdition, deploymentType, licenseModel,
@@ -488,7 +496,7 @@ public class CloudRateExtractor {
 
                 // A price is considered a "unit" price if the amount of units consumed
                 // affects the price.
-                final boolean isUnitPrice = unit == Unit.GB_MONTH
+                final boolean isUnitPrice = unit == GB_MONTH
                         || unit == Unit.MILLION_IOPS || unit == Unit.MBPS_MONTH
                         || unit == Unit.IO_REQUESTS;
 
