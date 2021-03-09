@@ -38,6 +38,7 @@ import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeTierCostDT
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CostTuple;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CostTuple.DependentCostTuple;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CostTuple.DependentCostTuple.DependentResourceOption;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.DatabaseServerTierCostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.DatabaseTierCostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceCost;
@@ -163,7 +164,7 @@ public class CostFunctionFactory {
      * @return A quote for the dependent compute commodities. An infinite quote indicates that the
      *         dependent compute commodities do not comply with the maximum capacity.
      */
-    private static MutableQuote getDependantComputeCommoditiesQuote(ShoppingList sl,
+    private static MutableQuote getDependentComputeCommoditiesQuote(ShoppingList sl,
                                                                     Trader seller,
                                                                     int comm1Type,
                                                                     int comm2Type) {
@@ -583,8 +584,36 @@ public class CostFunctionFactory {
         final Long regionId = costTuple.getRegionId();
         // Cost plus the dependent options cost
         double totalCost = costTuple.getPrice();
+        final List<CommodityContext> commodityContexts = new ArrayList<>();
+
+        final double dependentCost = costTuple.getDependentCostTuplesCount () > 0 ? getDependentCost(seller, costTuple, sl, commodityContexts) : 0;
+        if (Double.isFinite(dependentCost)) {
+            totalCost += dependentCost;
+            // NOTE: CostTable.NO_VALUE (-1) is the no license commodity type
+            return Double.isInfinite(totalCost) && licenseCommBoughtIndex != CostTable.NO_VALUE ?
+                    new LicenseUnavailableQuote(seller, sl.getBasket().get(licenseCommBoughtIndex)) :
+                    new CommodityCloudQuote(seller, totalCost * (groupFactor > 0 ? groupFactor : 1),
+                            regionId, accountId, commodityContexts);
+        } else {
+            return new CommodityCloudQuote(seller,
+                    Double.POSITIVE_INFINITY, regionId, accountId, commodityContexts);
+        }
+    }
+
+    /**
+     * Calculate the 'dependent' cost of template using dependent cost tuples.
+     *
+     * @param seller seller {@link Trader} that the buyer matched to
+     * @param costTuple main {@link CostTuple}
+     * @param sl is the {@link ShoppingList} that is requesting price
+     * @param commodityContexts Context with commodity data about the Quote
+     * @return dependent cost part
+     */
+    private static double getDependentCost(Trader seller, CostTuple costTuple, ShoppingList sl, List<CommodityContext> commodityContexts) {
+
+        double cost = 0;
+
         List<DependentCostTuple> dependentCostTuplesList = costTuple.getDependentCostTuplesList();
-        List<CommodityContext> commodityContexts = new ArrayList<>();
         if (!dependentCostTuplesList.isEmpty()) {
             for (DependentCostTuple dependentCostTuple : dependentCostTuplesList) {
                 List<DependentResourceOption> dependentResourceOptions =
@@ -605,18 +634,17 @@ public class CostFunctionFactory {
                     for (DependentResourceOption dependentResourceOption : dependentResourceOptions) {
                         prevEndRange = endRange;
                         endRange = dependentResourceOption.getEndRange();
-                        increment = dependentResourceOption.getIncrement();
+                        increment = dependentResourceOption.getAbsoluteIncrement();
                         price = dependentResourceOption.getPrice();
                         if (increment <= 0) {
                             logger.debug("Seller ID: {}, increment range for dependentResourceOption can never" +
                                     "be less than equal to 0. {}", seller.getDebugInfoNeverUseInCode(), sl.getDebugInfoNeverUseInCode());
-                            return new CommodityCloudQuote(seller,
-                                    Double.POSITIVE_INFINITY, regionId, accountId, commodityContexts);
+                            return Double.POSITIVE_INFINITY;
                         }
                         if (dependentResourceQuantity <= endRange) {
                             break;
                         } else {
-                            totalCost += (endRange - prevEndRange) * price;
+                            cost += (endRange - prevEndRange) * price;
                         }
                     }
                     /*
@@ -628,13 +656,12 @@ public class CostFunctionFactory {
                     if (dependentResourceQuantity > endRange) {
                         logger.debug("Dependent resources quantity was not met by seller {}. Returning infinite"
                                 + " cost for this template.", seller.getDebugInfoNeverUseInCode());
-                        return new CommodityCloudQuote(seller,
-                                Double.POSITIVE_INFINITY, regionId, accountId, commodityContexts);
+                        return Double.POSITIVE_INFINITY;
                     }
                     // Add the increment in the current option to satisfy the demand.
                     while (selectedAmount < dependentResourceQuantity) {
                         selectedAmount += increment;
-                        totalCost += increment * price;
+                        cost += increment * price;
                     }
                     // Update the shopping list and keep the selected value
                     commodityContexts.add(
@@ -643,11 +670,8 @@ public class CostFunctionFactory {
                 }
             }
         }
-        // NOTE: CostTable.NO_VALUE (-1) is the no license commodity type
-        return Double.isInfinite(totalCost) && licenseCommBoughtIndex != CostTable.NO_VALUE ?
-                new LicenseUnavailableQuote(seller, sl.getBasket().get(licenseCommBoughtIndex)) :
-                new CommodityCloudQuote(seller, totalCost * (groupFactor > 0 ? groupFactor : 1),
-                        regionId, accountId, commodityContexts);
+
+        return cost;
     }
 
     /**
@@ -666,6 +690,8 @@ public class CostFunctionFactory {
                 return createCostFunctionForDatabaseTier(costDTO.getDatabaseTierCost());
             case CBTP_RESOURCE_BUNDLE:
                 return createResourceBundleCostFunctionForCbtp(costDTO.getCbtpResourceBundle());
+            case DATABASE_SERVER_TIER_COST:
+                return createCostFunctionForDatabaseServerTier(costDTO.getDatabaseServerTierCost());
             default:
                 throw new IllegalArgumentException("input = " + costDTO);
         }
@@ -696,11 +722,11 @@ public class CostFunctionFactory {
 
                 for (Entry<CommoditySpecification, CommoditySpecification> dependency
                                 : dependencyMap.entrySet()) {
-                    final MutableQuote dependantComputeCommoditiesQuote =
-                            getDependantComputeCommoditiesQuote(buyer, seller, dependency.getKey().getType(),
+                    final MutableQuote dependentComputeCommoditiesQuote =
+                            getDependentComputeCommoditiesQuote(buyer, seller, dependency.getKey().getType(),
                                                                 dependency.getValue().getType());
-                    if (dependantComputeCommoditiesQuote.isInfinite()) {
-                        return dependantComputeCommoditiesQuote;
+                    if (dependentComputeCommoditiesQuote.isInfinite()) {
+                        return dependentComputeCommoditiesQuote;
                     }
                 }
 
@@ -830,19 +856,39 @@ public class CostFunctionFactory {
         CostTable costTable = new CostTable(costDTO.getCostTupleListList());
         final int licenseBaseType = costDTO.getLicenseCommodityBaseType();
 
-        CostFunction costFunction = new CostFunction() {
-            @Override
-            public MutableQuote calculateCost(ShoppingList buyer, Trader seller, boolean validate,
-                                              UnmodifiableEconomy economy) {
-                int couponCommodityBaseType = costDTO.getCouponBaseType();
-                final MutableQuote capacityQuote =
-                        insufficientCommodityWithinSellerCapacityQuote(buyer, seller, couponCommodityBaseType);
-                if (capacityQuote.isInfinite()) {
-                    return capacityQuote;
-                }
-
-                return calculateComputeAndDatabaseCostQuote(seller, buyer, costTable, licenseBaseType);
+        CostFunction costFunction = (buyer, seller, validate, economy) -> {
+            int couponCommodityBaseType = costDTO.getCouponBaseType();
+            final MutableQuote capacityQuote =
+                    insufficientCommodityWithinSellerCapacityQuote(buyer, seller, couponCommodityBaseType);
+            if (capacityQuote.isInfinite()) {
+                return capacityQuote;
             }
+
+            return calculateComputeAndDatabaseCostQuote(seller, buyer, costTable, licenseBaseType);
+        };
+        return costFunction;
+    }
+
+    /**
+     * Create {@link CostFunction} by extracting data from {@link ComputeTierCostDTO}
+     *
+     * @param costDTO the DTO carries the data used to construct cost function
+     * @return CostFunction
+     */
+    public static @NonNull CostFunction createCostFunctionForDatabaseServerTier(
+            DatabaseServerTierCostDTO costDTO) {
+        CostTable costTable = new CostTable(costDTO.getCostTupleListList());
+        final int licenseBaseType = costDTO.getLicenseCommodityBaseType();
+
+        CostFunction costFunction = (buyer, seller, validate, economy) -> {
+            int couponCommodityBaseType = costDTO.getCouponBaseType();
+            final MutableQuote capacityQuote =
+                    insufficientCommodityWithinSellerCapacityQuote(buyer, seller, couponCommodityBaseType);
+            if (capacityQuote.isInfinite()) {
+                return capacityQuote;
+            }
+
+            return calculateComputeAndDatabaseCostQuote(seller, buyer, costTable, licenseBaseType);
         };
         return costFunction;
     }
