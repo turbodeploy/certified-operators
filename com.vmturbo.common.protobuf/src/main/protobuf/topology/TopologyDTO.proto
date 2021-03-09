@@ -229,8 +229,6 @@ message TypeSpecificInfo {
     message DatabaseServerTierInfo {
         // license model of database server; e.g. BYOL or license included
         optional string family = 1;
-        // storage tier for current database server tier.
-        optional string storage_tier = 2;
     }
 
     message CloudCommitmentInfo {

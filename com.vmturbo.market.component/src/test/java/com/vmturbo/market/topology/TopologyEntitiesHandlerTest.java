@@ -43,7 +43,6 @@ import com.google.protobuf.AbstractMessage;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 
-import com.vmturbo.cost.calculation.pricing.DatabasePriceBundle;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -75,6 +74,7 @@ import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedIn
 import com.vmturbo.cost.calculation.pricing.CloudRateExtractor;
 import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.ComputePriceBundle;
 import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.ComputePriceBundle.Builder;
+import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.DatabasePriceBundle;
 import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.StoragePriceBundle;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.market.AnalysisRICoverageListener;

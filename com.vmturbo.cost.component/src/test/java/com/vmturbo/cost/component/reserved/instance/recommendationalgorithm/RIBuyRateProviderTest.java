@@ -87,10 +87,6 @@ public class RIBuyRateProviderTest {
                 new RIBuyRateProvider(priceTableStore, baPriceTableStore, primaryAccounts);
     }
 
-    /**
-     * Generate Price table for testing.
-     * @param priceTableStore mock {@link PriceTableStore}.
-     */
     private void mockOnDemandPrices(final PriceTableStore priceTableStore) {
         //mock on-demand prices
         ComputeTierPriceList computeTierPriceList = ComputeTierPriceList.newBuilder()

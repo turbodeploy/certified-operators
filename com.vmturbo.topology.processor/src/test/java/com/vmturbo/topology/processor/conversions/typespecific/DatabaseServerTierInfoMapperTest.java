@@ -20,7 +20,6 @@ public class DatabaseServerTierInfoMapperTest {
 
 
     private static final String FAMILY = "db.m1";
-    private static final String STORAGE_TIER = "io1";
 
     /**
      * Test to verify correct extraction of type info.
@@ -32,7 +31,6 @@ public class DatabaseServerTierInfoMapperTest {
         TypeSpecificInfo expected = TypeSpecificInfo.newBuilder()
                 .setDatabaseServerTier(DatabaseServerTierInfo.newBuilder()
                         .setFamily(FAMILY)
-                        .setStorageTier(STORAGE_TIER)
                         .build())
                 .build();
         final DatabaseServerTierInfoMapper testBuilder = new DatabaseServerTierInfoMapper();
@@ -47,7 +45,6 @@ public class DatabaseServerTierInfoMapperTest {
         return EntityDTO.newBuilder()
             .setDatabaseServerTierData(DatabaseServerTierData.newBuilder()
                 .setFamily(FAMILY)
-                .setStorageIdentifier(STORAGE_TIER)
                 .build());
     }
 }

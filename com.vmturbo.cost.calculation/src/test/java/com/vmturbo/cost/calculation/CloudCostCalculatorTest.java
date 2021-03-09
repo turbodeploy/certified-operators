@@ -30,7 +30,6 @@ import org.junit.Test;
 import com.vmturbo.common.protobuf.CostProtoUtil;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
-import com.vmturbo.common.protobuf.cost.Pricing.DbServerTierOnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.DbTierOnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
@@ -66,10 +65,8 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList.ComputeTierConfigPrice;
-import com.vmturbo.platform.sdk.common.PricingDTO.DatabaseServerTierPriceList;
-import com.vmturbo.platform.sdk.common.PricingDTO.DatabaseServerTierPriceList.DatabaseServerTierConfigPrice;
-import com.vmturbo.platform.sdk.common.PricingDTO.DatabaseTierConfigPrice;
 import com.vmturbo.platform.sdk.common.PricingDTO.DatabaseTierPriceList;
+import com.vmturbo.platform.sdk.common.PricingDTO.DatabaseTierPriceList.DatabaseTierConfigPrice;
 import com.vmturbo.platform.sdk.common.PricingDTO.IpPriceList;
 import com.vmturbo.platform.sdk.common.PricingDTO.IpPriceList.IpConfigPrice;
 import com.vmturbo.platform.sdk.common.PricingDTO.LicensePriceEntry;
@@ -650,7 +647,7 @@ public class CloudCostCalculatorTest {
         when(topology.getConnectedAvailabilityZone(dbId)).thenReturn(Optional.of(availabilityZone));
         when(topology.getOwner(dbId)).thenReturn(Optional.of(businessAccount));
         when(topology.getDatabaseTier(dbId)).thenReturn(Optional.of(databaseTier));
-        when(infoExtractor.getRDBStorageCapacity(any())).thenReturn(Optional.of((float)STORAGE_RANGE));
+        when(infoExtractor.getDBStorageCapacity(any())).thenReturn(Optional.of((float)STORAGE_RANGE));
         final DiscountApplicator<TestEntityClass> discountApplicator = setupDiscountApplicator(0.0);
         AccountPricingData accountPricingData = new AccountPricingData(discountApplicator, PRICE_TABLE,
             ACCOUNT_PRICING_DATA_OID, 15L, 20L);
@@ -698,7 +695,7 @@ public class CloudCostCalculatorTest {
         when(topology.getOwner(dbId)).thenReturn(Optional.of(businessAccount));
         when(topology.getDatabaseTier(dbId)).thenReturn(Optional.of(databaseTier));
         // 21 GB.
-        when(infoExtractor.getRDBStorageCapacity(any()))
+        when(infoExtractor.getDBStorageCapacity(any()))
                 .thenReturn(Optional.of((float)STORAGE_RANGE + (extraStorageInGB * Units.KBYTE)));
         final DiscountApplicator<TestEntityClass> discountApplicator = setupDiscountApplicator(0.0);
         AccountPricingData accountPricingData = new AccountPricingData(discountApplicator, PRICE_TABLE,
@@ -741,7 +738,7 @@ public class CloudCostCalculatorTest {
                 DatabaseEdition.ENTERPRISE,
                 DatabaseEngine.MYSQL, LicenseModel.LICENSE_INCLUDED, DeploymentType.SINGLE_AZ))
             .build(infoExtractor);
-        when(infoExtractor.getRDBStorageCapacity(any())).thenReturn(Optional.of(10f));
+
         when(topology.getConnectedRegion(dbId)).thenReturn(Optional.of(region));
         when(topology.getConnectedAvailabilityZone(dbId)).thenReturn(Optional.of(availabilityZone));
         when(topology.getOwner(dbId)).thenReturn(Optional.of(businessAccount));
@@ -758,10 +755,11 @@ public class CloudCostCalculatorTest {
 
         // assert
         assertThat(journal.getTotalHourlyCost().getValue(), is(BASE_PRICE + MYSQL_ADJUSTMENT));
-        assertThat(journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_COMPUTE).getValue(), is(BASE_PRICE + MYSQL_ADJUSTMENT));
-        assertThat(journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_LICENSE).getValue(), is(0.0));
+        assertThat(journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_COMPUTE).getValue(), is(BASE_PRICE));
+        assertThat(journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_LICENSE).getValue(), is(MYSQL_ADJUSTMENT));
 
-        // Once for the compute, once for storage,  no license cost
+        // Once for the compute, once for the license, because both costs are "paid to" the
+        // database server tier.
         verify(discountApplicator, times(2)).getDiscountPercentage(databaseServerTier);
     }
 
@@ -916,28 +914,6 @@ public class CloudCostCalculatorTest {
     }
 
     private static PriceTable thePriceTable() {
-
-        DatabaseServerTierPriceList dbsPriceList = DatabaseServerTierPriceList.newBuilder()
-                .addConfigPrices(DatabaseServerTierConfigPrice.newBuilder()
-                        .setDatabaseTierConfigPrice(DatabaseTierConfigPrice.newBuilder()
-                                .setDbEdition(DatabaseEdition.NONE)
-                                .setDbEngine(DatabaseEngine.MARIADB)
-                                .setDbDeploymentType(DeploymentType.SINGLE_AZ)
-                                .setDbLicenseModel(LicenseModel.NO_LICENSE_REQUIRED)
-                                .addPrices(price(Unit.HOURS, BASE_PRICE))
-                                .build())
-                        .build())
-                .addConfigPrices(DatabaseServerTierConfigPrice.newBuilder()
-                        .setDatabaseTierConfigPrice(DatabaseTierConfigPrice.newBuilder()
-                                .setDbEdition(DatabaseEdition.ENTERPRISE)
-                                .setDbEngine(DatabaseEngine.MYSQL)
-                                .setDbDeploymentType(DeploymentType.SINGLE_AZ)
-                                .setDbLicenseModel(LicenseModel.LICENSE_INCLUDED)
-                                .addPrices(price(Unit.HOURS, BASE_PRICE + MYSQL_ADJUSTMENT))
-                                .build())
-                        .build()).build();
-
-
         return PriceTable.newBuilder()
             .putOnDemandPriceByRegionId(REGION_ID, OnDemandPriceTable.newBuilder()
                 .putCloudStoragePricesByTierId(STORAGE_TIER_ID, StorageTierPriceList.newBuilder()
@@ -999,8 +975,23 @@ public class CloudCostCalculatorTest {
                                         STORAGE_PRICE))
                                 .build())
                         .build())
-                .putDbsPricesByInstanceId(DB_SERVER_TIER_ID, DbServerTierOnDemandPriceTable.newBuilder()
-                    .putDbsPricesByTierId("", dbsPriceList).build())
+                .putDbPricesByInstanceId(DB_SERVER_TIER_ID, DbTierOnDemandPriceTable.newBuilder()
+                    .putDbPricesByDeploymentType(DeploymentType.SINGLE_AZ.getNumber(),
+                        DatabaseTierPriceList.newBuilder()
+                        .setBasePrice(DatabaseTierConfigPrice.newBuilder()
+                            .setDbEdition(DatabaseEdition.NONE)
+                            .setDbEngine(DatabaseEngine.MARIADB)
+                            .setDbDeploymentType(DeploymentType.SINGLE_AZ)
+                            .setDbLicenseModel(LicenseModel.NO_LICENSE_REQUIRED)
+                            .addPrices(price(Unit.HOURS, BASE_PRICE)))
+                        .addConfigurationPriceAdjustments(DatabaseTierConfigPrice.newBuilder()
+                            .setDbEdition(DatabaseEdition.ENTERPRISE)
+                            .setDbEngine(DatabaseEngine.MYSQL)
+                            .setDbDeploymentType(DeploymentType.SINGLE_AZ)
+                            .setDbLicenseModel(LicenseModel.LICENSE_INCLUDED)
+                            .addPrices(price(Unit.HOURS, MYSQL_ADJUSTMENT)))
+                        .build())
+                    .build())
                 .putComputePricesByTierId(COMPUTE_TIER_ID, ComputeTierPriceList.newBuilder()
                     .setBasePrice(ComputeTierConfigPrice.newBuilder()
                         .setGuestOsType(OSType.LINUX)

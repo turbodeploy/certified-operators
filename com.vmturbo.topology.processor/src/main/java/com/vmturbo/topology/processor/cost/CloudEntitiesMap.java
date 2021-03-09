@@ -91,11 +91,12 @@ public class CloudEntitiesMap implements Map<String, Long> {
                     // use the UUID syntax. I don't know why we use the UUID syntax
                     // for DB profiles but not VM profiles (they seem like they should be more
                     // consistent with each other), which is something to be followed up on.
-                    String databaseTierName = CloudCostUtils.getEntityIdFromDBProfile(entity,
+                    String databaseTierName = CloudCostUtils.databaseTierLocalNameToId(entity.getDisplayName(),
                             probeTypesForTargetIds.get(entity.getTargetId()));
                     if (cloudEntityOidByLocalId.containsKey(databaseTierName)) {
-                        String databaseTierFullName = CloudCostUtils.getEntityFullNameFromDBProfile(
-                                entity, probeTypesForTargetIds.get(entity.getTargetId()));
+                        String databaseTierFullName = CloudCostUtils.databaseTierNameToFullId(
+                                entity.getDisplayName() + entity.getLocalId(),
+                                probeTypesForTargetIds.get(entity.getTargetId()));
                         extraneousIdLookUps.compute(databaseTierName, (key, currentList) -> {
                             currentList = currentList == null ? new ArrayList<>() : currentList;
                             currentList.add(databaseTierFullName);

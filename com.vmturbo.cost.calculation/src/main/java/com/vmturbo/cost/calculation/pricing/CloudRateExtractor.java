@@ -1,7 +1,5 @@
 package com.vmturbo.cost.calculation.pricing;
 
-import static com.vmturbo.platform.sdk.common.PricingDTO.Price.Unit.GB_MONTH;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -18,6 +16,7 @@ import javax.annotation.Nullable;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSetMultimap;
 import com.google.common.collect.Multimap;
@@ -31,7 +30,6 @@ import org.immutables.value.Value.Style;
 import org.immutables.value.Value.Style.ImplementationVisibility;
 
 import com.vmturbo.common.protobuf.CostProtoUtil;
-import com.vmturbo.common.protobuf.cost.Pricing.DbServerTierOnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.DbTierOnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
@@ -41,8 +39,7 @@ import com.vmturbo.cost.calculation.DiscountApplicator;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.LicensePriceTuple;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
-import com.vmturbo.cost.calculation.pricing.DatabasePriceBundle.DatabasePrice.StorageOption;
-import com.vmturbo.cost.calculation.pricing.DatabaseServerPriceBundle.DatabaseServerPrice.DbsStorageOption;
+import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.DatabasePriceBundle.DatabasePrice.StorageOption;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CostTuple;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageTierPriceData;
@@ -56,10 +53,8 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.LicenseModel;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList;
-import com.vmturbo.platform.sdk.common.PricingDTO.DatabaseServerTierPriceList;
-import com.vmturbo.platform.sdk.common.PricingDTO.DatabaseServerTierPriceList.DatabaseServerTierConfigPrice;
-import com.vmturbo.platform.sdk.common.PricingDTO.DatabaseTierConfigPrice;
 import com.vmturbo.platform.sdk.common.PricingDTO.DatabaseTierPriceList;
+import com.vmturbo.platform.sdk.common.PricingDTO.DatabaseTierPriceList.DatabaseTierConfigPrice;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price.Unit;
 import com.vmturbo.platform.sdk.common.PricingDTO.StorageTierPriceList;
@@ -82,6 +77,27 @@ public class CloudRateExtractor {
             = new ImmutableSetMultimap.Builder<String, Unit>()
                 .putAll("GP3", Unit.MBPS_MONTH, Unit.MILLION_IOPS)
                 .build();
+
+    private static final Map<DatabaseEngine, String> DB_ENGINE_MAP = ImmutableMap.<DatabaseEngine, String>builder()
+            .put(DatabaseEngine.AURORA, "Aurora")
+            .put(DatabaseEngine.MARIADB, "MariaDb")
+            .put(DatabaseEngine.MYSQL, "MySql")
+            .put(DatabaseEngine.ORACLE, "Oracle")
+            .put(DatabaseEngine.POSTGRESQL, "PostgreSql")
+            .put(DatabaseEngine.SQLSERVER, "SqlServer")
+            .put(DatabaseEngine.UNKNOWN, "Unknown").build();
+
+    private static final Map<DatabaseEdition, String> DB_EDITION_MAP = ImmutableMap.<DatabaseEdition, String>builder()
+            .put(DatabaseEdition.ENTERPRISE, "Enterprise")
+            .put(DatabaseEdition.STANDARD, "Standard")
+            .put(DatabaseEdition.STANDARDONE, "Standard One")
+            .put(DatabaseEdition.STANDARDTWO, "Standard Two")
+            .put(DatabaseEdition.WEB, "Web")
+            .put(DatabaseEdition.EXPRESS, "Express").build();
+
+    private static final Map<DeploymentType, String> DEPLOYMENT_TYPE_MAP = ImmutableMap.<DeploymentType, String>builder()
+            .put(DeploymentType.MULTI_AZ, "MultiAz")
+            .put(DeploymentType.SINGLE_AZ, "SingleAz").build();
 
     /**
      * A mapping between the OS string indicated by the license access commodity key
@@ -188,12 +204,11 @@ public class CloudRateExtractor {
      * @return A {@link DatabasePriceBundle} of the different configurations available for this tier
      *         and region in the topology the {@link CloudRateExtractor} was constructed with. If
      *         the tier or region are not found in the price table, returns an empty price
-     *         bundle
+     *         bundle.
      */
     @Nonnull
     public DatabasePriceBundle getDatabasePriceBundle(final long tierId, final long regionId,
             @Nonnull final AccountPricingData<TopologyEntityDTO> accountPricingData) {
-
         final DatabasePriceBundle.Builder priceBuilder = DatabasePriceBundle.newBuilder();
 
         OnDemandPriceTable regionPriceTable = getOnDemandPriceTable(tierId, regionId, accountPricingData);
@@ -226,51 +241,8 @@ public class CloudRateExtractor {
         return priceBuilder.build();
     }
 
-    /**
-     * Get the {@link DatabaseServerPriceBundle} listing the possible configuration and account-dependent
-     * prices for a database server tier in a specific region.
-     *
-     * @param tierId The ID of the database server tier.
-     * @param regionId The ID of the region.
-     * @param accountPricingData The account specific pricing data.
-     *
-     * @return A {@link DatabaseServerPriceBundle} of the different configurations available for this tier
-     *         and region in the topology the {@link CloudRateExtractor} was constructed with. If
-     *         the tier or region are not found in the price table, returns an empty price
-     *         bundle
-     */
-    @Nonnull
-    public DatabaseServerPriceBundle getDatabaseServerPriceBundle(final long tierId, final long regionId,
-            final AccountPricingData<TopologyEntityDTO> accountPricingData) {
-        final DatabaseServerPriceBundle.Builder priceBuilder = DatabaseServerPriceBundle.newBuilder();
-        if (accountPricingData == null || accountPricingData.getPriceTable() == null) {
-            //TODO: igolikov add accound id when it will be merged with 8.1.2
-            logger.error("No account pricing data found for business account oid {}");
-            return priceBuilder.build();
-        }
-        OnDemandPriceTable regionPriceTable = getOnDemandPriceTable(tierId, regionId, accountPricingData);
-        if (regionPriceTable == null) {
-            logger.warn("Price table is not found for tier {} in region {}", tierId, regionId);
-            return priceBuilder.build();
-        }
-        DbServerTierOnDemandPriceTable dbsTierPriceTable =
-                regionPriceTable.getDbsPricesByInstanceIdMap().get(tierId);
-        if (dbsTierPriceTable == null) {
-            logger.warn("Price list not found for database server tier {} in region {}'s price table."
-                            + " Cost data might not have been uploaded, or the tier is not available in the region.",
-                    tierId, regionId);
-            return priceBuilder.build();
-        }
-
-        for (DatabaseServerTierPriceList priceList: dbsTierPriceTable.getDbsPricesByTierIdMap().values()) {
-            addDbsTierPricesToPriceBundle(priceList, tierId, accountPricingData, priceBuilder);
-        }
-
-        return priceBuilder.build();
-    }
-
     private void addDbTierPricesToPriceTable(DatabaseTierPriceList dbTierPrices, long tierId,
-            AccountPricingData accountPricingData,
+            AccountPricingData<TopologyEntityDTO> accountPricingData,
             DatabasePriceBundle.Builder priceBuilder) {
         final DatabaseTierConfigPrice dbTierBasePrice = dbTierPrices.getBasePrice();
         final DatabaseEdition dbEdition = dbTierBasePrice.getDbEdition();
@@ -327,62 +299,12 @@ public class CloudRateExtractor {
                             + dbTierConfigPrice.getPricesList().get(0).getPriceAmount().getAmount())
                             * (1.0 - discountApplicator.getDiscountPercentage(tierId).getValue()),
                     storageOptions);
-
-        }
-    }
-
-    private void addDbsTierPricesToPriceBundle(DatabaseServerTierPriceList dbTierPrices, long tierId,
-            AccountPricingData<TopologyEntityDTO> accountPricingData,
-            DatabaseServerPriceBundle.Builder priceBuilder) {
-
-        for (DatabaseServerTierConfigPrice serverConfigPrice : dbTierPrices.getConfigPricesList()) {
-            final DatabaseTierConfigPrice configPrice =
-                    serverConfigPrice.getDatabaseTierConfigPrice();
-
-            final DatabaseEdition dbEdition = configPrice.getDbEdition();
-            final DatabaseEngine dbEngine = configPrice.getDbEngine();
-            final DeploymentType deploymentType =
-                    configPrice.hasDbDeploymentType() ? configPrice.getDbDeploymentType() : null;
-            final LicenseModel licenseModel =
-                    configPrice.hasDbLicenseModel() ? configPrice.getDbLicenseModel() : null;
-            if (configPrice.getPricesList().isEmpty()) {
-                logger.error(
-                        "The base template for DB server does not have any price. Ignoring DB tier `{}`.",
-                        tierId);
-                return;
-            }
-
-            final double baseHourlyPrice = CostProtoUtil.getHourlyPriceAmount(
-                    configPrice.getPricesList().get(0));
-            DiscountApplicator<TopologyEntityDTO> discountApplicator =
-                    accountPricingData.getDiscountApplicator();
-
-            final List<DbsStorageOption> storageOptions = new ArrayList<>();
-            serverConfigPrice.getDependentPricesList().forEach(dependentPrice -> {
-                switch (dependentPrice.getUnit()) {
-                    case GB_MONTH:
-                        storageOptions.add(new DbsStorageOption(dependentPrice.getIncrementInterval(),
-                                dependentPrice.getEndRangeInUnits(),
-                                CostProtoUtil.getHourlyPriceAmount(dependentPrice)));
-                        break;
-                    case MILLION_IOPS:
-                    default:
-                        // not yet supported.
-                        // TODO: PaaS team: for database server IOPS prices coming soon.
-                }
-            });
-
-            storageOptions.sort((a, b) -> Long.valueOf(a.getEndRange() - b.getEndRange()).intValue());
-            // Add the base configuration price.
-            priceBuilder.addPrice(accountPricingData.getAccountPricingDataOid(), dbEngine,
-                    dbEdition, deploymentType, licenseModel,
-                    baseHourlyPrice * (1.0 - discountApplicator.getDiscountPercentage(tierId)
-                            .getValue()), storageOptions);
         }
     }
 
     @Nullable
-    OnDemandPriceTable getOnDemandPriceTable(final long tierId, final long regionId, AccountPricingData accountPricingData) {
+    OnDemandPriceTable getOnDemandPriceTable(final long tierId, final long regionId,
+                                             @Nonnull AccountPricingData<TopologyEntityDTO> accountPricingData) {
         if (!cloudTopology.getEntity(tierId).isPresent()) {
             logger.error("Tier {} not found in topology. Returning empty price bundle.", tierId);
             return null;
@@ -409,7 +331,8 @@ public class CloudRateExtractor {
      *         the tier or region are not found in the price table, returns an empty price bundle.
      */
     @Nonnull
-    public StoragePriceBundle getStoragePriceBundle(final long tierId, final long regionId, final AccountPricingData accountPricingData) {
+    public StoragePriceBundle getStoragePriceBundle(final long tierId, final long regionId,
+                                                    @Nonnull AccountPricingData<TopologyEntityDTO> accountPricingData) {
         final StoragePriceBundle.Builder priceBuilder = StoragePriceBundle.newBuilder();
         if (accountPricingData == null || accountPricingData.getPriceTable() == null) {
             return priceBuilder.build();
@@ -496,7 +419,7 @@ public class CloudRateExtractor {
 
                 // A price is considered a "unit" price if the amount of units consumed
                 // affects the price.
-                final boolean isUnitPrice = unit == GB_MONTH
+                final boolean isUnitPrice = unit == Unit.GB_MONTH
                         || unit == Unit.MILLION_IOPS || unit == Unit.MBPS_MONTH
                         || unit == Unit.IO_REQUESTS;
 
@@ -558,7 +481,8 @@ public class CloudRateExtractor {
      *
      * @return A set of core based license price bundles.
      */
-    public Set<CoreBasedLicensePriceBundle> getReservedLicensePriceBundles(@Nonnull AccountPricingData accountPricingData,
+    public Set<CoreBasedLicensePriceBundle> getReservedLicensePriceBundles(
+            @Nonnull AccountPricingData<TopologyEntityDTO> accountPricingData,
             @Nonnull TopologyEntityDTO tier) {
 
 
@@ -841,6 +765,243 @@ public class CloudRateExtractor {
             class Builder extends ImmutableComputePrice.Builder {}
         }
     }
+
+    /**
+     * A bundle of of possible prices for a (database tier, region) combination. The possible
+     * prices are affected by the {@link DatabaseEngine} and owning business account of the VM consuming
+     * from the tier.
+     */
+    public static class DatabasePriceBundle {
+
+        private final List<DatabasePrice> prices;
+
+        private DatabasePriceBundle(@Nonnull final List<DatabasePrice> prices) {
+            this.prices = Objects.requireNonNull(prices);
+        }
+
+        /**
+         * Get the list of database prices.
+         *
+         * @return A list of database prices.
+         */
+        @Nonnull
+        public List<DatabasePrice> getPrices() {
+            return prices;
+        }
+
+        /**
+         * A builder for the Database price bundle.
+         *
+         * @return The builder for the database price bundle.
+         */
+        @Nonnull
+        public static Builder newBuilder() {
+            return new Builder();
+        }
+
+        /**
+         * A static class for the DatabasePrice Builder.
+         */
+        public static class Builder {
+            private final ImmutableList.Builder<DatabasePrice> priceBuilder = ImmutableList.builder();
+
+            private Builder() {}
+
+            /**
+             * Add price to db price builder.
+             *
+             * @param accountId The account id.
+             * @param dbEngine The db engine.
+             * @param dbEdition The deb edition.
+             * @param depType The deployment type
+             * @param licenseModel The license mode.
+             * @param hourlyPrice The hourly price.
+             * @param storageOptions the storage options.
+             *
+             * @return A builder.
+             */
+            @Nonnull
+            public Builder addPrice(final long accountId, @Nonnull final DatabaseEngine dbEngine,
+                    @Nonnull final DatabaseEdition dbEdition,
+                    @Nullable final DeploymentType depType,
+                    @Nullable final LicenseModel licenseModel, final double hourlyPrice,
+                    @Nonnull final List<StorageOption> storageOptions) {
+                // TODO (roman, September 25) - Replace with CostTuple
+                priceBuilder.add(
+                        new DatabasePrice(accountId, dbEngine, dbEdition, depType, licenseModel,
+                                hourlyPrice, storageOptions));
+                return this;
+            }
+
+            /**
+             * Build the db price bundle.
+             *
+             * @return The Database price bundle.
+             */
+            @Nonnull
+            public DatabasePriceBundle build() {
+                return new DatabasePriceBundle(priceBuilder.build());
+            }
+        }
+
+        /**
+         * Temporary object for integration with CostTuples.
+         * In the future it may be good to have the {@link CloudRateExtractor} return cost tuples
+         * directly.
+         */
+        public static class DatabasePrice {
+            private final long accountId;
+            private final DatabaseEngine dbEngine;
+            private final DatabaseEdition dbEdition;
+            private final DeploymentType depType;
+            private final LicenseModel licenseModel;
+            private final double hourlyPrice;
+            private final List<StorageOption> storageOptions;
+
+            /**
+             * Constructor for the database price.
+             *
+             * @param accountId The account id.
+             * @param dbEngine The db engine.
+             * @param dbEdition The db edition.
+             * @param depType The deployment type.
+             * @param licenseModel The license model.
+             * @param hourlyPrice The hourly price.
+             * @param storageOptions The storage options.
+             */
+            public DatabasePrice(final long accountId, @Nonnull final DatabaseEngine dbEngine,
+                    @Nonnull final DatabaseEdition dbEdition,
+                    @Nullable final DeploymentType depType,
+                    @Nullable final LicenseModel licenseModel, final double hourlyPrice,
+                    @Nonnull final List<StorageOption> storageOptions) {
+                this.accountId = accountId;
+                this.dbEngine = dbEngine;
+                this.dbEdition = dbEdition;
+                this.depType = depType;
+                this.licenseModel = licenseModel;
+                this.hourlyPrice = hourlyPrice;
+                this.storageOptions = storageOptions;
+            }
+
+            public long getAccountId() {
+                return accountId;
+            }
+
+            public DatabaseEngine getDbEngine() {
+                return dbEngine;
+            }
+
+            public DatabaseEdition getDbEdition() {
+                return dbEdition;
+            }
+
+            public DeploymentType getDeploymentType() {
+                return depType;
+            }
+
+            public LicenseModel getLicenseModel() {
+                return licenseModel;
+            }
+
+            /**
+             * This returns the hourly price of the base commodity type.
+             *
+             * @return The hourly price of the base commodity type
+             */
+            public double getHourlyPrice() {
+                return hourlyPrice;
+            }
+
+            /**
+             * This returns the storage options and their prices. These options have start,
+             * increment and end. The start of each option is the end range of the previous option
+             * (sorted by the end range). Each storage option can be obtained by adding multiples of
+             * increment to the start. Note that the final number can't be greater than end range.
+             * If the number is greater than the end range, we need to consider another option. For
+             * example, if we need 730GB and the option is: increment:250GB, end_range:750GB,
+             * start:500GB, we need to add one increment to the 500GB (start). The right option for
+             * this demand is 750GB since 730GB is less than or equals this number and this is
+             * obtainable by adding the increment to the start.
+             *
+             * @return The storage options and their prices
+             */
+            public List<StorageOption> getStorageOptions() {
+                return storageOptions;
+            }
+
+            /**
+             * Class representing a storage option.
+             */
+            public static class StorageOption {
+                // This is the possible increment in GB in this option (ex. 250GB).
+                final long increment;
+                // This is the end range in GB in this option (ex. 500GB).
+                final long endRange;
+                // This is the price per GB in this option (ex. 0.2 per GB).
+                final double price;
+
+                public long getIncrement() {
+                    return increment;
+                }
+
+                public long getEndRange() {
+                    return endRange;
+                }
+
+                public double getPrice() {
+                    return price;
+                }
+
+                /**
+                 * Constructor for the storage option.
+                 *
+                 * @param increment the increment.
+                 * @param endRange The end range.
+                 * @param price The price.
+                 */
+                public StorageOption(long increment, long endRange, double price) {
+                    this.increment = increment;
+                    this.endRange = endRange;
+                    this.price = price;
+                }
+            }
+
+            @Override
+            public boolean equals(Object other) {
+                if (other == this) {
+                    return true;
+                }
+                if (other instanceof DatabasePrice) {
+                    DatabasePrice otherPrice = (DatabasePrice)other;
+                    return accountId == otherPrice.accountId
+                            && dbEngine == otherPrice.dbEngine
+                            && hourlyPrice == otherPrice.hourlyPrice;
+                } else {
+                    return false;
+                }
+            }
+
+            @Override
+            public int hashCode() {
+                return Objects.hash(accountId, dbEngine, dbEdition,
+                        depType, licenseModel, hourlyPrice);
+            }
+
+            /**
+             * Convert to string.
+             *
+             * @return A string.
+             */
+            public String toString() {
+                // skip licenseModel while converting databasePrice to string
+                return (DB_ENGINE_MAP.get(this.getDbEngine()) != null ? DB_ENGINE_MAP.get(this.getDbEngine()) : "null")
+                        + ":" + (DB_EDITION_MAP.get(this.getDbEdition()) != null ? DB_EDITION_MAP.get(this.getDbEdition()) : "null") + ":"
+                        // we filter out all the multi-az deploymentTypes in the cost-probe. We will not find any cost for a license containing multi-az.
+                        + ((this.getDeploymentType() != null && DEPLOYMENT_TYPE_MAP.get(this.getDeploymentType()) != null) ? DEPLOYMENT_TYPE_MAP.get(this.getDeploymentType()) : "null") + ":";
+            }
+        }
+    }
+
 
     /**
      * A pricing bundle for core-based license rates.

@@ -11,14 +11,9 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.time.Clock;
-import java.time.Instant;
-import java.time.ZoneOffset;
-import java.util.AbstractMap.SimpleEntry;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -34,29 +29,22 @@ import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.cost.Pricing.BusinessAccountPriceTableKey;
-import com.vmturbo.common.protobuf.cost.Pricing.DbTierOnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.GetAccountPriceTableRequest;
 import com.vmturbo.common.protobuf.cost.Pricing.GetAccountPriceTableResponse;
 import com.vmturbo.common.protobuf.cost.Pricing.GetPriceTableChecksumRequest;
 import com.vmturbo.common.protobuf.cost.Pricing.GetPriceTableChecksumResponse;
 import com.vmturbo.common.protobuf.cost.Pricing.GetPriceTableRequest;
 import com.vmturbo.common.protobuf.cost.Pricing.GetPriceTableResponse;
-import com.vmturbo.common.protobuf.cost.Pricing.GetPriceTablesRequest;
-import com.vmturbo.common.protobuf.cost.Pricing.GetPriceTablesResponse;
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
-import com.vmturbo.common.protobuf.cost.Pricing.PriceTableChunk;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTableKey;
 import com.vmturbo.common.protobuf.cost.Pricing.ReservedInstancePriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.ReservedInstanceSpecPrice;
-import com.vmturbo.common.protobuf.cost.Pricing.SpotInstancePriceTable;
-import com.vmturbo.common.protobuf.cost.Pricing.SpotInstancePriceTable.SpotPricesForTier;
 import com.vmturbo.common.protobuf.cost.Pricing.UploadAccountPriceTableKeyRequest;
 import com.vmturbo.common.protobuf.cost.PricingServiceGrpc;
 import com.vmturbo.common.protobuf.cost.PricingServiceGrpc.PricingServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.PricingServiceGrpc.PricingServiceStub;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.cost.component.CostComponentGlobalConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecCleanup;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecStore;
@@ -67,7 +55,6 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.CommonCost.PaymentOption;
 import com.vmturbo.platform.sdk.common.PricingDTO;
-import com.vmturbo.platform.sdk.common.PricingDTO.LicensePriceEntry;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price.Unit;
 import com.vmturbo.platform.sdk.common.PricingDTO.ReservedInstancePrice;
@@ -88,10 +75,6 @@ public class PricingRpcServiceTest {
             .putProbeKeyMaterial("offerId", "234")
             .setServiceProviderId(12345L).build();
 
-    private final Clock clock = Clock.fixed(
-            Instant.parse("2018-08-22T10:00:00Z"), ZoneOffset.UTC);
-    private final Long priceTableSegmentSizeLimitBytes = 10000000L; //default
-
     private PriceTableStore priceTableStore = mock(PriceTableStore.class);
 
     private ReservedInstanceSpecStore riSpecStore = mock(ReservedInstanceSpecStore.class);
@@ -101,16 +84,13 @@ public class PricingRpcServiceTest {
     private ReservedInstanceBoughtStore reservedInstanceBoughtStore = mock(ReservedInstanceBoughtStore.class);
 
     private ReservedInstanceSpecCleanup reservedInstanceSpecCleanup = mock(ReservedInstanceSpecCleanup.class);
-    private CostComponentGlobalConfig costComponentGlobalConfig = mock(CostComponentGlobalConfig.class);
 
     private PricingRpcService backend = new PricingRpcService(
             priceTableStore,
             riSpecStore,
             reservedInstanceBoughtStore,
             businessAccountPriceTableKeyStore,
-            reservedInstanceSpecCleanup,
-            costComponentGlobalConfig,
-            priceTableSegmentSizeLimitBytes);
+            reservedInstanceSpecCleanup);
 
     /**
      * Create a grpc instance of the pricing rpc service.
@@ -135,7 +115,7 @@ public class PricingRpcServiceTest {
     public void setup() {
         pricingServiceBlockingStub = PricingServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
         pricingServiceStub = PricingServiceGrpc.newStub(grpcTestServer.getChannel());
-        when(costComponentGlobalConfig.clock()).thenReturn(clock);
+
     }
 
     /**
@@ -153,54 +133,6 @@ public class PricingRpcServiceTest {
         assertTrue(response.hasGlobalPriceTable());
         assertThat(response.getGlobalPriceTable(), is(priceTable));
     }
-
-
-    /**
-     * Test the getter for the price table.
-     */
-    @Test
-    public void testGetPriceTables() {
-        final long priceTableOid = 111L;
-        DbTierOnDemandPriceTable dbTierOnDemandPriceTable = DbTierOnDemandPriceTable.getDefaultInstance();
-        SpotPricesForTier spotInstancePriceTable = SpotPricesForTier.getDefaultInstance();
-        final PriceTable priceTable = PriceTable.newBuilder()
-                .putOnDemandPriceByRegionId(7L,
-                        OnDemandPriceTable.newBuilder().putDbPricesByInstanceId(707L, dbTierOnDemandPriceTable).build())
-                .putSpotPriceByZoneOrRegionId(8L, SpotInstancePriceTable.newBuilder().putSpotPricesByTierOid(808L, spotInstancePriceTable).build())
-                .addReservedLicensePrices(LicensePriceEntry.getDefaultInstance())
-                .addOnDemandLicensePrices(LicensePriceEntry.getDefaultInstance())
-                .build();
-        HashMap<Long, PriceTable> map = new HashMap<>();
-        map.put(priceTableOid, priceTable);
-        when(priceTableStore.getPriceTables(any())).thenReturn(map);
-        Iterator<GetPriceTablesResponse> priceTableResponse = pricingServiceBlockingStub
-                .getPriceTables(GetPriceTablesRequest.newBuilder().build());
-        assertTrue(priceTableResponse.hasNext());
-        int count = 0;
-        while (priceTableResponse.hasNext()) {
-            count++;
-            GetPriceTablesResponse segment = priceTableResponse.next();
-            for (PriceTableChunk priceTableChunk : segment.getPriceTableChunkList()) {
-                assertThat(priceTableChunk.getPriceTableOid(), is(priceTableOid));
-                switch (priceTableChunk.getPriceTableSegmentCase()) {
-                    case ONDEMAND_PRICE_TABLE_BY_REGION:
-                        assertThat(priceTableChunk.getOndemandPriceTableByRegion().getRegionId(), is(7L));
-                        assertThat(priceTableChunk.getOndemandPriceTableByRegion().getOnDemandPriceTable()
-                                        .getDbPricesByInstanceIdMap().entrySet().iterator().next(),
-                                is(new SimpleEntry<>(707L, dbTierOnDemandPriceTable)));
-                        break;
-                    case SPOT_INSTANCE_PRICE_TABLE_BY_REGION:
-                        assertThat(priceTableChunk.getSpotInstancePriceTableByRegion().getRegionId(), is(8L));
-                        assertThat(priceTableChunk.getSpotInstancePriceTableByRegion().getSpotInstancePriceTable()
-                                        .getSpotPricesByTierOidMap().entrySet().iterator().next(),
-                                is(new SimpleEntry<>(808L, spotInstancePriceTable)));
-                        break;
-                }
-            }
-        }
-        assertThat("PriceSegment Chunks were exepected to be split in 4 chunks", count, is(4));
-    }
-
 
     /**
      * Test the price table checksum.
@@ -325,7 +257,7 @@ public class PricingRpcServiceTest {
         // generate the PriceTableStore
         PriceTableStore priceTableStore = Mockito.spy(PriceTableStore.class);
         PricingRpcService service = new PricingRpcService(priceTableStore, riSpecstore, reservedInstanceBoughtStore,
-                businessAccountPriceTableKeyStore, reservedInstanceSpecCleanup, costComponentGlobalConfig, priceTableSegmentSizeLimitBytes);
+                businessAccountPriceTableKeyStore, reservedInstanceSpecCleanup);
         ReservedInstancePriceTable riPriceTable = service.updateRISpecsAndBuildRIPriceTable(specPriceList);
 
         // get the map from ReservedInstanceSpec OID to ReservedInstancePrice

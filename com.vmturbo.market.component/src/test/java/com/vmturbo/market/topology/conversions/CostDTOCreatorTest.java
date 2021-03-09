@@ -29,8 +29,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.cost.calculation.pricing.CloudRateExtractor;
 import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.ComputePriceBundle;
-import com.vmturbo.cost.calculation.pricing.DatabasePriceBundle;
-import com.vmturbo.cost.calculation.pricing.DatabasePriceBundle.DatabasePrice.StorageOption;
+import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.DatabasePriceBundle;
+import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.DatabasePriceBundle.DatabasePrice.StorageOption;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO;
@@ -286,11 +286,11 @@ public class CostDTOCreatorTest {
                 .getDependentResourceOptionsList();
         Assert.assertEquals(2, dependentResourceOptions.size());
         DependentResourceOption dependentResourceOption1 = dependentResourceOptions.get(0);
-        Assert.assertEquals(250, dependentResourceOption1.getAbsoluteIncrement());
+        Assert.assertEquals(250, dependentResourceOption1.getIncrement());
         Assert.assertEquals(250, dependentResourceOption1.getEndRange());
         Assert.assertEquals(0.0, dependentResourceOption1.getPrice(), 0.01);
         DependentResourceOption dependentResourceOption2 = dependentResourceOptions.get(1);
-        Assert.assertEquals(50, dependentResourceOption2.getAbsoluteIncrement());
+        Assert.assertEquals(50, dependentResourceOption2.getIncrement());
         Assert.assertEquals(300, dependentResourceOption2.getEndRange());
         Assert.assertEquals(0.01, dependentResourceOption2.getPrice(), 0.01);
     }

@@ -218,7 +218,7 @@ public class TopologyEntityInfoExtractorTest {
 
     @Test
     public void testExtractDatabaseStorageAmount() {
-        Optional<Float> dbStorageAmount = entityInfoExtractor.getRDBStorageCapacity(DB);
+        Optional<Float> dbStorageAmount = entityInfoExtractor.getDBStorageCapacity(DB);
         assertTrue(dbStorageAmount.isPresent());
         assertThat(dbStorageAmount.get(), is(STORAGE_AMOUNT_CAP));
     }
