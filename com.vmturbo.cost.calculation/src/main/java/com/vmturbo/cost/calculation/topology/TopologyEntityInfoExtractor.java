@@ -100,15 +100,15 @@ public class TopologyEntityInfoExtractor implements EntityInfoExtractor<Topology
 
     @Nonnull
     @Override
-    public Optional<Float> getDBStorageCapacity(@Nonnull final TopologyEntityDTO entity) {
-        if (entity.getEntityType() != EntityType.DATABASE_VALUE) {
-            return Optional.empty();
+    public Optional<Float> getRDBStorageCapacity(@Nonnull final TopologyEntityDTO entity) {
+        switch (entity.getEntityType()) {
+            case EntityType.DATABASE_VALUE:
+            case EntityType.DATABASE_SERVER_VALUE:
+                return Optional.of(
+                        getCommodityCapacity(entity, CommodityType.STORAGE_AMOUNT));
+            default:
+                return Optional.empty();
         }
-        if (entity.getTypeSpecificInfo().hasDatabase()) {
-            return Optional.of(
-                    getCommodityCapacity(entity, CommodityType.STORAGE_AMOUNT));
-        }
-        return Optional.empty();
     }
 
     @Override

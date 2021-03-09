@@ -1,6 +1,8 @@
 package com.vmturbo.cost.component.pricing;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,8 +34,14 @@ import com.vmturbo.common.protobuf.cost.Pricing.GetPriceTableRequest;
 import com.vmturbo.common.protobuf.cost.Pricing.GetPriceTableResponse;
 import com.vmturbo.common.protobuf.cost.Pricing.GetPriceTablesRequest;
 import com.vmturbo.common.protobuf.cost.Pricing.GetPriceTablesResponse;
+import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTableChecksum;
+import com.vmturbo.common.protobuf.cost.Pricing.PriceTableChunk;
+import com.vmturbo.common.protobuf.cost.Pricing.PriceTableChunk.OnDemandLicensePriceEntrySegment;
+import com.vmturbo.common.protobuf.cost.Pricing.PriceTableChunk.OnDemandPriceTableByRegionSegment;
+import com.vmturbo.common.protobuf.cost.Pricing.PriceTableChunk.ReservedLicenseSegment;
+import com.vmturbo.common.protobuf.cost.Pricing.PriceTableChunk.SpotInstancePriceTableByRegionSegment;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTableKey;
 import com.vmturbo.common.protobuf.cost.Pricing.ProbePriceTableSegment;
 import com.vmturbo.common.protobuf.cost.Pricing.ProbePriceTableSegment.ProbePriceTableChunk;
@@ -41,14 +49,18 @@ import com.vmturbo.common.protobuf.cost.Pricing.ProbePriceTableSegment.ProbePric
 import com.vmturbo.common.protobuf.cost.Pricing.ProbePriceTableSegment.ProbeRISpecPriceChunk;
 import com.vmturbo.common.protobuf.cost.Pricing.ReservedInstancePriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.ReservedInstanceSpecPrice;
+import com.vmturbo.common.protobuf.cost.Pricing.SpotInstancePriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.UploadAccountPriceTableKeyRequest;
 import com.vmturbo.common.protobuf.cost.Pricing.UploadAccountPriceTableKeysResponse;
 import com.vmturbo.common.protobuf.cost.Pricing.UploadPriceTablesResponse;
 import com.vmturbo.common.protobuf.cost.PricingServiceGrpc.PricingServiceImplBase;
+import com.vmturbo.components.common.utils.TriFunction;
+import com.vmturbo.cost.component.CostComponentGlobalConfig;
 import com.vmturbo.cost.component.pricing.PriceTableStore.PriceTables;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecCleanup;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecStore;
+import com.vmturbo.platform.sdk.common.PricingDTO.LicensePriceEntry;
 import com.vmturbo.platform.sdk.common.PricingDTO.ReservedInstancePrice;
 
 /**
@@ -63,23 +75,33 @@ public class PricingRpcService extends PricingServiceImplBase {
     private final BusinessAccountPriceTableKeyStore businessAccountPriceTableKeyStore;
     private final ReservedInstanceBoughtStore reservedInstanceBoughtStore;
     private final ReservedInstanceSpecCleanup reservedInstanceSpecCleanup;
+    private final CostComponentGlobalConfig costComponentGlobalConfig;
+    private final Long priceTableSegmentSizeLimitBytes;
+
     /**
      * Constructor.
      * @param priceTableStore price table store.
      * @param riSpecStore reserved instance spec store.
      * @param reservedInstanceBoughtStore reserved Instance bought store.
      * @param businessAccountPriceTableKeyStore business account to price table key store.
+     * @param reservedInstanceSpecCleanup for periodically checking for unreferenced RI specs.
+     * @param costComponentGlobalConfig used for referring to global clock().
+     * @param priceTableSegmentSizeLimitBytes max size of priceTableSegments.
      */
     public PricingRpcService(@Nonnull final PriceTableStore priceTableStore,
                              @Nonnull final ReservedInstanceSpecStore riSpecStore,
                              @Nonnull final ReservedInstanceBoughtStore reservedInstanceBoughtStore,
                              @Nonnull final BusinessAccountPriceTableKeyStore businessAccountPriceTableKeyStore,
-                             @Nonnull final ReservedInstanceSpecCleanup reservedInstanceSpecCleanup) {
+                             @Nonnull final ReservedInstanceSpecCleanup reservedInstanceSpecCleanup,
+                             @Nonnull final CostComponentGlobalConfig costComponentGlobalConfig,
+                             @Nonnull final Long priceTableSegmentSizeLimitBytes) {
         this.priceTableStore = Objects.requireNonNull(priceTableStore);
         this.reservedInstanceSpecStore = Objects.requireNonNull(riSpecStore);
         this.reservedInstanceBoughtStore = Objects.requireNonNull(reservedInstanceBoughtStore);
         this.businessAccountPriceTableKeyStore = Objects.requireNonNull(businessAccountPriceTableKeyStore);
         this.reservedInstanceSpecCleanup = Objects.requireNonNull(reservedInstanceSpecCleanup);
+        this.costComponentGlobalConfig = Objects.requireNonNull(costComponentGlobalConfig);
+        this.priceTableSegmentSizeLimitBytes = Objects.requireNonNull(priceTableSegmentSizeLimitBytes);
     }
 
     @Override
@@ -93,9 +115,20 @@ public class PricingRpcService extends PricingServiceImplBase {
 
     @Override
     public void getPriceTables(GetPriceTablesRequest request, StreamObserver<GetPriceTablesResponse> responseObserver) {
-        Map<Long, PriceTable> priceTables = priceTableStore.getPriceTables(request.getOidList());
-        responseObserver.onNext(GetPriceTablesResponse.newBuilder().putAllPriceTablesByOid(priceTables)
-                .build());
+        final Map<Long, PriceTable> priceTables = priceTableStore.getPriceTables(request.getOidList());
+        for (Entry<Long, PriceTable> priceTableEntry : priceTables.entrySet()) {
+            final long priceTabelOid = priceTableEntry.getKey();
+            final PriceTable priceTable = priceTableEntry.getValue();
+            final long totalSerializedSize = priceTable.getSerializedSize();
+            sendPriceTableSegmentsByRegionIds(responseObserver, priceTable.getOnDemandPriceByRegionIdMap(), priceTabelOid, totalSerializedSize,
+                    this::addOnDemandPriceTableToPriceTableChunk);
+            sendPriceTableSegmentsByRegionIds(responseObserver, priceTable.getSpotPriceByZoneOrRegionIdMap(), priceTabelOid, totalSerializedSize,
+                    this::addSpotInstancePriceTableToPriceTableChunk);
+            sendPriceTableSegmentsReservedLicensePricesList(responseObserver, priceTable.getReservedLicensePricesList(),
+                    priceTabelOid, totalSerializedSize);
+            sendPriceTableSegmentsOnDemandLicensePricesList(responseObserver, priceTable.getOnDemandLicensePricesList(),
+                    priceTabelOid, totalSerializedSize);
+        }
         responseObserver.onCompleted();
     }
 
@@ -273,6 +306,96 @@ public class PricingRpcService extends PricingServiceImplBase {
         riPriceTableBuilder.putAllRiPricesBySpecId(riSpecPrices);
         return riPriceTableBuilder.build();
     }
+
+    private <T> void sendPriceTableSegmentsByRegionIds(
+            @Nonnull final StreamObserver<GetPriceTablesResponse> responseObserver,
+            @Nonnull final Map<Long, T> priceTableMap,
+            final long priceTableOid,
+            final long totalSerializedSize,
+            @Nonnull TriFunction<T, Long, PriceTableChunk.Builder, PriceTableChunk> functionApplier) {
+        final Collection<PriceTableChunk> priceTableChunks = new ArrayList<>();
+        long serializedSize = 0L;
+        for (Entry<Long, T> priceTableEntry : priceTableMap.entrySet()) {
+            PriceTableChunk.Builder priceTableChunkBuilder = PriceTableChunk.newBuilder()
+                    .setCreatedTime(costComponentGlobalConfig.clock().millis())
+                    .setPriceTableOid(priceTableOid);
+            PriceTableChunk priceTableChunk = functionApplier.apply(
+                    priceTableEntry.getValue(),
+                    priceTableEntry.getKey(),
+                    priceTableChunkBuilder);
+            long currentSerializedSize = priceTableChunk.getSerializedSize();
+            if (currentSerializedSize + serializedSize > priceTableSegmentSizeLimitBytes) {
+                // send priceTableChunk now.
+                sendPriceTableChunk(responseObserver, totalSerializedSize, priceTableChunks);
+                serializedSize = currentSerializedSize;
+                priceTableChunks.clear();
+            } else {
+                serializedSize += currentSerializedSize;
+                priceTableChunks.add(priceTableChunk);
+            }
+        }
+        if (!priceTableChunks.isEmpty()) {
+            sendPriceTableChunk(responseObserver, totalSerializedSize, priceTableChunks);
+        }
+    }
+
+    private PriceTableChunk addOnDemandPriceTableToPriceTableChunk(
+            @Nonnull final OnDemandPriceTable onDemandPriceTable,
+            @Nonnull final Long regionId,
+            @Nonnull final PriceTableChunk.Builder builder) {
+        return builder.setOndemandPriceTableByRegion(OnDemandPriceTableByRegionSegment.newBuilder()
+                .setOnDemandPriceTable(onDemandPriceTable)
+                .setRegionId(regionId)
+                .build()).build();
+    }
+
+    private PriceTableChunk addSpotInstancePriceTableToPriceTableChunk(
+            @Nonnull final SpotInstancePriceTable spotInstancePriceTable,
+            @Nonnull Long regionId,
+            @Nonnull final PriceTableChunk.Builder builder) {
+        return builder.setSpotInstancePriceTableByRegion(SpotInstancePriceTableByRegionSegment.newBuilder()
+                .setSpotInstancePriceTable(spotInstancePriceTable)
+                .setRegionId(regionId)
+                .build()).build();
+    }
+
+    private void sendPriceTableSegmentsReservedLicensePricesList(@Nonnull final StreamObserver<GetPriceTablesResponse> responseObserver,
+                                                                 @Nonnull final List<LicensePriceEntry> reservedLicensePricesList,
+                                                                 final long priceTableOid,
+                                                                 final long serializedSize) {
+        final PriceTableChunk priceTableChunk = PriceTableChunk.newBuilder()
+                .setCreatedTime(costComponentGlobalConfig.clock().millis())
+                .setPriceTableOid(priceTableOid)
+                .setReservedLicenseSegment(ReservedLicenseSegment.newBuilder()
+                        .addAllReservedLicensePriceEntry(reservedLicensePricesList)
+                        .build())
+                .build();
+        sendPriceTableChunk(responseObserver, serializedSize, Collections.singleton(priceTableChunk));
+    }
+
+    private void sendPriceTableSegmentsOnDemandLicensePricesList(@Nonnull final StreamObserver<GetPriceTablesResponse> responseObserver,
+                                                                 @Nonnull final List<LicensePriceEntry> onDemandLicensePricesList,
+                                                                 final long priceTableOid,
+                                                                 final long serializedSize) {
+        final PriceTableChunk priceTableChunk = PriceTableChunk.newBuilder()
+                .setCreatedTime(costComponentGlobalConfig.clock().millis())
+                .setPriceTableOid(priceTableOid)
+                .setOndemandLicensePriceEntrySegment(OnDemandLicensePriceEntrySegment.newBuilder()
+                        .addAllLicensePriceEntry(onDemandLicensePricesList)
+                        .build())
+                .build();
+        sendPriceTableChunk(responseObserver, serializedSize, Collections.singleton(priceTableChunk));
+    }
+
+    private void sendPriceTableChunk(@Nonnull final StreamObserver<GetPriceTablesResponse> responseObserver,
+                                     final long serializedSize,
+                                     @Nonnull final Collection<PriceTableChunk> priceTableChunks) {
+            GetPriceTablesResponse getPriceTableResponse = GetPriceTablesResponse.newBuilder()
+                    .setPriceTableSerializedSize(serializedSize)
+                    .addAllPriceTableChunk(priceTableChunks).build();
+            responseObserver.onNext(getPriceTableResponse);
+    }
+
 
     /**
      * helper object for holding a probe's price table and ri spect prices.

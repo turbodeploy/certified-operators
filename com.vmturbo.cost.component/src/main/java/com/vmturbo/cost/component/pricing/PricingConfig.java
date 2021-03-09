@@ -11,6 +11,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.common.protobuf.cost.PricingREST.PricingServiceController;
+import com.vmturbo.cost.component.CostComponentGlobalConfig;
 import com.vmturbo.cost.component.CostDBConfig;
 import com.vmturbo.cost.component.IdentityProviderConfig;
 import com.vmturbo.cost.component.identity.PriceTableKeyIdentityStore;
@@ -36,8 +37,14 @@ public class PricingConfig {
     @Autowired
     private IdentityProviderConfig identityProviderConfig;
 
+    @Autowired
+    CostComponentGlobalConfig costComponentGlobalConfig;
+
     @Value("${reservedInstanceSpec.enableCleanup:true}")
     private boolean isReservedInstanceSpecCleanupEnabled;
+
+    @Value("${priceTableSegmentSizeLimitBytes:10000000}")
+    private long priceTableSegmentSizeLimitBytes;
 
     @Bean
     public PriceTableMergeFactory priceTableMergeFactory() {
@@ -81,7 +88,9 @@ public class PricingConfig {
                 .reservedInstanceSpecStore(),
                 reservedInstanceConfig.reservedInstanceBoughtStore(),
                 businessAccountPriceTableKeyStore(),
-                reservedInstanceSpecCleanup());
+                reservedInstanceSpecCleanup(),
+                costComponentGlobalConfig,
+                priceTableSegmentSizeLimitBytes);
     }
 
     @Bean
