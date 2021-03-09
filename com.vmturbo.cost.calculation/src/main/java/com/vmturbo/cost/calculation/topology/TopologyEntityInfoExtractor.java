@@ -126,6 +126,7 @@ public class TopologyEntityInfoExtractor implements EntityInfoExtractor<Topology
                 .build());
     }
 
+
     @Override
     @Nonnull
     public Optional<DatabaseConfig> getDatabaseConfig(

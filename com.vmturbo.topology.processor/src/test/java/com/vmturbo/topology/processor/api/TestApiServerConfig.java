@@ -76,6 +76,7 @@ import com.vmturbo.topology.processor.identity.services.HeuristicsMatcher;
 import com.vmturbo.topology.processor.identity.storage.IdentityDatabaseStore;
 import com.vmturbo.topology.processor.identity.storage.IdentityServiceInMemoryUnderlyingStore;
 import com.vmturbo.topology.processor.notification.SystemNotificationProducer;
+import com.vmturbo.topology.processor.operation.FailedDiscoveryTracker;
 import com.vmturbo.topology.processor.operation.OperationManager;
 import com.vmturbo.topology.processor.operation.TestAggregatingDiscoveryQueue;
 import com.vmturbo.topology.processor.probes.ProbeInfoCompatibilityChecker;
@@ -239,6 +240,16 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
         return new CachingTargetStore(targetDao(), probeStore(), targetIdentityStore());
     }
 
+    /**
+     * Failed Discovery Tracker.
+     *
+     * @return {@link FailedDiscoveryTracker}.
+     */
+    @Bean
+    public FailedDiscoveryTracker failedDiscoveryTracker() {
+        return mock(FailedDiscoveryTracker.class);
+    }
+
     @Override
     public void configureMessageConverters(List<HttpMessageConverter<?>> converters) {
         GsonHttpMessageConverter msgConverter = new GsonHttpMessageConverter();
@@ -323,7 +334,7 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
     AggregatingDiscoveryQueue discoveryQueue() {
         @SuppressWarnings("unchecked")
         final ITransport<MediationServerMessage, MediationClientMessage> transport =
-                (ITransport<MediationServerMessage, MediationClientMessage>)mock(ITransport.class);
+                mock(ITransport.class);
 
         return new TestAggregatingDiscoveryQueue(transport);
     }
@@ -344,6 +355,7 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
 
         return new OperationManager(identityProvider(),
             targetStore(),
+            failedDiscoveryTracker(),
             probeStore(),
             remoteMediation(),
             topologyProcessorNotificationSender(),

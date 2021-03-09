@@ -27,7 +27,7 @@ import com.vmturbo.topology.processor.api.TopologyProcessorException;
  * This updater handles Intersight target changes under various scenarios and reports target status
  * back to Intersight.
  */
-public class IntersightTargetUpdater {
+public class IntersightTargetStatusUpdater {
     private static final Logger logger = LogManager.getLogger();
 
     /**
@@ -54,7 +54,7 @@ public class IntersightTargetUpdater {
      * @param noUpdateOnChangePeriodSeconds how long to hold off target status update upon target
      *                                      creation/modification
      */
-    public IntersightTargetUpdater(@Nonnull final ApiClient apiClient,
+    public IntersightTargetStatusUpdater(@Nonnull final ApiClient apiClient,
                                    @Nonnull final TopologyProcessor topologyProcessor,
                                    final long noUpdateOnChangePeriodSeconds) {
         this.apiClient = Objects.requireNonNull(apiClient);
@@ -77,7 +77,8 @@ public class IntersightTargetUpdater {
                        @Nonnull final TargetInfo tpTargetInfo)
             throws InterruptedException, TopologyProcessorException, CommunicationException,
             ApiException, JsonProcessingException {
-        final WrappedTarget wrappedTarget = new WrappedTarget(intersightAssetTarget, tpTargetInfo);
+        final IntersightWrappedTarget
+                wrappedTarget = new IntersightWrappedTarget(intersightAssetTarget, tpTargetInfo);
         // Differentiate various scenarios in updating status for better user experience
         if (wrappedTarget.ifRecentlyCreated(noUpdateOnChangePeriodSeconds)) {
             onRecentlyCreated(wrappedTarget);
@@ -95,14 +96,14 @@ public class IntersightTargetUpdater {
      * on the assist may not show up immediately for the probe to consume possibly due to that
      * the credentials volume is cached on the probe pod.
      *
-     * @param target the {@link WrappedTarget} which has the combined Intersight and TP target info
+     * @param target the {@link IntersightWrappedTarget} which has the combined Intersight and TP target info
      * @throws ApiException when having problems fetching the list of targets from Intersight
      * @throws CommunicationException when having problems communicating with the topology processor
      * @throws TopologyProcessorException when topology processor sends back an exception
      * @throws InterruptedException when interrupted while waiting for topology processor to respond
      * @throws JsonProcessingException thrown if there is a problem serializing the asset target
      */
-    private void onRecentlyCreated(@Nonnull final WrappedTarget target)
+    private void onRecentlyCreated(@Nonnull final IntersightWrappedTarget target)
             throws ApiException, InterruptedException, TopologyProcessorException,
             CommunicationException, JsonProcessingException {
         if (target.isValidated()) {
@@ -120,12 +121,12 @@ public class IntersightTargetUpdater {
      * Within a configurable period of target modification, we will hold off any update until
      * enough time has elapsed to ensure the target info update will have shown up on the probe pod.
      *
-     * @param target the {@link WrappedTarget} which has the combined Intersight and TP target info
+     * @param target the {@link IntersightWrappedTarget} which has the combined Intersight and TP target info
      * @throws CommunicationException when having problems communicating with the topology processor
      * @throws TopologyProcessorException when topology processor sends back an exception
      * @throws InterruptedException when interrupted while waiting for topology processor to respond
      */
-    private void onRecentlyModified(@Nonnull final WrappedTarget target)
+    private void onRecentlyModified(@Nonnull final IntersightWrappedTarget target)
             throws TopologyProcessorException, CommunicationException, InterruptedException {
         topologyProcessor.validateTarget(target.tp().getId());
         logger.info("Target {} is recently modified; validating...", target.intersight().getMoid());
@@ -135,11 +136,11 @@ public class IntersightTargetUpdater {
      * This executes the normal periodic target status update back to Intersight beyond the target
      * creation/modification periods.
      *
-     * @param target the {@link WrappedTarget} which has the combined Intersight and TP target info
+     * @param target the {@link IntersightWrappedTarget} which has the combined Intersight and TP target info
      * @throws ApiException thrown if updating the target status returns an API exception
      * @throws JsonProcessingException thrown if there is a problem serializing the asset target
      */
-    private void onNormalUpdate(@Nonnull final WrappedTarget target)
+    private void onNormalUpdate(@Nonnull final IntersightWrappedTarget target)
             throws ApiException, JsonProcessingException {
         final long changedCount = Optional.ofNullable(target.intersight().getServices())
                 .orElse(Collections.emptyList()).stream()

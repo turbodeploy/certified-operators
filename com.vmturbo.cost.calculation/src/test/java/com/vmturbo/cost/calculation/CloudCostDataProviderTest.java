@@ -148,12 +148,12 @@ public class CloudCostDataProviderTest {
     private CloudCostData<TopologyEntityDTO> cloudCostDataAWS =
             new CloudCostData<>(Collections.emptyMap(), Collections.emptyMap(),
     Collections.emptyMap(), Collections.emptyMap(),
-        Collections.emptyMap(), awsAccountPricingDatByBaMap);
+        Collections.emptyMap(), awsAccountPricingDatByBaMap, Collections.emptyMap(), Optional.empty());
 
     private CloudCostData<TopologyEntityDTO> cloudCostDataAzure =
             new CloudCostData<>(Collections.emptyMap(), Collections.emptyMap(),
     Collections.emptyMap(), Collections.emptyMap(),
-        Collections.emptyMap(), azureAccountPricingDatByBaMap);
+        Collections.emptyMap(), azureAccountPricingDatByBaMap, Collections.emptyMap(), Optional.empty());
 
     /**
      * Create a Price instance

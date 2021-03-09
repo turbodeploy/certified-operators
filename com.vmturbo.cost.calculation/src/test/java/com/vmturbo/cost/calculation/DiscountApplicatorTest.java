@@ -48,7 +48,7 @@ public class DiscountApplicatorTest {
 
     private CloudCostData<TestEntityClass> emptyCloudCostData =
             new CloudCostData<>(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
-                    Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
+                    Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Optional.empty());
 
     @Before
     public void setup() {

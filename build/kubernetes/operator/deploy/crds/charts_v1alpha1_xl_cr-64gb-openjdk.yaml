@@ -18,7 +18,7 @@ spec:
   #  imageUsername: turbouser
   #  imagePassword: turbopassword
     repository: turbonomic
-    tag: 8.1.2-SNAPSHOT
+    tag: 8.1.3-SNAPSHOT
     externalIP: 10.0.2.15
     externalDbIP: 10.0.2.15
     externalTimescaleDBIP: 10.0.2.15
@@ -114,4 +114,8 @@ spec:
   tomcat:
     enabled: false
   jvm:
+    enabled: false
+  websphere:
+    enabled: false
+  weblogic:
     enabled: false

@@ -536,6 +536,8 @@ enum CostSource {
     BUY_RI_DISCOUNT = 3;
 
     UNCLASSIFIED = 4;
+
+    ENTITY_UPTIME_DISCOUNT = 5;
 }
 
 // A request containing a snapshot of cost data to be stored by the cost service.

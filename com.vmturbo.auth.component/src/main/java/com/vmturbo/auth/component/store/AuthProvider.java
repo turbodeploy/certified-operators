@@ -33,6 +33,7 @@ import javax.annotation.concurrent.ThreadSafe;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 
+import com.vmturbo.auth.api.authorization.keyprovider.IKeyImportIndicator;
 import io.jsonwebtoken.CompressionCodecs;
 import io.jsonwebtoken.JwtBuilder;
 import io.jsonwebtoken.Jwts;
@@ -137,11 +138,13 @@ public class AuthProvider extends AuthProviderBase {
     public AuthProvider(@Nonnull final KeyValueStore keyValueStore, @Nullable final GroupServiceBlockingStub groupServiceClient,
             @Nonnull final Supplier<String> keyValueDir, @Nullable final WidgetsetDbStore widgetsetDbStore,
             @Nonnull UserPolicy userPolicy, @Nonnull final SsoUtil ssoUtil,
-            final boolean enableMultiADGroupSupport, final boolean enableExternalSecrets) {
+            final boolean enableMultiADGroupSupport, final boolean enableExternalSecrets,
+            @Nullable IKeyImportIndicator keyImportIndicator) {
         super(keyValueStore);
         logger_.info("EnableExternalSecrets: " + enableExternalSecrets);
         this.keyProvider = constructKeyProvider(keyValueStore, keyValueDir.get(), enableExternalSecrets);
-        authInitProvider = new AuthInitProvider(keyValueStore, keyValueDir, enableExternalSecrets, keyProvider);
+        authInitProvider = new AuthInitProvider(keyValueStore, keyValueDir, enableExternalSecrets, keyProvider,
+                keyImportIndicator);
         this.ssoUtil = ssoUtil;
         IdentityGenerator.initPrefix(identityGeneratorPrefix_);
         this.groupServiceClient = Optional.ofNullable(groupServiceClient);

@@ -22,8 +22,8 @@ CREATE TABLE entity_savings_audit_events (
   -- (creation/deletion/powerToggles etc.). Other possible events are group membership changes.
   event_type INT NOT NULL,
 
-  -- Action OID if action event type, or Vendor event id for topology events if applicable, or NULL.
-  event_id VARCHAR(255) DEFAULT NULL,
+  -- Action OID if action event type, or Vendor event id for topology events if applicable, or ''.
+  event_id VARCHAR(255) NOT NULL,
 
   -- Time when the event happened. Action event time, or when topology event (power down) happened.
   event_time DATETIME NOT NULL,

@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
@@ -23,16 +24,23 @@ import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.CostMoles;
+import com.vmturbo.common.protobuf.cost.EntityUptime;
+import com.vmturbo.common.protobuf.cost.EntityUptime.EntityUptimeDTO;
+import com.vmturbo.common.protobuf.cost.EntityUptime.GetEntityUptimeByFilterRequest;
+import com.vmturbo.common.protobuf.cost.EntityUptimeMoles;
 import com.vmturbo.common.protobuf.cost.Pricing;
 import com.vmturbo.common.protobuf.cost.PricingMoles;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.cost.calculation.DiscountApplicator;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider;
+import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityInfoExtractor;
 import com.vmturbo.platform.common.dto.CommonDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.CommonCost;
 
@@ -141,8 +149,14 @@ public class MarketCloudCostDataProviderTest {
                         .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.CLOUD).setOid(73695157440640L)
                         .setEntityType(CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE_VALUE)
                         .build();
+        final TopologyDTO.TopologyEntityDTO cloudVm2 = TopologyDTO.TopologyEntityDTO.newBuilder()
+                .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.CLOUD).setOid(73695157440630L)
+                .setEntityType(CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE_VALUE)
+                .build();
+
 
         final TopologyEntityCloudTopology cloudTopology = mock(TopologyEntityCloudTopology.class);
+        when(cloudTopology.getAllEntitiesOfType(EntityType.VIRTUAL_MACHINE_VALUE)).thenReturn(ImmutableList.of(cloudVm, cloudVm2));
         when(cloudTopology.getEntity(73695157440640L)).thenReturn(Optional.of(cloudVm));
         when(cloudTopology.getEntity(73695157440641L)).thenReturn(Optional.empty());
         CostMoles.ReservedInstanceBoughtServiceMole riBoughtService = spy(new CostMoles.ReservedInstanceBoughtServiceMole());
@@ -190,6 +204,7 @@ public class MarketCloudCostDataProviderTest {
 
         //Entity To RI Coverage
         CostMoles.ReservedInstanceUtilizationCoverageServiceMole riUtilizationCoverageService = spy(new CostMoles.ReservedInstanceUtilizationCoverageServiceMole());
+        EntityUptimeMoles.EntityUptimeServiceMole entityUptimeService = spy(new EntityUptimeMoles.EntityUptimeServiceMole());
         EntityReservedInstanceCoverage entityToRIMapping1 = EntityReservedInstanceCoverage.newBuilder().setEntityId(73695157440640L).setEntityCouponCapacity(8).build();
         EntityReservedInstanceCoverage entityToRIMapping2 = EntityReservedInstanceCoverage.newBuilder().setEntityId(73695157440641L).setEntityCouponCapacity(8).build();
         Cost.GetEntityReservedInstanceCoverageResponse getEntityReservedInstanceCoverageResponse =
@@ -197,9 +212,24 @@ public class MarketCloudCostDataProviderTest {
                                         .putCoverageByEntityId(73695157440640L, entityToRIMapping1)
                                         .putCoverageByEntityId(73695157440641L, entityToRIMapping2)
                                         .build();
+        // set up EntityUptimeDTO
+        EntityUptimeDTO expectedUptimeDTO = EntityUptimeDTO.newBuilder()
+                                    .setTotalDurationMs(60000)
+                                    .setCreationTimeMs(10000)
+                                    .setUptimeDurationMs(50000)
+                                    .setUptimePercentage(90D).build();
+        EntityUptime.GetEntityUptimeByFilterResponse uptimeByFilterResponse =
+                EntityUptime.GetEntityUptimeByFilterResponse.newBuilder()
+                                    .setDefaultUptime(EntityUptimeDTO.getDefaultInstance())
+                                    .putEntityUptimeByOid(cloudVm.getOid(), expectedUptimeDTO)
+                                    .build();
+        when(entityUptimeService.getEntityUptimeByFilter(Matchers.any(GetEntityUptimeByFilterRequest.class)))
+                .thenReturn(uptimeByFilterResponse);
+
         when(riUtilizationCoverageService.getEntityReservedInstanceCoverage(Matchers.any())).thenReturn(getEntityReservedInstanceCoverageResponse);
 
-        GrpcTestServer mockServer = GrpcTestServer.newServer(riBoughtService, pricingService, costService, buyRIService, riSpecService, riUtilizationCoverageService);
+        GrpcTestServer mockServer = GrpcTestServer.newServer(riBoughtService, pricingService, costService, buyRIService,
+                                    riSpecService, riUtilizationCoverageService, entityUptimeService);
         mockServer.start();
 
         TopologyDTO.TopologyInfo topoInfo = TopologyDTO.TopologyInfo.newBuilder().setTopologyContextId(1000L)
@@ -218,7 +248,7 @@ public class MarketCloudCostDataProviderTest {
                         mock(DiscountApplicator.DiscountApplicatorFactory.class);
         MarketCloudCostDataProvider marketCloudCostDataProvider = new MarketCloudCostDataProvider(mockServer.getChannel(),
                         discountApplicatorFactory, topologyEntityInfoExtractor);
-        final CloudCostDataProvider.CloudCostData<TopologyDTO.TopologyEntityDTO> cloudCostData =
+        CloudCostDataProvider.CloudCostData<TopologyDTO.TopologyEntityDTO> cloudCostData =
                         marketCloudCostDataProvider.getCloudCostData(topoInfo, cloudTopology,
                                         topologyEntityInfoExtractor);
 
@@ -226,5 +256,20 @@ public class MarketCloudCostDataProviderTest {
                         cloudCostData.getCurrentRiCoverage();
         assertEquals(1, currentRiCoverage.size());
         assertTrue(currentRiCoverage.containsKey(73695157440640L));
+        // verify entity uptime for id with entity uptime
+        verifyUptimePercentage(cloudCostData, cloudVm.getOid(), expectedUptimeDTO.getUptimePercentage());
+        verifyUptimePercentage(cloudCostData, cloudVm2.getOid(), EntityUptimeDTO.getDefaultInstance().getUptimePercentage());
+        // now check real time
+        topoInfo = topoInfo.toBuilder().setTopologyType(TopologyType.REALTIME).build();
+        cloudCostData = marketCloudCostDataProvider.getCloudCostData(topoInfo, cloudTopology,
+                        topologyEntityInfoExtractor);
+        verifyUptimePercentage(cloudCostData, cloudVm.getOid(), expectedUptimeDTO.getUptimePercentage());
+        verifyUptimePercentage(cloudCostData, cloudVm2.getOid(), EntityUptimeDTO.getDefaultInstance().getUptimePercentage());
+    }
+
+    private void verifyUptimePercentage(CloudCostData data, Long oid, Double expectedUptime) {
+        Double actualEntityUptime = data.getEntityUptimePercentage(oid);
+        assertEquals(actualEntityUptime, expectedUptime, 0.0001D);
+
     }
 }

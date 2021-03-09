@@ -39,11 +39,17 @@ import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO.TurboLicense;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseSummary;
 import com.vmturbo.common.protobuf.plan.PlanDTOMoles.PlanServiceMole;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
+import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.setting.SettingProto.UpdateGlobalSettingRequest;
+import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.components.common.mail.MailManager;
+import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.notification.api.NotificationSender;
 import com.vmturbo.notification.api.dto.SystemNotificationDTO.State;
 import com.vmturbo.notification.api.dto.SystemNotificationDTO.SystemNotification;
@@ -64,6 +70,8 @@ public class LicenseCheckServiceTest {
 
     private LicenseManagerService licenseManagerService;
 
+    private SettingServiceMole settingServiceMole = spy(new SettingServiceMole());
+
     private StatsHistoryServiceMole statsHistoryServiceSpy = spy(new StatsHistoryServiceMole());
 
     private CostServiceMole costServiceSpy = spy(new CostServiceMole());
@@ -78,7 +86,7 @@ public class LicenseCheckServiceTest {
     private RepositoryServiceMole repositoryServiceSpy = spy(new RepositoryServiceMole());
 
     @Rule
-    public GrpcTestServer testServer = GrpcTestServer.newServer(statsHistoryServiceSpy,
+    public GrpcTestServer testServer = GrpcTestServer.newServer(statsHistoryServiceSpy, settingServiceMole,
             groupServiceSpy, planServiceSpy, repositoryServiceSpy, costServiceSpy, riUtilizationCoverageSpy);
 
     private IMessageSender<SystemNotification> systemNotificationIMessageSender;
@@ -100,6 +108,7 @@ public class LicenseCheckServiceTest {
         final Flux<LicenseManagementEvent> flux = Flux.fromIterable(Collections.emptyList());
         when(licenseManagerService.getEventStream()).thenReturn(flux);
         licenseCheckService = new LicenseCheckService(licenseManagerService,
+                SettingServiceGrpc.newBlockingStub(testServer.getChannel()),
                 licensedEntitiesCountCalculator,
                 repository,
                 licenseSummaryIMessageSender,
@@ -293,6 +302,7 @@ public class LicenseCheckServiceTest {
         licenseCheckService.onSourceTopologyAvailable(1L, 777777L);
         verify(systemNotificationIMessageSender, never()).sendMessage(any());
         verify(mailManager, never()).sendMail(anyList(), any(), any());
+        verify(settingServiceMole, never()).updateGlobalSetting(any());
     }
 
     /**
@@ -312,6 +322,49 @@ public class LicenseCheckServiceTest {
         licenseCheckService.onSourceTopologyAvailable(1L, 777777L);
         verify(systemNotificationIMessageSender, never()).sendMessage(any());
         verify(mailManager, never()).sendMail(anyList(), any(), any());
+        verify(settingServiceMole, never()).updateGlobalSetting(any());
+    }
+
+    /**
+     * Verify when licenses have CWOM license, telemetry will be disabled.
+     *
+     * @throws Exception not supposed to happen
+     */
+    @Test
+    public void testValidCWOMLicense() throws Exception {
+        // invalid CWOM license
+        final LicenseDTO licenseDTO1 = LicenseDTO.newBuilder()
+            .setTurbo(TurboLicense.newBuilder())
+            .build();
+        when(licenseManagerService.getLicenses()).thenReturn(Collections.singleton(licenseDTO1));
+        when(licensedEntitiesCountCalculator.getLicensedEntitiesCount(any())).thenReturn(Optional.empty());
+        licenseCheckService.onSourceTopologyAvailable(1L, 777777L);
+        verify(systemNotificationIMessageSender, never()).sendMessage(any());
+        verify(mailManager, never()).sendMail(anyList(), any(), any());
+        verify(settingServiceMole, never()).updateGlobalSetting(any());
+
+        // invalid CWOM license
+        final LicenseDTO licenseDTO2 = LicenseDTO.newBuilder()
+            .setTurbo(TurboLicense.newBuilder()
+                .setExternalLicenseKey(""))
+            .build();
+        when(licenseManagerService.getLicenses()).thenReturn(Collections.singleton(licenseDTO2));
+        licenseCheckService.onSourceTopologyAvailable(1L, 777777L);
+        verify(settingServiceMole, never()).updateGlobalSetting(any());
+
+        // valid CWOM license
+        final LicenseDTO licenseDTO = LicenseDTO.newBuilder()
+            .setTurbo(TurboLicense.newBuilder()
+                .setExternalLicenseKey("111"))
+            .build();
+        when(licenseManagerService.getLicenses()).thenReturn(Collections.singleton(licenseDTO));
+        licenseCheckService.onSourceTopologyAvailable(1L, 777777L);
+        verify(settingServiceMole, times(1)).updateGlobalSetting(
+            UpdateGlobalSettingRequest.newBuilder().addSetting(Setting.newBuilder()
+                .setSettingSpecName(GlobalSettingSpecs.TelemetryEnabled.getSettingName())
+                .setBooleanSettingValue(BooleanSettingValue.newBuilder().setValue(false))).build());
+
+
     }
 
     SystemNotification notification(String description, String shortDescription) {

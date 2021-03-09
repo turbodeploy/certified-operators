@@ -46,6 +46,7 @@ import org.jooq.TableField;
 import org.jooq.impl.DSL;
 
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;
+import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.api.TimeUtil;
 import com.vmturbo.cost.component.db.Routines;
 import com.vmturbo.cost.component.db.tables.records.AggregationMetaDataRecord;
@@ -183,6 +184,26 @@ public class SqlEntitySavingsStore implements EntitySavingsStore {
             throw new EntitySavingsException("Could not add " + hourlyStats.size()
                     + " hourly entity savings stats to DB.", e);
         }
+    }
+
+    @Nonnull
+    @Override
+    public List<AggregatedSavingsStats> getSavingsStats(final TimeFrame timeFrame,
+            @Nonnull Set<EntitySavingsStatsType> statsTypes,
+            @Nonnull Long startTime, @Nonnull Long endTime,
+            @Nonnull MultiValuedMap<EntityType, Long> entitiesByType)
+            throws EntitySavingsException {
+        RollupDurationType durationType = RollupDurationType.HOURLY;
+        switch (timeFrame) {
+            case DAY:
+                durationType = RollupDurationType.DAILY;
+                break;
+            case MONTH:
+            case YEAR:
+                durationType = RollupDurationType.MONTHLY;
+                break;
+        }
+        return querySavingsStats(durationType, statsTypes, startTime, endTime, entitiesByType);
     }
 
     @Nonnull

@@ -2,6 +2,16 @@
 
 # mariadbUpgrade.sh
 
+# Check if the database is hosted on this kubernetes node
+# Not external to the instance, or as a docker image
+serverIp=$(ifconfig eth0 | grep 'inet' |egrep -v 'inet6' | cut -d: -f2 | awk '{ print $2}')
+databaseIp=$(grep externalDbIP /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml | egrep -v '#' | awk '{print $2}')
+if [ X${serverIp} != X${databaseIp} ]
+then
+  echo "Exiting, the database server does not appear to be hosted on this kubernetes node"
+  exit 1
+fi
+
 # Check the version installed
 dbVersion=$(rpm -qi MariaDB-server | grep Version | head -1| awk -F: '{print $2}' | xargs)
 if [ X${dbVersion} = "X10.5.6" ]
@@ -14,6 +24,15 @@ fi
 echo
 echo "Enter the mysql password:"
 dbPassword=$(systemd-ask-password password:)
+
+# Check to ensure the password is correct
+mysql -uroot -p${dbPassword} -e"quit" > /dev/null 2>&1
+result=$?
+if [ $result -ne 0 ]
+then
+  echo "You have entered an invalid database password"
+  exit 1
+fi
 
 # Upgrade Mariadb - Requires the Turbonomic system to be stopped
 # Scale down the operator

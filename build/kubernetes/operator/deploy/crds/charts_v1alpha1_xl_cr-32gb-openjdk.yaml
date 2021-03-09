@@ -17,7 +17,7 @@ spec:
   #  imageUsername: turbouser
   #  imagePassword: turbopassword
     repository: turbonomic
-    tag: 8.1.2-SNAPSHOT
+    tag: 8.1.3-SNAPSHOT
     externalIP: 10.0.2.15
     externalDbIP: 10.0.2.15
     externalTimescaleDBIP: 10.0.2.15
@@ -91,6 +91,10 @@ spec:
     enabled: false
   newrelic:
     enabled: true
+  websphere:
+    enabled: false
+  weblogic:
+    enabled: false
 
   # Resource limits - Core Services
   action-orchestrator:
@@ -229,4 +233,11 @@ spec:
     resources:
       limits:
         memory: 1Gi
-
+  mediation-websphere:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-weblogic:
+    resources:
+      limits:
+        memory: 512Mi

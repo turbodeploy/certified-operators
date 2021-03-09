@@ -98,7 +98,8 @@ public class TemplateCostStatsSubQuery implements StatsSubQuery {
             statApiDTO.setValues(values);
 
             StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
-            final long statsTime = planInstance.getStartTime();
+            final long statsTime = planInstance.getPlanProgress().getSourceTopologySummary()
+                    .getTopologyInfo().getCreationTime();
             statSnapshotApiDTO.setDate(DateTimeUtil.toString(statsTime));
             statSnapshotApiDTO.setEpoch(Epoch.PLAN_PROJECTED);
             statSnapshotApiDTO.setStatistics(Collections.singletonList(statApiDTO));

@@ -396,6 +396,40 @@ public class UtilizationCountArrayTest {
         Assert.assertThat(result, CoreMatchers.nullValue());
     }
 
+    /**
+     * Check calculation of 100 for counts that has counts[100] > 0 will lead to 100 percentile
+     * usage value.
+     *
+     * @throws HistoryCalculationException in case calculation failed
+     */
+    @Test
+    public void checkGetPercentileCauseIndexOutOfBoundWithoutOverflow() throws HistoryCalculationException {
+        countsArray.counts = new int[] {26, 1, 6, 6, 4, 41, 2275, 8175, 17475, 27506, 35187, 11948, 77253, 43033, 43014, 68719, 14318, 15352, 64299, 36205, 33744, 31459, 29129, 27150, 25004, 9960, 34436, 19782, 18419, 16814, 15391, 14616, 24342, 6661, 6430, 14221, 5780, 5456, 5318, 15285, 6689, 6197, 5727, 5373, 4875, 4509, 4245, 3885, 3616, 3276, 2946, 2859, 2593, 4068, 1773, 1577, 1479, 1455, 1299, 1889, 1438, 1330, 1291, 1156, 1041, 1031, 983, 921, 898, 841, 754, 729, 675, 824, 596, 526, 465, 507, 542, 445, 504, 442, 381, 384, 371, 343, 317, 638, 275, 297, 232, 251, 260, 250, 222, 228, 204, 186, 164, 177, 354};
+        final Integer result = countsArray.getPercentile(100F, REF);
+        Assert.assertThat(result, CoreMatchers.is(100));
+    }
+
+    /**
+     * Check calculation of 100 percentile which has 0 values in the counts after some utilization
+     * value. In reality this use-case means that e.g. VM CPU utilization has not exceed 6%
+     * utilization for the whole observation period. In this case 100 percentile should show 6%.
+     *
+     * @throws HistoryCalculationException in case calculation failed
+     */
+    @Test
+    public void checkGetPercentileMessage() throws HistoryCalculationException {
+        countsArray.counts[1] = 51710;
+        countsArray.counts[2] = 680879;
+        countsArray.counts[3] = 185429;
+        countsArray.counts[4] = 2696;
+        countsArray.counts[5] = 328;
+        countsArray.counts[6] = 1;
+        Assert.assertThat(countsArray.getPercentile(100F, REF), CoreMatchers.is(6));
+        Assert.assertThat(countsArray.getPercentile(99.999999F, REF), CoreMatchers.is(6));
+        Assert.assertThat(countsArray.getPercentile(99.999F, REF), CoreMatchers.is(5));
+        Assert.assertThat(countsArray.getPercentile(75F, REF), CoreMatchers.is(2));
+    }
+
     private static void checkToString(Supplier<String> toStringSupplier,
                     final String expectedFieldsToString) {
         Assert.assertThat(toStringSupplier.get(), CoreMatchers.is(String

@@ -1,8 +1,11 @@
 package com.vmturbo.action.orchestrator.store;
 
 import static com.vmturbo.action.orchestrator.db.tables.MarketAction.MARKET_ACTION;
+import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
@@ -14,6 +17,7 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -56,6 +60,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.BuyRIActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.MarketActionPlanInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
@@ -461,6 +466,53 @@ public class PlanActionStoreTest {
         actionStore.populateRecommendedActions(marketActionPlan2);
         assertEquals(3, actionStore.getActionsByActionPlanType().get(ActionPlanType.MARKET).size());
         assertEquals(secondPlanId, actionStore.getActionPlanId(ActionPlanType.MARKET).get().longValue());
+    }
+
+    /**
+     * Tests the case the action description is too long and we truncate the description.
+     */
+    @Test
+    public void testTruncatingLongDescriptions() {
+        // ARRANGE
+        ActionDTO.Action longAction =
+            ActionOrchestratorTestUtils.createMoveRecommendation(IdentityGenerator.next(), 1L,
+                hostA, 14, hostB, 14);
+        ActionDTO.Action shortAction =
+            ActionOrchestratorTestUtils.createMoveRecommendation(IdentityGenerator.next(), 2L,
+                hostA, 14, hostB, 14);
+
+        // the name of the vm is very very long
+        when(snapshot.getEntityFromOid(eq(1L)))
+            .thenReturn(Optional.of(TopologyDTO.PartialEntity.ActionPartialEntity.newBuilder()
+                .setOid(1L)
+                .setEntityType(10)
+                .setDisplayName(String.join("", Collections.nCopies(250, "very"))
+                    + "LongName")
+                .build()));
+
+        // the name of this vm is reasonable
+        when(snapshot.getEntityFromOid(eq(2L)))
+            .thenReturn(Optional.of(TopologyDTO.PartialEntity.ActionPartialEntity.newBuilder()
+                .setOid(2L)
+                .setEntityType(10)
+                .setDisplayName("Test 12")
+                .build()));
+
+        final ActionPlan marketActionPlan = marketActionPlan(firstPlanId, firstContextId,
+            Arrays.asList(longAction, shortAction));
+
+        // ACT
+        actionStore.populateRecommendedActions(marketActionPlan);
+
+        // ASSERT
+        assertThat(actionStore.getActionsByActionPlanType().get(ActionPlanType.MARKET).size(),
+            is(2));
+        assertThat(actionStore.getAction(longAction.getId()).get().getDescription(),
+            endsWith("..."));
+        assertTrue(actionStore.getAction(longAction.getId()).get().getDescription().length()
+            <= MARKET_ACTION.DESCRIPTION.getDataType().length());
+        assertFalse(actionStore.getAction(shortAction.getId()).get().getDescription().endsWith(
+            "..."));
     }
 
     private static List<ActionDTO.Action> actionList(final int numActions) {

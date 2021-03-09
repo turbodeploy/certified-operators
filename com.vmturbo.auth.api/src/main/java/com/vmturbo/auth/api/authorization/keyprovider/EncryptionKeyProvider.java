@@ -20,7 +20,7 @@ import com.vmturbo.kvstore.KeyValueStore;
  * <p>A master encryption key will be read from an external source, and used to encrypt/decrypt
  * the internal keys. Individual components each get their own internal key (when needed)</p>
  */
-public class EncryptionKeyProvider implements IEncryptionKeyProvider {
+public class EncryptionKeyProvider implements IEncryptionKeyProvider, IKeyImportIndicator {
 
     /**
      * The key to use in the KV store to hold the value for the encryption key.
@@ -53,6 +53,11 @@ public class EncryptionKeyProvider implements IEncryptionKeyProvider {
      * <p>Used to encrypt/decrypt sensitive data.</p>
      */
     private String encryptionKey;
+
+    /**
+     * A flag indicating whether the encryption key was imported during the lifetime of this class instance.
+     */
+    private boolean encryptionKeyImported = false;
 
     /**
      * Create a provider for encryption keys, used to encrypt and decrypt sensitive data.
@@ -114,6 +119,9 @@ public class EncryptionKeyProvider implements IEncryptionKeyProvider {
             // Upgrade a legacy key into the new encrypted storage format
             logger.info("Successfully imported existing encryption key.");
             encryptionKeyBytes = legacyKey.get();
+            // If we get here, we also need to set the admin init JWT, so the instance doesn't appear to be new
+            // Set a flag so we can key on this later
+            encryptionKeyImported = true;
         } else {
             // We don't have the internal encryption key stored, and no legacy key was found. This appears to be a new
             // installation, so generate a new encryption key.
@@ -126,6 +134,16 @@ public class EncryptionKeyProvider implements IEncryptionKeyProvider {
         // Cache the encryption key for future use
         encryptionKey = BaseEncoding.base64().encode(encryptionKeyBytes);
         return encryptionKey;
+    }
+
+    /**
+     * Return a flag indicating whether the encryption key was imported during the lifetime of this class instance.
+     *
+     * @return a flag indicating whether the encryption key was imported during the lifetime of this class instance.
+     */
+    @Override
+    public boolean wasEncryptionKeyImported() {
+        return encryptionKeyImported;
     }
 
     /**

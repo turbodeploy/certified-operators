@@ -20,6 +20,7 @@ import com.vmturbo.stitching.poststitching.CpuCapacityPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.CpuConsistentScalingFactorPostStitchingOperation.NamespaceConsistentScalingFactorPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.CpuConsistentScalingFactorPostStitchingOperation.VirtualMachineConsistentScalingFactorPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.CpuScalingFactorPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.DisableActionForHxControllerVmAndDsOperation;
 import com.vmturbo.stitching.poststitching.DiskCapacityCalculator;
 import com.vmturbo.stitching.poststitching.GuestLoadAppPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOperation.CpuProvisionedPostStitchingOperation;
@@ -124,6 +125,7 @@ public class PostStitchingOperationLibrary {
             new PropagatedUpUsedPostStitchingOperation(EntityType.STORAGE, CommodityType.STORAGE_ACCESS),
             new SetCommodityMaxQuantityPostStitchingOperation(commodityPostStitchingOperationConfig),
             new SetMovableFalseForHyperVAndVMMNotClusteredVmsOperation(),
+            new DisableActionForHxControllerVmAndDsOperation(),
             new UseHypervisorVmemForResizingPostStitchingOperation(),
             new SetResizeDownAnalysisSettingPostStitchingOperation(resizeDownWarmUpIntervalHours, clock),
             new ComputedQxVcpuUsedValuePostStitchingOperation(),

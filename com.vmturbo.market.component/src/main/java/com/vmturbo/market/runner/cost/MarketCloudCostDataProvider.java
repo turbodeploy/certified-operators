@@ -5,16 +5,17 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Maps;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import io.grpc.Channel;
 import io.grpc.StatusRuntimeException;
 
@@ -32,6 +33,13 @@ import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceSpecByIdsRespons
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
+import com.vmturbo.common.protobuf.cost.EntityUptime;
+import com.vmturbo.common.protobuf.cost.EntityUptime.CloudScopeFilter;
+import com.vmturbo.common.protobuf.cost.EntityUptime.EntityUptimeDTO;
+import com.vmturbo.common.protobuf.cost.EntityUptime.GetEntityUptimeByFilterRequest;
+import com.vmturbo.common.protobuf.cost.EntityUptime.GetEntityUptimeByFilterResponse;
+import com.vmturbo.common.protobuf.cost.EntityUptimeServiceGrpc;
+import com.vmturbo.common.protobuf.cost.EntityUptimeServiceGrpc.EntityUptimeServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.PricingServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceBlockingStub;
@@ -39,6 +47,7 @@ import com.vmturbo.common.protobuf.cost.ReservedInstanceSpecServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceSpecServiceGrpc.ReservedInstanceSpecServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.cost.calculation.DiscountApplicator.DiscountApplicatorFactory;
@@ -46,6 +55,7 @@ import com.vmturbo.cost.calculation.integration.CloudCostDataProvider;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.cost.calculation.topology.TopologyEntityInfoExtractor;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * An implementation of {@link CloudCostDataProvider} that gets the relevant
@@ -62,6 +72,7 @@ public class MarketCloudCostDataProvider implements CloudCostDataProvider {
     private final MarketPricingResolver marketPricingResolver;
 
     private final ReservedInstanceUtilizationCoverageServiceBlockingStub riUtilizationServiceClient;
+    private final EntityUptimeServiceBlockingStub entityUptimeServiceClient;
 
     /**
      * Constructor for the market cloud cost data provider.
@@ -84,6 +95,8 @@ public class MarketCloudCostDataProvider implements CloudCostDataProvider {
         this.riUtilizationServiceClient =
                 Objects.requireNonNull(ReservedInstanceUtilizationCoverageServiceGrpc
                         .newBlockingStub(costChannel));
+        this.entityUptimeServiceClient =
+                Objects.requireNonNull(EntityUptimeServiceGrpc.newBlockingStub(costChannel));
     }
 
     /**
@@ -148,9 +161,11 @@ public class MarketCloudCostDataProvider implements CloudCostDataProvider {
             final GetEntityReservedInstanceCoverageResponse coverageResponse =
                             riUtilizationServiceClient.getEntityReservedInstanceCoverage(
                     GetEntityReservedInstanceCoverageRequest.getDefaultInstance());
+            // retrieve all entity uptime data
+            GetEntityUptimeByFilterResponse entityUptimeResponse =
+                    entityUptimeServiceClient.getEntityUptimeByFilter(GetEntityUptimeByFilterRequest.newBuilder().build());;Map<Long, EntityUptimeDTO> uptimeByOidMap = entityUptimeResponse.getEntityUptimeByOidMap();
 
             Map<Long, EntityReservedInstanceCoverage> coverageListMap = coverageResponse.getCoverageByEntityIdMap();
-
             if (TopologyDTO.TopologyType.PLAN == topoInfo.getTopologyType() ) {
                 Map<Long, EntityReservedInstanceCoverage> scopedCoverageListMap = new HashMap<>();
                 coverageListMap.forEach((oid, coverage) ->{
@@ -159,17 +174,31 @@ public class MarketCloudCostDataProvider implements CloudCostDataProvider {
                     }
                 });
                 coverageListMap = scopedCoverageListMap;
+                // also get the cloud VM oids
+                final Set<Long> vmOidsSet = cloudTopo.getAllEntitiesOfType(EntityType.VIRTUAL_MACHINE_VALUE).stream()
+                        .map(TopologyEntityDTO::getOid).collect(Collectors.toSet());
+                uptimeByOidMap = uptimeByOidMap.entrySet().stream()
+                                    .filter(entry -> vmOidsSet.contains(entry.getKey()))
+                                    .collect(Collectors.toMap(Entry::getKey, Entry::getValue));
             }
+            final Map<Long, Double> entityUptimePercentageByOid = new HashMap<>();
+            uptimeByOidMap.entrySet().forEach(entry ->
+                    entityUptimePercentageByOid.put(entry.getKey(), entry.getValue().getUptimePercentage()));
 
             //We still use the unfiltered entity coverage map here to find the filteredCoverageMap as MCP needs this so that we can calculate the usage of RIs correctly.
             final Map<Long, EntityReservedInstanceCoverage> filteredCoverageMap =
                 filterCouponsCoveredByRi(coverageResponse.getCoverageByEntityIdMap(), riBoughtById.keySet());
 
+            final Optional<Double> defaultUptimePercentage = entityUptimeResponse.hasDefaultUptime() ?
+                    Optional.of(entityUptimeResponse.getDefaultUptime().getUptimePercentage())
+                    : Optional.empty();
+
             return new CloudCostData<>(coverageListMap,
                     filteredCoverageMap,
                     riBoughtById,
                     riSpecsById,
-                    buyRIBoughtById, accountPricingDataByBusinessAccountOid);
+                    buyRIBoughtById, accountPricingDataByBusinessAccountOid,
+                    entityUptimePercentageByOid, defaultUptimePercentage);
         } catch (StatusRuntimeException e) {
             throw new CloudCostDataRetrievalException(e);
         }

@@ -111,7 +111,7 @@ public class UtilizationCountStore {
      */
     public synchronized void addPoints(List<Double> samples, double capacity, long timestamp) throws HistoryCalculationException {
         // prevent double-storing upon broadcast if mediation hasn't changed the value
-        if (timestamp <= latest.getEndTimestamp()) {
+        if (timestamp <= latest.getEndTimestamp() || timestamp <= full.getEndTimestamp()) {
             logger.trace("Skipping storing the percentile samples for {} - already present", fieldReference::toString);
             return;
         }

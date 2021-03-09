@@ -311,7 +311,11 @@ public class UtilizationCountArray {
                             total, reference, rank, counts);
             return null;
         }
-        final int rankIndex = (int)Math.ceil(total * rank / 100);
+        /*
+         * For the edge case when rank is 100 we don't want to look for 101 usage, because it does
+         * not exist, so rankIndex will be equal to total.
+         */
+        final int rankIndex = Math.min((int)Math.ceil(total * rank / 100), total);
         int score = 0;
         int countToRankIndex = counts[score];
         while (countToRankIndex < rankIndex

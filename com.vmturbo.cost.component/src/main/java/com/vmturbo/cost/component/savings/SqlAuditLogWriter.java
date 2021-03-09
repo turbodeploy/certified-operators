@@ -19,6 +19,7 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 import com.google.protobuf.util.JsonFormat.Printer;
 
+import org.apache.commons.lang.builder.ToStringBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.BatchBindStep;
@@ -131,10 +132,13 @@ public class SqlAuditLogWriter implements AuditLogWriter {
     private void bindAuditEvent(final BatchBindStep batch, @Nonnull final SavingsEvent event) {
         try {
             final AuditLogEntry logEntry = new AuditLogEntry(event, gson);
-            batch.bind(logEntry.entityOid, logEntry.eventType,
-                    logEntry.eventId,
-                    SavingsUtil.getLocalDateTime(logEntry.eventTime, clock),
-                    logEntry.eventInfo);
+            if (!logEntry.isValid()) {
+                logger.warn("Skipping invalid audit event: {} log entry: {}.", event,
+                        logEntry);
+            } else {
+                batch.bind(logEntry.entityOid, logEntry.eventType, logEntry.eventId,
+                        SavingsUtil.getLocalDateTime(logEntry.eventTime, clock), logEntry.eventInfo);
+            }
         } catch (InvalidProtocolBufferException ipbe) {
             logger.warn("Unable to serialize audit event {}.", event, ipbe);
         }
@@ -219,6 +223,13 @@ public class SqlAuditLogWriter implements AuditLogWriter {
                             gson.toJson(entityPriceChange));
                 }
             }
+            // Verify eventId and info String fields are never null, as they are NOT NULL in DB.
+            if (this.eventId == null) {
+                this.eventId = String.format("NA-%d", System.currentTimeMillis());
+            }
+            if (this.eventInfo == null) {
+                this.eventInfo = StringUtils.EMPTY;
+            }
         }
 
         public long getEntityOid() {
@@ -239,6 +250,35 @@ public class SqlAuditLogWriter implements AuditLogWriter {
 
         public String getEventInfo() {
             return eventInfo;
+        }
+
+        /**
+         * Checks if this log entry is valid, ready to be inserted to DB.
+         *
+         * @return Whether log entry is valid.
+         */
+        public boolean isValid() {
+            return entityOid != 0
+                    && eventType != 0
+                    && eventId != null
+                    && eventTime != 0
+                    && eventInfo != null;
+        }
+
+        /**
+         * To string for this instance.
+         *
+         * @return To string value.
+         */
+        @Override
+        public String toString() {
+            return new ToStringBuilder(this)
+                    .append("entityOid", entityOid)
+                    .append("eventType", eventType)
+                    .append("eventId", eventId)
+                    .append("eventTime", eventType)
+                    .append("eventInfo", eventInfo)
+                    .toString();
         }
     }
 }

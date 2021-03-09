@@ -78,21 +78,4 @@ public class SpringSecurityConfig extends GlobalMethodSecurityConfiguration {
         return new UnanimousBased(decisionVoters);
     }
 
-    /**
-     * If true, use Kubernetes secrets to read in a master encryption key which is used to encrypt
-     * and decrypt the internal, component-specific encryption keys.
-     * If false, this data will be read from (legacy) persistent volumes.
-     *
-     * <p>Note: This feature flag is exposed in a static way to avoid having to refactor the
-     * many static methods that already exist in {@link CryptoFacility}. This is expected to be a
-     * short-lived situation, until enabling external secrets becomes the default.</p>
-     */
-    @Value("${" + BaseVmtComponentConfig.ENABLE_EXTERNAL_SECRETS_FLAG + ":false}")
-    public void setKeyProviderStatic(boolean enableExternalSecrets){
-        CryptoFacility.ENABLE_EXTERNAL_SECRETS = enableExternalSecrets;
-        if (enableExternalSecrets) {
-            CryptoFacility.encryptionKeyProvider =
-                new EncryptionKeyProvider(authApiKvConfig.authKeyValueStore(), new MasterKeyReader());
-        }
-    }
 }

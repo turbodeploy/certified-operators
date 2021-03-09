@@ -9,6 +9,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -86,6 +87,7 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
     private static final long TIMESTAMP_AUG_31_2019_00_00 = 1567209600000L;
     private static final long TIMESTAMP_AUG_31_2019_12_00 = 1567252800000L;
     private static final long TIMESTAMP_INIT_START_SEP_1_2019 = 1567296000000L;
+    private static final long TIMESTAMP_SEP_5_2019 = 1567641600000l;
 
     private static final int MAINTENANCE_WINDOW_HOURS = 12;
     private static final long MAINTENANCE_WINDOW_MS = TimeUnit.HOURS.toMillis(MAINTENANCE_WINDOW_HOURS);
@@ -498,6 +500,106 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
         Mockito.verify(cacheBackup, Mockito.times(1)).keepCacheOnClose();
     }
 
+    @Test
+    public void testReassemblyFullPage() throws InterruptedException, HistoryCalculationException {
+        final PercentileHistoricalEditorConfig config =
+                new PercentileHistoricalEditorConfig(1, PercentileHistoricalEditorConfig.DEFAULT_MAINTENANCE_WINDOW_HOURS, 777777L, 10,
+                        100,
+                        ImmutableMap.of(CommodityType.VCPU, PERCENTILE_BUCKETS_SPEC,
+                                CommodityType.IMAGE_CPU,
+                                PERCENTILE_BUCKETS_SPEC), KV_CONFIG,
+                        Clock.systemUTC());
+        percentileEditor = new PercentileEditorCacheAccess(config, null,
+                clock, (service, range) -> {
+            final PercentileTaskStub result =
+                    Mockito.spy(new PercentileTaskStub(service, range));
+            percentilePersistenceTasks.add(result);
+            return result;
+        });
+        final HistoryAggregationContext firstContext = new HistoryAggregationContext(topologyInfo,
+                graphWithSettings, false);
+        Mockito.when(clock.millis()).thenReturn(TIMESTAMP_AUG_28_2019_12_00);
+        final PercentileEditorCacheAccess spiedEditor = Mockito.spy(percentileEditor);
+        // First initializing history from db.
+        spiedEditor.initContext(firstContext, Collections.emptyList());
+
+        percentilePersistenceTasks.clear();
+        //First run -  maintenance not executed, reassembly was not executed because its checkpoint = 0
+        spiedEditor.completeBroadcast(firstContext);
+        //check no maintenance
+        Assert.assertEquals(0, percentilePersistenceTasks.stream()
+                .filter(t -> t.getStartTimestamp() == 0)
+                .count());
+        Mockito.verify(spiedEditor, Mockito.times(0)).reassembleFullPage(true);
+        //change lastCheckpoint for reassembly
+        Mockito.when(KV_CONFIG.keyValueStore()
+                .get("history-aggregation/" + "fullPageReassemblyLastCheckpoint")).thenReturn(
+                Optional.of(String.valueOf(TIMESTAMP_AUG_28_2019_12_00)));
+
+        //One day passed
+        Mockito.when(clock.millis()).thenReturn(TIMESTAMP_AUG_29_2019_00_00);
+        percentilePersistenceTasks.clear();
+        //Broadcast after one day - maintenance executed, reassembly was not executed because the period has not passed yet
+        spiedEditor.completeBroadcast(firstContext);
+        Mockito.verify(spiedEditor, Mockito.never()).reassembleFullPage(true);
+        final PercentilePersistenceTask maintenanceSaveTask = percentilePersistenceTasks.stream()
+                .filter(t -> t.getStartTimestamp() == 0)
+                .findFirst()
+                .orElse(null);
+        Assert.assertNotNull(maintenanceSaveTask);
+        final ArgumentCaptor<PercentileCounts> percentileCountsCaptor = ArgumentCaptor.forClass(
+                PercentileCounts.class);
+        //check successful maintenance
+        Mockito.verify(maintenanceSaveTask, Mockito.atLeastOnce()).save(
+                percentileCountsCaptor.capture(), Mockito.eq(TIMESTAMP_AUG_29_2019_00_00),
+                Mockito.any());
+
+        //The period has passed
+        percentilePersistenceTasks.clear();
+        final long windowInMs = TimeUnit.HOURS.toMillis(24);
+        final long yesterdayTimestamp = TIMESTAMP_SEP_5_2019 - windowInMs;
+        Mockito.when(clock.millis()).thenReturn(yesterdayTimestamp);
+        //Broadcast after the completed period - reassembly executed
+        spiedEditor.completeBroadcast(firstContext);
+        //The period has passed
+        percentilePersistenceTasks.clear();
+        Mockito.when(clock.millis()).thenReturn(TIMESTAMP_SEP_5_2019);
+        //Broadcast after the completed period - reassembly executed
+        spiedEditor.completeBroadcast(firstContext);
+        // check successful reassembly
+        Mockito.verify(spiedEditor, Mockito.times(1)).reassembleFullPage(true);
+        final Integer maxPeriod = spiedEditor.getCache().values().stream().map(
+                PercentileCommodityData::getUtilizationCountStore).map(
+                UtilizationCountStore::getPeriodDays).max(Long::compare).orElseGet(
+                PercentileHistoricalEditorConfig::getDefaultObservationPeriod);
+        long reassemblyStartTimestamp = TIMESTAMP_SEP_5_2019 - TimeUnit.DAYS.toMillis(maxPeriod)
+                + windowInMs;
+        //load all daily
+        while (reassemblyStartTimestamp < TIMESTAMP_SEP_5_2019) {
+            long finalReassemblyStartTimestamp = reassemblyStartTimestamp;
+            final PercentilePersistenceTask task = percentilePersistenceTasks.stream().filter(
+                    t -> t.getStartTimestamp() == finalReassemblyStartTimestamp).findAny().orElse(
+                    null);
+            Assert.assertNotNull(task);
+            reassemblyStartTimestamp += windowInMs;
+        }
+        //checks for yesterday page
+        final List<PercentilePersistenceTask> tasksForYesterdayTimestamp = percentilePersistenceTasks.stream().filter(
+                t -> t.getStartTimestamp() == yesterdayTimestamp).collect(Collectors.toList());
+        // 4 tasks must be executed for yesterday page
+        //1 - persist daily blob
+        //2 - as part of the load daily blob
+        //3 - load in enforcedMaintenance
+        //4 - save in enforcedMaintenance
+        Assert.assertEquals(4 ,tasksForYesterdayTimestamp.size());
+
+        //check for save full blob in enforcedMaintenance
+        final PercentilePersistenceTask saveFullBlobTask =
+                percentilePersistenceTasks.stream().filter(
+                        t -> t.getStartTimestamp() == 0).findAny().orElse(null);
+        Assert.assertNotNull(saveFullBlobTask);
+    }
+
     /**
      * Tests the case were the capacity for percentile data changes and we the lookback period
      * changes. We need to ensure that we used new capacity rather than outdated capacity in DB.
@@ -538,6 +640,36 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
         Assert.assertThat(store.getLatestCountsRecord().getCapacity(), Matchers.is(CAPACITY * 2));
         PercentileRecord.Builder fullRecord = store.checkpoint(Collections.emptyList(), false);
         Assert.assertThat(fullRecord.getCapacity(), Matchers.is(CAPACITY * 2));
+    }
+
+    /**
+     * Tests that the method {@link UtilizationCountStore#addPoints(java.util.List, double, long)},
+     * since the timestamp has not changed, even if the latest was cleared.
+     */
+    @Test
+    public void checkAddPointsLatestEmpty()
+            throws HistoryCalculationException, InterruptedException {
+        final HistoryAggregationContext context = new HistoryAggregationContext(topologyInfo,
+                graphWithSettings, false);
+        // initializing history from db.
+        percentileEditor.initContext(context, Collections.emptyList());
+        UtilizationCountStore store = percentileEditor.getCache()
+                .get(VCPU_COMMODITY_REFERENCE)
+                .getUtilizationCountStore();
+        // filling full and latest
+        store.addPoints(Collections.singletonList(20d), CAPACITY * 2,
+                TIMESTAMP_INIT_START_SEP_1_2019);
+        // clear latest
+        percentileEditor.getCache()
+                .get(VCPU_COMMODITY_REFERENCE)
+                .getUtilizationCountStore()
+                .checkpoint(Collections.emptyList(), true);
+        final List<Integer> oldFullUtilization = store.getFullCountsRecord().getUtilizationList();
+        final PercentileRecord.Builder oldLatest = store.getLatestCountsRecord();
+        store.addPoints(Collections.singletonList(20d), CAPACITY * 2,
+                TIMESTAMP_INIT_START_SEP_1_2019);
+        Assert.assertEquals(oldFullUtilization, store.getFullCountsRecord().getUtilizationList());
+        Assert.assertEquals(oldLatest, store.getLatestCountsRecord());
     }
 
     private void checkMaintenance(long periodMsForTotalBlob,
@@ -738,6 +870,12 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
         Mockito.verify(percentilePersistenceTasks.get(3), Mockito.times(1)).save(Mockito.any(),
                                                     Mockito.eq(TIMESTAMP_AUG_29_2019_12_00),
                                                     Mockito.refEq(PERCENTILE_HISTORICAL_EDITOR_CONFIG));
+
+        // Save current LATEST day percentiles during maintenance.
+        Mockito.verify(percentilePersistenceTasks.get(4), Mockito.times(1)).save(
+                Mockito.eq(PercentileCounts.newBuilder().build()),
+                Mockito.eq(MAINTENANCE_WINDOW_MS),
+                Mockito.refEq(PERCENTILE_HISTORICAL_EDITOR_CONFIG));
 
         // We load exactly two times in maintenance because we have two different periods in graph.
         Mockito.verify(percentilePersistenceTasks.get(1), Mockito.times(1))
