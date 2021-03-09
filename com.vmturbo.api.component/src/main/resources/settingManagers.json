@@ -347,6 +347,12 @@
         "telemetryEnabled",
         "telemetryTermsAccepted"
       ]
+    },
+    "healthcheckmanager" : {
+      "displayName": "Health Check Settings",
+      "settings": [
+        "failedDiscoveryCount"
+      ]
     }
   }
 }
