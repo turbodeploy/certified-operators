@@ -131,7 +131,7 @@ public class CostDTOCreator {
 
                 Map<OSType, ComputePrice> pricesForBa = computePrices.get(accountPricingData.getAccountPricingDataOid());
                 if (pricesForBa == null) {
-                    logger.warn("Cost not found for tier {} - region {} - AccountPricingDataOid {}",
+                    logger.warn("Cost not found for compute tier {} - region {} - AccountPricingDataOid {}",
                             tier.getDisplayName(), region.getDisplayName(), accountPricingData.getAccountPricingDataOid());
                 }
                 final Set<CommodityType> licenseCommoditySet = getLicenseCommodities(tier);
@@ -270,7 +270,7 @@ public class CostDTOCreator {
                             storageOptions.addAll(databasePrice.getStorageOptions());
                         } else {
                             // MULTL-AZ licenses are going to be given INFINITE cost
-                            logger.trace("Cost not found for tier {} - region {} - AccountPricingDataOid {} - license {}",
+                            logger.trace("Cost not found for db tier {} - region {} - AccountPricingDataOid {} - license {}",
                                     tier.getDisplayName(), region.getDisplayName(),
                                     accountPricingData.getAccountPricingDataOid(), licenseId);
                         }
@@ -339,8 +339,9 @@ public class CostDTOCreator {
 
                 Map<String, DatabaseServerPrice> pricesForBa = dbsPriceMap.get(accountPricingData.getAccountPricingDataOid());
                 if (pricesForBa == null) {
-                    logger.warn("Cost not found for tier {} - region {} - AccountPricingDataOid {}",
-                            tier.getDisplayName(), region.getDisplayName(), accountPricingData.getAccountPricingDataOid());
+                    logger.warn("Cost not found for dbs tier {}::{} - region {} - AccountPricingDataOid {}",
+                            tier.getDisplayName(), tier.getTypeSpecificInfo().getDatabaseServerTier().getStorageTier(),
+                            region.getDisplayName(), accountPricingData.getAccountPricingDataOid());
                     continue;
                 }
                 final Set<CommodityType> licenseCommoditySet = getLicenseCommodities(tier);

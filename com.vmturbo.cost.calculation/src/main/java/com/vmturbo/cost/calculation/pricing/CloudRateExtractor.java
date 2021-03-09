@@ -241,22 +241,18 @@ public class CloudRateExtractor {
      */
     @Nonnull
     public DatabaseServerPriceBundle getDatabaseServerPriceBundle(final long tierId, final long regionId,
-            final AccountPricingData<TopologyEntityDTO> accountPricingData) {
+            @Nonnull final AccountPricingData<TopologyEntityDTO> accountPricingData) {
         final DatabaseServerPriceBundle.Builder priceBuilder = DatabaseServerPriceBundle.newBuilder();
-        if (accountPricingData == null || accountPricingData.getPriceTable() == null) {
-            //TODO: igolikov add accound id when it will be merged with 8.1.2
-            logger.error("No account pricing data found for business account oid {}");
-            return priceBuilder.build();
-        }
+
         OnDemandPriceTable regionPriceTable = getOnDemandPriceTable(tierId, regionId, accountPricingData);
         if (regionPriceTable == null) {
-            logger.warn("Price table is not found for tier {} in region {}", tierId, regionId);
+            logger.debug("Price table is not found for tier {} in region {}", tierId, regionId);
             return priceBuilder.build();
         }
         DbServerTierOnDemandPriceTable dbsTierPriceTable =
                 regionPriceTable.getDbsPricesByInstanceIdMap().get(tierId);
         if (dbsTierPriceTable == null) {
-            logger.warn("Price list not found for database server tier {} in region {}'s price table."
+            logger.debug("Price list not found for database server tier {} in region {}'s price table."
                             + " Cost data might not have been uploaded, or the tier is not available in the region.",
                     tierId, regionId);
             return priceBuilder.build();
