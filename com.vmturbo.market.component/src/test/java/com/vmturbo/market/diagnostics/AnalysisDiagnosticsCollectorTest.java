@@ -335,7 +335,7 @@ public class AnalysisDiagnosticsCollectorTest {
         assertFalse(commSpecsToAdjustOverhead.isEmpty());
 
         Topology topology = TopologyEntitiesHandler.createTopology(traderTOs, topologyInfo.get(),
-            commSpecsToAdjustOverhead);
+            commSpecsToAdjustOverhead, analysisConfig.get());
         Analysis analysis = createAnalysis();
         Ede ede = new Ede();
         AnalysisResults results = TopologyEntitiesHandler.performAnalysis(
@@ -371,7 +371,7 @@ public class AnalysisDiagnosticsCollectorTest {
         assertFalse(commSpecsToAdjustOverhead.isEmpty());
 
         Topology topology = TopologyEntitiesHandler.createTopology(traderTOs, topologyInfo.get(),
-            commSpecsToAdjustOverhead);
+            commSpecsToAdjustOverhead, analysisConfig.get());
         Economy economy = topology.getEconomyForTesting();
         economy.composeMarketSubsetForPlacement();
 

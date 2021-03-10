@@ -150,11 +150,13 @@ public class TopologyEntitiesHandler {
      * @param traderTOs A set of trader TOs.
      * @param topologyInfo Information about the topology, including parameters for the analysis.
      * @param commsToAdjustOverheadInClone commodities to adjust overhead in clones.
+     * @param analysisConfig is the analysisConfig.
      * @return The newly created topology.
      */
     public static Topology createTopology(Collection<TraderTO> traderTOs,
                                           @Nonnull final TopologyDTO.TopologyInfo topologyInfo,
-                                          final List<CommoditySpecification> commsToAdjustOverheadInClone) {
+                                          final List<CommoditySpecification> commsToAdjustOverheadInClone,
+                                          AnalysisConfig analysisConfig) {
         try (TracingScope scope = Tracing.trace("create_market_traders")) {
             // Sort the traderTOs based on their oids so that the input into analysis is consistent every cycle
             logger.info("Received TOs from marketComponent. Starting sorting of traderTOs.");
@@ -165,6 +167,7 @@ public class TopologyEntitiesHandler {
             logger.info("Completed sorting of traderTOs. Time taken = {} seconds", ((double)(sortEnd - sortStart)) / 1000);
             logger.info("Starting economy creation on {} traders", sortedTraderTOs.size());
             final Topology topology = new Topology();
+            setEconomySettings(topology.getEconomy().getSettings(), analysisConfig);
             for (final TraderTO traderTO : sortedTraderTOs.values()) {
                 try {
                     // If it's a trader that's added specifically for headroom calculation, don't add
@@ -225,8 +228,6 @@ public class TopologyEntitiesHandler {
             final Economy economy = (Economy)topology.getEconomy();
             analysis.setEconomy(economy);
             economy.setForceStop(analysis.isStopAnalysis());
-            // enable estimates
-            setEconomySettings(economy.getSettings(), analysisConfig);
             // compute startPriceIndex
             final PriceStatement startPriceStatement = new PriceStatement();
             startPriceStatement.computePriceIndex(economy);
