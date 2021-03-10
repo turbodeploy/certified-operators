@@ -49,6 +49,7 @@ public class TopologyEventsPoller {
      *
      * @param tep The Topology Event Provider.
      * @param entityEventsInMemoryJournal The Entity Events Journal.
+     * @param isEnabled boolean that specifies if polling of topology events is enabled.
      */
     TopologyEventsPoller(@Nonnull final TopologyEventProvider tep,
                          @Nonnull final EntityEventsJournal entityEventsInMemoryJournal,
