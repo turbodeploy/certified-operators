@@ -188,7 +188,7 @@ public class PhysicalMachineEntityConstructor extends TopologyEntityConstructor
             .addCommoditySoldList(cpuProvisionedCommodity)
             .addCommoditySoldList(memProvisionedCommodity);
 
-        // QxVCPU. Note that 1,2,4,8,16 are the number of VCPUs.
+        // QxVCPU. Note that 1,2,4,8,16,32,64 are the number of VCPUs.
         final CommoditySoldDTO q1VcpuCommodity =
             createCommoditySoldDTO(CommodityType.Q1_VCPU_VALUE, QX_VCPU_BASE_COEFFICIENT * 1.0);
         final CommoditySoldDTO q2VcpuCommodity =
@@ -199,12 +199,18 @@ public class PhysicalMachineEntityConstructor extends TopologyEntityConstructor
             createCommoditySoldDTO(CommodityType.Q8_VCPU_VALUE, QX_VCPU_BASE_COEFFICIENT * 8.0);
         final CommoditySoldDTO q16VcpuCommodity =
             createCommoditySoldDTO(CommodityType.Q16_VCPU_VALUE, QX_VCPU_BASE_COEFFICIENT * 16.0);
+        final CommoditySoldDTO q32VcpuCommodity =
+                createCommoditySoldDTO(CommodityType.Q32_VCPU_VALUE, QX_VCPU_BASE_COEFFICIENT * 32.0);
+        final CommoditySoldDTO q64VcpuCommodity =
+                createCommoditySoldDTO(CommodityType.Q64_VCPU_VALUE, QX_VCPU_BASE_COEFFICIENT * 64.0);
         topologyEntityBuilder
             .addCommoditySoldList(q1VcpuCommodity)
             .addCommoditySoldList(q2VcpuCommodity)
             .addCommoditySoldList(q4VcpuCommodity)
             .addCommoditySoldList(q8VcpuCommodity)
-            .addCommoditySoldList(q16VcpuCommodity);
+            .addCommoditySoldList(q16VcpuCommodity)
+            .addCommoditySoldList(q32VcpuCommodity)
+            .addCommoditySoldList(q64VcpuCommodity);
     }
 
     /**
