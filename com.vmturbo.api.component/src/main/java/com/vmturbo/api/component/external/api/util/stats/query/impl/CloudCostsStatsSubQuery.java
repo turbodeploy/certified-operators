@@ -834,12 +834,15 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
         } else {
             GetCloudCostStatsRequest getCloudExpenseStatsRequest = GetCloudCostStatsRequest.newBuilder()
                     .addAllCloudCostStatsQuery(cloudCostStatsQueries).build();
+            logger.debug("Request costServiceRpc::getCloudCostStats gRPC call: \n{}", getCloudExpenseStatsRequest::toString);
             final Iterator<GetCloudCostStatsResponse> response =
                 costServiceRpc.getCloudCostStats(getCloudExpenseStatsRequest);
             final List<CloudCostStatRecord> records = new ArrayList<>();
             while (response.hasNext()) {
                 records.addAll(response.next().getCloudStatRecordList());
             }
+            logger.debug("Received {} cost records from costserviceRpc::getCloudExpenseStatsRequest. gRPC response:\n{}",
+                    records::size, records::toString);
             return records;
         }
     }
