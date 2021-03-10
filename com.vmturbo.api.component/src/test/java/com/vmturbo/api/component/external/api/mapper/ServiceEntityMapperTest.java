@@ -118,12 +118,10 @@ public class ServiceEntityMapperTest {
     @Before
     public void setup() {
         ConnectedEntityMapper connectedEntityMapper = Mockito.mock(ConnectedEntityMapper.class);
-        ContainerPlatformContextMapper containerPlatformContextMapper = Mockito.mock(ContainerPlatformContextMapper.class);
         mapper = new ServiceEntityMapper(targetCache,
                 CostServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 SupplyChainServiceGrpc.newBlockingStub(grpcServer.getChannel())
-                        .withInterceptors(jwtClientInterceptor()), connectedEntityMapper,
-                                            containerPlatformContextMapper);
+                        .withInterceptors(jwtClientInterceptor()), connectedEntityMapper);
         final ThinTargetInfo thinTargetInfo = ImmutableThinTargetInfo.builder()
                 .probeInfo(ImmutableThinProbeInfo.builder()
                         .category(PROBE_CATEGORY)

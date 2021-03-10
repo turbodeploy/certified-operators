@@ -1,4 +1,4 @@
-package com.vmturbo.api.component.external.api.mapper;
+package com.vmturbo.api.component.external.api.mapper.aspect;
 
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -16,6 +16,7 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 
+import com.vmturbo.api.component.external.api.mapper.aspect.ContainerPlatformContextAspectMapper.ContainerPlatformContextMapper;
 import com.vmturbo.api.dto.entityaspect.ContainerPlatformContextAspectApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
