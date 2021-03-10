@@ -46,7 +46,7 @@ public class TopologyEventsPollerTest {
     public void setup() throws IOException {
         store = new InMemoryEntityEventsJournal();
         topologyEventProvider = new CCATopologyEventProvider(computeTierAllocationStore, cloudScopeStore);
-        tep = new TopologyEventsPoller(topologyEventProvider, store);
+        tep = new TopologyEventsPoller(topologyEventProvider, store, true);
         when(cloudScopeStore.streamByFilter(any())).thenReturn(Stream.empty());
     }
 
