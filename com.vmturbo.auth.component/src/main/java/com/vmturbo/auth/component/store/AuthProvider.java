@@ -1317,7 +1317,7 @@ public class AuthProvider extends AuthProviderBase {
         if (json.isPresent()) {
             throw new DuplicateExternalGroupException(adGroupName);
         }
-
+        validateRoles(Collections.singletonList(adGroupInputDto.getRoleName()));
         return addSecurityGroupImpl(adGroupInputDto);
     }
 
@@ -1351,6 +1351,7 @@ public class AuthProvider extends AuthProviderBase {
         if (!json.isPresent()) {
             throw new SecurityException("No active directory group with name: " + adGroupName);
         }
+        validateRoles(Collections.singletonList(adGroupInputDto.getRoleName()));
 
         try {
             // recreate this object with type, role name and scope groups from the input param
