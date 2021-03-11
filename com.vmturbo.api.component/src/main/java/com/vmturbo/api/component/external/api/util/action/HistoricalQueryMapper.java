@@ -33,7 +33,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.M
 import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.TimeRange;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
-import com.vmturbo.platform.common.dto.CommonDTO;
+import com.vmturbo.group.api.GroupAndMembers;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
 /**
  * Responsible for mapping an {@link ActionApiInputDTO} to the matching queries to use in XL.
@@ -199,12 +200,19 @@ class HistoricalQueryMapper {
                 && groupByOps.isPresent()
                 && groupByOps.get() == GroupBy.RESOURCE_GROUP_ID;
         } else if (scope.isGroup()) {
-            Optional<UuidMapper.CachedGroupInfo> groupInfo = scope.getCachedGroupInfo();
-            return groupInfo.isPresent()
-                && groupInfo.get().getGroupType() == CommonDTO.GroupDTO.GroupType.REGULAR
-                && (Collections.singleton(ApiEntityType.BUSINESS_ACCOUNT).equals(groupInfo.get().getEntityTypes())
-                || groupInfo.get().getNestedGroupTypes()
-                .stream().allMatch(el -> el.equals(CommonDTO.GroupDTO.GroupType.RESOURCE)));
+            Optional<UuidMapper.CachedGroupInfo> groupInfoOptional = scope.getCachedGroupInfo();
+            if (groupInfoOptional.isPresent()) {
+                UuidMapper.CachedGroupInfo groupInfo = groupInfoOptional.get();
+                if (Collections.singleton(ApiEntityType.BUSINESS_ACCOUNT)
+                    .equals(groupInfo.getEntityTypes())) {
+                    return true;
+                } else if (groupInfo.getNestedGroupTypes().size() == 1) {
+                    final GroupType nestedGroupType =
+                        groupInfo.getNestedGroupTypes().iterator().next();
+                    return nestedGroupType == GroupType.RESOURCE ||
+                        nestedGroupType == GroupType.COMPUTE_HOST_CLUSTER;
+                }
+            }
         }
         return false;
     }
@@ -224,7 +232,10 @@ class HistoricalQueryMapper {
                 groupExpander.getResourceGroupsForAccounts(scope.getCachedGroupInfo().get().getEntityIds())
                     .forEach(grp -> builder.addMgmtUnitIds(grp.getId()));
             } else {
-                builder.addAllMgmtUnitIds(scope.getCachedGroupInfo().get().getEntityIds());
+                groupExpander.getGroupWithImmediateMembersOnly(scope.uuid())
+                    .map(GroupAndMembers::members)
+                    .orElse(Collections.emptyList())
+                    .forEach(builder::addMgmtUnitIds);
             }
         }
         return builder.build();
