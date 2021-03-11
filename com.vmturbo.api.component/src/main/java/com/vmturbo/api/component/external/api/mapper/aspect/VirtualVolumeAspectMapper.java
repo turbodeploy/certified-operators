@@ -25,7 +25,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -419,8 +418,6 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
     public Map<Long, List<VirtualDiskApiDTO>> mapVirtualMachines(@Nonnull Set<Long> vmIds,
                                                                   @Nullable final Long topologyContextId)
             throws InterruptedException, ConversionException {
-        // This will be used for debug output
-        final Multimap<String, Long> missingProjectedVolumes = HashMultimap.create();
         // VM entities from source topology
         final Map<Long, TopologyEntityDTO> sourceVms =
                         requestEntities(vmIds, topologyContextId, false);
@@ -513,7 +510,7 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
             volumeIdToSourceSoldCommodities.put(vvId, vv.getCommoditySoldListList());
         }
         final Map<Long, List<VirtualDiskApiDTO>> virtualDisksByVmId = new HashMap<>();
-        for (final Entry<Long, TopologyEntityDTO> vmIdToVm : projectedVms.entrySet()) {
+        for (Entry<Long, TopologyEntityDTO> vmIdToVm : projectedVms.entrySet()) {
             final Long vmId = vmIdToVm.getKey();
             final TopologyEntityDTO vm = vmIdToVm.getValue();
             // VM migrated to cloud should buy storage commodities from VV only
@@ -528,17 +525,6 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
                 final List<VirtualDiskApiDTO> virtualDiskApiDTOs = new ArrayList<>(projectedVolIds.size());
                 for (final long volId : projectedVolIds) {
                     final TopologyEntityDTO projectedVolume = projectedVolumes.get(volId);
-                    if (projectedVolume == null) {
-                        // sometimes we may not get projected volume entities from repository
-                        // one example of those would be inaccessible VMs
-                        if (logger.isTraceEnabled()) {
-                            if (projectedVms.get(vmId) != null) {
-                                missingProjectedVolumes.put(projectedVms.get(vmId).getDisplayName(),
-                                    volId);
-                            }
-                        }
-                        continue;
-                    }
                     Collection<CommodityBoughtDTO> projectedBoughtCommodities = new HashSet<>();
                     // Note that on-prem VM will not buy commodities from virtual volume if virtual
                     // volume analysis is turned off.
@@ -569,12 +555,6 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
                 }
                 virtualDisksByVmId.put(vmId, virtualDiskApiDTOs);
             }
-        }
-        if (logger.isTraceEnabled() && !missingProjectedVolumes.isEmpty()) {
-            missingProjectedVolumes.asMap().forEach((vmName, colIds) ->
-                logger.trace("No projected volumes found for vm [{}], volume ids [{}]",
-                    vmName, colIds.stream().map(String::valueOf).collect(
-                        Collectors.joining(", "))));
         }
         return virtualDisksByVmId;
     }

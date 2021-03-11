@@ -6,7 +6,6 @@ import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-import java.util.Collections;
 import java.util.Date;
 import java.util.stream.Collectors;
 
@@ -32,8 +31,6 @@ import com.vmturbo.api.dto.reservation.ReservationFailureInfoDTO;
 import com.vmturbo.api.dto.template.ResourceApiDTO;
 import com.vmturbo.api.enums.ReservationAction;
 import com.vmturbo.api.utils.DateTimeUtil;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
-import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyDTOMoles.PolicyServiceMole;
@@ -61,7 +58,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Unplac
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
 /**
  * Test cases for {@link ReservationMapper}.
@@ -82,10 +78,6 @@ public class ReservationMapperTest {
     private ReservationMapper reservationMapper;
 
     private static final long TEMPLATE_ID = 123L;
-
-    private static final long CLUSTER_ID = 123L;
-
-    private static final String CLUSTER_NAME = "cluster1";
 
     private ServiceEntityApiDTO vmServiceEntity = new ServiceEntityApiDTO();
 
@@ -150,14 +142,7 @@ public class ReservationMapperTest {
         stServiceEntity.setClassName("Storage");
         stServiceEntity.setDisplayName("ST #1");
         stServiceEntity.setUuid("3");
-        final Grouping emptyGroup = Grouping.newBuilder()
-                .setId(CLUSTER_ID)
-                .setDefinition(GroupDefinition.newBuilder()
-                        .setType(GroupType.COMPUTE_HOST_CLUSTER)
-                        .setDisplayName(CLUSTER_NAME)
-                        .build())
-                .build();
-        when(groupServiceMole.getGroups(Mockito.any())).thenReturn(Collections.singletonList(emptyGroup));
+
     }
 
     /**
@@ -269,8 +254,7 @@ public class ReservationMapperTest {
                 .getPlacements().getComputeResources().get(0);
         final ResourceApiDTO storageResource = reservationApiDTO.getDemandEntities().get(0)
                 .getPlacements().getStorageResources().get(0);
-        assertEquals(String.valueOf(CLUSTER_ID), computeResource.getLinkedResources().get(0).getUuid());
-        assertEquals(CLUSTER_NAME, computeResource.getLinkedResources().get(0).getDisplayName());
+        assertEquals("123", computeResource.getRelatedResources().get(0));
         assertEquals(pmServiceEntity.getDisplayName(), computeResource.getProvider().getDisplayName());
         assertEquals(stServiceEntity.getDisplayName(), storageResource.getProvider().getDisplayName());
         assertEquals(1000L, Math.round(computeResource.getStats()
