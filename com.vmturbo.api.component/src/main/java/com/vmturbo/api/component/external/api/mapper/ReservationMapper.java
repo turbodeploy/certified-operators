@@ -3,7 +3,9 @@ package com.vmturbo.api.component.external.api.mapper;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -48,12 +50,10 @@ import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
-import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
-import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
-import com.vmturbo.common.protobuf.group.PolicyDTO.SinglePolicyRequest;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ConstraintInfoCollection;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
@@ -64,7 +64,6 @@ import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollec
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyAddition;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplateRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc.TemplateServiceBlockingStub;
@@ -285,10 +284,11 @@ public class ReservationMapper {
                                 ImmutableList.copyOf(providerInfos), reservationInstance.getUnplacedReasonList());
                     }).collect(Collectors.toList());
             final Map<Long, ServiceEntityApiDTO> serviceEntityMap = getServiceEntityMap(placementInfos);
+            final Map<Long, BaseApiDTO> clusterMap = getClusterMap(placementInfos);
             final List<DemandEntityInfoDTO> demandEntityInfoDTOS = new ArrayList<>();
             for (PlacementInfo placementInfo : placementInfos) {
                 demandEntityInfoDTOS.add(
-                        generateDemandEntityInfoDTO(placementInfo, template, serviceEntityMap));
+                        generateDemandEntityInfoDTO(placementInfo, template, serviceEntityMap, clusterMap));
             }
             reservationApiDTO.setDemandEntities(demandEntityInfoDTOS);
         } catch (StatusRuntimeException e) {
@@ -350,71 +350,6 @@ public class ReservationMapper {
                 .build();
     }
 
-    /**
-     * For input constraint id, try to create {@link ReservationConstraintInfo}. Right now, it only
-     * support Cluster, Data center, Virtual data center constraints.
-     *
-     * @param constraintId id of constraints.
-     * @return {@link ReservationConstraintInfo}
-     * @throws UnknownObjectException if there are any unknown objects.
-     */
-    private Optional<ReservationConstraintInfo> generateRelateConstraint(final long constraintId)
-            throws UnknownObjectException {
-        final ReservationConstraintInfo.Builder constraint = ReservationConstraintInfo.newBuilder()
-                .setConstraintId(constraintId);
-        final GroupID groupID = GroupID.newBuilder()
-                .setId(constraintId)
-                .build();
-        // try Cluster constraint first, if not, will try data center and virtual data center constraints.
-        // Because UI doesn't tell us what type this id belongs to, we need to try different api
-        // call to find out constraint type.
-        // TODO: After UI changes to send constraint type, we can avoid these api calls.
-        final GetGroupResponse getGroupResponse = groupServiceBlockingStub.getGroup(groupID);
-        if (getGroupResponse.hasGroup() && GroupProtoUtil.CLUSTER_GROUP_TYPES.contains(getGroupResponse
-                        .getGroup().getDefinition().getType())) {
-            return Optional.of(constraint.setType(ReservationConstraintInfo.Type.CLUSTER).build());
-        }
-        // TODO: (OM-30821) implement validation check for policy constraint. For example: if reservation
-        // entity type is VM, but the policy consumer and provider group doesn't related with VM
-        // type, it should throw exception.
-        if (getPolicyConstraint(constraintId).isPresent()) {
-            return Optional.of(constraint.setType(ReservationConstraintInfo.Type.POLICY).build());
-        }
-        final int entityType = repositoryApi.entityRequest(constraintId)
-            .getMinimalEntity()
-            .orElseThrow(() -> new UnknownObjectException("Unknown constraint id: " + constraintId))
-            .getEntityType();
-
-        final ReservationConstraintInfo.Type constraintType = ENTITY_TYPE_TO_CONSTRAINT_TYPE.get(entityType);
-        if (constraintType == null) {
-            throw new UnknownObjectException("Unknown type for constraint id: " + constraintId);
-        } else {
-            return Optional.of(constraint.setType(constraintType).build());
-        }
-    }
-
-    /**
-     * Return a policy if input constraint id is a policy Id.
-     *
-     * @param constraintId id of constraint.
-     * @return a optional of {@link Policy}.
-     */
-    private Optional<Policy> getPolicyConstraint(final long constraintId) {
-        try {
-            final PolicyResponse response = policyService.getPolicy(SinglePolicyRequest.newBuilder()
-                    .setPolicyId(constraintId)
-                    .build());
-            return response.hasPolicy() ? Optional.of(response.getPolicy()) : Optional.empty();
-        } catch (StatusRuntimeException e) {
-            if (e.getStatus().getCode().equals(Code.NOT_FOUND) ||
-                    e.getStatus().getCode().equals(Code.INVALID_ARGUMENT)) {
-                // not find a policy.
-                return Optional.empty();
-            } else {
-                throw e;
-            }
-        }
-    }
 
     /**
      * Convert timestamp to {@link java.util.Date} string with default UTC timezone.
@@ -425,6 +360,7 @@ public class ReservationMapper {
     private String convertProtoDateToString(@Nonnull final long timestamp) {
         return DateTimeUtil.toString(timestamp);
     }
+
 
     /**
      * Send request to repository to fetch entity information by entity ids.
@@ -457,24 +393,16 @@ public class ReservationMapper {
         return serviceEntityMap;
     }
 
-    private DemandReservationApiDTO generateDemandReservationApiDTO(
-            @Nonnull final TopologyAddition topologyAddition,
-            @Nonnull final String placementStatus) {
-        DemandReservationApiDTO reservationApiDTO = new DemandReservationApiDTO();
-        reservationApiDTO.setCount(topologyAddition.getAdditionCount());
-        reservationApiDTO.setStatus(placementStatus);
-        return reservationApiDTO;
-    }
-
     private DemandEntityInfoDTO generateDemandEntityInfoDTO(
             @Nonnull final PlacementInfo placementInfo,
             @Nonnull final Template template,
-            @Nonnull Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOMap)
+            @Nonnull Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOMap,
+            final Map<Long, BaseApiDTO> clusterMap)
             throws UnknownObjectException {
         DemandEntityInfoDTO demandEntityInfoDTO = new DemandEntityInfoDTO();
         demandEntityInfoDTO.setTemplate(generateTemplateBaseApiDTO(template));
         PlacementInfoDTO placementInfoApiDTO =
-                createPlacementInfoDTO(placementInfo, serviceEntityApiDTOMap);
+                createPlacementInfoDTO(placementInfo, serviceEntityApiDTOMap, clusterMap);
         demandEntityInfoDTO.setPlacements(placementInfoApiDTO);
         return demandEntityInfoDTO;
     }
@@ -494,7 +422,8 @@ public class ReservationMapper {
 
     private PlacementInfoDTO createPlacementInfoDTO(
             @Nonnull final PlacementInfo placementInfo,
-            @Nonnull final Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOMap)
+            @Nonnull final Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOMap,
+            final Map<Long, BaseApiDTO> clusterMap)
             throws UnknownObjectException {
         PlacementInfoDTO placementInfoApiDTO = new PlacementInfoDTO();
         addReservationFailureInfoDTO(placementInfo.getUnpalcementReasons(),
@@ -504,7 +433,7 @@ public class ReservationMapper {
             if (providerInfo.getProviderId().isPresent()) {
                 try {
                     addResourcesApiDTO(providerInfo,
-                            serviceEntityApiDTOMap, placementInfoApiDTO);
+                            serviceEntityApiDTOMap, placementInfoApiDTO, clusterMap);
                 } catch (ProviderIdNotRecognizedException e) {
                     // If there are providerId not found, it means this reservation is unplaced.
                     logger.error("providerId not found", e);
@@ -567,46 +496,39 @@ public class ReservationMapper {
      */
     private void addResourcesApiDTO(final ProviderInfo providerInfo,
                                     @Nonnull Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOMap,
-                                    @Nonnull PlacementInfoDTO placementInfoApiDTO)
+                                    @Nonnull PlacementInfoDTO placementInfoApiDTO,
+                                    final Map<Long, BaseApiDTO> clusterMap)
             throws UnknownObjectException, ProviderIdNotRecognizedException {
         if (!providerInfo.getProviderId().isPresent()) {
             // should not be happening. The caller already verifies this.
             return;
         }
-        Optional<ServiceEntityApiDTO> serviceEntityApiDTO = Optional
-                .ofNullable(serviceEntityApiDTOMap
-                        .get(providerInfo.getProviderId().get()));
+        ServiceEntityApiDTO serviceEntityApiDTO =serviceEntityApiDTOMap
+                        .get(providerInfo.getProviderId().get());
         // if entity id is not present, it means this reservation is unplaced.
-        if (!serviceEntityApiDTO.isPresent() && providerInfo.getProviderId().isPresent()) {
+        if (serviceEntityApiDTO == null) {
             throw  new ProviderIdNotRecognizedException(providerInfo.getProviderId().get());
         }
-        final int entityType = ApiEntityType.fromString(serviceEntityApiDTO.get().getClassName()).typeNumber();
-        Optional<String> clusterId = providerInfo.getClusterId().isPresent()
-                ? Optional.of(String.valueOf(providerInfo.getClusterId().get())) : Optional.empty();
+        final int entityType = ApiEntityType.fromString(serviceEntityApiDTO.getClassName()).typeNumber();
+        Optional<BaseApiDTO> clusterBaseApiDTO = providerInfo.getClusterId().map(clusterMap::get);
         switch (entityType) {
             case EntityType.PHYSICAL_MACHINE_VALUE:
                 final List<ResourceApiDTO> computeResources =
-                        placementInfoApiDTO.getComputeResources() != null ?
-                                placementInfoApiDTO.getComputeResources() :
-                                new ArrayList<>();
-                computeResources.add(generateResourcesApiDTO(serviceEntityApiDTO.get(), providerInfo.getCommoditiesBought(), clusterId));
+                        placementInfoApiDTO.getComputeResources() != null
+                                ? placementInfoApiDTO.getComputeResources()
+                                : new ArrayList<>();
+                computeResources.add(generateResourcesApiDTO(serviceEntityApiDTO,
+                        providerInfo.getCommoditiesBought(), clusterBaseApiDTO));
                 placementInfoApiDTO.setComputeResources(computeResources);
                 break;
             case EntityType.STORAGE_VALUE:
                 final List<ResourceApiDTO> storageResources =
-                        placementInfoApiDTO.getStorageResources() != null ?
-                                placementInfoApiDTO.getStorageResources() :
-                                new ArrayList<>();
-                storageResources.add(generateResourcesApiDTO(serviceEntityApiDTO.get(), providerInfo.getCommoditiesBought(), clusterId));
+                        placementInfoApiDTO.getStorageResources() != null
+                                ? placementInfoApiDTO.getStorageResources()
+                                : new ArrayList<>();
+                storageResources.add(generateResourcesApiDTO(serviceEntityApiDTO,
+                        providerInfo.getCommoditiesBought(), clusterBaseApiDTO));
                 placementInfoApiDTO.setStorageResources(storageResources);
-                break;
-            case EntityType.NETWORK_VALUE:
-                final List<ResourceApiDTO> networkResources =
-                        placementInfoApiDTO.getNetworkResources() != null ?
-                                placementInfoApiDTO.getNetworkResources() :
-                                new ArrayList<>();
-                networkResources.add(generateResourcesApiDTO(serviceEntityApiDTO.get(), providerInfo.getCommoditiesBought(), clusterId));
-                placementInfoApiDTO.setNetworkResources(networkResources);
                 break;
             default:
                 throw new UnknownObjectException("Unknown entity type: " + entityType);
@@ -619,12 +541,12 @@ public class ReservationMapper {
      *
      * @param serviceEntityApiDTO  The provider service entity
      * @param commodityBoughtDTOList the commodities bought by the VM associated with the reservation.
-     * @param clusterID the id of the cluster the provider belongs to.
+     * @param clusterBaseApiDTO the cluster the provider belongs to.
      * @return ResourceApiDTO populated with providerID and the stats.
      */
     private ResourceApiDTO generateResourcesApiDTO(@Nonnull final ServiceEntityApiDTO serviceEntityApiDTO,
                                                    List<CommodityBoughtDTO> commodityBoughtDTOList,
-                                                   Optional<String> clusterID) {
+                                                   Optional<BaseApiDTO> clusterBaseApiDTO) {
         final BaseApiDTO providerBaseApiDTO = new BaseApiDTO();
         providerBaseApiDTO.setClassName(serviceEntityApiDTO.getClassName());
         providerBaseApiDTO.setDisplayName(serviceEntityApiDTO.getDisplayName());
@@ -646,10 +568,45 @@ public class ReservationMapper {
             }
         }
         resourceApiDTO.setStats(statApiDTOS);
-        if (clusterID.isPresent()) {
-            resourceApiDTO.getRelatedResources().add(clusterID.get());
-        }
+        clusterBaseApiDTO.ifPresent(resourceApiDTO.getLinkedResources()::add);
         return resourceApiDTO;
+    }
+
+    /**
+     * Send request to group to fetch cluster information by cluster ids.
+     *
+     * @param placementInfos contains all initial placement results which only keep ids.
+     * @return a map which key is cluster id, value is {@link BaseApiDTO}.
+     */
+    private Map<Long, BaseApiDTO> getClusterMap(
+            @Nonnull final List<PlacementInfo> placementInfos) {
+        // This set contains cluster OIDs.
+        Set<Long> clusterIds = new HashSet<>();
+        for (PlacementInfo placementInfo : placementInfos) {
+            for (ProviderInfo providerInfo : placementInfo.getProviderInfos()) {
+                if (providerInfo.getProviderId().isPresent()) {
+                    providerInfo.getClusterId().ifPresent(clusterIds::add);
+                }
+
+            }
+        }
+        GetGroupsRequest request =
+                GetGroupsRequest.newBuilder()
+                        .setGroupFilter(GroupFilter.newBuilder()
+                                .addAllId(clusterIds))
+                        .build();
+        final Map<Long, BaseApiDTO> clusterMap = new HashMap<>();
+        Iterator<Grouping> groups = groupServiceBlockingStub.getGroups(request);
+        while (groups.hasNext()) {
+            Grouping cluster = groups.next();
+            if (GroupProtoUtil.CLUSTER_GROUP_TYPES.contains(cluster.getDefinition().getType())) {
+                final BaseApiDTO apiDTO = new BaseApiDTO();
+                apiDTO.setDisplayName(cluster.getDefinition().getDisplayName());
+                apiDTO.setUuid(String.valueOf(cluster.getId()));
+                clusterMap.put(cluster.getId(), apiDTO);
+            }
+        }
+        return clusterMap;
     }
 
     /**
@@ -716,7 +673,6 @@ public class ReservationMapper {
          * @param providerId       the oid of the provider
          * @param commoditiesBought the commodities bought by the template from the provider.
          * @param clusterId the id of the cluster where the entity is placed on.
-         * @param commodityStats the stats of the cluster.
          */
         public ProviderInfo(final Optional<Long> providerId,
                             @Nonnull final List<CommodityBoughtDTO> commoditiesBought,
