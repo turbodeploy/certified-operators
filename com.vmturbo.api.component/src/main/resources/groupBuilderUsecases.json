@@ -131,7 +131,8 @@
             {"inputType": "*", "elements": "Namespace:displayName:PRODUCES:WorkloadController:AGGREGATES:ContainerSpec", "filterCategory": "entity", "filterType": "containerSpecsByNamespace"},
             {"inputType": "s|*", "elements": "WorkloadController:workloadControllerInfoRepoDTO.controllerType:AGGREGATES", "filterCategory": "entity", "filterType": "containerSpecsByControllerKind", "loadOptions": true},
             {"inputType": "*", "elements": "ContainerPlatformCluster:displayName:PRODUCES:Namespace:PRODUCES:WorkloadController:AGGREGATES:ContainerSpec",
-                "filterCategory": "entity", "filterType": "containerSpecsByContainerPlatformCluster"}
+                "filterCategory": "entity", "filterType": "containerSpecsByContainerPlatformCluster"},
+            {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "containerSpecsByTag", "loadOptions": true}
         ]
     },
 
@@ -141,7 +142,8 @@
             {"inputType": "*", "elements": "Namespace:displayName:PRODUCES", "filterCategory": "entity", "filterType": "workloadControllersByNamespace"},
             {"inputType": "s|*", "elements": "workloadControllerInfoRepoDTO.controllerType", "filterCategory": "property", "filterType": "workloadControllersByKind", "loadOptions": true},
             {"inputType": "*", "elements": "ContainerPlatformCluster:displayName:PRODUCES:Namespace:PRODUCES:WorkloadController",
-                "filterCategory": "entity", "filterType": "workloadControllersByContainerPlatformCluster"}
+                "filterCategory": "entity", "filterType": "workloadControllersByContainerPlatformCluster"},
+            {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "workloadControllersByTag", "loadOptions": true}
         ]
     },
 
