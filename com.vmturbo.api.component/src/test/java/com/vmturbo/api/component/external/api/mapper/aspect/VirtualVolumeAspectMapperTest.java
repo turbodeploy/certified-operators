@@ -931,7 +931,43 @@ public class VirtualVolumeAspectMapperTest {
             Lists.newArrayList(onPremVmNoDisks));
 
         assertNull(aspect);
+    }
 
+    /**
+     * Test map on-prem virtual machine mapping with existing source  but no projected virtual
+     * volumes.
+     *
+     * @throws Exception on exceptions occurred
+     */
+    @Test
+    public void testMapOnPremVmNoProjectedDisks() throws Exception {
+
+        doReturn(ApiTestUtils.mockSearchFullReq(Lists.newArrayList(onPremVm))).when(repositoryApi)
+            .newSearchRequest(SearchProtoUtil.neighborsOfType(onPremVolumeId,
+                TraversalDirection.PRODUCES, ApiEntityType.VIRTUAL_MACHINE));
+        doReturn(ApiTestUtils.mockSearchFullReq(Collections.emptyList())).when(repositoryApi)
+            .newSearchRequest(SearchProtoUtil.neighborsOfType(onPremVolumeId,
+                TraversalDirection.OWNED_BY, ApiEntityType.BUSINESS_ACCOUNT));
+        doReturn(ApiTestUtils.mockSearchReq(Collections.emptyList())).when(repositoryApi)
+            .newSearchRequest(SearchParameters.newBuilder().setStartingFilter(SearchProtoUtil
+                .entityTypeFilter(ApiEntityType.REGION.apiStr())).build());
+        doReturn(ApiTestUtils.mockSearchMinReq(Collections.emptyList())).when(repositoryApi)
+            .newSearchRequest(SearchParameters.newBuilder().setStartingFilter(SearchProtoUtil
+                .entityTypeFilter(ApiEntityType.STORAGE_TIER.apiStr())).build());
+        doReturn(ApiTestUtils.mockMultiFullEntityReq(Collections.singletonList(onPremVm))).when(repositoryApi)
+            .entitiesRequest(eq(Sets.newHashSet(onPremVmId1)));
+        final MultiEntityRequest sourceVolumes = ApiTestUtils.mockMultiFullEntityReq(
+            Collections.singletonList(onPremVolume));
+        final MultiEntityRequest projectedVolumes = ApiTestUtils.mockMultiEntityReqEmpty();
+        when(repositoryApi.entitiesRequest(eq(Collections.singleton(onPremVolumeId))))
+            .thenReturn(sourceVolumes)
+            .thenReturn(projectedVolumes);
+
+        final VirtualDisksAspectApiDTO aspect = (VirtualDisksAspectApiDTO)volumeAspectMapper.mapEntitiesToAspect(
+            Collections.singletonList(onPremVm));
+
+        assertNotNull(aspect);
+        assertTrue(aspect.getVirtualDisks().isEmpty());
     }
 
     private static final TopologyEntityDTO volume4 = TopologyEntityDTO.newBuilder()
