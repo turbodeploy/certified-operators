@@ -1,6 +1,6 @@
 # When updating grafana versions, copy the "defaults.ini" of the new version into the
 # docker/defaults.ini file, and port the appropriate changes (changed lines start with "TURBO").
-ARG grafana_version=7.3.4
+ARG grafana_version=7.3.8
 
 FROM registry.access.redhat.com/ubi8 AS builder
 MAINTAINER Billy O'Connell <billy.oconnell@turbonomic.com>
@@ -10,7 +10,7 @@ ARG grafana_version
 WORKDIR /grafana-fetch
 
 RUN dnf install -y wget && \
-    wget https://dl.grafana.com/enterprise/release/grafana-enterprise-$grafana_version.linux-amd64.tar.gz && \
+    wget https://storage.googleapis.com/grafana-private-releases/enterprise/grafana-enterprise-$grafana_version.linux-amd64.tar.gz && \
     tar -zxvf grafana-enterprise-$grafana_version.linux-amd64.tar.gz
 
 
