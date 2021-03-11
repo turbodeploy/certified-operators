@@ -625,6 +625,19 @@ public class KVBackedILocalAuthStoreTest {
         store.createSecurityGroup(securityGroupDTO);
     }
 
+    /**
+     * Test create group which role doesn't exist.
+     */
+    @Test(expected = SecurityException.class)
+    public void testCreateSecurityGroupWhichRoleDoesNotExist() {
+        KeyValueStore keyValueStore = new MapKeyValueStore();
+        AuthProvider store = getStore(keyValueStore);
+        SecurityGroupDTO securityGroupDTO = new SecurityGroupDTO("group1",
+                "DedicatedCustomer",
+                "administrator1");
+        store.createSecurityGroup(securityGroupDTO);
+    }
+
     @Test
     public void testUpdateSecurityGroup() {
         KeyValueStore keyValueStore = new MapKeyValueStore();
@@ -663,6 +676,26 @@ public class KVBackedILocalAuthStoreTest {
             "SharedCustomer",
             "observer",
             Lists.newArrayList(11L));
+        store.updateSecurityGroup(newSecurityGroupDTO);
+    }
+
+    /**
+     * Test update group which role doesn't exist.
+     */
+    @Test(expected = SecurityException.class)
+    public void testUpdateSecurityGroupWhichRoleDoesNotExist() {
+        KeyValueStore keyValueStore = new MapKeyValueStore();
+        AuthProvider store = getStore(keyValueStore);
+        SecurityGroupDTO securityGroupDTO = new SecurityGroupDTO("group1",
+                "DedicatedCustomer",
+                "administrator");
+        store.createSecurityGroup(securityGroupDTO);
+
+        // update existing group
+        SecurityGroupDTO newSecurityGroupDTO = new SecurityGroupDTO("group1",
+                "SharedCustomer",
+                "observerNonExist",
+                Lists.newArrayList(11L));
         store.updateSecurityGroup(newSecurityGroupDTO);
     }
 
