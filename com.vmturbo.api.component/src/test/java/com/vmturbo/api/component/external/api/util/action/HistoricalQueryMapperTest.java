@@ -39,6 +39,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.api.test.MutableFixedClock;
+import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -202,10 +203,16 @@ public class HistoricalQueryMapperTest {
     public void testGroupOfResourceGroup() {
         // ARRANGE
         long groupOfRgsOids = 1001L;
+        String groupOfRgsOidsString = "1001";
         long rg1Oid = 2001L;
         long rg2Oid = 2002L;
 
+        GroupAndMembers groupAndMembers = mock(GroupAndMembers.class);
+        when(groupAndMembers.members()).thenReturn(Arrays.asList(rg1Oid, rg2Oid));
+
         GroupExpander groupExpander = mock(GroupExpander.class);
+        when(groupExpander.getGroupWithImmediateMembersOnly(groupOfRgsOidsString))
+            .thenReturn(Optional.of(groupAndMembers));
         HistoricalQueryMapper mapper = new HistoricalQueryMapper(
             mock(ActionSpecMapper.class), mock(BuyRiScopeHandler.class), groupExpander, clock);
 
@@ -213,7 +220,7 @@ public class HistoricalQueryMapperTest {
         when(cachedGroupInfo.getEntityTypes()).thenReturn(Collections.singleton(ApiEntityType.VIRTUAL_MACHINE));
         when(cachedGroupInfo.getNestedGroupTypes())
             .thenReturn(Collections.singleton(CommonDTO.GroupDTO.GroupType.RESOURCE));
-        when(cachedGroupInfo.getEntityIds()).thenReturn(Sets.newSet(rg1Oid, rg2Oid));
+        when(cachedGroupInfo.getEntityIds()).thenReturn(Sets.newSet(3L, 8L, 9L));
         when(cachedGroupInfo.getGroupType()).thenReturn(CommonDTO.GroupDTO.GroupType.REGULAR);
 
         final ApiId scope = mock(ApiId.class);
@@ -222,6 +229,7 @@ public class HistoricalQueryMapperTest {
         when(scope.isEntity()).thenReturn(false);
         when(scope.isGroup()).thenReturn(true);
         when(scope.oid()).thenReturn(groupOfRgsOids);
+        when(scope.uuid()).thenReturn(groupOfRgsOidsString);
         when(scope.getCachedGroupInfo()).thenReturn(Optional.of(cachedGroupInfo));
 
 
@@ -239,6 +247,59 @@ public class HistoricalQueryMapperTest {
         assertTrue(filters.get(scope).hasMgmtUnits());
         assertThat(filters.get(scope).getMgmtUnits().getMgmtUnitIdsList(),
             containsInAnyOrder(rg1Oid, rg2Oid));
+    }
+
+    /**
+     * Tests when we are querying in scope of group of compute clusters.
+     */
+    @Test
+    public void testGroupOfComputeClusters() {
+        // ARRANGE
+        long groupOfClustersOids = 1001L;
+        String groupOfClustersOidsString = "1001";
+        long cluster1Oid = 2001L;
+        long cluster2Oid = 2002L;
+
+        GroupAndMembers groupAndMembers = mock(GroupAndMembers.class);
+        when(groupAndMembers.members()).thenReturn(Arrays.asList(cluster1Oid, cluster2Oid));
+
+        GroupExpander groupExpander = mock(GroupExpander.class);
+        when(groupExpander.getGroupWithImmediateMembersOnly(groupOfClustersOidsString))
+            .thenReturn(Optional.of(groupAndMembers));
+        HistoricalQueryMapper mapper = new HistoricalQueryMapper(
+            mock(ActionSpecMapper.class), mock(BuyRiScopeHandler.class), groupExpander, clock);
+
+        final CachedGroupInfo cachedGroupInfo = mock(CachedGroupInfo.class);
+        when(cachedGroupInfo.getEntityTypes()).thenReturn(Collections.singleton(ApiEntityType.VIRTUAL_MACHINE));
+        when(cachedGroupInfo.getNestedGroupTypes())
+            .thenReturn(Collections.singleton(CommonDTO.GroupDTO.GroupType.COMPUTE_HOST_CLUSTER));
+        when(cachedGroupInfo.getEntityIds()).thenReturn(Sets.newSet(3L, 8L, 9L));
+        when(cachedGroupInfo.getGroupType()).thenReturn(CommonDTO.GroupDTO.GroupType.REGULAR);
+
+        final ApiId scope = mock(ApiId.class);
+        when(scope.isRealtimeMarket()).thenReturn(false);
+        when(scope.isGlobalTempGroup()).thenReturn(false);
+        when(scope.isEntity()).thenReturn(false);
+        when(scope.isGroup()).thenReturn(true);
+        when(scope.oid()).thenReturn(groupOfClustersOids);
+        when(scope.uuid()).thenReturn(groupOfClustersOidsString);
+        when(scope.getCachedGroupInfo()).thenReturn(Optional.of(cachedGroupInfo));
+
+
+        ActionStatsQuery query = ImmutableActionStatsQuery.builder()
+            .addScopes(scope)
+            .actionInput(new ActionApiInputDTO())
+            .build();
+
+        // ACT
+        final Map<ApiId, MgmtUnitSubgroupFilter> filters = mapper.extractMgmtUnitSubgroupFilter(query,
+            Optional.empty());
+
+        // ASSERT
+        assertThat(filters.size(), is(1));
+        assertTrue(filters.get(scope).hasMgmtUnits());
+        assertThat(filters.get(scope).getMgmtUnits().getMgmtUnitIdsList(),
+            containsInAnyOrder(cluster1Oid, cluster2Oid));
     }
 
     /**
