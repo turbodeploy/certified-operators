@@ -134,6 +134,7 @@ public class AuthProvider extends AuthProviderBase {
      * @param ssoUtil sso utility
      * @param enableMultiADGroupSupport enable multipe AD group support
      * @param enableExternalSecrets whether to enable sourcing encryption keys through kubernetes secrets
+     * @param keyImportIndicator indicates whether a security key import is in progress
      */
     public AuthProvider(@Nonnull final KeyValueStore keyValueStore, @Nullable final GroupServiceBlockingStub groupServiceClient,
             @Nonnull final Supplier<String> keyValueDir, @Nullable final WidgetsetDbStore widgetsetDbStore,
