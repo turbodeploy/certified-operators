@@ -209,7 +209,6 @@ public class AnalysisDiagnosticsCollectorTest {
     public void testRunSMAFromDiags() {
         restoreSMAsMembers(unzippedSMADiagsLocation);
         if (smaInput.isPresent()) {
-            smaInput.get().getContexts().stream().forEach(a -> a.decompress());
             SMAOutput smaOutput = StableMarriageAlgorithm.execute(smaInput.get());
             logger.info("SMA generated {} outputContexts", smaOutput.getContexts().size());
             assertTrue(getActionCount(smaOutput) > 0);
@@ -256,7 +255,6 @@ public class AnalysisDiagnosticsCollectorTest {
     public void testStabilityWithDiags() {
         restoreSMAsMembers(unzippedSMADiagsLocation2);
         if (smaInput.isPresent()) {
-            smaInput.get().getContexts().stream().forEach(a -> a.decompress());
             SMAOutput smaOutput = StableMarriageAlgorithm.execute(smaInput.get());
             List<SMAInputContext> newInputContexts = new ArrayList<>();
             for (SMAOutputContext outputContext : smaOutput.getContexts()) {
@@ -531,20 +529,22 @@ public class AnalysisDiagnosticsCollectorTest {
                     logger.error("Could not create SMAInput.");
                     return;
                 }
+                SMAInputContext smaInputContext;
                 if (configList.get(index) == null) {
-                    smaInputContexts.add(new SMAInputContext(contextList.get(index),
+                    smaInputContext = new SMAInputContext(contextList.get(index),
                             virtualMachineList.get(index),
-                            reservedInstanceList.get(index), templateList.get(index)));
+                            reservedInstanceList.get(index), templateList.get(index));
                 } else {
-                    smaInputContexts.add(new SMAInputContext(contextList.get(index),
+                    smaInputContext = new SMAInputContext(contextList.get(index),
                             virtualMachineList.get(index),
                             reservedInstanceList.get(index),
-                            templateList.get(index), configList.get(index)));
+                            templateList.get(index), configList.get(index));
                 }
+                smaInputContext.decompress();
+                // this will initialize fields which are not set in json.
+                smaInputContexts.add(new SMAInputContext(smaInputContext));
             }
-
             smaInput = Optional.of(new SMAInput(smaInputContexts));
-
         } catch (Exception e) {
             logger.error("Could not extract from file {}.", unzippedSMADiagsLocation, e);
         }
