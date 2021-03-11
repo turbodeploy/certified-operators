@@ -402,8 +402,8 @@ public class RollupProcessorTest {
         checkField(aggregator.getAvg(), rollup, AVG_VALUE_FIELD, Double.class);
         checkField(aggregator.getMin(), rollup, MIN_VALUE_FIELD, Double.class);
         checkField(aggregator.getMax(), rollup, MAX_VALUE_FIELD, Double.class);
-        checkField(aggregator.getLastObservedCapacity(), rollup, CAPACITY_FIELD, Double.class);
-        checkField(aggregator.getLastObservedEffectiveCapacity(), rollup, EFFECTIVE_CAPACITY_FIELD, Double.class);
+        checkField(aggregator.getMaxObservedCapacity(), rollup, CAPACITY_FIELD, Double.class);
+        checkField(aggregator.getMaxObservedEffectiveCapacity(), rollup, EFFECTIVE_CAPACITY_FIELD, Double.class);
         checkField(aggregator.getSamples(), rollup, SAMPLES_FIELD, Integer.class);
     }
 
@@ -734,8 +734,8 @@ public class RollupProcessorTest {
         private Double min = Double.MAX_VALUE;
         private Double max = Double.MIN_VALUE;
         private Instant latestSnapshot;
-        private Double lastObservedCapacity = Double.MIN_VALUE;
-        private Double lastObservedEffectiveCapacity = Double.MIN_VALUE;
+        private Double maxObservedCapacity = Double.MIN_VALUE;
+        private Double maxObservedEffectiveCapacity = Double.MIN_VALUE;
 
         /**
          * Incorporate a new sample.
@@ -747,8 +747,8 @@ public class RollupProcessorTest {
             this.avg = round((avg * samples + value) / (++samples), 1000);
             this.max = Math.max(max, value);
             this.min = Math.min(min, value);
-            this.lastObservedCapacity = value * 2;
-            this.lastObservedEffectiveCapacity = value * 4;
+            this.maxObservedCapacity = Math.max(maxObservedCapacity, value * 2);
+            this.maxObservedEffectiveCapacity = Math.max(maxObservedEffectiveCapacity, value * 4);
             this.latestSnapshot = snapshot;
         }
 
@@ -788,13 +788,22 @@ public class RollupProcessorTest {
             return max;
         }
 
-
-        Double getLastObservedCapacity() {
-            return lastObservedCapacity;
+        /**
+         * Get the maximum of all observed capacities.
+         *
+         * @return max capacity
+         */
+        Double getMaxObservedCapacity() {
+            return maxObservedCapacity;
         }
 
-        Double getLastObservedEffectiveCapacity() {
-            return lastObservedEffectiveCapacity;
+        /**
+         * Get the maximum of all observed effective capacities.
+         *
+         * @return max effective capacity
+         */
+        Double getMaxObservedEffectiveCapacity() {
+            return maxObservedEffectiveCapacity;
         }
 
         /**
