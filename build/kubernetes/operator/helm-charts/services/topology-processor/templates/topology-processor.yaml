@@ -1,5 +1,5 @@
 {{- if .Values.global }}
-  {{- if or (not .Values.global.enableExternalSecrets) (not .Values.global.enableEphemeralDiscoveryDumps)}}
+  {{- if or (not .Values.global.enableExternalSecrets) (not (or .Values.global.enableEphemeralDiscoveryDumps .Values.enableEphemeralDiscoveryDumps))}}
     {{/* Use the PV legacy behavior unless both external secrets and ephemeral discovery dumps are enabled. */}}
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -167,7 +167,7 @@ spec:
       volumes:
       - name: topology-processor
 {{- if .Values.global }}
-  {{- if or (not .Values.global.enableExternalSecrets) (not .Values.global.enableEphemeralDiscoveryDumps)}}
+  {{- if or (not .Values.global.enableExternalSecrets) (not (or .Values.global.enableEphemeralDiscoveryDumps .Values.enableEphemeralDiscoveryDumps))}}
     {{/* Use the PV legacy behavior unless both external secrets and ephemeral discovery dumps are enabled. */}}
         persistentVolumeClaim:
           claimName: {{ .Chart.Name }}

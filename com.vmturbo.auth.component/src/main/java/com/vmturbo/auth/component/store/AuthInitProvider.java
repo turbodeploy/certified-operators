@@ -93,6 +93,7 @@ public class AuthInitProvider {
      * @param keyValueDir directory to store the admin JWT (when not using auth secrets)
      * @param enableExternalSecrets whether to enable sourcing encryption keys through kubernetes secrets
      * @param keyProvider for providing (generating, storing and retrieving) private/public key pairs
+     * @param keyImportIndicator indicates whether a security key import is in progress
      */
     public AuthInitProvider(@Nonnull final KeyValueStore keyValueStore,
                             @Nonnull final Supplier<String> keyValueDir,
