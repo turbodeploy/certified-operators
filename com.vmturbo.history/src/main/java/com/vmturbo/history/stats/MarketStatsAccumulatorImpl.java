@@ -703,8 +703,9 @@ public class MarketStatsAccumulatorImpl implements MarketStatsAccumulator {
 
             Record record = dbTable.newRecord();
             historydbIO.initializeCommodityRecord(mixedCaseCommodityName, snapshotTime,
-                    entityDTO.getOid(), RelationType.COMMODITIESBOUGHT, providerId, capacity, null,
-                    key, record, dbTable, longCommodityKeys);
+                entityDTO.getOid(), RelationType.COMMODITIESBOUGHT, providerId, capacity,
+                capacity - commodityBoughtDTO.getReservedCapacity(),
+                key, record, dbTable, longCommodityKeys);
             historydbIO.setCommodityValues(PROPERTY_SUBTYPE_USED,
                     used, peak, record, dbTable);
             // mark the end of this row to be inserted
