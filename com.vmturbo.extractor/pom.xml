@@ -314,5 +314,9 @@
             <groupId>com.vmturbo</groupId>
             <artifactId>history-component-api</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>cost-api</artifactId>
+        </dependency>
     </dependencies>
 </project>

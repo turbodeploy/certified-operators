@@ -21,6 +21,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
+import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
+import com.vmturbo.common.protobuf.cost.RIAndExpenseUploadServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
@@ -29,6 +31,7 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistorySer
 import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
 import com.vmturbo.components.common.utils.DataPacks.DataPack;
 import com.vmturbo.components.common.utils.DataPacks.LongDataPack;
+import com.vmturbo.cost.api.CostClientConfig;
 import com.vmturbo.extractor.ExtractorDbConfig;
 import com.vmturbo.extractor.ExtractorGlobalConfig;
 import com.vmturbo.extractor.ExtractorGlobalConfig.ExtractorFeatureFlags;
@@ -41,6 +44,8 @@ import com.vmturbo.extractor.models.Constants;
 import com.vmturbo.extractor.search.SearchEntityWriter;
 import com.vmturbo.extractor.topology.ITopologyWriter.TopologyWriterFactory;
 import com.vmturbo.extractor.topology.attributes.HistoricalAttributeWriterFactory;
+import com.vmturbo.extractor.topology.fetcher.ClusterStatsFetcherFactory;
+import com.vmturbo.extractor.topology.fetcher.TopDownCostFetcherFactory;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.history.component.api.impl.HistoryClientConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -62,6 +67,7 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription.Top
         ExtractorDbConfig.class,
         ExtractorGlobalConfig.class,
         HistoryClientConfig.class,
+        CostClientConfig.class
 })
 public class TopologyListenerConfig {
     @Autowired
@@ -84,6 +90,9 @@ public class TopologyListenerConfig {
 
     @Autowired
     private HistoryClientConfig historyClientConfig;
+
+    @Autowired
+    private CostClientConfig costClientConfig;
 
     /**
      * Max time to wait for results of COPY FROM command that streams data to postgres, after all
@@ -298,14 +307,39 @@ public class TopologyListenerConfig {
     }
 
     /**
+     * The {@link ClusterStatsFetcherFactory} for the {@link DataProvider}.
+     *
+     * @return The {@link ClusterStatsFetcherFactory}.
+     */
+    @Bean
+    public ClusterStatsFetcherFactory clusterStatsFetcherFactory() {
+        return new ClusterStatsFetcherFactory(statsHistoryServiceBlockingStub(),
+                dbConfig.ingesterEndpoint(), headroomCheckIntervalHrs, TimeUnit.HOURS);
+    }
+
+    /**
+     * The {@link TopDownCostFetcherFactory} for the {@link DataProvider}.
+     *
+     * @return The {@link TopDownCostFetcherFactory}.
+     */
+    @Bean
+    public TopDownCostFetcherFactory topDownCostFetcherFactory() {
+        return new TopDownCostFetcherFactory(
+            CostServiceGrpc.newBlockingStub(costClientConfig.costChannel()),
+            RIAndExpenseUploadServiceGrpc.newBlockingStub(costClientConfig.costChannel()));
+    }
+
+    /**
      * The data provider which contains latest topology, supply chain, etc.
      *
      * @return {@link DataProvider}
      */
     @Bean
     public DataProvider dataProvider() {
-        return new DataProvider(groupServiceBlockingStub(), statsHistoryServiceBlockingStub(),
-            dbConfig.ingesterEndpoint(),  headroomCheckIntervalHrs);
+        return new DataProvider(groupServiceBlockingStub(),
+            clusterStatsFetcherFactory(),
+            topDownCostFetcherFactory(),
+                extractorGlobalConfig.featureFlags());
     }
 
     /**

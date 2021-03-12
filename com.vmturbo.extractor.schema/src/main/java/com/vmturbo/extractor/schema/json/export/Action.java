@@ -29,7 +29,7 @@ public class Action extends ActionAttributes {
     private String severity;
     private String description;
     private String explanation;
-    private ActionSavings savings;
+    private CostAmount savings;
     private ActionEntity target;
     // mapping from related entity type key to list of related entities
     private Map<String, List<RelatedEntity>> related;
@@ -122,11 +122,11 @@ public class Action extends ActionAttributes {
         this.target = target;
     }
 
-    public ActionSavings getSavings() {
+    public CostAmount getSavings() {
         return savings;
     }
 
-    public void setSavings(ActionSavings savings) {
+    public void setSavings(CostAmount savings) {
         this.savings = savings;
     }
 
