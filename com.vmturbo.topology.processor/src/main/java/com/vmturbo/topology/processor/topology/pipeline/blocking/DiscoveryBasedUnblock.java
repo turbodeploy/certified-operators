@@ -234,7 +234,7 @@ public class DiscoveryBasedUnblock implements PipelineUnblock {
                                     identityProvider);
 
                             try {
-                                operationManager.notifyDiscoveryResult(operation,
+                                operationManager.notifyLoadedDiscovery(operation,
                                     discoveryResponse).get(20, TimeUnit.MINUTES);
                             } catch (InterruptedException | ExecutionException | TimeoutException e) {
                                 logger.error("Error in notifying the discovery result for target "

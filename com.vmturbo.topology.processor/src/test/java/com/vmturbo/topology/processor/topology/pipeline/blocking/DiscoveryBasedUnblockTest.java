@@ -119,7 +119,7 @@ public class DiscoveryBasedUnblockTest {
                     clock, identityProvider, binaryDiscoveryDumper, true));
         IdentityGenerator.initPrefix(1L);
         when(identityProvider.generateOperationId()).thenAnswer(invocation -> IdentityGenerator.next());
-        when(operationManager.notifyDiscoveryResult(any(), any())).thenReturn(mock(Future.class));
+        when(operationManager.notifyLoadedDiscovery(any(), any())).thenReturn(mock(Future.class));
     }
 
     /**
@@ -527,7 +527,7 @@ public class DiscoveryBasedUnblockTest {
             when(mockTarget.getProbeId()).thenReturn(1L);
         }
 
-        when(operationManager.notifyDiscoveryResult(any(), any()))
+        when(operationManager.notifyLoadedDiscovery(any(), any()))
             .thenThrow(InterruptedException.class).thenReturn(mock(Future.class));
 
         // Before loading the responses
@@ -538,7 +538,7 @@ public class DiscoveryBasedUnblockTest {
         // After loading the responses
         assertTrue(unblock.runIteration());
 
-        verify(operationManager, Mockito.times(2)).notifyDiscoveryResult(any(), any());
+        verify(operationManager, Mockito.times(2)).notifyLoadedDiscovery(any(), any());
         verify(pipelineExecutorService).unblockBroadcasts();
     }
 

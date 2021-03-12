@@ -249,6 +249,19 @@ public interface IOperationManager {
      */
     Future<?> notifyDiscoveryResult(@Nonnull Discovery operation,
                                            @Nonnull DiscoveryResponse message);
+
+    /**
+     * Notify the {@link OperationManager} that a {@link Discovery} has been loaded from
+     * disk and the OperationManager should process it. Loaded discoveries are treated
+     * differently from real discoveries in that their derived targets are ignored.
+     *
+     * @param operation the {@link Discovery} associated with the {@link DiscoveryResponse}.
+     * @param message the {@link DiscoveryResponse} loaded from disk.
+     * @return a Future representing pending completion of the task
+     */
+    Future<?> notifyLoadedDiscovery(@Nonnull Discovery operation,
+            @Nonnull DiscoveryResponse message);
+
     /**
      * Returns timeout for action related operations. The operation is treated as expired, if
      * during a timeout period, there were no messages for the action: either action response

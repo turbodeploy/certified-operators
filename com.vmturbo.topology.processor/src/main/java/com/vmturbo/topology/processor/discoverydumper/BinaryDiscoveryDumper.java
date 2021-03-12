@@ -101,7 +101,7 @@ public class BinaryDiscoveryDumper implements DiscoveryDumper, CustomDiagHandler
 
         dump(
             tgtId,
-            discovery,
+            DiscoveryDumperImpl.removeHiddenInfoFromDiscovery(discovery, accountDefs),
             discoveryType);
 
     }
