@@ -46,6 +46,7 @@ import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.cost.calculation.topology.PricingDataIdentifier;
 import com.vmturbo.cost.calculation.topology.TopologyEntityInfoExtractor;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.PricingDTO.LicenseOverrides;
 import com.vmturbo.platform.sdk.common.PricingDTO.LicensePriceEntry;
 
 /**
@@ -163,7 +164,7 @@ public class MarketPricingResolver extends ResolverPricing {
                                     priceTableChunk.getReservedLicenseSegment());
                             break;
                         case ONDEMAND_LICENSE_PRICE_ENTRY_SEGMENT:
-                            captureOndemandLicensePriceEntry(priceTableBuilderByOidMap, priceTableOid,
+                            captureOnDemandLicensePriceEntry(priceTableBuilderByOidMap, priceTableOid,
                                     priceTableChunk.getOndemandLicensePriceEntrySegment());
                             break;
                         case PRICETABLESEGMENT_NOT_SET:
@@ -190,15 +191,17 @@ public class MarketPricingResolver extends ResolverPricing {
         return resultMap;
     }
 
-    private void captureOndemandLicensePriceEntry(@Nonnull final Map<Long, PriceTable.Builder> result,
+    private void captureOnDemandLicensePriceEntry(@Nonnull final Map<Long, PriceTable.Builder> result,
                                                   final long priceTableOid,
                                                   @Nonnull final OnDemandLicensePriceEntrySegment ondemandLicensePriceEntrySegment) {
         final List<LicensePriceEntry> licensePriceEntries = ondemandLicensePriceEntrySegment.getLicensePriceEntryList();
+        final Map<Long, LicenseOverrides> onDemandLicenseOverridesMap = ondemandLicensePriceEntrySegment.getOnDemandLicenseOverridesMap();
         result.compute(priceTableOid, (currentOid, currentPriceTable) -> {
             if (currentPriceTable == null) {
                 currentPriceTable = PriceTable.newBuilder();
             }
             currentPriceTable.addAllOnDemandLicensePrices(licensePriceEntries);
+            currentPriceTable.putAllOnDemandLicenseOverrides(onDemandLicenseOverridesMap);
             return currentPriceTable;
         });
     }
@@ -207,11 +210,13 @@ public class MarketPricingResolver extends ResolverPricing {
                                              final long priceTableOid,
                                              @Nonnull final ReservedLicenseSegment reservedLicenseSegment) {
         final List<LicensePriceEntry> reservedLicensePriceEntryList = reservedLicenseSegment.getReservedLicensePriceEntryList();
+        final Map<Long, LicenseOverrides> reservedLicenseOverridesMap = reservedLicenseSegment.getReservedLicenseOverridesMap();
         priceTableByRegionId.compute(priceTableOid, (currentOid, currentPriceTable) -> {
             if (currentPriceTable == null) {
                 currentPriceTable = PriceTable.newBuilder();
             }
             currentPriceTable.addAllReservedLicensePrices(reservedLicensePriceEntryList);
+            currentPriceTable.putAllReservedLicenseOverrides(reservedLicenseOverridesMap);
             return currentPriceTable;
         });
 

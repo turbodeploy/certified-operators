@@ -60,6 +60,7 @@ import com.vmturbo.cost.component.pricing.PriceTableStore.PriceTables;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecCleanup;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecStore;
+import com.vmturbo.platform.sdk.common.PricingDTO.LicenseOverrides;
 import com.vmturbo.platform.sdk.common.PricingDTO.LicensePriceEntry;
 import com.vmturbo.platform.sdk.common.PricingDTO.ReservedInstancePrice;
 
@@ -117,17 +118,19 @@ public class PricingRpcService extends PricingServiceImplBase {
     public void getPriceTables(GetPriceTablesRequest request, StreamObserver<GetPriceTablesResponse> responseObserver) {
         final Map<Long, PriceTable> priceTables = priceTableStore.getPriceTables(request.getOidList());
         for (Entry<Long, PriceTable> priceTableEntry : priceTables.entrySet()) {
-            final long priceTabelOid = priceTableEntry.getKey();
+            final long priceTableOid = priceTableEntry.getKey();
             final PriceTable priceTable = priceTableEntry.getValue();
             final long totalSerializedSize = priceTable.getSerializedSize();
-            sendPriceTableSegmentsByRegionIds(responseObserver, priceTable.getOnDemandPriceByRegionIdMap(), priceTabelOid, totalSerializedSize,
+            sendPriceTableSegmentsByRegionIds(responseObserver, priceTable.getOnDemandPriceByRegionIdMap(), priceTableOid, totalSerializedSize,
                     this::addOnDemandPriceTableToPriceTableChunk);
-            sendPriceTableSegmentsByRegionIds(responseObserver, priceTable.getSpotPriceByZoneOrRegionIdMap(), priceTabelOid, totalSerializedSize,
+            sendPriceTableSegmentsByRegionIds(responseObserver, priceTable.getSpotPriceByZoneOrRegionIdMap(), priceTableOid, totalSerializedSize,
                     this::addSpotInstancePriceTableToPriceTableChunk);
             sendPriceTableSegmentsReservedLicensePricesList(responseObserver, priceTable.getReservedLicensePricesList(),
-                    priceTabelOid, totalSerializedSize);
+                    priceTable.getReservedLicenseOverridesMap(),
+                    priceTableOid, totalSerializedSize);
             sendPriceTableSegmentsOnDemandLicensePricesList(responseObserver, priceTable.getOnDemandLicensePricesList(),
-                    priceTabelOid, totalSerializedSize);
+                    priceTable.getOnDemandLicenseOverridesMap(),
+                    priceTableOid, totalSerializedSize);
         }
         responseObserver.onCompleted();
     }
@@ -361,6 +364,7 @@ public class PricingRpcService extends PricingServiceImplBase {
 
     private void sendPriceTableSegmentsReservedLicensePricesList(@Nonnull final StreamObserver<GetPriceTablesResponse> responseObserver,
                                                                  @Nonnull final List<LicensePriceEntry> reservedLicensePricesList,
+                                                                 @Nonnull final Map<Long, LicenseOverrides> reservedLicenseOverridesMap,
                                                                  final long priceTableOid,
                                                                  final long serializedSize) {
         final PriceTableChunk priceTableChunk = PriceTableChunk.newBuilder()
@@ -368,6 +372,7 @@ public class PricingRpcService extends PricingServiceImplBase {
                 .setPriceTableOid(priceTableOid)
                 .setReservedLicenseSegment(ReservedLicenseSegment.newBuilder()
                         .addAllReservedLicensePriceEntry(reservedLicensePricesList)
+                        .putAllReservedLicenseOverrides(reservedLicenseOverridesMap)
                         .build())
                 .build();
         sendPriceTableChunk(responseObserver, serializedSize, Collections.singleton(priceTableChunk));
@@ -375,6 +380,7 @@ public class PricingRpcService extends PricingServiceImplBase {
 
     private void sendPriceTableSegmentsOnDemandLicensePricesList(@Nonnull final StreamObserver<GetPriceTablesResponse> responseObserver,
                                                                  @Nonnull final List<LicensePriceEntry> onDemandLicensePricesList,
+                                                                 @Nonnull final Map<Long, LicenseOverrides> onDemandLicenseOverridesMap,
                                                                  final long priceTableOid,
                                                                  final long serializedSize) {
         final PriceTableChunk priceTableChunk = PriceTableChunk.newBuilder()
@@ -382,6 +388,7 @@ public class PricingRpcService extends PricingServiceImplBase {
                 .setPriceTableOid(priceTableOid)
                 .setOndemandLicensePriceEntrySegment(OnDemandLicensePriceEntrySegment.newBuilder()
                         .addAllLicensePriceEntry(onDemandLicensePricesList)
+                        .putAllOnDemandLicenseOverrides(onDemandLicenseOverridesMap)
                         .build())
                 .build();
         sendPriceTableChunk(responseObserver, serializedSize, Collections.singleton(priceTableChunk));

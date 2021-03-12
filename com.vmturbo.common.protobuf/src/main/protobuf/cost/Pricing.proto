@@ -198,6 +198,7 @@ message PriceTableChunk {
     // oid of price table to which the priceTableChunk belongs to.
     optional int64 price_table_oid = 3;
 
+    // PriceTableChunk is made up of one of more of the below priceTableSegment.
     oneof priceTableSegment {
         OnDemandPriceTableByRegionSegment ondemand_price_table_by_region = 4;
         SpotInstancePriceTableByRegionSegment spot_instance_price_table_by_region = 5;
@@ -205,22 +206,28 @@ message PriceTableChunk {
         ReservedLicenseSegment reserved_license_segment = 7;
     }
 
+    // OnDemandPriceTable by region id.
     message OnDemandPriceTableByRegionSegment {
         optional OnDemandPriceTable on_demand_price_table = 1;
         optional int64 region_id = 2;
     }
 
+    // SpotInstancePriceTable by region id.
     message SpotInstancePriceTableByRegionSegment {
         optional SpotInstancePriceTable spot_instance_price_table = 1;
         optional int64 region_id = 2;
     }
 
+    // All the OnDemandLicensePrice and OnDemandLicensePriceOverrides belonging to a priceTableOid.
     message OnDemandLicensePriceEntrySegment {
         repeated common_dto.LicensePriceEntry license_price_entry = 1;
+        map<int64, common_dto.LicenseOverrides> on_demand_license_overrides = 2;
     }
 
+    // All the ReservedLicense and ReservedLicenseOverrides belonging to a priceTableOid.
     message ReservedLicenseSegment {
         repeated common_dto.LicensePriceEntry reserved_license_price_entry = 1;
+        map<int64, common_dto.LicenseOverrides> reserved_license_overrides = 2;
     }
 }
 
