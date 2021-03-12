@@ -20,7 +20,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -765,7 +764,15 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
     public Future<?> notifyDiscoveryResult(@Nonnull final Discovery operation,
                              @Nonnull final DiscoveryResponse message) {
         return resultExecutor.submit(() -> {
-            processDiscoveryResponse(operation, message);
+            processDiscoveryResponse(operation, message, true);
+        });
+    }
+
+    @Override
+    public Future<?> notifyLoadedDiscovery(@Nonnull Discovery operation,
+            @Nonnull DiscoveryResponse message) {
+        return resultExecutor.submit(() -> {
+            processDiscoveryResponse(operation, message, false);
         });
     }
 
@@ -1006,7 +1013,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
     }
 
     private void processDiscoveryResponse(@Nonnull final Discovery discovery,
-            @Nonnull final DiscoveryResponse response) {
+            @Nonnull final DiscoveryResponse response, boolean processDerivedTargets) {
         final boolean success = !hasGeneralCriticalError(response.getErrorDTOList());
         // Discovery response changed since last discovery
         final boolean change = !response.hasNoChange();
@@ -1044,8 +1051,8 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                                                                           .orElse("UNKNOWN"))
                                             .observe((double)response.getEntityDTOCount());
                             // dump discovery response if required
+                            final Optional<ProbeInfo> probeInfo = probeStore.getProbe(discovery.getProbeId());
                             if (discoveryDumper != null) {
-                                final Optional<ProbeInfo> probeInfo = probeStore.getProbe(discovery.getProbeId());
                                 String displayName = target.map(Target::getDisplayName).orElseGet(() -> "targetID-" + targetId);
                                 String targetName =
                                         probeInfo.get().getProbeType() + "_" + displayName;
@@ -1054,13 +1061,13 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                                     targetDumpingSettings.refreshSettings();
                                 }
                                 discoveryDumper.dumpDiscovery(targetName, discoveryType, response,
-                                        new ArrayList<>());
+                                        probeInfo.get().getAccountDefinitionList());
                             }
                             if (enableDiscoveryResponsesCaching) {
                                 binaryDiscoveryDumper.dumpDiscovery(String.valueOf(targetId),
                                     discoveryType,
                                     response,
-                                    new ArrayList<>());
+                                    probeInfo.get().getAccountDefinitionList());
                             }
                             // set discovery context
                             if (response.hasDiscoveryContext()) {
@@ -1078,7 +1085,9 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                                         targetId, response.getEntityProfileList(), response.getDeploymentProfileList(),
                                         response.getEntityDTOList());
                                 discoveredWorkflowUploader.setTargetWorkflows(targetId, response.getWorkflowList());
-                                derivedTargetParser.instantiateDerivedTargets(targetId, response.getDerivedTargetList());
+                                if (processDerivedTargets) {
+                                    derivedTargetParser.instantiateDerivedTargets(targetId, response.getDerivedTargetList());
+                                }
                                 discoveredCloudCostUploader.recordTargetCostData(targetId,
                                         targetStore.getProbeTypeForTarget(targetId), targetStore.getProbeCategoryForTarget(targetId), discovery,
                                         response.getNonMarketEntityDTOList(), response.getCostDTOList(),

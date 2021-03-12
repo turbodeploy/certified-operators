@@ -244,7 +244,7 @@ public class DiscoveryDumperImpl implements DiscoveryDumper {
     }
 
     @Nonnull
-    private static DiscoveryResponse removeHiddenInfoFromDiscovery(
+    static DiscoveryResponse removeHiddenInfoFromDiscovery(
           @Nonnull DiscoveryResponse discovery,
           @Nonnull List<AccountDefEntry> accountDefs) {
         // Make a copy of the DiscoveryResponse which we will remove password account fields from

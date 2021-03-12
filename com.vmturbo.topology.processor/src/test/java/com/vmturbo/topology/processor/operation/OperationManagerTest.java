@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.operation;
 import static com.vmturbo.topology.processor.db.Tables.ENTITY_ACTION;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyInt;
+import static org.mockito.Matchers.anyList;
 import static org.mockito.Matchers.anyListOf;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
@@ -57,6 +58,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.NotificationDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.NotificationDTO.Severity;
+import com.vmturbo.platform.common.dto.Discovery.AccountValue;
+import com.vmturbo.platform.common.dto.Discovery.DerivedTargetSpecificationDTO;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryContextDTO;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
@@ -341,6 +344,31 @@ public class OperationManagerTest {
 
         verify(entityStore).entitiesDiscovered(eq(probeId), eq(targetId), eq(discovery.getMediationMessageId()),
             eq(discoveryType), eq(Collections.singletonList(entity)));
+    }
+
+    /**
+     * Test that when we call notifyLoadedDiscovery, the derived target is ignored.
+     *
+     * @throws Exception if something goes wrong.
+     */
+    @Test
+    public void testNotifyLoadedDiscovery() throws Exception {
+        final Discovery discovery = new Discovery(probeId, targetId, DiscoveryType.FULL,
+                identityProvider);
+        final DiscoveryResponse response = DiscoveryResponse.newBuilder()
+                .addEntityDTO(entity)
+                .addDerivedTarget(DerivedTargetSpecificationDTO.newBuilder()
+                        .setProbeType("probe")
+                        .addAccountValue(AccountValue.newBuilder()
+                                .setKey("field1")
+                                .setStringValue("field1")
+                                .build())
+                        .build())
+                .build();
+
+        operationManager.notifyLoadedDiscovery(discovery, response).get(
+                OperationTestUtilities.DISCOVERY_PROCESSING_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        verify(derivedTargetParser, never()).instantiateDerivedTargets(anyLong(), anyList());
     }
 
     /**
