@@ -170,17 +170,22 @@ public class DiscoveredSettingPolicyScanner {
         private Map<Long, String> pmToDcNameMap(StitchingContext ctx) {
             Map<Long, String> dcNames = Maps.newHashMap();
             // Iterate over PMs
-            ctx.getEntitiesByEntityTypeAndTarget().get(EntityType.PHYSICAL_MACHINE).values().stream()
-                // On all targets
-                .flatMap(Collection::stream)
-                .forEach(pm -> {
+            final Map<Long, List<TopologyStitchingEntity>> entries =
+                    ctx.getEntitiesByEntityTypeAndTarget().get(EntityType.PHYSICAL_MACHINE);
+            if (entries != null) {
+                entries.values().stream()
+                        // On all targets
+                        .flatMap(Collection::stream).forEach(pm -> {
                     // Iterate over providers and find a DC
-                    pm.getCommodityBoughtListByProvider().keySet().stream()
-                        .filter(provider -> provider.getEntityType() == EntityType.DATACENTER)
-                        .findAny()
-                        .map(StitchingEntity::getDisplayName)
-                        .ifPresent(dcName -> dcNames.put(pm.getOid(), dcName));
-            });
+                    pm.getCommodityBoughtListByProvider()
+                            .keySet()
+                            .stream()
+                            .filter(provider -> provider.getEntityType() == EntityType.DATACENTER)
+                            .findAny()
+                            .map(StitchingEntity::getDisplayName)
+                            .ifPresent(dcName -> dcNames.put(pm.getOid(), dcName));
+                });
+            }
             return dcNames;
         }
 

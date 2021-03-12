@@ -241,7 +241,7 @@ public class DiscoveredGroupUploader {
             setting.setSortedSetOfOidSettingValue(oids);
 
             DiscoveredSettingPolicyInfo.Builder policy = DiscoveredSettingPolicyInfo.newBuilder();
-            policy.setEntityType(EntityType.VIRTUAL_MACHINE_VALUE);
+            policy.setEntityType(group.getEntityType().getNumber());
             policy.addDiscoveredGroupNames(GroupProtoUtil.createIdentifyingKey(group));
             String name = String.format("%s - %s (account %d)",
                     group.getDisplayName(), "Cloud Compute Tier Exclusion Policy", targetId);
