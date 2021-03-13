@@ -428,7 +428,7 @@ public class Analysis {
                     createCommsToAdjustOverheadInClone();
             saveAnalysisDiags(traderTOs.values(), commsToAdjustOverheadInClone);
             Topology topology = TopologyEntitiesHandler.createTopology(traderTOs.values(),
-                    topologyInfo, commsToAdjustOverheadInClone);
+                    topologyInfo, commsToAdjustOverheadInClone, config);
             if (topologyInfo.getTopologyType() == TopologyType.REALTIME) {
                 // whenever market receives entities from realtime broadcast, we update
                 // cachedEconomy and also pass the commodity type to specification map associated

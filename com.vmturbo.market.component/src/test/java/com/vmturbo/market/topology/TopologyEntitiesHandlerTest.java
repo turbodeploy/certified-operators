@@ -442,7 +442,8 @@ public class TopologyEntitiesHandlerTest {
                 .setUseQuoteCacheDuringSNM(useQuoteCacheDuringSNM)
                 .setReplayProvisionsForRealTime(replayProvisionsForRealTime)
                 .build();
-        final Topology topology = TopologyEntitiesHandler.createTopology(economyDTOs, topologyInfo, Collections.emptyList());
+        final Topology topology = TopologyEntitiesHandler.createTopology(economyDTOs, topologyInfo,
+                Collections.emptyList(), analysisConfig);
         Ede ede = new Ede();
         AnalysisResults results = TopologyEntitiesHandler.performAnalysis(topologyInfo,
                         analysisConfig, analysis, topology, ede);
@@ -688,7 +689,7 @@ public class TopologyEntitiesHandlerTest {
                         MarketAnalysisUtils.PRICE_WEIGHT_SCALE)
                 .build();
         final Topology topology = TopologyEntitiesHandler.createTopology(Collections.EMPTY_LIST, REALTIME_TOPOLOGY_INFO,
-                Collections.emptyList());
+                Collections.emptyList(), analysisConfig);
 
         Ede ede = new Ede();
         ShoppingList sl = mock(ShoppingList.class);
@@ -837,7 +838,7 @@ public class TopologyEntitiesHandlerTest {
         // Call analysis
 
         final Topology topology = TopologyEntitiesHandler.createTopology(traderTOs, REALTIME_TOPOLOGY_INFO,
-            Collections.emptyList());
+            Collections.emptyList(), analysisConfig);
         Ede ede = new Ede();
         AnalysisResults results = TopologyEntitiesHandler.performAnalysis(
                         REALTIME_TOPOLOGY_INFO, analysisConfig, analysis, topology, ede);
@@ -953,7 +954,7 @@ public class TopologyEntitiesHandlerTest {
                             .setReplayProvisionsForRealTime(replayProvisionsForRealTime).build();
             // Call analysis
             final Topology topology = TopologyEntitiesHandler.createTopology(traderTOs, REALTIME_TOPOLOGY_INFO,
-                Collections.emptyList());
+                Collections.emptyList(), analysisConfig);
             Ede ede = new Ede();
             AnalysisResults results = TopologyEntitiesHandler.performAnalysis(
                             REALTIME_TOPOLOGY_INFO, analysisConfig, analysis, topology, ede);
@@ -1092,7 +1093,7 @@ public class TopologyEntitiesHandlerTest {
                 .setUseQuoteCacheDuringSNM(useQuoteCacheDuringSNM)
                 .build();
         final Topology topology = TopologyEntitiesHandler.createTopology(economyDTOs, topologyInfo,
-            Collections.emptyList());
+            Collections.emptyList(), analysisConfig);
         Ede ede = new Ede();
         AnalysisResults results = TopologyEntitiesHandler.performAnalysis(topologyInfo,
                 analysisConfig, analysis, topology, ede);
