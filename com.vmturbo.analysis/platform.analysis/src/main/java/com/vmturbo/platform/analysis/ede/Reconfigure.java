@@ -65,14 +65,14 @@ public class Reconfigure {
             try {
                 boolean marketContainsReconfigurableSeller = market.getSellers()
                         .anyMatch(seller -> seller.getSettings().isReconfigurable()
-                    && Utility.marketContainsReconfigurableSeller(market, economy));
+                    && Utility.marketContainsReconfigurableSeller(market));
                 // Skip market if no reconfigurable sellers.
                 if (!marketContainsReconfigurableSeller) {
                     continue;
                 }
                 Map<Integer, List<Trader>> reconfigCommBuckets = market.getSellers()
                     .collect(Collectors.groupingBy(trader -> {
-                        return trader.getReconfigureableCount(economy);
+                        return trader.getReconfigurableCommodityCount();
                     }));
                 Map<Integer, List<Trader>> sortedBuckets =
                     new TreeMap<>((Comparator<Integer>)(i1, i2) -> i2.compareTo(i1) * -1);
@@ -273,14 +273,14 @@ public class Reconfigure {
                         }
                         boolean marketContainsReconfigurableSeller = market.getSellers()
                                 .anyMatch(seller -> seller.getSettings().isReconfigurable()
-                            && Utility.marketContainsReconfigurableSeller(market, economy));
+                            && Utility.marketContainsReconfigurableSeller(market));
                         // Skip market if no reconfigurable sellers.
                         if (!marketContainsReconfigurableSeller) {
                             continue;
                         }
                         List<Trader> reconfigureCandidates = Lists.newArrayList(market.getActiveSellersAvailableForPlacement());
                         for (Trader seller : reconfigureCandidates) {
-                            if (seller.getReconfigureableCount(economy) > 0 && seller.getSettings().isReconfigurable()) {
+                            if (seller.getReconfigurableCommodityCount() > 0 && seller.getSettings().isReconfigurable()) {
                                 reconfigurableTraders.add(seller);
                             }
                         }

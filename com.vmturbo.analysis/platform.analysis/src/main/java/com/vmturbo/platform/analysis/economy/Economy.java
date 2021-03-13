@@ -443,7 +443,8 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
         // update traders list
         traders_.add(newTrader);
         sellersInvertedIndex_.add(newTrader);
-
+        newTrader.setReconfigurableCommodityCount((int)basketSold.stream().filter(cs ->
+                getSettings().getReconfigureableCommodities().contains(cs.getBaseType())).count());
         return newTrader;
     }
 

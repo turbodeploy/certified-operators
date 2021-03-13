@@ -227,6 +227,7 @@ public class ProvisionBySupply extends ProvisionBase implements Action {
             provCommSold.setQuantity(modelCommSold.getQuantity());
             copyCommoditySoldSettingsForClone(provCommSold, modelCommSold);
         }
+        getProvisionedSeller().setReconfigurableCommodityCount(getModelSeller().getReconfigurableCommodityCount());
 
         // adjust the quantity of provisionedSeller, if it sells economy.getCommsToAdjustOverhead()
         // keep only the overhead in the commSold, otherwise, set the quantity and peak quantity to 0

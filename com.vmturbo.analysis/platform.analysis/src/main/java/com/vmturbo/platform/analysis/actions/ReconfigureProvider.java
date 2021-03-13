@@ -68,6 +68,8 @@ public abstract class ReconfigureProvider extends ReconfigureBase {
             newCommoditySold.setCapacity(comm.getCapacity()).setQuantity(comm.getQuantity());
             ProvisionBase.copyCommoditySoldSettingsForClone(newCommoditySold, comm);
             addedMap.put(newCommSpec, newCommoditySold);
+            // increment price weight
+            provider_.setReconfigurableCommodityCount(provider_.getReconfigurableCommodityCount() + 1);
         });
         commodities_ = addedMap;
 
@@ -80,14 +82,15 @@ public abstract class ReconfigureProvider extends ReconfigureBase {
 
         provider_.getCommoditiesSold()
             .forEach(commSold -> commSold.getSettings().setPriceFunction(commSold.getSettings()
-                .getPriceFunction().updatePriceFunctionWithWeight(provider_
-                    .getReconfigureableCount(getEconomy()) * getEconomy().getSettings()
-                        .getLicensePriceWeightScale() + 1)));
+                .getPriceFunction().updatePriceFunctionWithWeight(provider_.getReconfigurableCommodityCount()
+                            * getEconomy().getSettings().getLicensePriceWeightScale() + 1)));
     }
 
     protected void removeCommodities() {
         commodities_.forEach((spec, comm) -> {
             provider_.removeCommoditySold(spec);
+            // decrement price weight
+            provider_.setReconfigurableCommodityCount(Math.min(0, provider_.getReconfigurableCommodityCount() - 1));
         });
 
         Market[] marketsToCheck = new Market[provider_.getMarketsAsSeller().size()];
@@ -101,8 +104,7 @@ public abstract class ReconfigureProvider extends ReconfigureBase {
 
         provider_.getCommoditiesSold()
             .forEach(commSold -> commSold.getSettings().setPriceFunction(commSold.getSettings()
-                .getPriceFunction().updatePriceFunctionWithWeight(provider_
-                    .getReconfigureableCount(getEconomy()) * getEconomy().getSettings()
-                        .getLicensePriceWeightScale() + 1)));
+                    .getPriceFunction().updatePriceFunctionWithWeight(provider_.getReconfigurableCommodityCount()
+                            * getEconomy().getSettings().getLicensePriceWeightScale() + 1)));
     }
 }
