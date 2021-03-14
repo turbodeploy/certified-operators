@@ -1,6 +1,7 @@
 package com.vmturbo.mediation.udt.explore;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -57,6 +58,10 @@ public class UdtProbeExplorer {
      */
     public Set<UdtEntity> exploreDataDefinition() {
         final Map<Long, TopologyDataDefinition> definitionsMap = dataProvider.getTopologyDataDefinitions();
+        if (definitionsMap.isEmpty()) {
+            LOGGER.info("No definitions found.");
+            return Collections.emptySet();
+        }
         final Set<UdtCollector> collectors = createUdtCollectors(definitionsMap);
         final Set<UdtEntity> definedEntities = collectEntities(collectors);
         return OidToUdtMappingTask.execute(definedEntities, dataProvider);
