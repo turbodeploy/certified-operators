@@ -50,7 +50,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  * Unit tests for AtomicResizeBuilder.
  */
 public class AtomicResizeBuilderTest {
-    private AtomicResizeMerger translator;
+    private AtomicResizeMerger merger;
 
     private AtomicActionSpecsCache atomicActionSpecsCache;
 
@@ -159,7 +159,8 @@ public class AtomicResizeBuilderTest {
         Map<ActionType, List<AtomicActionSpec>> mergeSpecsInfoMap = new HashMap<>();
         mergeSpecsInfoMap.put(ActionType.RESIZE, resizeSpecs);
         atomicActionSpecsCache.updateAtomicActionSpecsInfo(mergeSpecsInfoMap);
-        translator = new AtomicResizeMerger(atomicActionSpecsCache);
+        Map<Long, AtomicActionSpec> resizeSpecsMap = atomicActionSpecsCache.getAtomicActionsSpec(ActionType.RESIZE);
+        merger = new AtomicResizeMerger(resizeSpecsMap);
 
         createResizeActions();
     }

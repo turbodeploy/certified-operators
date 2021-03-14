@@ -10,12 +10,10 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.action.orchestrator.action.AtomicActionSpecsCache;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionMergeSpecDTO.AtomicActionEntity;
 import com.vmturbo.common.protobuf.action.ActionMergeSpecDTO.AtomicActionSpec;
@@ -30,15 +28,15 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 public class AtomicResizeMerger implements AtomicActionMerger {
 
     private static final Logger logger = LogManager.getLogger();
-    private final AtomicActionSpecsCache atomicActionSpecsCache;
+    private Map<Long, AtomicActionSpec> resizeActionSpecs = new HashMap<>();
 
     /**
      * Constructor for AtomicResizeMerger.
      *
-     * @param atomicActionSpecsCache cache with the action merge specs
+     * @param resizeActionSpecs map with the action merge specs
      */
-    public AtomicResizeMerger(AtomicActionSpecsCache atomicActionSpecsCache) {
-        this.atomicActionSpecsCache = atomicActionSpecsCache;
+    public AtomicResizeMerger(Map<Long, AtomicActionSpec> resizeActionSpecs) {
+        this.resizeActionSpecs = resizeActionSpecs;
     }
 
     /**
@@ -59,15 +57,14 @@ public class AtomicResizeMerger implements AtomicActionMerger {
         long entityOid = action.getInfo().getResize().getTarget().getId();
 
         // is there a resize merge spec for this entity
-        if (!atomicActionSpecsCache.hasAtomicActionSpec(ActionType.RESIZE, entityOid)) {
+        AtomicActionSpec specsInfo = resizeActionSpecs.get(entityOid);
+        if (specsInfo == null) {
             return false;
         }
 
         Resize resizeInfo = action.getInfo().getResize();
         CommodityDTO.CommodityType resizeCommType = CommodityDTO.CommodityType
                                                 .forNumber(resizeInfo.getCommodityType().getType());
-
-        AtomicActionSpec specsInfo = atomicActionSpecsCache.getAtomicResizeSpec(entityOid);
 
         return specsInfo.getResizeSpec().getCommodityDataList().stream()
                 .anyMatch(commData -> commData.getCommodityType() == resizeCommType);
@@ -114,7 +111,13 @@ public class AtomicResizeMerger implements AtomicActionMerger {
             long entityOid = actionInfo.getResize().getTarget().getId();
 
             // atomic action spec associated with this entity
-            AtomicActionSpec specsInfo = atomicActionSpecsCache.getAtomicResizeSpec(entityOid);
+            AtomicActionSpec specsInfo = resizeActionSpecs.get(entityOid);
+            if (specsInfo == null) {
+                logger.error("{}::{} atomic resize spec not available during merge",
+                        actionInfo.getResize().getTarget().getType(), entityOid);
+                continue;
+            }
+
             ResizeMergeSpec resizeSpec = specsInfo.getResizeSpec();
 
             // Execution target for the entity resize
