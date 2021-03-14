@@ -1,4 +1,4 @@
-FROM quay.io/operator-framework/helm-operator:v1.4.2
+FROM quay.io/operator-framework/helm-operator:v1.5.0
 MAINTAINER Endre Sara <endre.sara@turbonomic.com>
 
 # Required OpenShift Labels
@@ -16,6 +16,7 @@ LABEL name="t8c-operator" \
       io.openshift.expose-services="" \
       io.openshift.tags="turbonomic, Workload Automation Platform"
 
+ENV HOME=/opt/helm
 # Required Licenses
 COPY licenses /licenses
 
