@@ -21,6 +21,7 @@ import com.vmturbo.action.orchestrator.action.AtomicActionSpecsCache;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionMergeSpecDTO.AtomicActionSpec;
 
 /**
@@ -55,9 +56,6 @@ public class AtomicActionFactory {
 
     private final AtomicActionSpecsCache atomicActionSpecsCache;
 
-    // First step - to create aggregated actions
-    private final ActionMergeExecutor actionMergeExecutor;
-
     // Second step - to create Atomic action DTOs
     private final AtomicActionBuilderFactory atomicActionBuilderFactory;
 
@@ -67,7 +65,6 @@ public class AtomicActionFactory {
      */
     public AtomicActionFactory(@Nonnull final AtomicActionSpecsCache atomicActionSpecsCache) {
         this.atomicActionSpecsCache = atomicActionSpecsCache;
-        actionMergeExecutor = new AtomicActionMergeExecutor(atomicActionSpecsCache);
         atomicActionBuilderFactory = new AtomicActionBuilderFactory();
     }
 
@@ -146,10 +143,13 @@ public class AtomicActionFactory {
      *
      * @param actionsToMerge  actions that will be merged to create a new Atomic action
      * @return Map of OID of the aggregation target and the AggregatedAction.
-     *          AggregatedAction which will be used to create the atomic action that
+     *          AggregatedAction will be used to create the atomic action that
      *          will be executed by the aggregation target.
      */
     public Map<Long, AggregatedAction> aggregate(@Nonnull List<ActionDTO.Action> actionsToMerge) {
+        // create new action merge executor at the start of merging a new set of market actions
+        ActionMergeExecutor actionMergeExecutor = new AtomicActionMergeExecutor(atomicActionSpecsCache);
+
         return actionMergeExecutor.executeAggregation(actionsToMerge);
     }
 
@@ -187,10 +187,19 @@ public class AtomicActionFactory {
     private static class AtomicActionMergeExecutor implements ActionMergeExecutor {
         private final Map<ActionTypeCase, AtomicActionMerger> actionMergerMap;
 
+        /**
+         * Constructor.
+         * Creates an instance of {@link AtomicActionMerger} for supported action types.
+         *
+         * @param actionMergeSpecsCache cache with the atomic action merge specs for all action types
+         */
         private AtomicActionMergeExecutor(AtomicActionSpecsCache actionMergeSpecsCache) {
-            actionMergerMap = ImmutableMap.of(
-                                    ActionTypeCase.RESIZE, new AtomicResizeMerger(actionMergeSpecsCache)
-                             );
+            Map<Long, AtomicActionSpec> resizeSpecsMap
+                        = actionMergeSpecsCache.getAtomicActionsSpec(ActionType.RESIZE);
+
+            actionMergerMap = ImmutableMap.<ActionTypeCase, AtomicActionMerger>builder()
+                                .put(ActionTypeCase.RESIZE, new AtomicResizeMerger(resizeSpecsMap))
+                                .build();
         }
 
         @Override

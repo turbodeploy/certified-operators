@@ -139,7 +139,9 @@ public class AtomicResizeMergerTest {
         Map<ActionType, List<AtomicActionSpec>> mergeSpecsInfoMap = new HashMap<>();
         mergeSpecsInfoMap.put(ActionType.RESIZE, resizeSpecs);
         atomicActionSpecsCache.updateAtomicActionSpecsInfo(mergeSpecsInfoMap);
-        merger = new AtomicResizeMerger(atomicActionSpecsCache);
+        Map<Long, AtomicActionSpec> resizeSpecsMap = atomicActionSpecsCache.getAtomicActionsSpec(ActionType.RESIZE);
+
+        merger = new AtomicResizeMerger(resizeSpecsMap);
     }
 
     /**

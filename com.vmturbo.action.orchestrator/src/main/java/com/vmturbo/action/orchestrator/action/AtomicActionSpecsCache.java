@@ -1,6 +1,5 @@
 package com.vmturbo.action.orchestrator.action;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -15,12 +14,13 @@ import com.vmturbo.common.protobuf.action.ActionMergeSpecDTO.AtomicActionSpec;
 
 /**
  * Cache to store the {@link AtomicActionSpec} messages received from the topology processor.
+ * {@code AtomicActionSpecsRpcService} receives the message with the specs.
  */
 public class AtomicActionSpecsCache {
     private static final Logger logger = LogManager.getLogger();
 
     // Map of atomic action specs by action type and entity OID
-    private static final Map<ActionType, Map<Long, AtomicActionSpec>> atomicActionSpecsStores = new HashMap<>();
+    private static volatile Map<ActionType, Map<Long, AtomicActionSpec>> atomicActionSpecsStores = new HashMap<>();
 
     /**
      * Update atomic action spec stores with the received list of {@link AtomicActionSpec}.
@@ -35,17 +35,21 @@ public class AtomicActionSpecsCache {
                         atomicActionSpecsMap.get(actionType).size(), actionType);
         }
 
-        atomicActionSpecsStores.clear();
+        // The action specs are organized by action type and entity oid
+        Map<ActionType, Map<Long, AtomicActionSpec>> newSpecsStores = new HashMap<>();
         atomicActionSpecsMap.entrySet().stream()
                 .forEach( e -> {
                     Map<Long, AtomicActionSpec> specsByOid
-                            = atomicActionSpecsStores.computeIfAbsent(e.getKey(), v -> new  HashMap<>());
+                            = newSpecsStores.computeIfAbsent(e.getKey(), v -> new  HashMap<>());
                     for (AtomicActionSpec actionMergeInfo : e.getValue()) {
                           for (Long entityId : actionMergeInfo.getEntityIdsList()) {
                               specsByOid.put(entityId, actionMergeInfo);
                           }
                     }
                 });
+
+        // Replace the specs store map
+        atomicActionSpecsStores = newSpecsStores;
     }
 
     /**
@@ -57,26 +61,13 @@ public class AtomicActionSpecsCache {
         return atomicActionSpecsStores.isEmpty();
     }
 
-
     /**
-     * Check if there is an atomic action merge spec for an entity.
+     * Return a copy of the atomic action specs for an action type.
      *
-     * @param actionType action type
-     * @param entityOid entity OID
-     *
-     * @return  true if atomic action spec is found
+     * @param actionType  action type
+     * @return map containing the entity oid and the action merge spec
      */
-    public boolean hasAtomicActionSpec(ActionType actionType, Long entityOid) {
-        return atomicActionSpecsStores.getOrDefault(actionType, Collections.emptyMap())
-                .containsKey(entityOid);
-    }
-
-    /**
-     * Return the atomic resize action spec for an entity.
-     * @param entityOid entity oid
-     * @return  resize action merge spec
-     */
-    public AtomicActionSpec getAtomicResizeSpec(Long entityOid) {
-        return atomicActionSpecsStores.get(ActionType.RESIZE).get(entityOid);
+    public Map<Long, AtomicActionSpec> getAtomicActionsSpec(ActionType actionType) {
+        return atomicActionSpecsStores.get(actionType);
     }
 }
