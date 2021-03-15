@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.cost;
 
+import static com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType.AGGREGATED_BY_CONNECTION;
 import static com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader.CLOUD_COST_EXPENSES_SECTION;
 import static com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader.CLOUD_COST_UPLOAD_TIME;
 import static com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader.UPLOAD_REQUEST_BUILD_STAGE;
@@ -10,6 +11,8 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -22,12 +25,14 @@ import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo
 import com.vmturbo.common.protobuf.cost.Cost.GetAccountExpensesChecksumRequest;
 import com.vmturbo.common.protobuf.cost.Cost.UploadAccountExpensesRequest;
 import com.vmturbo.common.protobuf.cost.RIAndExpenseUploadServiceGrpc.RIAndExpenseUploadServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 import com.vmturbo.proactivesupport.DataMetricGauge;
 import com.vmturbo.proactivesupport.DataMetricTimer;
+import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader.TargetCostData;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 
@@ -42,6 +47,7 @@ public class AccountExpensesUploader {
     private static final int AZURE_CS_NAME_INDEX = 2;
     private static final int AWS_CS_NAME_INDEX = 3;
     private static final int NUMBER_OF_CS_SPECS = 4;
+    private static final String EMPTY_SERVICE_PROVIDER = "";
 
     /**
      * Add cloud service spent metric ratios to topology processor metrics end point.
@@ -56,11 +62,12 @@ public class AccountExpensesUploader {
             .register();
 
     /**
-     * Tracks the amount of Business Accounts.
+     * Tracks the amount of Business Accounts per cloud provider.
      */
     public static final DataMetricGauge BUSINESS_ACCOUNTS_GAUGE = DataMetricGauge.builder()
             .withName(StringConstants.METRICS_TURBO_PREFIX + "business_accounts")
-            .withHelp("Business Account Quantity.")
+            .withHelp("Business Account quantity per cloud provider.")
+            .withLabelNames("cloud_provider")
             .build()
             .register();
 
@@ -289,6 +296,7 @@ public class AccountExpensesUploader {
     public Map<Long, AccountExpenses.Builder> createAccountExpenses(
             CloudEntitiesMap cloudEntitiesMap, StitchingContext stitchingContext,
             Map<Long, TargetCostData> costDataByTargetIdSnapshot) {
+        BUSINESS_ACCOUNTS_GAUGE.getLabeledMetrics().forEach((key, val) -> val.setData(0.0));
 
         // create the initial AccountExpenses objects w/receipt time based on target discovery time
         // in the future, this will be based on a billing time when that data is available.
@@ -307,6 +315,21 @@ public class AccountExpensesUploader {
             }
             expensesByAccountOid.put(stitchingEntity.getOid(), AccountExpenses.newBuilder()
                     .setAssociatedAccountId(stitchingEntity.getOid()));
+
+            // Look for service provider.
+            final Set<StitchingEntity> setAggregatedBy = stitchingEntity.getConnectedToByType()
+                .get(ConnectionType.AGGREGATED_BY_CONNECTION);
+            if (setAggregatedBy != null) {
+                final Optional<StitchingEntity> serviceProvider = setAggregatedBy.stream()
+                    .filter(aggregator -> aggregator.getEntityType() == EntityType.SERVICE_PROVIDER).findAny();
+                if (serviceProvider.isPresent()) {
+                    BUSINESS_ACCOUNTS_GAUGE.labels(serviceProvider.get().getDisplayName()).increment();
+                } else {
+                    BUSINESS_ACCOUNTS_GAUGE.labels(EMPTY_SERVICE_PROVIDER).increment();
+                }
+            } else {
+                BUSINESS_ACCOUNTS_GAUGE.labels(EMPTY_SERVICE_PROVIDER).increment();
+            }
         });
 
         Map<String, Double> cloudServiceSpentMap = new HashMap<>();
@@ -393,7 +416,6 @@ public class AccountExpensesUploader {
             });
         });
         pushCloudServiceSpentMetrics(cloudServiceSpentMap);
-        BUSINESS_ACCOUNTS_GAUGE.setData((double)(expensesByAccountOid.size()));
         return expensesByAccountOid;
     }
 
