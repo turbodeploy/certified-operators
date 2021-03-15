@@ -108,7 +108,7 @@ public class ReservationManager implements ReservationDeletedListener {
      */
     private static final DataMetricCounter RESERVATION_STATUS_COUNTER = DataMetricCounter.builder()
             .withName(StringConstants.METRICS_TURBO_PREFIX + "reservations_total")
-            .withHelp("Reservation status count that have been run in the system")
+            .withHelp("Number of reservation analyses that have been run since Plan Orchestrator was started per current status")
             .withLabelNames("status")
             .build()
             .register();

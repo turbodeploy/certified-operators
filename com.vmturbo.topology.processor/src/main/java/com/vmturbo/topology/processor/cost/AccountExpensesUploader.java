@@ -56,8 +56,8 @@ public class AccountExpensesUploader {
      */
     public static final DataMetricGauge CLOUD_SPENT_BREAKDOWN_GAUGE = DataMetricGauge.builder()
             .withName(StringConstants.METRICS_TURBO_PREFIX + "cloud_spend_ratio")
-            .withHelp("Cloud Spent Ratio.")
-            .withLabelNames("type", "service")
+            .withHelp("The percentage of the grand total of cloud spend that corresponds to this cloud provider and service combination.")
+            .withLabelNames("cloud_provider", "cloud_service")
             .build()
             .register();
 
@@ -66,7 +66,7 @@ public class AccountExpensesUploader {
      */
     public static final DataMetricGauge BUSINESS_ACCOUNTS_GAUGE = DataMetricGauge.builder()
             .withName(StringConstants.METRICS_TURBO_PREFIX + "business_accounts")
-            .withHelp("Business Account quantity per cloud provider.")
+            .withHelp("Number of business accounts for the given cloud provider.")
             .withLabelNames("cloud_provider")
             .build()
             .register();

@@ -1124,7 +1124,7 @@ public class LiveActionStore implements ActionStore {
         private static final DataMetricGauge ACTION_COUNTS_GAUGE = DataMetricGauge.builder()
             .withName(StringConstants.METRICS_TURBO_PREFIX + "current_actions")
             .withHelp("Number of actions in the action orchestrator live store.")
-            .withLabelNames("type", "entity_type", "environment", "category",
+            .withLabelNames("action_type", "entity_type", "environment", "category",
                 "severity", "state")
             .build()
             .register();
