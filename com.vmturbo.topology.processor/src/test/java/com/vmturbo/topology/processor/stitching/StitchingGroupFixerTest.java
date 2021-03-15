@@ -60,8 +60,10 @@ public class StitchingGroupFixerTest {
     private static final long NO_DISCOVERED_GROUP_TARGET_ID = 333L;
     private static final long UPDATED_ENTITY_OID = 7293729L;
 
-    final InterpretedGroup group = new InterpretedGroup(groupDto, Optional.of(groupDef));
-    final InterpretedGroup cluster = new InterpretedGroup(clusterDto, Optional.of(clusterDef));
+    final InterpretedGroup group = new InterpretedGroup(GROUP_TARGET_ID, groupDto,
+            Optional.of(groupDef));
+    final InterpretedGroup cluster = new InterpretedGroup(CLUSTER_TARGET_ID, clusterDto,
+            Optional.of(clusterDef));
     final TopologyStitchingGraph graph = mock(TopologyStitchingGraph.class);
     final TopologyStitchingEntity entity = mock(TopologyStitchingEntity.class);
 
