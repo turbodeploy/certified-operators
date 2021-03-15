@@ -47,14 +47,12 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Analys
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
-import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.TopologyEntity.Builder;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.ResolvedGroup;
-import com.vmturbo.topology.processor.group.discovery.InterpretedGroup;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver.SettingAndPolicyIdRecord;
 import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
 
@@ -196,16 +194,6 @@ public class ConsistentScalingManagerTest {
         makeSettingPolicy(1007L, 107L, true);
         makeSettingPolicy(1009L, 109L, true);
         makeSettingPolicy(1011L, 111L, true);
-    }
-
-    private InterpretedGroup makeInterpretedGroup(String groupName, boolean consistentResizing) {
-        CommonDTO.GroupDTO dto = CommonDTO.GroupDTO.newBuilder()
-            .setGroupName(groupName)
-            .setDisplayName(groupName)
-            .setIsConsistentResizing(consistentResizing)
-            .build();
-        InterpretedGroup group = new InterpretedGroup(dto, Optional.of(GroupDefinition.newBuilder()));
-        return group;
     }
 
     /**
