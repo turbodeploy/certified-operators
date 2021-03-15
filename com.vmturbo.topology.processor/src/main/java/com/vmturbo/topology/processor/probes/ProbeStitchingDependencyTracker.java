@@ -163,6 +163,7 @@ public class ProbeStitchingDependencyTracker {
                 .requireThatProbeCategory(ProbeCategory.FABRIC).stitchAfter(ProbeCategory.CLOUD_MANAGEMENT)
                 .requireThatProbeCategory(ProbeCategory.APPLICATION_SERVER).stitchAfter(ProbeCategory.HYPERVISOR)
                 .requireThatProbeCategory(ProbeCategory.APPLICATION_SERVER).stitchAfter(ProbeCategory.CLOUD_MANAGEMENT)
+                .requireThatProbeCategory(ProbeCategory.APPLICATION_SERVER).stitchAfter(ProbeCategory.DATABASE_SERVER)
                 .requireThatProbeCategory(ProbeCategory.DATABASE_SERVER).stitchAfter(ProbeCategory.HYPERVISOR)
                 .requireThatProbeCategory(ProbeCategory.DATABASE_SERVER).stitchAfter(ProbeCategory.CLOUD_MANAGEMENT)
                 .requireThatProbeCategory(ProbeCategory.CLOUD_NATIVE).stitchAfter(ProbeCategory.HYPERVISOR)
