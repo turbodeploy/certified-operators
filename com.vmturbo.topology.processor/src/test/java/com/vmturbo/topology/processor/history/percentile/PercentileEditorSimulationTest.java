@@ -1,6 +1,5 @@
 package com.vmturbo.topology.processor.history.percentile;
 
-import static org.hamcrest.CoreMatchers.is;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
@@ -10,8 +9,10 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Random;
+import java.util.TreeMap;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -27,6 +28,7 @@ import com.google.common.collect.Lists;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -34,6 +36,7 @@ import org.junit.Test;
 import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.setting.SettingProto;
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
 import com.vmturbo.common.protobuf.stats.Stats.GetTimestampsRangeRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
@@ -72,10 +75,8 @@ public class PercentileEditorSimulationTest extends PercentileBaseTest {
     private static final int LOOK_BACK_PERIOD_7 = 7;
     private static final long BROADCAST_INTERVAL_MILLIS = TimeUnit.HOURS.toMillis(1);
     private static final int MAINTENANCE_WINDOW_HOURS = 24;
-    private static final long MAINTENANCE_WINDOW_MILLIS =
-            TimeUnit.HOURS.toMillis(MAINTENANCE_WINDOW_HOURS);
 
-    private static final KVConfig KV_CONFIG = createKvConfig();
+
 
     private static final long VM_HIGH_UTILIZED_OID = 45500L;
     private static final long VM_LOW_UTILIZED_OID = 45501L;
@@ -122,13 +123,13 @@ public class PercentileEditorSimulationTest extends PercentileBaseTest {
      */
     @Before
     public void setup() throws IOException {
+        final KVConfig kvConfig = createKvConfig(new HashMap<>());
         // Mock time
         currentTime = PERIOD_START_TIMESTAMP;
         clock = Mockito.mock(Clock.class);
         when(clock.millis()).thenReturn(currentTime);
-        config = getConfig(clock);
-
-        persistenceTable = new HashMap<>();
+        config = getConfig(clock, kvConfig);
+        persistenceTable = new TreeMap<>();
         vmCapacities = new HashMap<>(INITIAL_CAPACITIES);
 
         Function<GetTimestampsRangeRequest, List<Long>> stampsGetter =
@@ -183,6 +184,7 @@ public class PercentileEditorSimulationTest extends PercentileBaseTest {
             percentileEditor.completeBroadcast(context);
             updateCapacities(vmCapacities, VM_OID_TO_MAP, currentTime);
         }
+        percentileEditor.requestedReassembleFullPage(currentTime);
 
         // Verify the full and the records in the lookback period match
         verifyTheFullRecord();
@@ -196,6 +198,7 @@ public class PercentileEditorSimulationTest extends PercentileBaseTest {
      */
     @Test
     public void testFullRecordValueWithMaintenanceWindowChange() throws Exception {
+        Mockito.doReturn(0).when(config).getFullPageReassemblyPeriodInDays();
         final long timestampForObservationPeriodChange = currentTime + TimeUnit.DAYS.toMillis(15)
             + TimeUnit.HOURS.toMillis(6);
 
@@ -203,6 +206,7 @@ public class PercentileEditorSimulationTest extends PercentileBaseTest {
             when(clock.millis()).thenReturn(currentTime);
             int lookBackPeriod = currentTime < timestampForObservationPeriodChange
                 ? LOOK_BACK_PERIOD_7 : LOOK_BACK_PERIOD_30;
+
             GraphWithSettings graphWithSettings = createGraphWithSettings(vmCapacities,
                 VM_OID_TO_MAP, lookBackPeriod);
             final HistoryAggregationContext context =
@@ -238,7 +242,8 @@ public class PercentileEditorSimulationTest extends PercentileBaseTest {
             logger.info("Verifying the percentile records for {}",
                 VM_OID_TO_MAP.get(entry.getKey().getEntityOid()));
             Assert.assertThat(record.getUtilizationList(),
-                is(entry.getValue().serialize(entry.getKey()).getUtilizationList()));
+                            Matchers.is(entry.getValue().serialize(entry.getKey())
+                                            .getUtilizationList()));
         }
     }
 
@@ -249,20 +254,39 @@ public class PercentileEditorSimulationTest extends PercentileBaseTest {
                 .stream()
                 .collect(Collectors.toMap(reference -> new EntityCommodityFieldReference(reference, CommodityField.USED),
                     oid -> new UtilizationCountArray(config.getPercentileBuckets(CommodityType.VCPU_VALUE))));
-
+        final PercentileCounts fullCounts = persistenceTable.get(0L);
+        final Map<Long, Integer> oidToPeriod = fullCounts.getPercentileRecordsList().stream()
+                        .collect(Collectors.toMap(PercentileRecord::getEntityOid,
+                                        PercentileRecord::getPeriod));
+        final boolean latestIncludedInFull =
+                        persistenceTable.get(checkpointTime).getPercentileRecordsCount() == 0;
         // exclude the persisted full and latest after full's moment
-        List<Long> timestamps = persistenceTable.keySet().stream()
-                        .filter(stamp -> stamp > 0L
-                                        && stamp < checkpointTime
-                                        && stamp >= checkpointTime - TimeUnit.DAYS.toMillis(LOOK_BACK_PERIOD_30))
-                        .sorted().collect(Collectors.toList());
-        for (Long startTimestamp : timestamps) {
+        for (Entry<Long, PercentileCounts> entry : persistenceTable.entrySet()) {
+            final Long startTimestamp = entry.getKey();
+            if (startTimestamp == 0L || startTimestamp >= checkpointTime) {
+                continue;
+            }
+            final PercentileCounts counts = entry.getValue();
+            if (counts.getPercentileRecordsCount() <= 0) {
+                continue;
+            }
             final Map<EntityCommodityFieldReference, PercentileRecord> page =
-                PercentileTaskStub.loadFromCounts(persistenceTable.get(startTimestamp));
+                            PercentileTaskStub.loadFromCounts(persistenceTable.get(startTimestamp));
 
-            for (Map.Entry<EntityCommodityFieldReference, UtilizationCountArray> entry : countArrayMap.entrySet()) {
-                if (page.containsKey(entry.getKey())) {
-                    entry.getValue().deserialize(page.get(entry.getKey()), "");
+            for (Map.Entry<EntityCommodityFieldReference, UtilizationCountArray> refToArray : countArrayMap
+                            .entrySet()) {
+                final PercentileRecord record = page.get(refToArray.getKey());
+                final Integer rawPeriod = oidToPeriod.get(record.getEntityOid());
+                if (rawPeriod == null) {
+                    continue;
+                }
+                final Integer period = latestIncludedInFull
+                                ?
+                                rawPeriod + 1
+                                :
+                                rawPeriod;
+                if (startTimestamp >= checkpointTime - TimeUnit.DAYS.toMillis(period)) {
+                    refToArray.getValue().deserialize(record, "");
                 }
             }
         }
@@ -270,11 +294,11 @@ public class PercentileEditorSimulationTest extends PercentileBaseTest {
         return countArrayMap;
     }
 
-    private PercentileHistoricalEditorConfig getConfig(Clock clock) {
-        return new PercentileHistoricalEditorConfig(1, MAINTENANCE_WINDOW_HOURS, 777777L, 10,
+    private static PercentileHistoricalEditorConfig getConfig(Clock clock, KVConfig kvConfig) {
+        return Mockito.spy(new PercentileHistoricalEditorConfig(1, MAINTENANCE_WINDOW_HOURS, 777777L, 10,
             100,
-            ImmutableMap.of(CommodityType.VCPU, ""), KV_CONFIG,
-            clock);
+            ImmutableMap.of(CommodityType.VCPU, ""), kvConfig,
+            clock));
     }
 
     private void updateCapacities(Map<Long, Float> vmCapacities, Map<Long, String> vmOidToNames,
@@ -298,15 +322,14 @@ public class PercentileEditorSimulationTest extends PercentileBaseTest {
         }
     }
 
-    private GraphWithSettings createGraphWithSettings(Map<Long, Float> vmCapacities, Map<Long,
-        String> vmOidToNames, int lookbackPeriod) {
+    private GraphWithSettings createGraphWithSettings(Map<Long, Float> vmCapacities,
+                    Map<Long, String> vmOidToNames, int lookbackPeriod) {
+        final Map<Long, EntitySettings> entitySettings = new HashMap<>();
         Map<Long, TopologyEntity.Builder> topologyBuilderMap = new HashMap<>();
-        Map<Long, SettingProto.EntitySettings> entitySettings = new HashMap<>();
         createTopology(topologyBuilderMap, entitySettings, vmCapacities, vmOidToNames, lookbackPeriod);
         final GraphWithSettings graphWithSettings =
                 new GraphWithSettings(TopologyEntityTopologyGraphCreator
-                .newGraph(topologyBuilderMap),
-                entitySettings,
+                .newGraph(topologyBuilderMap), entitySettings,
                 Collections.emptyMap());
 
         return graphWithSettings;
@@ -366,11 +389,15 @@ public class PercentileEditorSimulationTest extends PercentileBaseTest {
         return randomValue;
     }
 
-    private static KVConfig createKvConfig() {
+    private static KVConfig createKvConfig(Map<String, Object> fakeKVStore) {
         final KVConfig result = Mockito.mock(KVConfig.class);
         final KeyValueStore kvStore = Mockito.mock(KeyValueStore.class);
         when(result.keyValueStore()).thenReturn(kvStore);
-        when(kvStore.get(Mockito.any())).thenReturn(Optional.empty());
+        when(kvStore.get(Mockito.any())).then(invocation -> Optional
+                        .ofNullable(fakeKVStore.get(invocation.getArgumentAt(0, String.class))));
+        Mockito.doAnswer(invocation -> fakeKVStore.put(invocation.getArgumentAt(0, String.class),
+                        invocation.getArgumentAt(1, Object.class))).when(kvStore)
+                        .put(Mockito.any(), Mockito.any());
         return result;
     }
 

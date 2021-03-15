@@ -429,7 +429,7 @@ public class PercentileEditorTest extends PercentileBaseTest {
                                       TIMESTAMP_INIT_START_SEP_1_2019,
                                       Arrays.asList(vmUtilizations, buUtilizations), buUtilizations,
                                       vmUtilizations,
-                                      true, 0, 1);
+                                      false, 0, 1);
     }
 
     /**
@@ -448,11 +448,11 @@ public class PercentileEditorTest extends PercentileBaseTest {
                 TIMESTAMP_INIT_START_SEP_1_2019 + TimeUnit.HOURS.toMillis(
                         PERCENTILE_HISTORICAL_EDITOR_CONFIG.getMaintenanceWindowHours());
         checkObservationWindowChanged(nextScheduledCheckpointMs + 2000, nextScheduledCheckpointMs,
-                                      Arrays.asList(Arrays.asList(148, 156, 164, 172, 180),
-                                      Arrays.asList(214, 218, 222, 226, 230)),
+                                      Arrays.asList(Arrays.asList(189, 198, 207, 216, 225),
+                                      Arrays.asList(280, 285, 290, 295, 300)),
                                       Arrays.asList(280, 285, 290, 295, 300),
                                       Arrays.asList(189, 198, 207, 216, 225),
-                                      false, 0, 3);
+                                      false, 0, 1);
     }
 
     private void checkObservationWindowChanged(long broadcastTimeAfterWindowChanged,
@@ -515,7 +515,8 @@ public class PercentileEditorTest extends PercentileBaseTest {
                         NEW_BUSINESS_USER_OBSERVATION_PERIOD);
         // Check that maintenance will be called
         Mockito.when(clock.millis()).thenReturn(broadcastTimeAfterWindowChanged);
-        final CacheBackup cacheBackup = Mockito.mock(CacheBackup.class);
+        @SuppressWarnings("unchecked")
+        final CacheBackup<PercentileCommodityData> cacheBackup = Mockito.mock(CacheBackup.class);
         final PercentileEditorCacheAccess spiedEditor = Mockito.spy(percentileEditor);
         Mockito.when(spiedEditor.createCacheBackup()).thenReturn(cacheBackup);
         percentilePersistenceTasks.clear();
@@ -568,7 +569,7 @@ public class PercentileEditorTest extends PercentileBaseTest {
         Assert.assertEquals(0, percentilePersistenceTasks.stream()
                 .filter(t -> t.getStartTimestamp() == 0)
                 .count());
-        Mockito.verify(spiedEditor, Mockito.times(0)).reassembleFullPage(Mockito.anyBoolean(), Mockito.anyLong());
+        Mockito.verify(spiedEditor, Mockito.times(0)).requestedReassembleFullPage(Mockito.anyLong());
         //change lastCheckpoint for reassembly
         Mockito.when(KV_CONFIG.keyValueStore()
                 .get("history-aggregation/" + "fullPageReassemblyLastCheckpoint")).thenReturn(
@@ -579,7 +580,7 @@ public class PercentileEditorTest extends PercentileBaseTest {
         percentilePersistenceTasks.clear();
         //Broadcast after one day - maintenance executed, reassembly was not executed because the period has not passed yet
         spiedEditor.completeBroadcast(firstContext);
-        Mockito.verify(spiedEditor, Mockito.never()).reassembleFullPage(Mockito.anyBoolean(), Mockito.anyLong());
+        Mockito.verify(spiedEditor, Mockito.never()).requestedReassembleFullPage(Mockito.anyLong());
         final PercentilePersistenceTask maintenanceSaveTask = percentilePersistenceTasks.stream()
                 .filter(t -> t.getStartTimestamp() == 0)
                 .findFirst()
@@ -604,8 +605,23 @@ public class PercentileEditorTest extends PercentileBaseTest {
         Mockito.when(clock.millis()).thenReturn(TIMESTAMP_SEP_5_2019);
         //Broadcast after the completed period - reassembly executed
         spiedEditor.completeBroadcast(firstContext);
-        // check successful reassembly
-        Mockito.verify(spiedEditor, Mockito.times(1)).reassembleFullPage(Mockito.anyBoolean(), Mockito.anyLong());
+        // check successful reassembly, i.e. we read all daily blobs
+        // First daily has been written successfully
+        Mockito.verify(percentilePersistenceTasks.get(0), Mockito.times(1))
+                        .save(Mockito.any(), Mockito.anyLong(), Mockito.any());
+        // 8 blobs read
+        for (int i = 1; i
+                        < percentilePersistenceTasks.size()
+                        - 3; i++) {
+            Mockito.verify(percentilePersistenceTasks.get(i), Mockito.times(1))
+                            .load(Mockito.any(), Mockito.any());
+        }
+        // full and cleared latest saved
+        for (int i = percentilePersistenceTasks.size() - 2; i
+                        < percentilePersistenceTasks.size(); i++) {
+            Mockito.verify(percentilePersistenceTasks.get(i), Mockito.times(1))
+                            .save(Mockito.any(), Mockito.anyLong(), Mockito.any());
+        }
         final Integer maxPeriod = spiedEditor.getCache().values().stream().map(
                 PercentileCommodityData::getUtilizationCountStore).map(
                 UtilizationCountStore::getPeriodDays).max(Long::compare).orElseGet(
@@ -655,20 +671,27 @@ public class PercentileEditorTest extends PercentileBaseTest {
 
         // Maintenance executed and failed
         spiedEditor.completeBroadcast(context);
-        final ArgumentCaptor<List> notificationsCaptor =
-                ArgumentCaptor.forClass(List.class);
+        final ArgumentCaptor<List<NotificationDTO>> notificationsCaptor = createArgumentCaptor(
+                        List.class);
         Mockito.verify(systemNotificationProducer, Mockito.times(1))
                 .sendSystemNotification(notificationsCaptor.capture(), Mockito.any());
-        final List<List> notifications = notificationsCaptor.getAllValues();
+        final List<List<NotificationDTO>> notifications = notificationsCaptor.getAllValues();
         Assert.assertEquals(1, notifications.size());
         // Check notification from maintenance failed
-        final NotificationDTO maintenanceFailedNotification = (NotificationDTO)notifications.get(0)
+        final NotificationDTO maintenanceFailedNotification = notifications.get(0)
                 .get(0);
-        Assert.assertEquals(String.format(
-                "Percentile sliding observation window maintenance failed for %s checkpoint, last checkpoint was at %s",
-                Instant.ofEpochMilli(TIMESTAMP_SEP_1_2019_12_00),
-                Instant.ofEpochMilli(TIMESTAMP_INIT_START_SEP_1_2019)),
-                maintenanceFailedNotification.getDescription());
+        Assert.assertEquals(
+                        String.format("Maintenance failed for '%s' checkpoint, last checkpoint was at '%s'",
+                                        Instant.ofEpochMilli(TIMESTAMP_SEP_1_2019_12_00),
+                                        Instant.ofEpochMilli(TIMESTAMP_INIT_START_SEP_1_2019)),
+                        maintenanceFailedNotification.getDescription());
+    }
+
+    @Nonnull
+    private static <T> ArgumentCaptor<T> createArgumentCaptor(@Nonnull Class<?> type) {
+        @SuppressWarnings("unchecked")
+        final ArgumentCaptor<T> result = (ArgumentCaptor<T>)ArgumentCaptor.forClass(type);
+        return result;
     }
 
     /**
@@ -765,9 +788,10 @@ public class PercentileEditorTest extends PercentileBaseTest {
                                         .collect(Collectors.toSet());
         Assert.assertThat(capturedPeriods.get(0), CoreMatchers.is(enforceMaintenanceIsExpected
                         ? periodMsForTotalBlob : broadcastTimeAfterWindowChanged));
-        Assert.assertThat(percentileRecords.stream()
-                                        .sorted(Comparator.comparingLong(PercentileRecord::getEntityOid))
-                                        .map(PercentileRecord::getUtilizationList).collect(Collectors.toList()),
+        final List<List<Integer>> exactUtilizations = percentileRecords.stream()
+                        .sorted(Comparator.comparingLong(PercentileRecord::getEntityOid))
+                        .map(PercentileRecord::getUtilizationList).collect(Collectors.toList());
+        Assert.assertThat(exactUtilizations,
                         CoreMatchers.is(expectedTotalUtilizations));
         Assert.assertThat(periods.size(), CoreMatchers.is(2));
         Assert.assertThat(periods, Matchers.containsInAnyOrder(NEW_BUSINESS_USER_OBSERVATION_PERIOD,
