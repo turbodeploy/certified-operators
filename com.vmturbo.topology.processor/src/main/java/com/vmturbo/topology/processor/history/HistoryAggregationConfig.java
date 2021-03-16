@@ -184,7 +184,7 @@ public class HistoryAggregationConfig {
     public <E extends IHistoricalEditor<?> & BinaryDiagsRestorable> E percentileHistoryEditor() {
         @SuppressWarnings("unchecked")
         final E result = (E)new PercentileEditor(percentileEditorConfig(),
-                        nonBlockingHistoryClient(), clockConfig.clock(),
+                        nonBlockingHistoryClient(), historyClient(), clockConfig.clock(),
                         PercentilePersistenceTask::new);
         return result;
     }

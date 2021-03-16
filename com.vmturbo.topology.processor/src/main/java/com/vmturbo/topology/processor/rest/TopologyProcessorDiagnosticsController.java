@@ -44,11 +44,12 @@ public class TopologyProcessorDiagnosticsController extends DiagnosticsControlle
     @ApiOperation(value = "Re-assemble the percentile full blob from the daily blobs.",
         notes = "Triggers synchronous recalculation of percentile 'full' window memory cache "
                         + "by summarizing entries from the persisted daily blobs.")
-    public void reassemblePercentileFullBlob(@ApiParam(
-            value = "Write to database after the full blobs for percentile are re-assembled",
-            defaultValue = "false") @RequestParam(value = "write_to_database", required = false,
-            defaultValue = "false") boolean writeToDatabase)
+    public void reassemblePercentileFullBlob(
+                    @ApiParam(value = "Write to database after the full blobs for percentile are re-assembled",
+                        defaultValue = "true")
+                    @RequestParam(value = "write_to_database", required = false, defaultValue = "true")
+                    boolean writeToDatabase)
             throws HistoryCalculationException, InterruptedException {
-        percentileEditor.reassembleFullPage(writeToDatabase);
+        percentileEditor.reassembleFullPage(writeToDatabase, System.currentTimeMillis());
     }
 }

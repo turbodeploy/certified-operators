@@ -652,6 +652,18 @@ message PercentileChunk {
     required bytes content = 3;
 }
 
+message GetTimestampsRangeRequest {
+    // starting timestamp, inclusive, infinite if not specified
+    optional int64 start_timestamp = 1;
+    // ending timestamp, exclusive, infinite if not specified
+    optional int64 end_timestamp = 2;
+}
+
+message GetTimestampsRangeResponse {
+    // ordered collection of checkpoints' timestamps in the requested range
+    repeated int64 timestamp = 1;
+}
+
 // the gRPC API entry points for the Stats service
 service StatsHistoryService {
 
@@ -728,4 +740,7 @@ service StatsHistoryService {
     // Get the Volume Attachment History for a list of Volumes
     rpc GetVolumeAttachmentHistory (GetVolumeAttachmentHistoryRequest) returns
     (stream GetVolumeAttachmentHistoryResponse);
+
+    // get the percentile blobs that begin within specific time range
+    rpc GetPercentileTimestamps(GetTimestampsRangeRequest) returns (GetTimestampsRangeResponse);
 }

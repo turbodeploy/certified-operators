@@ -79,6 +79,8 @@ import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.GetPercentileCountsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetStatsDataRetentionSettingsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.GetTimestampsRangeRequest;
+import com.vmturbo.common.protobuf.stats.Stats.GetTimestampsRangeResponse;
 import com.vmturbo.common.protobuf.stats.Stats.GetVolumeAttachmentHistoryRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetVolumeAttachmentHistoryResponse;
 import com.vmturbo.common.protobuf.stats.Stats.GetVolumeAttachmentHistoryResponse.VolumeAttachmentHistory;
@@ -1435,5 +1437,27 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                 }
                 return builder.build();
             }).collect(Collectors.toList());
+    }
+
+    @Override
+    public void getPercentileTimestamps(GetTimestampsRangeRequest request,
+                    StreamObserver<GetTimestampsRangeResponse> responseObserver) {
+        try {
+            final GetTimestampsRangeResponse response = GetTimestampsRangeResponse
+                            .newBuilder()
+                            .addAllTimestamp(historydbIO.getPercentileTimestampsInRange(
+                                            // exclude 'full' with value of 0
+                                            request.hasStartTimestamp()
+                                                            ? request.getStartTimestamp() : 1L,
+                                            request.hasEndTimestamp() ? request.getEndTimestamp()
+                                                            : System.currentTimeMillis()))
+                            .build();
+            responseObserver.onNext(response);
+            responseObserver.onCompleted();
+        } catch (VmtDbException e) {
+            logger.error("Cannot get the percentile timestamps in range " + request, e);
+            responseObserver.onError(
+                    Status.INTERNAL.withDescription(e.getMessage()).asException());
+        }
     }
 }

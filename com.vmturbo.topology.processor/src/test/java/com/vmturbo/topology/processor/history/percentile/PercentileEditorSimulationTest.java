@@ -1,9 +1,9 @@
 package com.vmturbo.topology.processor.history.percentile;
 
-import static com.vmturbo.topology.processor.history.BaseGraphRelatedTest.createEntitySetting;
 import static org.hamcrest.CoreMatchers.is;
 import static org.mockito.Mockito.when;
 
+import java.io.IOException;
 import java.time.Clock;
 import java.util.Collection;
 import java.util.Collections;
@@ -14,6 +14,8 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -21,6 +23,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -31,6 +34,7 @@ import org.junit.Test;
 import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.setting.SettingProto;
+import com.vmturbo.common.protobuf.stats.Stats.GetTimestampsRangeRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
@@ -58,17 +62,15 @@ import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreato
  * This class simulates the percentile collection for 60 days when we have a lookback period of
  * 30. After the 60 days, it is verified if the the full record matches last 30 days record.
  */
-public class PercentileEditorSimulationTest {
+public class PercentileEditorSimulationTest extends PercentileBaseTest {
     private static final int SIMULATION_LENGTH_IN_DAYS = 60;
     private static final long PERIOD_START_TIMESTAMP = 1595424732000L;
     private static final long PERIOD_END_TIMESTAMP =
             PERIOD_START_TIMESTAMP + TimeUnit.DAYS.toMillis(SIMULATION_LENGTH_IN_DAYS);
     private static final int LOOK_BACK_PERIOD_30 = 30;
     private static final int LOOK_BACK_PERIOD_7 = 7;
-    private static final long BROADCAST_INTERVAL_MILLIS = TimeUnit.MINUTES.toMillis(60);
+    private static final long BROADCAST_INTERVAL_MILLIS = TimeUnit.HOURS.toMillis(1);
     private static final int MAINTENANCE_WINDOW_HOURS = 24;
-    private static final long MAINTENANCE_WINDOW_MILLIS =
-            TimeUnit.HOURS.toMillis(MAINTENANCE_WINDOW_HOURS);
 
     private static final KVConfig KV_CONFIG = createKvConfig();
 
@@ -108,12 +110,15 @@ public class PercentileEditorSimulationTest {
     private PercentileEditor percentileEditor;
     private List<EntityCommodityReference> commodityReferences;
     private Stopwatch stopwatch;
+    private long checkpointTime;
 
     /**
      * The setup to run before running test.
+     *
+     * @throws IOException when failed
      */
     @Before
-    public void setup() {
+    public void setup() throws IOException {
         // Mock time
         currentTime = PERIOD_START_TIMESTAMP;
         clock = Mockito.mock(Clock.class);
@@ -123,8 +128,14 @@ public class PercentileEditorSimulationTest {
         persistenceTable = new HashMap<>();
         vmCapacities = new HashMap<>(INITIAL_CAPACITIES);
 
-        percentileEditor = new PercentileEditor(config, null, clock,
-            (service, range) -> new PercentileTaskStub(service, range, persistenceTable));
+        Function<GetTimestampsRangeRequest, List<Long>> stampsGetter =
+                        (req) -> Lists.newArrayList(persistenceTable.keySet());
+        percentileEditor = new PercentileEditor(config, null,
+                        setUpBlockingStub(stampsGetter), clock,
+                        (service, range) -> new PercentileTaskStub(service, range, persistenceTable,
+                                        (checkpoint) -> {
+                                            checkpointTime = checkpoint;
+                                        }));
 
         commodityReferences = VM_OID_TO_MAP.keySet().stream()
             .map(oid -> new EntityCommodityReference(oid,
@@ -141,6 +152,7 @@ public class PercentileEditorSimulationTest {
      */
     @After
     public void summary() {
+        super.shutdown();
         logger.info("Running the percentile collection simulation took {}", stopwatch);
     }
 
@@ -228,14 +240,6 @@ public class PercentileEditorSimulationTest {
     }
 
     private Map<EntityCommodityFieldReference, UtilizationCountArray> getLastDaysAggregatedDaysRecord() throws HistoryCalculationException {
-        final long lastCheckpoint =
-            ((currentTime - BROADCAST_INTERVAL_MILLIS) / MAINTENANCE_WINDOW_MILLIS) * MAINTENANCE_WINDOW_MILLIS;
-
-        // Calculate timestamp for aggregation start
-        long startTimestamp = lastCheckpoint
-            - TimeUnit.DAYS.toMillis(LOOK_BACK_PERIOD_30)
-            + MAINTENANCE_WINDOW_MILLIS;
-
         // Create a count array for different vms and aggregate the counts for the lookback period
         Map<EntityCommodityFieldReference, UtilizationCountArray> countArrayMap =
             commodityReferences
@@ -243,7 +247,13 @@ public class PercentileEditorSimulationTest {
                 .collect(Collectors.toMap(reference -> new EntityCommodityFieldReference(reference, CommodityField.USED),
                     oid -> new UtilizationCountArray(config.getPercentileBuckets(CommodityType.VCPU_VALUE))));
 
-        while (startTimestamp < lastCheckpoint) {
+        // exclude the persisted full and latest after full's moment
+        List<Long> timestamps = persistenceTable.keySet().stream()
+                        .filter(stamp -> stamp > 0L
+                                        && stamp < checkpointTime
+                                        && stamp >= checkpointTime - TimeUnit.DAYS.toMillis(LOOK_BACK_PERIOD_30))
+                        .sorted().collect(Collectors.toList());
+        for (Long startTimestamp : timestamps) {
             final Map<EntityCommodityFieldReference, PercentileRecord> page =
                 PercentileTaskStub.loadFromCounts(persistenceTable.get(startTimestamp));
 
@@ -252,8 +262,6 @@ public class PercentileEditorSimulationTest {
                     entry.getValue().deserialize(page.get(entry.getKey()), "");
                 }
             }
-
-            startTimestamp += MAINTENANCE_WINDOW_MILLIS;
         }
 
         return countArrayMap;
@@ -368,6 +376,7 @@ public class PercentileEditorSimulationTest {
      */
     private static class PercentileTaskStub extends PercentilePersistenceTask {
         final Map<Long, PercentileCounts> persistenceTable;
+        final Consumer<Long> checkpointSetter;
 
         /**
          * Construct the task to load percentile data for the 'full window' from the persistent store.
@@ -376,12 +385,15 @@ public class PercentileEditorSimulationTest {
          * @param range              range from start timestamp till end timestamp for which we need
          * @param persistenceTable   the table that we keep the persisted percentile info based
          *                           on timestamp.
+         * @param checkpointSetter   consumer to update the latest checkpoint moment
          */
         PercentileTaskStub(@Nonnull StatsHistoryServiceGrpc.StatsHistoryServiceStub statsHistoryClient,
                            @Nonnull Pair<Long, Long> range,
-                           @Nonnull Map<Long, PercentileCounts> persistenceTable) {
+                           @Nonnull Map<Long, PercentileCounts> persistenceTable,
+                           @Nonnull Consumer<Long> checkpointSetter) {
             super(statsHistoryClient, range);
             this.persistenceTable = persistenceTable;
+            this.checkpointSetter = checkpointSetter;
         }
 
         @Override
@@ -416,6 +428,9 @@ public class PercentileEditorSimulationTest {
                          long periodMs,
                          @Nonnull PercentileHistoricalEditorConfig config) {
             persistenceTable.put(getStartTimestamp(), counts);
+            if (getStartTimestamp() == 0L) {
+                checkpointSetter.accept(periodMs);
+            }
         }
     }
 }
