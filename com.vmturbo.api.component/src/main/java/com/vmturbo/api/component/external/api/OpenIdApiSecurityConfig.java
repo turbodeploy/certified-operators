@@ -41,7 +41,6 @@ public class OpenIdApiSecurityConfig extends ApiSecurityConfig {
 
     private static final Logger logger = LogManager.getLogger();
 
-    private static final String OAUTH2_REDIRECT_URL = "/app/index.html#/view/main/home/Market/hybrid";
     private static final String BASE_URL = "/vmturbo";
     private static final String LOGIN_URL = BASE_URL + "/oauth2/login/code/*";
     private static final String AUTHORIZATION_URL = BASE_URL + "/oauth2/authorization";
@@ -72,6 +71,9 @@ public class OpenIdApiSecurityConfig extends ApiSecurityConfig {
     private String openIdUserInfoUri;
     @Value("${openIdJwkSetUri:https://www.googleapis.com/oauth2/v3/certs}")
     private String openIdJwkSetUri;
+    @Value("${openidRedirectUrl:/app/index.html#/view/main/home/Market/application}")
+    private String openidRedirectUrl;
+
 
     @Bean
     ForwardedHeaderFilter forwardedHeaderFilter() {
@@ -98,7 +100,7 @@ public class OpenIdApiSecurityConfig extends ApiSecurityConfig {
      * @return the SavedRequestAwareAuthenticationSuccessHandler
      */
     public CustomRequestAwareAuthenticationSuccessHandler successRedirectHandler() {
-      customRequestAwareAuthenticationSuccessHandler.setDefaultTargetUrl(OAUTH2_REDIRECT_URL);
+      customRequestAwareAuthenticationSuccessHandler.setDefaultTargetUrl(openidRedirectUrl);
         return customRequestAwareAuthenticationSuccessHandler;
     }
 
