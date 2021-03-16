@@ -158,7 +158,6 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
     private final SystemLoadReader systemLoadReader;
     private final RequestBasedReader<GetPercentileCountsRequest, PercentileChunk> percentileReader;
     private final VolumeAttachmentHistoryReader volumeAttachmentHistoryReader;
-    private final ExecutorService statsWriterExecutorService;
 
     private final int systemLoadRecordsPerChunk;
 
@@ -193,7 +192,6 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
             @Nonnull final SystemLoadReader systemLoadReader,
             final int systemLoadRecordsPerChunk,
             @Nonnull RequestBasedReader<GetPercentileCountsRequest, PercentileChunk> percentileReader,
-            @Nonnull ExecutorService statsWriterExecutorService,
             @Nonnull VolumeAttachmentHistoryReader volumeAttachmentHistoryReader) {
         this.realtimeContextId = realtimeContextId;
         this.liveStatsReader = Objects.requireNonNull(liveStatsReader);
@@ -208,7 +206,6 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
         this.systemLoadReader = Objects.requireNonNull(systemLoadReader);
         this.systemLoadRecordsPerChunk = systemLoadRecordsPerChunk;
         this.percentileReader = Objects.requireNonNull(percentileReader);
-        this.statsWriterExecutorService = Objects.requireNonNull(statsWriterExecutorService);
         this.volumeAttachmentHistoryReader = Objects.requireNonNull(volumeAttachmentHistoryReader);
     }
 
@@ -1308,7 +1305,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
     @Override
     public StreamObserver<PercentileChunk> setPercentileCounts(
                     StreamObserver<SetPercentileCountsResponse> responseObserver) {
-        return new PercentileWriter(responseObserver, historydbIO, statsWriterExecutorService);
+        return new PercentileWriter(responseObserver, historydbIO);
     }
 
     /**

@@ -5,6 +5,7 @@ package com.vmturbo.history.stats.readers;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.time.Clock;
@@ -51,7 +52,7 @@ public class PercentileReaderTest {
 
     private static final PercentileBlobs PERCENTILE_BLOBS_TABLE = PercentileBlobs.PERCENTILE_BLOBS;
     private static final int GRPC_TIMEOUT_MS = 100000;
-    private static final String SOURCE_DATA = "Some string for test bytes";
+    private static final String SOURCE_DATA = "Some_long_more_than_chunk_size_item string for test bytes";
 
     /**
      * Helps to check that testing code is throwing exceptions of the desired type with desired
@@ -157,7 +158,41 @@ public class PercentileReaderTest {
         final List<PercentileChunk> records = new ArrayList<>();
         percentileReader.processRequest(GetPercentileCountsRequest.newBuilder().setChunkSize(10)
                         .setStartTimestamp(20).build(), createStreamObserver(records, true));
-        Assert.assertThat(records.size(), CoreMatchers.is(3));
+        Assert.assertThat(records.size(), CoreMatchers.is(6));
+        final ByteArrayOutputStream receivedData = new ByteArrayOutputStream();
+        for (PercentileChunk chunk : records) {
+            receivedData.write(chunk.getContent().toByteArray());
+        }
+        Assert.assertThat(receivedData.toString(), CoreMatchers.is(SOURCE_DATA));
+    }
+
+    /**
+     * Checked that multiple blobs will be combined into one data blob that are going to be send
+     * from the reader.
+     *
+     * @throws IOException in case of error during reading from the DB.
+     */
+    @Test
+    public void checkChunkedBlob() throws IOException {
+        final DSLContext context = DSL.using(SQLDialect.MARIADB);
+        final Result<PercentileBlobsRecord> result = context.newResult(PERCENTILE_BLOBS_TABLE);
+        final String[] chunks = new String[] {"Some_long_more_than_chunk_size_item",
+                        " string",
+                        " for",
+                        " test",
+                        " bytes"};
+        for (int i = 0; i < chunks.length; i++) {
+            final PercentileBlobsRecord values = context.newRecord(PERCENTILE_BLOBS_TABLE)
+                            .values(20L, 3L, chunks[i].getBytes(StandardCharsets.UTF_8), i);
+            result.add(values);
+        }
+        sqlRequestToResponse.add(Pair.create(
+                        Pair.create("select `vmtdb`.`percentile_blobs`.`start_timestamp`",
+                                        Collections.singletonList(20L)), result));
+        final List<PercentileChunk> records = new ArrayList<>();
+        percentileReader.processRequest(GetPercentileCountsRequest.newBuilder().setChunkSize(10)
+                        .setStartTimestamp(20).build(), createStreamObserver(records, true));
+        Assert.assertThat(records.size(), CoreMatchers.is(8));
         final ByteArrayOutputStream receivedData = new ByteArrayOutputStream();
         for (PercentileChunk chunk : records) {
             receivedData.write(chunk.getContent().toByteArray());
@@ -169,7 +204,7 @@ public class PercentileReaderTest {
         final DSLContext context = DSL.using(SQLDialect.MARIADB);
         final Result<PercentileBlobsRecord> result = context.newResult(PERCENTILE_BLOBS_TABLE);
         final PercentileBlobsRecord values = context.newRecord(PERCENTILE_BLOBS_TABLE)
-                        .values(20L, 3L, sourceData.getBytes());
+                        .values(20L, 3L, sourceData.getBytes(), 0);
         result.add(values);
         return result;
     }

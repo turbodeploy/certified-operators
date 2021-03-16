@@ -164,14 +164,12 @@ public class StatsHistoryRpcServiceTest {
     private GetEntityStatsResponseStreamObserver getEntityStatsResponseStreamObserver =
             new GetEntityStatsResponseStreamObserver();
 
-    private SystemLoadWriter systemLoadWriter = mock(SystemLoadWriter.class);
 
     private RequestBasedReader<GetPercentileCountsRequest, PercentileChunk> percentileReader
             = mock(RequestBasedReader.class);
 
     private VolumeAttachmentHistoryReader volumeAttachmentHistoryReader =
         mock(VolumeAttachmentHistoryReader.class);
-    private ExecutorService threadPool = mock(ExecutorService.class);
 
     private StatsHistoryRpcService statsHistoryRpcService =
             Mockito.spy(new StatsHistoryRpcService(REALTIME_CONTEXT_ID,
@@ -182,7 +180,7 @@ public class StatsHistoryRpcServiceTest {
                     statSnapshotCreatorSpy,
                     statRecordBuilderSpy,
                     systemLoadReader, 100,
-                    percentileReader, threadPool,
+                    percentileReader,
                     volumeAttachmentHistoryReader));
 
     @Rule

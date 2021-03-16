@@ -509,6 +509,7 @@ services:
       component_type: history
       instance_id: history-1
       logging.level.com.vmturbo.history: INFO
+      grpcMaxMessageBytes: 1048576000
       kafkaServers: ${KAFKA_SERVERS}
       JAVA_COMPONENT_OPTS: "${HISTORY_SYSTEM_PROPERTIES}"
       JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
