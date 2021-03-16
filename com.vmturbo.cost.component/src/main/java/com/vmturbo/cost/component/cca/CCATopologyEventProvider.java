@@ -213,7 +213,7 @@ public class CCATopologyEventProvider implements TopologyEventProvider, ComputeT
         }
 
         final Instant allocationEndTime = allocation.timeInterval().endTime();
-        if (eventWindow.contains(allocationEndTime) && !allocation.equals(latestTopologyTime)) {
+        if (eventWindow.contains(allocationEndTime) && !allocationEndTime.equals(latestTopologyTime)) {
 
             entityEvents.add(TopologyEvent.newBuilder()
                     .setEventTimestamp(allocationEndTime.toEpochMilli())

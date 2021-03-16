@@ -2,6 +2,7 @@ package com.vmturbo.cost.component.cca;
 
 import static org.hamcrest.Matchers.containsInRelativeOrder;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
@@ -28,6 +29,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent;
 import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent.EntityStateChangeDetails;
+import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent.ProviderChangeDetails;
+import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent.ProviderChangeDetails.UnknownProvider;
 import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent.ResourceCreationDetails;
 import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent.TopologyEventInfo;
 import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent.TopologyEventType;
@@ -102,6 +105,9 @@ public class CCATopologyEventProviderTest {
                 .build();
 
         final EntityComputeTierAllocationSet allocationSet = EntityComputeTierAllocationSet.builder()
+                .latestTopologyInfo(TopologyInfo.newBuilder()
+                        .setCreationTime(secondEndTime.toEpochMilli())
+                        .build())
                 .putAllocation(firstAllocation.entityOid(), firstAllocation)
                 .putAllocation(secondAllocation.entityOid(), secondAllocation)
                 .build();
@@ -114,9 +120,13 @@ public class CCATopologyEventProviderTest {
         // asserts
         assertThat(topologyEvents.ledgers(), hasKey(1L));
         final TopologyEventLedger eventLedger = topologyEvents.ledgers().get(1L);
+        assertThat(eventLedger.events(), hasSize(6));
         assertThat(eventLedger.events(), containsInRelativeOrder(
-                powerOnEvent(firstStartTime), powerOffEvent(firstEndTime),
-                powerOnEvent(secondStartTime), powerOffEvent(secondEndTime)));
+                powerOnEvent(firstStartTime), providerToEvent(firstStartTime, 5L),
+                powerOffEvent(firstEndTime), providerFromEvent(firstEndTime, 5L),
+                // The second power off event should not be returned as it corresponds to the latest
+                // topology
+                powerOnEvent(secondStartTime), providerToEvent(secondStartTime, 5L)));
 
     }
 
@@ -199,6 +209,32 @@ public class CCATopologyEventProviderTest {
                         .setStateChange(EntityStateChangeDetails.newBuilder()
                                 .setSourceState(EntityState.POWERED_ON)
                                 .setDestinationState(EntityState.UNKNOWN)
+                                .build())
+                        .build())
+                .build();
+    }
+
+    private TopologyEvent providerToEvent(@Nonnull Instant timestamp, long providerOid) {
+        return TopologyEvent.newBuilder()
+                .setEventTimestamp(timestamp.toEpochMilli())
+                .setType(TopologyEventType.PROVIDER_CHANGE)
+                .setEventInfo(TopologyEventInfo.newBuilder()
+                        .setProviderChange(ProviderChangeDetails.newBuilder()
+                                .setUnknownSourceProvider(UnknownProvider.getDefaultInstance())
+                                .setDestinationProviderOid(providerOid)
+                                .build())
+                        .build())
+                .build();
+    }
+
+    private TopologyEvent providerFromEvent(@Nonnull Instant timestamp, long providerOid) {
+        return TopologyEvent.newBuilder()
+                .setEventTimestamp(timestamp.toEpochMilli())
+                .setType(TopologyEventType.PROVIDER_CHANGE)
+                .setEventInfo(TopologyEventInfo.newBuilder()
+                        .setProviderChange(ProviderChangeDetails.newBuilder()
+                                .setSourceProviderOid(providerOid)
+                                .setUnknownDestinationProvider(UnknownProvider.getDefaultInstance())
                                 .build())
                         .build())
                 .build();
