@@ -163,22 +163,6 @@ public class UtilizationCountStore {
     }
 
     /**
-     * Clears the latest, adds the input record and the re-adds latest.
-     *
-     * @param record serialized record
-     * @throws HistoryCalculationException when passed data are not valid
-     */
-    public synchronized void addBeforeLatest(PercentileRecord record) throws HistoryCalculationException {
-        PercentileRecord.Builder latestCopy = getLatestCountsRecord();
-        latest.clear();
-        String description = fieldReference.toString();
-        latest.deserialize(record, description);
-        if (latestCopy != null) {
-            latest.deserialize(latestCopy.build(), description);
-        }
-    }
-
-    /**
      * Serialize the latest window counts array.
      *
      * @return serialized record, null if empty

@@ -120,6 +120,7 @@ import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.schema.abstraction.Tables;
 import com.vmturbo.history.schema.abstraction.tables.Entities;
 import com.vmturbo.history.schema.abstraction.tables.MarketStatsLatest;
+import com.vmturbo.history.schema.abstraction.tables.PercentileBlobs;
 import com.vmturbo.history.schema.abstraction.tables.Scenarios;
 import com.vmturbo.history.schema.abstraction.tables.VmStatsByHour;
 import com.vmturbo.history.schema.abstraction.tables.VmStatsLatest;
@@ -2004,6 +2005,33 @@ public class HistorydbIO extends BasedbIO {
             throw new VmtDbException(VmtDbException.READ_ERR, e);
         }
         return entityIdToEntityTypeMap;
+    }
+
+    /**
+     * Return the timestamps of 'daily' checkpoint blobs that start in the time range
+     * (milliseconds since epoch).
+     *
+     * @param startMs starting timestamp, inclusive
+     * @param endMs ending timestamp, exclusive
+     * @return list of entries
+     * @throws VmtDbException when failed to access the db
+     */
+    public List<Long> getPercentileTimestampsInRange(long startMs, long endMs) throws VmtDbException {
+        try (Connection conn = connection()) {
+            List<Long> timestamps = new ArrayList<>();
+            using(conn)
+                .select(PercentileBlobs.PERCENTILE_BLOBS.START_TIMESTAMP)
+                .from(PercentileBlobs.PERCENTILE_BLOBS)
+                .where(PercentileBlobs.PERCENTILE_BLOBS.START_TIMESTAMP.greaterOrEqual(startMs))
+                .and(PercentileBlobs.PERCENTILE_BLOBS.START_TIMESTAMP.lessThan(endMs))
+                .orderBy(PercentileBlobs.PERCENTILE_BLOBS.START_TIMESTAMP)
+                .fetch()
+                .listIterator()
+                .forEachRemaining(record -> timestamps.add(Long.valueOf(record.value1())));
+            return timestamps;
+        } catch (SQLException | NumberFormatException e) {
+            throw new VmtDbException(VmtDbException.READ_ERR, "percentile blobs range", e);
+        }
     }
 
     /*
