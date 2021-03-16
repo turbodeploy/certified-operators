@@ -11,7 +11,7 @@ import com.cisco.intersight.client.api.AssetApi;
 import com.cisco.intersight.client.model.AssetTarget;
 import com.cisco.intersight.client.model.AssetTargetList;
 
-import com.vmturbo.integrations.intersight.IntersightApiQuery;
+import com.vmturbo.mediation.connector.intersight.IntersightApiQuery;
 
 /**
  * class for {@link AssetTarget} query.

@@ -18,7 +18,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.cisco.intersight.client.ApiClient;
 import com.cisco.intersight.client.ApiException;
 import com.cisco.intersight.client.model.AssetTarget;
 import com.cisco.intersight.client.model.AssetTarget.TargetTypeEnum;
@@ -226,7 +225,6 @@ public class IntersightTargetSyncHelper {
      */
     protected void syncAssetTargets(final long noUpdateOnChangePeriodSeconds,
             final boolean injectAssistId) throws InterruptedException, IOException, ApiException {
-        final ApiClient apiClient = intersightConnection.getApiClient();
         // Technically we only need Moid, TargetType, Assist and Parent.  We are getting CreateTime
         // and ModTime too to carve out appropriate actions correspondingly to achieve better user
         // experience.  We are also getting "Services" and "Status" because:
@@ -236,10 +234,10 @@ public class IntersightTargetSyncHelper {
         //           To ensure accepted by the server, this has to be passed back unchanged.
         final String select = "$select=Moid,TargetType,Services,Status,CreateTime,ModTime,Assist,Parent";
         final List<AssetTarget> assetTargets =
-                new IntersightAssetTargetQuery(select).getAllQueryInstancesOrElseThrow(apiClient);
+                new IntersightAssetTargetQuery(select).getAllQueryInstancesOrElseThrow(intersightConnection);
         final Map<String, Optional<String>> assistToDeviceMap = getAssistToDeviceMap(assetTargets);
         final IntersightTargetStatusUpdater targetStatusUpdater = new IntersightTargetStatusUpdater(
-                apiClient, topologyProcessor, noUpdateOnChangePeriodSeconds);
+                intersightConnection.getApiClient(), topologyProcessor, noUpdateOnChangePeriodSeconds);
         for (final AssetTarget assetTarget : assetTargets) {
             for (final SDKProbeType probeType : IntersightTargetConverter.findProbeType(assetTarget)) {
                 final ProbeInfo probeInfo = probesByType.get(probeType.getProbeType());
