@@ -116,12 +116,6 @@ df -ih >>${diag_directory}/df.txt
 # Check disk space
 df -k > ${diag_directory}/diskspace.txt
 
-if [ ${DUMP_REQUEST_TIME} -ne 0 ]; then
-    # Wait for the full GC to complete before collecting GC logs because the object histogram will be
-    # present in the GC logs only AFTER the full GC has completed.
-    sh wait_for_full_gc.sh ${DUMP_REQUEST_TIME}
-fi
-
 # Check server configured Memory and CPU
 echo "XL Instance VMem Capacity: $(free -m | grep Mem | awk '{print $2 " MB"}')" > ${diag_directory}/server_mem_cpu_capacity.txt
 echo "XL Instance Number VCPUs: $(nproc)" >> ${diag_directory}/server_mem_cpu_capacity.txt

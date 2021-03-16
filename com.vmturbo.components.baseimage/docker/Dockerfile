@@ -25,9 +25,9 @@ RUN curl -k -s -O -L https://github.com/AdoptOpenJDK/openjdk11-binaries/releases
 # set the path to the OpenJ9 JVM in case we want to use it.
 ENV J9PATH="/usr/lib/jvm/jdk-11.0.8+10-jre/bin:${PATH}"
 
-COPY entrypoint.sh collect_diags.sh diags.py dump_histogram.sh wait_for_full_gc.sh terminate.sh /
+COPY entrypoint.sh collect_diags.sh diags.py terminate.sh /
 RUN chmod 755 /entrypoint.sh && chmod 755 /collect_diags.sh && chmod 755 /terminate.sh && \
-    chmod 755 /diags.py && chmod 755 /dump_histogram.sh && chmod 755 /wait_for_full_gc.sh
+    chmod 755 /diags.py
 
 # add the swagger UI
 COPY swagger /swagger/
