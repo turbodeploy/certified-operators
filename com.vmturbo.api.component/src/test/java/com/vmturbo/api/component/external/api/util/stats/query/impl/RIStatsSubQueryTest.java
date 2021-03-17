@@ -10,6 +10,7 @@ import java.util.stream.Collectors;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
+
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 import org.junit.Assert;
@@ -18,8 +19,10 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
+import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.SingleEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedGroupInfo;
@@ -37,7 +40,9 @@ import com.vmturbo.api.enums.Epoch;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
+import com.vmturbo.common.protobuf.cost.Cost.AvailabilityZoneFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtCountByTemplateResponse;
+import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtCountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCostStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCoverageStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCoverageStatsResponse;
@@ -260,6 +265,35 @@ public class RIStatsSubQueryTest {
         final StatApiDTO statApiDTO = statApiDTOS.iterator().next();
         Assert.assertEquals(TIER_NAME, statApiDTO.getFilters().iterator().next().getValue());
         Assert.assertEquals(riBoughtCount, statApiDTO.getValues().getAvg(), 0);
+    }
+
+    /**
+     * Test that getAggregateStats with NUM_RI request for Availability Zone returns counts for
+     * the entire region.
+     *
+     * @throws Exception never
+     */
+    @Test
+    public void testRiBoughtCountByTemplateTypeAvailabilityZone() throws Exception {
+        final long mockZoneOid = 12345;
+        final long mockRegionOid = 98765;
+        Mockito.when(scope.getScopeTypes())
+            .thenReturn(Optional.of(Collections.singleton(ApiEntityType.AVAILABILITY_ZONE)));
+        Mockito.when(scope.oid()).thenReturn(mockZoneOid);
+        final SearchRequest mockRegionSearchRequest =
+            ApiTestUtils.mockSearchIdReq(Collections.singleton(mockRegionOid));
+        Mockito.when(repositoryApi.getRegion(Mockito.any())).thenReturn(mockRegionSearchRequest);
+
+        riStatsSubQuery.getAggregateStats(
+            Collections.singleton(StatsTestUtil.statInput(StringConstants.NUM_RI)), context);
+
+        final GetReservedInstanceBoughtCountRequest expectedCountRequest =
+            GetReservedInstanceBoughtCountRequest.newBuilder()
+                .setRegionFilter(RegionFilter.newBuilder().addRegionId(mockRegionOid))
+                .setAvailabilityZoneFilter(AvailabilityZoneFilter.newBuilder()
+                    .addAvailabilityZoneId(mockZoneOid))
+                .build();
+        Mockito.verify(riBoughtBackend).getReservedInstanceBoughtCountByTemplateType(expectedCountRequest);
     }
 
     @Test

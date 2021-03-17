@@ -178,7 +178,7 @@ public class RIStatsSubQuery extends AbstractRIStatsSubQuery {
     }
 
     @Nonnull
-    GetReservedInstanceBoughtCountRequest createRIBoughtCountRequest(
+    private GetReservedInstanceBoughtCountRequest createRIBoughtCountRequest(
             @Nonnull final StatsQueryContext context) throws OperationFailedException {
         final GetReservedInstanceBoughtCountRequest.Builder reqBuilder =
                 GetReservedInstanceBoughtCountRequest.newBuilder();
@@ -189,23 +189,23 @@ public class RIStatsSubQuery extends AbstractRIStatsSubQuery {
                 throw new OperationFailedException("Entity type not present");
             }
             final ApiEntityType type = apiEntityTypes.iterator().next();
+            final Set<Long> scopeOids = getScopeEntities(context);
             switch (type) {
                 case REGION:
-                    reqBuilder.setRegionFilter(
-                            RegionFilter.newBuilder().addAllRegionId(getScopeEntities(context)));
+                    reqBuilder.setRegionFilter(RegionFilter.newBuilder().addAllRegionId(scopeOids));
                     break;
                 case AVAILABILITY_ZONE:
-                    reqBuilder.setAvailabilityZoneFilter(AvailabilityZoneFilter.newBuilder()
-                            .addAllAvailabilityZoneId(getScopeEntities(context)));
+                    reqBuilder.setAvailabilityZoneFilter(
+                        AvailabilityZoneFilter.newBuilder().addAllAvailabilityZoneId(scopeOids));
+                    reqBuilder.setRegionFilter(RegionFilter.newBuilder()
+                        .addAllRegionId(getRepositoryApi().getRegion(scopeOids).getOids()));
                     break;
                 case BUSINESS_ACCOUNT:
-                    reqBuilder.setAccountFilter(
-                            AccountFilter.newBuilder().addAllAccountId(getScopeEntities(context)));
+                    reqBuilder.setAccountFilter(AccountFilter.newBuilder().addAllAccountId(scopeOids));
                     break;
                 case SERVICE_PROVIDER:
                     reqBuilder.setRegionFilter(RegionFilter.newBuilder()
-                            .addAllRegionId(
-                                    translateServiceProvidersToRegions(getScopeEntities(context))));
+                        .addAllRegionId(translateServiceProvidersToRegions(scopeOids)));
                     break;
                 default:
                     throw new OperationFailedException(
