@@ -4,11 +4,11 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -22,25 +22,20 @@ import io.grpc.StatusRuntimeException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entityaspect.ContainerPlatformContextAspectApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.api.exceptions.ConversionException;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
-import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainScope;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainSeed;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -56,17 +51,16 @@ public class ContainerPlatformContextAspectMapper extends AbstractAspectMapper {
      * Constructor for the ContainerPlatformContextAspectMapper.
      *
      * @param supplyChainRpcService Supply chain search service
-     * @param repositoryRpcService  Repository search service
+     * @param repositoryApi  Repository access to fetch entities.
      * @param realtimeTopologyContextId The real time topology context id.
      *                                 Note: This only permits the lookup of aspects on the
      *                                 realtime topology and not plan entities.
      */
     public ContainerPlatformContextAspectMapper(@Nonnull final SupplyChainServiceBlockingStub supplyChainRpcService,
-                                          @Nonnull final RepositoryServiceBlockingStub repositoryRpcService,
+                                          @Nonnull final RepositoryApi repositoryApi,
                                           @Nonnull final Long realtimeTopologyContextId) {
         containerPlatformContextMapper = new ContainerPlatformContextMapper(supplyChainRpcService,
-                                                                            repositoryRpcService,
-                                                                        realtimeTopologyContextId);
+                                                            repositoryApi, realtimeTopologyContextId);
     }
 
     @Override
@@ -135,7 +129,7 @@ public class ContainerPlatformContextAspectMapper extends AbstractAspectMapper {
         private final Logger logger = LogManager.getLogger();
         private final long realtimeTopologyContextId;
         private final SupplyChainServiceBlockingStub supplyChainRpcService;
-        private final RepositoryServiceBlockingStub repositoryRpcService;
+        private final RepositoryApi repositoryApi;
 
         private static final Set<Integer> CLOUD_NATIVE_ENTITY_CONNECTIONS
                 = ImmutableSet.of(EntityType.NAMESPACE_VALUE, EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE);
@@ -155,16 +149,16 @@ public class ContainerPlatformContextAspectMapper extends AbstractAspectMapper {
          * Constructor for the ContainerPlatformContextMapper.
          *
          * @param supplyChainRpcService Supply chain search service
-         * @param repositoryRpcService  Repository search service
+         * @param repositoryApi To fetch entities.
          * @param realtimeTopologyContextId The real time topology context id.
          *                                  Note: This only permits the lookup of aspects on the
          *                                    realtime topology and not plan entities.
          */
         ContainerPlatformContextMapper(@Nonnull final SupplyChainServiceBlockingStub supplyChainRpcService,
-                                              @Nonnull final RepositoryServiceBlockingStub repositoryRpcService,
+                                              @Nonnull final RepositoryApi repositoryApi,
                                               @Nonnull final Long realtimeTopologyContextId) {
             this.supplyChainRpcService = supplyChainRpcService;
-            this.repositoryRpcService = repositoryRpcService;
+            this.repositoryApi = repositoryApi;
             this.realtimeTopologyContextId = realtimeTopologyContextId;
         }
 
@@ -222,53 +216,52 @@ public class ContainerPlatformContextAspectMapper extends AbstractAspectMapper {
             Map<Long, Set<Long>> connectedEntityIds = new HashMap<>();
             try {
                 supplyChainRpcService.getMultiSupplyChains(requestBuilder.build())
-                        .forEachRemaining(supplyChainResponse -> {
-                            final long oid = supplyChainResponse.getSeedOid();
-                            HashSet<Long> members = new HashSet<>();
-                            supplyChainResponse.getSupplyChain()
-                                    .getSupplyChainNodesList()
-                                    .stream()
-                                    .filter(node -> CLOUD_NATIVE_ENTITY_CONNECTIONS.contains(node.getEntityType()))
-                                    .map(SupplyChainNode::getMembersByStateMap)
-                                    .map(Map::values)
-                                    .flatMap(memberList -> memberList.stream()
-                                            .map(MemberList::getMemberOidsList)
-                                            .flatMap(List::stream))
-                                    .forEach(memberId -> {
-                                        visited.add(memberId);
-                                        members.add(memberId);
-                                    });
-                            connectedEntityIds.put(oid, members);
-                        });
+                    .forEachRemaining(supplyChainResponse -> {
+                        final long oid = supplyChainResponse.getSeedOid();
+                        final Set<Long> members = supplyChainResponse.getSupplyChain()
+                            .getSupplyChainNodesList()
+                            .stream()
+                            .filter(node -> CLOUD_NATIVE_ENTITY_CONNECTIONS.contains(node.getEntityType()))
+                            .map(SupplyChainNode::getMembersByStateMap)
+                            .map(Map::values)
+                            .flatMap(memberList -> memberList.stream()
+                                    .map(MemberList::getMemberOidsList)
+                                    .flatMap(List::stream))
+                            .collect(Collectors.toSet());
 
+                        if (!members.isEmpty()) {
+                            visited.addAll(members);
+                            connectedEntityIds.put(oid, members);
+                        }
+                    });
             } catch (StatusRuntimeException e) {
                 logger.error("Failed to retrieve cloud native context entities from supply chain", e);
             }
 
-            // Second repository rpc call to get the name for each of the unique connection entity
-            Map<Long, MinimalEntity> repositoryEntities = getRepositoryEntities(visited);
+            if (!connectedEntityIds.isEmpty()) {
+                // Second repository rpc call to get the name for each of the unique connection entity
+                Map<Long, MinimalEntity> repositoryEntities = getRepositoryEntities(visited);
 
-            connectedEntityIds.entrySet().stream().forEach(e -> {
-                final ContainerPlatformContextAspectApiDTO aspect = new ContainerPlatformContextAspectApiDTO();
-                for (long oid : e.getValue()) {
-                    if (!repositoryEntities.containsKey(oid))  {
-                        logger.warn("Missing repository info for {}", oid);
-                        continue;
-                    }
-                    MinimalEntity minimalEntity = repositoryEntities.get(oid);
-                    if (minimalEntity.hasDisplayName() && minimalEntity.hasEntityType()) {
-                        if (minimalEntity.getEntityType()
-                                == EntityType.NAMESPACE_VALUE) {
-                            aspect.setNamespace(minimalEntity.getDisplayName());
-                        } else if (minimalEntity.getEntityType()
-                                == EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE) {
-                            aspect.setContainerPlatformCluster(minimalEntity.getDisplayName());
+                connectedEntityIds.forEach((eId, connections) -> {
+                    final ContainerPlatformContextAspectApiDTO aspect = new ContainerPlatformContextAspectApiDTO();
+                    for (Long connectionId : connections) {
+                        if (!repositoryEntities.containsKey(connectionId)) {
+                            logger.warn("Missing repository info for {}", connectionId);
+                            continue;
+                        }
+                        MinimalEntity minimalEntity = repositoryEntities.get(connectionId);
+                        if (minimalEntity.hasDisplayName() && minimalEntity.hasEntityType()) {
+                            if (minimalEntity.getEntityType() == EntityType.NAMESPACE_VALUE) {
+                                aspect.setNamespace(minimalEntity.getDisplayName());
+                            } else if (minimalEntity.getEntityType() == EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE) {
+                                aspect.setContainerPlatformCluster(minimalEntity.getDisplayName());
+                            }
                         }
                     }
-                }
 
-                connectedEntities.put(e.getKey(), aspect);
-            });
+                    connectedEntities.put(eId, aspect);
+                });
+            }
 
             return connectedEntities;
         }
@@ -278,30 +271,16 @@ public class ContainerPlatformContextAspectMapper extends AbstractAspectMapper {
          * @param entityOids list of entity OIDs
          * @return Map containing the entity OID and its {@link BaseApiDTO}
          */
-        private Map<Long, MinimalEntity> getRepositoryEntities(Collection<Long> entityOids) {
-            Map<Long, MinimalEntity> minimalEntityMap = new HashMap<>();
+        private Map<Long, MinimalEntity> getRepositoryEntities(Set<Long> entityOids) {
+            Map<Long, MinimalEntity> minimalEntityMap = new HashMap<>(entityOids.size());
+            if (entityOids.isEmpty()) {
+                return minimalEntityMap;
+            }
 
-            // Request to the repository service
-            final RetrieveTopologyEntitiesRequest.Builder requestBuilder =
-                    RetrieveTopologyEntitiesRequest.newBuilder()
-                            .setTopologyContextId(realtimeTopologyContextId);
-
-            entityOids.stream().forEach(entityOid -> {
-                requestBuilder.addEntityOids(entityOid)
-                        .setTopologyContextId(realtimeTopologyContextId)
-                        .setTopologyType(TopologyType.SOURCE)
-                        .setReturnType(Type.MINIMAL);
-            });
             try {
-                final Iterator<PartialEntityBatch> iterator
-                        = repositoryRpcService.retrieveTopologyEntities(requestBuilder.build());
-                while (iterator.hasNext()) {
-                    final PartialEntityBatch batch = iterator.next();
-                    for (PartialEntity partialEntity : batch.getEntitiesList()) {
-                        final MinimalEntity minimalEntity = partialEntity.getMinimal();
-                        minimalEntityMap.put(minimalEntity.getOid(), minimalEntity);
-                    }
-                }
+                repositoryApi.entitiesRequest(entityOids).getMinimalEntities().forEach(minimalEntity -> {
+                    minimalEntityMap.put(minimalEntity.getOid(), minimalEntity);
+                });
             } catch (StatusRuntimeException e) {
                 logger.error("Failed to retrieve cloud native context entities from repository", e);
             }
