@@ -34,9 +34,9 @@ RUN curl -k -s -O -L https://github.com/AdoptOpenJDK/openjdk11-binaries/releases
 # set a path variable if we want to use J9 instead of HotSpot
 ENV J9PATH="/usr/lib/jvm/jdk-11.0.8+10/bin:${PATH}"
 
-COPY entrypoint.sh collect_diags.sh diags.py dump_histogram.sh wait_for_full_gc.sh terminate.sh run.sh /
+COPY entrypoint.sh collect_diags.sh diags.py terminate.sh run.sh /
 RUN chmod 755 /entrypoint.sh && chmod 755 /collect_diags.sh && chmod 755 /terminate.sh && \
-    chmod 755 /diags.py && chmod 755 /dump_histogram.sh && chmod 755 /wait_for_full_gc.sh && chmod 755 /run.sh
+    chmod 755 /diags.py && chmod 755 /run.sh
 
 # add the swagger UI
 COPY swagger /swagger/
