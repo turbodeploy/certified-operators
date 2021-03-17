@@ -26,6 +26,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
+import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.external.api.mapper.CloudTypeMapper;
 import com.vmturbo.api.component.external.api.mapper.ReservedInstanceMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
@@ -40,6 +41,9 @@ import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.enums.AccountFilterType;
 import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.cost.Cost.AvailabilityZoneFilter;
+import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByFilterRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtForScopeRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtForScopeResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCoveredEntitiesRequest;
@@ -47,6 +51,7 @@ import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCoveredEntitiesR
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCoveredEntitiesResponse.EntitiesCoveredByReservedInstance;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceSpecByIdsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceSpecByIdsResponse;
+import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
@@ -240,5 +245,37 @@ public class ReservedInstanceServiceTest {
         Assert.assertTrue(
                 EqualsBuilder.reflectionEquals(ServiceEntityMapper.toBaseApiDTO(virtualMachine2),
                         entities.get("2")));
+    }
+
+    /**
+     * Test that when reserved instances are fetched and the scope is an availability zone,
+     * the reserved instance from that availability zone's parent region are fetched as well.
+     *
+     * @throws Exception never
+     */
+    @Test
+    public void testGetRIsForZoneIncludesParentRegionRIs() throws Exception {
+        final long scopeZone = 12345;
+        final ApiId mockScope = ApiTestUtils.mockEntityId("12345", ApiEntityType.AVAILABILITY_ZONE,
+            EnvironmentType.CLOUD, uuidMapper);
+        Mockito.when(mockScope.getScopeTypes()).thenReturn(
+            Optional.of(Collections.singleton(ApiEntityType.AVAILABILITY_ZONE)));
+        Mockito.when(mockScope.getScopeEntitiesByType()).thenReturn(Collections.singletonMap(
+            ApiEntityType.AVAILABILITY_ZONE, Collections.singleton(scopeZone)));
+        final long parentRegion = 98765;
+        final SearchRequest regionSearchRequest =
+            ApiTestUtils.mockSearchIdReq(Collections.singleton(parentRegion));
+
+        Mockito.when(repositoryApi.getRegion(Collections.singleton(scopeZone)))
+            .thenReturn(regionSearchRequest);
+
+        reservedInstancesService.getReservedInstances(Long.toString(scopeZone), null, null);
+
+        Mockito.verify(reservedInstanceBoughtService).getReservedInstanceBoughtByFilter(
+            GetReservedInstanceBoughtByFilterRequest.newBuilder()
+                .setRegionFilter(RegionFilter.newBuilder().addRegionId(parentRegion))
+                .setZoneFilter(AvailabilityZoneFilter.newBuilder().addAvailabilityZoneId(scopeZone))
+                .build()
+        );
     }
 }

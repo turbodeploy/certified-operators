@@ -265,10 +265,12 @@ public class ReservedInstancesService implements IReservedInstancesService {
                                             .build());
                             break;
                         case AVAILABILITY_ZONE:
-                            requestBuilder.setZoneFilter(
-                                    AvailabilityZoneFilter.newBuilder()
-                                            .addAllAvailabilityZoneId(entityOids)
-                                            .build());
+                            requestBuilder.setZoneFilter(AvailabilityZoneFilter.newBuilder()
+                                .addAllAvailabilityZoneId(entityOids));
+                            final Set<Long> parentRegions =
+                                repositoryApi.getRegion(entityOids).getOids();
+                            requestBuilder.setRegionFilter(RegionFilter.newBuilder()
+                                .addAllRegionId(parentRegions));
                             break;
                         case BUSINESS_ACCOUNT:
                             requestBuilder.setAccountFilter(
