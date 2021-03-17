@@ -25,7 +25,6 @@ import io.grpc.ServerInterceptors;
 import io.grpc.ServerServiceDefinition;
 import io.grpc.inprocess.InProcessChannelBuilder;
 import io.grpc.inprocess.InProcessServerBuilder;
-import io.grpc.internal.GrpcUtil;
 import io.grpc.netty.NettyChannelBuilder;
 import io.grpc.netty.NettyServerBuilder;
 import io.opentracing.contrib.grpc.TracingClientInterceptor;
@@ -268,6 +267,17 @@ public class ComponentGrpcServer implements ServerStartedListener {
                 }
                 grpcServer = null;
             }
+        }
+    }
+
+    /**
+     * Get the running state of the gRPC Server.
+     *
+     * @return state
+     */
+    public boolean isRunning() {
+        synchronized (grpcServerLock) {
+            return !(grpcServer == null ||  grpcServer.isShutdown());
         }
     }
 

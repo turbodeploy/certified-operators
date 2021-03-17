@@ -6,7 +6,6 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
-import java.net.BindException;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -160,24 +159,14 @@ public class ComponentGrpcServerTest {
      * @param env mock environment to hold desired port number
      */
     private void startGrpcServer(final MockEnvironment env) {
-        for (int tries = 1; ; tries++) {
-            try {
-                env.setProperty(ComponentGrpcServer.PROP_SERVER_GRPC_PORT,
-                        Integer.toString(SocketUtils.findAvailableTcpPort()));
-                ComponentGrpcServer.get().start(env);
-                // succeeded!
+        for (int attempts = 0; attempts < 3; attempts++) {
+            String availableTcpPort = Integer.toString(SocketUtils.findAvailableTcpPort());
+            env.setProperty(ComponentGrpcServer.PROP_SERVER_GRPC_PORT, availableTcpPort);
+            ComponentGrpcServer.get().start(env);
+
+            // verify the grpc server started successfully
+            if (ComponentGrpcServer.get().isRunning()) {
                 return;
-            } catch (Exception e) {
-                Throwable cause = e;
-                // try up to three times, as long as we're catching BindException
-                while (cause != null && !(cause instanceof BindException)) {
-                    cause = cause.getCause();
-                }
-                if (cause == null || tries >= 3) {
-                    // we caught something that wasn't ulimately a BindException, or we ran
-                    // out of tries, so re-throw what we last caught
-                    throw e;
-                }
             }
         }
     }
