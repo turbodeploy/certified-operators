@@ -29,6 +29,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser.GroupUseCase.GroupUseCaseCriteria;
 import com.vmturbo.api.dto.group.FilterApiDTO;
+import com.vmturbo.clustermgr.api.ComponentProperties;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters.EntityFilter;
 import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
 import com.vmturbo.common.protobuf.search.Search.GroupFilter;
@@ -56,6 +57,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
+import com.vmturbo.api.dto.group.GroupApiDTO;
+
 
 /**
  * This class converts filter for filter entities in the API to the filter
@@ -1129,4 +1132,34 @@ public class EntityFilterMapper {
     private static SearchFilter createSearchFilter(@Nonnull GroupFilter groupFilter) {
         return SearchFilter.newBuilder().setGroupFilter(groupFilter).build();
     }
+
+    /**
+     * @param key: the key that we want to seee if exists in map
+     * @return true if COMPARISON_STRING_TO_COMPARISON_OPERATOR contains key else false
+     */
+    public static boolean checkIfValidComparisonOperator(String key) {
+        return (COMPARISON_STRING_TO_COMPARISON_OPERATOR.get(key) != null);
+    }
+
+    /**
+     * @return a set of the keys of COMPARISON_STRING_TO_COMPARISON_OPERATOR map
+     */
+    public static Set<String> getComparisonOperators() {
+        return COMPARISON_STRING_TO_COMPARISON_OPERATOR.keySet();
+    }
+
+    /**
+     * @param inputDTO: the inpuDTO which we want to check. Specifically we check the
+     * CriteriaList and to see if all filters in that list are valid. More checks could be
+     * added in the future, if there is a need for more sanity checks.
+     */
+    public static void checkInputDTOParameters(GroupApiDTO inputDTO) throws IllegalArgumentException{
+        inputDTO.getCriteriaList().stream().
+                forEach(FilterApiDTO -> {
+                    if (!checkIfValidComparisonOperator(FilterApiDTO.getExpType())) {
+                        throw new IllegalArgumentException("Filter type does not match existing types");
+                    }
+                });
+    }
+
 }

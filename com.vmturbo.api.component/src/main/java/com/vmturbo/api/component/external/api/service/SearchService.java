@@ -770,7 +770,11 @@ public class SearchService implements ISearchService {
     public SearchPaginationResponse getMembersBasedOnFilter(String nameQueryString, GroupApiDTO inputDTO,
             SearchPaginationRequest paginationRequest, @Nullable List<String> aspectNames, @Nullable QueryType queryType)
             throws OperationFailedException, InvalidOperationException, ConversionException,
-            InterruptedException {
+            InterruptedException, IllegalArgumentException {
+        //since the criteriaList field of inputDTO which holds the filters does not contain enums about filters but string
+        //we ave to check and validate the input filters.
+        EntityFilterMapper.checkInputDTOParameters(inputDTO);
+
         // the query input is called a GroupApiDTO even though this search can apply to any type
         // if this is a group search, we need to know the right "name filter type" that can be used
         // to search for a group by name. These come from the groupBuilderUsecases.json file.

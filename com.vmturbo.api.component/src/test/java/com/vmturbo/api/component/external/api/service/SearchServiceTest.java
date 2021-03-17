@@ -1050,6 +1050,75 @@ public class SearchServiceTest {
     }
 
     /**
+     * Test that GetMembersBasedOnFilter works without raising exception
+     * for every possible filter type contained in COMPARISON_STRING_TO_COMPARISON_OPERATOR map
+     * In the test below we try to order by severity in our paginated request but this is not
+     * the point of the test. The point is to make sure that for any filter type no exception is
+     * raised.
+     *
+     * @throws Exception if getSearchResults throws an Exception.
+     */
+    @Test
+    public void testGetMembersBasedOnFilterForVariousFilterTypes() throws Exception {
+        GroupApiDTO request = new GroupApiDTO();
+        FilterApiDTO filter = new FilterApiDTO();
+        filter.setExpVal("1000");
+        filter.setFilterType("vmsByMem");
+        List<ServiceEntityApiDTO> serviceEntities = Collections.singletonList(
+                supplyChainTestUtils.createServiceEntityApiDTO(1L, targetId1));
+        final SearchPaginationRequest paginationRequest =
+                new SearchPaginationRequest("0", 10, true, SearchOrderBy.SEVERITY.name());
+        RepositoryApi.PaginatedSearchRequest searchReq = ApiTestUtils.mockPaginatedSearchRequest(paginationRequest, serviceEntities);
+        when(repositoryApi.newPaginatedSearch(any(), any(), any())).thenReturn(searchReq);
+
+        for( String key : EntityFilterMapper.getComparisonOperators()) {
+            ArrayList<FilterApiDTO> criteriaList = new ArrayList<>(1);
+            filter.setExpType(key);
+            criteriaList.add(filter);
+            request.setCriteriaList(criteriaList);
+            SearchPaginationResponse response = searchService.getMembersBasedOnFilter("", request,
+                    paginationRequest, null, null);
+            List<BaseApiDTO> results = response.getRawResults();
+
+            assertEquals(1, results.size());
+            assertTrue(results.get(0) instanceof ServiceEntityApiDTO);
+            assertEquals("1", results.get(0).getUuid());
+        }
+    }
+
+    /**
+     * Test that GetMembersBasedOnFilter raises an exception if there is a filter type
+     * that is not contained in COMPARISON_STRING_TO_COMPARISON_OPERATOR map, for example
+     * filter type "GE" should yield an exception.
+     *
+     * @throws IllegalArgumentException
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testGetMembersBasedOnFilterForNotExitingFilterTypes() throws Exception {
+        GroupApiDTO request = new GroupApiDTO();
+        FilterApiDTO filter = new FilterApiDTO();
+        filter.setExpVal("1000");
+        filter.setFilterType("vmsByMem");
+        filter.setExpType("GE");
+        ArrayList<FilterApiDTO> criteriaList = new ArrayList<>(1);
+        criteriaList.add(filter);
+        request.setCriteriaList(criteriaList);
+        List<ServiceEntityApiDTO> serviceEntities = Collections.singletonList(
+                supplyChainTestUtils.createServiceEntityApiDTO(1L, targetId1));
+        final SearchPaginationRequest paginationRequest =
+                new SearchPaginationRequest("0", 10, true, SearchOrderBy.SEVERITY.name());
+        RepositoryApi.PaginatedSearchRequest searchReq = ApiTestUtils.mockPaginatedSearchRequest(paginationRequest, serviceEntities);
+        when(repositoryApi.newPaginatedSearch(any(), any(), any())).thenReturn(searchReq);
+        SearchPaginationResponse response = searchService.getMembersBasedOnFilter("", request,
+                paginationRequest, null, null);
+        List<BaseApiDTO> results = response.getRawResults();
+
+        assertEquals(1, results.size());
+        assertTrue(results.get(0) instanceof ServiceEntityApiDTO);
+        assertEquals("1", results.get(0).getUuid());
+    }
+
+    /**
      * Sending a request that should not return any results, this should return an empty response
      * and not throw an exception.
      *
