@@ -1069,4 +1069,16 @@ public class StatsServiceTest {
         request.setPeriod(period);
         return request;
     }
+
+    /**
+     * test that StatsByEntityQueryW throws exception when StartDate is greater than EndDate
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testgetStatsByEntityQueryWithStartDateGreaterThanEndDate() throws Exception{
+        StatPeriodApiInputDTO a = new StatPeriodApiInputDTO();
+        a.setStartDate("-3d");
+        a.setEndDate("-5d");
+        when(uuidMapper.fromUuid(oid1)).thenReturn(apiId1);
+        statsService.getStatsByEntityQuery(oid1, a);
+    }
 }

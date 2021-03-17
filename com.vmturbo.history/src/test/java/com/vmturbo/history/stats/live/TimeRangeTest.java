@@ -41,6 +41,7 @@ import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.schema.HistoryVariety;
 import com.vmturbo.history.stats.live.TimeRange.TimeRangeFactory;
+import com.vmturbo.history.stats.live.TimeRange.TimeRangeFactory.ClusterTimeRangeFactory;
 import com.vmturbo.history.stats.live.TimeRange.TimeRangeFactory.DefaultTimeRangeFactory;
 
 public class TimeRangeTest {
@@ -62,6 +63,10 @@ public class TimeRangeTest {
                     TimeUnit.MILLISECONDS.toNanos(LATEST_TABLE_TIME_WINDOW_MS),
                     TimeUnit.NANOSECONDS);
 
+    private final TimeRangeFactory clusterTimeRangeFactory =
+            new ClusterTimeRangeFactory(historydbIO,
+                    timeFrameCalculator);
+
     @Test(expected = IllegalArgumentException.class)
     public void testFactoryStartDateSetEndDateNotSet() throws VmtDbException {
         timeRangeFactory.resolveTimeRange(StatsFilter.newBuilder()
@@ -74,6 +79,22 @@ public class TimeRangeTest {
         timeRangeFactory.resolveTimeRange(StatsFilter.newBuilder()
                 .setEndDate(1L)
                 .build(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
+    }
+
+    @Test(expected=IllegalArgumentException.class)
+    public void testFactoryDefaultTimeRangeWithStartDateGreaterThanEndDate()
+            throws IllegalArgumentException, VmtDbException {
+        final StatsFilter statsFilter = StatsFilter.newBuilder().setStartDate(2L).setEndDate(1L).build();
+        timeRangeFactory.resolveTimeRange(statsFilter, Optional.empty(),
+                Optional.empty(), Optional.empty(), Optional.empty()).get();
+    }
+
+    @Test(expected=IllegalArgumentException.class)
+    public void testFactoryClusterTimeRangeWithStartDateGreaterThanEndDate()
+            throws IllegalArgumentException, VmtDbException {
+        final StatsFilter statsFilter = StatsFilter.newBuilder().setStartDate(2L).setEndDate(1L).build();
+        clusterTimeRangeFactory.resolveTimeRange(statsFilter, Optional.empty(),
+                Optional.empty(), Optional.empty(), Optional.empty()).get();
     }
 
     @Test
@@ -387,5 +408,4 @@ public class TimeRangeTest {
 
         assertThat(vmTimeRange.get().getMostRecentSnapshotTime(), is(vmTimestamp));
     }
-
 }

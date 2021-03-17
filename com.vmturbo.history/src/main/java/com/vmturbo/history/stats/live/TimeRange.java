@@ -201,6 +201,8 @@ public class TimeRange {
                 if (statsFilter.hasStartDate() != statsFilter.hasEndDate()) {
                     throw new IllegalArgumentException("one of 'startTime', 'endTime' null but not both: "
                         + statsFilter.getStartDate() + ":" + statsFilter.getEndDate());
+                } else if (statsFilter.getStartDate() > statsFilter.getEndDate()) {
+                    throw new IllegalArgumentException("Invalid date range for retrieving statistics: StartDate > EndDate.");
                 }
 
                 long resolvedStartTime = -1;
@@ -389,6 +391,8 @@ public class TimeRange {
                 if (statsFilter.hasStartDate() != statsFilter.hasEndDate()) {
                     throw new IllegalArgumentException(
                             "Either start and end times must both be provided or neither must be.");
+                } else if (statsFilter.getStartDate() > statsFilter.getEndDate()) {
+                    throw new IllegalArgumentException("Invalid date range for retrieving statistics: StartDate > EndDate.");
                 }
 
                 // we can only deal with a single specified cluster id
