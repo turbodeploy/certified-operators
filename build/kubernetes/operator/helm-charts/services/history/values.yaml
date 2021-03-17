@@ -34,8 +34,6 @@ env:
     value: kafka:9092
   - name: logging.level.com.vmturbo.history
     value: info
-  - name: grpcMaxMessageBytes
-    value: 1048576000
 
 resources:
   limits:
