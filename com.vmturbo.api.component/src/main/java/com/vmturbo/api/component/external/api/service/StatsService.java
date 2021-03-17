@@ -289,6 +289,10 @@ public class StatsService implements IStatsService {
             inputDto = getDefaultStatPeriodApiInputDto();
         }
 
+        // sanitize start and end date in input dto
+        StatsUtils.sanitizeStartDateOrEndDate(inputDto, clock.millis(),
+                liveStatsRetrievalWindow.toMillis());
+
         return statsQueryExecutor.getAggregateStats(apiId, inputDto);
     }
 

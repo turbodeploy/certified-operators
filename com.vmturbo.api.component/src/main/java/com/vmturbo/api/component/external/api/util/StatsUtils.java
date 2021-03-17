@@ -196,6 +196,9 @@ public class StatsUtils {
             // if none of startDate, endDate is null, there is no need to modify anything
             startTime = DateTimeUtil.parseTime(period.getStartDate());
             endTime = DateTimeUtil.parseTime(period.getEndDate());
+            if (startTime>endTime) {
+                throw new IllegalArgumentException("Invalid date range for retrieving statistics: StartDate > EndDate.");
+            }
         }
 
         // modify input dto

@@ -175,6 +175,21 @@ public class StatsUtilsTest {
     }
 
     /**
+     * Test that if only the end date is provided and it is in the future, then the start date is
+     * set to now.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testSanitizeStartDateOrEndDateWithStartDateGreaterThanEndDate()
+            throws IllegalArgumentException{
+        long currentTime = new Date().getTime();
+        // set end date to 1 day in the future
+        long endTime = currentTime - ONE_DAY_IN_MILLIS;
+        StatScopesApiInputDTO inputDto =
+                getInputDtoAfterSanitizeStartDateOrEndDateWithCustomDates(
+                        currentTime, null, Long.toString(endTime));
+    }
+
+    /**
      * Creates a StatScopesApiInputDTO with the times provided, executes processRequest() verifying
      * how many times runHistoricalStatsRequest() and runProjectedStatsRequest() were invoked, and
      * returns the dto in order to provide a way to the caller function to check if the dates
@@ -186,7 +201,7 @@ public class StatsUtilsTest {
      * @return the StatScopesApiInputDTO (with the dates possibly altered by processRequest()).
      */
     private StatScopesApiInputDTO getInputDtoAfterSanitizeStartDateOrEndDateWithCustomDates(
-            long currentTime, String startTime, String endTime) {
+            long currentTime, String startTime, String endTime) throws IllegalArgumentException {
         StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
         StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
         period.setStartDate(startTime);
