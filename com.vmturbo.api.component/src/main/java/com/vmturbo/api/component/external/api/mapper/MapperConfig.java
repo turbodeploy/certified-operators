@@ -465,7 +465,7 @@ public class MapperConfig {
     @Bean
     protected ContainerPlatformContextAspectMapper cloudNativeAspectMapper() {
         return new ContainerPlatformContextAspectMapper(communicationConfig.supplyChainRpcService(),
-                communicationConfig.repositoryApi(), communicationConfig.getRealtimeTopologyContextId());
+                communicationConfig.repositoryRpcService(), communicationConfig.getRealtimeTopologyContextId());
     }
 
     /**
