@@ -6,6 +6,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -35,6 +36,7 @@ import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.common.protobuf.ImmutablePaginatedResults;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
@@ -71,13 +73,14 @@ public class TopologyGraphSearchRpcServiceTest {
 
     private LiveTopologyStore liveTopologyStore = mock(LiveTopologyStore.class);
     private LiveTopologyPaginator liveTopologyPaginator = mock(LiveTopologyPaginator.class);
+    private TagsPaginator tagsPaginator = mock(TagsPaginator.class);
 
     private PartialEntityConverter partialEntityConverter = new PartialEntityConverter(
             liveTopologyStore);
     private UserSessionContext userSessionContext = mock(UserSessionContext.class);
 
     private TopologyGraphSearchRpcService topologyGraphSearchRpcService1 = new TopologyGraphSearchRpcService(liveTopologyStore,
-            liveTopologyPaginator, partialEntityConverter, userSessionContext,
+            liveTopologyPaginator, tagsPaginator, partialEntityConverter, userSessionContext,
             1, 1, 1, TimeUnit.MINUTES);
 
     /**
@@ -112,6 +115,13 @@ public class TopologyGraphSearchRpcServiceTest {
                 e.forEach(bldr::addNextPageEntities);
                 return bldr.build();
             });
+        when(tagsPaginator.paginate(any(), any())).thenAnswer(invocation -> {
+            List<Map.Entry<String, Set<String>>> e = invocation.getArgumentAt(0, List.class);
+            ImmutablePaginatedResults.Builder bldr = ImmutablePaginatedResults.builder()
+                    .paginationResponse(PaginationResponse.getDefaultInstance());
+            e.forEach(bldr::addNextPageEntities);
+            return bldr.build();
+        });
     }
 
     /**
@@ -192,7 +202,6 @@ public class TopologyGraphSearchRpcServiceTest {
             .addSearchFilter(SearchProtoUtil.searchFilterProperty(SearchProtoUtil.idFilter(entityOids))).build()));
     }
 
-
     private void testTags(SearchTagsRequest request, LongSet expectedMatchedEntities, RepoGraphEntity... entities) {
         SourceRealtimeTopology topology = mock(SourceRealtimeTopology.class);
         when(liveTopologyStore.getSourceTopology()).thenReturn(Optional.of(topology));
@@ -247,6 +256,39 @@ public class TopologyGraphSearchRpcServiceTest {
         expectedMatched.add(e1.getOid());
         expectedMatched.add(e2.getOid());
         testTags(request, expectedMatched, e1, e2);
+    }
+
+    /**
+     * Test getTags with pagination limit.
+     */
+    @Test
+    public void testPaginatedTags() {
+        final SearchTagsRequest request = SearchTagsRequest.newBuilder()
+                .setPaginationParams(PaginationParameters.newBuilder()
+                        .setLimit(1).build())
+                .build();
+
+        RepoGraphEntity e1 = createEntity(1, ApiEntityType.VIRTUAL_MACHINE, EnvironmentType.CLOUD);
+        RepoGraphEntity e2 = createEntity(2, ApiEntityType.VIRTUAL_MACHINE, EnvironmentType.CLOUD);
+        List<RepoGraphEntity> entities = Arrays.asList(e1, e2);
+
+        SourceRealtimeTopology topology = mock(SourceRealtimeTopology.class);
+        when(liveTopologyStore.getSourceTopology()).thenReturn(Optional.of(topology));
+
+        TopologyGraph<RepoGraphEntity> graph = mock(TopologyGraph.class);
+        when(graph.entities()).thenReturn(entities.stream());
+        for (RepoGraphEntity e : entities) {
+            when(graph.getEntity(e.getOid())).thenReturn(Optional.of(e));
+        }
+        when(topology.entityGraph()).thenReturn(graph);
+
+        DefaultTagIndex mockTags = mock(DefaultTagIndex.class);
+        Map<String, Set<String>> expectedResponse = Collections.singletonMap("foo", Collections.singleton("bar"));
+        when(mockTags.getTagsForEntities(any())).thenReturn(expectedResponse);
+        when(topology.globalTags()).thenReturn(mockTags);
+
+        final SearchTagsResponse searchTagsResponse = serviceClient.searchTags(request);
+        verify(tagsPaginator, times(1)).paginate(any(), any());
     }
 
     /**

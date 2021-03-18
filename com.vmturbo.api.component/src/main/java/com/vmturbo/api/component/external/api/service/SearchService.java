@@ -1194,7 +1194,7 @@ public class SearchService implements ISearchService {
             });
         } else {
             // retrieve relevant tags from the tags service
-            final List<TagApiDTO> tags = tagsService.getTags(scopes, entityType, envType);
+            final List<TagApiDTO> tags = tagsService.getTags(scopes, entityType, envType, null).getList();
 
             // convert into a map
             final Map<String, List<TagApiDTO>> tagsAsMap =

@@ -74,6 +74,7 @@ import com.vmturbo.repository.service.EntityConstraintsRpcService;
 import com.vmturbo.repository.service.LiveTopologyPaginator;
 import com.vmturbo.repository.service.PlanStatsService;
 import com.vmturbo.repository.service.SupplyChainStatistician;
+import com.vmturbo.repository.service.TagsPaginator;
 import com.vmturbo.repository.service.TopologyGraphRepositoryRpcService;
 import com.vmturbo.repository.service.TopologyGraphSearchRpcService;
 import com.vmturbo.repository.service.TopologyGraphSupplyChainRpcService;
@@ -150,6 +151,12 @@ public class RepositoryComponent extends BaseVmtComponent {
 
     @Value("${repositorySearchPaginationMaxLimit:500}")
     private int repositorySearchPaginationMaxLimit;
+
+    @Value("${repositoryTagPaginationDefaultLimit:300}")
+    private int repositoryTagPaginationDefaultLimit;
+
+    @Value("${repositoryTagPaginationMaxLimit:500}")
+    private int repositoryTagPaginationMaxLimit;
 
     @Value("${repositoryEntityPaginationDefaultLimit:100}")
     private int repositoryEntityPaginationDefaultLimit;
@@ -265,10 +272,15 @@ public class RepositoryComponent extends BaseVmtComponent {
     }
 
     @Bean
+    public TagsPaginator tagsPaginator() {
+        return new TagsPaginator(repositoryTagPaginationDefaultLimit,
+            repositoryTagPaginationMaxLimit);
+    }
+
+    @Bean
     public SearchServiceImplBase searchRpcService() {
         return new TopologyGraphSearchRpcService(repositoryComponentConfig.liveTopologyStore(),
-            liveTopologyPaginator(),
-            repositoryComponentConfig.partialEntityConverter(),
+            liveTopologyPaginator(), tagsPaginator(), repositoryComponentConfig.partialEntityConverter(),
             userSessionConfig.userSessionContext(),
             maxEntitiesPerChunk,
             concurrentSearchLimit,

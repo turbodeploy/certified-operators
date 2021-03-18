@@ -1,5 +1,6 @@
 package com.vmturbo.repository.service;
 
+import static java.util.stream.Collectors.toMap;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -82,6 +83,8 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
 
     private final LiveTopologyPaginator liveTopologyPaginator;
 
+    private final TagsPaginator tagsPaginator;
+
     private final PartialEntityConverter partialEntityConverter;
 
     private final int maxEntitiesPerChunk;
@@ -92,9 +95,9 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
 
     /**
      * Constructor.
-     *
-     * @param liveTopologyStore Provides access to live topologies.
+     *  @param liveTopologyStore Provides access to live topologies.
      * @param liveTopologyPaginator Helper class to paginate results.
+     * @param tagsPaginator
      * @param partialEntityConverter Converts entities to {@link PartialEntity} objects.
      * @param userSessionContext To enforce user scope.
      * @param maxEntitiesPerChunk Maximum entities in a single response message in a stream.
@@ -103,15 +106,17 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
      * @param concurrentSearchTimeUnit Time unit for the timeout.
      */
     public TopologyGraphSearchRpcService(@Nonnull final LiveTopologyStore liveTopologyStore,
-                         @Nonnull final LiveTopologyPaginator liveTopologyPaginator,
-                         @Nonnull final PartialEntityConverter partialEntityConverter,
-                         @Nonnull final UserSessionContext userSessionContext,
-                         final int maxEntitiesPerChunk,
-                         final int maxConcurrentSearches,
-                         final long concurrentSearchTimeout,
-                         @Nonnull final TimeUnit concurrentSearchTimeUnit) {
+            @Nonnull final LiveTopologyPaginator liveTopologyPaginator,
+            @Nonnull TagsPaginator tagsPaginator,
+            @Nonnull final PartialEntityConverter partialEntityConverter,
+            @Nonnull final UserSessionContext userSessionContext,
+            final int maxEntitiesPerChunk,
+            final int maxConcurrentSearches,
+            final long concurrentSearchTimeout,
+            @Nonnull final TimeUnit concurrentSearchTimeUnit) {
         this.liveTopologyStore = Objects.requireNonNull(liveTopologyStore);
         this.liveTopologyPaginator = Objects.requireNonNull(liveTopologyPaginator);
+        this.tagsPaginator = Objects.requireNonNull(tagsPaginator);
         this.partialEntityConverter = Objects.requireNonNull(partialEntityConverter);
         this.maxEntitiesPerChunk = maxEntitiesPerChunk;
         this.gatedSearchResolver = new GatedSearchResolver(liveTopologyStore,
@@ -332,7 +337,9 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
     }
 
     /**
-     * Request tags from the repository.  Currently, no pagination is supported, for simplicity.
+     * Request tags from the repository.  Response can be
+     * paginated depending on the presence of request
+     * pagination params.
      *
      * @param request the request.
      * @param responseObserver a stream observer that contains the result.
@@ -347,6 +354,14 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
             responseObserver.onNext(SearchTagsResponse.getDefaultInstance());
             responseObserver.onCompleted();
             return;
+        }
+
+        try {
+            PaginationProtoUtil.validatePaginationParams(request.getPaginationParams());
+        } catch (IllegalArgumentException e) {
+            responseObserver.onError(Status.INVALID_ARGUMENT
+                .withDescription(e.getMessage()).asException());
+            responseObserver.onCompleted();
         }
 
         final SourceRealtimeTopology topology = liveTopologyStore.getSourceTopology().get();
@@ -396,23 +411,37 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
             .filter(environmentTypeFilter)
             .filter(accessFilter)
             .forEach(e -> targetEntities.add(e.getOid()));
-        final Map<String, Set<String>> resultWithSetsOfValues =
-            topology.globalTags().getTagsForEntities(targetEntities);
 
+        final List<Map.Entry<String, Set<String>>> allResultWithSetsOfValues =
+            topology.globalTags().getTagsForEntities(targetEntities).entrySet().stream()
+                .collect(Collectors.toList());
 
-        Tracing.log(() -> "Got " + resultWithSetsOfValues.size() + " tag results");
+        Tracing.log(() -> "Got " + allResultWithSetsOfValues.size() + " tag results");
 
         final Tags.Builder tagsBuilder = Tags.newBuilder();
-        resultWithSetsOfValues.forEach((key, values) -> {
+
+        final SearchTagsResponse.Builder searchTagsResponseBuilder = SearchTagsResponse.newBuilder();
+        List<Map.Entry<String, Set<String>>> resultWithSetsOfValues;
+        if (request.hasPaginationParams()) {
+            PaginatedResults<Map.Entry<String, Set<String>>> paginatedResults = tagsPaginator.paginate(allResultWithSetsOfValues, request.getPaginationParams());
+
+            Tracing.log(() -> "Completed search and pagination. Got page with " + paginatedResults.nextPageEntities().size() + "entities.");
+
+            searchTagsResponseBuilder.setPaginationResponse(paginatedResults.paginationResponse());
+            resultWithSetsOfValues = paginatedResults.nextPageEntities();
+        } else {
+            resultWithSetsOfValues = allResultWithSetsOfValues;
+        }
+
+        resultWithSetsOfValues.forEach( entry -> {
             TagValuesDTO tagVals = TagValuesDTO.newBuilder()
-                .addAllValues(values)
+                .addAllValues(entry.getValue())
                 .build();
-            tagsBuilder.putTags(key, tagVals);
+            tagsBuilder.putTags(entry.getKey(), tagVals);
         });
 
-        responseObserver.onNext(SearchTagsResponse.newBuilder()
-            .setTags(tagsBuilder)
-            .build());
+        responseObserver.onNext(searchTagsResponseBuilder.setTags(tagsBuilder).build());
+
         responseObserver.onCompleted();
     }
 
@@ -551,7 +580,7 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
         // if query has return type, load the child entities into the map
         if (query.hasReturnType()) {
             response.putAllEntities(allChildren.stream()
-                    .collect(Collectors.toMap(RepoGraphEntity::getOid,
+                    .collect(toMap(RepoGraphEntity::getOid,
                             entity -> partialEntityConverter.createPartialEntity(entity.getTopologyEntity(), query.getReturnType()))));
         }
 

@@ -370,6 +370,9 @@ message SearchTagsRequest {
 
     // environment type of entities to restrict search to
     optional common.EnvironmentType environmentType = 3;
+    // if pagination_params is not set, then the backend
+    // will return all results.
+    optional common.PaginationParameters pagination_params = 4;
 }
 
 // response to a SearchTagsRequest

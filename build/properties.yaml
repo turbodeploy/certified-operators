@@ -266,6 +266,8 @@ defaultProperties:
     repository:
         repositorySearchPaginationDefaultLimit: 100
         repositorySearchPaginationMaxLimit: 500
+        repositoryTagPaginationDefaultLimit: 300
+        repositoryTagPaginationMaxLimit: 500
         repositoryEntityStatsPaginationDefaultLimit: 100
         repositoryEntityStatsPaginationMaxLimit: 300
         repositoryEntityPaginationDefaultLimit: 20
