@@ -99,6 +99,40 @@ public class SavingsCalculatorTest {
     }
 
     /**
+     * Verify the updated flag on the state object is set correctly.
+     *
+     * @throws FileNotFoundException if the events file is missing.
+     */
+    @Test
+    public void testUpdateFlag() throws FileNotFoundException {
+        // Add events
+        EntityEventsJournal eventsJournal = new InMemoryEntityEventsJournal();
+        addTestEvents("src/test/resources/savings/alg2-test.json", eventsJournal);
+
+        long entityUpdatedInLastPeriod = 5555555L;
+        EntityState stateFromLastPeriod = new EntityState(entityUpdatedInLastPeriod);
+        Map<Long, EntityState> entityStates = new HashMap<>();
+        entityStates.put(entityUpdatedInLastPeriod, stateFromLastPeriod);
+
+        // Run the algorithm. Run a single period of one hour
+        SavingsCalculator savingsCalculator = new SavingsCalculator();
+        savingsCalculator.calculate(entityStates, eventsJournal.removeAllEvents(), 0, 3600000L);
+
+        // Verify the results
+        Assert.assertEquals(2, entityStates.size());
+        entityStates.values().forEach(state -> {
+            if (state.getEntityId() == 74766790688767L) {
+                // the state of the entity associated with the event from the journal should be marked updated
+                Assert.assertTrue(state.isUpdated());
+            } else if (state.getEntityId() == entityUpdatedInLastPeriod) {
+                Assert.assertFalse(state.isUpdated());
+            } else {
+                Assert.fail("Unexpected entity ID");
+            }
+        });
+    }
+
+    /**
      * Round the indicated time up or down to the nearest top of the hour.
      *
      * @param time time in ms to round
