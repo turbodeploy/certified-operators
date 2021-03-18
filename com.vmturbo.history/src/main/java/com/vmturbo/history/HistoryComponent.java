@@ -91,6 +91,16 @@ public class HistoryComponent extends BaseVmtComponent {
     @Value("${migrationLocation:}")
     private String migrationLocation;
 
+    /**
+     * Implicitly overrides default value for history component gRPC server parameter. This
+     * parameter is using in com.vmturbo.components.api.grpc.ComponentGrpcServer#start(org.springframework.core.env.ConfigurableEnvironment).
+     * By default most of the components are using significantly lower max message size. History
+     * requires big max message size because of multiple gRPC functions which should pass big data,
+     * e.g. percentile.
+     */
+    @Value("${grpcMaxMessageBytes:1048576000}")
+    private int grpcMaxMessageBytes;
+
     @PostConstruct
     private void setup() {
     }
