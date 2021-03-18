@@ -139,6 +139,10 @@ public class EntitySavingsTracker {
 
                 // Get states for these entities from the state map (if they exist).
                 Map<Long, EntityState> entityStates = entityStateStore.getEntityStates(entityIds);
+                entityStates.putAll(entityStateStore.getUpdatedEntityStates());
+
+                // Clear the updated_by_event flags
+                entityStateStore.clearUpdatedFlags();
 
                 // Invoke calculator
                 savingsCalculator.calculate(entityStates, events, startTime, endTime);

@@ -68,6 +68,13 @@ public class EntityState {
      */
     private Double missedInvestments;
 
+    /**
+     * Boolean flag to indicate this state was updated as a result of an event.
+     * The flag is used to indicate that this state will need to be processed again in the next
+     * period even if there will be no events detected for this entity in the next period.
+     */
+    private transient boolean updated;
+
     EntityState(long entityId) {
         this.entityId = entityId;
         this.deletePending = false;
@@ -145,6 +152,14 @@ public class EntityState {
 
     public void setMissedInvestments(final Double missedInvestments) {
         this.missedInvestments = missedInvestments;
+    }
+
+    public boolean isUpdated() {
+        return updated;
+    }
+
+    public void setUpdated(final boolean updated) {
+        this.updated = updated;
     }
 
     private static Gson createGson() {

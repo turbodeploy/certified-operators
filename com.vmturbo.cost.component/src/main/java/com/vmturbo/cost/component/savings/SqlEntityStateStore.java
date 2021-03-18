@@ -61,6 +61,33 @@ public class SqlEntityStateStore implements EntityStateStore {
     }
 
     @Override
+    public Map<Long, EntityState> getUpdatedEntityStates() throws EntitySavingsException {
+        final Result<Record2<Long, String>> records;
+        try {
+            records = dsl.select(ENTITY_SAVINGS_STATE.ENTITY_OID, ENTITY_SAVINGS_STATE.ENTITY_STATE)
+                    .from(ENTITY_SAVINGS_STATE)
+                    .where(ENTITY_SAVINGS_STATE.UPDATED.eq((byte)1))
+                    .fetch();
+            return records.stream().collect(Collectors.toMap(Record2::value1,
+                    record -> EntityState.fromJson(record.value2())));
+        } catch (DataAccessException e) {
+            throw new EntitySavingsException("Error occurred when getting entity states from database.", e);
+        }
+    }
+
+    @Override
+    public void clearUpdatedFlags() throws EntitySavingsException {
+        try {
+            dsl.update(ENTITY_SAVINGS_STATE)
+                    .set(ENTITY_SAVINGS_STATE.UPDATED, (byte)0)
+                    .where(ENTITY_SAVINGS_STATE.UPDATED.eq((byte)1))
+                    .execute();
+        } catch (DataAccessException e) {
+            throw new EntitySavingsException("Error occurred when getting entity states from database.", e);
+        }
+    }
+
+    @Override
     public void deleteEntityStates(@Nonnull final Set<Long> entityIds) throws EntitySavingsException {
         try {
             dsl.deleteFrom(ENTITY_SAVINGS_STATE)
@@ -77,6 +104,7 @@ public class SqlEntityStateStore implements EntityStateStore {
         entityStateMap.values().forEach(entityState -> {
             EntitySavingsStateRecord record = ENTITY_SAVINGS_STATE.newRecord();
             record.setEntityOid(entityState.getEntityId());
+            record.setUpdated(entityState.isUpdated() ? (byte)1 : (byte)0);
             record.setEntityState(entityState.toJson());
             records.add(record);
         });
@@ -87,6 +115,7 @@ public class SqlEntityStateStore implements EntityStateStore {
                     .onDuplicateKeyUpdate()
                     .loadRecords(records)
                     .fields(ENTITY_SAVINGS_STATE.ENTITY_OID,
+                            ENTITY_SAVINGS_STATE.UPDATED,
                             ENTITY_SAVINGS_STATE.ENTITY_STATE)
                     .execute();
         } catch (IOException e) {

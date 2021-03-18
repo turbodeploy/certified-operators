@@ -1,6 +1,7 @@
 package com.vmturbo.cost.component.savings;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 
 import java.util.ArrayList;
@@ -103,6 +104,25 @@ public class SqlEntityStateStoreTest {
         List<EntityState> stateList = new ArrayList<>();
         store.getAllEntityStates().forEach(stateList::add);
         assertEquals(9, stateList.size());
+
+        // Get all states with the updated flag = 1.
+        Map<Long, EntityState> updated = store.getUpdatedEntityStates();
+        assertEquals(0, updated.size());
+        EntityState updatedState = createState(12L);
+        updatedState.setUpdated(true);
+        stateSetToUpdate = new HashSet<>();
+        stateSetToUpdate.add(updatedState);
+        store.updateEntityStates(stateSetToUpdate.stream().collect(Collectors.toMap(EntityState::getEntityId, Function.identity())));
+        updated = store.getUpdatedEntityStates();
+        assertEquals(1, updated.size());
+        // the updated flag should not be serialized with the state object, so state is false
+        // when deserializing the state.
+        updated.values().forEach(state -> assertFalse(state.isUpdated()));
+
+        // Clear the updated flags
+        store.clearUpdatedFlags();
+        updated = store.getUpdatedEntityStates();
+        assertEquals(0, updated.size());
     }
 
     /**

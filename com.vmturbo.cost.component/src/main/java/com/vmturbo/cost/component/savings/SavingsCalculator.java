@@ -1,7 +1,9 @@
 package com.vmturbo.cost.component.savings;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -62,11 +64,12 @@ class SavingsCalculator {
      *
      * @param algorithmState algorithm state
      * @param entityStates map of entity states currently being tracked
+     * @param entitiesWithEvents set of OIDs of entities that have an associated event in this period
      * @param periodStartTime timestamp of the start of the calculcation period
      * @param periodEndTime timestamp of the enf of the calculcation period
      */
-    public void updateEntityState(Algorithm algorithmState,
-            @Nonnull Map<Long, EntityState> entityStates,
+    private void updateEntityState(Algorithm algorithmState,
+            @Nonnull Map<Long, EntityState> entityStates, Set<Long> entitiesWithEvents,
             long periodStartTime, long periodEndTime) {
         // Check for an existing entity state. The state will not exist if this is newly-tracked.
         Long entityOid = algorithmState.getEntityOid();
@@ -79,6 +82,7 @@ class SavingsCalculator {
         entityState.setActionList(algorithmState.getActionList());
         entityState.setCurrentRecommendation(algorithmState.getCurrentRecommendation());
         entityState.setDeletePending(algorithmState.getDeletePending());
+        entityState.setUpdated(entitiesWithEvents.contains(entityOid));
         long periodLength = periodEndTime - periodStartTime;
         if (periodLength <= 0) {
             logger.warn("Period start time {} is the same as or after the end time {}",
@@ -122,8 +126,11 @@ class SavingsCalculator {
                 })
                 .collect(Collectors.toMap(Algorithm::getEntityOid, Function.identity()));
 
+        // Set of entity IDs of entities that have associated events
+        Set<Long> entitiesWithEvents = new HashSet<>();
+
         // Process the events
-         for (SavingsEvent event : events) {
+        for (SavingsEvent event : events) {
             long timestamp = event.getTimestamp();
             long entityId = event.getEntityId();
             if (event.hasActionEvent()) {
@@ -132,13 +139,14 @@ class SavingsCalculator {
             if (event.hasTopologyEvent()) {
                 handleTopologyEvent(states, timestamp, entityId, event);
             }
+            entitiesWithEvents.add(entityId);
         }
         // Close out the period and update the entity state.  This also creates new entity state
         // for newly-tracked entities.
         states.values()
                 .forEach(state -> {
                     state.endPeriod(periodStartTime, periodEndTime);
-                    updateEntityState(state, entityStates, periodStartTime, periodEndTime);
+                    updateEntityState(state, entityStates, entitiesWithEvents, periodStartTime, periodEndTime);
                 });
     }
 
