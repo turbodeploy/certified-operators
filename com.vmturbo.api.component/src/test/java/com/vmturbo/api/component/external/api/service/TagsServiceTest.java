@@ -25,6 +25,7 @@ import org.springframework.http.ResponseEntity;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
+import com.vmturbo.api.component.external.api.mapper.TagsPaginationMapper;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
@@ -50,6 +51,7 @@ public class TagsServiceTest {
     private final GroupExpander groupExpander = Mockito.mock(GroupExpander.class);
     private final RepositoryApi repositoryApi = Mockito.mock(RepositoryApi.class);
     private final PaginationMapper paginationMapper = Mockito.mock(PaginationMapper.class);
+    private final TagsPaginationMapper tagPaginationMapper = Mockito.mock(TagsPaginationMapper.class);
 
     /**
      * Testing gRPC server.
@@ -83,7 +85,7 @@ public class TagsServiceTest {
                 .thenReturn(EXPANDED_SCOPE);
         tagsService = new TagsService(SearchServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                                       repositoryApi,
-                                      groupExpander, paginationMapper);
+                                      groupExpander, paginationMapper, tagPaginationMapper);
     }
 
     /**
@@ -225,7 +227,7 @@ public class TagsServiceTest {
                                           @Nullable final String entityType,
                                           @Nullable final EnvironmentType envType)
             throws OperationFailedException {
-        tagsService.getTags(scope, entityType, envType);
+        tagsService.getTags(scope, entityType, envType, null);
         Mockito.verify(searchService).searchTags(searchTagsRequestArgumentCaptor.capture());
         return searchTagsRequestArgumentCaptor.getValue();
     }

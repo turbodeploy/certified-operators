@@ -236,6 +236,9 @@ public class MapperConfig {
     }
 
     @Bean
+    public TagsPaginationMapper tagsPaginationMapper() { return new TagsPaginationMapper();}
+
+    @Bean
     public StatsMapper statsMapper() {
         return new StatsMapper(paginationMapper());
     }

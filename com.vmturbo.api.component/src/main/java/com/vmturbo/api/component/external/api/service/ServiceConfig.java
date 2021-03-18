@@ -656,7 +656,8 @@ public class ServiceConfig {
                 communicationConfig.searchServiceBlockingStub(),
                 communicationConfig.repositoryApi(),
                 communicationConfig.groupExpander(),
-                mapperConfig.paginationMapper());
+                mapperConfig.paginationMapper(),
+                mapperConfig.tagsPaginationMapper());
     }
 
     @Bean

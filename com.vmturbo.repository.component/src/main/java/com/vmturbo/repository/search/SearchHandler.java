@@ -97,10 +97,9 @@ public class SearchHandler {
      *         one {@link TagValuesDTO} object represents a list of values.
      * @throws ArangoDBException database access failed.
      */
-    public Map<String, TagValuesDTO> searchTags(String dbName, SearchTagsRequest request)
-            throws ArangoDBException {
+    public Map<String, TagValuesDTO> searchTags(String dbName, SearchTagsRequest request) throws ArangoDBException {
         return executor.executeTagCommand(dbName, graphDefinition.getServiceEntityVertex(),
-                request);
+                    request);
     }
 
     /**

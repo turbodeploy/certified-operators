@@ -19,6 +19,7 @@ import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.isA;
+import static org.mockito.Matchers.isNull;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -56,6 +57,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
+import org.springframework.http.ResponseEntity;
 
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
@@ -100,6 +102,8 @@ import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.SearchOrderBy;
 import com.vmturbo.api.pagination.SearchPaginationRequest;
 import com.vmturbo.api.pagination.SearchPaginationRequest.SearchPaginationResponse;
+import com.vmturbo.api.pagination.TagPaginationRequest;
+import com.vmturbo.api.pagination.TagPaginationRequest.TagPaginationResponse;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.api.mappers.EnvironmentTypeMapper;
 import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
@@ -1537,7 +1541,9 @@ public class SearchServiceTest {
         tagsFromTagService[2] = new TagApiDTO();
         tagsFromTagService[2].setKey("2");
         tagsFromTagService[2].setValues(Collections.singletonList("Value6"));
-        Mockito.when(tagsService.getTags(any(), any(), any())).thenReturn(Arrays.asList(tagsFromTagService));
+        final TagPaginationRequest tagPaginationRequest = new TagPaginationRequest(null, null, true, null);
+        Mockito.when(tagsService.getTags(any(), any(), any(), isNull(TagPaginationRequest.class))).thenReturn(
+                tagPaginationRequest.allResultsResponse(Arrays.asList(tagsFromTagService)) );
 
         // retrieve search service response
         final List<CriteriaOptionApiDTO> result =

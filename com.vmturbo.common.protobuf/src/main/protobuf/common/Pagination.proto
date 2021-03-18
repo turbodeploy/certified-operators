@@ -37,6 +37,13 @@ message OrderBy {
         ENTITY_COST = 4;
     }
 
+    // The orderging parameters for tag requests.
+    // This should stay in sync with the Java Implementation.
+    // See: com.vmturbo.api.pagination.TagOrderBy
+    enum TagOrderBy {
+      KEY = 1;
+    }
+
     enum GroupOrderBy {
         GROUP_NAME = 1;
         GROUP_SEVERITY = 2;
@@ -55,6 +62,7 @@ message OrderBy {
         SearchOrderBy search = 2;
         EntityStatsOrderBy entity_stats = 3;
         GroupOrderBy group_search = 4;
+        TagOrderBy tag = 5;
     }
 }
 

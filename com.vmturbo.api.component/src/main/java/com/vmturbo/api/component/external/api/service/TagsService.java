@@ -1,6 +1,5 @@
 package com.vmturbo.api.component.external.api.service;
 
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -16,14 +15,19 @@ import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.TagsMapper;
+import com.vmturbo.api.component.external.api.mapper.TagsPaginationMapper;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.entity.TagApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
+import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.pagination.SearchPaginationRequest;
+import com.vmturbo.api.pagination.TagPaginationRequest.TagPaginationResponse;
+import com.vmturbo.api.pagination.TagPaginationRequest;
 import com.vmturbo.api.serviceinterfaces.ITagsService;
 import com.vmturbo.common.api.mappers.EnvironmentTypeMapper;
+import com.vmturbo.common.protobuf.PaginationProtoUtil;
 import com.vmturbo.common.protobuf.common.Pagination;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.MapFilter;
@@ -47,14 +51,17 @@ public class TagsService implements ITagsService {
     private final GroupExpander groupExpander;
     private final RepositoryApi repositoryApi;
     private final PaginationMapper paginationMapper;
+    private final TagsPaginationMapper tagsPaginationMapper;
 
     public TagsService(@Nonnull SearchServiceBlockingStub searchServiceBlockingStub,
             @Nonnull final RepositoryApi repositoryApi, @Nonnull GroupExpander groupExpander,
-            @Nonnull PaginationMapper paginationMapper) {
+            @Nonnull PaginationMapper paginationMapper,
+            @Nonnull TagsPaginationMapper tagsPaginationMapper) {
         this.searchServiceBlockingStub = searchServiceBlockingStub;
         this.repositoryApi = repositoryApi;
         this.groupExpander = groupExpander;
         this.paginationMapper = paginationMapper;
+        this.tagsPaginationMapper = tagsPaginationMapper;
     }
 
     /**
@@ -63,19 +70,22 @@ public class TagsService implements ITagsService {
      * @param scopes if not null, limit the search to the given scopes.
      * @param entityType if not null, limit the search to the given entity types.
      * @param envType if not null, limit the search to the given environment types.
+     * @param paginationRequest the {@link TagPaginationRequest}. If paginationRequest
+     *                          is null then full response is returned.
      * @return a list of all available tags in the live topology.
      * @throws Exception happens when the use of remote services fails.
      */
     @Override
-    public List<TagApiDTO> getTags(
+    public TagPaginationResponse getTags(
             @Nullable final List<String> scopes,
             @Nullable final String entityType,
-            @Nullable final EnvironmentType envType) throws OperationFailedException {
+            @Nullable final EnvironmentType envType,
+            @Nullable TagPaginationRequest paginationRequest) throws OperationFailedException {
 
         // We don't currently support tags on nested group types (e.g. clusters), so short-circuit
         // here.
         if (GroupsService.NESTED_GROUP_TYPES.contains(entityType)) {
-            return Collections.emptyList();
+            return paginationRequest.buildEmptyResponse();
         }
 
         // get relevant service ids using the group service membership endpoint
@@ -88,6 +98,12 @@ public class TagsService implements ITagsService {
         }
         if (entityType != null) {
             requestBuilder.setEntityType(ApiEntityType.fromString(entityType).typeNumber());
+        }
+
+        //Check to see if pagination is requested,
+        //else use legacy code path with no pagination for backwards compatibility.
+        if (paginationRequest != null) {
+             requestBuilder.setPaginationParams(tagsPaginationMapper.toProtoParams(paginationRequest));
         }
 
         // perform the search
@@ -117,8 +133,20 @@ public class TagsService implements ITagsService {
             throw new OperationFailedException(msgBuilder.toString(), e);
         }
 
-        // convert to desired format
-        return TagsMapper.convertTagsToApi(response.getTags().getTagsMap());
+        final Integer totalRecordCount = response.getPaginationResponse().getTotalRecordCount();
+        final List<TagApiDTO> tagApiDTOS = TagsMapper.convertTagsToApi(response.getTags().getTagsMap());
+
+        if (paginationRequest == null) {
+            try {
+                TagPaginationRequest tagPaginationRequest = new TagPaginationRequest();
+                return tagPaginationRequest.allResultsResponse(tagApiDTOS, false);
+            } catch (InvalidOperationException e) {
+                throw new OperationFailedException("Retrieval of tags failed.");
+            }
+        }
+        return PaginationProtoUtil.getNextCursor(response.getPaginationResponse())
+            .map(nextCursor -> paginationRequest.nextPageResponse(tagApiDTOS, nextCursor, totalRecordCount))
+            .orElseGet(() -> paginationRequest.finalPageResponse(tagApiDTOS, totalRecordCount));
     }
 
     /**
