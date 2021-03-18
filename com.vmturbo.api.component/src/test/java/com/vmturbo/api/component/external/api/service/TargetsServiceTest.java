@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.service;
 import static com.vmturbo.common.protobuf.utils.StringConstants.COMMUNICATION_BINDING_CHANNEL;
 import static junit.framework.TestCase.assertTrue;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.fail;
@@ -396,8 +397,8 @@ public class TargetsServiceTest {
     }
 
     /**
-     * Tests getting a target by id with invalid fields. This should be treated as internal
-     * server error, as is caused by data inconsustency.
+     * Tests getting a target by id with invalid fields. These may be fields that are no
+     * longer needed and should be ignored.
      *
      * @throws Exception on exceptions occur.
      */
@@ -411,11 +412,12 @@ public class TargetsServiceTest {
 
         final MvcResult result = mockMvc.perform(get("/targets/3").accept(MediaType
                 .APPLICATION_JSON_UTF8_VALUE))
-                        .andExpect(MockMvcResultMatchers.status().is5xxServerError()).andReturn();
-        final ErrorApiDTO resp = GSON.fromJson(result.getResponse().getContentAsString(),
-                ErrorApiDTO.class);
-        Assert.assertThat(resp.getMessage(),
-                CoreMatchers.containsString("AccountDef Entry not found"));
+                        .andExpect(MockMvcResultMatchers.status().isOk()).andReturn();
+        final TargetApiDTO resp = GSON.fromJson(result.getResponse().getContentAsString(),
+            TargetApiDTO.class);
+        Assert.assertThat(resp.getInputFields().size(), equalTo(2));
+        Assert.assertThat(resp.getInputFields().get(0).getName(), not(equalTo("field3")));
+        Assert.assertThat(resp.getInputFields().get(1).getName(), not(equalTo("field3")));
     }
 
     /**

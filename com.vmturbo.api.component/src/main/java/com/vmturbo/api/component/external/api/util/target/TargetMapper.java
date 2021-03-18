@@ -217,10 +217,8 @@ public class TargetMapper {
             // then there's something wrong with the configuration.
             final Set<String> errorFields = Sets.difference(accountValuesByName.keySet(), probeDefinedFields);
             if (!errorFields.isEmpty()) {
-                logger.error("AccountDefEntry not found for {} in probe with ID: {}",
+                logger.warn("AccountDefEntry not found for {} in probe with ID: {}",
                         errorFields, probeInfo.getId());
-                throw new RuntimeException("AccountDef Entry not found for "
-                        + errorFields + " in probe with id: " + probeInfo.getId());
             }
 
             targetApiDTO.setDisplayName(targetInfo.getDisplayName());
