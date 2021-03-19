@@ -610,11 +610,7 @@ public class SMAInput {
          * contexts.  Because Azure is platform flexible, templates are not distinguish by OS Type,
          * but use UNKNOWN_OS as place holder.
          */
-        Set<OSType> osTypes = computeOsTypes(computeTier);
-        Set<OSType> osTypesForContext = SMAUtils.UNKNOWN_OS_SINGLETON_SET;
-        if (csp != SMACSP.AZURE) {
-            osTypesForContext = osTypes;
-        }
+        Set<OSType> osTypes = CloudRateExtractor.OS_TYPE_MAP.inverse().keySet();
         for (OSType  osType : osTypes) {
             Set<SMAContext> contexts = regionIdToOsTypeToContexts.get(regionId, osType);
             if (CollectionUtils.isEmpty(contexts)) {
@@ -646,42 +642,19 @@ public class SMAInput {
                 for (long businessAccountId : contextToBusinessAccountIds.get(context)) {
                     if (csp == SMACSP.AZURE) {
                         // If Azure, because of platform flexible, have to iterate threw all the os types explicitly.
-                        for (OSType osTypeInner : osTypes) {
-                            if (osTypesInContext.contains(osTypeInner)) {
-                                updateTemplateRate(template, osTypeInner, context, businessAccountId,
+                        for (OSType osTypeInner : osTypesInContext) {
+                            updateTemplateRate(template, osTypeInner, context, businessAccountId,
                                     regionId, cloudCostData, cloudTopology);
-                            } else {
-                                logger.trace("processComputeTier: ID={} name={} no VMs with OSType={} in {}",
-                                    oid, name, osTypeInner, context);
-                            }
                         }
                     } else {
-                        if (osTypesForContext.contains(osType)) {
-                            updateTemplateRate(template, osType, context, businessAccountId,
+                        updateTemplateRate(template, osType, context, businessAccountId,
                                 regionId, cloudCostData, cloudTopology);
-                        } else {
-                            logger.trace("processComputeTier: ID={} name={} no VMs with OSType={} in {}",
-                                oid, name, osType, context);
-                        }
                     }
                 }
                 computeTierOidToContextToTemplate.put(oid, context, template);
             }
         }
         return true;
-    }
-
-    /**
-     * A computeTier may have commoditySold for multiple osTypes.  Find them all.
-     *
-     * @param entity  compute tier
-     * @return list of osTypes that are sold as commodities.
-     */
-    private Set<OSType> computeOsTypes(TopologyEntityDTO entity) {
-        return entity.getCommoditySoldListList().stream()
-                .filter(c -> c.getCommodityType().getType() == CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE)
-                .map(c -> CloudRateExtractor.OS_TYPE_MAP.getOrDefault(c.getCommodityType().getKey(), OSType.UNKNOWN_OS))
-                .collect(Collectors.toSet());
     }
 
     /**
@@ -1077,9 +1050,6 @@ public class SMAInput {
             currentRICoverage = computeVmCoverage(riCoverage, riBoughtOidToRI);
         } else {
             logger.error("processVirtualMachine: could not coverage VM ID={}", vmOid);
-        }
-        if (currentRICoverage == null) {
-            return null;
         }
         return currentRICoverage;
     }

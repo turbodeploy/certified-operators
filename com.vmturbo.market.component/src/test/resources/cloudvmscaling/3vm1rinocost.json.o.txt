@@ -12,7 +12,15 @@
         "discountedCoupons": 1
     },
     {
-         "virtualMachineOid": "2000003",
-         "templateOid": "100001"
+        "virtualMachineOid": "2000003",
+        "templateOid": "100001"
+    },
+    {
+        "virtualMachineOid": "2000004",
+        "templateOid": "100002"
+    },
+    {
+        "virtualMachineOid": "2000005",
+        "templateOid": "100004"
     }
 ]

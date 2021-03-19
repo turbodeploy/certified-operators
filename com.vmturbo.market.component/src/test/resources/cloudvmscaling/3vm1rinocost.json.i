@@ -41,9 +41,9 @@
             "groupSize": 1,
             "currentTemplateOid": "100001",
             "providersOid": [
-                 "100001",
-                 "100002",
-                 "100003"
+                "100001",
+                "100002",
+                "100003"
             ],
             "currentRIOID": "1000001"
         },
@@ -66,6 +66,44 @@
                 "100003"
             ],
             "currentRIOID": "0"
+        },
+        {
+            "oid": "2000004",
+            "name": "VM4",
+            "groupName": "",
+            "businessAccountId": "10",
+            "osType": "LINUX",
+            "zoneId": "21",
+            "providers": [],
+            "currentRICoverage": 0.0,
+            "groupProviders": [],
+            "minCostProviderPerFamily": {},
+            "groupSize": 1,
+            "currentTemplateOid": "100001",
+            "providersOid": [
+                "100002",
+                "100003"
+            ],
+            "currentRIOID": "0"
+        },
+        {
+            "oid": "2000005",
+            "name": "VM5",
+            "groupName": "",
+            "businessAccountId": "10",
+            "osType": "LINUX",
+            "zoneId": "21",
+            "providers": [],
+            "currentRICoverage": 0.0,
+            "groupProviders": [],
+            "minCostProviderPerFamily": {},
+            "groupSize": 1,
+            "currentTemplateOid": "100004",
+            "providersOid": [
+                "100001",
+                "100005"
+            ],
+            "currentRIOID": "0"
         }
     ],
     "reservedInstances": [
@@ -86,17 +124,15 @@
             "riCoveragePerGroup": {},
             "templateOid": "100001"
         }
-        ],
+    ],
     "templates": [
         {
             "oid": "100001",
             "name": "template1",
             "family": "family1",
             "coupons": 4.0,
-            "onDemandCosts": {
-            },
-            "discountedCosts": {
-            }
+            "onDemandCosts": {},
+            "discountedCosts": {}
         },
         {
             "oid": "100002",
@@ -141,6 +177,22 @@
                     }
                 }
             }
+        },
+        {
+            "oid": "100004",
+            "name": "template4",
+            "family": "family1",
+            "coupons": 16.0,
+            "onDemandCosts": {},
+            "discountedCosts": {}
+        },
+        {
+            "oid": "100005",
+            "name": "template5",
+            "family": "family1",
+            "coupons": 16.0,
+            "onDemandCosts": {},
+            "discountedCosts": {}
         }
     ]
 }

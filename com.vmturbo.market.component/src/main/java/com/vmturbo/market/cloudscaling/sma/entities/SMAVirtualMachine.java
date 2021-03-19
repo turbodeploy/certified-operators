@@ -293,12 +293,19 @@ public class SMAVirtualMachine {
             }
         } else {
             // If currentTemplate has no cost data then the VM cannot move.
+            // and currentTemplate is still valid template the vm can move to.
             // getOnDemandTotalCost returns Float.MAX_VALUE if there is no cost data.
             if (this.getCurrentTemplate() != null &&
-                    (this.getCurrentTemplate().getOnDemandTotalCost(getCostContext()) == Float.MAX_VALUE)) {
+                    providers.stream().anyMatch(p -> p.getOid() == this.getCurrentTemplate().getOid())
+                    && (this.getCurrentTemplate().getOnDemandTotalCost(getCostContext()) == Float.MAX_VALUE)) {
                 setGroupProviders(Arrays.asList(this.getCurrentTemplate()));
             } else {
                 setGroupProviders(providers);
+                // If the natural template is giving infinite quote then stay in the current template.
+                if (this.getNaturalTemplate() != null
+                        && (this.getNaturalTemplate().getOnDemandTotalCost(getCostContext()) == Float.MAX_VALUE)) {
+                    setGroupProviders(Arrays.asList(this.getCurrentTemplate()));
+                }
             }
         }
 
