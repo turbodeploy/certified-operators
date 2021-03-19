@@ -282,6 +282,7 @@ public class SMAInput {
                 logger.error(" no VM for context={}", context);
                 continue;
             }
+            smaVMs.removeIf(vm -> vm.getCurrentTemplate() == null);
             Set<SMAReservedInstance> smaRIs = smaContextToRIs.getOrDefault(context, Collections.emptySet());
             Set<SMATemplate> smaTemplates = smaContextToTemplates.get(context);
             if (ObjectUtils.isEmpty(smaTemplates)) {
