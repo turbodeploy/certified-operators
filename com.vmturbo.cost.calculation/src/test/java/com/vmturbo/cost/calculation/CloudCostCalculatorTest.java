@@ -21,6 +21,7 @@ import javax.annotation.Nullable;
 
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 
 import org.junit.Assert;
@@ -28,8 +29,15 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.CostProtoUtil;
+import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.cost.Pricing.DbServerTierOnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.DbTierOnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
@@ -62,6 +70,7 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DeploymentType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.LicenseModel;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList;
@@ -78,6 +87,7 @@ import com.vmturbo.platform.sdk.common.PricingDTO.Price;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price.Unit;
 import com.vmturbo.platform.sdk.common.PricingDTO.StorageTierPriceList;
 import com.vmturbo.platform.sdk.common.PricingDTO.StorageTierPriceList.StorageTierPrice;
+import com.vmturbo.trax.TraxNumber;
 
 /**
  * Unit tests for {@link CloudCostCalculator}.
@@ -104,6 +114,8 @@ public class CloudCostCalculatorTest {
 
     private static final NetworkConfig networkConfig = mock(NetworkConfig.class);
     private static final long ACCOUNT_PRICING_DATA_OID = 15L;
+    private static final long RI_ID = 100L;
+    private static final Long RI_SPEC_ID = 101L;
 
     private final ComputeConfig computeConfig = new ComputeConfig(OSType.WINDOWS, Tenancy.DEFAULT,
             VMBillingType.RESERVED, 4, EntityDTO.LicenseModel.LICENSE_INCLUDED);
@@ -301,6 +313,88 @@ public class CloudCostCalculatorTest {
                         + EXPECTED_IP_COST ), 0.0001F); // IP
 
 
+    }
+
+    @Test
+    public void testCalculateOnDemandCostForComputeWithRIAndUptime() {
+        DiscountApplicator<TestEntityClass> discountApplicator = setupDiscountApplicator(0.0);
+        when(discountApplicator.getDiscountPercentage(computeTier.getId())).thenReturn(trax(0D));
+        final float entityDiscountMultiplier = 0.2f;
+        TestEntityClass linuxVM = createVmTestEntity(DEFAULT_VM_ID, OSType.LINUX, Tenancy.DEFAULT,
+                VMBillingType.ONDEMAND, 4,
+                EntityDTO.LicenseModel.LICENSE_INCLUDED);
+
+        AccountPricingData accountPricingData = new AccountPricingData(discountApplicator, PRICE_TABLE,
+                15L, 20L, businessAccount.getId());
+        final ComputeTierConfig computeTierConfig = ComputeTierConfig.builder()
+                .computeTierOid(computeTier.getId())
+                .numCores(4)
+                .numCoupons(10)
+                .isBurstableCPU(false)
+                .build();
+        when(infoExtractor.getComputeTierConfig(computeTier)).thenReturn(Optional.of(computeTierConfig));
+
+        Map<Long, AccountPricingData> accountPricingDataByBusinessAccount = new HashMap<>();
+        accountPricingDataByBusinessAccount.put(businessAccount.getId(), accountPricingData);
+        CloudCostData cloudCostData = new CloudCostData(Collections.emptyMap(), Collections.emptyMap(),
+                ImmutableMap.of (RI_ID, ReservedInstanceBought.newBuilder()
+                        .setId(RI_ID)
+                        .setReservedInstanceBoughtInfo(ReservedInstanceBoughtInfo.newBuilder()
+                                                    .setNumBought(10).setBusinessAccountId(businessAccount.getId())
+                                                    .setReservedInstanceSpec(RI_SPEC_ID)
+                                                    .setReservedInstanceBoughtCost(ReservedInstanceBoughtCost.newBuilder()
+                                                            .setRecurringCostPerHour(CurrencyAmount.newBuilder().setAmount(0).build())
+                                                            .setUsageCostPerHour(CurrencyAmount.newBuilder().setAmount(0).build())
+                                                            .setFixedCost(CurrencyAmount.newBuilder().setAmount(0).build()).build())
+                                                    .setReservedInstanceBoughtCoupons(ReservedInstanceBoughtCoupons.newBuilder()
+                                                            .setNumberOfCoupons(10).setNumberOfCouponsUsed(10).build()).build()).build()),
+                ImmutableMap.of (RI_SPEC_ID, ReservedInstanceSpec.newBuilder().setId(RI_SPEC_ID)
+                        .setReservedInstanceSpecInfo(ReservedInstanceSpecInfo.newBuilder()
+                                .setTierId(computeTier.getId())
+                                .setType(ReservedInstanceType.newBuilder().setTermYears(1).build()).build()).build())
+                , Collections.emptyMap(), accountPricingDataByBusinessAccount, new HashMap<>(), Optional.empty());
+
+        cloudCostData.entityUptimePercentageByEntityId.put(DEFAULT_VM_ID, 80D);
+        when(topology.getConnectedRegion(DEFAULT_VM_ID)).thenReturn(Optional.of(region));
+        when(topology.getOwner(DEFAULT_VM_ID)).thenReturn(Optional.of(businessAccount));
+        when(topology.getStorageTier(DEFAULT_VM_ID)).thenReturn(Optional.of(storageTier));
+        when(topology.getComputeTier(DEFAULT_VM_ID)).thenReturn(Optional.of(computeTier));
+
+        final TestEntityClass volume = TestEntityClass.newBuilder(123)
+                .setType(EntityType.VIRTUAL_VOLUME_VALUE)
+                .build(infoExtractor);
+        when(topology.getAttachedVolumes(DEFAULT_VM_ID)).thenReturn(Collections.singletonList(volume));
+        when(topology.getOwner(123)).thenReturn(Optional.of(businessAccount));
+        when(topology.getConnectedRegion(123)).thenReturn(Optional.of(region));
+        when(topology.getConnectedAvailabilityZone(123)).thenReturn(Optional.of(availabilityZone));
+
+        // Configure ReservedInstanceApplicator to give 0 coverage
+        topologyRiCoverage.put(linuxVM.getId(), EntityReservedInstanceCoverage.newBuilder().putCouponsCoveredByRi(RI_ID, 10)
+                                                .setEntityId(linuxVM.getId()).setEntityCouponCapacity(10).build());
+        final CostJournal<TestEntityClass> volumeJournal =
+                CostJournal.newBuilder(volume, infoExtractor, region, discountApplicator, e2 -> null)
+                        // Just a mock price that's easy to work with.
+                        .recordOnDemandCost(CostCategory.STORAGE, storageTier, Price.newBuilder()
+                                .setUnit(Unit.HOURS)
+                                .setPriceAmount(CurrencyAmount.newBuilder()
+                                        .setAmount(5))
+                                .build(), trax(1))
+                        .build();
+        // The cost lookup will tell the VM's cost journal what the cost journal of the volume
+        // looks like.
+        final DependentCostLookup<TestEntityClass> volumeCostLookup = e -> volumeJournal;
+        final CloudCostCalculator<TestEntityClass> calculator =
+                calculatorFactory.newCalculator(cloudCostData, topology, infoExtractor,
+                        ReservedInstanceApplicator.newFactory(),
+                        volumeCostLookup, topologyRiCoverage);
+
+        final CostJournal<TestEntityClass> vmJournal = calculator.calculateCost(linuxVM);
+
+        // The cost of the RI isn't factored in because we mocked out the RI Applicator.
+        Assert.assertEquals(0 // 100 % coverage
+                        + 5 // storage
+                        + EXPECTED_IP_COST,
+                        vmJournal.getTotalHourlyCost().getValue(), 0.0001F);
     }
 
     @Test
@@ -1057,7 +1151,8 @@ public class CloudCostCalculatorTest {
      *
      * @return The cloud cost data object.
      */
-    private CloudCostData createCloudCostDataWithAccountPricingTable(Long baOid, AccountPricingData accountPricingData) {
+    private CloudCostData createCloudCostDataWithAccountPricingTable(Long baOid,
+                                                                     AccountPricingData accountPricingData) {
         Map<Long, AccountPricingData> accountPricingDataByBusinessAccount = new HashMap<>();
         accountPricingDataByBusinessAccount.put(baOid, accountPricingData);
         return new CloudCostData(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
