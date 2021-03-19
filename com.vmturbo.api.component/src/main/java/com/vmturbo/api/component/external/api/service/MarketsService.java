@@ -21,6 +21,8 @@ import java.util.stream.StreamSupport;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
@@ -39,6 +41,7 @@ import com.vmturbo.api.MarketNotificationDTO.MarketNotification;
 import com.vmturbo.api.MarketNotificationDTO.StatusNotification;
 import com.vmturbo.api.MarketNotificationDTO.StatusNotification.Status;
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.communication.RepositoryApi.PaginatedEntitiesRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.MarketMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
@@ -49,6 +52,7 @@ import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedPlanInfo;
+import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
@@ -67,6 +71,7 @@ import com.vmturbo.api.dto.entity.FailedResourceApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.entity.UnplacementDetailsApiDTO;
 import com.vmturbo.api.dto.entity.UnplacementReasonApiDTO;
+import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.market.MarketApiDTO;
 import com.vmturbo.api.dto.notification.LogEntryApiDTO;
 import com.vmturbo.api.dto.policy.PolicyApiDTO;
@@ -77,6 +82,7 @@ import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.enums.ActionDetailLevel;
+import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.PlacementProblem;
 import com.vmturbo.api.enums.PolicyType;
@@ -165,6 +171,8 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
+import com.vmturbo.common.protobuf.search.Search.SearchQuery;
+import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
@@ -251,6 +259,8 @@ public class MarketsService implements IMarketsService {
 
     private final LicenseCheckClient licenseCheckClient;
 
+    private final EntityAspectMapper entityAspectMapper;
+
     /**
      * Entity types which support being shown as unplaced in plan result.
      */
@@ -289,6 +299,7 @@ public class MarketsService implements IMarketsService {
                           @Nonnull final ActionSearchUtil actionSearchUtil,
                           @Nonnull final EntitySettingQueryExecutor entitySettingQueryExecutor,
                           @Nonnull final LicenseCheckClient licenseCheckClient,
+                          @Nonnull final EntityAspectMapper entityAspectMapper,
                           final long realtimeTopologyContextId) {
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.uuidMapper = Objects.requireNonNull(uuidMapper);
@@ -322,6 +333,7 @@ public class MarketsService implements IMarketsService {
                 this.planRpcService);
         this.entitySettingQueryExecutor = Objects.requireNonNull(entitySettingQueryExecutor);
         this.licenseCheckClient = Objects.requireNonNull(licenseCheckClient);
+        this.entityAspectMapper = Objects.requireNonNull(entityAspectMapper);
     }
 
     /**
@@ -544,7 +556,11 @@ public class MarketsService implements IMarketsService {
 
 
     @Override
-    public EntityPaginationResponse getEntitiesByMarketUuid(String uuid, EntityPaginationRequest paginationRequest) throws Exception {
+    public EntityPaginationResponse getEntitiesByMarketUuid(String uuid,
+                                                            @Nullable List<String> entityUuids,
+                                                            @Nullable List<String> types,
+                                                            @Nullable List<String> aspectNames,
+                                                            EntityPaginationRequest paginationRequest) throws Exception {
         final ApiId apiId = uuidMapper.fromUuid(uuid);
 
         // We don't currently support any sort order other than "name".
@@ -554,21 +570,28 @@ public class MarketsService implements IMarketsService {
         }
 
         if (apiId.isRealtimeMarket()) {
-            // In the realtime case we let the repository handle the pagination parameters.
-            final SearchEntitiesResponse response =
-                searchServiceBlockingStub.searchEntities(SearchEntitiesRequest.newBuilder()
-                    .setReturnType(Type.API)
-                    .setPaginationParams(paginationMapper.toProtoParams(paginationRequest))
-                    .build());
-            final List<ServiceEntityApiDTO> nextPage = serviceEntityMapper.toServiceEntityApiDTO(
-                response.getEntitiesList().stream()
-                    .map(PartialEntity::getApi)
-                    .collect(Collectors.toList()));
-            priceIndexPopulator.populateRealTimeEntities(nextPage);
-            severityPopulator.populate(realtimeTopologyContextId, nextPage);
-            return PaginationProtoUtil.getNextCursor(response.getPaginationResponse())
-                .map(nextCursor -> paginationRequest.nextPageResponse(nextPage, nextCursor, response.getPaginationResponse().getTotalRecordCount()))
-                .orElseGet(() -> paginationRequest.finalPageResponse(nextPage, response.getPaginationResponse().getTotalRecordCount()));
+            final SearchQuery.Builder searchQueryBuilder = SearchQuery.newBuilder();
+            if (!CollectionUtils.isEmpty(entityUuids)) {
+                searchQueryBuilder.addAllSearchParameters(
+                    Collections.singleton(SearchProtoUtil.makeSearchParameters(
+                        SearchProtoUtil.stringIdFilter(entityUuids)).build()));
+            }
+            if (!CollectionUtils.isEmpty(types)) {
+                searchQueryBuilder.addAllSearchParameters(
+                    Collections.singleton(SearchProtoUtil.makeSearchParameters(
+                        SearchProtoUtil.entityTypeFilter(types)).build()));
+            }
+
+            final PaginatedEntitiesRequest paginatedEntitiesRequest =
+                repositoryApi.newPaginatedEntities(
+                    searchQueryBuilder.build(),
+                    Collections.emptySet(),
+                    paginationRequest);
+            if (!CollectionUtils.isEmpty(aspectNames)) {
+                paginatedEntitiesRequest.requestAspects(entityAspectMapper, aspectNames);
+            }
+
+            return paginatedEntitiesRequest.getResponse();
         } else if (apiId.isPlan()) {
             // require the "planner" license feature to get plan actions
             licenseCheckClient.checkFeatureAvailable(ProbeLicense.PLANNER);
@@ -585,17 +608,39 @@ public class MarketsService implements IMarketsService {
                         ? Optional.of(planInstance.getProjectedTopologyId())
                         : Optional.empty();
 
+            final RetrieveTopologyEntitiesRequest.Builder requestBuilder = RetrieveTopologyEntitiesRequest.newBuilder()
+                .setTopologyContextId(apiId.oid())
+                .setReturnType(Type.FULL)
+                .setTopologyType(TopologyType.PROJECTED);
+
+            // Request specific entities by OID if specified.
+            if (!CollectionUtils.isEmpty(entityUuids)) {
+                requestBuilder.addAllEntityOids(entityUuids.stream()
+                    .map(stringOid -> {
+                        try {
+                            return Long.parseLong(stringOid);
+                        } catch (NumberFormatException e) {
+                            logger.error("Unparsable OID string", e);
+                            return null;
+                        }
+                    })
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList()));
+            }
+
+            // Request specific entity types if specified.
+            if (!CollectionUtils.isEmpty(types)) {
+                requestBuilder.addAllEntityType(types.stream()
+                    .map(type -> ApiEntityType.fromString(type).typeNumber())
+                    .collect(Collectors.toList()));
+            }
+
             final List<TopologyEntityDTO> allResults = RepositoryDTOUtil.topologyEntityStream(
-                repositoryRpcService.retrieveTopologyEntities(
-                    RetrieveTopologyEntitiesRequest.newBuilder()
-                        .setTopologyContextId(apiId.oid())
-                        .setReturnType(Type.FULL)
-                        .setTopologyType(TopologyType.PROJECTED)
-                        .build()))
+                repositoryRpcService.retrieveTopologyEntities(requestBuilder.build()))
                 .map(PartialEntity::getFullEntity)
                 .collect(Collectors.toList());
 
-            final List<ServiceEntityApiDTO> allConvertedResults = convertServiceEntitiesForPlan(
+            final List<TopologyAndApiEntity> allConvertedResults = convertServiceEntitiesForPlan(
                 planInstance, allResults);
 
             // We do pagination before fetching price index and severity.
@@ -616,27 +661,44 @@ public class MarketsService implements IMarketsService {
             // Avoid non-positive limits.
             final int limit = Math.max(paginationRequest.getLimit(), 1);
 
-            final List<ServiceEntityApiDTO> nextPage = allConvertedResults.stream()
+            final List<TopologyAndApiEntity> nextEntityPage = allConvertedResults.stream()
                 // assumes that ServiceEntityApiDTO::getDisplayName will never return null
-                .sorted(Comparator.comparing(ServiceEntityApiDTO::getDisplayName)
-                        .thenComparing(ServiceEntityApiDTO::getUuid))
+                .sorted(Comparator.<TopologyAndApiEntity, String>comparing(e -> e.apiEntity.getDisplayName())
+                        .thenComparing(e -> e.apiEntity.getUuid()))
                 .skip(skipCount)
                 .limit(limit + 1)
                 .collect(Collectors.toList());
 
             final Optional<String> nextCursor;
-            if (nextPage.size() > limit) {
+            if (nextEntityPage.size() > limit) {
                 nextCursor = Optional.of(Integer.toString(skipCount + limit));
                 // Remove the last element from the results. It was only there to check if there
                 // are more results.
-                nextPage.remove(limit);
+                nextEntityPage.remove(limit);
             } else {
                 nextCursor = Optional.empty();
             }
 
+            if (!CollectionUtils.isEmpty(aspectNames) && !nextEntityPage.isEmpty()) {
+                try {
+                    final Map<Long, Map<AspectName, EntityAspect>> aspectsByEntities = entityAspectMapper
+                        .getAspectsByEntities(nextEntityPage.stream()
+                            .map(e -> e.topologyEntity)
+                            .collect(Collectors.toList()), aspectNames);
+                    nextEntityPage.forEach(entity -> serviceEntityMapper.populateAspects(
+                        entity.apiEntity, aspectsByEntities, entity.topologyEntity.getOid()));
+                } catch (StatusRuntimeException e) {
+                    logger.error("Unable to populate entity aspects", e);
+                }
+            }
+
             // populate priceIndex, which is always based on the projected topology
+            final List<ServiceEntityApiDTO> nextPage = nextEntityPage.stream()
+                .map(e -> e.apiEntity)
+                .collect(Collectors.toList());
             projectedTopologyId.ifPresent(id -> priceIndexPopulator.populatePlanEntities(id, nextPage));
             severityPopulator.populate(apiId.oid(), nextPage);
+
             return nextCursor.map(cursor -> paginationRequest.nextPageResponse(nextPage, cursor, allResults.size()))
                 .orElseGet(() -> paginationRequest.finalPageResponse(nextPage, allResults.size()));
         } else {
@@ -1239,11 +1301,13 @@ public class MarketsService implements IMarketsService {
             entities.remove(oid);
         }
         // convert to ServiceEntityApiDTOs, filling in data about unplaced entities
-        List<ServiceEntityApiDTO> unplacedApiDTOs =
+        List<TopologyAndApiEntity> unplacedApiDTOs =
                 convertServiceEntitiesForPlan(plan, entities.values());
 
         logger.debug("Found {} unplaced entities in plan {} results.", unplacedApiDTOs.size(), uuid);
-        return unplacedApiDTOs;
+        return unplacedApiDTOs.stream()
+            .map(e -> e.apiEntity)
+            .collect(Collectors.toList());
     }
 
     /**
@@ -1282,9 +1346,10 @@ public class MarketsService implements IMarketsService {
      * @param plan       plan instance object
      * @param entityDTOs The collection of TopologyEntityDTOs to be converted into ServiceEntityApiDTO
      * @return A list of ServiceEntityApiDTO objects representing with information on where it is placed/unplaced.
+     *         The ServiceEntityApiDTO objects are paired with their original TopologyEntityDTO objects.
      */
-    List<ServiceEntityApiDTO> convertServiceEntitiesForPlan(PlanInstance plan,
-                                                            Collection<TopologyEntityDTO> entityDTOs) {
+    List<TopologyAndApiEntity> convertServiceEntitiesForPlan(PlanInstance plan,
+                                                             Collection<TopologyEntityDTO> entityDTOs) {
         // if no unplaced entities, return an empty collection
         if (entityDTOs.size() == 0) {
             return Collections.emptyList();
@@ -1357,14 +1422,14 @@ public class MarketsService implements IMarketsService {
      *                     provider names.
      * @return A list of ServiceEntityApiDTO objects representing the unplaced entities.
      */
-    private List<ServiceEntityApiDTO> createServiceEntityApiDTOs(Collection<TopologyEntityDTO> unplacedDTOs,
-                                                                 Map<Long, TopologyEntityDTO> providers) {
+    private List<TopologyAndApiEntity> createServiceEntityApiDTOs(Collection<TopologyEntityDTO> unplacedDTOs,
+                                                                  Map<Long, TopologyEntityDTO> providers) {
         return unplacedDTOs.stream()
                 // TODO: (OM-31842) After Market side fix the bug of unplaced cloned
                 // entity, we can remove this filter logic.
                 .filter(entity -> entity.getCommoditiesBoughtFromProvidersList().stream()
                         .allMatch(CommoditiesBoughtFromProvider::hasProviderEntityType))
-                .map(entity -> createServiceEntityApiDTO(entity, providers))
+                .map(entity -> new TopologyAndApiEntity(entity, createServiceEntityApiDTO(entity, providers)))
                 .collect(Collectors.toList());
     }
 
@@ -1978,5 +2043,17 @@ public class MarketsService implements IMarketsService {
         final List<SettingsManagerApiDTO> retMgrs =
                 entitySettingQueryExecutor.getEntitySettings(id, false, null, marketId.getTopologyContextId());
         return retMgrs;
+    }
+
+    @VisibleForTesting
+    static class TopologyAndApiEntity {
+        final TopologyEntityDTO topologyEntity;
+        final ServiceEntityApiDTO apiEntity;
+
+        private TopologyAndApiEntity(@Nonnull final TopologyEntityDTO topologyEntity,
+                                    @Nonnull final ServiceEntityApiDTO apiEntity) {
+            this.topologyEntity = Objects.requireNonNull(topologyEntity);
+            this.apiEntity = Objects.requireNonNull(apiEntity);
+        }
     }
 }

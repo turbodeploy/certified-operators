@@ -405,6 +405,26 @@ public class RepositoryApiTest {
     }
 
     @Test
+    public void testMultiGetMinimalEntityForContext() {
+        final MinimalEntity ret = minimal(7L);
+
+        Mockito.doReturn(Collections.singletonList(PartialEntityBatch.newBuilder()
+                .addEntities(PartialEntity.newBuilder().setMinimal(ret))
+                .build())).when(repoBackend).retrieveTopologyEntities(org.mockito.Matchers.any());
+        MatcherAssert.assertThat(repositoryApi.entitiesRequest(Collections.singleton(7L))
+                .getMinimalEntities()
+                .collect(Collectors.toList()), Matchers.contains(ret));
+
+        final ArgumentCaptor<RetrieveTopologyEntitiesRequest> captor =
+                ArgumentCaptor.forClass(RetrieveTopologyEntitiesRequest.class);
+        Mockito.verify(repoBackend).retrieveTopologyEntities(captor.capture());
+        final RetrieveTopologyEntitiesRequest req = captor.getValue();
+        MatcherAssert.assertThat(req.getEntityOidsList(), Matchers.contains(7L));
+        MatcherAssert.assertThat(req.getTopologyContextId(), Matchers.is(777777L));
+        MatcherAssert.assertThat(req.getReturnType(), Matchers.is(Type.MINIMAL));
+    }
+
+    @Test
     public void testMultiGetEntity() {
         final ApiPartialEntity ret = entity(7L);
 

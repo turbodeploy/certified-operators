@@ -12,6 +12,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import com.google.common.collect.ImmutableSet;
@@ -43,7 +44,10 @@ import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisOrigin;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Unit tests for {@link ContainerPlatformContextMapper}.
@@ -56,6 +60,7 @@ public class ContainerPlatformContextMapperTest {
     private ContainerPlatformContextMapper contextMapper;
 
     private final long realTimeTopologyContextId = 7777777L;
+    private final long planTimeTopologyContextId = 123L;
     private RepositoryServiceGrpc.RepositoryServiceBlockingStub repositoryRpcService;
     private SupplyChainServiceBlockingStub supplyChainRpcService;
     private final SupplyChainServiceMole supplyChainService = spy(new SupplyChainServiceMole());
@@ -190,7 +195,7 @@ public class ContainerPlatformContextMapperTest {
         Collection<ApiPartialEntity> entities = Arrays.asList(container);
 
         Map<Long, EntityAspect> entityAspects
-                = contextMapper.bulkMapContainerPlatformContext(entities);
+                = contextMapper.bulkMapContainerPlatformContext(entities, Optional.empty());
 
         assertTrue(entityAspects.isEmpty());
         verifyZeroInteractions(repositoryApi);
@@ -203,7 +208,8 @@ public class ContainerPlatformContextMapperTest {
     @Test
     public void testMappingContextForMultipleEntities() {
         MultiEntityRequest req = ApiTestUtils.mockMultiMinEntityReq(Arrays.asList(namespace, containerCluster));
-        when(repositoryApi.entitiesRequest(Sets.newSet(clusterOid, namespaceOid))).thenReturn(req);
+        when(repositoryApi.entitiesRequest(Sets.newSet(clusterOid, namespaceOid)))
+            .thenReturn(req);
 
         final GetMultiSupplyChainsRequest.Builder requestBuilder =
                 GetMultiSupplyChainsRequest.newBuilder()
@@ -238,7 +244,7 @@ public class ContainerPlatformContextMapperTest {
         Collection<ApiPartialEntity> entities = Arrays.asList(container, pod, containerSpec, controller);
 
         Map<Long, EntityAspect> entityAspects
-                = contextMapper.bulkMapContainerPlatformContext(entities);
+                = contextMapper.bulkMapContainerPlatformContext(entities, Optional.empty());
 
         Assert.assertEquals(4, entityAspects.size());
 
@@ -270,13 +276,156 @@ public class ContainerPlatformContextMapperTest {
     }
 
     /**
+     * Test that we can correctly map the context for entities in plans.
+     */
+    @Test
+    public void testMappingContextForPlanEntities() {
+        MultiEntityRequest req = ApiTestUtils.mockMultiMinEntityReq(Arrays.asList(namespace, containerCluster));
+        when(repositoryApi.entitiesRequest(Sets.newSet(clusterOid, namespaceOid)))
+            .thenReturn(req);
+
+        final GetMultiSupplyChainsRequest.Builder requestBuilder =
+            GetMultiSupplyChainsRequest.newBuilder()
+                .setContextId(planTimeTopologyContextId);
+
+        requestBuilder.addSeeds(containerSeed)
+            .addSeeds(podSeed)
+            .addSeeds(containerSpecSeed)
+            .addSeeds(controllerSeed);
+
+        when(supplyChainService.getMultiSupplyChains(requestBuilder.build()))
+            .thenReturn(Arrays.asList(
+                GetMultiSupplyChainsResponse.newBuilder()
+                    .setSeedOid(container.getOid())
+                    .setSupplyChain(supplyChain)
+                    .build(),
+                GetMultiSupplyChainsResponse.newBuilder()
+                    .setSeedOid(pod.getOid())
+                    .setSupplyChain(supplyChain)
+                    .build(),
+                GetMultiSupplyChainsResponse.newBuilder()
+                    .setSeedOid(containerSpec.getOid())
+                    .setSupplyChain(supplyChain)
+                    .build(),
+                GetMultiSupplyChainsResponse.newBuilder()
+                    .setSeedOid(controller.getOid())
+                    .setSupplyChain(supplyChain)
+                    .build()
+
+            ));
+
+        Collection<ApiPartialEntity> entities = Arrays.asList(container, pod, containerSpec, controller);
+
+        Map<Long, EntityAspect> entityAspects
+            = contextMapper.bulkMapContainerPlatformContext(entities, Optional.of(planTimeTopologyContextId));
+
+        Assert.assertEquals(4, entityAspects.size());
+
+        ContainerPlatformContextAspectApiDTO context;
+
+        EntityAspect containerContext = entityAspects.get(container.getOid());
+        assertTrue(containerContext instanceof ContainerPlatformContextAspectApiDTO);
+        context = (ContainerPlatformContextAspectApiDTO)containerContext;
+        Assert.assertEquals(namespace.getDisplayName(), context.getNamespace());
+        Assert.assertEquals(containerCluster.getDisplayName(), context.getContainerPlatformCluster());
+
+        EntityAspect podContext = entityAspects.get(pod.getOid());
+        assertTrue(podContext instanceof ContainerPlatformContextAspectApiDTO);
+        context = (ContainerPlatformContextAspectApiDTO)podContext;
+        Assert.assertEquals(namespace.getDisplayName(), context.getNamespace());
+        Assert.assertEquals(containerCluster.getDisplayName(), context.getContainerPlatformCluster());
+
+        EntityAspect containerSpecContext = entityAspects.get(containerSpec.getOid());
+        assertTrue(containerSpecContext instanceof ContainerPlatformContextAspectApiDTO);
+        context = (ContainerPlatformContextAspectApiDTO)containerSpecContext;
+        Assert.assertEquals(namespace.getDisplayName(), context.getNamespace());
+        Assert.assertEquals(containerCluster.getDisplayName(), context.getContainerPlatformCluster());
+
+        EntityAspect controllerContext = entityAspects.get(controller.getOid());
+        assertTrue(controllerContext instanceof ContainerPlatformContextAspectApiDTO);
+        context = (ContainerPlatformContextAspectApiDTO)controllerContext;
+        Assert.assertEquals(namespace.getDisplayName(), context.getNamespace());
+        Assert.assertEquals(containerCluster.getDisplayName(), context.getContainerPlatformCluster());
+    }
+
+    /**
+     * Test that we can correctly map the context for entities that are created
+     * as a result of a provision action in a plan.
+     */
+    @Test
+    public void testMappingContextForProvisionedPlanEntities() {
+        MultiEntityRequest req = ApiTestUtils.mockMultiMinEntityReq(Arrays.asList(namespace, containerCluster));
+        when(repositoryApi.entitiesRequest(Sets.newSet(clusterOid, namespaceOid)))
+            .thenReturn(req);
+
+        final GetMultiSupplyChainsRequest.Builder requestBuilder =
+            GetMultiSupplyChainsRequest.newBuilder()
+                .setContextId(planTimeTopologyContextId)
+                .addSeeds(containerSeed);
+
+        final long cloneId = 997983234L;
+        final long secondCloneId = 997983235L;
+        when(supplyChainService.getMultiSupplyChains(requestBuilder.build()))
+            .thenReturn(Collections.singletonList(
+                GetMultiSupplyChainsResponse.newBuilder()
+                    .setSeedOid(container.getOid())
+                    .setSupplyChain(supplyChain)
+                    .build()));
+
+        final TopologyEntityDTO originalContainer = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.CONTAINER_VALUE)
+            .setOid(container.getOid())
+            .build();
+        final TopologyEntityDTO clone = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.CONTAINER_VALUE)
+            .setOid(cloneId)
+            .setOrigin(Origin.newBuilder().setAnalysisOrigin(
+                AnalysisOrigin.newBuilder().setOriginalEntityId(container.getOid())))
+            .build();
+        final TopologyEntityDTO secondClone = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.CONTAINER_VALUE)
+            .setOid(secondCloneId)
+            .setOrigin(Origin.newBuilder().setAnalysisOrigin(
+                AnalysisOrigin.newBuilder().setOriginalEntityId(container.getOid())))
+            .build();
+        final Collection<TopologyEntityDTO> entities = Arrays.asList(originalContainer, clone, secondClone);
+
+        final Map<Long, EntityAspect> entityAspects = contextMapper
+            .getContainerPlatformContext(entities, Optional.of(planTimeTopologyContextId));
+
+        Assert.assertEquals(3, entityAspects.size());
+
+        ContainerPlatformContextAspectApiDTO context;
+
+        EntityAspect containerContext = entityAspects.get(container.getOid());
+        assertTrue(containerContext instanceof ContainerPlatformContextAspectApiDTO);
+        context = (ContainerPlatformContextAspectApiDTO)containerContext;
+        Assert.assertEquals(namespace.getDisplayName(), context.getNamespace());
+        Assert.assertEquals(containerCluster.getDisplayName(), context.getContainerPlatformCluster());
+
+        EntityAspect cloneContext = entityAspects.get(cloneId);
+        assertTrue(cloneContext instanceof ContainerPlatformContextAspectApiDTO);
+        context = (ContainerPlatformContextAspectApiDTO)cloneContext;
+        Assert.assertEquals(namespace.getDisplayName(), context.getNamespace());
+        Assert.assertEquals(containerCluster.getDisplayName(), context.getContainerPlatformCluster());
+
+        EntityAspect secondCloneContext = entityAspects.get(secondCloneId);
+        assertTrue(secondCloneContext instanceof ContainerPlatformContextAspectApiDTO);
+        context = (ContainerPlatformContextAspectApiDTO)secondCloneContext;
+        Assert.assertEquals(namespace.getDisplayName(), context.getNamespace());
+        Assert.assertEquals(containerCluster.getDisplayName(), context.getContainerPlatformCluster());
+    }
+
+    /**
      * Test container platform context data for set of ApiPartial entities belonging
      * to the different namespaces and same cluster.
      */
     @Test
     public void testMappingContextForEntitiesInDifferentNamespaces() {
         MultiEntityRequest req = ApiTestUtils.mockMultiMinEntityReq(Arrays.asList(namespace, secondNamespace, containerCluster));
-        when(repositoryApi.entitiesRequest(Sets.newSet(clusterOid, namespaceOid, secondNamespaceOid))).thenReturn(req);
+        when(repositoryApi.entitiesRequest(
+            Sets.newSet(clusterOid, namespaceOid, secondNamespaceOid)))
+            .thenReturn(req);
 
         final GetMultiSupplyChainsRequest.Builder requestBuilder =
                 GetMultiSupplyChainsRequest.newBuilder()
@@ -296,7 +445,7 @@ public class ContainerPlatformContextMapperTest {
                 ));
 
         Map<Long, EntityAspect> entityAspects
-                = contextMapper.bulkMapContainerPlatformContext(Arrays.asList(pod, secondPod));
+                = contextMapper.bulkMapContainerPlatformContext(Arrays.asList(pod, secondPod), Optional.empty());
 
         assert (entityAspects.size() == 2);
         ContainerPlatformContextAspectApiDTO context;
@@ -331,7 +480,8 @@ public class ContainerPlatformContextMapperTest {
                 .build();
 
         MultiEntityRequest req = ApiTestUtils.mockMultiMinEntityReq(Arrays.asList(namespace, containerCluster));
-        when(repositoryApi.entitiesRequest(Sets.newSet(clusterOid, namespaceOid))).thenReturn(req);
+        when(repositoryApi.entitiesRequest(Sets.newSet(clusterOid, namespaceOid)))
+            .thenReturn(req);
 
         final GetMultiSupplyChainsRequest.Builder requestBuilder =
                 GetMultiSupplyChainsRequest.newBuilder()
@@ -347,7 +497,7 @@ public class ContainerPlatformContextMapperTest {
                 ));
 
         Map<Long, EntityAspect> entityAspects
-                = contextMapper.getContainerPlatformContext(Arrays.asList(podEntityDto));
+                = contextMapper.getContainerPlatformContext(Arrays.asList(podEntityDto), Optional.empty());
 
         assert (entityAspects.size() == 1);
         ContainerPlatformContextAspectApiDTO context;
@@ -366,7 +516,8 @@ public class ContainerPlatformContextMapperTest {
     @Test
     public void testMissingContextinfo() {
         MultiEntityRequest req = ApiTestUtils.mockMultiMinEntityReq(Arrays.asList(containerCluster));
-        when(repositoryApi.entitiesRequest(Sets.newSet(clusterOid, namespaceOid))).thenReturn(req);
+        when(repositoryApi.entitiesRequest(Sets.newSet(clusterOid, namespaceOid)))
+            .thenReturn(req);
 
         final GetMultiSupplyChainsRequest.Builder requestBuilder =
                 GetMultiSupplyChainsRequest.newBuilder()
@@ -382,7 +533,7 @@ public class ContainerPlatformContextMapperTest {
                 ));
 
         Map<Long, EntityAspect> entityAspects
-                = contextMapper.bulkMapContainerPlatformContext(Arrays.asList(pod));
+                = contextMapper.bulkMapContainerPlatformContext(Arrays.asList(pod), Optional.empty());
 
         assert (entityAspects.size() == 1);
         ContainerPlatformContextAspectApiDTO context;

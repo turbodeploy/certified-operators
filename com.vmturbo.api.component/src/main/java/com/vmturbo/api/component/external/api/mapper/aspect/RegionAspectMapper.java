@@ -12,6 +12,8 @@ import javax.annotation.Nullable;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.entityaspect.RegionAspectApiDTO;
 import com.vmturbo.api.enums.AspectName;
+import com.vmturbo.api.exceptions.ConversionException;
+import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainScope;
@@ -19,6 +21,7 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainSeed;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.GeoDataInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.RegionInfo;
@@ -110,6 +113,24 @@ public class RegionAspectMapper extends AbstractAspectMapper {
         });
 
         return result;
+    }
+
+    @Nonnull
+    @Override
+    public Optional<Map<Long, EntityAspect>> mapPlanEntityToAspectBatch(
+        @Nonnull List<TopologyEntityDTO> entities, final long planTopologyContextId)
+        throws InterruptedException, ConversionException, InvalidOperationException {
+        throw new InvalidOperationException(
+            String.format("Plan entity aspects not supported by {}", getClass().getSimpleName()));
+    }
+
+    @Nonnull
+    @Override
+    public Optional<Map<Long, EntityAspect>> mapPlanEntityToAspectBatchPartial(
+        @Nonnull List<ApiPartialEntity> entities, final long planTopologyContextId)
+        throws InterruptedException, ConversionException, InvalidOperationException {
+        throw new InvalidOperationException(
+            String.format("Plan entity aspects not supported by {}", getClass().getSimpleName()));
     }
 
     /**

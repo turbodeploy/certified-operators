@@ -478,6 +478,7 @@ public class Analysis {
         DataMetricTimer processResultTime = null;
         AnalysisResults results = null;
         Map<Long, List<UnplacementReason.Builder>> unplacedReasonMap = new HashMap<>();
+        Map<Long, TraderTO> projTradersMap = null;
 
         // Don't generate actions associated with entities with these oids
         final Set<Long> suppressActionsForOids = new HashSet<>();

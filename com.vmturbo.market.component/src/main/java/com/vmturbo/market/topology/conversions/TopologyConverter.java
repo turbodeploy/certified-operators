@@ -1021,9 +1021,9 @@ public class TopologyConverter {
     /**
      * Convert the {@link EconomyDTOs.TraderTO}s to {@link TopologyDTO.ProjectedTopologyEntity}s.
      *
-     * @param projectedTraders list of {@link EconomyDTOs.TraderTO}s that are to be converted to
-     * {@link TopologyDTO.TopologyEntityDTO}s
-     * @param originalTopology the original set of {@link TopologyDTO.TopologyEntityDTO}s by OID.
+     * @param projectedTraders list of {@link TraderTO}s that are to be converted to
+     * {@link TopologyEntityDTO}s
+     * @param originalTopology the original set of {@link TopologyEntityDTO}s by OID.
      * @param priceIndexMessage the price index message
      * @param reservedCapacityResults the reserved capacity results
      * @param wastedFileAnalysis wasted file analysis results
@@ -1188,11 +1188,16 @@ public class TopologyConverter {
      * @param sl       ShoppingListTO of the projectedTraderTO
      * @param commList List of CommodityBoughtDTO
      * @param buyerOid id of the buyer for which the CommoditiesBoughtFromProvider is being created
+     * @param projTraders Map of OID to projected TraderTO. Used to look up providers for traders provisioned
+     *                    by the market (ie not in the original topology) where the provider may also be
+     *                    provisioned by the market.
+     *
      * @return CommoditiesBoughtFromProvider
      */
     private CommoditiesBoughtFromProvider createCommoditiesBoughtFromProvider(
-            EconomyDTOs.ShoppingListTO sl, List<TopologyDTO.CommodityBoughtDTO> commList,
-            final long buyerOid) {
+        ShoppingListTO sl, List<CommodityBoughtDTO> commList,
+        final long buyerOid,
+        @Nonnull final  Map<Long, TraderTO> projTraders) {
         final CommoditiesBoughtFromProvider.Builder commoditiesBoughtFromProviderBuilder =
             CommoditiesBoughtFromProvider.newBuilder().addAllCommodityBought(commList);
         // already created a backup info, cannot be null
@@ -1269,8 +1274,15 @@ public class TopologyConverter {
                 commoditiesBoughtFromProviderBuilder
                         .setProviderEntityType(supplierEntity.getEntityType());
             } else {
-                slInfo.getSellerEntityType()
-                        .ifPresent(commoditiesBoughtFromProviderBuilder::setProviderEntityType);
+                final Optional<Integer> sellerEntityType = slInfo.getSellerEntityType();
+                if (sellerEntityType.isPresent()) {
+                    commoditiesBoughtFromProviderBuilder.setProviderEntityType(sellerEntityType.get());
+                } else if (supplier != null) {
+                    TraderTO projSupplier = projTraders.get(supplier);
+                    if (projSupplier != null) {
+                        commoditiesBoughtFromProviderBuilder.setProviderEntityType(projSupplier.getType());
+                    }
+                }
             }
         }
         return commoditiesBoughtFromProviderBuilder.build();
@@ -1387,7 +1399,7 @@ public class TopologyConverter {
                     collapsedShoppingLists.add(sl);
                 }
                 CommoditiesBoughtFromProvider commoditiesBought =
-                        createCommoditiesBoughtFromProvider(sl, commList, traderTO.getOid());
+                        createCommoditiesBoughtFromProvider(sl, commList, traderTO.getOid(), projTraders);
                 topoDTOCommonBoughtGrouping.add(commoditiesBought);
                 if (!CollectionUtils.isEmpty(shoppingListInfo.getResourceIds())) {
                     // there can be multiple volume shoppingLists with the same usages and providers. Cache multiple
@@ -1495,8 +1507,6 @@ public class TopologyConverter {
             updateProjectedEntityOsType(entityDTOBuilder);
             updateProjectedCores(entityDTOBuilder);
 
-
-
             // TODO (on-prem vvs p2) the subsequent two control flows should be merged back into common logic
             // both cloud and on-prem will situationally want to use collapsed buyers technique
             // there is no more single volume id related to a SL in either environment type
@@ -1504,7 +1514,7 @@ public class TopologyConverter {
             topologyEntityDTOs.addAll(createResources(entityDTOBuilder, commBought2shoppingListWithResources));
             // when source volume is cloud volume with collapsedBuyerId
             topologyEntityDTOs.addAll(createCollapsedTopologyEntityDTOs(entityDTOBuilder, collapsedShoppingLists,
-                            reservedCapacityResults));
+                            reservedCapacityResults, projTraders));
             TopologyEntityDTO entityDTO = entityDTOBuilder.build();
             topologyEntityDTOs.add(entityDTO);
         } catch (Exception e) {
@@ -1515,9 +1525,10 @@ public class TopologyConverter {
     }
 
     private List<TopologyEntityDTO> createCollapsedTopologyEntityDTOs(
-            final TopologyEntityDTOOrBuilder projectedEntityForConsumerOfCollapsedEntity,
-            final List<ShoppingListTO> collapsedShoppingList,
-            final ReservedCapacityResults reservedCapacityResults) {
+        final TopologyEntityDTOOrBuilder projectedEntityForConsumerOfCollapsedEntity,
+        final List<ShoppingListTO> collapsedShoppingList,
+        final ReservedCapacityResults reservedCapacityResults,
+        final Map<Long, TraderTO> projTraders) {
         final List<TopologyEntityDTO> result = new ArrayList<>();
         for (final ShoppingListTO shoppingListTO : collapsedShoppingList) {
             final Optional<Long> collapsedEntityId = Optional.ofNullable(shoppingListOidToInfos
@@ -1541,7 +1552,7 @@ public class TopologyConverter {
                     .map(Optional::get)
                     .collect(Collectors.toList());
                 CommoditiesBoughtFromProvider commBoughtGrouping = createCommoditiesBoughtFromProvider(
-                        shoppingListTO, boughtCommodityDTOS, collapsedEntityDTO.getOid());
+                        shoppingListTO, boughtCommodityDTOS, collapsedEntityDTO.getOid(), projTraders);
                 projectedEntity.addCommoditiesBoughtFromProviders(commBoughtGrouping);
                 final List<CommoditySoldDTO> soldDTOS =
                     createCommoditySoldFromCommBoughtTO(collapsedEntityDTO,
@@ -4419,6 +4430,9 @@ public class TopologyConverter {
         // however, because the definition of ShoppingListInfo requires providerOid and
         // commodityBoughtList, we have to give some dummy values
         list.forEach(l -> shoppingListOidToInfos.put(l.getNewShoppingList(),
+            // TODO: This logic is incorrect. We are putting in ShoppingListInfos saying that the sellerId
+            // is null and the sellerEntityType is null when it is not true. This causes problems downstream
+            // when we attempt to look up the information from this map.
                     new ShoppingListInfo(l.getNewShoppingList(), l.getBuyer(), null,
                                     Collections.emptySet(), null, null, Lists.newArrayList())));
     }

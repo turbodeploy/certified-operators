@@ -390,10 +390,26 @@ public class SearchProtoUtil {
         return stringPropertyFilterExact(SearchableProperties.OID, Collections.singleton(Long.toString(oid)));
     }
 
+    /**
+     * Creates a property filter that finds specific entities by oids.
+     *
+     * @param oids the oid of the entity to search
+     * @return the filter
+     */
     public static PropertyFilter idFilter(Collection<Long> oids) {
         return stringPropertyFilterExact(SearchableProperties.OID, oids.stream()
             .map(oid -> Long.toString(oid))
             .collect(Collectors.toSet()));
+    }
+
+    /**
+     * Creates a property filter that finds specific entities by oids specified as strings instead of longs.
+     *
+     * @param stringOids the oid of the entity to search
+     * @return the filter
+     */
+    public static PropertyFilter stringIdFilter(@Nonnull final Collection<String> stringOids) {
+        return stringPropertyFilterExact(SearchableProperties.OID, stringOids);
     }
 
     /**
