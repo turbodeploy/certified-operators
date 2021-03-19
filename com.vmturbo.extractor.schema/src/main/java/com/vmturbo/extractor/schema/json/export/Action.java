@@ -8,7 +8,6 @@ import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.google.common.base.MoreObjects;
 
-import com.vmturbo.extractor.schema.json.common.ActionAttributes;
 import com.vmturbo.extractor.schema.json.common.ActionEntity;
 
 /**
@@ -18,7 +17,7 @@ import com.vmturbo.extractor.schema.json.common.ActionEntity;
  */
 @JsonInclude(Include.NON_EMPTY)
 @JsonPropertyOrder(alphabetic = true)
-public class Action extends ActionAttributes {
+public class Action extends ExporterActionAttributes {
 
     private Long oid;
     private String creationTime;

@@ -14,14 +14,18 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
+
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 
 import org.junit.Before;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
-import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
@@ -47,6 +51,8 @@ import com.vmturbo.extractor.schema.json.common.CommodityChange;
 import com.vmturbo.extractor.schema.json.common.CommodityPercentileChange;
 import com.vmturbo.extractor.schema.json.common.DeleteInfo;
 import com.vmturbo.extractor.schema.json.common.MoveChange;
+import com.vmturbo.extractor.schema.json.export.Action;
+import com.vmturbo.extractor.schema.json.reporting.ReportingActionAttributes;
 import com.vmturbo.extractor.topology.SupplyChainEntity;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -193,7 +199,7 @@ public class ActionAttributeExtractorTest {
             .build();
 
     private static final ActionDTO.ActionSpec BUY_RI = ActionSpec.newBuilder()
-            .setRecommendation(Action.newBuilder()
+            .setRecommendation(ActionDTO.Action.newBuilder()
                     .setId(10004L)
                     .setDeprecatedImportance(0)
                     .setInfo(ActionInfo.newBuilder()
@@ -257,8 +263,8 @@ public class ActionAttributeExtractorTest {
                 actionPercentileData);
     }
 
-    ActionAttributes extractSingleAction(ActionSpec actionSpec) {
-        return actionAttributeExtractor.extractAttributes(
+    ReportingActionAttributes extractSingleActionForReporting(ActionSpec actionSpec) {
+        return actionAttributeExtractor.extractReportingAttributes(
                 Collections.singletonList(actionSpec),
                 topologyGraph).get(actionSpec.getRecommendation().getId());
     }
@@ -268,7 +274,7 @@ public class ActionAttributeExtractorTest {
      */
     @Test
     public void testMoveExtraction() {
-        ActionAttributes actionAttributes = extractSingleAction(COMPOUND_MOVE);
+        ReportingActionAttributes actionAttributes = extractSingleActionForReporting(COMPOUND_MOVE);
         validateMoveInfo(actionAttributes.getMoveInfo());
     }
 
@@ -277,8 +283,48 @@ public class ActionAttributeExtractorTest {
      */
     @Test
     public void testAtomicResizeExtraction() {
-        ActionAttributes actionAttributes = extractSingleAction(ATOMIC_RESIZE);
+        ReportingActionAttributes actionAttributes = extractSingleActionForReporting(ATOMIC_RESIZE);
         validateAtomicResizeInfo(actionAttributes.getResizeInfo());
+    }
+
+    /**
+     * Test that atomic resize action is flattened into multiple resize actions with same oid.
+     */
+    @Test
+    public void testPopulateAtomicResizeAttributesForExporter() {
+        final Action exportedAction = new Action();
+        final long actionId = ATOMIC_RESIZE.getRecommendation().getId();
+        exportedAction.setOid(actionId);
+
+        final Long2ObjectMap<Action> actions = new Long2ObjectOpenHashMap<>();
+        actions.put(actionId, exportedAction);
+
+        // populate
+        List<Action> exportedActions = actionAttributeExtractor.populateExporterAttributes(
+                Collections.singletonList(ATOMIC_RESIZE), topologyGraph, actions);
+
+        // expect two flattened actions
+        assertThat(exportedActions.size(), is(2));
+        assertThat(exportedActions.get(0).getOid(), is(exportedActions.get(1).getOid()));
+
+        // verify resizeInfo in each action
+        Map<String, CommodityChange> resizeInfos = exportedActions.stream()
+                .map(Action::getResizeInfo)
+                .collect(Collectors.toMap(CommodityChange::getCommodityType, r -> r));
+        final CommodityChange resizeInfo1 = resizeInfos.get(MetricType.VMEM.getLiteral());
+        final CommodityChange resizeInfo2 = resizeInfos.get(MetricType.VCPU_REQUEST.getLiteral());
+
+        assertThat(resizeInfo1.getFrom(), is(100f));
+        assertThat(resizeInfo1.getTo(), is(200f));
+        assertThat(resizeInfo1.getUnit(), is("KB"));
+        assertThat(resizeInfo1.getTarget().getOid(), is(containerSpec1));
+        assertThat(resizeInfo1.getAttribute(), is(CommodityAttribute.CAPACITY.name()));
+
+        assertThat(resizeInfo2.getFrom(), is(500f));
+        assertThat(resizeInfo2.getTo(), is(400f));
+        assertThat(resizeInfo2.getUnit(), is("millicore"));
+        assertThat(resizeInfo2.getTarget().getOid(), is(containerSpec1));
+        assertThat(resizeInfo2.getAttribute(), is(CommodityAttribute.CAPACITY.name()));
     }
 
     /**
@@ -295,7 +341,7 @@ public class ActionAttributeExtractorTest {
         when(actionPercentileData.getChange(containerSpec1, VCPU_REQUEST))
                 .thenReturn(vmemPercentileChange);
 
-        ActionAttributes actionAttributes = extractSingleAction(ATOMIC_RESIZE);
+        ReportingActionAttributes actionAttributes = extractSingleActionForReporting(ATOMIC_RESIZE);
         assertThat(actionAttributes.getResizeInfo().get(MetricType.VMEM.getLiteral()).getPercentileChange(),
                 is(vmemPercentileChange));
         assertThat(actionAttributes.getResizeInfo().get(MetricType.VCPU_REQUEST.getLiteral()).getPercentileChange(),
@@ -307,7 +353,7 @@ public class ActionAttributeExtractorTest {
      */
     @Test
     public void testNormalResizeExtraction() {
-        ActionAttributes actionAttributes = extractSingleAction(NORMAL_RESIZE);
+        ReportingActionAttributes actionAttributes = extractSingleActionForReporting(NORMAL_RESIZE);
         validateNormalResizeInfo(actionAttributes.getResizeInfo());
     }
 
@@ -320,7 +366,7 @@ public class ActionAttributeExtractorTest {
         percentileChange.setAggressiveness(1);
         when(actionPercentileData.getChange(containerSpec1, VMEM))
                 .thenReturn(percentileChange);
-        ActionAttributes actionAttributes = extractSingleAction(NORMAL_RESIZE);
+        ReportingActionAttributes actionAttributes = extractSingleActionForReporting(NORMAL_RESIZE);
         assertThat(actionAttributes.getResizeInfo().get(MetricType.VMEM.getLiteral()).getPercentileChange(),
                 is(percentileChange));
     }
@@ -330,7 +376,7 @@ public class ActionAttributeExtractorTest {
      */
     @Test
     public void testDeleteExtraction() {
-        ActionAttributes actionAttributes = extractSingleAction(DELETE);
+        ActionAttributes actionAttributes = extractSingleActionForReporting(DELETE);
         validateDeleteInfo(actionAttributes.getDeleteInfo());
     }
 
@@ -339,7 +385,7 @@ public class ActionAttributeExtractorTest {
      */
     @Test
     public void testBuyRiInfo() {
-        ActionAttributes actionAttributes = extractSingleAction(BUY_RI);
+        ActionAttributes actionAttributes = extractSingleActionForReporting(BUY_RI);
         BuyRiInfo buyRiInfo = actionAttributes.getBuyRiInfo();
         BuyRI expectedBuyRI = BUY_RI.getRecommendation().getInfo().getBuyRi();
         assertThat(buyRiInfo.getCount(), is(expectedBuyRI.getCount()));

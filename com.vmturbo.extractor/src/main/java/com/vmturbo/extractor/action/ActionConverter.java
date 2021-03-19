@@ -45,6 +45,7 @@ import com.vmturbo.extractor.schema.enums.TerminalState;
 import com.vmturbo.extractor.schema.json.common.ActionAttributes;
 import com.vmturbo.extractor.schema.json.export.Action;
 import com.vmturbo.extractor.schema.json.export.CostAmount;
+import com.vmturbo.extractor.schema.json.reporting.ReportingActionAttributes;
 import com.vmturbo.extractor.topology.DataProvider;
 import com.vmturbo.extractor.topology.SupplyChainEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
@@ -152,8 +153,8 @@ public class ActionConverter {
             logger.error("No topology graph found. Cannot create executed action records.");
             return Collections.emptyList();
         }
-        final Long2ObjectMap<ActionAttributes> attributes =
-                actionAttributeExtractor.extractAttributes(executedActions.stream()
+        final Long2ObjectMap<ReportingActionAttributes> attributes =
+                actionAttributeExtractor.extractReportingAttributes(executedActions.stream()
                     .map(ExecutedAction::getActionSpec)
                     .collect(Collectors.toList()), topologyGraph);
 
@@ -233,7 +234,7 @@ public class ActionConverter {
             logger.error("No topology graph found. Cannot create pending action records.");
             return Collections.emptyList();
         }
-        final Long2ObjectMap<ActionAttributes> attributes = actionAttributeExtractor.extractAttributes(actionSpecs, topologyGraph);
+        final Long2ObjectMap<ReportingActionAttributes> attributes = actionAttributeExtractor.extractReportingAttributes(actionSpecs, topologyGraph);
         final List<Record> retList = new ArrayList<>(actionSpecs.size());
         actionSpecs.forEach(actionSpec -> {
             final Record pendingActionRecord = new Record(ActionModel.PendingAction.TABLE);
@@ -334,7 +335,7 @@ public class ActionConverter {
 
             // set target and related
             try {
-                ActionDTO.ActionEntity primaryEntity = ActionDTOUtil.getPrimaryEntity(recommendation, true);
+                ActionDTO.ActionEntity primaryEntity = ActionDTOUtil.getPrimaryEntity(recommendation);
                 action.setTarget(ActionAttributeExtractor.getActionEntityWithType(primaryEntity, topologyGraph));
                 relatedEntitiesExtractor.ifPresent(extractor ->
                         action.setRelated(extractor.extractRelatedEntities(primaryEntity.getId())));
@@ -353,8 +354,8 @@ public class ActionConverter {
             retActions.put(actionSpec.getRecommendation().getId(), action);
         });
 
-        actionAttributeExtractor.populateAttributes(actionSpecs, topologyGraph, retActions);
-
-        return retActions.values();
+        // populate attributes as a last step, since a single action (like atomic resize) may be
+        // flattened into multiple actions and it requires all other fields to create copy of an action
+        return actionAttributeExtractor.populateExporterAttributes(actionSpecs, topologyGraph, retActions);
     }
 }
