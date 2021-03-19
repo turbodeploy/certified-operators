@@ -48,10 +48,16 @@ public class EntityUptimeDiscountJournalEntry<E> implements  QualifiedJournalEnt
     public TraxNumber calculateHourlyCost(@Nonnull final EntityInfoExtractor infoExtractor,
                                           @Nonnull final DiscountApplicator discountApplicator,
                                           @Nonnull final RateExtractor rateExtractor) {
-        // Retrieve the sum total of prices for all sources.
-        TraxNumber price = rateExtractor.lookupCostWithFilter(targetCostCategory, cs -> true);
-        return price.times(-1).compute()
-                .times(enityUptimeDiscountMultiplier).compute();
+        TraxNumber totalDiscount = trax(0D);
+        for (CostSource source: CostSource.values()) {
+                TraxNumber price = rateExtractor.lookupCostWithFilter(targetCostCategory,
+                        cs -> cs == source);
+                if (price.getValue() > 0d) {
+                    totalDiscount = totalDiscount.plus(price.times(-1).compute()
+                            .times(enityUptimeDiscountMultiplier).compute()).compute();
+                }
+        }
+        return totalDiscount;
     }
 
     @Nonnull

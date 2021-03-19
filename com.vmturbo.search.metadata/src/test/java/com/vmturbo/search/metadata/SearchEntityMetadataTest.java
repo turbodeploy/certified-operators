@@ -28,14 +28,10 @@ import com.vmturbo.api.dto.searchquery.FieldApiDTO.FieldType;
 import com.vmturbo.api.dto.searchquery.FieldValueApiDTO.Type;
 import com.vmturbo.api.dto.searchquery.PrimitiveFieldApiDTO;
 import com.vmturbo.api.enums.EntityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.search.metadata.utils.SearchFiltersMapper.SearchFilterSpec;
 
 /**
@@ -178,25 +174,6 @@ public class SearchEntityMetadataTest {
 
         // Assert
         assertFalse(maybeNumCpus.isPresent());
-    }
-
-    /**
-     * Missing vendor_id should not be mapped to default value (empty string).
-     */
-    @Test
-    public void testMissingVendorIdNotMapped() {
-        SearchMetadataMapping vendorIdMapping = SearchMetadataMapping.PRIMITIVE_VENDOR_ID;
-        // no vendor_id provided
-        TopologyEntityDTO account = TopologyEntityDTO.newBuilder()
-                .setOid(1231L)
-                .setEntityType(EntityDTO.EntityType.BUSINESS_ACCOUNT_VALUE)
-                .setOrigin(Origin.newBuilder().setDiscoveryOrigin(
-                        DiscoveryOrigin.newBuilder()
-                                .putDiscoveredTargetData(21, PerTargetEntityInformation.newBuilder()
-                                        .setOrigin(EntityOrigin.DISCOVERED).build())))
-                .build();
-        final Optional<Object> vendorId = vendorIdMapping.getTopoFieldFunction().apply(account);
-        assertFalse(vendorId.isPresent());
     }
 
     /**

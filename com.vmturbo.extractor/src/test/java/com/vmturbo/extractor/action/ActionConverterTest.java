@@ -13,10 +13,10 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.sql.Timestamp;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -59,9 +59,9 @@ import com.vmturbo.extractor.schema.enums.ActionCategory;
 import com.vmturbo.extractor.schema.enums.ActionType;
 import com.vmturbo.extractor.schema.enums.Severity;
 import com.vmturbo.extractor.schema.enums.TerminalState;
+import com.vmturbo.extractor.schema.json.common.ActionAttributes;
 import com.vmturbo.extractor.schema.json.common.MoveChange;
 import com.vmturbo.extractor.schema.json.export.RelatedEntity;
-import com.vmturbo.extractor.schema.json.reporting.ReportingActionAttributes;
 import com.vmturbo.extractor.topology.DataProvider;
 import com.vmturbo.extractor.topology.SupplyChainEntity;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -129,7 +129,7 @@ public class ActionConverterTest {
 
     private ObjectMapper objectMapper = mock(ObjectMapper.class);
 
-    private final ReportingActionAttributes attrs = mock(ReportingActionAttributes.class);
+    private final ActionAttributes attrs = mock(ActionAttributes.class);
 
     private final String attrsJson = "{ \"foo\" : \"bar\" }";
 
@@ -155,7 +155,7 @@ public class ActionConverterTest {
         when(dataProvider.getTopologyGraph()).thenReturn(topologyGraph);
         when(dataExtractionFactory.newRelatedEntitiesExtractor(dataProvider)).thenReturn(Optional.of(relatedEntitiesExtractor));
         when(cachingPolicyFetcher.getOrFetchPolicies()).thenReturn(Collections.emptyMap());
-        when(actionAttributeExtractor.extractReportingAttributes(any(), any())).thenReturn(Long2ObjectMaps.emptyMap());
+        when(actionAttributeExtractor.extractAttributes(any(), any())).thenReturn(Long2ObjectMaps.emptyMap());
 
         RelatedEntity relatedEntity1 = new RelatedEntity();
         relatedEntity1.setOid(234L);
@@ -176,7 +176,7 @@ public class ActionConverterTest {
      */
     @Test
     public void testPendingActionRecord() throws Exception {
-        when(actionAttributeExtractor.extractReportingAttributes(Collections.singletonList(actionSpec), topologyGraph))
+        when(actionAttributeExtractor.extractAttributes(Collections.singletonList(actionSpec), topologyGraph))
                 .thenReturn(Long2ObjectMaps.singleton(actionOid, attrs));
         when(objectMapper.writeValueAsString(attrs)).thenReturn(attrsJson);
         Record record = actionConverter.makePendingActionRecords(Collections.singletonList(actionSpec)).get(0);
@@ -204,7 +204,7 @@ public class ActionConverterTest {
      */
     @Test
     public void testExecutedSucceededActionRecord() throws Exception {
-        when(actionAttributeExtractor.extractReportingAttributes(Collections.singletonList(succeededActionSpec), topologyGraph))
+        when(actionAttributeExtractor.extractAttributes(Collections.singletonList(succeededActionSpec), topologyGraph))
                 .thenReturn(Long2ObjectMaps.singleton(actionOid, attrs));
         when(objectMapper.writeValueAsString(attrs)).thenReturn(attrsJson);
         Record record = actionConverter.makeExecutedActionSpec(
@@ -251,13 +251,13 @@ public class ActionConverterTest {
      */
     @Test
     public void testMakeExportedAction() {
-        final MoveChange moveInfo = new MoveChange();
+        final Map<String, MoveChange> moveInfo = Collections.singletonMap("Foo", new MoveChange());
         final List<ActionSpec> actionSpecs = Collections.singletonList(actionSpec);
         Mockito.doAnswer(invocation -> {
             Long2ObjectMap<com.vmturbo.extractor.schema.json.export.Action> actionMap = invocation.getArgumentAt(2, Long2ObjectMap.class);
             actionMap.get(actionOid).setMoveInfo(moveInfo);
-            return new ArrayList<>(actionMap.values());
-        }).when(actionAttributeExtractor).populateExporterAttributes(eq(actionSpecs), eq(topologyGraph), any());
+            return null;
+        }).when(actionAttributeExtractor).populateAttributes(eq(actionSpecs), eq(topologyGraph), any());
         com.vmturbo.extractor.schema.json.export.Action action =
                 actionConverter.makeExportedActions(actionSpecs).stream().findFirst().get();
         // common fields

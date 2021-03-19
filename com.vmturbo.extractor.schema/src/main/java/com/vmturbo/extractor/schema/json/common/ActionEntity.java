@@ -3,7 +3,6 @@ package com.vmturbo.extractor.schema.json.common;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
-import com.google.common.base.MoreObjects;
 
 /**
  * The entity used in action.
@@ -37,15 +36,5 @@ public class ActionEntity {
 
     public void setType(String type) {
         this.type = type;
-    }
-
-    @Override
-    public String toString() {
-        return MoreObjects.toStringHelper("ActionEntity")
-                .omitNullValues()
-                .add("type", type)
-                .add("oid", oid)
-                .add("name", name)
-                .toString();
     }
 }
