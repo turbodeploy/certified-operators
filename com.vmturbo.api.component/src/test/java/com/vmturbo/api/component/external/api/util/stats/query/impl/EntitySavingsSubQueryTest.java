@@ -91,7 +91,13 @@ public class EntitySavingsSubQueryTest {
 
         when(scope.isPlan()).thenReturn(false);
         when(scope.isCloud()).thenReturn(false);
+        when(scope.isHybridGroup()).thenReturn(false);
         assertEquals(false, query.applicableInContext(context));
+
+        when(scope.isPlan()).thenReturn(false);
+        when(scope.isCloud()).thenReturn(false);
+        when(scope.isHybridGroup()).thenReturn(true);
+        assertEquals(true, query.applicableInContext(context));
     }
 
     /**
