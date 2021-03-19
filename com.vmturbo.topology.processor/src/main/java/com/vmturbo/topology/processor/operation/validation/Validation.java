@@ -7,13 +7,13 @@ import io.swagger.annotations.ApiModel;
 import com.vmturbo.proactivesupport.DataMetricCounter;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
-import com.vmturbo.topology.processor.operation.Operation;
+import com.vmturbo.topology.processor.operation.TargetExplorationOperation;
 
 /**
  * An validation operation on a target.
  */
 @ApiModel("Validation")
-public class Validation extends Operation {
+public class Validation extends TargetExplorationOperation {
 
     private static final DataMetricSummary VALIDATION_DURATION_SECONDS = DataMetricSummary.builder()
         .withName("tp_validation_duration_seconds")
