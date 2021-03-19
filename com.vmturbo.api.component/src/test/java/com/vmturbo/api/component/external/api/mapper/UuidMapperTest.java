@@ -622,6 +622,94 @@ public class UuidMapperTest {
         assertFalse(apiId4.isCloud());
     }
 
+    /**
+     * Test isHybridGroup method. It should return true if the group environment type is HYBRID.
+     *
+     * @throws Exception any exception
+     */
+    @Test
+    public void testIsHybridGroup() throws Exception {
+        final MultiEntityRequest req0 = ApiTestUtils.mockMultiEntityReqEmpty();
+        when(repositoryApi.entitiesRequest(any())).thenReturn(req0);
+
+        Grouping grouping = Grouping.newBuilder()
+                .setId(123)
+                .addExpectedTypes(MemberType.newBuilder()
+                        .setEntity(ApiEntityType.VIRTUAL_VOLUME.typeNumber()))
+                .setDefinition(GroupDefinition.newBuilder()
+                        .setIsTemporary(true)
+                        .setDisplayName("foo")
+                        .setOptimizationMetadata(GroupDefinition.OptimizationMetadata.newBuilder()
+                                .setEnvironmentType(EnvironmentType.HYBRID))
+                )
+                .build();
+        when(groupRetriever.getGroupsWithMembers(GetGroupsRequest.newBuilder()
+                .setGroupFilter(GroupFilter.newBuilder()
+                        .addId(123)
+                        .setIncludeHidden(true)
+                        .setIncludeTemporary(true))
+                .build())).thenReturn(
+                Collections.singletonList(ImmutableGroupAndMembers.builder().group(grouping)
+                        .members(Collections.emptyList()).entities(Collections.emptyList()).build()));
+
+        ApiId apiId1 = uuidMapper.fromUuid("123");
+        assertTrue(apiId1.isGroup());
+        assertTrue(apiId1.isHybridGroup());
+        assertFalse(apiId1.isCloudGroup());
+        assertFalse(apiId1.isCloud());
+
+        Grouping grouping2 = Grouping.newBuilder()
+                .setId(456)
+                .addExpectedTypes(MemberType.newBuilder()
+                        .setEntity(ApiEntityType.VIRTUAL_VOLUME.typeNumber()))
+                .setDefinition(GroupDefinition.newBuilder()
+                        .setIsTemporary(true)
+                        .setDisplayName("foo")
+                        .setOptimizationMetadata(GroupDefinition.OptimizationMetadata.newBuilder()
+                                .setEnvironmentType(EnvironmentType.CLOUD))
+                )
+                .build();
+        when(groupRetriever.getGroupsWithMembers(GetGroupsRequest.newBuilder()
+                .setGroupFilter(GroupFilter.newBuilder()
+                        .addId(456)
+                        .setIncludeHidden(true)
+                        .setIncludeTemporary(true))
+                .build())).thenReturn(
+                Collections.singletonList(ImmutableGroupAndMembers.builder().group(grouping2)
+                        .members(Collections.emptyList()).entities(Collections.emptyList()).build()));
+
+        ApiId apiId2 = uuidMapper.fromUuid("456");
+        assertTrue(apiId2.isGroup());
+        assertFalse(apiId2.isHybridGroup());
+        assertTrue(apiId2.isCloudGroup());
+        assertTrue(apiId2.isCloud());
+
+        Grouping grouping3 = Grouping.newBuilder()
+                .setId(789)
+                .addExpectedTypes(MemberType.newBuilder()
+                        .setEntity(ApiEntityType.VIRTUAL_VOLUME.typeNumber()))
+                .setDefinition(GroupDefinition.newBuilder()
+                        .setIsTemporary(true)
+                        .setDisplayName("foo")
+                        .setOptimizationMetadata(GroupDefinition.OptimizationMetadata.newBuilder()
+                                .setEnvironmentType(EnvironmentType.ON_PREM))
+                )
+                .build();
+        when(groupRetriever.getGroupsWithMembers(GetGroupsRequest.newBuilder()
+                .setGroupFilter(GroupFilter.newBuilder()
+                        .addId(789)
+                        .setIncludeHidden(true)
+                        .setIncludeTemporary(true))
+                .build())).thenReturn(
+                Collections.singletonList(ImmutableGroupAndMembers.builder().group(grouping3)
+                        .members(Collections.emptyList()).entities(Collections.emptyList()).build()));
+
+        ApiId apiId3 = uuidMapper.fromUuid("789");
+        assertTrue(apiId3.isGroup());
+        assertFalse(apiId3.isHybridGroup());
+        assertFalse(apiId3.isCloudGroup());
+        assertFalse(apiId3.isCloud());
+    }
 
     @Test
     public void testGroupIdNotGroup() throws OperationFailedException {

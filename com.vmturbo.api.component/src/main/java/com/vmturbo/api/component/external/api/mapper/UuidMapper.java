@@ -1052,6 +1052,12 @@ public class UuidMapper implements RepositoryListener {
                 .orElse(false);
         }
 
+        public boolean isHybridGroup() {
+            return getCachedGroupInfo().flatMap(cgi ->
+                    cgi.getGlobalEnvType().map(envType -> envType == EnvironmentType.HYBRID))
+                    .orElse(false);
+        }
+
         public boolean isCloud() {
             return isCloudEntity() || isCloudGroup() || isCloudPlan();
         }

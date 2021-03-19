@@ -53,7 +53,12 @@ public class EntitySavingsSubQuery implements StatsSubQuery {
 
     @Override
     public boolean applicableInContext(@Nonnull final StatsQueryContext context) {
-        return !context.getInputScope().isPlan() && context.getInputScope().isCloud();
+        // This sub query is designed for real-time market and only for cloud entities or groups.
+        // Hybrid groups are also applicable. Only the cloud entities in the group will have savings
+        // stats. There is no need to process on-prem entities or groups since they don't have
+        // savings data.
+        return !context.getInputScope().isPlan()
+                && (context.getInputScope().isCloud() || context.getInputScope().isHybridGroup());
     }
 
     @Override
