@@ -54,10 +54,8 @@ import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.target.InputFieldApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
-import com.vmturbo.api.dto.target.TargetHealthApiDTO;
 import com.vmturbo.api.dto.workflow.WorkflowApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
-import com.vmturbo.api.enums.HealthState;
 import com.vmturbo.api.enums.InputValueType;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
@@ -83,7 +81,6 @@ import com.vmturbo.topology.processor.api.AccountFieldValueType;
 import com.vmturbo.topology.processor.api.AccountValue;
 import com.vmturbo.topology.processor.api.ProbeInfo;
 import com.vmturbo.topology.processor.api.TargetData;
-import com.vmturbo.topology.processor.api.ITargetHealthInfo;
 import com.vmturbo.topology.processor.api.TargetInfo;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.TopologyProcessorException;
@@ -353,7 +350,6 @@ public class TargetsService implements ITargetsService {
      * @return {@link ResponseEntity} with collection of ServiceEntityApiDTO
      * @throws Exception error while processing request
      */
-    @Override
     public ResponseEntity<List<ServiceEntityApiDTO>> getEntitiesByTargetUuid(final String targetUuid,
                                                                              @Nullable final String cursor,
                                                                              @Nullable final Integer limit,
@@ -970,24 +966,5 @@ public class TargetsService implements ITargetsService {
                 SearchProtoUtil.discoveredBy(targetId))
                 .build())
                 .getOids();
-    }
-
-    @Override
-    @Nonnull
-    public List<TargetHealthApiDTO> getTargetsHealth(@Nullable HealthState state) {
-        //FIXME implement
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    @Nonnull
-    public TargetHealthApiDTO getHealthByTargetUuid(@Nonnull String uuid) {
-        long targetId = Long.parseLong(uuid);
-        try {
-            ITargetHealthInfo healthInfo = topologyProcessor.getTargetHealth(targetId);
-            return targetMapper.mapTargetHealthInfoToDTO(healthInfo);
-        } catch (CommunicationException | TopologyProcessorException e) {
-            throw new RuntimeException("Error getting target health info", e);
-        }
     }
 }

@@ -16,9 +16,7 @@ import com.google.common.collect.Lists;
 
 import io.swagger.annotations.ApiModelProperty;
 
-import com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorType;
 import com.vmturbo.topology.processor.api.AccountValue;
-import com.vmturbo.topology.processor.api.ITargetHealthInfo;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec.Builder;
 import com.vmturbo.topology.processor.api.TopologyProcessorException;
@@ -108,7 +106,6 @@ public class TargetRESTApi {
             return targetId;
         }
 
-        @Override
         @ApiModelProperty(value = "The display name of the target.")
         public String getDisplayName() {
             return displayName;
@@ -270,80 +267,6 @@ public class TargetRESTApi {
             sb.append("Target probe:").append(probeId);
             sb.append(super.toString());
             return sb.toString();
-        }
-    }
-
-    public static class TargetHealthInfo implements ITargetHealthInfo {
-        private final Long targetId;
-        private final String displayName;
-        private TargetHealthSubcategory subcategory;
-        private ErrorType targetErrorType;
-        private String errorText = "";
-        private LocalDateTime timeOfFirstFailure;
-        private int numberOfConsecutiveFailures = 0;
-
-        public TargetHealthInfo(TargetHealthSubcategory checkSubcategory, Long id, String displayName)   {
-            this.targetId = id;
-            this.displayName = displayName;
-            this.subcategory = checkSubcategory;
-        }
-
-        public TargetHealthInfo(TargetHealthSubcategory checkSubcategory, Long id,
-                        String displayName, String errorText)   {
-            this.targetId = id;
-            this.displayName = displayName;
-            this.errorText = errorText;
-            this.subcategory = checkSubcategory;
-        }
-
-        public TargetHealthInfo(TargetHealthSubcategory checkSubcategory, Long id,
-                        String displayName, ErrorType errorType,
-                        String errorText, LocalDateTime timeOfFirstFailure)   {
-            this(checkSubcategory, id, displayName, errorType, errorText, timeOfFirstFailure, 1);
-        }
-
-        public TargetHealthInfo(TargetHealthSubcategory checkSubcategory, Long id,
-                        String displayName, ErrorType errorType, String errorText,
-                        LocalDateTime timeOfFirstFailure, int numberOfFailures)   {
-            this(checkSubcategory, id, displayName, errorText);
-            this.targetErrorType = errorType;
-            this.timeOfFirstFailure = timeOfFirstFailure;
-            this.numberOfConsecutiveFailures = numberOfFailures;
-        }
-
-        @Override
-        public Long getTargetId()   {
-            return targetId;
-        }
-
-        @Override
-        public String getDisplayName()  {
-            return displayName;
-        }
-
-        @Override
-        public TargetHealthSubcategory getSubcategory() {
-            return subcategory;
-        }
-
-        @Override
-        public ErrorType getTargetErrorType() {
-            return targetErrorType;
-        }
-
-        @Override
-        public String getErrorText() {
-            return errorText;
-        }
-
-        @Override
-        public LocalDateTime getTimeOfFirstFailure() {
-            return timeOfFirstFailure;
-        }
-
-        @Override
-        public int getNumberOfConsecutiveFailures() {
-            return numberOfConsecutiveFailures;
         }
     }
 }
