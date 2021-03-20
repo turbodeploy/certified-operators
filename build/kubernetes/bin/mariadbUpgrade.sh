@@ -53,7 +53,7 @@ echo "---------------------"
 turboPodCount=$(/usr/local/bin/kubectl get pod -n turbonomic | wc -l)
 while [ ${turboPodCount} -gt 0 ]
 do
-  turboPodCount=$(/usr/local/bin/kubectl get pod -n turbonomic | egrep -v "prometheus-node-exporter|fluent-bit-loki|loki|elasticsearch|logstash|NAME" | wc -l)
+  turboPodCount=$(/usr/local/bin/kubectl get pod -n turbonomic | egrep -v "prometheus-node-exporter|fluent-bit-loki|loki|elasticsearch|logstash|datacloud|NAME" | wc -l)
 done
 echo
 
