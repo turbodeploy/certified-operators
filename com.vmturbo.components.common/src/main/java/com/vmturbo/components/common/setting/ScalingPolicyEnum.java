@@ -10,7 +10,7 @@ public enum ScalingPolicyEnum {
     RESIZE,
 
     /**
-     * Provision policy.
+     * Horizontal Scale policy.
      */
-    PROVISION
+    HORIZONTAL_SCALE
 }

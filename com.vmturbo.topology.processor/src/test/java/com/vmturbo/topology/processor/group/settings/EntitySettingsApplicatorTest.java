@@ -1977,7 +1977,7 @@ public class EntitySettingsApplicatorTest {
         final TopologyEntityDTO.Builder originalBuilder = builder.clone();
 
         SCALING_POLICY_SETTING_BUILDER.setEnumSettingValue(EnumSettingValue.newBuilder()
-                .setValue(ScalingPolicyEnum.PROVISION.name()));
+                .setValue(ScalingPolicyEnum.HORIZONTAL_SCALE.name()));
 
         // Verify that we have at least one resizeable commodity in the test setup
         assertTrue(builder.getCommoditySoldListList().stream()
