@@ -70,8 +70,7 @@ public class ActionTargetSelector {
      */
     public ActionTargetSelector(@Nonnull final ProbeCapabilityCache probeCapabilityCache,
             @Nonnull final ActionConstraintStoreFactory actionConstraintStoreFactory,
-            @Nonnull final Channel repositoryProcessorChannel,
-            final long realtimeTopologyContextId) {
+            @Nonnull final Channel repositoryProcessorChannel, final long realtimeTopologyContextId) {
         this.targetInfoResolver =
                 new TargetInfoResolver(probeCapabilityCache, actionConstraintStoreFactory,
                         new EntityAndActionTypeBasedEntitySelector());
@@ -86,6 +85,8 @@ public class ActionTargetSelector {
     public interface ActionTargetInfo {
         /**
          * The support level for the action in the Turbonomic system.
+         *
+         * @return supporting level
          */
         SupportLevel supportingLevel();
 
@@ -93,6 +94,8 @@ public class ActionTargetSelector {
          * The OID of the target that should execute this action. Should always be set if
          * {@link ActionTargetInfo#supportingLevel()} is {@link SupportLevel#SUPPORTED}. May not be
          * set otherwise.
+         *
+         * @return target OID
          */
         Optional<Long> targetId();
 

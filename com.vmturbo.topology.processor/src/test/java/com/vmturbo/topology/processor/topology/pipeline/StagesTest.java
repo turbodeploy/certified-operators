@@ -177,10 +177,11 @@ public class StagesTest {
     @Test
     public void testUploadActionConstraintsStage() {
         final ActionConstraintsUploader uploader = mock(ActionConstraintsUploader.class);
-        final UploadActionConstraintsStage stage = new UploadActionConstraintsStage(uploader);
+        final UploadActionConstraintsStage stage = new UploadActionConstraintsStage(uploader,
+                null);
         final StitchingContext stitchingContext = mock(StitchingContext.class);
         stage.passthrough(stitchingContext);
-        verify(uploader).uploadActionConstraintInfo(stitchingContext);
+        verify(uploader).uploadActionConstraintInfo(stitchingContext, null);
     }
 
     @Test

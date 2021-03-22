@@ -13,6 +13,12 @@ message ActionConstraintInfo {
     // The content of the action constraint info
     oneof action_constraint_info {
         CoreQuotaInfo core_quota_info = 2;
+        AzureScaleSetInfo azure_scale_set_info = 3;
+    }
+
+    // Discovered Azure scale set info
+    message AzureScaleSetInfo {
+        repeated string names = 1;
     }
 
     // The core quota info
@@ -63,6 +69,7 @@ message ActionConstraintInfo {
 enum ActionConstraintType {
     // The action constraint type of CoreQuotaInfo
     CORE_QUOTA = 1;
+    AZURE_SCALE_SET_INFO = 2;
 }
 
 // A request to upload ActionConstraintInfo

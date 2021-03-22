@@ -328,7 +328,7 @@ public class LivePipelineFactory {
                 .addStage(new UploadCloudCostDataStage(discoveredCloudCostUploader))
                 .addStage(new ScanDiscoveredSettingPoliciesStage(discoveredSettingPolicyScanner,
                         discoveredGroupUploader))
-                .addStage(new UploadActionConstraintsStage(actionConstraintsUploader))
+                .addStage(new UploadActionConstraintsStage(actionConstraintsUploader, groupServiceClient))
                 .addStage(new StitchingGroupAnalyzerStage(discoveredGroupUploader))
                 .addStage(new CacheWritingConstructTopologyFromStitchingContextStage(constructTopologyStageCache))
                 .addStage(new InitializeTopologyEntitiesStage())

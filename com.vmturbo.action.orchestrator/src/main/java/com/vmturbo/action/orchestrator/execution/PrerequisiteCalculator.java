@@ -11,13 +11,16 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
+
 import org.apache.commons.lang3.StringUtils;
 
 import com.vmturbo.action.orchestrator.action.constraint.ActionConstraintStore;
 import com.vmturbo.action.orchestrator.action.constraint.ActionConstraintStoreFactory;
+import com.vmturbo.action.orchestrator.action.constraint.AzureScaleSetInfoStore;
 import com.vmturbo.action.orchestrator.action.constraint.CoreQuotaStore;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
@@ -77,8 +80,9 @@ class PrerequisiteCalculator {
             action, target, snapshot, probeCategory);
         final Set<Prerequisite> coreQuotaPrerequisites = calculateQuotaPrerequisite(
             action, target, snapshot, probeCategory, actionConstraintStoreFactory.getCoreQuotaStore());
-        final Set<Prerequisite> azureScaleSetPrerequisites = calculateAzureScaleSetPrerequisite(
-                action, target, snapshot);
+        final Set<Prerequisite> azureScaleSetPrerequisites =
+                calculateAzureScaleSetPrerequisite(action,
+                        actionConstraintStoreFactory.getAzureScaleSetInfoStore());
 
         if (generalPrerequisites.isEmpty()
                 && coreQuotaPrerequisites.isEmpty()
@@ -154,8 +158,8 @@ class PrerequisiteCalculator {
                 Optional<ActionPartialEntity> destinationOptional =
                     snapshot.getEntityFromOid(destinationId);
 
-                if (destinationOptional.isPresent() &&
-                    destinationOptional.get().getTypeSpecificInfo().hasComputeTier()) {
+                if (destinationOptional.isPresent()
+                        && destinationOptional.get().getTypeSpecificInfo().hasComputeTier()) {
                     // Calculate pre-requisites when target has VirtualMachineInfo and
                     // destination has ComputeTierInfo.
                     Map<String, Setting> settingsForTargetEntity = snapshot.getSettingsForEntity(target.getOid());
@@ -188,13 +192,13 @@ class PrerequisiteCalculator {
         @Nonnull final ActionComputeTierInfo computeTierInfo,
         @Nonnull final Map<String, Setting> settingsForTargetEntity) {
         // Check if the compute tier supports only Ena vms.
-        final boolean computeTierSupportsOnlyEnaVms = computeTierInfo.hasSupportedCustomerInfo() &&
-            computeTierInfo.getSupportedCustomerInfo().hasSupportsOnlyEnaVms() &&
-            computeTierInfo.getSupportedCustomerInfo().getSupportsOnlyEnaVms();
+        final boolean computeTierSupportsOnlyEnaVms = computeTierInfo.hasSupportedCustomerInfo()
+                && computeTierInfo.getSupportedCustomerInfo().hasSupportsOnlyEnaVms()
+                && computeTierInfo.getSupportedCustomerInfo().getSupportsOnlyEnaVms();
         // Check if the vm has an Ena driver.
-        final boolean vmHasEnaDriver = virtualMachineInfo.hasDriverInfo() &&
-            virtualMachineInfo.getDriverInfo().hasHasEnaDriver() &&
-            virtualMachineInfo.getDriverInfo().getHasEnaDriver();
+        final boolean vmHasEnaDriver = virtualMachineInfo.hasDriverInfo()
+                && virtualMachineInfo.getDriverInfo().hasHasEnaDriver()
+                && virtualMachineInfo.getDriverInfo().getHasEnaDriver();
 
         if (computeTierSupportsOnlyEnaVms && !vmHasEnaDriver) {
             return Optional.of(Prerequisite.newBuilder()
@@ -217,18 +221,18 @@ class PrerequisiteCalculator {
             @Nonnull final ActionComputeTierInfo computeTierInfo,
             @Nonnull final Map<String, Setting> settingsForTargetEntity) {
         Setting ignoreNvmeSetting = settingsForTargetEntity.get(IgnoreNvmePreRequisite.getSettingName());
-        boolean ignoreNvme = ignoreNvmeSetting != null &&
-            ignoreNvmeSetting.hasBooleanSettingValue() &&
-            ignoreNvmeSetting.getBooleanSettingValue().getValue();
+        boolean ignoreNvme = ignoreNvmeSetting != null
+                && ignoreNvmeSetting.hasBooleanSettingValue()
+                && ignoreNvmeSetting.getBooleanSettingValue().getValue();
         if (!ignoreNvme) {
             // Check if the compute tier supports only NVMe vms.
-            final boolean computeTierSupportsOnlyNVMeVms = computeTierInfo.hasSupportedCustomerInfo() &&
-                computeTierInfo.getSupportedCustomerInfo().hasSupportsOnlyNVMeVms() &&
-                computeTierInfo.getSupportedCustomerInfo().getSupportsOnlyNVMeVms();
+            final boolean computeTierSupportsOnlyNVMeVms = computeTierInfo.hasSupportedCustomerInfo()
+                    && computeTierInfo.getSupportedCustomerInfo().hasSupportsOnlyNVMeVms()
+                    && computeTierInfo.getSupportedCustomerInfo().getSupportsOnlyNVMeVms();
             // Check if the vm has a NVMe driver.
-            final boolean vmHasNvmeDriver = virtualMachineInfo.hasDriverInfo() &&
-                virtualMachineInfo.getDriverInfo().hasHasNvmeDriver() &&
-                virtualMachineInfo.getDriverInfo().getHasNvmeDriver();
+            final boolean vmHasNvmeDriver = virtualMachineInfo.hasDriverInfo()
+                    && virtualMachineInfo.getDriverInfo().hasHasNvmeDriver()
+                    && virtualMachineInfo.getDriverInfo().getHasNvmeDriver();
 
             if (computeTierSupportsOnlyNVMeVms && !vmHasNvmeDriver) {
                 return Optional.of(Prerequisite.newBuilder()
@@ -251,8 +255,8 @@ class PrerequisiteCalculator {
             @Nonnull final ActionVirtualMachineInfo virtualMachineInfo,
             @Nonnull final ActionComputeTierInfo computeTierInfo,
             @Nonnull final Map<String, Setting> settingsForTargetEntity) {
-        if (!virtualMachineInfo.hasLocks() ||
-                StringUtils.isBlank(virtualMachineInfo.getLocks())) {
+        if (!virtualMachineInfo.hasLocks()
+                || StringUtils.isBlank(virtualMachineInfo.getLocks())) {
             return Optional.empty();
         }
         return Optional.of(Prerequisite.newBuilder()
@@ -275,15 +279,16 @@ class PrerequisiteCalculator {
         @Nonnull final Map<String, Setting> settingsForTargetEntity) {
         // Check if the compute tier has supported architectures.
         final boolean computeTierHasSupportedArchitectures =
-            computeTierInfo.hasSupportedCustomerInfo() &&
-                !computeTierInfo.getSupportedCustomerInfo().getSupportedArchitecturesList().isEmpty();
+            computeTierInfo.hasSupportedCustomerInfo()
+                    && !computeTierInfo.getSupportedCustomerInfo()
+                        .getSupportedArchitecturesList().isEmpty();
         // Check if the vm has architecture.
         final boolean vmHasArchitecture = virtualMachineInfo.hasArchitecture();
 
-        if (computeTierHasSupportedArchitectures &&
-            vmHasArchitecture &&
-            !computeTierInfo.getSupportedCustomerInfo().getSupportedArchitecturesList()
-                .contains(virtualMachineInfo.getArchitecture())) {
+        if (computeTierHasSupportedArchitectures
+                && vmHasArchitecture
+                && !computeTierInfo.getSupportedCustomerInfo().getSupportedArchitecturesList()
+                    .contains(virtualMachineInfo.getArchitecture())) {
             return Optional.of(Prerequisite.newBuilder()
                 .setPrerequisiteType(PrerequisiteType.ARCHITECTURE).build());
         }
@@ -304,14 +309,15 @@ class PrerequisiteCalculator {
             @Nonnull final Map<String, Setting> settingsForTargetEntity) {
         // Check if the compute tier has supported virtualization types.
         final boolean computeTierHasSupportedVirtualizationTypes =
-            computeTierInfo.hasSupportedCustomerInfo() &&
-                !computeTierInfo.getSupportedCustomerInfo().getSupportedVirtualizationTypesList().isEmpty();
+            computeTierInfo.hasSupportedCustomerInfo()
+                    && !computeTierInfo.getSupportedCustomerInfo()
+                        .getSupportedVirtualizationTypesList().isEmpty();
         // Check if the vm has virtualization type.
         final boolean vmHasVirtualizationType = virtualMachineInfo.hasVirtualizationType();
 
-        if (computeTierHasSupportedVirtualizationTypes &&
-            vmHasVirtualizationType &&
-            !computeTierInfo.getSupportedCustomerInfo().getSupportedVirtualizationTypesList()
+        if (computeTierHasSupportedVirtualizationTypes
+                && vmHasVirtualizationType
+                && !computeTierInfo.getSupportedCustomerInfo().getSupportedVirtualizationTypesList()
                 .contains(virtualMachineInfo.getVirtualizationType())) {
             return Optional.of(Prerequisite.newBuilder()
                 .setPrerequisiteType(PrerequisiteType.VIRTUALIZATION_TYPE).build());
@@ -343,8 +349,8 @@ class PrerequisiteCalculator {
         // Check if the category of the probe which discovers the target is CLOUD_MANAGEMENT and this
         // action is a Move action. If not, there's no need to calculate pre-requisites for this
         // action because no pre-requisites will be generated for such an action.
-        if (probeCategory != ProbeCategory.CLOUD_MANAGEMENT ||
-            action.getInfo().getActionTypeCase() != ActionTypeCase.MOVE) {
+        if (probeCategory != ProbeCategory.CLOUD_MANAGEMENT
+                || action.getInfo().getActionTypeCase() != ActionTypeCase.MOVE) {
             return Collections.emptySet();
         }
 
@@ -365,10 +371,10 @@ class PrerequisiteCalculator {
                 Optional<ActionPartialEntity> destinationOptional =
                     snapshot.getEntityFromOid(destinationId);
 
-                if (sourceOptional.isPresent() &&
-                    sourceOptional.get().getTypeSpecificInfo().hasComputeTier() &&
-                    destinationOptional.isPresent() &&
-                    destinationOptional.get().getTypeSpecificInfo().hasComputeTier()) {
+                if (sourceOptional.isPresent()
+                        && sourceOptional.get().getTypeSpecificInfo().hasComputeTier()
+                        && destinationOptional.isPresent()
+                        && destinationOptional.get().getTypeSpecificInfo().hasComputeTier()) {
 
                     final ActionComputeTierInfo sourceComputeTierInfo =
                         sourceOptional.get().getTypeSpecificInfo().getComputeTier();
@@ -486,21 +492,26 @@ class PrerequisiteCalculator {
             .setRegionId(regionId).setQuotaName(quotaName).build());
     }
 
+    @Nullable
+    private static String getScalingGroupId(Action action) {
+        final ActionInfo actionInfo = action.getInfo();
+        if (actionInfo.hasMove() && actionInfo.getMove().hasScalingGroupId()) {
+            return actionInfo.getMove().getScalingGroupId();
+        }
+        if (actionInfo.hasScale() && actionInfo.getScale().hasScalingGroupId()) {
+            return actionInfo.getScale().getScalingGroupId();
+        }
+        return null;
+    }
+
     private static Set<Prerequisite> calculateAzureScaleSetPrerequisite(
-            @Nonnull final Action action,
-            @Nonnull final ActionPartialEntity target,
-            @Nonnull final EntitiesAndSettingsSnapshot snapshot) {
+            @Nonnull final Action action, @Nonnull AzureScaleSetInfoStore azureScaleSetInfoStore) {
+        final Set<String> azureScaleSetNames = azureScaleSetInfoStore.getAzureScaleSetNames();
         // We don't support Action execution if the target entity belongs to an Azure Scale Set.
-        // I'm using the Resource Group to know if it's Azure.
-        Optional<Long> resourceGroup = snapshot.getResourceGroupForEntity(target.getOid());
-        if (resourceGroup.isPresent() && action.hasInfo()) {
-            final ActionInfo actionInfo = action.getInfo();
-            if (actionInfo.hasMove() && actionInfo.getMove().hasScalingGroupId()
-                    || actionInfo.hasScale() && actionInfo.getScale().hasScalingGroupId()) {
-                return Collections.singleton(Prerequisite.newBuilder()
-                        .setPrerequisiteType(PrerequisiteType.SCALE_SET)
-                        .build());
-            }
+        if (azureScaleSetNames.contains(getScalingGroupId(action))) {
+            return Collections.singleton(Prerequisite.newBuilder()
+                    .setPrerequisiteType(PrerequisiteType.SCALE_SET)
+                    .build());
         }
         return Sets.newHashSet();
     }
