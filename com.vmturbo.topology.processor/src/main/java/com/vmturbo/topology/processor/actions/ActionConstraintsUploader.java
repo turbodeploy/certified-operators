@@ -1,22 +1,26 @@
 package com.vmturbo.topology.processor.actions;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterators;
 import com.google.protobuf.Empty;
+
+import io.grpc.stub.StreamObserver;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import io.grpc.stub.StreamObserver;
-
 import com.vmturbo.common.protobuf.action.ActionConstraintDTO.ActionConstraintInfo;
+import com.vmturbo.common.protobuf.action.ActionConstraintDTO.ActionConstraintInfo.AzureScaleSetInfo;
 import com.vmturbo.common.protobuf.action.ActionConstraintDTO.ActionConstraintInfo.CoreQuotaInfo;
 import com.vmturbo.common.protobuf.action.ActionConstraintDTO.ActionConstraintInfo.CoreQuotaInfo.CoreQuotaByBusinessAccount;
 import com.vmturbo.common.protobuf.action.ActionConstraintDTO.ActionConstraintInfo.CoreQuotaInfo.CoreQuotaByBusinessAccount.CoreQuotaByRegion;
@@ -25,9 +29,18 @@ import com.vmturbo.common.protobuf.action.ActionConstraintDTO.ActionConstraintIn
 import com.vmturbo.common.protobuf.action.ActionConstraintDTO.ActionConstraintType;
 import com.vmturbo.common.protobuf.action.ActionConstraintDTO.UploadActionConstraintInfoRequest;
 import com.vmturbo.common.protobuf.action.ActionConstraintsServiceGrpc.ActionConstraintsServiceStub;
+import com.vmturbo.common.protobuf.common.CloudTypeEnum.CloudType;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.search.SearchProtoUtil;
+import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.group.api.GroupAndMembers;
+import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
@@ -41,6 +54,7 @@ public class ActionConstraintsUploader {
     private static final Logger logger = LogManager.getLogger();
 
     private final EntityStore entityStore;
+    private final GroupMemberRetriever groupMemberRetriever;
 
     // This is an async stub.
     private final ActionConstraintsServiceStub actionConstraintsServiceClient;
@@ -52,20 +66,25 @@ public class ActionConstraintsUploader {
      *
      * @param entityStore the {@link EntityStore} in which all entities are stored
      * @param actionConstraintsServiceClient action constraints service for uploading action constraints
+     * @param groupMemberRetriever group member retriever gRPC stub for querying Azure scale sets
      */
     ActionConstraintsUploader(
             @Nonnull final EntityStore entityStore,
-            @Nonnull final ActionConstraintsServiceStub actionConstraintsServiceClient) {
+            @Nonnull final ActionConstraintsServiceStub actionConstraintsServiceClient,
+            @Nonnull final GroupMemberRetriever groupMemberRetriever) {
         this.entityStore = Objects.requireNonNull(entityStore);
         this.actionConstraintsServiceClient = Objects.requireNonNull(actionConstraintsServiceClient);
+        this.groupMemberRetriever = groupMemberRetriever;
     }
 
     /**
      * This method is used to upload action constraint info to action orchestrator.
      *
      * @param stitchingContext the stitching context that is used to look up action constraint info
+     * @param groupServiceClient group service gRPC client
      */
-    public void uploadActionConstraintInfo(@Nonnull final StitchingContext stitchingContext) {
+    public void uploadActionConstraintInfo(@Nonnull final StitchingContext stitchingContext,
+            GroupServiceBlockingStub groupServiceClient) {
         final StreamObserver<UploadActionConstraintInfoRequest> requestObserver =
             actionConstraintsServiceClient.uploadActionConstraintInfo(new StreamObserver<Empty>() {
             @Override
@@ -79,8 +98,47 @@ public class ActionConstraintsUploader {
         });
 
         buildCoreQuotaInfo(stitchingContext, requestObserver);
+        buildAzureScaleSetInfo(requestObserver, groupMemberRetriever);
 
         requestObserver.onCompleted();
+    }
+
+    /**
+     * Return a set Azure scale set names, which are used as scaling group IDs.
+     *
+     * @param requestObserver the gRPC callback to use to return the results
+     * @param groupMemberRetriever Group client used to locate VMs in Azure scale sets
+     */
+    @VisibleForTesting
+    void buildAzureScaleSetInfo(StreamObserver<UploadActionConstraintInfoRequest> requestObserver,
+            GroupMemberRetriever groupMemberRetriever) {
+
+        // Create a filter that retrieves all groups that start with "AzureScaleSet::".
+        GroupFilter.Builder groupFilter = GroupFilter.newBuilder()
+                .setGroupType(GroupType.REGULAR)
+                .setCloudType(CloudType.AZURE)
+                .addPropertyFilters(SearchProtoUtil
+                        .stringPropertyFilterRegex(SearchableProperties.DISPLAY_NAME,
+                                "AzureScaleSet::.*", true, true));
+        GetGroupsRequest request = GetGroupsRequest.newBuilder().setGroupFilter(groupFilter).build();
+        List<GroupAndMembers> result = groupMemberRetriever.getGroupsWithMembers(request);
+        Set<String> names = result.stream()
+                // The group API doesn't support filtering on targetId, so we need to check here to
+                // ensure that the group is a discovered scale set as opposed to a group whose name
+                // happens to start with "AzureScaleSet::".
+                .map(GroupAndMembers::group)
+                .filter(grouping -> grouping.hasOrigin()
+                        && grouping.getOrigin().hasDiscovered()
+                        && grouping.hasDefinition())
+                .map(grouping -> grouping.getDefinition().getDisplayName())
+                .collect(Collectors.toSet());
+
+        requestObserver.onNext(UploadActionConstraintInfoRequest.newBuilder()
+                .addActionConstraintInfo(ActionConstraintInfo.newBuilder()
+                        .setActionConstraintType(ActionConstraintType.AZURE_SCALE_SET_INFO)
+                        .setAzureScaleSetInfo(AzureScaleSetInfo.newBuilder()
+                                .addAllNames(names)))
+                .build());
     }
 
     /**
@@ -134,8 +192,8 @@ public class ActionConstraintsUploader {
     private void updateCoreQuotaInfoMap(
             @Nonnull final TopologyStitchingEntity entity,
             @Nonnull final Map<Long, Map<Long, CoreQuotaByRegion.Builder>> coreQuotaInfoMap) {
-        if (entity.getEntityType() != EntityType.REGION ||
-            entity.getEntityBuilder().getEntityPropertiesList().isEmpty()) {
+        if (entity.getEntityType() != EntityType.REGION
+                || entity.getEntityBuilder().getEntityPropertiesList().isEmpty()) {
             return;
         }
 

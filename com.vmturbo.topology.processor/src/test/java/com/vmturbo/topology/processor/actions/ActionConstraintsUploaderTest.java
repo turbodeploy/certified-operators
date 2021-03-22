@@ -22,12 +22,17 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import com.google.common.collect.ImmutableList;
+
+import io.grpc.stub.StreamObserver;
+
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 
-import io.grpc.stub.StreamObserver;
-
+import com.vmturbo.common.protobuf.action.ActionConstraintDTO.ActionConstraintInfo;
+import com.vmturbo.common.protobuf.action.ActionConstraintDTO.ActionConstraintInfo.AzureScaleSetInfo;
 import com.vmturbo.common.protobuf.action.ActionConstraintDTO.ActionConstraintInfo.CoreQuotaInfo.CoreQuotaByBusinessAccount;
 import com.vmturbo.common.protobuf.action.ActionConstraintDTO.ActionConstraintInfo.CoreQuotaInfo.CoreQuotaByBusinessAccount.CoreQuotaByRegion;
 import com.vmturbo.common.protobuf.action.ActionConstraintDTO.ActionConstraintInfo.CoreQuotaInfo.CoreQuotaByBusinessAccount.CoreQuotaByRegion.CoreQuotaByFamily;
@@ -35,8 +40,15 @@ import com.vmturbo.common.protobuf.action.ActionConstraintDTO.ActionConstraintTy
 import com.vmturbo.common.protobuf.action.ActionConstraintDTO.UploadActionConstraintInfoRequest;
 import com.vmturbo.common.protobuf.action.ActionConstraintDTOMoles.ActionConstraintsServiceMole;
 import com.vmturbo.common.protobuf.action.ActionConstraintsServiceGrpc;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
+import com.vmturbo.common.protobuf.group.GroupDTO.Origin.Discovered;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.group.api.GroupAndMembers;
+import com.vmturbo.group.api.GroupMemberRetriever;
+import com.vmturbo.group.api.ImmutableGroupAndMembers;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -59,6 +71,8 @@ public class ActionConstraintsUploaderTest {
     private final ActionConstraintsServiceMole actionConstraintsServiceMole =
         spy(new ActionConstraintsServiceMole());
 
+    private final GroupMemberRetriever groupMemberRetriever = mock(GroupMemberRetriever.class);
+
     /**
      * Grpc test server which can be used to mock rpc calls.
      */
@@ -71,7 +85,8 @@ public class ActionConstraintsUploaderTest {
     @Before
     public void setup() {
         actionConstraintsUploader = new ActionConstraintsUploader(
-            entityStore, ActionConstraintsServiceGrpc.newStub(grpcTestServer.getChannel()));
+            entityStore, ActionConstraintsServiceGrpc.newStub(grpcTestServer.getChannel()),
+                groupMemberRetriever);
     }
 
     /**
@@ -84,7 +99,7 @@ public class ActionConstraintsUploaderTest {
 
         StitchingContext stitchingContext = StitchingContext.newBuilder(0, targetStore)
             .setIdentityProvider(mock(IdentityProviderImpl.class)).build();
-        actionConstraintsUploader.uploadActionConstraintInfo(stitchingContext);
+        actionConstraintsUploader.uploadActionConstraintInfo(stitchingContext, null);
         // ActionConstraintsServiceStub#uploadActionConstraintInfo is an asynchronous method.
         // Because of asynchronization, we want to make sure that the verification of this method
         // happens after it's actually invoked.
@@ -99,8 +114,8 @@ public class ActionConstraintsUploaderTest {
     public void testBuildAzureCoreQuotaInfo() {
         // Create a region TopologyStitchingEntity.
         final String nameSpace = "default";
-        final String name = StringConstants.CORE_QUOTA_PREFIX + StringConstants.CORE_QUOTA_SEPARATOR +
-            "{0}" + StringConstants.CORE_QUOTA_SEPARATOR + "{1}";
+        final String name = StringConstants.CORE_QUOTA_PREFIX + StringConstants.CORE_QUOTA_SEPARATOR
+                + "{0}" + StringConstants.CORE_QUOTA_SEPARATOR + "{1}";
         final String value = "10";
         final String subscriptionId = "subscriptionId";
         final long businessAccountId = 100;
@@ -217,5 +232,68 @@ public class ActionConstraintsUploaderTest {
 
         assertEquals(expect.size(), actual.size());
         assertTrue(actual.containsAll(expect));
+    }
+
+    private GroupAndMembers makeGroupAndMembers(String name, boolean isDiscovered) {
+        Grouping.Builder builder = Grouping.newBuilder()
+                .setDefinition(GroupDefinition.newBuilder().setDisplayName(name));
+        if (isDiscovered) {
+            builder.setOrigin(Origin.newBuilder()
+                    .setDiscovered(Discovered.newBuilder()));
+        }
+        return ImmutableGroupAndMembers.builder()
+                .group(builder.build())
+                .members(ImmutableList.of())
+                .entities(ImmutableList.of())
+                .build();
+    }
+
+    /**
+     * Test uploading Azure ScaleSet information.
+     * Build two groups:
+     * - "AzureScaleSet::rogueGroup" is a user-defined group that the user named.  This is not a
+     *   discovered group and is therefore not a true Azure scale set
+     * - "AzureScaleSet::validScaleSet" is a discovered scale set.
+     * Only AzureScaleSet::validScaleSet should be uploaded.
+     */
+    @Test
+    public void testBuildAzureScaleSetInfo() {
+        List<GroupAndMembers> groupAndMembersList = ImmutableList.of(
+                makeGroupAndMembers("AzureScaleSet::rogueGroup", false),
+                makeGroupAndMembers("AzureScaleSet::validScaleSet", true)
+        );
+        when(groupMemberRetriever.getGroupsWithMembers(any())).thenReturn(groupAndMembersList);
+
+        // Start uploading. Use a variable to store upload requests.
+        List<UploadActionConstraintInfoRequest> requests = new ArrayList<>();
+        final StreamObserver<UploadActionConstraintInfoRequest> requestObserver =
+                spy(new StreamObserver<UploadActionConstraintInfoRequest>() {
+
+                    @Override
+                    public void onNext(final UploadActionConstraintInfoRequest request) {
+                        assertEquals(1, request.getActionConstraintInfoCount());
+                        assertEquals(ActionConstraintType.AZURE_SCALE_SET_INFO,
+                                request.getActionConstraintInfo(0).getActionConstraintType());
+                        requests.add(request);
+                    }
+
+                    @Override
+                    public void onError(final Throwable throwable) {}
+
+                    @Override
+                    public void onCompleted() {}
+                });
+
+        actionConstraintsUploader.buildAzureScaleSetInfo(requestObserver, groupMemberRetriever);
+        Assert.assertEquals(1, requests.size());
+        UploadActionConstraintInfoRequest result = requests.get(0);
+        Assert.assertEquals(1, result.getActionConstraintInfoCount());
+        ActionConstraintInfo actionConstraintInfo = result.getActionConstraintInfo(0);
+        ActionConstraintType constraintType = actionConstraintInfo.getActionConstraintType();
+        Assert.assertEquals(ActionConstraintType.AZURE_SCALE_SET_INFO, constraintType);
+        Assert.assertTrue(actionConstraintInfo.hasAzureScaleSetInfo());
+        AzureScaleSetInfo azureScaleSetInfo = actionConstraintInfo.getAzureScaleSetInfo();
+        Assert.assertEquals(1, azureScaleSetInfo.getNamesCount());
+        Assert.assertEquals("AzureScaleSet::validScaleSet", azureScaleSetInfo.getNames(0));
     }
 }

@@ -23,6 +23,7 @@ import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.topology.ActionExecutionREST.ActionExecutionServiceController;
 import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
 import com.vmturbo.components.api.server.IMessageSender;
+import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionApprovalResponse;
 import com.vmturbo.platform.sdk.common.MediationMessage.GetActionStateResponse;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
@@ -220,7 +221,8 @@ public class ActionsConfig {
     @Bean
     public ActionConstraintsUploader actionConstraintsUploader() {
         return new ActionConstraintsUploader(entityConfig.entityStore(),
-            actionConstraintsServiceStub());
+                actionConstraintsServiceStub(),
+                new GroupMemberRetriever(groupConfig.groupServiceBlockingStub()));
     }
 
     /**

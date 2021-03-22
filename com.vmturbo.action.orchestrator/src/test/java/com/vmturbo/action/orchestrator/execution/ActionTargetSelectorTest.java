@@ -18,10 +18,14 @@ import org.mockito.MockitoAnnotations;
 
 import com.vmturbo.action.orchestrator.action.TestActionBuilder;
 import com.vmturbo.action.orchestrator.action.constraint.ActionConstraintStoreFactory;
+import com.vmturbo.action.orchestrator.action.constraint.AzureScaleSetInfoStore;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTargetInfo;
 import com.vmturbo.action.orchestrator.execution.ProbeCapabilityCache.CachedCapabilities;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
+import com.vmturbo.common.protobuf.action.ActionConstraintDTO.ActionConstraintInfo;
+import com.vmturbo.common.protobuf.action.ActionConstraintDTO.ActionConstraintInfo.AzureScaleSetInfo;
+import com.vmturbo.common.protobuf.action.ActionConstraintDTO.ActionConstraintType;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
@@ -110,6 +114,16 @@ public class ActionTargetSelectorTest {
         targetInfoResolver =
                 new TargetInfoResolver(probeCapabilityCache, actionConstraintStoreFactory,
                         new EntityAndActionTypeBasedEntitySelector());
+        AzureScaleSetInfoStore azureScaleSetInfoStore =
+                AzureScaleSetInfoStore.getAzureScaleSetInfo();
+        ActionConstraintInfo aci = ActionConstraintInfo.newBuilder()
+                .setActionConstraintType(ActionConstraintType.AZURE_SCALE_SET_INFO)
+                .setAzureScaleSetInfo(AzureScaleSetInfo.newBuilder()
+                        .addNames("ScaleGroupId"))
+                .build();
+        azureScaleSetInfoStore.updateActionConstraintInfo(aci);
+        Mockito.when(actionConstraintStoreFactory.getAzureScaleSetInfoStore())
+                .thenReturn(azureScaleSetInfoStore);
     }
 
     /**
@@ -222,7 +236,8 @@ public class ActionTargetSelectorTest {
                 .thenReturn(Optional.of(probe2Id));
 
         final ActionTargetInfo targetInfo = targetInfoResolver.getTargetInfoForAction(action,
-                Collections.singletonMap(entityInfo.getOid(), entityInfo), snapshot, Collections.emptyMap());
+                Collections.singletonMap(entityInfo.getOid(), entityInfo), snapshot,
+                Collections.emptyMap());
         Assert.assertThat(targetInfo.supportingLevel(), Matchers.is(SupportLevel.SUPPORTED));
         Assert.assertThat(targetInfo.targetId().get(), Matchers.is(target2Id));
     }

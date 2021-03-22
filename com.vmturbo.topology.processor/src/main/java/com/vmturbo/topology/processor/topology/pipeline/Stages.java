@@ -17,7 +17,6 @@ import java.util.stream.StreamSupport;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.protobuf.AbstractMessage;
 
@@ -485,17 +484,20 @@ public class Stages {
     public static class UploadActionConstraintsStage extends PassthroughStage<StitchingContext> {
 
         private final ActionConstraintsUploader actionConstraintsUploader;
+        private final GroupServiceBlockingStub groupServiceClient;
 
         UploadActionConstraintsStage(
-                @Nonnull final ActionConstraintsUploader actionConstraintsUploader) {
+                @Nonnull final ActionConstraintsUploader actionConstraintsUploader,
+                GroupServiceBlockingStub groupServiceClient) {
             this.actionConstraintsUploader = actionConstraintsUploader;
+            this.groupServiceClient = groupServiceClient;
         }
 
         @NotNull
         @Nonnull
         @Override
         public Status passthrough(@Nonnull final StitchingContext stitchingContext) {
-            actionConstraintsUploader.uploadActionConstraintInfo(stitchingContext);
+            actionConstraintsUploader.uploadActionConstraintInfo(stitchingContext, groupServiceClient);
             return Status.success();
         }
     }

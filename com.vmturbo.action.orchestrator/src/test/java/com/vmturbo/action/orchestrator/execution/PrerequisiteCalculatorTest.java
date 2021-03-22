@@ -64,7 +64,7 @@ public class PrerequisiteCalculatorTest {
     private CoreQuotaStore coreQuotaStore = mock(CoreQuotaStore.class);
 
     /**
-     * Setup
+     * Setup.
      */
     @Before
     public void setup() {
@@ -411,8 +411,8 @@ public class PrerequisiteCalculatorTest {
             is(Collections.singleton(Prerequisite.newBuilder()
                 .setPrerequisiteType(PrerequisiteType.CORE_QUOTAS)
                 .setRegionId(regionId)
-                .setQuotaName(StringConstants.TOTAL_REGIONAL_VCPUS_QUOTA_DISPLAYNAME +
-                    " and " + destinationFamily).build())));
+                .setQuotaName(StringConstants.TOTAL_REGIONAL_VCPUS_QUOTA_DISPLAYNAME
+                        + " and " + destinationFamily).build())));
     }
 
     /**
