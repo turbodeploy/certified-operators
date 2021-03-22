@@ -42,6 +42,7 @@ import com.google.gson.Gson;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -104,11 +105,13 @@ public class AnalysisDiagnosticsCollectorTest {
     private List<CommoditySpecification> commSpecsToAdjustOverhead = new ArrayList<>();
     private List<Action> replayActions = new ArrayList<>();
     private List<Deactivate> replayDeactivateActions = new ArrayList<>();
+    // This is used in testCheckBalanceAfterAnalysisFromDiags. When running the test, please ensure the directory exists.
+    // For ex., change it to "/Users/user_name/Downloads/FileName.xlsx"
+    final String workbookOutputPath = "target/test-classes/FileName.xlsx";
     // To run your own diagnostics, change this to the location of your unzipped analysis diags.
-    // For ex., change it to "/Users/thiru_arun/Downloads/analysisDiags-777777-73588629312080"
+    // For ex., change it to "/Users/user_name/Downloads/analysisDiags-777777-73588629312080"
     private final String unzippedAnalysisDiagsLocation = "target/test-classes/analysisDiags";
-
-    //Change this to the location of unzipped analysis diags.
+    //Change this to the location of unzipped SMA diags.
     private final String unzippedSMADiagsLocation = "target/test-classes/cloudvmscaling/smaDiags";
     private final String unzippedSMADiagsLocation2 = "target/test-classes/cloudvmscaling/smaDiags2";
     private final String unzippedInitialPlacementDiagsLocation = "target/test-classes/initialPlacementDiags";
@@ -343,6 +346,45 @@ public class AnalysisDiagnosticsCollectorTest {
         logger.info("Analysis generated {} actions", results.getActionsList().size());
 
         assertTrue(results.getActionsList().size() > 0);
+    }
+
+    /**<p>The test is not needed to be run during the build as it doesn't really test anything.
+     * It produces utilization distribution per commodity. It can be run on an as-needed basis.</p>
+     * <p>Unit test to check "balance" of the environment after analysis.
+     * The test creates a spreadsheet with the utilization distribution of source and
+     * projected topologies.</p>
+     * <p>Utilization distribution is a mapping between the utilization of commodity sold (of an
+     * entity type) rounded to nearest integer, and the number of entities having that utilization.
+     * Steps to run this unit test:
+     * 1. Unzip your analysis diags.
+     * 2. Change the variable unzippedAnalysisDiagsLocation to the location of the unzipped diags.
+     * 3. Create directory referred to by workbookOutputPath.
+     * 4. Run the unit test.</p>
+     */
+    @Ignore
+    @Test
+    public void testCheckBalanceAfterAnalysisFromDiags() {
+        IdentityGenerator.initPrefix(9L);
+        restoreAnalysisMembers(unzippedAnalysisDiagsLocation);
+        assertFalse(traderTOs.isEmpty());
+        assertTrue(analysisConfig.isPresent());
+        assertTrue(topologyInfo.isPresent());
+        assertFalse(commSpecsToAdjustOverhead.isEmpty());
+
+        Map<Integer, Map<String, UtilizationDistribution>> sourceUtilDistribution =
+            UtilizationDistribution.createUtilizationDistribution(traderTOs);
+
+        Topology topology = TopologyEntitiesHandler.createTopology(traderTOs, topologyInfo.get(),
+            commSpecsToAdjustOverhead, analysisConfig.get());
+        Analysis analysis = createAnalysis();
+        Ede ede = new Ede();
+        AnalysisResults results = TopologyEntitiesHandler.performAnalysis(
+            topologyInfo.get(), analysisConfig.get(), analysis, topology, ede);
+
+        Map<Integer, Map<String, UtilizationDistribution>> projectedUtilDistribution =
+            UtilizationDistribution.createUtilizationDistribution(results.getProjectedTopoEntityTOList());
+        new WorkbookHelper().createWorkbookWithUtilizationDistributions(sourceUtilDistribution,
+            projectedUtilDistribution, workbookOutputPath);
     }
 
     private Analysis createAnalysis() {

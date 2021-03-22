@@ -153,6 +153,7 @@
 
         <immutables.version>2.8.8</immutables.version>
         <roaringbitmap.version>0.8.13</roaringbitmap.version>
+        <apache-poi-ooxml.version>4.1.1</apache-poi-ooxml.version>
         <!-- java slang -->
         <javaslang.version>2.0.5</javaslang.version>
 
@@ -3114,6 +3115,12 @@
                 <groupId>org.roaringbitmap</groupId>
                 <artifactId>RoaringBitmap</artifactId>
                 <version>${roaringbitmap.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.poi</groupId>
+                <artifactId>poi-ooxml</artifactId>
+                <version>${apache-poi-ooxml.version}</version>
+                <scope>test</scope>
             </dependency>
             <dependency>
                 <groupId>net.sf.trove4j</groupId>
