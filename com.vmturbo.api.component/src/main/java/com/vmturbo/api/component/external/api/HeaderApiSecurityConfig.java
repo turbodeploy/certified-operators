@@ -2,6 +2,7 @@ package com.vmturbo.api.component.external.api;
 
 import static com.vmturbo.api.component.external.api.service.AuthenticationService.LOGIN_MANAGER;
 
+import java.util.Arrays;
 import java.util.Optional;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -14,6 +15,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -145,6 +148,27 @@ public class HeaderApiSecurityConfig extends ApiSecurityConfig {
     // Assume always use the latest mapping, unless "isLatestVersion" is set to false.
     private boolean isLatestVersion() {
         return isLatestVersion.equalsIgnoreCase("true") ? true : false;
+    }
+
+    /**
+     * Workaround to provide a default {@link AuthenticationManager} to avoid occasional NPE in Spring Security 5.x.
+     *  <p>
+     *  API Status Code: 500 URL: http://qa.starshipcloud.com/api/v3/markets/Market/actions/statsapi-6c588d9746-ltv8x: java.lang.NullPointerException
+     *  api-6c588d9746-ltv8x: at org.springframework.security.access.intercept.AbstractSecurityInterceptor.authenticateIfRequired(AbstractSecurityInterceptor.java:354)
+     *  ...
+     * </p>
+     * <p>
+     * Details: The occurrence of the bug with respect to issuing large number of API calls (heavy load) in short time frame
+     * and/or with respect to having a view that repeats the same identical api calls in parallel (which we do for many
+     * of our general dashboard widgetsets.
+     * </p>
+     *
+     * @return {@link AuthenticationManager}
+     */
+    @Bean
+    @Conditional(HeaderAuthenticationCondition.class)
+    public AuthenticationManager authenticationManager() {
+        return new ProviderManager(Arrays.asList(headerAuthenticationProvider));
     }
 }
 
