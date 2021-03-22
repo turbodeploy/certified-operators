@@ -4,6 +4,7 @@ import static com.vmturbo.market.topology.conversions.TopologyConversionUtils.CL
 import static com.vmturbo.market.topology.conversions.TopologyConversionUtils.calculateFactorForCommodityValues;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -156,6 +157,70 @@ public class TopologyConverter {
             TopologyDTO.EntityState.UNKNOWN,
             TopologyDTO.EntityState.MAINTENANCE,
             TopologyDTO.EntityState.FAILOVER);
+
+    private enum LOG_MESSAGE_FOR_UNCONTROLLABLE_ENTITY {
+        PM_NOT_CONTROLLABLE("PM %s is not controllable"),
+        PM_SKIPPED("PM %s is skipped"),
+
+        VM_NOT_MOVABLE("VM %s is not movable for provider %s"),
+        VM_NOT_CONTROLLABLE("VM %s is not controllable"),
+        VM_SKIPPED("VM %s is skipped"),
+
+        STORAGE_NOT_CONTROLLABLE("Storage %s is not controllable"),
+        STORAGE_SKIPPED("Storage %s is skipped");
+
+        private final String message;
+
+        LOG_MESSAGE_FOR_UNCONTROLLABLE_ENTITY(@NonNull final String format) {
+            final String prefix = "Uncontrollable entity: ";
+            this.message = prefix + format;
+        }
+
+        static String formatEntity(@Nullable TopologyEntityDTO entity){
+            return (entity != null) ? "'" + entity.getDisplayName() + "' (oid=" + entity.getOid() + ")" : null;
+        }
+
+        public Supplier<String> format(@NonNull final TopologyEntityDTO entity, @Nullable TopologyEntityDTO relatedEntity) {
+            Object[] formatArgs;
+            final String entityPrint = formatEntity(entity);
+            final String relatedEntityPrint = formatEntity(relatedEntity);
+            formatArgs = new Object[]{entityPrint, relatedEntityPrint};
+            return () -> String.format(message, formatArgs);
+        }
+    }
+
+    private void logUncontrollable(@NonNull LOG_MESSAGE_FOR_UNCONTROLLABLE_ENTITY msg,
+            @Nonnull TopologyEntityDTO entity, @Nullable TopologyEntityDTO relatedEntity) {
+
+        Supplier<String> message = msg.format(entity, relatedEntity);
+        if (isPlan()) {
+            logger.info(message::get);
+            return;
+        }
+        logger.trace(message::get);
+    }
+
+    static final ImmutableMap<Integer, LOG_MESSAGE_FOR_UNCONTROLLABLE_ENTITY>
+            uncontrollableEntityToMessage =
+            ImmutableMap.<Integer, LOG_MESSAGE_FOR_UNCONTROLLABLE_ENTITY>builder()
+                    .put(EntityType.PHYSICAL_MACHINE_VALUE, LOG_MESSAGE_FOR_UNCONTROLLABLE_ENTITY.PM_NOT_CONTROLLABLE)
+                    .put(EntityType.VIRTUAL_MACHINE_VALUE, LOG_MESSAGE_FOR_UNCONTROLLABLE_ENTITY.VM_NOT_CONTROLLABLE)
+                    .put(EntityType.STORAGE_VALUE, LOG_MESSAGE_FOR_UNCONTROLLABLE_ENTITY.STORAGE_NOT_CONTROLLABLE)
+                    .build();
+
+    static final ImmutableMap<Integer, LOG_MESSAGE_FOR_UNCONTROLLABLE_ENTITY>
+            unmovableEntityToMessage =
+            ImmutableMap.<Integer, LOG_MESSAGE_FOR_UNCONTROLLABLE_ENTITY>builder()
+                    .put(EntityType.VIRTUAL_MACHINE_VALUE, LOG_MESSAGE_FOR_UNCONTROLLABLE_ENTITY.VM_NOT_MOVABLE)
+                    .build();
+
+    static final ImmutableMap<Integer, LOG_MESSAGE_FOR_UNCONTROLLABLE_ENTITY>
+            skippedEntityToMessage =
+            ImmutableMap.<Integer, LOG_MESSAGE_FOR_UNCONTROLLABLE_ENTITY>builder()
+                    .put(EntityType.PHYSICAL_MACHINE_VALUE, LOG_MESSAGE_FOR_UNCONTROLLABLE_ENTITY.PM_SKIPPED)
+                    .put(EntityType.VIRTUAL_MACHINE_VALUE, LOG_MESSAGE_FOR_UNCONTROLLABLE_ENTITY.VM_SKIPPED)
+                    .put(EntityType.STORAGE_VALUE, LOG_MESSAGE_FOR_UNCONTROLLABLE_ENTITY.STORAGE_SKIPPED)
+                    .build();
 
     private static final boolean INCLUDE_GUARANTEED_BUYER_DEFAULT =
             MarketSettings.BooleanKey.INCLUDE_GUARANTEED_BUYER.value();
@@ -750,6 +815,11 @@ public class TopologyConverter {
                                             + "state = {} because of state.", entity.getOid(), entity.getDisplayName(),
                                     EntityType.forNumber(entityType), entity.getEntityState());
                             skippedEntities.put(entity.getOid(), entity);
+
+                            if (skippedEntityToMessage.containsKey(entity.getEntityType())) {
+                                logUncontrollable(skippedEntityToMessage.get(entityType),
+                                        entity, null);
+                            }
                         }
                         entityOidToDto.put(entity.getOid(), entity);
                         if (CONTAINER_TYPES.contains(entityType)) {
@@ -2871,6 +2941,10 @@ public class TopologyConverter {
                 // If there were stitching errors, it's risky to control this entity.
                 stitchingErrors.isNone();
 
+            if (!controllable && uncontrollableEntityToMessage.containsKey(topologyDTO.getEntityType())) {
+                logUncontrollable(uncontrollableEntityToMessage.get(topologyDTO.getEntityType()), topologyDTO, null);
+            }
+
             final boolean reconfigurable = topologyDTO.getAnalysisSettings().hasReconfigurable()
                 && topologyDTO.getAnalysisSettings().getReconfigurable()
                 && EntitySettings.BooleanKey.ENABLE_RECONFIGURE.value(topologyDTO);
@@ -3359,6 +3433,11 @@ public class TopologyConverter {
             // Turn off movable for cloud scaling group members that are not group leaders.
             isMovable &= addGroupFactor && consistentScalingHelper.getGroupFactor(entityForSL) > 0;
         }
+
+        if (!isMovable && unmovableEntityToMessage.containsKey(entityType)) {
+            logUncontrollable(unmovableEntityToMessage.get(entityType), entityForSL, provider);
+        }
+
         final EconomyDTOs.ShoppingListTO.Builder economyShoppingListBuilder = EconomyDTOs.ShoppingListTO
                 .newBuilder()
                 .setOid(id)
