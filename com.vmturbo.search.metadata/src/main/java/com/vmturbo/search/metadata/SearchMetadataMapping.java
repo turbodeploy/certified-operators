@@ -30,6 +30,7 @@ import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.GroupType;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.SelectionCriteriaCase;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.VirtualVolumeData.AttachmentState;
@@ -141,6 +142,7 @@ public enum SearchMetadataMapping {
 
     PRIMITIVE_VENDOR_ID("attrs", "vendor_id", Type.TEXT, null,
             entity -> entity.getOrigin().getDiscoveryOrigin().getDiscoveredTargetDataMap().values().stream()
+                    .filter(PerTargetEntityInformation::hasVendorId)
                     .map(perTargetEntityInformation -> (Object) perTargetEntityInformation.getVendorId())
                     .findFirst()),
 

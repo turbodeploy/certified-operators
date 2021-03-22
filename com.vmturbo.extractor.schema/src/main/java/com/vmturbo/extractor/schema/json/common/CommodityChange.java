@@ -10,11 +10,12 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 @JsonInclude(Include.NON_EMPTY)
 @JsonPropertyOrder(alphabetic = true)
 public class CommodityChange {
+    private String commodityType;
     private Float from;
     private Float to;
     private String unit;
     private String attribute;
-    // target is set for nested actions inside atomic resize, since it's different from main target
+    // target is set for nested actions inside atomic resize, since it may be different from main target
     private ActionEntity target;
 
     private CommodityPercentileChange percentileChange;
@@ -65,5 +66,13 @@ public class CommodityChange {
 
     public void setPercentileChange(CommodityPercentileChange percentileChange) {
         this.percentileChange = percentileChange;
+    }
+
+    public String getCommodityType() {
+        return commodityType;
+    }
+
+    public void setCommodityType(String commodityType) {
+        this.commodityType = commodityType;
     }
 }
