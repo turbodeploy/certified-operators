@@ -13,6 +13,7 @@ import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.notification.api.NotificationSender;
 import com.vmturbo.notification.api.dto.SystemNotificationDTO.SystemNotification;
 import com.vmturbo.notification.api.dto.SystemNotificationDTO.SystemNotification.Category;
+import com.vmturbo.notification.api.dto.SystemNotificationDTO.SystemNotification.Category.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.NotificationDTO;
 import com.vmturbo.topology.processor.targets.Target;
 
@@ -46,7 +47,7 @@ public class SystemNotificationProducer {
      */
     public void sendSystemNotification(
             @Nullable List<NotificationDTO> notificationList,
-            @Nonnull Target target) {
+            @Nullable Target target) {
         if (notificationList == null) {
             logger.warn("sendSystemNotification received notificationList=null and target=" + target);
             return;
@@ -64,22 +65,23 @@ public class SystemNotificationProducer {
                    is an object with values. I've hardcoded it to the Target Category and filled the
                    category with the display name and oid of the target the notification came from.
                  */
-                systemNotificationSender.sendNotification(
-                    Category.newBuilder()
-                        .setTarget(SystemNotification.Target.newBuilder()
-                            .setOid(target.getId())
-                            .setDisplayName(target.getDisplayName())
-                            .build())
-                        .build(),
-                    notification.getDescription(),
-                    "",
-                    convertSeverity(notification.getSeverity()));
+                final Builder categoryBuilder = Category.newBuilder();
+                if (target != null) {
+                   categoryBuilder
+                            .setTarget(SystemNotification.Target.newBuilder()
+                                    .setOid(target.getId())
+                                    .setDisplayName(target.getDisplayName()));
+                }
+                systemNotificationSender.sendNotification(categoryBuilder.build(),
+                        notification.getDescription(), "",
+                        convertSeverity(notification.getSeverity()));
             }
         } catch (CommunicationException | InterruptedException e) {
-            logger.error(() -> "Unable to send notification from target oid=" + target.getId()
-                + "displayName=" + target.getDisplayName()
-                + " notifications=" + notificationList.toString(),
-                e);
+            String errorMessage = target != null ? String.format(
+                    "Unable to send notification from target oid=%s displayName=%s notifications=%s",
+                    target.getId(), target.getDisplayName(), notificationList)
+                    : "Unable to send notifications=" + notificationList;
+            logger.error(errorMessage, e);
         }
     }
 
