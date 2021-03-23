@@ -21,7 +21,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.PaginationProtoUtil;
 import com.vmturbo.common.protobuf.PaginationProtoUtil.PaginatedResults;
-import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.repository.EntityConstraints.CurrentPlacement;
 import com.vmturbo.common.protobuf.repository.EntityConstraints.EntityConstraint;
@@ -34,6 +34,8 @@ import com.vmturbo.common.protobuf.repository.EntityConstraints.PotentialPlaceme
 import com.vmturbo.common.protobuf.repository.EntityConstraints.RelationType;
 import com.vmturbo.common.protobuf.repository.EntityConstraintsServiceGrpc.EntityConstraintsServiceImplBase;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
@@ -62,6 +64,8 @@ public class EntityConstraintsRpcService extends EntityConstraintsServiceImplBas
             .build()
             .register();
     private final ConstraintsCalculator constraintsCalculator;
+    private static final Set<Integer> TIER_EXCLUDE_ENTITY_TYPE_SCOPE = EntitySettingSpecs.ExcludedTemplates
+            .getEntityTypeScope().stream().map(CommonDTO.EntityDTO.EntityType::getNumber).collect(Collectors.toSet());
 
     /**
      * Entity Constraints RPC service. We calculate the constraints only for real-time entities.
@@ -100,8 +104,10 @@ public class EntityConstraintsRpcService extends EntityConstraintsServiceImplBas
             return;
         }
         RepoGraphEntity repoEntity = entity.get();
-        if (!repoEntity.getEnvironmentType().equals(EnvironmentType.ON_PREM)) {
-            // We only calculate constraints for on-prem entities
+
+        if (TIER_EXCLUDE_ENTITY_TYPE_SCOPE.contains(repoEntity.getEntityType())
+                && repoEntity.getEnvironmentType().equals(EnvironmentTypeEnum.EnvironmentType.CLOUD)) {
+            // We don't display constraint view for Cloud entity that has tier exclusion policy
             responseObserver.onNext(EntityConstraintsResponse.getDefaultInstance());
             responseObserver.onCompleted();
             return;
