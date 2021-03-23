@@ -69,9 +69,12 @@ import com.vmturbo.topology.graph.supplychain.GlobalSupplyChainCalculator;
  */
 public class EntityConstraintsRpcServiceTest {
 
-    private static final long VM1 = 1;
+    private static final long VM_ONPREM = 1;
+    private static final long VM_CLOUD = 2;
+    private static final long CPOD_CLOUD = 3;
+    private static final long CPOD_ONPREM = 4;
     // OID and entity type
-
+    private static final Pair<Long, Integer> VM1_PAIR = Pair.of(1L, EntityType.VIRTUAL_MACHINE_VALUE);
     private static final Pair<Long, Integer> PM1 = Pair.of(10L, EntityType.PHYSICAL_MACHINE_VALUE);
     private static final Pair<Long, Integer> PM2 = Pair.of(11L, EntityType.PHYSICAL_MACHINE_VALUE);
     private static final Pair<Long, Integer> PM3 = Pair.of(12L, EntityType.PHYSICAL_MACHINE_VALUE);
@@ -118,7 +121,15 @@ public class EntityConstraintsRpcServiceTest {
         final SourceRealtimeTopologyBuilder topologyBuilder =
             liveTopologyStore.newRealtimeSourceTopology(TopologyInfo.getDefaultInstance());
         topologyBuilder.addEntities(ImmutableList.of(
-            createConsumer(EntityType.VIRTUAL_MACHINE_VALUE, VM1,
+            createConsumer(EnvironmentType.ON_PREM, EntityType.CONTAINER_POD_VALUE, CPOD_ONPREM,
+                ImmutableMap.of(
+                        VM1_PAIR, ImmutableSet.of(
+                        createCommodityBought(CommodityDTO.CommodityType.VMPM_ACCESS_VALUE, "foo"))), "CPOD_ONPREM"),
+            createConsumer(EnvironmentType.CLOUD, EntityType.CONTAINER_POD_VALUE, CPOD_CLOUD,
+                ImmutableMap.of(
+                        VM1_PAIR, ImmutableSet.of(
+                        createCommodityBought(CommodityDTO.CommodityType.VMPM_ACCESS_VALUE, "foo"))), "CPOD_CLOUD"),
+            createConsumer(EnvironmentType.ON_PREM, EntityType.VIRTUAL_MACHINE_VALUE, VM_ONPREM,
                 ImmutableMap.of(
                     PM1, ImmutableSet.of(
                         createCommodityBought(CommodityDTO.CommodityType.CPU_VALUE, StringUtils.EMPTY),
@@ -127,7 +138,16 @@ public class EntityConstraintsRpcServiceTest {
                         createCommodityBought(CommodityDTO.CommodityType.SEGMENTATION_VALUE, "policy1")),
                     ST1, ImmutableSet.of(
                         createCommodityBought(CommodityDTO.CommodityType.STORAGE_CLUSTER_VALUE, "free"),
-                        createCommodityBought(CommodityDTO.CommodityType.DSPM_ACCESS_VALUE, "PhysicalMachine::PM1"))), "VM1"),
+                        createCommodityBought(CommodityDTO.CommodityType.DSPM_ACCESS_VALUE, "PhysicalMachine::PM1"))), "VM_ONPREM"),
+            createConsumer(EnvironmentType.CLOUD, EntityType.VIRTUAL_MACHINE_VALUE, VM_CLOUD,
+                ImmutableMap.of(
+                    PM1, ImmutableSet.of(
+                         createCommodityBought(CommodityDTO.CommodityType.CPU_VALUE, StringUtils.EMPTY),
+                         createCommodityBought(CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE, "Linux"),
+                         createCommodityBought(CommodityDTO.CommodityType.DATACENTER_VALUE, "DC1"), createCommodityBought(CommodityDTO.CommodityType.SEGMENTATION_VALUE, "policy1")),
+                    ST1, ImmutableSet.of(
+                         createCommodityBought(CommodityDTO.CommodityType.STORAGE_CLUSTER_VALUE, "free"),
+                         createCommodityBought(CommodityDTO.CommodityType.DSPM_ACCESS_VALUE, "PhysicalMachine::PM1"))), "VM_CLOUD"),
             createProvider(EntityType.PHYSICAL_MACHINE_VALUE, PM1.getKey(), ImmutableList.of(
                 createCommoditySold(CommodityDTO.CommodityType.CPU_VALUE, StringUtils.EMPTY),
                 createCommoditySold(CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE, "Linux"),
@@ -171,14 +191,47 @@ public class EntityConstraintsRpcServiceTest {
     }
 
     /**
-     * Get the constraints for VM1.
+     * Get the constraints for ContainerPod.
+     * Ensure we have 1 high level constraint for VM
+     */
+    @Test
+    public void testGetConstraintsPod() {
+        EntityConstraintsResponse response = clientStub.getConstraints(
+                EntityConstraintsRequest.newBuilder().setOid(CPOD_CLOUD).build());
+        Map<Integer, EntityConstraint> constraints = response
+                .getEntityConstraintList().stream().collect(Collectors.toMap(c -> c.getEntityType(), Function.identity()));
+        assertEquals(1, constraints.size());
+        assertTrue(constraints.containsKey(EntityType.VIRTUAL_MACHINE_VALUE));
+        response = clientStub.getConstraints(
+                EntityConstraintsRequest.newBuilder().setOid(CPOD_ONPREM).build());
+        constraints = response
+                .getEntityConstraintList().stream().collect(Collectors.toMap(c -> c.getEntityType(), Function.identity()));
+        assertEquals(1, constraints.size());
+        assertTrue(constraints.containsKey(EntityType.VIRTUAL_MACHINE_VALUE));
+    }
+
+    /**
+     * Get the constraints for VM2 (Cloud).
+     * Ensure we have 0 high level constraints
+     */
+    @Test
+    public void testGetConstraintsCloudVM() {
+        EntityConstraintsResponse response = clientStub.getConstraints(
+        EntityConstraintsRequest.newBuilder().setOid(VM_CLOUD).build());
+        Map<Integer, EntityConstraint> constraints = response
+                .getEntityConstraintList().stream().collect(Collectors.toMap(c -> c.getEntityType(), Function.identity()));
+        assertEquals(0, constraints.size());
+    }
+
+    /**
+     * Get the constraints for VM1 (On-Prem).
      * Ensure we have 2 high level constraints, one for PM and one for storage
      * Verify the number of potential placements for each.
      */
     @Test
-    public void testGetConstraints() {
+    public void testGetConstraintsOnPremVM() {
         EntityConstraintsResponse response = clientStub.getConstraints(
-            EntityConstraintsRequest.newBuilder().setOid(VM1).build());
+            EntityConstraintsRequest.newBuilder().setOid(VM_ONPREM).build());
         Map<Integer, EntityConstraint> constraints = response
             .getEntityConstraintList().stream().collect(Collectors.toMap(c -> c.getEntityType(), Function.identity()));
         // Ensure we have 2 high level constraints, one for PM and one for storage
@@ -224,7 +277,7 @@ public class EntityConstraintsRpcServiceTest {
     @Test
     public void testGetConstraintsForNonExistingEntity() {
         exceptionRule.expect(StatusRuntimeException.class);
-        clientStub.getConstraints(EntityConstraintsRequest.newBuilder().setOid(2L).build());
+        clientStub.getConstraints(EntityConstraintsRequest.newBuilder().setOid(5L).build());
     }
 
     /**
@@ -235,7 +288,7 @@ public class EntityConstraintsRpcServiceTest {
         exceptionRule.expect(StatusRuntimeException.class);
         when(liveTopologyStore.getSourceTopology()).thenReturn(Optional.empty());
         clientStub.getConstraints(
-            EntityConstraintsRequest.newBuilder().setOid(VM1).build());
+            EntityConstraintsRequest.newBuilder().setOid(VM_ONPREM).build());
     }
 
     /**
@@ -300,7 +353,7 @@ public class EntityConstraintsRpcServiceTest {
         clientStub.getPotentialPlacements(request);
     }
 
-    private TopologyEntityDTO createConsumer(int entityType, long oid, Map<Pair<Long, Integer>,
+    private TopologyEntityDTO createConsumer(EnvironmentType type, int entityType, long oid, Map<Pair<Long, Integer>,
         Set<CommodityBoughtDTO>> commBoughtFromProviders, String displayName) {
         Set<CommoditiesBoughtFromProvider> legs = new HashSet<>();
         commBoughtFromProviders.forEach((provider, commsBought) -> {
@@ -316,7 +369,7 @@ public class EntityConstraintsRpcServiceTest {
             .setOid(oid)
             .addAllCommoditiesBoughtFromProviders(legs)
             .setDisplayName(displayName)
-            .setEnvironmentType(EnvironmentType.ON_PREM)
+            .setEnvironmentType(type)
             .build();
     }
 
