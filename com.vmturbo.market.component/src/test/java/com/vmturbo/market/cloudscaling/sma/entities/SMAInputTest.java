@@ -292,8 +292,8 @@ public class SMAInputTest {
         final ReservedInstanceData riData2 = new ReservedInstanceData(riBought2, riSpec2);
         when(cloudCostData.getExistingRiBought()).thenReturn(ImmutableList.of(riData1, riData2));
 
-        when(cloudCostData.getRiCoverageForEntity(vm1Id)).thenReturn(Optional.of(coverage));
-        when(cloudCostData.getRiCoverageForEntity(vm2Id)).thenReturn(Optional.empty());
+        when(cloudCostData.getFilteredRiCoverage(vm1Id)).thenReturn(Optional.of(coverage));
+        when(cloudCostData.getFilteredRiCoverage(vm2Id)).thenReturn(Optional.empty());
 
         // create VM to providers map, if there is no provider - vm is not movable
         Map<Long, Set<Long>> providers = new HashMap<>();
@@ -415,7 +415,7 @@ public class SMAInputTest {
         final CloudCostData<TopologyEntityDTO> cloudCostData = mock(CloudCostData.class);
         when(cloudCostData.getAccountPricingData(Mockito.anyLong())).thenReturn(
             Optional.of(accountPricingData));
-        when(cloudCostData.getRiCoverageForEntity(anyLong())).thenReturn(Optional.empty());
+        when(cloudCostData.getFilteredRiCoverage(anyLong())).thenReturn(Optional.empty());
         return cloudCostData;
     }
 
