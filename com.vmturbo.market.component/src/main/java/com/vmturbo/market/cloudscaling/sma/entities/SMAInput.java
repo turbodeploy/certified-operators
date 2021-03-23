@@ -1044,10 +1044,12 @@ public class SMAInput {
                                                                final CloudCostData cloudCostData,
                                                                final Map<Long, SMAReservedInstance> riBoughtOidToRI) {
         Pair<SMAReservedInstance, Float> currentRICoverage = null;
-        Optional<EntityReservedInstanceCoverage> riCoverageOptional = cloudCostData.getFilteredRiCoverage(vmOid);
+        Optional<EntityReservedInstanceCoverage> riCoverageOptional = cloudCostData.getRiCoverageForEntity(vmOid);
         if (riCoverageOptional.isPresent()) {
             EntityReservedInstanceCoverage riCoverage = riCoverageOptional.get();
             currentRICoverage = computeVmCoverage(riCoverage, riBoughtOidToRI);
+        } else {
+            logger.error("processVirtualMachine: could not coverage VM ID={}", vmOid);
         }
         return currentRICoverage;
     }
@@ -1060,7 +1062,7 @@ public class SMAInput {
     @Nullable
     private Pair<SMAReservedInstance, Float> computeVmCoverage(EntityReservedInstanceCoverage riCoverage,
                                                                Map<Long, SMAReservedInstance> riBoughtOidToRI) {
-        Map<Long, Double> riOidToCoupons = riCoverage.getCouponsCoveredByRiMap();
+        Map<Long, Double> riOidToCoupons = riCoverage.getCouponsCoveredByRi();
         float coverage = SMAUtils.NO_RI_COVERAGE;
         SMAReservedInstance ri = null;
         for (Entry<Long, Double> coupons : riOidToCoupons.entrySet()) {
