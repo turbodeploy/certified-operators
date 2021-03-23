@@ -36,6 +36,7 @@ import com.vmturbo.topology.processor.history.percentile.PercentilePersistenceTa
 import com.vmturbo.topology.processor.history.timeslot.TimeSlotEditor;
 import com.vmturbo.topology.processor.history.timeslot.TimeSlotLoadingTask;
 import com.vmturbo.topology.processor.history.timeslot.TimeslotHistoricalEditorConfig;
+import com.vmturbo.topology.processor.notification.SystemNotificationProducer;
 import com.vmturbo.topology.processor.topology.HistoryAggregator;
 
 /**
@@ -102,6 +103,9 @@ public class HistoryAggregationConfig {
 
     @Autowired
     private TopologyProcessorApiConfig tpApiConfig;
+
+    @Autowired
+    private SystemNotificationProducer systemNotificationProducer;
 
     /**
      * History component blocking client interface.
@@ -185,7 +189,7 @@ public class HistoryAggregationConfig {
         @SuppressWarnings("unchecked")
         final E result = (E)new PercentileEditor(percentileEditorConfig(),
                         nonBlockingHistoryClient(), historyClient(), clockConfig.clock(),
-                        PercentilePersistenceTask::new);
+                        PercentilePersistenceTask::new, systemNotificationProducer);
         return result;
     }
 

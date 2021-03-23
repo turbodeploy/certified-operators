@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.history.percentile;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.time.Clock;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -58,6 +59,7 @@ import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.NotificationDTO;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.stitching.EntityCommodityReference;
 import com.vmturbo.stitching.TopologyEntity;
@@ -72,6 +74,7 @@ import com.vmturbo.topology.processor.history.HistoryCalculationException;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts.PercentileRecord;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts.PercentileRecord.CapacityChange;
+import com.vmturbo.topology.processor.notification.SystemNotificationProducer;
 import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
 
 /**
@@ -102,6 +105,8 @@ public class PercentileEditorTest extends PercentileBaseTest {
                                                     CommodityType.IMAGE_CPU,
                                                     PERCENTILE_BUCKETS_SPEC), KV_CONFIG,
                                     Clock.systemUTC());
+    private static final SystemNotificationProducer systemNotificationProducer = Mockito.mock(
+            SystemNotificationProducer.class);
 
     private static final long VIRTUAL_MACHINE_OID = 1;
     private static final long VIRTUAL_MACHINE_OID_2 = 2;
@@ -626,6 +631,41 @@ public class PercentileEditorTest extends PercentileBaseTest {
     }
 
     /**
+     * Tests the occurrence of a notification when maintenance failed.
+     *
+     * @throws InterruptedException when interrupted
+     * @throws HistoryCalculationException when failed
+     */
+    @Test
+    public void testMaintenanceNotification() throws InterruptedException, HistoryCalculationException {
+        final HistoryAggregationContext context = new HistoryAggregationContext(topologyInfo,
+                graphWithSettings, false);
+        Mockito.when(clock.millis()).thenReturn(TIMESTAMP_SEP_1_2019_12_00);
+        final PercentileEditorCacheAccess spiedEditor = Mockito.spy(percentileEditor);
+        // First initializing history from db.
+        spiedEditor.initContext(context, Collections.emptyList());
+        // Throw exception when executing maintenance
+        Mockito.when(spiedEditor.createCacheBackup()).thenThrow(HistoryCalculationException.class);
+
+        // Maintenance executed and failed
+        spiedEditor.completeBroadcast(context);
+        final ArgumentCaptor<List> notificationsCaptor =
+                ArgumentCaptor.forClass(List.class);
+        Mockito.verify(systemNotificationProducer, Mockito.times(1))
+                .sendSystemNotification(notificationsCaptor.capture(), Mockito.any());
+        final List<List> notifications = notificationsCaptor.getAllValues();
+        Assert.assertEquals(1, notifications.size());
+        // Check notification from maintenance failed
+        final NotificationDTO maintenanceFailedNotification = (NotificationDTO)notifications.get(0)
+                .get(0);
+        Assert.assertEquals(String.format(
+                "Percentile sliding observation window maintenance failed for %s checkpoint, last checkpoint was at %s",
+                Instant.ofEpochMilli(TIMESTAMP_SEP_1_2019_12_00),
+                Instant.ofEpochMilli(TIMESTAMP_INIT_START_SEP_1_2019)),
+                maintenanceFailedNotification.getDescription());
+    }
+
+    /**
      * Tests the case were the capacity for percentile data changes and we the lookback period
      * changes. We need to ensure that we used new capacity rather than outdated capacity in DB.
      *
@@ -764,6 +804,7 @@ public class PercentileEditorTest extends PercentileBaseTest {
     @Test
     public void testCompleteBroadcastFailsIfObjectIsNotInitialized()
                     throws HistoryCalculationException, InterruptedException {
+        final ArgumentCaptor<Long> periodCaptor = ArgumentCaptor.forClass(Long.class);
         HistoryAggregationContext context = new HistoryAggregationContext(topologyInfo,
                         graphWithSettings, false);
         percentileEditor.completeBroadcast(context);
@@ -1117,7 +1158,7 @@ public class PercentileEditorTest extends PercentileBaseTest {
                 StatsHistoryServiceBlockingStub statsHistoryBlockingClient,
                 Clock clock,
                 BiFunction<StatsHistoryServiceStub, Pair<Long, Long>, PercentilePersistenceTask> taskCreator) {
-            super(config, statsHistoryClient, statsHistoryBlockingClient, clock, taskCreator);
+            super(config, statsHistoryClient, statsHistoryBlockingClient, clock, taskCreator, systemNotificationProducer);
         }
 
         PercentileCommodityData getCacheEntry(EntityCommodityFieldReference field) {

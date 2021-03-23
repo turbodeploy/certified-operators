@@ -27,12 +27,12 @@ import com.google.common.collect.Sets;
 
 import io.grpc.StatusRuntimeException;
 
-import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
-import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
-
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
@@ -51,6 +51,9 @@ import com.vmturbo.components.common.utils.ThrowingFunction;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.NotificationDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.NotificationDTO.Severity;
+import com.vmturbo.platform.sdk.common.util.NotificationCategoryDTO;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
@@ -67,6 +70,7 @@ import com.vmturbo.topology.processor.history.InvalidHistoryDataException;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts.PercentileRecord;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts.PercentileRecord.Builder;
+import com.vmturbo.topology.processor.notification.SystemNotificationProducer;
 
 /**
  * Calculate and provide percentile historical value for topology commodities.
@@ -116,6 +120,11 @@ public class PercentileEditor extends
                                .withHelp("The time spent on daily maintenance of percentile cache "
                                          + "(this is also part of tp_historical_completion_time_percentile)")
                                .build();
+    private static final String NOTIFICATION_EVENT = "Percentile";
+    private static final String MAINTENANCE_FAILED_NOTIFICATION_MESSAGE_FORMAT =
+            "Percentile sliding observation window maintenance failed for %s checkpoint, last checkpoint was at %s";
+    private static final String FAILED_READ_PERCENTILE_TRANSACTION_MESSAGE =
+            "Failed to read the percentile transaction log entry for timestamp ";
 
     private final Clock clock;
     private final StatsHistoryServiceBlockingStub statsHistoryBlockingClient;
@@ -131,6 +140,7 @@ public class PercentileEditor extends
      * in percentile observation window than it is setting to false.
      */
     private boolean enforceMaintenance;
+    private final SystemNotificationProducer systemNotificationProducer;
     /**
      * Pre-calculated in non-plan context during initialization to reuse in multiple stages.
      */
@@ -149,11 +159,12 @@ public class PercentileEditor extends
                     @Nonnull StatsHistoryServiceStub statsHistoryClient,
                     @Nonnull StatsHistoryServiceBlockingStub statsHistoryBlockingClient,
                     @Nonnull Clock clock,
-                    @Nonnull BiFunction<StatsHistoryServiceStub, Pair<Long, Long>, PercentilePersistenceTask> historyLoadingTaskCreator) {
+                    @Nonnull BiFunction<StatsHistoryServiceStub, Pair<Long, Long>, PercentilePersistenceTask> historyLoadingTaskCreator, @Nonnull SystemNotificationProducer systemNotificationProducer) {
         super(config, statsHistoryClient, historyLoadingTaskCreator, PercentileCommodityData::new);
         this.clock = clock;
         this.statsHistoryBlockingClient = statsHistoryBlockingClient;
-    }
+        this.systemNotificationProducer = systemNotificationProducer;
+}
 
     @Override
     public boolean isApplicable(List<ScenarioChange> changes, TopologyInfo topologyInfo,
@@ -535,6 +546,9 @@ public class PercentileEditor extends
                 try {
                     page = createTask(timestamp).load(Collections.emptyList(), getConfig());
                 } catch (InvalidHistoryDataException e) {
+                    sendNotification(
+                            FAILED_READ_PERCENTILE_TRANSACTION_MESSAGE + startTimestamp
+                                    + " when performing full page reassembly", Severity.MAJOR);
                     logger.warn("Failed to read percentile daily blob for {}, skipping it for full page reassembly",
                                     timestamp, e);
                     continue;
@@ -635,6 +649,9 @@ public class PercentileEditor extends
                     try {
                         oldValues = loadOutdated.load(Collections.emptyList(), getConfig());
                     } catch (InvalidHistoryDataException e) {
+                        sendNotification(
+                                FAILED_READ_PERCENTILE_TRANSACTION_MESSAGE
+                                        + outdatedTimestamp + " when performing maintenance", Severity.MAJOR);
                         logger.warn("Failed to read percentile daily blob for {}, skipping it for maintenance",
                                         outdatedTimestamp, e);
                         continue;
@@ -672,14 +689,26 @@ public class PercentileEditor extends
             maintenanceLastCheckpointMs = newCheckpointMs;
 
         } catch (HistoryCalculationException e) {
+            sendNotification(String.format(MAINTENANCE_FAILED_NOTIFICATION_MESSAGE_FORMAT,
+                    Instant.ofEpochMilli(newCheckpointMs),
+                    Instant.ofEpochMilli(maintenanceLastCheckpointMs)), Severity.CRITICAL);
             logger.error("{} maintenance failed for '{}' checkpoint, last checkpoint was at '{}'",
-                            enforceMaintenance ? "Enforced" : "Regular",
-                            Instant.ofEpochMilli(newCheckpointMs),
-                            Instant.ofEpochMilli(maintenanceLastCheckpointMs), e);
+                    enforceMaintenance ? "Enforced" : "Regular", Instant.ofEpochMilli(newCheckpointMs),
+                    Instant.ofEpochMilli(maintenanceLastCheckpointMs), e);
         } finally {
             logger.info("Percentile cache {}maintenance {} took {}",
                             enforceMaintenance ? "enforced " : "", checkpoints, sw);
         }
+    }
+
+ private void sendNotification(@Nonnull String description, @Nonnull Severity severity) {
+        systemNotificationProducer.sendSystemNotification(
+                Collections.singletonList(NotificationDTO.newBuilder()
+                        .setEvent(NOTIFICATION_EVENT)
+                        .setSeverity(severity)
+                        .setCategory(NotificationCategoryDTO.NOTIFICATION.name())
+                        .setDescription(description)
+                        .build()), null);
     }
 
     private void enforcedMaintenance(long checkpointMs) throws InterruptedException {
@@ -711,10 +740,12 @@ public class PercentileEditor extends
             maintenanceLastCheckpointMs = checkpointMs;
 
         } catch (HistoryCalculationException e) {
+            sendNotification(String.format(MAINTENANCE_FAILED_NOTIFICATION_MESSAGE_FORMAT,
+                    Instant.ofEpochMilli(checkpointMs),
+                    Instant.ofEpochMilli(maintenanceLastCheckpointMs)), Severity.CRITICAL);
             logger.error("{} maintenance failed for '{}' checkpoint, last checkpoint was at '{}'",
-                enforceMaintenance ? "Enforced" : "Regular",
-                Instant.ofEpochMilli(checkpointMs),
-                Instant.ofEpochMilli(maintenanceLastCheckpointMs), e);
+                    enforceMaintenance ? "Enforced" : "Regular", Instant.ofEpochMilli(checkpointMs),
+                    Instant.ofEpochMilli(maintenanceLastCheckpointMs), e);
         } finally {
             logger.info("Percentile cache {}maintenance {} took {}",
                 enforceMaintenance ? "enforced " : "", checkpoints, sw);
@@ -780,6 +811,10 @@ public class PercentileEditor extends
         // e.g. if checkpoint for whatever reason happened at 23:30, do not run another this midnight
         return maintenanceLastCheckpointMs <= getDefaultMaintenanceCheckpointTimeMs(now)
                         - TimeUnit.HOURS.toMillis(1L);
+    }
+
+   protected SystemNotificationProducer getSystemNotificationProducer() {
+        return systemNotificationProducer;
     }
 
     @Override

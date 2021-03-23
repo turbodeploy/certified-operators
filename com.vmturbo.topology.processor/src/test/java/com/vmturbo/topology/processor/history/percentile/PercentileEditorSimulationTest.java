@@ -56,6 +56,7 @@ import com.vmturbo.topology.processor.history.HistoryAggregationContext;
 import com.vmturbo.topology.processor.history.HistoryCalculationException;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts.PercentileRecord;
+import com.vmturbo.topology.processor.notification.SystemNotificationProducer;
 import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
 
 /**
@@ -71,6 +72,8 @@ public class PercentileEditorSimulationTest extends PercentileBaseTest {
     private static final int LOOK_BACK_PERIOD_7 = 7;
     private static final long BROADCAST_INTERVAL_MILLIS = TimeUnit.HOURS.toMillis(1);
     private static final int MAINTENANCE_WINDOW_HOURS = 24;
+    private static final long MAINTENANCE_WINDOW_MILLIS =
+            TimeUnit.HOURS.toMillis(MAINTENANCE_WINDOW_HOURS);
 
     private static final KVConfig KV_CONFIG = createKvConfig();
 
@@ -135,7 +138,7 @@ public class PercentileEditorSimulationTest extends PercentileBaseTest {
                         (service, range) -> new PercentileTaskStub(service, range, persistenceTable,
                                         (checkpoint) -> {
                                             checkpointTime = checkpoint;
-                                        }));
+                                        }), Mockito.mock(SystemNotificationProducer.class));
 
         commodityReferences = VM_OID_TO_MAP.keySet().stream()
             .map(oid -> new EntityCommodityReference(oid,
