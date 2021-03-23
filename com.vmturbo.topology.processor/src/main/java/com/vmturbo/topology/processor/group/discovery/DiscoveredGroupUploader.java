@@ -14,6 +14,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -106,7 +107,7 @@ public class DiscoveredGroupUploader {
      */
     private final Map<Long, TargetDiscoveredData> dataByTarget = new HashMap<>();
 
-    private Map<Long, Long> hypervisorPM2datacenterOIDs;
+    private Map<Long, String> hypervisorPM2datacenterNames;
 
     @VisibleForTesting
     DiscoveredGroupUploader(
@@ -495,9 +496,9 @@ public class DiscoveredGroupUploader {
             logger.error("Topology map doesn't contain host {}", hosts.get().getMembers(0));
             return;
         }
-        Long datacenterOid = getDatacenterOID(host);
 
-        if (datacenterOid == null) {
+        final String datacenterName = getDatacenterName(host, topologyMap);
+        if (datacenterName == null) {
             final Optional<TopologyEntityDTO.CommoditiesBoughtFromProvider> chassisCommodity =
                 getChassisCommodityOfHost(host);
             if (!chassisCommodity.isPresent()) {
@@ -518,13 +519,7 @@ public class DiscoveredGroupUploader {
             return;
         }
 
-        final TopologyEntity.Builder datacenter = topologyMap.get(datacenterOid);
-        if (datacenter == null) {
-            logger.error("Topology map doesn't contain datacenter with OID {} for host (oid:{},displayName:{})",
-                            datacenterOid, host.getOid(), host.getDisplayName());
-            return;
-        }
-        cluster.setDisplayName(datacenter.getDisplayName() + "/" + cluster.getDisplayName());
+        cluster.setDisplayName(datacenterName + "/" + cluster.getDisplayName());
     }
 
     private Optional<TopologyEntityDTO.CommoditiesBoughtFromProvider> getDatacenterCommodityOfHost(
@@ -544,26 +539,48 @@ public class DiscoveredGroupUploader {
     }
 
     /**
-     * Get the datacenter OID for host.
-     * @param host  the host whose datacenter OID we want to get.
-     * @return datacenter OID
+     * Get the datacenter display name for host.
+     *
+     * @param host the host whose datacenter name we want to get
+     * @param topologyMap to search datacenter entity
+     * @return datacenter display name
      */
-    private Long getDatacenterOID(TopologyEntity.Builder host) {
+    @Nullable
+    private String getDatacenterName(TopologyEntity.Builder host, Map<Long, TopologyEntity.Builder> topologyMap) {
         final Optional<CommoditiesBoughtFromProvider> datacenterCommodities =
                         getDatacenterCommodityOfHost(host);
         if (datacenterCommodities.isPresent())  {
-            return datacenterCommodities.get().getProviderId();
+            Object datacenterOid = datacenterCommodities.get().getProviderId();
+            final TopologyEntity.Builder datacenter = topologyMap.get(datacenterOid);
+            if (datacenter == null) {
+                logger.error("Topology map doesn't contain datacenter with OID {} for host (oid:{},displayName:{})",
+                             datacenterOid, host.getOid(), host.getDisplayName());
+            } else {
+                return datacenter.getDisplayName();
+            }
         }
-        //We try to get datacenter OID from the commodities bought by host, but they can be absent
-        //if the host got stitched with a chassis (the commodities bought from DC are removed then).
-        //In this case we use hypervisorPM2datacenterOIDs. We can't just rely on it as the single
-        //source either as it is filled only when both hypervisor and UCS targets are discovered.
-        return (hypervisorPM2datacenterOIDs == null) ? null
-                        : hypervisorPM2datacenterOIDs.get(host.getOid());
+        /*
+         * We try to get datacenter OID from the commodities bought by host, but they can be absent
+         * if the host got stitched with a chassis (the commodities bought from DC are removed then).
+         * In this case we use hypervisorPM2datacenterOIDs. We can't just rely on it as the single
+         * source either as it is filled only when both hypervisor and UCS targets are discovered.
+        */
+        final String dcDisplayName = (hypervisorPM2datacenterNames == null) ? null
+                        : hypervisorPM2datacenterNames.get(host.getOid());
+        if (dcDisplayName == null) {
+            logger.error("Can't find datacenter for host (oid:{},displayName:{})",
+                         host.getOid(), host.getDisplayName());
+        }
+        return dcDisplayName;
     }
 
-    public void setPM2DCMap(Map<Long, Long> pm2dcMap)   {
-        this.hypervisorPM2datacenterOIDs = pm2dcMap;
+    /**
+     * Set PM to DC name map. This map is used to set correct cluster name in case of stitching with fabric target.
+     *
+     * @param pm2dcNameMap map to set.
+     */
+    public void setPM2DCNameMap(Map<Long, String> pm2dcNameMap)   {
+        this.hypervisorPM2datacenterNames = pm2dcNameMap;
     }
 
     /**

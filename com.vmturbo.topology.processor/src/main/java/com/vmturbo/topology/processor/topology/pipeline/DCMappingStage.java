@@ -5,7 +5,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.jetbrains.annotations.NotNull;
+import javax.annotation.Nonnull;
 
 import com.vmturbo.components.common.pipeline.Pipeline.PipelineStageException;
 import com.vmturbo.components.common.pipeline.Pipeline.StageResult;
@@ -22,7 +22,8 @@ import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.Stage;
 /**
  * This stage checks if there're Fabric targets in entityStore, and if there're
  * then makes a linear search entityStore, gets PMs and saves info about their
- * connections to datacenters in {@link DiscoveredGroupUploader}.
+ * datacenter display names in {@link DiscoveredGroupUploader}.
+ * TODO: This stage should be checked and possibly removed after APP-734 implementation.
  */
 public class DCMappingStage extends Stage<EntityStore, EntityStore> {
     private final DiscoveredGroupUploader discoveredGroupUploader;
@@ -36,9 +37,9 @@ public class DCMappingStage extends Stage<EntityStore, EntityStore> {
         this.discoveredGroupUploader = groupUploader;
     }
 
-    @NotNull
+    @Nonnull
     @Override
-    public StageResult<EntityStore> executeStage(@NotNull EntityStore input)
+    public StageResult<EntityStore> executeStage(@Nonnull EntityStore input)
                     throws PipelineStageException, InterruptedException {
         if (!discoveredGroupUploader.isFabricTargetPresent())   {
             return StageResult.withResult(input)
@@ -46,27 +47,28 @@ public class DCMappingStage extends Stage<EntityStore, EntityStore> {
         }
 
         StringBuilder status = new StringBuilder("Fabric targets are present.");
-        // A map of SDK String IDs to XL OIDs:
-        Map<String, Long> datacenterIDsToOIDs = new HashMap<>();
+        // A map of SDK String IDs to DC name:
+        Map<String, String> datacenterIDsToNames = new HashMap<>();
         List<Entity> hosts = new ArrayList<>();
         input.getAllEntities().stream()
             .filter(entity -> entity.getEntityType() == EntityType.DATACENTER
                             || entity.getEntityType() == EntityType.PHYSICAL_MACHINE)
             .forEach(entity -> {
-                if (entity.getEntityType() == EntityType.DATACENTER)    {
-                    for (PerTargetInfo dcInfo : entity.allTargetInfo())    {
-                        datacenterIDsToOIDs.put(dcInfo.getEntityInfo().getId(), entity.getId());
+                if (entity.getEntityType() == EntityType.DATACENTER) {
+                    for (PerTargetInfo dcInfo : entity.allTargetInfo()) {
+                        datacenterIDsToNames.put(dcInfo.getEntityInfo().getId(),
+                                                 dcInfo.getEntityInfo().getDisplayName());
                     }
                 } else {
                     hosts.add(entity);
                 }
             });
 
-        Map<Long, Long> host2datacenterOIDs = findPM2DCConnections(hosts, datacenterIDsToOIDs);
-        discoveredGroupUploader.setPM2DCMap(host2datacenterOIDs);
-        if (!host2datacenterOIDs.isEmpty()) {
-            status.append(" ").append(host2datacenterOIDs.size())
-                .append(" host to datacenter connections are registered.");
+        final Map<Long, String> host2datacenterName = createPM2DCNameMap(hosts, datacenterIDsToNames);
+        discoveredGroupUploader.setPM2DCNameMap(host2datacenterName);
+        if (!host2datacenterName.isEmpty()) {
+            status.append(" ").append(host2datacenterName.size())
+                .append(" host to datacenter names are registered.");
         }
 
         return StageResult.withResult(input)
@@ -75,25 +77,26 @@ public class DCMappingStage extends Stage<EntityStore, EntityStore> {
 
     /**
      * Checks commodities bought by PMs and finds DCs they are buying from.
+     *
      * @param hosts Discovered physical machines.
-     * @param datacenterIDsToOIDs   A map of SDK String IDs to XL OIDs for datacenters.
-     * @return map of PM OIDs to provider DC OIDs
+     * @param datacenterIDsToDisplayNames A map of SDK String IDs to datacenter display names.
+     * @return map of PM OIDs to provider DC display name
      */
-    private Map<Long, Long> findPM2DCConnections(List<Entity> hosts,
-                    Map<String, Long> datacenterIDsToOIDs) {
-        Map<Long, Long> host2datacenterOIDs = new HashMap<>();
+    private static Map<Long, String> createPM2DCNameMap(List<Entity> hosts,
+                               Map<String, String> datacenterIDsToDisplayNames) {
+        Map<Long, String> host2datacenterNames = new HashMap<>();
         for (Entity host : hosts)   {
             for (PerTargetInfo entityInfo : host.allTargetInfo())    {
                 EntityDTO entityDTO = entityInfo.getEntityInfo();
                 for (CommodityBought bought : entityDTO.getCommoditiesBoughtList()) {
                     if (bought.getProviderType() == EntityType.DATACENTER)  {
-                        Long datacenterOID = datacenterIDsToOIDs.get(bought.getProviderId());
-                        host2datacenterOIDs.put(host.getId(), datacenterOID);
+                        final String datacenterName = datacenterIDsToDisplayNames.get(bought.getProviderId());
+                        host2datacenterNames.put(host.getId(), datacenterName);
                         break;
                     }
                 }
             }
         }
-        return host2datacenterOIDs;
+        return host2datacenterNames;
     }
 }
