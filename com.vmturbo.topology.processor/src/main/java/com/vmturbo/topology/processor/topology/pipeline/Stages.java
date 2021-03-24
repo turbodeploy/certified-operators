@@ -734,7 +734,7 @@ public class Stages {
     /**
      * This stage is to update entity controllable flag.
      */
-    public static class ControllableStage extends PassthroughStage<Map<Long, TopologyEntity.Builder>> {
+    public static class ControllableStage extends PassthroughStage<TopologyGraph<TopologyEntity>> {
         private final ControllableManager controllableManager;
 
         public ControllableStage(@Nonnull final ControllableManager controllableManager) {
@@ -743,7 +743,7 @@ public class Stages {
 
         @NotNull
         @Override
-        public Status passthrough(@Nonnull final Map<Long, TopologyEntity.Builder> input) {
+        public Status passthrough(@Nonnull final TopologyGraph<TopologyEntity> input) {
             final int controllableModified = controllableManager.applyControllable(input);
             final int suspendableModified = controllableManager.applySuspendable(input);
             final int resizeModified = controllableManager.applyScaleEligibility(input);
