@@ -1,7 +1,6 @@
 package com.vmturbo.topology.processor.operation;
 
 import java.io.File;
-import java.io.IOException;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -159,17 +158,6 @@ public class OperationConfig {
     }
 
     /**
-     * Failed discovery tracker.
-     *
-     * @return The {@link FailedDiscoveryTracker}.
-     */
-    @Bean
-    public FailedDiscoveryTracker failedDiscoveryTracker() {
-        return new FailedDiscoveryTracker();
-    }
-
-
-    /**
      * Choose the right type of OperationManager depending on whether we're applying permits at the
      * container level or probe type level.
      *
@@ -180,7 +168,6 @@ public class OperationConfig {
         return sdkServerConfig.getApplyPermitsToContainers()
                 ? new OperationManagerWithQueue(identityProviderConfig.identityProvider(),
                 targetConfig.targetStore(),
-                failedDiscoveryTracker(),
                 probeConfig.probeStore(),
                 sdkServerConfig.remoteMediation(),
                 apiConfig.topologyProcessorNotificationSender(),
@@ -204,7 +191,6 @@ public class OperationConfig {
             )
                 : new OperationManager(identityProviderConfig.identityProvider(),
             targetConfig.targetStore(),
-            failedDiscoveryTracker(),
             probeConfig.probeStore(),
             sdkServerConfig.remoteMediation(),
             apiConfig.topologyProcessorNotificationSender(),

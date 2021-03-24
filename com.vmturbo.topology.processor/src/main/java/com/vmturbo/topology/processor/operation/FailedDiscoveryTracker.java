@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.operation;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import javax.annotation.Nonnull;
@@ -11,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
+import com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorType;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus.Status;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.targets.Target;
@@ -33,8 +35,7 @@ public class FailedDiscoveryTracker implements OperationListener, TargetStoreLis
      */
     private void storeFailedDiscovery(final long targetId, final Discovery discovery) {
         final DiscoveryFailure discoveryFailure = targetToFailedDiscoveries
-                        .computeIfAbsent(targetId, k -> new DiscoveryFailure(discovery
-                                        .getCompletionTime()));
+                        .computeIfAbsent(targetId, k -> new DiscoveryFailure(discovery));
         discoveryFailure.incrementFailsCount();
         logger.debug("Target {} discovery was failed in {} with {} fails", targetId,
                      discoveryFailure.getFailTime(), discoveryFailure.getFailsCount());
@@ -95,15 +96,30 @@ public class FailedDiscoveryTracker implements OperationListener, TargetStoreLis
     public static class DiscoveryFailure {
         private LocalDateTime failTime;
         private int failsCount;
+        private ErrorType firstFailedDiscoveryErrorType;
+        private String firstFailedDiscoveryErrorText;
 
         /**
          * Creates {@link DiscoveryFailure} instance.
-         *
-         * @param failTime time of ferst fail
+         * @param discovery for which the failure record is created
          */
-        DiscoveryFailure(LocalDateTime failTime) {
-            this.failTime = failTime;
-            this.failsCount = 0;
+        public DiscoveryFailure(Discovery discovery) {
+            failTime = discovery.getCompletionTime();
+            failsCount = 0;
+            List<ErrorType> errorTypes = discovery.getErrorTypes();
+            if (!errorTypes.isEmpty())  {
+                firstFailedDiscoveryErrorType = errorTypes.get(0);
+            } else {
+                logger.warn("Had a discovery failure for target with id {} but "
+                                + "the error type is not set", discovery.getTargetId());
+            }
+            List<String> errorTexts = discovery.getErrors();
+            if (!errorTexts.isEmpty())    {
+                firstFailedDiscoveryErrorText = errorTexts.get(0);
+            } else {
+                logger.warn("Have had a discovery failure for target with id {} "
+                                + "but the error text is not set", discovery.getTargetId());
+            }
         }
 
         /**
@@ -130,6 +146,21 @@ public class FailedDiscoveryTracker implements OperationListener, TargetStoreLis
         public int getFailsCount() {
             return failsCount;
         }
-    }
 
+        /**
+         * Get first failed discovery error type.
+         * @return {@link ErrorType} object
+         */
+        public ErrorType getErrorType() {
+            return firstFailedDiscoveryErrorType;
+        }
+
+        /**
+         * Get first failed discovery error message.
+         * @return error text
+         */
+        public String getErrorText()    {
+            return firstFailedDiscoveryErrorText;
+        }
+    }
 }

@@ -100,6 +100,7 @@ import com.vmturbo.topology.processor.api.impl.TargetRESTApi.TargetSpec;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityProviderImpl;
 import com.vmturbo.topology.processor.identity.storage.IdentityDatabaseStore;
+import com.vmturbo.topology.processor.operation.FailedDiscoveryTracker;
 import com.vmturbo.topology.processor.operation.IOperationManager;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.validation.Validation;
@@ -235,7 +236,15 @@ public class TargetControllerTest {
         public TargetController targetController() {
             return new TargetController(schedulerMock(), targetStore(), probeStore(),
                 operationManager(), topologyHandler(), settingPolicyServiceBlockingStub(),
-                workflowServiceBlockingStub());
+                workflowServiceBlockingStub(), failedDiscoveryTracker());
+        }
+
+        /**
+         * Failed Discovery Tracker.
+         * @return {@link FailedDiscoveryTracker}.
+         */
+        private FailedDiscoveryTracker failedDiscoveryTracker() {
+            return mock(FailedDiscoveryTracker.class);
         }
     }
 

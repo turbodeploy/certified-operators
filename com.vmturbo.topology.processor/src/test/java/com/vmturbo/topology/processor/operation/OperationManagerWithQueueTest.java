@@ -110,8 +110,6 @@ public class OperationManagerWithQueueTest {
 
     private final TargetStore targetStore = mock(TargetStore.class);
 
-    private final FailedDiscoveryTracker failedDiscoveryTracker = mock(FailedDiscoveryTracker.class);
-
     private final ProbeContainerChooser containerChooser = mock(ProbeContainerChooser.class);
 
     private final ProbePropertyStore probePropertyStore = mock(ProbePropertyStore.class);
@@ -200,7 +198,7 @@ public class OperationManagerWithQueueTest {
     @Before
     public void setup() throws Exception {
         MockitoAnnotations.initMocks(this);
-        operationManager = new OperationManagerWithQueue(identityProvider, targetStore, failedDiscoveryTracker,
+        operationManager = new OperationManagerWithQueue(identityProvider, targetStore,
                 probeStore, remoteMediationServer, operationListener, entityStore, discoveredGroupUploader,
                 discoveredWorkflowUploader, discoveredCloudCostUploader,
                 discoveredTemplatesUploader, entityActionDao, derivedTargetParser,

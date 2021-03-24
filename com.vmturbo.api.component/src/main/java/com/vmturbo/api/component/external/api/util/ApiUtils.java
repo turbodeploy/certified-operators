@@ -4,11 +4,16 @@ import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.PRIVILEGE_
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.util.Calendar;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TimeZone;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -237,6 +242,18 @@ public class ApiUtils {
             .sorted(c.reversed())
             .collect(Collectors.toList());
     }
+
+    /**
+     * Convert LocalDateTime to milliseconds since epoch (midnight 1-1-1970 UTC).
+     * @param localDateTime date and time in LocalDateTime format.
+     * @return Long (null if received null for input)
+     */
+    public static Long convertToMilliseconds(LocalDateTime localDateTime) {
+        if (localDateTime == null)  {
+            return null;
+        }
+        TimeZone timeZone = Calendar.getInstance().getTimeZone();
+        ZonedDateTime zdt = localDateTime.atZone(ZoneId.of(timeZone.getID()));
+        return zdt.toInstant().toEpochMilli();
+    }
 }
-
-

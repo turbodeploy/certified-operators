@@ -156,8 +156,6 @@ public class OperationManagerTest {
     private final TargetStore targetStore = new CachingTargetStore(kvStore, probeStore,
             targetIdentityStore);
 
-    private final FailedDiscoveryTracker failedDiscoveryTracker = new FailedDiscoveryTracker();
-
     private final RemoteMediationServer mockRemoteMediationServer = Mockito.mock(RemoteMediationServer.class);
 
     private final EntityStore entityStore = Mockito.mock(EntityStore.class);
@@ -210,7 +208,7 @@ public class OperationManagerTest {
     public void setup() throws Exception {
         entityActionDao = new EntityActionDaoImp(dsl, 100, 300,
                 360, 360, 360);
-        operationManager = new OperationManager(identityProvider, targetStore, failedDiscoveryTracker, probeStore,
+        operationManager = new OperationManager(identityProvider, targetStore, probeStore,
             mockRemoteMediationServer, operationListener, entityStore, discoveredGroupUploader,
             discoveredWorkflowUploader, discoveredCloudCostUploader, discoveredTemplatesUploader,
             entityActionDao, derivedTargetParser, groupScopeResolver, targetDumpingSettings, systemNotificationProducer, 10, 10, 10,

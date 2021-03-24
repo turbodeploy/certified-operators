@@ -6,12 +6,12 @@ import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.proactivesupport.DataMetricCounter;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
-import com.vmturbo.topology.processor.operation.Operation;
+import com.vmturbo.topology.processor.operation.TargetExplorationOperation;
 
 /**
  * An discovery operation on a target.
  */
-public class Discovery extends Operation {
+public class Discovery extends TargetExplorationOperation {
 
     /**
      * Type of the discovery. Currently only FULL and INCREMENTAL are supported.

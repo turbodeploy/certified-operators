@@ -261,7 +261,7 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
     public TargetController targetController() {
         return new TargetController(scheduler(), targetStore(), probeStore(), operationManager(),
                 topologyHandler(), settingPolicyServiceBlockingStub(),
-                workflowServiceBlockingStub());
+                workflowServiceBlockingStub(), failedDiscoveryTracker());
     }
 
     @Bean
@@ -355,7 +355,6 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
 
         return new OperationManager(identityProvider(),
             targetStore(),
-            failedDiscoveryTracker(),
             probeStore(),
             remoteMediation(),
             topologyProcessorNotificationSender(),
