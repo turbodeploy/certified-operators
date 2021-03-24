@@ -1,11 +1,7 @@
 package com.vmturbo.cost.component.savings;
 
-import static org.mockito.Mockito.mock;
-
 import java.io.FileNotFoundException;
 import java.io.FileReader;
-import java.text.ParseException;
-import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
@@ -15,7 +11,6 @@ import java.util.Map;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.math.DoubleMath;
@@ -23,10 +18,8 @@ import com.google.gson.Gson;
 import com.google.gson.stream.JsonReader;
 
 import org.apache.commons.collections4.MultiValuedMap;
-import org.jooq.DSLContext;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;
@@ -46,29 +39,6 @@ public class SavingsCalculatorTest {
      */
     @Before
     public void setUp() throws Exception {
-    }
-
-    /**
-     * Ensure that the algorithm is generating the correct savings entries.
-     *
-     * @throws FileNotFoundException if the test events file cannot be opened.
-     * @throws ParseException if the events file contains invalid JSON.
-     */
-    @Ignore
-    @Test
-    public void entityRemoved() throws FileNotFoundException, ParseException {
-        EntityStateStore entityStateStore = new SqlEntityStateStore(mock(DSLContext.class), 1000);
-        EntityEventsJournal entityEventsJournal = new InMemoryEntityEventsJournal();
-        EntitySavingsStore entitySavingsStore = new SavingsCapture();
-        AuditLogWriter auditLogWriter = mock(AuditLogWriter.class);
-        EntitySavingsTracker tracker = new EntitySavingsTracker(entitySavingsStore,
-                entityEventsJournal, entityStateStore, Clock.systemUTC(), auditLogWriter, 1000);
-        // Inject some events
-        addTestEvents("src/test/resources/savings/unit-test.json", entityEventsJournal);
-        tracker.processEvents(roundTime(entityEventsJournal.getNewestEventTime(), true).getTimeInMillis()
-                + 3600000L);
-        // Verify the results
-        //Assert.assertEquals(0, entityStateCache.size());
     }
 
     /**
@@ -220,12 +190,6 @@ public class SavingsCalculatorTest {
                 throws EntitySavingsException {
             // Not used.
             return new ArrayList<>();
-        }
-
-        @Nullable
-        @Override
-        public Long getMaxStatsTime() {
-            return null;
         }
 
         @Nonnull

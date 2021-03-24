@@ -5,7 +5,6 @@ import static com.vmturbo.cost.component.db.Tables.ENTITY_CLOUD_SCOPE;
 import static com.vmturbo.cost.component.db.Tables.ENTITY_SAVINGS_BY_DAY;
 import static com.vmturbo.cost.component.db.Tables.ENTITY_SAVINGS_BY_HOUR;
 import static com.vmturbo.cost.component.db.Tables.ENTITY_SAVINGS_BY_MONTH;
-import static org.jooq.impl.DSL.max;
 import static org.jooq.impl.DSL.sum;
 import static org.jooq.impl.DSL.trueCondition;
 
@@ -25,7 +24,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
@@ -38,7 +36,6 @@ import org.jooq.BatchBindStep;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.InsertReturningStep;
-import org.jooq.Record1;
 import org.jooq.Record3;
 import org.jooq.Result;
 import org.jooq.Table;
@@ -430,26 +427,5 @@ public class SqlEntitySavingsStore implements EntitySavingsStore {
     @VisibleForTesting
     DSLContext getDsl() {
         return dsl;
-    }
-
-    /**
-     * Gets the timestamp of the last stats record of ENTITY_SAVINGS_BY_HOUR table.
-     *
-     * @return the max stats time. Return null if table is empty.
-     */
-    @Nullable
-    public Long getMaxStatsTime() {
-        final Result<Record1<LocalDateTime>> records =
-                dsl.select(max(ENTITY_SAVINGS_BY_HOUR.STATS_TIME))
-                        .from(ENTITY_SAVINGS_BY_HOUR).fetch();
-        if (records.size() > 0) {
-            LocalDateTime statsTime = records.get(0).value1();
-            if (statsTime != null) {
-                return TimeUtil.localDateTimeToMilli(statsTime, clock);
-            }
-        }
-
-        // If the table is empty, return null.
-        return null;
     }
 }
