@@ -10,6 +10,7 @@ import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -20,8 +21,6 @@ import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableSet;
 
-import org.apache.commons.collections4.MultiValuedMap;
-import org.apache.commons.collections4.multimap.HashSetValuedHashMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
@@ -35,10 +34,7 @@ import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.api.TimeUtil;
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.cost.component.db.Cost;
-import com.vmturbo.cost.component.db.Tables;
-import com.vmturbo.cost.component.db.tables.records.EntityCloudScopeRecord;
 import com.vmturbo.cost.component.savings.EntitySavingsStore.LastRollupTimes;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
 
@@ -157,9 +153,6 @@ public class SqlEntitySavingsStoreTest {
     public void testHourlyStats() throws EntitySavingsException, IOException {
         final Set<EntitySavingsStats> hourlyStats = new HashSet<>();
 
-        // Set scope
-        insertScopeRecords();
-
         final LocalDateTime timeExact0PM = timeExact1PM.minusHours(1); // 1990-01-12T12:00
         final LocalDateTime timeExact2PM = timeExact1PM.plusHours(1); // 1990-01-12T14:00
         final LocalDateTime timeExact3PM = timeExact1PM.plusHours(2); // 1990-01-12T15:00
@@ -181,45 +174,43 @@ public class SqlEntitySavingsStoreTest {
                 .values()).collect(Collectors.toSet());
 
         // Read back and verify.
-        MultiValuedMap<EntityType, Long> entitiesByType = new HashSetValuedHashMap<>();
-        entitiesByType.put(EntityType.VIRTUAL_MACHINE, vm1Id);
-        entitiesByType.put(EntityType.VIRTUAL_MACHINE, vm2Id);
+        Collection<Long> entityOids = ImmutableSet.of(vm1Id, vm2Id);
 
         List<AggregatedSavingsStats> statsReadBack = store.getHourlyStats(allStatsTypes,
                 TimeUtil.localDateTimeToMilli(timeExact0PM, clock),
                 TimeUtil.localDateTimeToMilli(timeExact1PM, clock),
-                entitiesByType);
+                entityOids);
         // 0 stats sets, for 12-1 PM range, because end time (1 PM) is exclusive.
         assertEquals(0, statsReadBack.size());
 
         statsReadBack = store.getHourlyStats(allStatsTypes,
                 TimeUtil.localDateTimeToMilli(timeExact1PM, clock),
                 TimeUtil.localDateTimeToMilli(timeExact2PM, clock),
-                entitiesByType);
+                entityOids);
         // 1 stats sets of 4 stats types, aggregated for both VMs, both 1PM, for 1-2 PM range.
         assertEquals(4, statsReadBack.size());
 
         statsReadBack = store.getHourlyStats(allStatsTypes,
                 TimeUtil.localDateTimeToMilli(timeExact2PM, clock),
                 TimeUtil.localDateTimeToMilli(timeExact3PM, clock),
-                entitiesByType);
+                entityOids);
         // 1 stats sets of 4 stats types, aggregated for both VMs, for 2-3 PM range.
         assertEquals(4, statsReadBack.size());
 
         statsReadBack = store.getHourlyStats(allStatsTypes,
                 TimeUtil.localDateTimeToMilli(timeExact3PM, clock),
                 TimeUtil.localDateTimeToMilli(timeExact4PM, clock),
-                entitiesByType);
+                entityOids);
         // 1 stats sets of 4 stats types, aggregated for both VMs, both 3PM, for 3-4 PM range.
         assertEquals(4, statsReadBack.size());
         checkStatsValues(statsReadBack, vm1Id, timeExact3PM, 50, vm2Id);
 
         // Verify data for 1 VM.
-        entitiesByType.removeMapping(EntityType.VIRTUAL_MACHINE, vm2Id);
+        entityOids = ImmutableSet.of(vm1Id);
         statsReadBack = store.getHourlyStats(allStatsTypes,
                 TimeUtil.localDateTimeToMilli(timeExact3PM, clock),
                 TimeUtil.localDateTimeToMilli(timeExact4PM, clock),
-                entitiesByType);
+                entityOids);
         // 1 stats sets of 4 stats types, for the 1 VM, both 3PM, for 3-4 PM range.
         assertEquals(4, statsReadBack.size());
         checkStatsValues(statsReadBack, vm1Id, timeExact3PM, 50, null);
@@ -228,9 +219,6 @@ public class SqlEntitySavingsStoreTest {
     @Test
     public void rollupToDailyAndMonthly() throws IOException, EntitySavingsException {
         final Set<EntitySavingsStats> hourlyStats = new HashSet<>();
-
-        // Set scope
-        insertScopeRecords();
 
         final Set<EntitySavingsStatsType> statsTypes = ImmutableSet.of(
                 EntitySavingsStatsType.REALIZED_SAVINGS);
@@ -289,11 +277,9 @@ public class SqlEntitySavingsStoreTest {
         assertEquals(lastDayExpected, newLastTimes.getLastTimeByDay());
         assertEquals(lastMonthExpected, newLastTimes.getLastTimeByMonth());
 
-        MultiValuedMap<EntityType, Long> entitiesByType = new HashSetValuedHashMap<>();
-        entitiesByType.put(EntityType.VIRTUAL_MACHINE, vm1Id);
-
+        Collection<Long> entityOids = ImmutableSet.of(vm1Id);
         final List<AggregatedSavingsStats> statsByHour = store.getHourlyStats(statsTypes,
-                firstHourExpected, (lastHourExpected + 1), entitiesByType);
+                firstHourExpected, (lastHourExpected + 1), entityOids);
         assertNotNull(statsByHour);
         int sizeHourly = statsByHour.size();
         assertEquals(50, sizeHourly);
@@ -301,7 +287,7 @@ public class SqlEntitySavingsStoreTest {
         assertEquals(lastHourExpected, statsByHour.get(sizeHourly - 1).getTimestamp());
 
         final List<AggregatedSavingsStats> statsByDay = store.getDailyStats(statsTypes,
-                dayRangeStart, dayRangeEnd, entitiesByType);
+                dayRangeStart, dayRangeEnd, entityOids);
         assertNotNull(statsByDay);
         assertEquals(3, statsByDay.size());
         // 23 hours Jan-13, $100/hr
@@ -312,7 +298,7 @@ public class SqlEntitySavingsStoreTest {
         assertEquals(300.0, statsByDay.get(2).getValue(), EPSILON_PRECISION);
 
         final List<AggregatedSavingsStats> statsByMonth = store.getMonthlyStats(statsTypes,
-                monthRangeStart, monthRangeEnd, entitiesByType);
+                monthRangeStart, monthRangeEnd, entityOids);
         assertNotNull(statsByMonth);
         assertEquals(1, statsByMonth.size());
         assertEquals(4700.0, statsByMonth.get(0).getValue(), EPSILON_PRECISION);
@@ -328,9 +314,6 @@ public class SqlEntitySavingsStoreTest {
     public void timeframeStatsQuery() throws IOException, EntitySavingsException {
         final Set<EntitySavingsStats> hourlyStats = new HashSet<>();
         final List<Long> hourlyTimes = new ArrayList<>();
-
-        // Set scope
-        insertScopeRecords();
 
         final Set<EntitySavingsStatsType> statsTypes = ImmutableSet.of(
                 EntitySavingsStatsType.REALIZED_INVESTMENTS);
@@ -359,26 +342,25 @@ public class SqlEntitySavingsStoreTest {
         logger.info("Total {} times. New last rollup times: {}", hourlyTimes.size(),
                 newLastTimes);
 
-        MultiValuedMap<EntityType, Long> entitiesByType = new HashSetValuedHashMap<>();
-        entitiesByType.put(EntityType.VIRTUAL_MACHINE, vm1Id);
+        Collection<Long> entityOids = ImmutableSet.of(vm1Id);
 
         long startTimeMillis = TimeUtil.localDateTimeToMilli(year1monthBack.minusHours(1), clock);
         final List<AggregatedSavingsStats> hourlyResult = store.getSavingsStats(TimeFrame.HOUR,
                 statsTypes,
                 startTimeMillis, endTimeMillis + 1000,
-                entitiesByType);
+                entityOids);
         assertNotNull(hourlyResult);
 
         final List<AggregatedSavingsStats> dailyResult = store.getSavingsStats(TimeFrame.DAY,
                 statsTypes,
                 startTimeMillis, endTimeMillis + 1000,
-                entitiesByType);
+                entityOids);
         assertNotNull(dailyResult);
 
         final List<AggregatedSavingsStats> monthlyResult = store.getSavingsStats(TimeFrame.MONTH,
                 statsTypes,
                 startTimeMillis, endTimeMillis + 1000,
-                entitiesByType);
+                entityOids);
         assertNotNull(monthlyResult);
 
         logger.info("Hourly result count: {}, Daily count: {}, Monthly count: {}",
@@ -427,38 +409,6 @@ public class SqlEntitySavingsStoreTest {
         result = monthlyResult.get(monthlyResult.size() - 1);
         assertEquals(297600.0, result.value, EPSILON_PRECISION);
         assertEquals(631065600000L, result.getTimestamp());
-    }
-
-    /**
-     * Inserts entries into scope table, required because of join with that table.
-     *
-     * @throws IOException Thrown on insert error.
-     */
-    private void insertScopeRecords() throws IOException {
-        final List<EntityCloudScopeRecord> scopeRecords = new ArrayList<>();
-        final EntityCloudScopeRecord rec1 = new EntityCloudScopeRecord();
-        rec1.setEntityOid(vm1Id);
-        rec1.setAccountOid(account1Id);
-        rec1.setRegionOid(region1Id);
-        rec1.setServiceProviderOid(csp1Id);
-        scopeRecords.add(rec1);
-        final EntityCloudScopeRecord rec2 = new EntityCloudScopeRecord();
-        rec2.setEntityOid(vm2Id);
-        rec2.setAccountOid(account1Id);
-        rec2.setRegionOid(region1Id);
-        rec2.setServiceProviderOid(csp1Id);
-        scopeRecords.add(rec2);
-
-        (store).getDsl().loadInto(Tables.ENTITY_CLOUD_SCOPE)
-                .batchAll()
-                .onDuplicateKeyUpdate()
-                .loadRecords(scopeRecords)
-                .fields(Tables.ENTITY_CLOUD_SCOPE.ENTITY_OID,
-                        Tables.ENTITY_CLOUD_SCOPE.ACCOUNT_OID,
-                        Tables.ENTITY_CLOUD_SCOPE.REGION_OID,
-                        Tables.ENTITY_CLOUD_SCOPE.AVAILABILITY_ZONE_OID,
-                        Tables.ENTITY_CLOUD_SCOPE.SERVICE_PROVIDER_OID)
-                .execute();
     }
 
     /**

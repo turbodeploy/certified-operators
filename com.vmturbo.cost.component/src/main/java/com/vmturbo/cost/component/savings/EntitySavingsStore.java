@@ -1,16 +1,14 @@
 package com.vmturbo.cost.component.savings;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.collections4.MultiValuedMap;
-
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;
 import com.vmturbo.commons.TimeFrame;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Interface for read/write of entity savings/investments related hourly/daily/monthly statistics.
@@ -34,7 +32,7 @@ public interface EntitySavingsStore {
      * @param statsTypes Type of stats to query for.
      * @param startTime Start time (epoch millis) to fetch stats for. Inclusive.
      * @param endTime End time (epoch millis) to fetch stats for. Exclusive.
-     * @param entitiesByType EntityType to a set of entities of that type to scope by.
+     * @param entityOids OIDs of entities to fetch the stats for.
      * @return List of queried stats, in increasing order of timestamp.
      * @throws EntitySavingsException Thrown on storage error.
      */
@@ -42,7 +40,7 @@ public interface EntitySavingsStore {
     List<AggregatedSavingsStats> getSavingsStats(TimeFrame timeFrame,
             @Nonnull Set<EntitySavingsStatsType> statsTypes,
             @Nonnull Long startTime, @Nonnull Long endTime,
-            @Nonnull MultiValuedMap<EntityType, Long> entitiesByType)
+            @Nonnull Collection<Long> entityOids)
             throws EntitySavingsException;
 
     /**
@@ -51,14 +49,14 @@ public interface EntitySavingsStore {
      * @param statsTypes Type of stats to query for.
      * @param startTime Start time (epoch millis) to fetch stats for. Inclusive.
      * @param endTime End time (epoch millis) to fetch stats for. Exclusive.
-     * @param entitiesByType EntityType to a set of entities of that type to scope by.
+     * @param entityOids OIDs of entities to fetch the stats for.
      * @return List of queried stats, in increasing order of timestamp.
      * @throws EntitySavingsException Thrown on storage error.
      */
     @Nonnull
     List<AggregatedSavingsStats> getHourlyStats(@Nonnull Set<EntitySavingsStatsType> statsTypes,
             @Nonnull Long startTime, @Nonnull Long endTime,
-            @Nonnull MultiValuedMap<EntityType, Long> entitiesByType)
+            @Nonnull Collection<Long> entityOids)
             throws EntitySavingsException;
 
     /**
@@ -67,14 +65,14 @@ public interface EntitySavingsStore {
      * @param statsTypes Type of stats to query for.
      * @param startTime Start time (epoch millis) to fetch stats for. Inclusive.
      * @param endTime End time (epoch millis) to fetch stats for. Exclusive.
-     * @param entitiesByType EntityType to a set of entities of that type to scope by.
+     * @param entityOids OIDs of entities to fetch the stats for.
      * @return List of queried stats, in increasing order of timestamp.
      * @throws EntitySavingsException Thrown on storage error.
      */
     @Nonnull
     List<AggregatedSavingsStats> getDailyStats(@Nonnull Set<EntitySavingsStatsType> statsTypes,
             @Nonnull Long startTime, @Nonnull Long endTime,
-            @Nonnull MultiValuedMap<EntityType, Long> entitiesByType)
+            @Nonnull Collection<Long> entityOids)
             throws EntitySavingsException;
 
     /**
@@ -83,14 +81,14 @@ public interface EntitySavingsStore {
      * @param statsTypes Type of stats to query for.
      * @param startTime Start time (epoch millis) to fetch stats for. Inclusive.
      * @param endTime End time (epoch millis) to fetch stats for. Exclusive.
-     * @param entitiesByType EntityType to a set of entities of that type to scope by.
+     * @param entityOids OIDs of entities to fetch the stats for.
      * @return List of queried stats, in increasing order of timestamp.
      * @throws EntitySavingsException Thrown on storage error.
      */
     @Nonnull
     List<AggregatedSavingsStats> getMonthlyStats(@Nonnull Set<EntitySavingsStatsType> statsTypes,
             @Nonnull Long startTime, @Nonnull Long endTime,
-            @Nonnull MultiValuedMap<EntityType, Long> entitiesByType)
+            @Nonnull Collection<Long> entityOids)
             throws EntitySavingsException;
 
     /**

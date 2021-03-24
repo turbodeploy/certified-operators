@@ -72,13 +72,15 @@ public class RollupSavingsProcessor {
         }
         List<RollupTimeInfo> nextRollupTimes = checkRollupRequired(hourlyStatsTimes,
                 lastRollupTimes, clock);
-        logger.info("Entity Savings rollup: {}", nextRollupTimes.stream()
+        logger.debug("Entity Savings rollup: {}", nextRollupTimes.stream()
                 .map(RollupTimeInfo::toString)
                 .collect(Collectors.joining(", ")));
 
         if (nextRollupTimes.isEmpty()) {
             return;
         }
+        logger.info("Performing {} Entity Savings rollup this time.",
+                nextRollupTimes.size());
         for (RollupTimeInfo newRollupTime : nextRollupTimes) {
             if (newRollupTime.isDaily()) {
                 if (newRollupTime.fromTime() > lastRollupTimes.getLastTimeByHour()) {

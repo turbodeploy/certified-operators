@@ -5,6 +5,7 @@ import java.io.FileReader;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -17,7 +18,6 @@ import com.google.common.math.DoubleMath;
 import com.google.gson.Gson;
 import com.google.gson.stream.JsonReader;
 
-import org.apache.commons.collections4.MultiValuedMap;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -25,7 +25,6 @@ import org.junit.Test;
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.cost.component.savings.EventInjector.ScriptEvent;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Tests to verify operation of the savings algorithm.
@@ -153,7 +152,8 @@ public class SavingsCalculatorTest {
         @Override
         public List<AggregatedSavingsStats> getSavingsStats(TimeFrame timeFrame,
                 @Nonnull Set<EntitySavingsStatsType> statsTypes, @Nonnull Long startTime,
-                @Nonnull Long endTime, @Nonnull MultiValuedMap<EntityType, Long> entitiesByType)
+                @Nonnull Long endTime,
+                @Nonnull Collection<Long> entityOids)
                 throws EntitySavingsException {
             return null;
         }
@@ -166,7 +166,7 @@ public class SavingsCalculatorTest {
         @Override
         public List<AggregatedSavingsStats> getHourlyStats(
                 @Nonnull Set<EntitySavingsStatsType> statsTypes, @Nonnull Long startTime,
-                @Nonnull Long endTime, @Nonnull MultiValuedMap<EntityType, Long> entitiesByType)
+                @Nonnull Long endTime, @Nonnull Collection<Long> entityOids)
                 throws EntitySavingsException {
             // Not used.
             return new ArrayList<>();
@@ -176,7 +176,7 @@ public class SavingsCalculatorTest {
         @Override
         public List<AggregatedSavingsStats> getDailyStats(
                 @Nonnull Set<EntitySavingsStatsType> statsTypes, @Nonnull Long startTime,
-                @Nonnull Long endTime, @Nonnull MultiValuedMap<EntityType, Long> entitiesByType)
+                @Nonnull Long endTime, @Nonnull Collection<Long> entityOids)
                 throws EntitySavingsException {
             // Not used.
             return new ArrayList<>();
@@ -186,7 +186,7 @@ public class SavingsCalculatorTest {
         @Override
         public List<AggregatedSavingsStats> getMonthlyStats(
                 @Nonnull Set<EntitySavingsStatsType> statsTypes, @Nonnull Long startTime,
-                @Nonnull Long endTime, @Nonnull MultiValuedMap<EntityType, Long> entitiesByType)
+                @Nonnull Long endTime, @Nonnull Collection<Long> entityOids)
                 throws EntitySavingsException {
             // Not used.
             return new ArrayList<>();

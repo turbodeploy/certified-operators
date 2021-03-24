@@ -1,21 +1,17 @@
 package com.vmturbo.cost.component.savings;
 
 import static com.vmturbo.cost.component.db.Tables.AGGREGATION_META_DATA;
-import static com.vmturbo.cost.component.db.Tables.ENTITY_CLOUD_SCOPE;
 import static com.vmturbo.cost.component.db.Tables.ENTITY_SAVINGS_BY_DAY;
 import static com.vmturbo.cost.component.db.Tables.ENTITY_SAVINGS_BY_HOUR;
 import static com.vmturbo.cost.component.db.Tables.ENTITY_SAVINGS_BY_MONTH;
 import static org.jooq.impl.DSL.sum;
-import static org.jooq.impl.DSL.trueCondition;
 
 import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -26,14 +22,11 @@ import java.util.stream.IntStream;
 import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterators;
 
-import org.apache.commons.collections4.MultiValuedMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.BatchBindStep;
-import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.InsertReturningStep;
 import org.jooq.Record3;
@@ -47,9 +40,7 @@ import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.api.TimeUtil;
 import com.vmturbo.cost.component.db.Routines;
 import com.vmturbo.cost.component.db.tables.records.AggregationMetaDataRecord;
-import com.vmturbo.cost.component.db.tables.records.EntityCloudScopeRecord;
 import com.vmturbo.cost.component.db.tables.records.EntitySavingsByHourRecord;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Implementation of store that accesses savings hourly/daily/monthly DB tables.
@@ -111,17 +102,6 @@ public class SqlEntitySavingsStore implements EntitySavingsStore {
         monthFields.valueField = ENTITY_SAVINGS_BY_MONTH.STATS_VALUE;
         statsFieldsByRollup.put(RollupDurationType.MONTHLY, monthFields);
     }
-
-    /**
-     * Map of EntityType to DB column in scope table, so that we can query for right scope.
-     */
-    private static final Map<EntityType, TableField<EntityCloudScopeRecord, Long>> TYPE_TO_DB_MAP =
-            ImmutableMap.of(
-                    EntityType.BUSINESS_ACCOUNT, ENTITY_CLOUD_SCOPE.ACCOUNT_OID,
-                    EntityType.REGION, ENTITY_CLOUD_SCOPE.REGION_OID,
-                    EntityType.AVAILABILITY_ZONE, ENTITY_CLOUD_SCOPE.AVAILABILITY_ZONE_OID,
-                    EntityType.SERVICE_PROVIDER, ENTITY_CLOUD_SCOPE.SERVICE_PROVIDER_OID
-            );
 
     /**
      * New one creation.
@@ -188,7 +168,7 @@ public class SqlEntitySavingsStore implements EntitySavingsStore {
     public List<AggregatedSavingsStats> getSavingsStats(final TimeFrame timeFrame,
             @Nonnull Set<EntitySavingsStatsType> statsTypes,
             @Nonnull Long startTime, @Nonnull Long endTime,
-            @Nonnull MultiValuedMap<EntityType, Long> entitiesByType)
+            @Nonnull Collection<Long> entityOids)
             throws EntitySavingsException {
         RollupDurationType durationType = RollupDurationType.HOURLY;
         switch (timeFrame) {
@@ -200,37 +180,37 @@ public class SqlEntitySavingsStore implements EntitySavingsStore {
                 durationType = RollupDurationType.MONTHLY;
                 break;
         }
-        return querySavingsStats(durationType, statsTypes, startTime, endTime, entitiesByType);
+        return querySavingsStats(durationType, statsTypes, startTime, endTime, entityOids);
     }
 
     @Nonnull
     @Override
     public List<AggregatedSavingsStats> getHourlyStats(@Nonnull Set<EntitySavingsStatsType> statsTypes,
             @Nonnull Long startTime, @Nonnull Long endTime,
-            @Nonnull MultiValuedMap<EntityType, Long> entitiesByType)
+            @Nonnull Collection<Long> entityOids)
             throws EntitySavingsException {
         return querySavingsStats(RollupDurationType.HOURLY, statsTypes, startTime, endTime,
-                entitiesByType);
+                entityOids);
     }
 
     @Nonnull
     @Override
     public List<AggregatedSavingsStats> getDailyStats(@Nonnull Set<EntitySavingsStatsType> statsTypes,
             @Nonnull Long startTime, @Nonnull Long endTime,
-            @Nonnull MultiValuedMap<EntityType, Long> entitiesByType)
+            @Nonnull Collection<Long> entityOids)
             throws EntitySavingsException {
         return querySavingsStats(RollupDurationType.DAILY, statsTypes, startTime, endTime,
-                entitiesByType);
+                entityOids);
     }
 
     @Nonnull
     @Override
     public List<AggregatedSavingsStats> getMonthlyStats(@Nonnull Set<EntitySavingsStatsType> statsTypes,
             @Nonnull Long startTime, @Nonnull Long endTime,
-            @Nonnull MultiValuedMap<EntityType, Long> entitiesByType)
+            @Nonnull Collection<Long> entityOids)
             throws EntitySavingsException {
         return querySavingsStats(RollupDurationType.MONTHLY, statsTypes, startTime, endTime,
-                entitiesByType);
+                entityOids);
     }
 
     @Override
@@ -318,12 +298,12 @@ public class SqlEntitySavingsStore implements EntitySavingsStore {
     private List<AggregatedSavingsStats> querySavingsStats(RollupDurationType durationType,
             @Nonnull Set<EntitySavingsStatsType> statsTypes,
             @Nonnull Long startTime, @Nonnull Long endTime,
-            @Nonnull MultiValuedMap<EntityType, Long> entitiesByType)
+            @Nonnull Collection<Long> entityOids)
             throws EntitySavingsException {
-        if (statsTypes.isEmpty() || entitiesByType.isEmpty()) {
+        if (statsTypes.isEmpty() || entityOids.isEmpty()) {
             throw new EntitySavingsException("Cannot get " + durationType.name()
                     + " entity savings stats: Type count: " + statsTypes.size()
-                    + ", Entity type count: " + entitiesByType.size());
+                    + ", Entity OID count: " + entityOids.size());
         }
         if (startTime > endTime) {
             throw new EntitySavingsException("Cannot get " + durationType.name()
@@ -341,9 +321,7 @@ public class SqlEntitySavingsStore implements EntitySavingsStore {
                             fieldInfo.typeField,
                             sum(fieldInfo.valueField).as(fieldInfo.valueField))
                     .from(fieldInfo.table)
-                    .join(ENTITY_CLOUD_SCOPE)
-                    .on(fieldInfo.oidField.eq(ENTITY_CLOUD_SCOPE.ENTITY_OID))
-                    .where(getCondition(entitiesByType))
+                    .where(fieldInfo.oidField.in(entityOids))
                     .and(fieldInfo.typeField.in(statsTypeCodes))
                     .and(fieldInfo.timeField
                             .ge(SavingsUtil.getLocalDateTime(startTime, clock))
@@ -357,51 +335,10 @@ public class SqlEntitySavingsStore implements EntitySavingsStore {
         } catch (Exception e) {
             throw new EntitySavingsException("Could not get " + durationType.name()
                     + " entity savings stats for "
-                    + entitiesByType.size() + " entity types from DB between "
+                    + entityOids.size() + " entity OIDs from DB between "
                     + SavingsUtil.getLocalDateTime(startTime, clock)
                     + " and " + SavingsUtil.getLocalDateTime(endTime, clock), e);
         }
-    }
-
-    /**
-     * Makes up Condition based on entityType to OID map.
-     *
-     * @param entitiesByType EntityType to OIDs.
-     * @return Set of conditions.
-     */
-    private List<Condition> getCondition(@Nonnull MultiValuedMap<EntityType, Long> entitiesByType) {
-        final List<Condition> conditions = new ArrayList<>();
-        final Set<Long> rawEntityOids = new HashSet<>();
-        entitiesByType.keySet().forEach(entityType -> {
-            TableField<EntityCloudScopeRecord, Long> dbField = TYPE_TO_DB_MAP.get(entityType);
-            if (dbField == null) {
-                // If no higher scope type (like account/region) provided, then assume entity.
-                rawEntityOids.addAll(entitiesByType.get(entityType));
-            } else {
-                conditions.add(getCondition(entitiesByType.get(entityType), dbField));
-            }
-        });
-        conditions.add(getCondition(rawEntityOids, ENTITY_CLOUD_SCOPE.ENTITY_OID));
-        return conditions;
-    }
-
-    /**
-     * Makes up one condition based on OID inputs.
-     *
-     * @param oidValues Values of entity OIDs.
-     * @param dbField DB column for condition.
-     * @return Condition created.
-     */
-    @Nonnull
-    private Condition getCondition(@Nonnull final Collection<Long> oidValues,
-            @Nonnull final TableField<EntityCloudScopeRecord, Long> dbField) {
-        if (oidValues.isEmpty()) {
-            return trueCondition();
-        }
-        if (oidValues.size() == 1) {
-            return dbField.eq(oidValues.iterator().next());
-        }
-        return dbField.in(oidValues);
     }
 
     /**
