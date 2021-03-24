@@ -49,6 +49,7 @@ import com.google.protobuf.util.JsonFormat;
 
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 
+import org.apache.commons.lang3.mutable.Mutable;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -666,7 +667,8 @@ public class TopologyConverterFromMarketTest {
     @Test
     public void testCreateResources() throws Exception {
         long azOid = 1l;
-        long volumeOid = 2l;
+        long volume1oid = 21l;
+        long volume2oid = 22l;
         long storageTierOid = 3l;
         long vmOid = 4l;
         TopologyDTO.TopologyEntityDTO az = TopologyDTO.TopologyEntityDTO.newBuilder()
@@ -674,11 +676,15 @@ public class TopologyConverterFromMarketTest {
         TopologyDTO.TopologyEntityDTO storageTier = TopologyDTO.TopologyEntityDTO.newBuilder()
                 .setEntityType(EntityType.STORAGE_TIER_VALUE).setOid(storageTierOid)
                 .build();
-        TopologyDTO.TopologyEntityDTO volume = TopologyDTO.TopologyEntityDTO.newBuilder()
-                .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE).setOid(volumeOid)
+        TopologyDTO.TopologyEntityDTO volume1 = TopologyDTO.TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE).setOid(volume1oid)
                 .setDisplayName("volume1").setEnvironmentType(EnvironmentType.CLOUD)
                 .build();
-        CommoditiesBoughtFromProvider commBought = CommoditiesBoughtFromProvider
+        TopologyDTO.TopologyEntityDTO volume2 = TopologyDTO.TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE).setOid(volume2oid)
+                .setDisplayName("volume2").setEnvironmentType(EnvironmentType.CLOUD)
+                .build();
+        CommoditiesBoughtFromProvider sameCommBoughtGroupingFor2DifferentSLs = CommoditiesBoughtFromProvider
                         .newBuilder().setProviderId(storageTierOid)
                         .setProviderEntityType(EntityType.STORAGE_TIER_VALUE)
                         .addCommodityBought(CommodityBoughtDTO.newBuilder()
@@ -689,19 +695,25 @@ public class TopologyConverterFromMarketTest {
                                 .setCommodityType(CommodityType.newBuilder()
                                         .setType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE))
                                 .setUsed(40)).build();
+
         // Use reflection and these entities to the entityOidToDto map
         Field entityOidToDto = TopologyConverter.class.getDeclaredField("entityOidToDto");
         Map<Long, TopologyEntityDTO> map =
-                ImmutableMap.of(azOid, az, storageTierOid, storageTier, volumeOid, volume);
+                ImmutableMap.of(azOid, az, storageTierOid, storageTier, volume1oid, volume1, volume2oid, volume2);
+        Map<Long, TopologyEntityDTO> volumeMap = new HashMap<>();
+        volumeMap.put(volume1oid, volume1);
+        volumeMap.put(volume2oid, volume2);
         entityOidToDto.setAccessible(true);
         entityOidToDto.set(converter, map);
 
+        Map<CommoditiesBoughtFromProvider, Map<ShoppingListTO, ShoppingListInfo>> commBought2shoppingList =
+                new HashMap<>();
+        Map<ShoppingListTO, ShoppingListInfo> slMapping = new HashMap<>();
+
         // Act
-        long slOid = 222;
-        Map<CommoditiesBoughtFromProvider, Pair<ShoppingListTO, ShoppingListInfo>> commBought2shoppingList =
-                        new HashMap<>();
-        commBought2shoppingList.put(commBought, Pair.create(ShoppingListTO.newBuilder()
-                .setOid(slOid)
+        long sl1Oid = 222;
+        slMapping.put(ShoppingListTO.newBuilder()
+                .setOid(sl1Oid)
                 .addCommoditiesBought(CommodityBoughtTO.newBuilder()
                         .setSpecification(CommoditySpecificationTO.newBuilder()
                                 .setType(1)
@@ -713,12 +725,36 @@ public class TopologyConverterFromMarketTest {
                                 .setBaseType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE))
                         .setAssignedCapacityForBuyer(20))
                 .build(),
-            new ShoppingListInfo(slOid, vmOid, null,
-                            Collections.singleton(volumeOid), null,
-                            EntityType.STORAGE_TIER_VALUE, Collections.emptyList())));
+            new ShoppingListInfo(sl1Oid, vmOid, null,
+                            Collections.singleton(volume1oid), null,
+                            EntityType.STORAGE_TIER_VALUE, Collections.emptyList()));
+        commBought2shoppingList.put(sameCommBoughtGroupingFor2DifferentSLs, slMapping);
+
+        long sl2Oid = 333;
+        slMapping.put(ShoppingListTO.newBuilder()
+                        .setOid(sl2Oid)
+                        .addCommoditiesBought(CommodityBoughtTO.newBuilder()
+                                .setSpecification(CommoditySpecificationTO.newBuilder()
+                                        .setType(1)
+                                        .setBaseType(CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE))
+                                .setAssignedCapacityForBuyer(1000))
+                        .addCommoditiesBought(CommodityBoughtTO.newBuilder()
+                                .setSpecification(CommoditySpecificationTO.newBuilder()
+                                        .setType(2)
+                                        .setBaseType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE))
+                                .setAssignedCapacityForBuyer(20))
+                        .build(),
+                new ShoppingListInfo(sl2Oid, vmOid, null,
+                        Collections.singleton(volume2oid), null,
+                        EntityType.STORAGE_TIER_VALUE, Collections.emptyList()));
+
+        commBought2shoppingList.put(sameCommBoughtGroupingFor2DifferentSLs, slMapping);
         TopologyDTO.TopologyEntityDTO.Builder vm = TopologyDTO.TopologyEntityDTO.newBuilder()
                         .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE).setOid(vmOid)
-                        .addCommoditiesBoughtFromProviders(commBought)
+                        // leg1
+                        .addCommoditiesBoughtFromProviders(sameCommBoughtGroupingFor2DifferentSLs)
+                        // leg2
+                        .addCommoditiesBoughtFromProviders(sameCommBoughtGroupingFor2DifferentSLs)
                         .addConnectedEntityList(
                                         ConnectedEntity.newBuilder().setConnectedEntityId(azOid)
                                                         .setConnectedEntityType(az.getEntityType())
@@ -726,35 +762,37 @@ public class TopologyConverterFromMarketTest {
         Set<TopologyEntityDTO> resources = converter.createResources(vm, commBought2shoppingList);
         // Assert that the projected volume is connected to the storage and AZ which the VM is
         // connected to
-        assertEquals(1, resources.size());
-        TopologyEntityDTO projectedVolume = resources.iterator().next();
-        assertEquals(2, projectedVolume.getConnectedEntityListList().size());
-        ConnectedEntity connectedStorageTier = projectedVolume.getConnectedEntityListList().stream()
-                .filter(c -> c.getConnectedEntityType() == EntityType.STORAGE_TIER_VALUE)
-                .findFirst().get();
-        ConnectedEntity connectedAz = projectedVolume.getConnectedEntityListList().stream().filter(
-                c -> c.getConnectedEntityType() == EntityType.AVAILABILITY_ZONE_VALUE)
-                .findFirst().get();
-        assertEquals(storageTierOid, connectedStorageTier.getConnectedEntityId());
-        assertEquals(azOid, connectedAz.getConnectedEntityId());
-        assertEquals(volume.getDisplayName(), projectedVolume.getDisplayName());
-        assertEquals(volume.getEnvironmentType(), projectedVolume.getEnvironmentType());
+        assertEquals(2, resources.size());
+        for (TopologyEntityDTO projectedVolume : resources) {
+            TopologyEntityDTO volume = volumeMap.get(projectedVolume.getOid());
+            assertEquals(2, projectedVolume.getConnectedEntityListList().size());
+            ConnectedEntity connectedStorageTier = projectedVolume.getConnectedEntityListList().stream()
+                    .filter(c -> c.getConnectedEntityType() == EntityType.STORAGE_TIER_VALUE)
+                    .findFirst().get();
+            ConnectedEntity connectedAz = projectedVolume.getConnectedEntityListList().stream().filter(
+                    c -> c.getConnectedEntityType() == EntityType.AVAILABILITY_ZONE_VALUE)
+                    .findFirst().get();
+            assertEquals(storageTierOid, connectedStorageTier.getConnectedEntityId());
+            assertEquals(azOid, connectedAz.getConnectedEntityId());
+            assertEquals(volume.getDisplayName(), projectedVolume.getDisplayName());
+            assertEquals(volume.getEnvironmentType(), projectedVolume.getEnvironmentType());
 
-        // Market can assign new capacities for various commodities. The new value is set in
-        // the assignedCapacityForBuyer field of the corresponding commodityBought of the shopping list.
-        // This value needs to be set in the capacity field of the volume commodity sold.
-        List<CommoditySoldDTO> commSold = projectedVolume.getCommoditySoldListList();
-        Optional<CommoditySoldDTO> storageAccessCommSold =
-                commSold.stream().filter(c -> c.getCommodityType().getType()
-                        == CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE).findFirst();
-        assertTrue(storageAccessCommSold.isPresent());
-        assertEquals(1000, storageAccessCommSold.get().getCapacity(), 0);
-        Optional<CommoditySoldDTO> storageAmountCommSold =
-                commSold.stream().filter(c -> c.getCommodityType().getType()
-                        == CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE).findFirst();
-        assertTrue(storageAmountCommSold.isPresent());
-        // 20GB = 20480MB
-        assertEquals(20480, storageAmountCommSold.get().getCapacity(), 0);
+            // Market can assign new capacities for various commodities. The new value is set in
+            // the assignedCapacityForBuyer field of the corresponding commodityBought of the shopping list.
+            // This value needs to be set in the capacity field of the volume commodity sold.
+            List<CommoditySoldDTO> commSold = projectedVolume.getCommoditySoldListList();
+            Optional<CommoditySoldDTO> storageAccessCommSold =
+                    commSold.stream().filter(c -> c.getCommodityType().getType()
+                            == CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE).findFirst();
+            assertTrue(storageAccessCommSold.isPresent());
+            assertEquals(1000, storageAccessCommSold.get().getCapacity(), 0);
+            Optional<CommoditySoldDTO> storageAmountCommSold =
+                    commSold.stream().filter(c -> c.getCommodityType().getType()
+                            == CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE).findFirst();
+            assertTrue(storageAmountCommSold.isPresent());
+            // 20GB = 20480MB
+            assertEquals(20480, storageAmountCommSold.get().getCapacity(), 0);
+        }
     }
 
     /**

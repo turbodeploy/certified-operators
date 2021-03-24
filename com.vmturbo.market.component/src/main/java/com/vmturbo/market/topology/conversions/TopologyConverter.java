@@ -1306,8 +1306,10 @@ public class TopologyConverter {
             TopologyDTO.TopologyEntityDTO originalEntity = traderOidToEntityDTO.get(traderTO.getOid());
             final List<ShoppingListTO> collapsedShoppingLists = new ArrayList<>();
 
-            // stores information required to create extra projected entities for a buyer->seller link
-            final Map<CommoditiesBoughtFromProvider, Pair<ShoppingListTO, ShoppingListInfo>> commBought2shoppingListWithResources =
+            // stores information required to create extra projected entities for a buyer->seller link. The value of
+            // commBought2shoppingListWithResources is a map in order to allow creation of multiple volumes
+            // (represented in ShoppingListInfo) mapped to the same CommoditiesBoughtFromProvider
+            final Map<CommoditiesBoughtFromProvider, Map<ShoppingListTO, ShoppingListInfo>> commBought2shoppingListWithResources =
                             new HashMap<>();
 
             for (EconomyDTOs.ShoppingListTO sl : traderTO.getShoppingListsList()) {
@@ -1376,8 +1378,10 @@ public class TopologyConverter {
                         createCommoditiesBoughtFromProvider(sl, commList, traderTO.getOid());
                 topoDTOCommonBoughtGrouping.add(commoditiesBought);
                 if (!CollectionUtils.isEmpty(shoppingListInfo.getResourceIds())) {
-                    // remember the SLs with associated resources to create extra projected entities for them
-                    commBought2shoppingListWithResources.put(commoditiesBought, Pair.create(sl, shoppingListInfo));
+                    // there can be multiple volume shoppingLists with the same usages and providers. Cache multiple
+                    // potential sl:slInfo mappings for the same commBoughtGrouping
+                    commBought2shoppingListWithResources
+                            .computeIfAbsent(commoditiesBought, slMapping -> new HashMap<>()).put(sl, shoppingListInfo);
                 }
             }
 
@@ -1900,20 +1904,24 @@ public class TopologyConverter {
      */
     @VisibleForTesting
     Set<TopologyEntityDTO> createResources(TopologyEntityDTO.Builder topologyEntityDTO,
-                    Map<CommoditiesBoughtFromProvider, Pair<ShoppingListTO, ShoppingListInfo>> commBought2shoppingListWithResources) {
+                    Map<CommoditiesBoughtFromProvider, Map<ShoppingListTO, ShoppingListInfo>> commBought2shoppingListWithResources) {
         Set<TopologyEntityDTO> resources = Sets.newHashSet();
         final Collection<CommoditiesBoughtFromProvider> cbfpWithUpdatedProvider = new HashSet<>();
         for (int i = topologyEntityDTO.getCommoditiesBoughtFromProvidersCount() - 1; i >= 0; i--) {
             final CommoditiesBoughtFromProvider commBoughtGrouping = topologyEntityDTO.getCommoditiesBoughtFromProviders(i);
             // create entities for volumes
-            Pair<ShoppingListTO, ShoppingListInfo> shoppingListInfo = commBought2shoppingListWithResources.get(commBoughtGrouping);
-            if (shoppingListInfo == null || CollectionUtils
-                            .isEmpty(shoppingListInfo.getSecond().getResourceIds())) {
+            Map<ShoppingListTO, ShoppingListInfo> shoppingListMapping = commBought2shoppingListWithResources.get(commBoughtGrouping);
+            Optional<Map.Entry<ShoppingListTO, ShoppingListInfo>> shoppingListEntry = shoppingListMapping == null ? null
+                    : shoppingListMapping.entrySet().stream().findAny();
+            if (shoppingListMapping == null || !shoppingListEntry.isPresent() || CollectionUtils
+                            .isEmpty(shoppingListEntry.get().getValue().getResourceIds())) {
                 // no extra resources to create for this market link
                 continue;
             }
-            final ShoppingListTO shoppingList = shoppingListInfo.getFirst();
-            for (Long sourceVolumeId : shoppingListInfo.getSecond().getResourceIds()) {
+            final ShoppingListTO shoppingList = shoppingListEntry.get().getKey();
+            final ShoppingListInfo slInfo = shoppingListEntry.get().getValue();
+            shoppingListMapping.remove(shoppingListEntry.get().getKey());
+            for (Long sourceVolumeId : slInfo.getResourceIds()) {
                 TopologyEntityDTO originalVolume = entityOidToDto.get(sourceVolumeId);
                 if (originalVolume != null && originalVolume.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE) {
                     if (!commBoughtGrouping.hasProviderId() || !commBoughtGrouping.hasProviderEntityType()) {
@@ -1982,7 +1990,7 @@ public class TopologyConverter {
                     }
 
                     copyStaticAttributes(originalVolume, volume);
-                    String optionalDisplayName = shoppingListInfo.getSecond().getResourceDisplayName();
+                    String optionalDisplayName = slInfo.getResourceDisplayName();
                     volume.setDisplayName(StringUtils.isEmpty(optionalDisplayName)
                                     ? originalVolume.getDisplayName()
                                     : optionalDisplayName);
