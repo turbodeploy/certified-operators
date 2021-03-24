@@ -143,7 +143,7 @@ public class MarketExceptionsTest {
                 commodityIndexFactory,
                 tierExcluderFactory,
                 consistentScalingHelperFactory, cloudTopology, reversibilitySettingFetcher,
-                MarketAnalysisUtils.PRICE_WEIGHT_SCALE));
+                MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false));
     }
 
     /**

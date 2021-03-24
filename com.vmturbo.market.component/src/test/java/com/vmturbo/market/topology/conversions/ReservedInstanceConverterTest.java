@@ -146,7 +146,7 @@ public class ReservedInstanceConverterTest {
         commodityConverter = new CommodityConverter(new NumericIDAllocator(),
                 false, new BiCliquer(), HashBasedTable.create(),
                 new ConversionErrorCounts(), mock(ConsistentScalingHelper.class),
-                MarketAnalysisUtils.PRICE_WEIGHT_SCALE);
+                MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false);
         final CostDTOCreator costDTOCreator = new CostDTOCreator(commodityConverter,
                 marketCloudRateExtractor);
         final CloudTopology<TopologyEntityDTO> cloudTopology = createCloudTopologyMock();

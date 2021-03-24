@@ -160,6 +160,8 @@ defaultProperties:
         fullPriceForQuote: false
         # Value to scale the price weight of commodities for every softwareLicenseCommodity sold by a provider.
         licensePriceWeightScale: 3
+        # Flag to enable the OverProvisioning related changes.
+        enableOP: false
     ml-datastore:
         influxdbHealthCheckIntervalSeconds: 60
         influxHost: influxdb

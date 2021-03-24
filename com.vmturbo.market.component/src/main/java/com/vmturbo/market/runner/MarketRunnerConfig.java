@@ -129,6 +129,9 @@ public class MarketRunnerConfig {
     @Value("${licensePriceWeightScale:3}")
     private int licensePriceWeightScale;
 
+    @Value("${enableOP:false}")
+    private boolean enableOP;
+
     @Bean(destroyMethod = "shutdownNow")
     public ExecutorService marketRunnerThreadPool() {
         final ThreadFactory threadFactory =
@@ -199,7 +202,8 @@ public class MarketRunnerConfig {
                 migratedWorkloadCloudCommitmentAnalysisService(),
                 fullPriceForQuote,
                 commodityIdUpdater(),
-                licensePriceWeightScale);
+                licensePriceWeightScale,
+                enableOP);
     }
 
     /**
