@@ -1,7 +1,7 @@
 package com.vmturbo.cost.component.savings;
 
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.Objects;
 
@@ -61,14 +61,15 @@ public class TopologyEventsPoller {
 
     /**
      * The poll method retrieves topology events in an event window.
+     * @param startTime start time
+     * @param endTime end time
      */
-    void poll() {
+    void poll(LocalDateTime startTime, LocalDateTime endTime) {
         logger.debug("Topology event poller getting TEP events.");
 
-        final Instant endTime = Instant.now().truncatedTo(ChronoUnit.HOURS);
         final TimeInterval eventWindow = TimeInterval.builder()
-                        .endTime(endTime)
-                        .startTime(endTime.minus(1, ChronoUnit.HOURS))
+                        .endTime(endTime.toInstant(ZoneOffset.UTC))
+                        .startTime(startTime.toInstant(ZoneOffset.UTC))
                         .build();
         final TopologyEvents topologyEvents =
                         topologyEventProvider.getTopologyEvents(eventWindow, TopologyEventFilter.ALL);
@@ -76,6 +77,17 @@ public class TopologyEventsPoller {
         if (isEnabledTopologyEventsPolling) {
             processTopologyEvents(topologyEvents);
         }
+    }
+
+    /**
+     * Check if a topology broadcast happen after the given time.
+     *
+     * @param time a time instant
+     * @return true if the latest broadcast happened after the given time.
+     */
+    boolean isTopologyBroadcasted(LocalDateTime time) {
+        // TODO implementation will be provided by task OM-68006.
+        return true;
     }
 
     /**

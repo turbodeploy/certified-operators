@@ -1,22 +1,17 @@
 package com.vmturbo.cost.component.savings;
 
-import java.text.SimpleDateFormat;
 import java.time.Clock;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Calendar;
-import java.util.Collections;
-import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.TimeZone;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -24,6 +19,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;
+import com.vmturbo.components.api.TimeUtil;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.SavingsEvent;
 
 /**
@@ -45,11 +41,9 @@ public class EntitySavingsTracker {
 
     private final AuditLogWriter auditLogWriter;
 
-    private Calendar lastPeriodEndTime;
-
-    private final TimeZone timeZone;
-
     private final int chunkSize;
+
+    private final Clock clock;
 
     /**
      * Constructor.
@@ -71,62 +65,44 @@ public class EntitySavingsTracker {
         this.entityEventsJournal = Objects.requireNonNull(entityEventsJournal);
         this.entityStateStore = Objects.requireNonNull(entityStateStore);
         this.savingsCalculator = new SavingsCalculator();
-        timeZone = TimeZone.getTimeZone(clock.getZone());
+        this.clock = clock;
         this.auditLogWriter = auditLogWriter;
         this.chunkSize = chunkSize;
     }
 
     /**
      * Process events posted to the internal state of each entity whose savings/investments are
-     * being tracked.
-     *
-     * @return List of times to the hour mark for which we have wrote stats this time, so these
-     *      hours are now eligible for daily and monthly rollups, if applicable.
-     */
-    List<Long> processEvents() {
-        return processEvents(getCurrentTime());
-    }
-
-    /**
-     * Process events posted to the internal state of each entity whose savings/investments are
      * being tracked.  Processing will stop at the supplied time.
      *
-     * @param end current time in milliseconds indicating when to stop generating savings entries.
+     * @param startTime start time
+     * @param endTime end time
      * @return List of times to the hour mark for which we have wrote stats this time, so these
      *      hours are now eligible for daily and monthly rollups, if applicable.
      */
     @Nonnull
-    List<Long> processEvents(long end) {
+    List<Long> processEvents(@Nonnull LocalDateTime startTime, @Nonnull LocalDateTime endTime) {
         logger.debug("Processing savings/investment.");
 
-        Calendar periodStartTime = getPeriodStartTime();
-        if (periodStartTime == null) {
-            logger.debug("There are no events in event journal and there are no states in states map. "
-                    + "Events tracker has nothing to process.");
-            return Collections.emptyList();
-        }
-
         final List<Long> hourlyStatsTimes = new ArrayList<>();
-        // Set period end time to 1 hour after start time.
-        Calendar periodEndTime = Calendar.getInstance(timeZone);
-        periodEndTime.setTime(periodStartTime.getTime());
-        periodEndTime.add(Calendar.HOUR_OF_DAY, 1);
 
         // There should not be any events before period start time left in the journal.
         // If for some reasons old events are left in the journal, remove them.
         List<SavingsEvent> events =
-                entityEventsJournal.removeEventsBetween(0, periodStartTime.getTimeInMillis());
+                entityEventsJournal.removeEventsBetween(0, TimeUtil.localDateTimeToMilli(startTime, clock));
         if (events.size() > 0) {
             logger.warn("There are {} in the events journal that have timestamps before period start time of {}.",
-                    events.size(), formatDateTime(periodStartTime));
+                    events.size(), startTime);
         }
 
+        LocalDateTime periodStartTime = startTime;
+        LocalDateTime periodEndTime = startTime.plusHours(1);
         try {
-            while (periodEndTime.getTimeInMillis() < end) {
+            while (periodEndTime.isBefore(endTime) || periodEndTime.equals(endTime)) {
+                final long startTimeMillis = TimeUtil.localDateTimeToMilli(periodStartTime, clock);
+                final long endTimeMillis = TimeUtil.localDateTimeToMilli(periodEndTime, clock);
+
                 // Read from entity event journal.
-                final long startTime = periodStartTime.getTimeInMillis();
-                final long endTime = periodEndTime.getTimeInMillis();
-                events = entityEventsJournal.removeEventsBetween(startTime, endTime);
+                events = entityEventsJournal.removeEventsBetween(startTimeMillis, endTimeMillis);
 
                 // Get all entity IDs from the events
                 Set<Long> entityIds = events.stream()
@@ -134,10 +110,11 @@ public class EntitySavingsTracker {
                         .collect(Collectors.toSet());
 
                 logger.info("Process {} events for {} entities between {} ({}) & {} ({}).",
-                        events.size(), entityIds.size(), startTime, formatDateTime(periodStartTime),
-                        endTime, formatDateTime(periodEndTime));
+                        events.size(), entityIds.size(), startTimeMillis, periodStartTime,
+                        endTimeMillis, periodEndTime);
 
-                // Get states for these entities from the state map (if they exist).
+                // Get states for entities that have events or had state changes in the last period
+                // and put the states in the state map.
                 Map<Long, EntityState> entityStates = entityStateStore.getEntityStates(entityIds);
                 entityStates.putAll(entityStateStore.getUpdatedEntityStates());
 
@@ -145,7 +122,7 @@ public class EntitySavingsTracker {
                 entityStateStore.clearUpdatedFlags();
 
                 // Invoke calculator
-                savingsCalculator.calculate(entityStates, events, startTime, endTime);
+                savingsCalculator.calculate(entityStates, events, startTimeMillis, endTimeMillis);
 
                 // Update entity states. Also insert new states to track new entities.
                 entityStateStore.updateEntityStates(entityStates);
@@ -153,8 +130,8 @@ public class EntitySavingsTracker {
                 auditLogWriter.write(events);
                 try {
                     // create stats records from state map for this period.
-                    generateStats(startTime);
-                    hourlyStatsTimes.add(startTime);
+                    generateStats(startTimeMillis);
+                    hourlyStatsTimes.add(startTimeMillis);
                 } catch (EntitySavingsException e) {
                     logger.error("Error occurred when Entity Savings Tracker writes stats to entity savings store. "
                             + "Start time: {} End time: {}", startTime, endTime, e);
@@ -169,77 +146,17 @@ public class EntitySavingsTracker {
                         .collect(Collectors.toSet());
                 entityStateStore.deleteEntityStates(statesToRemove);
 
-                // Save the period end time so we won't need to get it from DB next time the tracker runs.
-                lastPeriodEndTime = Calendar.getInstance(timeZone);
-                lastPeriodEndTime.setTimeInMillis(periodEndTime.getTimeInMillis());
-
                 // Advance time period by 1 hour.
-                periodStartTime.add(Calendar.HOUR_OF_DAY, 1);
-                periodEndTime.add(Calendar.HOUR_OF_DAY, 1);
+                periodStartTime = periodStartTime.plusHours(1);
+                periodEndTime = periodEndTime.plusHours(1);
             }
         } catch (EntitySavingsException e) {
             logger.error("Operation error in entity state store.", e);
         }
 
         logger.debug("Savings/investment processing complete for {} hourly times.",
-                hourlyStatsTimes);
+                hourlyStatsTimes.size());
         return hourlyStatsTimes;
-    }
-
-    /**
-     * Set the last period end time.  This is used by the event injector to set the end time to
-     * null, which will force the savings tracker to recalculate the period start time.  Doing this
-     * enables processing of events with older timestamps.
-     *
-     * @param endTime Calendar representing the new lastPeriodEndTime.  Can be set to null to force
-     *                recalculation of the period start time.
-     */
-    public void setLastPeriodEndTime(@Nullable Calendar endTime) {
-        this.lastPeriodEndTime = endTime;
-    }
-
-    /**
-     * Gets the period start time.
-     * If the timestamp of the end time of the period the tracker last executed was cached, simply
-     * return it.
-     * If it is the first time the tracker is executed after the pod started up, get the latest
-     * timestamp from the savings stats hourly table.
-     * If the table is empty, get the timestamp from the first event from the events journal.
-     *
-     * @return the start time of the period to be processed.
-     */
-    @VisibleForTesting
-    @Nullable
-    Calendar getPeriodStartTime() {
-        // EntitySavingsTracker is a singleton class running in a single thread. The cached value
-        // is only read and written by this thread.
-        if (lastPeriodEndTime != null) {
-            return  lastPeriodEndTime;
-        }
-
-        Long maxStatsTime = entitySavingsStore.getMaxStatsTime();
-        Calendar periodStartTime = Calendar.getInstance(timeZone);
-        if (maxStatsTime != null) {
-            periodStartTime.setTimeInMillis(maxStatsTime);
-            // Period start time is one hour after the most recent stats record because the
-            // timestamp of the stats record represent the start time of an one-hour period.
-            periodStartTime.add(Calendar.HOUR_OF_DAY, 1);
-        } else {
-            // The stats table is empty.
-            // Get earliest event timestamp in events journal.
-            Long oldestEventTime = entityEventsJournal.getOldestEventTime();
-            if (oldestEventTime != null) {
-                periodStartTime.setTimeInMillis(oldestEventTime);
-            } else {
-                // No events in the events journal.
-                return null;
-            }
-        }
-        // Set time to "top of the hour". e.g. if timestamp is 8:05, period start time is 8:00.
-        periodStartTime.set(Calendar.MINUTE, 0);
-        periodStartTime.set(Calendar.SECOND, 0);
-        periodStartTime.set(Calendar.MILLISECOND, 0);
-        return periodStartTime;
     }
 
     /**
@@ -302,16 +219,5 @@ public class EntitySavingsTracker {
                     EntitySavingsStatsType.MISSED_INVESTMENTS, investments));
         }
         return stats;
-    }
-
-    @VisibleForTesting
-    long getCurrentTime() {
-        return System.currentTimeMillis();
-    }
-
-    private String formatDateTime(Calendar calendar) {
-        final Date date = calendar.getTime();
-        final SimpleDateFormat dateTimeFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-        return dateTimeFormat.format(date);
     }
 }

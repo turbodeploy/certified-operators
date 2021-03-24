@@ -88,7 +88,7 @@ public class EntitySavingsConfig {
     /**
      * How long (minutes) after the hour mark to run the periodic hourly processor task.
      */
-    private static final int startMinuteMark = 5;
+    private static final int startMinuteMark = 15;
 
     /**
      * Return whether entity savings tracking is enabled.
@@ -182,7 +182,7 @@ public class EntitySavingsConfig {
     public EntitySavingsProcessor entitySavingsProcessor() {
         EntitySavingsProcessor entitySavingsProcessor =
                 new EntitySavingsProcessor(entitySavingsTracker(), topologyEventsPoller(),
-                        rollupSavingsProcessor());
+                        rollupSavingsProcessor(), entitySavingsStore(), entityEventsJournal(), getClock());
 
         if (isEnabled()) {
             int initialDelayMinutes = getInitialStartDelayMinutes();
