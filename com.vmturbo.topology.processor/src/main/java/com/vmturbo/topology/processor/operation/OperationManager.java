@@ -259,7 +259,6 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
 
     public OperationManager(@Nonnull final IdentityProvider identityProvider,
                             @Nonnull final TargetStore targetStore,
-                            @Nonnull final FailedDiscoveryTracker failedDiscoveryTracker,
                             @Nonnull final ProbeStore probeStore,
                             @Nonnull final RemoteMediation remoteMediationServer,
                             @Nonnull final OperationListener operationListener,
@@ -288,7 +287,6 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         this.probeStore = Objects.requireNonNull(probeStore);
         this.remoteMediationServer = Objects.requireNonNull(remoteMediationServer);
         this.operationListeners.add(operationListener);
-        this.operationListeners.add(failedDiscoveryTracker);
         this.entityStore = Objects.requireNonNull(entityStore);
         this.discoveredGroupUploader = Objects.requireNonNull(discoveredGroupUploader);
         this.discoveredWorkflowUploader = Objects.requireNonNull(discoveredWorkflowUploader);
@@ -321,6 +319,11 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         // On restart we notify any listeners that all previously existing operations are now
         // cleared.
         operationListener.notifyOperationsCleared();
+    }
+
+    @Override
+    public void setFailedDiscoveryTracker(@Nonnull FailedDiscoveryTracker failedDiscoveryTracker)   {
+        this.operationListeners.add(failedDiscoveryTracker);
     }
 
     /**

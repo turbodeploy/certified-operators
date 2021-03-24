@@ -63,7 +63,6 @@ public class OperationManagerWithQueue extends OperationManager {
      *
      * @param identityProvider IdentityProvider
      * @param targetStore TargetStore for querying target information.
-     * @param failedDiscoveryTracker failed discoveries tracker.
      * @param probeStore ProbeStore for getting probe information.
      * @param remoteMediationServer RemoteMediationServer for interacting with mediation.
      * @param operationListener listener for operations.
@@ -87,7 +86,6 @@ public class OperationManagerWithQueue extends OperationManager {
      */
     public OperationManagerWithQueue(@Nonnull final IdentityProvider identityProvider,
                             @Nonnull final TargetStore targetStore,
-                            @Nonnull final FailedDiscoveryTracker failedDiscoveryTracker,
                             @Nonnull final ProbeStore probeStore,
                             @Nonnull final RemoteMediation remoteMediationServer,
                             @Nonnull final OperationListener operationListener,
@@ -108,7 +106,7 @@ public class OperationManagerWithQueue extends OperationManager {
                             final @Nonnull MatrixInterface matrix,
                             final BinaryDiscoveryDumper binaryDiscoveryDumper,
                             final boolean enableDiscoveryResponsesCaching) {
-        super(identityProvider, targetStore, failedDiscoveryTracker, probeStore, remoteMediationServer, operationListener,
+        super(identityProvider, targetStore, probeStore, remoteMediationServer, operationListener,
                 entityStore, discoveredGroupUploader, discoveredWorkflowUploader,
                 discoveredCloudCostUploader, discoveredTemplateDeploymentProfileNotifier,
                 entityActionDao, derivedTargetParser, groupScopeResolver, targetDumpingSettings,

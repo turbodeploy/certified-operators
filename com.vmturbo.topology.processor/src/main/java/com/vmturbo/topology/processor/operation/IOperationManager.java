@@ -350,6 +350,12 @@ public interface IOperationManager {
             CommunicationException;
 
     /**
+     * Set failed discoveries tracker.
+     * @param failedDiscoveryTracker is the tracker.
+     */
+    public void setFailedDiscoveryTracker(@Nonnull FailedDiscoveryTracker failedDiscoveryTracker);
+
+    /**
      * Operation callback to receive success and failure for a requested operation.
      *
      * @param <T> type of operation execution result
