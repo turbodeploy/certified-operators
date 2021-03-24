@@ -879,15 +879,11 @@ public class CostRpcService extends CostServiceImplBase {
             @Nonnull final StreamObserver<EntitySavingsStatsRecord> responseObserver) {
         try {
             final Set<EntitySavingsStatsType> statsTypes = new HashSet<>(request.getStatsTypesList());
-            final Set<Long> entityIds = new HashSet<>(request.getEntityFilter().getEntityIdList());
-            MultiValuedMap<EntityType, Long> entitiesByType = new HashSetValuedHashMap<>();
-            // Currently entities are assumed to be only VMs, later sprints will add more support.
-            entitiesByType.putAll(EntityType.VIRTUAL_MACHINE, entityIds);
 
             final TimeFrame timeFrame = timeFrameCalculator.millis2TimeFrame(request.getStartDate());
             final List<AggregatedSavingsStats> stats = entitySavingsStore.getSavingsStats(
                     timeFrame, statsTypes, request.getStartDate(), request.getEndDate(),
-                    entitiesByType);
+                    request.getEntityFilter().getEntityIdList());
 
             final Set<EntitySavingsStatsRecord> records = createSavingsStatsRecords(stats);
             records.forEach(responseObserver::onNext);

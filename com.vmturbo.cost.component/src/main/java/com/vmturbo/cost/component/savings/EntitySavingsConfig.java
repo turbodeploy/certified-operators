@@ -2,8 +2,15 @@ package com.vmturbo.cost.component.savings;
 
 import java.time.Clock;
 import java.time.LocalTime;
+import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import javax.annotation.Nonnull;
+
+import com.google.common.collect.ImmutableSet;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -15,14 +22,17 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.cost.api.CostClientConfig;
 import com.vmturbo.cost.component.CostComponentGlobalConfig;
 import com.vmturbo.cost.component.CostDBConfig;
 import com.vmturbo.cost.component.cca.CloudCommitmentAnalysisStoreConfig;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Configuration for cloud savings/investment tracking.  Interesting event types are: entity
@@ -91,6 +101,18 @@ public class EntitySavingsConfig {
     private static final int startMinuteMark = 15;
 
     /**
+     * Entity types (cloud only) for which Savings feature is currently supported.
+     */
+    private static final Set<EntityType> supportedEntityTypes = Stream.concat(
+            TopologyDTOUtil.WORKLOAD_TYPES.stream(),
+            Stream.of(EntityType.VIRTUAL_VOLUME)).collect(Collectors.toSet());
+
+    /**
+     * Types of actions we currently support Savings feature for.
+     */
+    private static final Set<ActionType> supportedActionTypes = ImmutableSet.of(ActionType.SCALE);
+
+    /**
      * Return whether entity savings tracking is enabled.
      * @return True if entity savings tracking is enabled.
      */
@@ -139,7 +161,8 @@ public class EntitySavingsConfig {
     @Bean
     public ActionListener actionListener() {
         ActionListener actionListener = new ActionListener(entityEventsJournal(), actionsService(),
-                                                   costService(), realtimeTopologyContextId);
+                costService(), realtimeTopologyContextId,
+                supportedEntityTypes, supportedActionTypes);
         if (isEnabled()) {
             logger.info("Registering action listener with AO to receive action events.");
             // Register listener with the action orchestrator to receive action events.
@@ -302,5 +325,24 @@ public class EntitySavingsConfig {
      */
     Clock getClock() {
         return costComponentGlobalConfig.clock();
+    }
+
+    /**
+     * Supported entity types.
+     *
+     * @return Set of supported types.
+     */
+    @Nonnull
+    static Set<EntityType> getSupportedEntityTypes() {
+        return supportedEntityTypes;
+    }
+
+    /**
+     * Supported action types - SCALE, and DELETE volumes later.
+     * @return Set of supported actions.
+     */
+    @Nonnull
+    static Set<ActionType> getSupportedActionTypes() {
+        return supportedActionTypes;
     }
 }
