@@ -4,6 +4,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -240,5 +241,44 @@ public class EntitySavingsSubQueryTest {
             this.savingValue = savingValue;
             this.investmentValue = investmentValue;
         }
+    }
+
+    /**
+     * If the stats request does not include a savings stats name (either the list is empty or
+     * contains stats unrelated to savings), simply return an empty result list without calling
+     * the cost component gRPC API.
+     *
+     * @throws Exception exceptions
+     */
+    @Test
+    public void testNoValidSavingsStats() throws Exception {
+        long vm1Id = 123456L;
+        long vm2Id = 234543L;
+        long startTime = 1609527257000L;
+        long endTime = 1610996057000L;
+
+        TimeWindow timeWindow = ImmutableTimeWindow.builder().startTime(startTime).endTime(endTime)
+                .includeHistorical(true).includeCurrent(false).includeProjected(false).build();
+
+        // Stats request has NO stats names.
+        Set<Long> scopeIds = new HashSet<>();
+        scopeIds.add(vm1Id);
+        scopeIds.add(vm2Id);
+        StatsQueryContext context = createStatsQueryContextMock(scopeIds, timeWindow);
+
+        Set<StatApiInputDTO> stats = new HashSet<>();
+        List<StatSnapshotApiDTO> response = query.getAggregateStats(stats, context);
+
+        verify(costServiceMole, never()).getEntitySavingsStats(any(GetEntitySavingsStatsRequest.class));
+        assertTrue(response.isEmpty());
+
+        // Stats request include a stats that has unrelated to savings.
+        StatApiInputDTO unknownStat = new StatApiInputDTO();
+        unknownStat.setName("ABC");
+        stats = new HashSet<>();
+        stats.add(unknownStat);
+        response = query.getAggregateStats(stats, context);
+        verify(costServiceMole, never()).getEntitySavingsStats(any(GetEntitySavingsStatsRequest.class));
+        assertTrue(response.isEmpty());
     }
 }
