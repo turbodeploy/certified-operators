@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.topology.pipeline.blocking;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -16,7 +17,6 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Date;
 import java.util.Optional;
 import java.util.concurrent.Future;
@@ -34,6 +34,7 @@ import org.junit.rules.TemporaryFolder;
 import org.mockito.Mockito;
 
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.communication.ITransport;
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -41,13 +42,16 @@ import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO;
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorSeverity;
+import com.vmturbo.platform.sdk.common.MediationMessage;
+import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
+import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
+import com.vmturbo.topology.processor.communication.ProbeContainerChooser;
 import com.vmturbo.topology.processor.discoverydumper.BinaryDiscoveryDumper;
 import com.vmturbo.topology.processor.discoverydumper.DiscoveryDumpFilename;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.operation.IOperationManager;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.probes.ProbeException;
-import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.probes.RemoteProbeStore;
 import com.vmturbo.topology.processor.scheduling.Schedule.ScheduleData;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
@@ -65,7 +69,7 @@ public class DiscoveryBasedUnblockTest {
 
     private TargetStore targetStore = mock(TargetStore.class);
 
-    private ProbeStore probeStore = mock(ProbeStore.class);
+    private ProbeContainerChooser probeContainerChooser = mock(ProbeContainerChooser.class);
 
     private Scheduler scheduler = mock(Scheduler.class);
 
@@ -106,20 +110,21 @@ public class DiscoveryBasedUnblockTest {
     /**
      * Common setup code before every test.
      *
-     * @throws InterruptedException if the operation is interrupted
-     * @throws IOException id the dumpDir can't be created
+     * @throws Exception To satisfy compiler.
      */
     @Before
-    public void setup() throws IOException, InterruptedException {
+    public void setup() throws Exception {
         dumpDir = new File(tmpFolder.newFolder("cached-responses-root"), "");
         binaryDiscoveryDumper = spy(new BinaryDiscoveryDumper(dumpDir));
         unblock = spy(new DiscoveryBasedUnblock(pipelineExecutorService,
-                    targetStore, probeStore, scheduler, operationManager,
+                    targetStore, probeContainerChooser, scheduler, operationManager,
                     targetShortCircuitSpec, maxDiscoveryWaitMs, maxProbeRegistrationWaitMs, TimeUnit.MILLISECONDS,
                     clock, identityProvider, binaryDiscoveryDumper, true));
         IdentityGenerator.initPrefix(1L);
         when(identityProvider.generateOperationId()).thenAnswer(invocation -> IdentityGenerator.next());
         when(operationManager.notifyLoadedDiscovery(any(), any())).thenReturn(mock(Future.class));
+        ITransport<MediationServerMessage, MediationClientMessage> transport = mock(ITransport.class);
+        when(probeContainerChooser.choose(any(), any())).thenReturn(transport);
     }
 
     /**
@@ -151,12 +156,13 @@ public class DiscoveryBasedUnblockTest {
     public void testProbeRegistrationTimeout() throws Exception {
         final Target t1 = setupTarget(1L);
         final long probeId = 121;
+        final Discovery t1d1 = newLastDiscovery(t1.getId());
         when(t1.getProbeId()).thenReturn(probeId);
         when(operationManager.getLastDiscoveryForTarget(t1.getId(), DiscoveryType.FULL))
-                .thenReturn(Optional.empty());
+                .thenReturn(Optional.of(t1d1));
         when(targetStore.getAll()).thenReturn(Arrays.asList(t1));
-        // No transport returned.
-        when(probeStore.getTransport(probeId)).thenReturn(Collections.emptyList());
+        // No transport returned. Note - this shouldn't happen because we expect an exception.
+        when(probeContainerChooser.choose(eq(t1), any())).thenReturn(null);
 
         assertFalse(unblock.runIteration());
 
@@ -182,11 +188,12 @@ public class DiscoveryBasedUnblockTest {
         final Target t1 = setupTarget(1L);
         final long probeId = 121;
         when(t1.getProbeId()).thenReturn(probeId);
+        final Discovery t1d1 = newLastDiscovery(t1.getId());
         when(operationManager.getLastDiscoveryForTarget(t1.getId(), DiscoveryType.FULL))
-                .thenReturn(Optional.empty());
+                .thenReturn(Optional.of(t1d1));
         when(targetStore.getAll()).thenReturn(Arrays.asList(t1));
         // Probe doesn't exist - throw an exception.
-        when(probeStore.getTransport(probeId)).thenThrow(new ProbeException("NO PROBE"));
+        when(probeContainerChooser.choose(eq(t1), any())).thenThrow(new ProbeException("NO PROBE NO PROBLEM"));
 
         assertFalse(unblock.runIteration());
 
@@ -618,6 +625,10 @@ public class DiscoveryBasedUnblockTest {
     private Target setupTarget(long targetId) {
         Target mockTarget = mock(Target.class);
         when(mockTarget.getId()).thenReturn(targetId);
+        when(mockTarget.getProbeInfo()).thenReturn(MediationMessage.ProbeInfo.newBuilder()
+            .setProbeType("Foo")
+            .setProbeCategory("Feline")
+            .build());
         return mockTarget;
     }
 

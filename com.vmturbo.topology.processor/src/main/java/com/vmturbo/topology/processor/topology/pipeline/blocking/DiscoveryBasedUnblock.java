@@ -19,13 +19,15 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
+import com.vmturbo.platform.sdk.common.MediationMessage.DiscoveryRequest;
+import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus.Status;
+import com.vmturbo.topology.processor.communication.ProbeContainerChooser;
 import com.vmturbo.topology.processor.discoverydumper.BinaryDiscoveryDumper;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.operation.IOperationManager;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.probes.ProbeException;
-import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.probes.RemoteProbeStore;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.targets.Target;
@@ -39,7 +41,7 @@ public class DiscoveryBasedUnblock implements PipelineUnblock {
     private static final Logger logger = LogManager.getLogger();
     private static final long SLEEP_BETWEEN_CYCLES_MS = 10_000;
     private final TopologyPipelineExecutorService pipelineExecutorService;
-    private final ProbeStore probeStore;
+    private final ProbeContainerChooser probeContainerChooser;
     private final TargetStore targetStore;
     private final Scheduler scheduler;
     private final IOperationManager operationManager;
@@ -57,7 +59,7 @@ public class DiscoveryBasedUnblock implements PipelineUnblock {
 
     DiscoveryBasedUnblock(@Nonnull final TopologyPipelineExecutorService pipelineExecutorService,
             @Nonnull final TargetStore targetStore,
-            @Nonnull final ProbeStore probeStore,
+            @Nonnull final ProbeContainerChooser probeContainerChooser,
             @Nonnull final Scheduler scheduler,
             @Nonnull final IOperationManager operationManager,
             TargetShortCircuitSpec targetShortCircuitSpec,
@@ -70,7 +72,7 @@ public class DiscoveryBasedUnblock implements PipelineUnblock {
             boolean enableDiscoveryResponsesCaching) {
         this.pipelineExecutorService = pipelineExecutorService;
         this.targetStore = targetStore;
-        this.probeStore = probeStore;
+        this.probeContainerChooser = probeContainerChooser;
         this.scheduler = scheduler;
         this.operationManager = operationManager;
         this.clock = clock;
@@ -110,7 +112,7 @@ public class DiscoveryBasedUnblock implements PipelineUnblock {
          * target's probe DOES register while we're waiting for other targets, we transition back
          * to the "WAITING" status. This is why this state is not terminal.
          */
-        PROBE_NOT_REGISTERED,
+        PROBE_NOT_CONNECTED,
 
         /**
          * The target has correctly been loaded from a binary file persisted on disk.
@@ -143,19 +145,25 @@ public class DiscoveryBasedUnblock implements PipelineUnblock {
                             targetShortCircuitSpec,
                             // The "threshold" is "maxProbeRegistrationWaitPeriodMs" after we first see the target.
                             clock.millis() + maxProbeRegistrationWaitPeriodMs));
-            // Check to make sure that the target's probe is registered.
-            boolean probeRegistered;
+            // Check whether the target's probe is connected.
+            boolean probeConnected;
             try {
-                probeRegistered = !probeStore.getTransport(target.getProbeId()).isEmpty();
+                // See if we can find a transport to issue a discovery to this target.
+                // Note - the "MediationServerMessage" doesn't really matter; the important thing
+                // is that it contains a discovery request.
+                probeConnected = probeContainerChooser.choose(target, MediationServerMessage.newBuilder()
+                    .setDiscoveryRequest(DiscoveryRequest.newBuilder()
+                        .setProbeType(target.getProbeInfo().getProbeType())
+                        .setDiscoveryType(DiscoveryType.FULL)).build()) != null;
             } catch (ProbeException e) {
-                // The probe is not registered.
+                // The probe is not connected.
                 logger.debug("Probe {} for target {} does not exist.", target.getProbeId(), target.getId());
-                probeRegistered = false;
+                probeConnected = false;
             }
 
             // First check if we already have a completed discovery for the target.
             Optional<Discovery> discovery = operationManager.getLastDiscoveryForTarget(target.getId(), DiscoveryType.FULL);
-            info.updateDiscovery(discovery, clock, probeRegistered);
+            info.updateDiscovery(discovery, clock, probeConnected);
         });
 
         final Map<TargetWaitingStatus, List<TargetDiscoveryInfo>> byStatus = targetDiscoveryInfoMap.values().stream()
@@ -195,16 +203,16 @@ public class DiscoveryBasedUnblock implements PipelineUnblock {
                 byStatus.getOrDefault(TargetWaitingStatus.FAILURE_EXCEED_THRESHOLD, Collections.emptyList());
         final List<TargetDiscoveryInfo> waiting =
                 byStatus.getOrDefault(TargetWaitingStatus.WAITING, Collections.emptyList());
-        final List<TargetDiscoveryInfo> probeNotRegistered =
-                byStatus.getOrDefault(TargetWaitingStatus.PROBE_NOT_REGISTERED, Collections.emptyList());
-        if (exceedThreshold.isEmpty() && waiting.isEmpty() && probeNotRegistered.isEmpty()) {
+        final List<TargetDiscoveryInfo> probeNotConnected =
+                byStatus.getOrDefault(TargetWaitingStatus.PROBE_NOT_CONNECTED, Collections.emptyList());
+        if (exceedThreshold.isEmpty() && waiting.isEmpty() && probeNotConnected.isEmpty()) {
             logger.info("All {} targets have finished discovery. Unblocking broadcasts.",
                     existingTargets.size());
             logger.info("Target counts by status: {}", byStatus.entrySet().stream()
                     .map(e -> e.getKey() + " : " + e.getValue().size())
                     .collect(Collectors.joining(",")));
         } else {
-            final int problematicCnt = exceedThreshold.size() + waiting.size() + probeNotRegistered.size();
+            final int problematicCnt = exceedThreshold.size() + waiting.size() + probeNotConnected.size();
             final StringJoiner targetsByStatus = new StringJoiner("\n");
             byStatus.forEach((status, targets) -> {
                 targetsByStatus.add(status.name() + ":");
@@ -314,7 +322,7 @@ public class DiscoveryBasedUnblock implements PipelineUnblock {
 
         void updateDiscovery(Optional<Discovery> discoveryOpt,
                 Clock clock,
-                final boolean probeRegistered) {
+                final boolean probeConnected) {
             // Early return if we already had a successful discovery, a loaded discovery from disk,
             // or  had the "fatal" number of failed discoveries.
             if (status == TargetWaitingStatus.FAILURE_EXCEED_THRESHOLD
@@ -323,18 +331,22 @@ public class DiscoveryBasedUnblock implements PipelineUnblock {
                 return;
             }
 
-            if (!discoveryOpt.isPresent()) {
-                processProbeNotRegistered(clock);
+            // If the probe for the target is not connected (i.e. the transport is not available)
+            // OR there has been no discovery related to the target...
+            if (!probeConnected || !discoveryOpt.isPresent()) {
+                processProbeNotConnected(clock);
             } else {
                 processLastDiscovery(discoveryOpt.get(), clock);
             }
         }
 
-        private void processProbeNotRegistered(Clock clock) {
-            // If we've never had a discovery complete, the probe is still not registered,
-            // and we've reached the probe registration threshold...
-            if (lastDiscoveryId == 0 && clock.millis() >= probeRegistrationThresholdMs) {
-                changeStatus(TargetWaitingStatus.PROBE_NOT_REGISTERED);
+        private void processProbeNotConnected(Clock clock) {
+            // If the probe is not connected for more than the prescribed time, mark it as
+            // NOT REGISTERED. Note - we used to check if lastDiscoveryId == 0. However, if the
+            // probe connection drops before we have a successful discovery then there's no point
+            // waiting for additional "failed" discoveries.
+            if (clock.millis() >= probeRegistrationThresholdMs) {
+                changeStatus(TargetWaitingStatus.PROBE_NOT_CONNECTED);
             }
         }
 
@@ -346,15 +358,15 @@ public class DiscoveryBasedUnblock implements PipelineUnblock {
                 if (discovery.getErrorString().contains(RemoteProbeStore.TRANSPORT_NOT_REGISTERED_PREFIX)) {
                     // This is kind of a corner case, but if the discovery fails because the probe
                     // for this target does not have a registered transport, we should count this
-                    // as a "probe not registered" case, and not as a true failed discovery.
+                    // as a "probe not connected" case, and not as a true failed discovery.
                     //
-                    // Discoveries that fail due to probes not being registered get immediately
+                    // Discoveries that fail due to probes not being connected get immediately
                     // re-scheduled when the probe registers.
                     //
                     // TODO (roman, Jun 8 2020: If possible, it would be good to keep the ProbeException
                     // in the discovery. That way we can check for the exception that caused the
                     // issue, instead of relying on the string messages.
-                    processProbeNotRegistered(clock);
+                    processProbeNotConnected(clock);
                     // Again, kind of a corner case, but we don't want to count this discovery as
                     // a real "last discovery", so we return early.
                     return;
@@ -368,9 +380,9 @@ public class DiscoveryBasedUnblock implements PipelineUnblock {
                         changeStatus(TargetWaitingStatus.FAILURE_EXCEED_THRESHOLD);
                     }
                 }
-            } else if (status == TargetWaitingStatus.PROBE_NOT_REGISTERED) {
-                // If this target's probe was not registered within the threshold,
-                // but registered while we were waiting for other targets to be discovered,
+            } else if (status == TargetWaitingStatus.PROBE_NOT_CONNECTED) {
+                // If this target's probe was not connected within the threshold,
+                // but connected while we were waiting for other targets to be discovered,
                 // transition the probe back to "WAITING", since we can now wait for the
                 // discovery to fail or succeed.
                 changeStatus(TargetWaitingStatus.WAITING);

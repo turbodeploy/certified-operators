@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 
 import com.vmturbo.topology.processor.ClockConfig;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
@@ -19,6 +20,15 @@ import com.vmturbo.topology.processor.topology.TopologyConfig;
  * Configuration for the operation to unblock the topology pipeline.
  */
 @Configuration
+@Import({
+    TopologyConfig.class,
+    IdentityProviderConfig.class,
+    ProbeConfig.class,
+    TargetConfig.class,
+    SchedulerConfig.class,
+    OperationConfig.class,
+    ClockConfig.class
+})
 public class PipelineBlockingConfig {
 
     @Autowired
@@ -113,7 +123,7 @@ public class PipelineBlockingConfig {
                         .build();
                 return new DiscoveryBasedUnblock(topologyConfig.pipelineExecutorService(),
                         targetConfig.targetStore(),
-                        probeConfig.probeStore(),
+                        probeConfig.probeContainerChooser(),
                         schedulerConfig.scheduler(),
                         operationConfig.operationManager(),
                         shortCircuitSpec,
