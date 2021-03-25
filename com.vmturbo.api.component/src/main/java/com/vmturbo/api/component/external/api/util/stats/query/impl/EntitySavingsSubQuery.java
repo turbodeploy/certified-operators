@@ -93,6 +93,9 @@ public class EntitySavingsSubQuery implements StatsSubQuery {
                 .filter(SUPPORTED_STATS::contains)
                 .map(EntitySavingsStatsType::valueOf)
                 .collect(Collectors.toSet());
+        if (requestedStatsTypes.isEmpty()) {
+            return Collections.emptyList();
+        }
         request.addAllStatsTypes(requestedStatsTypes);
 
         // Set scope entity IDs.
