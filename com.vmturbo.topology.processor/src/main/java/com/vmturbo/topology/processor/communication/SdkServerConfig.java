@@ -75,13 +75,13 @@ public class SdkServerConfig {
     public RemoteMediationServer remoteMediation() {
         return applyPermitsToContainers ? new RemoteMediationServerWithDiscoveryWorkers(
                 probeConfig.probeStore(), targetConfig.probePropertyStore(),
-                new ProbeContainerChooserImpl(probeConfig.probeStore()), discoveryQueue(),
+                probeConfig.probeContainerChooser(), discoveryQueue(),
                 maxConcurrentTargetDiscoveriesPerContainerCount,
                 maxConcurrentTargetIncrementalDiscoveriesPerContainerCount,
                 discoveryWorkerPollingTimeoutSecs)
                 : new RemoteMediationServer(probeConfig.probeStore(),
                         targetConfig.probePropertyStore(),
-                        new ProbeContainerChooserImpl(probeConfig.probeStore()));
+                        probeConfig.probeContainerChooser());
     }
 
     /**

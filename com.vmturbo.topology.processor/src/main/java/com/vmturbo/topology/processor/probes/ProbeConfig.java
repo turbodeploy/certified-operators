@@ -8,6 +8,8 @@ import org.springframework.context.annotation.Import;
 import com.vmturbo.common.protobuf.topology.ProbeREST.ProbeActionCapabilitiesServiceController;
 import com.vmturbo.kvstore.KeyValueStoreConfig;
 import com.vmturbo.topology.processor.actions.ActionMergeSpecsConfig;
+import com.vmturbo.topology.processor.communication.ProbeContainerChooser;
+import com.vmturbo.topology.processor.communication.ProbeContainerChooserImpl;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
 import com.vmturbo.topology.processor.stitching.StitchingConfig;
 
@@ -40,6 +42,11 @@ public class ProbeConfig {
                 identityProviderConfig.identityProvider(),
                 stitchingConfig.stitchingOperationStore(),
                 actionMergeSpecsConfig.actionMergeSpecsRepository());
+    }
+
+    @Bean
+    public ProbeContainerChooser probeContainerChooser() {
+        return new ProbeContainerChooserImpl(probeStore());
     }
 
     @Bean
