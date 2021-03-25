@@ -19,6 +19,7 @@ import com.vmturbo.cloud.commitment.analysis.persistence.CloudCommitmentDemandWr
 import com.vmturbo.cost.component.CostDBConfig;
 import com.vmturbo.cost.component.TopologyProcessorListenerConfig;
 import com.vmturbo.cost.component.entity.scope.SQLCloudScopeStore;
+import com.vmturbo.cost.component.topology.TopologyInfoTracker;
 import com.vmturbo.topology.event.library.TopologyEventProvider;
 
 /**
@@ -51,6 +52,12 @@ public class CloudCommitmentAnalysisStoreConfig {
 
     @Value("${cca.recordCloudAllocationData:true}")
     private boolean recordAllocationData;
+
+    @Autowired
+    private TopologyInfoTracker topologyInfoTracker;
+
+    @Value("${maxTrackedLiveTopologies:10}")
+    private int maxTrackedLiveTopologies;
 
     /**
      * Bean for the compute tier allocation store.
@@ -116,5 +123,17 @@ public class CloudCommitmentAnalysisStoreConfig {
         return new CCATopologyEventProvider(
                 computeTierAllocationStore(),
                 cloudScopeStore());
+    }
+
+    /**
+     * Bean for TopologyInfoTracker.
+     * @return The singleton instance of the live {@link TopologyInfoTracker}.
+     */
+    @Bean
+    public TopologyInfoTracker liveTopologyInfoTracker() {
+        topologyInfoTracker = new TopologyInfoTracker(
+                     TopologyInfoTracker.SUCCESSFUL_REALTIME_TOPOLOGY_SUMMARY_SELECTOR,
+                     maxTrackedLiveTopologies);
+        return topologyInfoTracker;
     }
 }

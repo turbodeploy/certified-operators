@@ -1,9 +1,11 @@
 package com.vmturbo.cost.component.savings;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
@@ -13,8 +15,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.cloud.common.data.TimeInterval;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyEventDTO.EntityEvents.TopologyEvent;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.SavingsEvent;
+import com.vmturbo.cost.component.topology.TopologyInfoTracker;
 import com.vmturbo.topology.event.library.TopologyEventProvider;
 import com.vmturbo.topology.event.library.TopologyEventProvider.TopologyEventFilter;
 import com.vmturbo.topology.event.library.TopologyEvents;
@@ -40,6 +44,11 @@ public class TopologyEventsPoller {
     private final EntityEventsJournal entityEventsJournal;
 
     /**
+     * Topology Info Tracker.
+     */
+    private final TopologyInfoTracker topologyInfoTracker;
+
+    /**
      * Flag to enable or disable the polling/processing of topology events.
      */
     private final boolean isEnabledTopologyEventsPolling;
@@ -48,36 +57,55 @@ public class TopologyEventsPoller {
      * Constructor.
      *
      * @param tep The Topology Event Provider.
+     * @param topoInfoTracker The topology Info Tracker.
      * @param entityEventsInMemoryJournal The Entity Events Journal.
      * @param isEnabled boolean that specifies if polling of topology events is enabled.
      */
     TopologyEventsPoller(@Nonnull final TopologyEventProvider tep,
+                         @Nonnull final TopologyInfoTracker topoInfoTracker,
                          @Nonnull final EntityEventsJournal entityEventsInMemoryJournal,
                          final boolean isEnabled) {
         topologyEventProvider = Objects.requireNonNull(tep);
+        topologyInfoTracker = Objects.requireNonNull(topoInfoTracker);
         entityEventsJournal = Objects.requireNonNull(entityEventsInMemoryJournal);
         isEnabledTopologyEventsPolling = isEnabled;
     }
 
     /**
      * The poll method retrieves topology events in an event window.
-     * @param startTime start time
-     * @param endTime end time
+     *
+     * @param start Start of events polling window in LocalDateTime.
+     * @param end End of events polling window in LocalDateTime.
      */
-    void poll(LocalDateTime startTime, LocalDateTime endTime) {
-        logger.debug("Topology event poller getting TEP events.");
-
-        final TimeInterval eventWindow = TimeInterval.builder()
-                        .endTime(endTime.toInstant(ZoneOffset.UTC))
-                        .startTime(startTime.toInstant(ZoneOffset.UTC))
-                        .build();
-        final TopologyEvents topologyEvents =
-                        topologyEventProvider.getTopologyEvents(eventWindow, TopologyEventFilter.ALL);
-
-        if (isEnabledTopologyEventsPolling) {
-            processTopologyEvents(topologyEvents);
-        }
+    void poll(@Nonnull final LocalDateTime start, @Nonnull final LocalDateTime end) {
+        logger.debug("Topology event poller checking readiness to get TEP events.");
+        final Instant startTime = start.toInstant(ZoneOffset.UTC);
+        final Instant endTime = end.toInstant(ZoneOffset.UTC);
+        processTopologyEventsIfReady(startTime, endTime);
     }
+
+    /**
+     * Check for topology readiness for processing of topology related savings events.
+     *
+     * <p>Called by EntitySavingsProcessor, which may also adjust the time range in the absence
+     * of a latest topology with a creation time greater than the end time of an event polling window.
+     * @param end polling end time.
+     * @return true if topology is ready, false otherwise.
+     */
+    public boolean isTopologyBroadcasted(@Nonnull final Instant end) {
+        // Make sure that the tracked topology status is ready before we start polling.
+        // Latest topology creation time should be higher that polling event window end time.
+        final Optional<TopologyInfo> latestTopologyInfo = topologyInfoTracker
+                                                        .getLatestTopologyInfo();
+        if (latestTopologyInfo.isPresent()
+            && latestTopologyInfo.get().getCreationTime() > end.toEpochMilli()) {
+            logger.info("Topology is ready for processing of topology related savings events.");
+            return true;
+        }
+        logger.info("Topology not yet ready for processing of topology related savings events.");
+        return false;
+    }
+
 
     /**
      * Check if a topology broadcast happen after the given time.
@@ -94,18 +122,30 @@ public class TopologyEventsPoller {
      * Process Topology Events retrieved for an event window and create Savings events and
      * add them to the Entity Events journal.
      *
-     * @param topologyEvents The TopologyEvents
+     * <p>Return the Topology events polled in the event window for the purposes of testing.
+     * @param startTimeInstant Start instant of events polling window.
+     * @param endTimeInstant End instant of events polling window.
      */
     @VisibleForTesting
-    protected void processTopologyEvents(@Nonnull final TopologyEvents topologyEvents) {
+    void processTopologyEventsIfReady(@Nonnull final Instant startTimeInstant,
+                                      @Nonnull final Instant endTimeInstant) {
+        final TimeInterval eventWindow = TimeInterval.builder()
+                        .endTime(endTimeInstant)
+                        .startTime(startTimeInstant)
+                        .build();
+        final TopologyEvents topologyEvents = topologyEventProvider
+                        .getTopologyEvents(eventWindow,
+                                           TopologyEventFilter.ALL);
+
         final Map<Long, TopologyEventLedger> topologyEventLedgers = topologyEvents.ledgers();
         topologyEventLedgers.entrySet().forEach(entry -> {
             final long entityId = entry.getKey();
             final TopologyEventLedger entityTopologyEventLedger = entry.getValue();
             for (TopologyEvent entityEvent : entityTopologyEventLedger.events()) {
-                    final SavingsEvent savingsEvent = createSavingsEvent(entityId, entityEvent);
-                    entityEventsJournal.addEvent(savingsEvent);
-                    logger.debug("Added a topology event for {}, of type {}", entityId, entityEvent.getType());
+                final SavingsEvent savingsEvent = createSavingsEvent(entityId, entityEvent);
+                entityEventsJournal.addEvent(savingsEvent);
+                logger.debug("Added a topology event for {}, of type {}", entityId,
+                             entityEvent.getType());
             }
         });
     }
