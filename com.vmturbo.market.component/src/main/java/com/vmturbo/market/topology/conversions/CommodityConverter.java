@@ -69,13 +69,16 @@ public class CommodityConverter {
     // provider oid -> commodity type -> used value of all consumers to be removed of this provider
     private Map<Long, Map<CommodityType, UsedAndPeak>> providerUsedSubtractionMap = Collections.emptyMap();
 
+    private final boolean enableOP;
+
     CommodityConverter(@Nonnull final NumericIDAllocator idAllocator,
                        final boolean includeGuaranteedBuyer,
                        @Nonnull final BiCliquer dsBasedBicliquer,
                        @Nonnull final Table<Long, CommodityType, Integer> numConsumersOfSoldCommTable,
                        @Nonnull final ConversionErrorCounts conversionErrorCounts,
                        @Nonnull final ConsistentScalingHelper consistentScalingHelper,
-                       final int licensePriceWeightScale) {
+                       final int licensePriceWeightScale,
+                       final boolean enableOP) {
         this.commodityTypeAllocator = new CommodityTypeAllocator(idAllocator);
 
         this.includeGuaranteedBuyer = includeGuaranteedBuyer;
@@ -83,6 +86,7 @@ public class CommodityConverter {
         this.numConsumersOfSoldCommTable = numConsumersOfSoldCommTable;
         this.conversionErrorCounts = conversionErrorCounts;
         this.licensePriceWeightScale = licensePriceWeightScale;
+        this.enableOP = enableOP;
     }
 
     /**
@@ -252,7 +256,7 @@ public class CommodityConverter {
                         .setCapacityIncrement((float)(topologyCommSold.getCapacityIncrement() * scalingFactor))
                         .setUtilizationUpperBound(utilizationUpperBound)
                         .setPriceFunction(priceFunction(topologyCommSold.getCommodityType(),
-                            scale, dto, additionalSoldWeight))
+                            scale, dto, additionalSoldWeight, enableOP))
                         .setUpdateFunction(updateFunction(topologyCommSold, commodityTypeAllocator));
 
         // Set thresholds for the commodity sold (min/Max of VCPU/VMem for on-prem VMs).
@@ -414,7 +418,7 @@ public class CommodityConverter {
         final CommodityDTOs.CommoditySoldSettingsTO economyCommSoldSettings =
                 CommodityDTOs.CommoditySoldSettingsTO.newBuilder()
                         .setResizable(false)
-                        .setPriceFunction(priceFunction(commodityType, 1.0f, null, 1))
+                        .setPriceFunction(priceFunction(commodityType, 1.0f, null, 1, enableOP))
                         .setUpdateFunction(uf)
                         .build();
         final Collection<CommoditySpecificationTO> commoditySpecs =
@@ -510,15 +514,17 @@ public class CommodityConverter {
      * @param scale    float that represents how much the utilization is scaled to.
      * @param dto the entity whose commodity price function is being set.
      * @param additionalSoldWeight is the weight for soldCommodities.
+     * @param enableOP flag to check if to use over provisioning commodity changes.
      * @return a (reusable) instance of PriceFunctionTO to use in the commodity sold settings.
      */
     @Nonnull
     private static PriceFunctionDTOs.PriceFunctionTO priceFunction(CommodityType commType,
                                                                    float scale,
                                                                    TopologyEntityDTO dto,
-                                                                   float additionalSoldWeight) {
+                                                                   float additionalSoldWeight,
+                                                                   boolean enableOP) {
         // logic to choose correct price function is based on commodity type
-        return MarketAnalysisUtils.priceFunction(commType, scale, dto, additionalSoldWeight);
+        return MarketAnalysisUtils.priceFunction(commType, scale, dto, additionalSoldWeight, enableOP);
     }
 
     /**

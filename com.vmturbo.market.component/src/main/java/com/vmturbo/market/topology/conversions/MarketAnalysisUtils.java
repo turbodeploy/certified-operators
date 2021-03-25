@@ -492,11 +492,13 @@ public final class MarketAnalysisUtils {
      *                 The scale has to be greater than or equal to 1.0 to be meaningful.
      * @param dto the entity whose commodity price function is being set.
      * @param additionalSoldWeight is the additional weight assigned to the priceFunction.
+     * @param enableOP flag to check if to use over provisioning commodity changes.
      * @return a (reusable) instance of PriceFunctionTO to use in the commodity sold settings.
      */
     @Nonnull
     public static PriceFunctionTO priceFunction(CommodityType commType, float scale,
-                                                TopologyEntityDTO dto, float additionalSoldWeight) {
+                                                TopologyEntityDTO dto, float additionalSoldWeight,
+                                                boolean enableOP) {
         int commodityType = commType.getType();
         String commodityKey = commType.getKey();
         if (CONSTANT_PRICE_TYPES.contains(commodityType)) {

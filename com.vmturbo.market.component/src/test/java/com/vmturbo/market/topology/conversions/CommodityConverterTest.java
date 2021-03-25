@@ -79,7 +79,7 @@ public class CommodityConverterTest {
         consistentScalingHelper = new ConsistentScalingHelper(null);
         converterToTest = new CommodityConverter(commodityTypeAllocator, includeGuaranteedBuyer,  dsBasedBicliquer,
                 numConsumersOfSoldCommTable, new ConversionErrorCounts(), consistentScalingHelper,
-                MarketAnalysisUtils.PRICE_WEIGHT_SCALE);
+                MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false);
     }
 
     /**

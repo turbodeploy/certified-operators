@@ -44,7 +44,7 @@ public class ComputeTierConverterTest {
         commodityConverter = new CommodityConverter(new NumericIDAllocator(),
                 false, new BiCliquer(), HashBasedTable.create(),
                 new ConversionErrorCounts(), mock(ConsistentScalingHelper.class),
-                MarketAnalysisUtils.PRICE_WEIGHT_SCALE);
+                MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false);
         final TopologyInfo info = TopologyInfo.newBuilder().build();
         final CostDTOCreator costDTOCreator = new CostDTOCreator(commodityConverter, null);
         computeTierConverter = new ComputeTierConverter(info, commodityConverter, costDTOCreator,
