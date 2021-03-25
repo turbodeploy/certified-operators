@@ -195,7 +195,7 @@ public class FailedCloudResizeTierExcluder {
             return;
         }
         // Locate the family name and Tier OIDs for the policy
-        Optional<PeerSkuInfo> peerInfo = findPeerSKUs(vm, move.getChangesList());
+        Optional<PeerSkuInfo> peerInfo = findPeerSKUs(move.getChangesList());
         if (!peerInfo.isPresent()) {
             logger.warn("Not creating tier exclusion policy for action {}: Cannot find peer SKUs",
                     action.getId());
@@ -506,15 +506,15 @@ public class FailedCloudResizeTierExcluder {
     }
 
     /**
-     * Locate the OIDs of all SKUs in the family in which this OID resides.  For example, if this
-     * OID is currently on Standard_D1, then the OIDs for Standard_D1, D2, D3, and D4 will be
+     * Locate SKUs in the family in which this OID resides.  For example, if this OID is
+     * currently on Standard_D1, then SKU info for Standard_D1, D2, D3, and D4 will be
      * returned.
-     * @param vm Target VM in action
+     *
      * @param changes list of changes in the action
-     * @return list of all SKUs in this VM's tier. Return an empty list if a result isn't available.
+     * @return list of all {@link PeerSkuInfo} in this VM's tier. Return an empty list if a result
+     *         isn't available.
      */
-    private Optional<PeerSkuInfo> findPeerSKUs(@Nonnull TopologyEntityDTO vm,
-            @Nonnull List<ChangeProvider> changes) {
+    private Optional<PeerSkuInfo> findPeerSKUs(@Nonnull List<ChangeProvider> changes) {
         // Get details of the failed SKU. Find the change with COMPUTE_TIER as the destination.
         Optional<Long> failedSkuOid = changes.stream()
                 .map(ChangeProvider::getDestination)
@@ -527,9 +527,8 @@ public class FailedCloudResizeTierExcluder {
         }
         // Now get the peer SKUs for this compute tier
         final List<TopologyEntityDTO> tierResults = getEntities(EntityType.COMPUTE_TIER, null);
-        // If this is an Azure VM, the SKU family is provided in its entity property map. For other
-        // VMs, we need to take a brute-force approach.
-        String skuFamily = vm.getEntityPropertyMapMap().get("azureQuotaFamily");
+        // Find the SKU family of the destination compute tier.
+        String skuFamily = null;
 
         // Map from SKU family to list of SKU OID/names.  The names are only used for debug logging.
         ListMultimap<String, Pair<Long, String>> familyToTier = ArrayListMultimap.create();
