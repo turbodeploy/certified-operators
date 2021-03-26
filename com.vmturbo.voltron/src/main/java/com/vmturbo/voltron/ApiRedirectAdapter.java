@@ -25,6 +25,9 @@ public class ApiRedirectAdapter implements WebMvcConfigurer {
     @Value("${ux-path}")
     private String uxPath;
 
+    @Value("${swagger-path}")
+    private String swaggerPath;
+
     @Override
     public void addViewControllers(ViewControllerRegistry registry) {
         registry.addRedirectViewController("/", "/app/index.html");
@@ -44,6 +47,7 @@ public class ApiRedirectAdapter implements WebMvcConfigurer {
         final String appLocation = Paths.get(uxPath, "app").normalize().toString() + "/";
         final String assetsLocation = Paths.get(uxPath, "assets").normalize().toString() + "/";
         final String docLocation = Paths.get(uxPath, "doc").normalize().toString() + "/";
+        final String swaggerLocation = Paths.get(swaggerPath).normalize().toString() + "/";
 
         // resources for the Turbonomic UI
         registry.addResourceHandler("/app/**")
@@ -56,8 +60,8 @@ public class ApiRedirectAdapter implements WebMvcConfigurer {
         registry.addResourceHandler("/doc/**")
             .addResourceLocations("file:" + docLocation);
         registry.addResourceHandler("/vmturbo/apidoc/**")
-            .addResourceLocations("file:/swagger/");
+            .addResourceLocations("file:" + swaggerLocation);
         registry.addResourceHandler("/swagger/**")
-            .addResourceLocations("file:/swagger/");
+            .addResourceLocations("file:" + swaggerLocation);
     }
 }
