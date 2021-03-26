@@ -23,7 +23,6 @@ public class VoltronConfiguration {
     private final Set<Component> components;
     private final String dataPath;
     private final String uxPath;
-    private final String swaggerPath;
     private final boolean cleanSlate;
     private final boolean useLocalBus;
     private final boolean useInProcessGrpc;
@@ -36,7 +35,6 @@ public class VoltronConfiguration {
     private VoltronConfiguration(Set<Component> components,
             String dataPath,
             String uxPath,
-            String swaggerPath,
             String licensePath,
             boolean cleanSlate,
             boolean useLocalBus,
@@ -48,7 +46,6 @@ public class VoltronConfiguration {
         this.components = components;
         this.dataPath = dataPath;
         this.uxPath = uxPath;
-        this.swaggerPath = swaggerPath;
         this.licensePath = licensePath;
         this.cleanSlate = cleanSlate;
         this.useLocalBus = useLocalBus;
@@ -145,11 +142,6 @@ public class VoltronConfiguration {
         return uxPath;
     }
 
-    @Nullable
-    public String getSwaggerPath() {
-        return swaggerPath;
-    }
-
     /**
      * Get the license path in this configuration (should be a path to a license file).
      *
@@ -176,8 +168,6 @@ public class VoltronConfiguration {
         private String dataPath = null;
 
         private String uxPath = null;
-
-        private String swaggerPath = null;
 
         private String licensePath = null;
 
@@ -249,19 +239,6 @@ public class VoltronConfiguration {
         public Builder setUxPath(@Nullable String uxPath) {
             if (uxPath != null) {
                 this.uxPath = uxPath;
-            }
-            return this;
-        }
-
-        /**
-         * Set the swagger path (this is where the swagger-ui resources are  served from).
-         *
-         * @param swaggerPath Path to the swagger resources.
-         * @return The builder, for method chaining.
-         */
-        public Builder setExternalSwaggerPath(@Nullable String swaggerPath) {
-            if (swaggerPath != null) {
-                this.swaggerPath = swaggerPath;
             }
             return this;
         }
@@ -422,8 +399,7 @@ public class VoltronConfiguration {
                 // By default we will start all platform components and no mediation containers.
                 addPlatformComponents();
             }
-            return new VoltronConfiguration(components, dataPath, uxPath, swaggerPath,
-                    licensePath, cleanOnExit, useLocalBus,
+            return new VoltronConfiguration(components, dataPath, uxPath, licensePath, cleanOnExit, useLocalBus,
                     useInProcessGrpc, serverHttpPort, serverGrpcPort,
                     globalPropertyOverrides, componentPropertyOverrides);
         }

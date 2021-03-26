@@ -73,7 +73,6 @@ class PropertyRegistry {
         // Mediation Component Common
         props.put("serverAddress", getServerAddress());
         props.put("ux-path", getUxPath());
-        props.put("swagger-path", getSwaggerPath());
 
         props.put("clusterMgrRoute", Component.CLUSTERMGR.getShortName());
         props.put("authRoute", Component.AUTH.getPathPrefix());
@@ -111,15 +110,6 @@ class PropertyRegistry {
                     + "serve the UI from (e.g. ux-app/.tmp");
         }
         return uxPath;
-    }
-
-    private String getSwaggerPath() {
-        final String swaggerPath = voltronConfiguration.getSwaggerPath();
-        if (swaggerPath == null) {
-            return Paths.get(dataPath, "swagger").toString();
-        } else {
-            return swaggerPath;
-        }
     }
 
     @Nonnull
