@@ -80,7 +80,8 @@ public class IdentityDatabaseStore {
                         AssignedIdentity.ASSIGNED_IDENTITY.PROBE_ID,
                         AssignedIdentity.ASSIGNED_IDENTITY.ENTITY_TYPE)
                             .from(AssignedIdentity.ASSIGNED_IDENTITY)
-                            .fetch();
+                        .where(AssignedIdentity.ASSIGNED_IDENTITY.EXPIRED.isFalse())
+                        .fetch();
             return result.stream()
                 .map(record -> new IdentityRecord(EntityType.forNumber(record.get(AssignedIdentity.ASSIGNED_IDENTITY.ENTITY_TYPE)),
                         record.get(AssignedIdentity.ASSIGNED_IDENTITY.PROPERTIES),
