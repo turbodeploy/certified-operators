@@ -7,9 +7,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -125,18 +129,20 @@ public class IdentityProviderImpl implements IdentityProvider {
     private final ConcurrentMap<Long, ProbeInfo> existingProbeInfoById = new ConcurrentHashMap<>();
     // END Fields for Entity ID management
 
+    private StaleOidManager staleOidManager;
+
     /**
      * Create a new IdentityProvider implementation.
-     *
-     * @param keyValueStore The key value store where identity information that needs to be persisted is stored
-     * @param identityGeneratorPrefix The prefix used to initialize the {@link IdentityGenerator}
+     *  @param keyValueStore The key value store where identity information that needs to be persisted is stored
      * @param compatibilityChecker compatibility checker
+     * @param identityGeneratorPrefix The prefix used to initialize the {@link IdentityGenerator}
      * @param identityDatabaseStore the store containing the oids
      * @param identityStoreinitializationTimeoutMin the maximum time that threads will wait for
-     *                                              the store to be ready
+     * the store to be ready
      * @param assignedIdReloadReattemptIntervalSeconds The interval at which to attempt to reload assigned IDs
      * @param useIdentityRecordsCache whether to use the {@link IdentityRecordsBasedCache} or
      * {@link DescriptorsBasedCache}
+     * @param staleOidManager used to expire stale oids
      */
     public IdentityProviderImpl(@Nonnull final KeyValueStore keyValueStore,
                                 @Nonnull final ProbeInfoCompatibilityChecker compatibilityChecker,
@@ -144,7 +150,7 @@ public class IdentityProviderImpl implements IdentityProvider {
                                 @Nonnull IdentityDatabaseStore identityDatabaseStore,
                                 int identityStoreinitializationTimeoutMin,
                                 long assignedIdReloadReattemptIntervalSeconds,
-                                boolean useIdentityRecordsCache) {
+                                boolean useIdentityRecordsCache, final StaleOidManager staleOidManager) {
         IdentityGenerator.initPrefix(identityGeneratorPrefix);
         this.identityServiceInMemoryUnderlyingStore =
             new IdentityServiceInMemoryUnderlyingStore(identityDatabaseStore, identityStoreinitializationTimeoutMin,
@@ -153,7 +159,7 @@ public class IdentityProviderImpl implements IdentityProvider {
             new HeuristicsMatcher());
         this.keyValueStore = Objects.requireNonNull(keyValueStore);
         this.probeInfoCompatibilityChecker = Objects.requireNonNull(compatibilityChecker);
-
+        this.staleOidManager = staleOidManager;
         Map<String, String> savedProbeIds = this.keyValueStore.getByPrefix(PROBE_ID_PREFIX);
         this.probeTypeToId = savedProbeIds.entrySet().stream().collect(Collectors.toConcurrentMap(
             entry -> entry.getKey().replaceFirst(PROBE_ID_PREFIX, ""),
@@ -168,17 +174,20 @@ public class IdentityProviderImpl implements IdentityProvider {
      * @param keyValueStore The key value store where identity information that needs to be persisted is stored
      * @param identityGeneratorPrefix The prefix used to initialize the {@link IdentityGenerator}
      * @param compatibilityChecker compatibility checker
+     * @param staleOidManager used to expire stale oids
      */
     @VisibleForTesting
     public IdentityProviderImpl(@Nonnull final IdentityService identityService,
                                 @Nonnull final KeyValueStore keyValueStore,
                                 @Nonnull final ProbeInfoCompatibilityChecker compatibilityChecker,
-                                final long identityGeneratorPrefix) {
+                                final long identityGeneratorPrefix,
+                                @Nonnull final StaleOidManager staleOidManager) {
         IdentityGenerator.initPrefix(identityGeneratorPrefix);
         this.identityService = identityService;
         this.keyValueStore = Objects.requireNonNull(keyValueStore);
         this.probeInfoCompatibilityChecker = Objects.requireNonNull(compatibilityChecker);
         this.identityServiceInMemoryUnderlyingStore = null;
+        this.staleOidManager = staleOidManager;
         Map<String, String> savedProbeIds = this.keyValueStore.getByPrefix(PROBE_ID_PREFIX);
         this.probeTypeToId = savedProbeIds.entrySet().stream().collect(Collectors.toConcurrentMap(
             entry -> entry.getKey().replaceFirst(PROBE_ID_PREFIX, ""),
@@ -263,6 +272,16 @@ public class IdentityProviderImpl implements IdentityProvider {
     @Override
     public IdentityServiceUnderlyingStore getStore() {
         return identityServiceInMemoryUnderlyingStore;
+    }
+
+    @Override
+    public void initializeStaleOidManager(@Nonnull final Supplier<Set<Long>> getCurrentOids) {
+        this.staleOidManager.initialize(getCurrentOids);
+    }
+
+    @Override
+    public int expireOids() throws InterruptedException, ExecutionException, TimeoutException {
+        return this.staleOidManager.expireOidsImmediatly();
     }
 
     /** {@inheritDoc}

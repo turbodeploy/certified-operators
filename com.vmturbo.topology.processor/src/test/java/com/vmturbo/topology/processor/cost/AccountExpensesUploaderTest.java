@@ -53,6 +53,7 @@ import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader.TargetCostData;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityProviderImpl;
+import com.vmturbo.topology.processor.identity.StaleOidManagerImpl;
 import com.vmturbo.topology.processor.identity.storage.IdentityDatabaseStore;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.probes.ProbeInfoCompatibilityChecker;
@@ -112,7 +113,7 @@ public class AccountExpensesUploaderTest {
     }
 
     private IdentityProvider identityProvider = new IdentityProviderImpl(keyValueStore,
-        new ProbeInfoCompatibilityChecker(), 0L, mock(IdentityDatabaseStore.class), 10, 0, false);
+        new ProbeInfoCompatibilityChecker(), 0L, mock(IdentityDatabaseStore.class), 10, 0, false, mock(StaleOidManagerImpl.class));
 
     private final Discovery discoveryTopology =
             new Discovery(PROBE_ID_AWS_DISCOVERY, TARGET_ID_AWS_DISCOVERY_1, identityProvider);
