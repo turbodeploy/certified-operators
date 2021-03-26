@@ -1,7 +1,9 @@
 package com.vmturbo.topology.processor.history.percentile;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -10,6 +12,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -53,7 +56,10 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.UtilizationData;
 import com.vmturbo.commons.Units;
+import com.vmturbo.commons.utils.ThrowingFunction;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.components.common.diagnostics.Diags;
+import com.vmturbo.components.common.diagnostics.DiagsZipReader;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -1023,6 +1029,51 @@ public class PercentileEditorTest extends PercentileBaseTest {
                                         .checkpoint(Collections.emptySet(), true)
                                         .build()
                                         .getUtilizationList());
+    }
+
+    /**
+     * Checks that binary diags output contains 2 files.
+     *
+     * @throws InterruptedException in case test has been interrupted
+     * @throws HistoryCalculationException in case context initialization failed
+     * @throws IOException in case of failure to write bits
+     * @throws DiagnosticsException in case of error generating diags
+     */
+    @Test
+    public void testExportOutput() throws HistoryCalculationException, InterruptedException,
+        IOException, DiagnosticsException {
+        Mockito.when(clock.millis()).thenReturn(TIMESTAMP_INIT_START_SEP_1_2019);
+        // First initializing history from db
+        percentileEditor.initContext(new HistoryAggregationContext(topologyInfo, graphWithSettings,
+            false), Collections.emptyList());
+        createKvConfig();
+        try (ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            percentileEditor.collectDiags(output);
+            final Iterable<Diags> diagsReader = new DiagsZipReader(
+                new ByteArrayInputStream(output.toByteArray()), null, true);
+            final Iterator<Diags> iter = diagsReader.iterator();
+            // Checking here that exactly 2 entries exist and are parseable
+            Assert.assertTrue(iter.hasNext());
+            checkDiags(iter.next());
+            Assert.assertTrue(iter.hasNext());
+            checkDiags(iter.next());
+            Assert.assertFalse(iter.hasNext());
+        }
+    }
+
+    private static void checkDiags(@Nonnull final Diags diags) throws IOException {
+        Assert.assertNotNull(diags.getBytes());
+        try(InputStream is = new ByteArrayInputStream(diags.getBytes())) {
+            checkPercentileCounts(2, is,
+                PercentileDto.PercentileCounts::parseDelimitedFrom);
+        }
+    }
+
+    private static void checkPercentileCounts(final int expectedCount, @Nonnull final InputStream diags,
+          @Nonnull ThrowingFunction<InputStream, PercentileCounts, IOException> parser)
+        throws IOException {
+        final PercentileCounts counts = parser.apply(diags);
+        Assert.assertEquals(expectedCount, counts.getPercentileRecordsList().size());
     }
 
     private static KVConfig createKvConfig() {

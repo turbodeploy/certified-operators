@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.history.percentile;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -17,6 +18,8 @@ import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
 
@@ -47,6 +50,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.components.common.diagnostics.Diags;
+import com.vmturbo.components.common.diagnostics.DiagsZipReader;
 import com.vmturbo.components.common.utils.ThrowingFunction;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -98,6 +103,8 @@ public class PercentileEditor extends
     private static final Map<EntityType, Set<CommodityType>> ENABLED_BOUGHT_FROM_PROVIDER_TYPES =
         ImmutableMap.of(EntityType.COMPUTE_TIER,
             ImmutableSet.of(CommodityType.STORAGE_ACCESS, CommodityType.IO_THROUGHPUT));
+    protected static final String FULL_DIAG_NAME_SUFFIX = "full";
+    protected static final String LATEST_DIAG_NAME_SUFFIX = "latest";
 
     /**
      * Entity types for which percentile calculation is supported.
@@ -819,19 +826,68 @@ public class PercentileEditor extends
 
     @Override
     protected void restoreState(@Nonnull final byte[] bytes) throws DiagnosticsException {
+        final Map<String, byte[]> diags = getDiagsMaping(bytes);
+        final byte[] fullDiags = getSubDiags(diags, FULL_DIAG_NAME_SUFFIX);
+        final byte[] latestDiags = getSubDiags(diags, LATEST_DIAG_NAME_SUFFIX);
         final HistoryAggregationContext context = createEmptyContext();
-        try (InputStream source = new ByteArrayInputStream(bytes)) {
+        try (InputStream latest = new ByteArrayInputStream(latestDiags);
+             InputStream full = new ByteArrayInputStream(fullDiags)) {
             historyInitialized = false;
             getCache().clear();
             loadPersistedData(context, Collections.emptyList(),
-                            (timestamp) -> loadCachePart(timestamp, source, "latest"),
-                            (timestamp) -> loadCachePart(timestamp, source, "full"));
+                            (timestamp) -> loadCachePart(timestamp, latest, LATEST_DIAG_NAME_SUFFIX),
+                            (timestamp) -> loadCachePart(timestamp, full, FULL_DIAG_NAME_SUFFIX));
         } catch (HistoryCalculationException | InterruptedException | IOException e) {
             getCache().clear();
             throw new DiagnosticsException(
                             String.format("Cannot load percentile cache from '%s' file",
                                             getFileName()), e);
         }
+    }
+
+    /**
+     * Get mapping of percentile diags names to bits.
+     *
+     * Percentile are split into 2 files: full and latest diags, and stored
+     * in its own zip with the following file structure:
+     * ------ Percentile.Editor.state.binary
+     * ------------- Percentile.Editor.state.full.binary
+     * ------------- Percentile.Editor.state.latest.binary
+     * @param compressedDiags Percentile diags zip
+     * @return combined diags (full + latest) to be consumed by the loading logic
+     * @throws IOException if failed to read bits
+     * @throws DiagnosticsException if full or latest diags part is missing
+     */
+    @Nonnull
+    private Map<String, byte[]> getDiagsMaping(@Nonnull final byte[] compressedDiags) {
+        final Map<String, byte[]> nameToBytes = new HashMap<>();
+        final Iterable<Diags> diagsReader = new DiagsZipReader(
+            new ByteArrayInputStream(compressedDiags), null, true);
+        diagsReader.iterator().forEachRemaining(diags -> {
+            nameToBytes.putIfAbsent(diags.getName(), diags.getBytes());
+        });
+        return nameToBytes;
+    }
+
+    /**
+     * Get diags bits of the specified type.
+     *
+     * @param diagsMapping mapping of diags name to diags content
+     * @param type type of subdiags requested: full or latest
+     * @return requested subdiags content
+     * @throws DiagnosticsException if requested subdiags are missing
+     */
+    @Nonnull
+    private final byte[] getSubDiags(@Nonnull final Map<String, byte[]> diagsMapping,
+                                     @Nonnull final String type)
+        throws DiagnosticsException {
+        final byte[] subDiags = diagsMapping.getOrDefault(getDiagsSubFileName(type), null);
+        if (subDiags == null) {
+            throw new DiagnosticsException(
+                String.format("Cannot load percentile cache from '%s' file due to missing %s percentile part",
+                    getFileName(), type));
+        }
+        return subDiags;
     }
 
     @Nonnull
@@ -855,22 +911,55 @@ public class PercentileEditor extends
     protected void exportState(@Nonnull final OutputStream appender)
                     throws DiagnosticsException, IOException {
         try {
-            /*
-             * Order in the way to write those data is important. Data should be dumped in the
-             * way they are read in PercentileEditor#loadPersistedData method, i.e. first full,
-             * then latest.
-             */
-            final int fullSize = dumpPercentileCounts(appender,
-                            UtilizationCountStore::getFullCountsRecord);
-            final int latestSize = dumpPercentileCounts(appender,
-                            UtilizationCountStore::getLatestCountsRecord);
-            logger.info("Percentile cache stored in '{}' diagnostic file. Latest has '{}' record(s). Full has '{}' record(s).",
-                            getFileName(), latestSize, fullSize);
+            // Two diag files containing full and latest counts will be compressed in its own zip
+            final ByteArrayOutputStream percentileDiagsOutput = new ByteArrayOutputStream();
+            try (ZipOutputStream percentileZos = new ZipOutputStream(percentileDiagsOutput)) {
+                final String fullZipEntryName = getDiagsSubFileName(FULL_DIAG_NAME_SUFFIX);
+                final int fullSize = dumpDiagsToZipEntry(percentileZos, fullZipEntryName,
+                    UtilizationCountStore::getFullCountsRecord);
+
+                final String latestZipEntryName = getDiagsSubFileName(LATEST_DIAG_NAME_SUFFIX);
+                final int latestSize = dumpDiagsToZipEntry(percentileZos, latestZipEntryName,
+                    UtilizationCountStore::getLatestCountsRecord);
+
+                logger.info("Full percentile cache stored in '{}' diagnostic file, latest percentile "
+                        + "stored in '{}' diagnostic file. Latest has '{}' record(s). Full has '{}' record(s).",
+                    () -> fullZipEntryName, () -> latestZipEntryName, () -> latestSize, () -> fullSize);
+            }
+            percentileDiagsOutput.writeTo(appender);
         } catch (HistoryCalculationException | InterruptedException e) {
             throw new DiagnosticsException(
                             String.format("Cannot write percentile cache into '%s' file",
                                             getFileName()));
         }
+    }
+
+    /**
+     * Dump percentile diags to zip entry.
+     *
+     * @param percentileZos Percentile zip output stream to append
+     * @param zipEntryName Zip entry name
+     * @param dumpingFunction Function to generate counts
+     * @return Number or records dumped
+     * @throws IOException when failed to write zip entry
+     * @throws InterruptedException when interrupted
+     * @throws HistoryCalculationException when failed
+     */
+    private int dumpDiagsToZipEntry(@Nonnull final ZipOutputStream percentileZos,
+                                    @Nonnull final String zipEntryName,
+                                    @Nonnull ThrowingFunction<UtilizationCountStore, Builder, HistoryCalculationException> dumpingFunction)
+        throws IOException, InterruptedException, HistoryCalculationException {
+        final ZipEntry ze = new ZipEntry(zipEntryName);
+        ze.setTime(clock.millis());
+        percentileZos.putNextEntry(ze);
+        final int size = dumpPercentileCounts(percentileZos, dumpingFunction);
+        percentileZos.closeEntry();
+        return size;
+    }
+
+    @Nonnull
+    private String getDiagsSubFileName(@Nonnull String type) {
+        return getFileName() + "." + type + DiagsZipReader.BINARY_DIAGS_SUFFIX;
     }
 
     private int dumpPercentileCounts(OutputStream output,
