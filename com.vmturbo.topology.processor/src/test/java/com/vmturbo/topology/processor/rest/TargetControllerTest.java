@@ -81,7 +81,6 @@ import com.vmturbo.kvstore.MapKeyValueStore;
 import com.vmturbo.platform.common.dto.Discovery.AccountDefEntry;
 import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
-import com.vmturbo.platform.common.dto.Discovery.ErrorDTO;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
@@ -92,12 +91,10 @@ import com.vmturbo.platform.sdk.common.util.SDKUtil;
 import com.vmturbo.topology.processor.TestIdentityStore;
 import com.vmturbo.topology.processor.actions.ActionMergeSpecsRepository;
 import com.vmturbo.topology.processor.api.AccountValue;
-import com.vmturbo.topology.processor.api.ITargetHealthInfo;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
 import com.vmturbo.topology.processor.api.dto.InputField;
 import com.vmturbo.topology.processor.api.dto.TargetInputFields;
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi.GetAllTargetsResponse;
-import com.vmturbo.topology.processor.api.impl.TargetRESTApi.TargetHealthInfo;
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi.TargetInfo;
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi.TargetSpec;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
@@ -105,7 +102,6 @@ import com.vmturbo.topology.processor.identity.IdentityProviderImpl;
 import com.vmturbo.topology.processor.identity.storage.IdentityDatabaseStore;
 import com.vmturbo.topology.processor.operation.FailedDiscoveryTracker;
 import com.vmturbo.topology.processor.operation.IOperationManager;
-import com.vmturbo.topology.processor.operation.FailedDiscoveryTracker.DiscoveryFailure;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.validation.Validation;
 import com.vmturbo.topology.processor.probes.ProbeInfoCompatibilityChecker;
@@ -247,8 +243,7 @@ public class TargetControllerTest {
          * Failed Discovery Tracker.
          * @return {@link FailedDiscoveryTracker}.
          */
-        @Bean
-        public FailedDiscoveryTracker failedDiscoveryTracker() {
+        private FailedDiscoveryTracker failedDiscoveryTracker() {
             return mock(FailedDiscoveryTracker.class);
         }
     }
@@ -1196,100 +1191,6 @@ public class TargetControllerTest {
         throws UnsupportedEncodingException {
         final String resultStr = mvcResult.getResponse().getContentAsString();
         return GSON.fromJson(resultStr, responseClass);
-    }
-
-    @Test
-    public void testSingleTargetHealthOk() throws Exception   {
-        final long probeId = createProbeWithOneField(derivedProbeInfo);
-        final Target target = createTarget(probeId, "43");
-        final long targetId = target.getId();
-
-        final Discovery discovery = new Discovery(probeId, targetId, identityProvider);
-        final Validation validation = new Validation(probeId,  targetId, identityProvider);
-        when(operationManager.getLastDiscoveryForTarget(targetId, DiscoveryType.FULL))
-            .thenReturn(Optional.of(discovery));
-        when(operationManager.getLastValidationForTarget(targetId))
-            .thenReturn(Optional.of(validation));
-
-        ITargetHealthInfo healthInfo = getTargetHealth(targetId);
-        Assert.assertEquals(Long.valueOf(targetId), healthInfo.getTargetId());
-        Assert.assertEquals(ITargetHealthInfo.TargetHealthSubcategory.DISCOVERY,
-                        healthInfo.getSubcategory());
-        Assert.assertEquals("", healthInfo.getErrorText());
-        Assert.assertNull(healthInfo.getTargetErrorType());
-        Assert.assertNull(healthInfo.getTimeOfFirstFailure());
-        Assert.assertEquals(0, healthInfo.getNumberOfConsecutiveFailures());
-    }
-
-    @Test
-    public void testSingleTargetHealthValidationFailed() throws Exception   {
-        final long probeId = createProbeWithOneField(derivedProbeInfo);
-        final Target target = createTarget(probeId, "43");
-        final long targetId = target.getId();
-
-        ErrorDTO.ErrorType errorType = ErrorDTO.ErrorType.CONNECTION_TIMEOUT;
-        final Validation validation = new Validation(probeId,  targetId, identityProvider);
-        ErrorDTO errorDTO = ErrorDTO.newBuilder()
-                        .setErrorType(errorType)
-                        .setDescription("connection timed out")
-                        .setSeverity(ErrorDTO.ErrorSeverity.CRITICAL)
-                        .build();
-        validation.addError(errorDTO);
-        when(operationManager.getLastValidationForTarget(targetId))
-            .thenReturn(Optional.of(validation));
-
-        ITargetHealthInfo healthInfo = getTargetHealth(targetId);
-        Assert.assertEquals(ITargetHealthInfo.TargetHealthSubcategory.VALIDATION,
-                        healthInfo.getSubcategory());
-        Assert.assertEquals(errorType, healthInfo.getTargetErrorType());
-        Assert.assertEquals(validation.getCompletionTime(), healthInfo.getTimeOfFirstFailure());
-        Assert.assertEquals(1, healthInfo.getNumberOfConsecutiveFailures());
-    }
-
-    @Test
-    public void testSingleTargetHealthDiscoveryFailed() throws Exception   {
-        final long probeId = createProbeWithOneField(derivedProbeInfo);
-        final Target target = createTarget(probeId, "43");
-        final long targetId = target.getId();
-
-        final Validation validation = new Validation(probeId,  targetId, identityProvider);
-        when(operationManager.getLastValidationForTarget(targetId))
-            .thenReturn(Optional.of(validation));
-
-        ErrorDTO.ErrorType errorType = ErrorDTO.ErrorType.DATA_IS_MISSING;
-        int numberOfFailures = 2;
-        ErrorDTO errorDTO = ErrorDTO.newBuilder()
-                        .setErrorType(errorType)
-                        .setDescription("data is missing")
-                        .setSeverity(ErrorDTO.ErrorSeverity.CRITICAL)
-                        .build();
-        final Discovery discovery = new Discovery(probeId, targetId, identityProvider);
-        discovery.addError(errorDTO);
-        DiscoveryFailure discoveryFailure = new DiscoveryFailure(discovery);
-        for (int i = 0 ; i < numberOfFailures ; i++)    {
-            discoveryFailure.incrementFailsCount();
-        }
-
-        Map<Long, DiscoveryFailure> targetToFailedDiscoveries = new HashMap<>();
-        targetToFailedDiscoveries.put(targetId, discoveryFailure);
-        final FailedDiscoveryTracker failedDiscoveriesTracker = wac.getBean(FailedDiscoveryTracker.class);
-        when(failedDiscoveriesTracker.getFailedDiscoveries()).thenReturn(targetToFailedDiscoveries);
-
-        ITargetHealthInfo healthInfo = getTargetHealth(targetId);
-        Assert.assertEquals(ITargetHealthInfo.TargetHealthSubcategory.DISCOVERY,
-                        healthInfo.getSubcategory());
-        Assert.assertEquals(errorType, healthInfo.getTargetErrorType());
-        Assert.assertEquals(discovery.getCompletionTime(), healthInfo.getTimeOfFirstFailure());
-        Assert.assertEquals(numberOfFailures, healthInfo.getNumberOfConsecutiveFailures());
-    }
-
-    private TargetHealthInfo getTargetHealth(Long id) throws Exception {
-        MvcResult result = mockMvc.perform(get("/target/" + id + "/health")
-            .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
-            .andExpect(status().isOk())
-            .andReturn();
-        String resultStr = result.getResponse().getContentAsString();
-        return GSON.fromJson(resultStr, TargetHealthInfo.class);
     }
 
     /**

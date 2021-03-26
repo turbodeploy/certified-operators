@@ -489,8 +489,7 @@ public class TargetController {
         if (discoveryFailure != null)   {
             return new TargetHealthInfo(TargetHealthSubcategory.DISCOVERY, targetId,
                             target.getDisplayName(), discoveryFailure.getErrorType(),
-                            discoveryFailure.getErrorText(), discoveryFailure.getFailTime(),
-                            discoveryFailure.getFailsCount());
+                            discoveryFailure.getErrorText(), discoveryFailure.getFailTime());
         }
 
         //All checks passed, the target is in good health for the moment.
