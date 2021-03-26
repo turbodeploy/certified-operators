@@ -7,6 +7,8 @@ import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
@@ -55,7 +57,7 @@ public class TopologyEventsPollerTest {
     @Before
     public void setup() throws IOException {
         store = new InMemoryEntityEventsJournal();
-        tep = new TopologyEventsPoller(topologyEventProvider, topologyInfoTracker, store, true);
+        tep = new TopologyEventsPoller(topologyEventProvider, topologyInfoTracker, store);
     }
 
     /**
@@ -111,7 +113,7 @@ public class TopologyEventsPollerTest {
         // populates the events journal correctly.
         // Test after a topology broadcast has happened, but the creation time is 1 min he end time of the event window.
         // There should be no topology events polled, and hence no Savings events generated.
-        assertFalse(tep.isTopologyBroadcasted(endTime));
+        assertFalse(tep.isTopologyBroadcasted(LocalDateTime.ofInstant(endTime, ZoneOffset.UTC)));
 
         // Test post another topology broadcast, with latest topology creation time greater than
         // the event window end time.  Events should be processed and corresponding Savings Events
@@ -128,7 +130,7 @@ public class TopologyEventsPollerTest {
         // If isTopologyBroadcasted(endTime) were to return false, it's called recursively by the
         // EntitySavingsProcessor, and the time range adjusted until it returns true, and hence
         // processTopologyEventsIfReady() can be called without checking the return of isTopologyBroadcasted agin.
-        assertTrue(tep.isTopologyBroadcasted(endTime));
+        assertTrue(tep.isTopologyBroadcasted(LocalDateTime.ofInstant(endTime, ZoneOffset.UTC)));
 
         tep.processTopologyEventsIfReady(startTime, endTime);
         final Map<Long, TopologyEventLedger> topologyEventLedgers = topologyEvents.ledgers();

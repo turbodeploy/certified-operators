@@ -31,8 +31,11 @@ import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.cost.api.CostClientConfig;
 import com.vmturbo.cost.component.CostComponentGlobalConfig;
 import com.vmturbo.cost.component.CostDBConfig;
+import com.vmturbo.cost.component.TopologyProcessorListenerConfig;
 import com.vmturbo.cost.component.cca.CloudCommitmentAnalysisStoreConfig;
+import com.vmturbo.cost.component.topology.TopologyInfoTracker;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.topology.event.library.TopologyEventProvider;
 
 /**
  * Configuration for cloud savings/investment tracking.  Interesting event types are: entity
@@ -42,6 +45,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 @Import({ActionOrchestratorClientConfig.class,
         CostComponentGlobalConfig.class,
         CostClientConfig.class,
+        TopologyProcessorListenerConfig.class,
         CloudCommitmentAnalysisStoreConfig.class})
 public class EntitySavingsConfig {
 
@@ -71,14 +75,8 @@ public class EntitySavingsConfig {
     /*
      * Enable cloud savings tracking.
      */
-    @Value("${enableEntitySavings:false}")
+    @Value("${enableEntitySavings:true}")
     private boolean enableEntitySavings;
-
-    /*
-     * Enable cloud savings tracking.
-     */
-    @Value("${enableTopologyEventsPolling:false}")
-    private boolean enableTopologyEventsPolling;
 
     /*
      * The amount of time to retain state in the internal savings event log.
@@ -94,6 +92,12 @@ public class EntitySavingsConfig {
 
     @Autowired
     private ActionOrchestratorClientConfig aoClientConfig;
+
+    @Autowired
+    private TopologyEventProvider topologyEventProvider;
+
+    @Autowired
+    private TopologyInfoTracker liveTopologyInfoTracker;
 
     /**
      * How long (minutes) after the hour mark to run the periodic hourly processor task.
@@ -180,10 +184,8 @@ public class EntitySavingsConfig {
      */
     @Bean
     public TopologyEventsPoller topologyEventsPoller() {
-        return new TopologyEventsPoller(cloudCommitmentAnalysisStoreConfig.topologyEventProvider(),
-                                        cloudCommitmentAnalysisStoreConfig
-                                                        .liveTopologyInfoTracker(),
-                                        entityEventsJournal(), enableTopologyEventsPolling);
+        return new TopologyEventsPoller(topologyEventProvider, liveTopologyInfoTracker,
+                                        entityEventsJournal());
     }
 
     /**
