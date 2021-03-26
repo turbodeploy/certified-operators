@@ -5,6 +5,7 @@ import static org.mockito.Mockito.when;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -72,7 +73,8 @@ public class SetTransactionsCapacityPostStitchingTest {
     public void init() {
         stitchOperation = new SetTransactionsCapacityPostStitchingOperation(SELLER_TYPE,
             ProbeCategory.DATABASE_SERVER, SLO_SETTING,
-            (Float)EntitySettingSpecs.ResponseTimeSLO.getDataStructure().getDefault(EntityType.DATABASE_SERVER),
+            (Float)Objects.requireNonNull(EntitySettingSpecs.TransactionSLO.getDataStructure()
+                            .getDefault(EntityType.DATABASE_SERVER)),
             SLO_ENABLED_SETTING, maxCapacityCache);
     }
 
@@ -196,6 +198,43 @@ public class SetTransactionsCapacityPostStitchingTest {
         // check that response time commodity doesn't get its capacity changed
         Assert.assertEquals(startingCapacity,
                 provider.getTopologyEntityDtoBuilder().getCommoditySoldList(1).getCapacity(),
+                1e-5);
+    }
+
+    /**
+     * Test that if SLO is enabled without a user specified value, the default SLO value will
+     * be used.
+     */
+    @Test
+    public void testDefaultSLOValue() {
+        TopologyEntity provider = seller(1L, Optional.empty(),
+                Optional.empty());
+        Setting transactionSLOSetting = Setting.newBuilder().build();
+        when(entitySettingsCollection.getEntitySetting(provider.getOid(), SLO_ENABLED_SETTING))
+                .thenReturn(Optional.of(sloSettingTrue));
+        when(entitySettingsCollection.getEntitySetting(provider.getOid(), SLO_SETTING))
+                .thenReturn(Optional.of(transactionSLOSetting));
+        // This is a user policy
+        when(entitySettingsCollection.hasUserPolicySettings(provider.getOid()))
+                .thenReturn(true);
+        // Transaction SLO is enabled
+        when(entitySettingsCollection.getEntityUserSetting(provider,
+                EntitySettingSpecs.getSettingByName(SLO_ENABLED_SETTING).get()))
+                .thenReturn(Optional.of(sloSettingTrue));
+        // Transaction SLO value is not specified
+        when(entitySettingsCollection.getEntityUserSetting(provider,
+                EntitySettingSpecs.getSettingByName(SLO_SETTING).get()))
+                .thenReturn(Optional.empty());
+        UnitTestResultBuilder resultBuilder = new UnitTestResultBuilder();
+        stitchOperation.performOperation(
+                Stream.of(provider), entitySettingsCollection, resultBuilder);
+        resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
+        // check that transaction commodity capacity is set to the default
+        final float defaultSLO = (Float)Objects.requireNonNull(
+                EntitySettingSpecs.TransactionSLO
+                        .getDataStructure().getDefault(EntityType.DATABASE_SERVER));
+        Assert.assertEquals(defaultSLO,
+                provider.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getCapacity(),
                 1e-5);
     }
 
