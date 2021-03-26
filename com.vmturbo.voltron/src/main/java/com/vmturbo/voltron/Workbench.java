@@ -21,12 +21,14 @@ public class Workbench {
     public static void main(String[] args) {
         final String dataPath = EnvironmentUtils.requireEnvProperty("DATA_PATH");
         final String uxPath = EnvironmentUtils.requireEnvProperty("UX_PATH");
+        final String apiComponentPath = EnvironmentUtils.requireEnvProperty("API_COMPONENT_PATH");
         final String namespace = EnvironmentUtils.getOptionalEnvProperty("NAMESPACE")
             .orElse("workbench");
 
         VoltronsContainer voltronsContainer = Voltron.start(namespace, VoltronConfiguration.newBuilder()
             .setUxPath(uxPath)
             .setDataPath(dataPath)
+            .setExternalSwaggerPath(new SwaggerSetup(apiComponentPath).copyResourcesIntoDataPath(dataPath))
             .addPlatformComponents()
             .addMediationComponent(MediationComponent.MEDIATION_VC)
             .setCleanOnExit(false)
