@@ -74,20 +74,25 @@ class EntitySavingsProcessor {
         // If there is less than 1 hour of data, there is no need to proceed
         // with processing.
         if (startTime.isEqual(endTime) || startTime.isAfter(endTime)) {
+            logger.info("Not processing savings because we don't have 1 hour of data.");
             return;
         }
 
-        logger.debug("Calling TopologyEventPoller to get TEP events.");
         // TEP requires the latest topology broadcast should not be done within the within start
         // and end time. i.e. we need one topology broadcast that happen after the end time.
         // If we don't have a topology broadcast after the end time, we move the end time backwards
         // by 1 hour.
         while (!topologyEventsPoller.isTopologyBroadcasted(endTime)) {
             endTime = endTime.minusHours(1);
+            logger.info("Checking topology broadcasted status again for polling window {} to {}",
+                        startTime, endTime);
             if (startTime.isEqual(endTime) || startTime.isAfter(endTime)) {
+                logger.info("Not processing savings because there is no topology broadcasted.");
                 return;
             }
         }
+        logger.info("Suitable Latest topology found, polling window set to {} to {}", startTime, endTime);
+        logger.info("Calling TopologyEventPoller to get TEP events.");
         topologyEventsPoller.poll(startTime, endTime);
 
         logger.debug("Invoke EntitySavingsTracker to process events.");

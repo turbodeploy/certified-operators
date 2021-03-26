@@ -2,6 +2,7 @@ package com.vmturbo.cost.component.savings;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.Objects;
@@ -49,26 +50,18 @@ public class TopologyEventsPoller {
     private final TopologyInfoTracker topologyInfoTracker;
 
     /**
-     * Flag to enable or disable the polling/processing of topology events.
-     */
-    private final boolean isEnabledTopologyEventsPolling;
-
-    /**
      * Constructor.
      *
      * @param tep The Topology Event Provider.
      * @param topoInfoTracker The topology Info Tracker.
      * @param entityEventsInMemoryJournal The Entity Events Journal.
-     * @param isEnabled boolean that specifies if polling of topology events is enabled.
      */
     TopologyEventsPoller(@Nonnull final TopologyEventProvider tep,
                          @Nonnull final TopologyInfoTracker topoInfoTracker,
-                         @Nonnull final EntityEventsJournal entityEventsInMemoryJournal,
-                         final boolean isEnabled) {
+                         @Nonnull final EntityEventsJournal entityEventsInMemoryJournal) {
         topologyEventProvider = Objects.requireNonNull(tep);
         topologyInfoTracker = Objects.requireNonNull(topoInfoTracker);
         entityEventsJournal = Objects.requireNonNull(entityEventsInMemoryJournal);
-        isEnabledTopologyEventsPolling = isEnabled;
     }
 
     /**
@@ -85,37 +78,36 @@ public class TopologyEventsPoller {
     }
 
     /**
-     * Check for topology readiness for processing of topology related savings events.
+     * Check if a topology broadcast happened after the end time of event polling window.
      *
-     * <p>Called by EntitySavingsProcessor, which may also adjust the time range in the absence
-     * of a latest topology with a creation time greater than the end time of an event polling window.
-     * @param end polling end time.
+     * <p>Determines readiness for polling and processing of topology events.  Called by EntitySavingsProcessor,
+     * which may also adjust the time range to a previous time-period, in case the current event window is missing a
+     * latest topology with a creation time greater than the end time of an event polling window
+     * @param end a particular polling end time being checked.
      * @return true if topology is ready, false otherwise.
      */
-    public boolean isTopologyBroadcasted(@Nonnull final Instant end) {
+    public boolean isTopologyBroadcasted(@Nonnull final LocalDateTime end) {
         // Make sure that the tracked topology status is ready before we start polling.
         // Latest topology creation time should be higher that polling event window end time.
+        final Instant endTime = end.toInstant(ZoneOffset.UTC);
         final Optional<TopologyInfo> latestTopologyInfo = topologyInfoTracker
                                                         .getLatestTopologyInfo();
+        final long topologyCreationTime = latestTopologyInfo.get().getCreationTime();
+        LocalDateTime localCreationDateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(topologyCreationTime),
+                                                                      ZoneId.of("UTC"));
+        LocalDateTime localEndDateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(endTime.toEpochMilli()),
+                                                                      ZoneId.of("UTC"));
+
         if (latestTopologyInfo.isPresent()
-            && latestTopologyInfo.get().getCreationTime() > end.toEpochMilli()) {
-            logger.info("Topology is ready for processing of topology related savings events.");
+            && latestTopologyInfo.get().getCreationTime() > endTime.toEpochMilli()) {
+            logger.info("Topology created at {} is ready for processing of topology related savings"
+                            + " events in event window with end time {}.",
+                    localCreationDateTime, localEndDateTime);
             return true;
         }
-        logger.info("Topology not yet ready for processing of topology related savings events.");
+        logger.info("Topology not yet ready for processing of topology related savings events in"
+                        + " event window with end time {}.", localEndDateTime);
         return false;
-    }
-
-
-    /**
-     * Check if a topology broadcast happen after the given time.
-     *
-     * @param time a time instant
-     * @return true if the latest broadcast happened after the given time.
-     */
-    boolean isTopologyBroadcasted(LocalDateTime time) {
-        // TODO implementation will be provided by task OM-68006.
-        return true;
     }
 
     /**
