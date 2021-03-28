@@ -624,7 +624,7 @@ public class Target implements ProbeStoreListener {
 
     @Override
     public String toString() {
-        return Long.toString(id);
+        return getDisplayName() + "(" + id + ")";
     }
 
     @Override

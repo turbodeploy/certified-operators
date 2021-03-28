@@ -2,6 +2,7 @@ package com.vmturbo.topology.processor.topology.pipeline.blocking;
 
 import java.time.Clock;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -18,6 +19,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.sdk.common.MediationMessage.DiscoveryRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
@@ -232,36 +234,45 @@ public class DiscoveryBasedUnblock implements PipelineUnblock {
                 try {
                     identityProvider.waitForInitializedStore();
                     logger.info("Restoring discovery dumps from volume");
-                    binaryDiscoveryDumper.restoreDiscoveryResponses(targetStore).forEach((key, discoveryResponse) -> {
-                        long targetId = key;
-                        Optional<Target> target = targetStore.getTarget(targetId);
-                        if (target.isPresent()) {
-                            // TODO: (MarcoBerlot 5/26/20) do not fake the discovery object
-                            long probeId = target.get().getProbeId();
-                            Discovery operation = new Discovery(probeId, targetId,
-                                    identityProvider);
+                    // restore the discovery dumps in the order they were first added as targets
+                    binaryDiscoveryDumper.restoreDiscoveryResponses(targetStore).entrySet().stream()
+                            .sorted(Comparator.comparingLong(
+                                    entry -> IdentityGenerator.toMilliTime(entry.getKey())))
+                            .forEach(entry -> {
+                                final long targetId = entry.getKey();
+                                Optional<Target> target = targetStore.getTarget(targetId);
+                                if (target.isPresent()) {
+                                    // TODO: (MarcoBerlot 5/26/20) do not fake the discovery object
+                                    long probeId = target.get().getProbeId();
+                                    Discovery operation = new Discovery(probeId, targetId,
+                                            identityProvider);
 
-                            try {
-                                operationManager.notifyLoadedDiscovery(operation,
-                                    discoveryResponse).get(20, TimeUnit.MINUTES);
-                            } catch (InterruptedException | ExecutionException | TimeoutException e) {
-                                logger.error("Error in notifying the discovery result for target "
-                                    + "id:{} and probe id: {}", targetId, probeId);
-                            }
+                                    try {
+                                        operationManager.notifyLoadedDiscovery(operation,
+                                            entry.getValue()).get(20, TimeUnit.MINUTES);
+                                    } catch (InterruptedException | ExecutionException | TimeoutException e) {
+                                        logger.error(
+                                                "Error in notifying the discovery result for target "
+                                                        + "id:{} and probe id: {}", targetId,
+                                                probeId);
+                                    }
 
-                            TargetDiscoveryInfo info = targetDiscoveryInfoMap.computeIfAbsent(targetId,
-                                    k -> new TargetDiscoveryInfo(targetId, scheduler,
-                                            target.get().getDisplayName(), targetShortCircuitSpec,
-                                            maxProbeRegistrationWaitPeriodMs));
-                            // This target should be considered successfully discovered.
-                            info.changeStatus(TargetWaitingStatus.RESTORED_FROM_DISK);
-                        }
-                    });
+                                    TargetDiscoveryInfo info =
+                                            targetDiscoveryInfoMap.computeIfAbsent(targetId,
+                                                    k -> new TargetDiscoveryInfo(targetId,
+                                                            scheduler,
+                                                            target.get().getDisplayName(),
+                                                            targetShortCircuitSpec,
+                                                            maxProbeRegistrationWaitPeriodMs));
+                                    // This target should be considered successfully discovered.
+                                    info.changeStatus(TargetWaitingStatus.RESTORED_FROM_DISK);
+                                }
+                            });
                 } catch (RuntimeException e) {
                     logger.error("Failed to restore discovery responses from disk.", e);
                 } catch (InterruptedException e) {
                     logger.error("Failed to restore discovery responses from disk due to "
-                        + "time out in waiting for the identity store to be initialized", e);
+                            + "time out in waiting for the identity store to be initialized", e);
                 }
             }
             while (pipelineExecutorService.areBroadcastsBlocked()) {

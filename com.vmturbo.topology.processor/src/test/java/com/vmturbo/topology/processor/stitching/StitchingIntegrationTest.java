@@ -49,6 +49,7 @@ import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.probes.StandardProbeOrdering;
+import com.vmturbo.topology.processor.targets.DuplicateTargetException;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 import com.vmturbo.topology.processor.targets.TargetStore;
@@ -74,7 +75,7 @@ public abstract class StitchingIntegrationTest {
     protected CpuCapacityStore cpuCapacityStore = mock(CpuCapacityStore.class);
     private final TopologyProcessorNotificationSender sender = Mockito.mock(TopologyProcessorNotificationSender.class);
 
-    protected EntityStore entityStore = new EntityStore(targetStore, identityProvider, sender,
+    protected EntityStore entityStore = new EntityStore(targetStore, identityProvider, sender, 0.3F, true,
             Clock.systemUTC());
     protected final DiskCapacityCalculator diskCapacityCalculator =
             mock(DiskCapacityCalculator.class);
@@ -128,14 +129,19 @@ public abstract class StitchingIntegrationTest {
     }
 
     protected void addEntities(@Nonnull final Map<Long, EntityDTO> entities, final long targetId)
-            throws IdentityServiceException, TargetNotFoundException {
+            throws IdentityServiceException, TargetNotFoundException, DuplicateTargetException {
         final long probeId = 0;
         when(identityProvider.getIdsForEntities(
                 Mockito.eq(probeId),
                 Mockito.eq(new ArrayList<>(entities.values()))))
                 .thenReturn(entities);
         // Pretend that any target exists
-        when(targetStore.getTarget(anyLong())).thenReturn(Optional.of(Mockito.mock(Target.class)));
+        final Target mockTarget = mock(Target.class);
+        final ProbeInfo probeInfo = ProbeInfo.newBuilder()
+                .setProbeCategory(ProbeCategory.STORAGE.getCategory())
+                .setProbeType("Whatever").build();
+        when(mockTarget.getProbeInfo()).thenReturn(probeInfo);
+        when(targetStore.getTarget(anyLong())).thenReturn(Optional.of(mockTarget));
         entityStore.entitiesDiscovered(probeId, targetId, 0, DiscoveryType.FULL,
             new ArrayList<>(entities.values()));
     }

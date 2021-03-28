@@ -8,9 +8,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -33,16 +35,24 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 
+import it.unimi.dsi.fastutil.longs.Long2IntArrayMap;
+import it.unimi.dsi.fastutil.longs.Long2IntMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.longs.LongArraySet;
+import it.unimi.dsi.fastutil.longs.LongIterator;
+import it.unimi.dsi.fastutil.longs.LongSet;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jetbrains.annotations.NotNull;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.identity.exceptions.IdentityServiceException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
@@ -52,6 +62,7 @@ import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.proactivesupport.DataMetricGauge;
+import com.vmturbo.proactivesupport.DataMetricHistogram;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
 import com.vmturbo.topology.processor.entity.Entity.PerTargetInfo;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
@@ -59,6 +70,7 @@ import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingEntityData;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingGraph;
 import com.vmturbo.topology.processor.targets.CachingTargetStore;
+import com.vmturbo.topology.processor.targets.DuplicateTargetException;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 import com.vmturbo.topology.processor.targets.TargetStore;
@@ -118,6 +130,8 @@ public class EntityStore {
      * Used to send notifications.
      */
     private final TopologyProcessorNotificationSender sender;
+
+    private final InternalDuplicateTargetDetector duplicateTargetDetector;
 
     /**
      * Enable entity details support.
@@ -180,13 +194,27 @@ public class EntityStore {
             .build()
             .register();
 
+    protected static final DataMetricHistogram DUPLICATE_CHECK_TIMES = DataMetricHistogram.builder()
+            .withName(StringConstants.METRICS_TURBO_PREFIX + "target_check_duplicates_time_millis")
+            .withHelp("Count of duplicate checks for targets by the time in milliseconds it took to"
+                    + " perform the check. A check is performed on the completion of every full "
+                    + "discovery for every target.")
+            .withLabelNames("target_type", "duplicate_detected")
+            .withBuckets(new double[]{10.0, 100.0, 200.0, 500.0, 1000.0, 2000.0})
+            .build()
+            .register();
+
     public EntityStore(@Nonnull final TargetStore targetStore,
                        @Nonnull final IdentityProvider identityProvider,
                        @Nonnull final TopologyProcessorNotificationSender sender,
+                       final float duplicateTargetOverlapRatio,
+                       final boolean mergeKubernetesTypesForDuplicateDetection,
                        @Nonnull final Clock clock) {
         this.targetStore = Objects.requireNonNull(targetStore);
         this.identityProvider = Objects.requireNonNull(identityProvider);
         this.sender = Objects.requireNonNull(sender);
+        this.duplicateTargetDetector = new InternalDuplicateTargetDetector(entityMap, targetStore,
+                duplicateTargetOverlapRatio, mergeKubernetesTypesForDuplicateDetection);
         this.clock = Objects.requireNonNull(clock);
         targetStore.addListener(new TargetStoreListener() {
             @Override
@@ -530,6 +558,17 @@ public class EntityStore {
         return finalEntitiesById;
     }
 
+    private DuplicateTargetException createDuplicateTargetException(long duplicateTargetId,
+            Set<Long> conflictingTargetIds) {
+        final String dupeTarget = targetStore.getTarget(duplicateTargetId).map(Target::toString)
+                .orElse(Long.toString(duplicateTargetId));
+        final Set<String> conflictingTargets = conflictingTargetIds.stream().map(
+                targetid -> targetStore.getTarget(targetid)
+                        .map(Target::toString)
+                        .orElse(Long.toString(targetid))).collect(Collectors.toSet());
+        return new DuplicateTargetException(dupeTarget, conflictingTargets);
+    }
+
     /**
      * Insert the entities for the given target into existing store.
      *
@@ -540,8 +579,8 @@ public class EntityStore {
      * @throws TargetNotFoundException if the target can not be found
      */
     private void setFullDiscoveryEntities(final long targetId, final int messageId,
-                                      @Nonnull final Map<Long, EntityDTO> entitiesById)
-            throws TargetNotFoundException {
+            @Nonnull final Map<Long, EntityDTO> entitiesById)
+            throws TargetNotFoundException, DuplicateTargetException {
         synchronized (topologyUpdateLock) {
             // Ensure that the target exists; avoid adding entities for targets that have been removed
             // TODO (OM-51214): Remove this check when we have better overall synchronization of
@@ -551,6 +590,29 @@ public class EntityStore {
             final Optional<Target> target = targetStore.getTarget(targetId);
             if (!target.isPresent()) {
                 throw new TargetNotFoundException(targetId);
+            }
+
+            if (duplicateTargetDetector.isEnabled()) {
+                // Check if this target is a duplicate of a target that was added before it
+                long startTime = System.currentTimeMillis();
+                Set<Long> originalTargets = duplicateTargetDetector.scanForDuplicateTargets(target.get(), entitiesById);
+                logger.debug(
+                        "Time to calculate duplicate target set for target {} is {} milliseconds.",
+                        () -> target.get(), () -> System.currentTimeMillis() - startTime);
+                DUPLICATE_CHECK_TIMES.labels(duplicateTargetDetector.adjustProbeType(
+                        target.get().getProbeInfo().getProbeType()), Boolean.toString(!originalTargets.isEmpty())).observe(
+                        (double)System.currentTimeMillis() - startTime);
+                if (!originalTargets.isEmpty()) {
+                    logger.debug("Returned duplicate target set {}", () -> originalTargets);
+                    // if there are multiple duplicate targets, we will keep processing only the
+                    // target that had the earliest created OID. For other targets, we purge them
+                    // and throw a duplicate target exception.
+                    if (originalTargets.stream().mapToLong(IdentityGenerator::toMilliTime).min().orElse(IdentityGenerator.toMilliTime(targetId))
+                            < IdentityGenerator.toMilliTime(targetId)) {
+                        purgeTarget(targetId, null);
+                        throw createDuplicateTargetException(targetId, originalTargets);
+                    }
+                }
             }
 
             final Map<EntityType, Collection<Entity>> deletedEntities = new HashMap<>();
@@ -566,7 +628,8 @@ public class EntityStore {
                     });
             entitiesLogging(targetId, deletedEntities, "Deleted");
 
-            final ImmutableSet.Builder<Long> newTargetEntitiesBuilder = new ImmutableSet.Builder<>();
+            final ImmutableSet.Builder<Long> newTargetEntitiesBuilder =
+                    new ImmutableSet.Builder<>();
             final Map<String, Long> newEntitiesByLocalId = new HashMap<>(entitiesById.size());
 
             // We want to find the PM that virtual machines are on in order
@@ -601,8 +664,8 @@ public class EntityStore {
                     // having the same local ID (UUID) with different OIDs. This situation indicates
                     // a bug in the probe.
                     Long existingEntityLocalId = newEntitiesByLocalId.get(entry.getValue().getId());
-                    logger.error("Duplicate local ID {} for entities {} and {}",
-                        localId, entityMap.get(existingEntityLocalId), entityMap.get(entry.getKey()));
+                    logger.error("Duplicate local ID {} for entities {} and {}", localId,
+                            entityMap.get(existingEntityLocalId), entityMap.get(entry.getKey()));
                 } else {
                     newEntitiesByLocalId.put(entry.getValue().getId(), entity.getId());
                 }
@@ -610,50 +673,53 @@ public class EntityStore {
                 localIdToType.put(entry.getValue().getId(), entry.getValue().getEntityType());
 
                 if (entry.getValue().getEntityType() == EntityType.VIRTUAL_MACHINE) {
-                    vmToProviderLocalIds.put(entry.getKey(), entry.getValue().getCommoditiesBoughtList().stream()
+                    vmToProviderLocalIds.put(entry.getKey(), entry.getValue()
+                            .getCommoditiesBoughtList()
+                            .stream()
                             .map(CommodityBought::getProviderId)
                             .collect(Collectors.toList()));
                 }
                 if (entry.getValue().getEntityType() == EntityType.CONTAINER) {
-                    containerToProviderLocalIds.put(entry.getKey(), entry.getValue().getCommoditiesBoughtList().stream()
+                    containerToProviderLocalIds.put(entry.getKey(), entry.getValue()
+                            .getCommoditiesBoughtList()
+                            .stream()
                             .map(CommodityBought::getProviderId)
                             .collect(Collectors.toList()));
                 }
             });
             entitiesLogging(targetId, addedEntities, "Added");
 
-            final TargetEntityIdInfo targetIdInfo = new TargetEntityIdInfo(newTargetEntitiesBuilder.build(),
-                newEntitiesByLocalId, clock.millis());
+            final TargetEntityIdInfo targetIdInfo = new TargetEntityIdInfo(
+                    newTargetEntitiesBuilder.build(), newEntitiesByLocalId, clock.millis());
             targetEntities.put(targetId, targetIdInfo);
 
             // clear all incremental responses which are triggered before current successful full discovery
-            getIncrementalEntities(targetId).ifPresent(incrementalEntities ->
-                incrementalEntities.clearEntitiesDiscoveredBefore(messageId));
+            getIncrementalEntities(targetId).ifPresent(
+                    incrementalEntities -> incrementalEntities.clearEntitiesDiscoveredBefore(
+                            messageId));
 
             // Fill in the hosted-by relationships.
-            vmToProviderLocalIds.forEach((entityId, localIds) ->
-                localIds.stream()
+            vmToProviderLocalIds.forEach((entityId, localIds) -> localIds.stream()
                     .filter(localId -> localIdToType.get(localId) == EntityType.PHYSICAL_MACHINE)
                     .findFirst()
                     .ifPresent(localId -> {
                         // If this is null then the probe's entity information is invalid,
                         // since the VM is buying commodities from a PM that doesn't exist.
-                        long pmId = Objects.requireNonNull(targetIdInfo.getLocalIdToEntityId().get(localId));
+                        long pmId = Objects.requireNonNull(
+                                targetIdInfo.getLocalIdToEntityId().get(localId));
                         Objects.requireNonNull(entityMap.get(entityId)).setHostedBy(targetId, pmId);
-                    })
-            );
-            containerToProviderLocalIds.forEach((entityId, localIds) ->
-                    localIds.stream()
-                            .filter(localId -> localIdToType.get(localId) == EntityType.CONTAINER_POD ||
-                                    localIdToType.get(localId)==EntityType.VIRTUAL_MACHINE)
-                            .findFirst()
-                            .ifPresent(localId -> {
-                                // If this is null then the probe's entity information is invalid,
-                                // since the Container is buying commodities from a Pod or VM that doesn't exist.
-                                long pmId = Objects.requireNonNull(targetIdInfo.getLocalIdToEntityId().get(localId));
-                                Objects.requireNonNull(entityMap.get(entityId)).setHostedBy(targetId, pmId);
-                            })
-            );
+                    }));
+            containerToProviderLocalIds.forEach((entityId, localIds) -> localIds.stream()
+                    .filter(localId -> localIdToType.get(localId) == EntityType.CONTAINER_POD
+                            || localIdToType.get(localId) == EntityType.VIRTUAL_MACHINE)
+                    .findFirst()
+                    .ifPresent(localId -> {
+                        // If this is null then the probe's entity information is invalid,
+                        // since the Container is buying commodities from a Pod or VM that doesn't exist.
+                        long pmId = Objects.requireNonNull(
+                                targetIdInfo.getLocalIdToEntityId().get(localId));
+                        Objects.requireNonNull(entityMap.get(entityId)).setHostedBy(targetId, pmId);
+                    }));
         }
     }
 
@@ -695,7 +761,7 @@ public class EntityStore {
      */
     public void entitiesDiscovered(final long probeId, final long targetId, final int messageId,
         @Nonnull DiscoveryType discoveryType, @Nonnull final List<EntityDTO> entityDTOList)
-            throws IdentityServiceException, TargetNotFoundException {
+            throws IdentityServiceException, TargetNotFoundException, DuplicateTargetException {
         // this applies to all discovery types, since there may be new entities in incremental response
         final Map<Long, EntityDTO> entitiesById =
             assignIdsToEntities(probeId, targetId, entityDTOList);
@@ -703,6 +769,21 @@ public class EntityStore {
         if (discoveryType == DiscoveryType.FULL) {
             setFullDiscoveryEntities(targetId, messageId, entitiesById);
         } else if (discoveryType == DiscoveryType.INCREMENTAL) {
+            Optional<Target> target = targetStore.getTarget(targetId);
+            if (target.isPresent() && duplicateTargetDetector.isEnabled()) {
+                synchronized (topologyUpdateLock) {
+                    // find duplicate targets that are older than this target
+                    final long targetCreationTime = IdentityGenerator.toMilliTime(targetId);
+                    Set<Long> originalTargets = duplicateTargetDetector.getKnownDuplicateTargets(
+                            targetId).stream()
+                            .filter(targId -> IdentityGenerator.toMilliTime(targId)
+                                    < targetCreationTime)
+                            .collect(Collectors.toSet());
+                    if (!originalTargets.isEmpty()) {
+                        throw createDuplicateTargetException(targetId, originalTargets);
+                    }
+                }
+            }
             // Send partial entityDTOs of entity that changed state
             sendEntitiesWithNewState(entitiesById);
             // cache the entities from incremental discovery response
@@ -785,7 +866,8 @@ public class EntityStore {
      * @throws TargetNotFoundException if no target exists with the provided targetId
      */
     public void entitiesRestored(long targetId, long lastUpdatedTime,
-                                 Map<Long, EntityDTO> restoredMap) throws TargetNotFoundException {
+                                 Map<Long, EntityDTO> restoredMap) throws TargetNotFoundException,
+            DuplicateTargetException {
         logger.info("Restoring {} entities for target {}", restoredMap.size(), targetId);
         // the messageId doesn't matter here, since there will not be any incremental discoveries
         // after loading diags
@@ -931,7 +1013,7 @@ public class EntityStore {
                 new LinkedHashMap<>();
             for (TreeMap<Integer, EntityDTO> messageIdToEntity : orderedIncrementalEntities.values()) {
                 for (Integer messageId : messageIdToEntity.keySet()) {
-                    if (messageIdToEntityDtos.containsValue(messageId)) {
+                    if (messageIdToEntityDtos.containsKey(messageId)) {
                         Collection<EntityDTO> currentEntityDTOs = messageIdToEntityDtos.get(messageId);
                         currentEntityDTOs.add(messageIdToEntity.get(messageId));
                         messageIdToEntityDtos.put(messageId,currentEntityDTOs);
@@ -1048,6 +1130,230 @@ public class EntityStore {
             this.supportsConnectedTo = supportsConnectedTo(targetId);
             this.lastUpdatedTime = getTargetLastUpdatedTime(targetId).orElse(0L);
             this.incrementalEntities = getIncrementalEntities(targetId);
+        }
+    }
+
+    /**
+     * Detect duplicate targets according to the following heuristic:
+     * For each probe category that we want to test for duplication, we choose an entity type.
+     * For each target in one of these probe categories, we check if any other targets of the
+     * same probe type overlap in the given entity type by more than some configurable percentage.
+     * The default percentage is 30%.
+     */
+    private static class InternalDuplicateTargetDetector {
+
+        private final Map<Long, Entity> entityMap;
+
+        private final TargetStore targetStore;
+
+        private final float overlapRatio;
+
+        private final boolean mergeKubernetesTypes;
+
+        /**
+         * Set of sets where each set within globalDuplicateTargetSet represents an equivalence
+         * set of targets that are all duplicates of each other.
+         */
+        private final Set<Set<Long>> globalDuplicateTargetSet = new HashSet<>();
+
+        /**
+         * Map of probe categories for which we will try to detect duplicate targets to the EntityType
+         * to count for determining that two targets are the same. If two targets of the same category
+         * and type overlap by more than some configurable percentage in this entity type, we
+         * consider them duplicates and will suppress the newer target and notify the user of the
+         * duplicate target.
+         */
+        private final Map<String, EntityType> PROBE_CATEGORY_ENTITY_TYPE_MAP =
+                ImmutableMap.of(ProbeCategory.HYPERVISOR.getCategoryInUpperCase(),
+                        EntityType.VIRTUAL_MACHINE,
+                        ProbeCategory.CLOUD_MANAGEMENT.getCategoryInUpperCase(),
+                        EntityType.VIRTUAL_MACHINE,
+                        ProbeCategory.CLOUD_NATIVE.getCategoryInUpperCase(), EntityType.NAMESPACE);
+
+        private static final String KUBERNETES = "Kubernetes";
+
+        /**
+         * Construct a InternalDuplicateTargetDetector.
+         *
+         * @param entityMap map of entity OID to Entity for all the discovered targets
+         * @param targetStore the store of all the targets
+         * @param overlapRatio minimum overlap ration between targets to consider
+         * them duplicates
+         * @param mergeKubernetesTypes flag indicating whether or not to consider all Kubernetes
+         * probes to be the same type even if they have different suffixes
+         */
+        public InternalDuplicateTargetDetector(@Nonnull Map<Long, Entity> entityMap,
+                @Nonnull TargetStore targetStore, float overlapRatio,
+                boolean mergeKubernetesTypes) {
+            this.overlapRatio = overlapRatio;
+            this.mergeKubernetesTypes = mergeKubernetesTypes;
+            this.entityMap = entityMap;
+            this.targetStore = targetStore;
+            targetStore.addListener(new TargetStoreListener() {
+                @Override
+                public void onTargetRemoved(@NotNull Target target) {
+                    targetRemoved(target.getId());
+                }
+            });
+        }
+
+        /**
+         * If mergeKuberenetesTypes is true, convert any String that starts with "Kubernetes"
+         * to "Kubernetes". Otherwise, just return the String that is passed in. The purpose
+         * of this is to treat all the Kubernetes types as the same.
+         *
+         * @param probeType the type of the probe.
+         * @return the converted probeType according to whether we are merging Kubernetes types
+         * or not.
+         */
+        @Nonnull
+        public String adjustProbeType(@Nonnull String probeType) {
+            if (mergeKubernetesTypes && probeType.startsWith(KUBERNETES)) {
+                return KUBERNETES;
+            } else {
+                return probeType;
+            }
+        }
+
+        /**
+         * Indicate whether or not duplicate targets are being detected.
+         *
+         * @return True if duplicate target detection is happening; false otherwise.
+         */
+        public boolean isEnabled() {
+            return overlapRatio > 0.0F;
+        }
+
+        private LongSet getTargetIdsForProbeType(@Nonnull String probeType) {
+            final String adjustedProbeType = adjustProbeType(probeType);
+            return targetStore.getAll().stream()
+                    .filter(target -> adjustedProbeType.equals(
+                            adjustProbeType(target.getProbeInfo().getProbeType())))
+                    .mapToLong(Target::getId)
+                    .collect(LongArraySet::new, LongArraySet::add, LongArraySet::addAll);
+        }
+
+        /**
+         * Return the set of targetIds already detected to be a duplicate of the target
+         * represented by this targetId. The targetId itself will not be in the set. If
+         * there are no duplicates of this target, return the empty set.
+         *
+         * @param targetId the OID of the target in question.
+         * @return Set of target OIDs of targets that are duplicates of the target in
+         * question or the empty set if there are no duplicates.
+         */
+        public Set<Long> getKnownDuplicateTargets(long targetId) {
+            synchronized (globalDuplicateTargetSet) {
+                final Set<Long> duplicates = globalDuplicateTargetSet.stream()
+                        .filter(set -> set.contains(targetId))
+                        .findFirst()
+                        .orElse(Collections.emptySet());
+                return duplicates.stream().filter(targId -> targId != targetId)
+                        .collect(Collectors.toSet());
+            }
+        }
+
+        /**
+         * Look for a duplicate target of the given target and return a set of OIDs
+         * of targets that this target is a duplicate of. Note that the target
+         * itself will not be in the returned set. So if targets with OIDs A and B are
+         * duplicates, for example, getDuplicateTargetOids(A) returns a set
+         * containing B and getDuplicateTargetOids(B) returns a set containing A.
+         *
+         * @param target the target to check.
+         * @param entitiesById a list of entities discovered by the target.
+         * @return Set of targetIds of targets that are considered duplicates of this one.
+         */
+        @GuardedBy("topologyUpdateLock")
+        public Set<Long> scanForDuplicateTargets(@Nonnull Target target,
+                @Nonnull Map<Long, EntityDTO> entitiesById) {
+            // For incremental discoveries, entitiesById will be empty.
+            // Just look up the duplicate set in the map and return it.
+            if (overlapRatio <= 0.0F) {
+                return Collections.emptySet();
+            }
+            final long targetId = target.getId();
+            final Set<Long> duplicateTargets = new HashSet<>();
+            final String probeType = target.getProbeInfo().getProbeType();
+            final LongSet targetsToCompareAgainst = getTargetIdsForProbeType(probeType);
+            targetsToCompareAgainst.remove(target.getId());
+            final EntityType entityType = PROBE_CATEGORY_ENTITY_TYPE_MAP
+                    .get(target.getProbeInfo().getProbeCategory().toUpperCase());
+            if (entityType != null) {
+                final LongSet entitiesToCheck = entitiesById.entrySet()
+                        .stream()
+                        .filter(entry -> entry.getValue().getEntityType()
+                                == entityType)
+                        .mapToLong(Entry::getKey)
+                        .collect(LongArraySet::new, LongArraySet::add, LongArraySet::addAll);
+                // keep track of count of overlapping key entities by target id
+                final Long2IntMap overlappingEntityCountByTargetId = new Long2IntArrayMap();
+                LongIterator iterator = entitiesToCheck.iterator();
+                while (iterator.hasNext()) {
+                    final long nextOid = iterator.nextLong();
+                    Optional.ofNullable(entityMap.get(nextOid)).ifPresent(nextEntity ->
+                        nextEntity.getTargets().stream()
+                                .mapToLong(Long::longValue)
+                                .filter(targetsToCompareAgainst::contains)
+                                .forEach(overlappingTargetId -> {
+                                    overlappingEntityCountByTargetId.compute(overlappingTargetId,
+                                            (id, currVal) -> currVal == null ? 1 : currVal + 1);
+                                })
+                    );
+                }
+                final int sizeOfOverlapForDuplicate = (int) Math.ceil(entitiesToCheck.size()
+                        * overlapRatio);
+                overlappingEntityCountByTargetId.long2IntEntrySet().stream().forEach(entry -> {
+                    if (entry.getIntValue() >= sizeOfOverlapForDuplicate) {
+                        duplicateTargets.add(entry.getLongKey());
+                    }
+                });
+            }
+
+            synchronized (globalDuplicateTargetSet) {
+                final Optional<Set<Long>> existingDuplicates = globalDuplicateTargetSet.stream()
+                        .filter(nxtSet -> !Sets.intersection(nxtSet, duplicateTargets).isEmpty())
+                        .findFirst();
+                if (!duplicateTargets.isEmpty()) {
+                    duplicateTargets.add(targetId);
+                    if (existingDuplicates.isPresent()) {
+                        existingDuplicates.get().addAll(duplicateTargets);
+                        duplicateTargets.addAll(existingDuplicates.get());
+                    } else {
+                        globalDuplicateTargetSet.add(duplicateTargets);
+                    }
+                } else {
+                    existingDuplicates.ifPresent(set -> {
+                        set.remove(targetId);
+                        if (set.isEmpty() || set.size() == 1) {
+                            globalDuplicateTargetSet.remove(set);
+                        }
+                    });
+                }
+            }
+            // Return a set giving all target IDs for targets that are duplicates of the target.
+            return duplicateTargets.stream()
+                    .filter(targId -> targId != targetId)
+                    .collect(Collectors.toSet());
+        }
+
+        /**
+         * Process a target deletion by updating the globalDuplicateTargetMap.
+         *
+         * @param targetId the id of the deleted target.
+         */
+        private void targetRemoved(long targetId) {
+            synchronized (globalDuplicateTargetSet) {
+                final Iterator<Set<Long>> iter = globalDuplicateTargetSet.iterator();
+                while (iter.hasNext()) {
+                    final Set<Long> nextSet = iter.next();
+                    if (nextSet.remove(targetId)) {
+                        if (nextSet.isEmpty() || nextSet.size() == 1) {
+                            iter.remove();
+                        }
+                    }
+                }
+            }
         }
     }
 }

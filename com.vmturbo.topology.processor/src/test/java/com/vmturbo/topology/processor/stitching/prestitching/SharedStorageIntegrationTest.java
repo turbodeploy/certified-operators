@@ -39,6 +39,7 @@ import com.vmturbo.identity.exceptions.IdentityServiceException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
+import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.PostStitchingOperationLibrary;
@@ -60,6 +61,7 @@ import com.vmturbo.topology.processor.stitching.StitchingOperationStore;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity.CommoditySold;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
+import com.vmturbo.topology.processor.targets.DuplicateTargetException;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 import com.vmturbo.topology.processor.targets.TargetStore;
@@ -92,7 +94,7 @@ public class SharedStorageIntegrationTest {
     private final TopologyProcessorNotificationSender sender = Mockito.mock(TopologyProcessorNotificationSender.class);
     private final Clock entityClock = Mockito.mock(Clock.class);
     private EntityStore entityStore = new EntityStore(targetStore, identityProvider, sender,
-        entityClock);
+            0.3F, true, entityClock);
     private CpuCapacityStore cpuCapacityStore = mock(CpuCapacityStore.class);
 
     private final DiskCapacityCalculator diskCapacityCalculator =
@@ -221,7 +223,7 @@ public class SharedStorageIntegrationTest {
 
     private void addEntities(@Nonnull final Map<Long, EntityDTO> entities, final long targetId,
                              final long discoveryTime)
-            throws IdentityServiceException, TargetNotFoundException {
+            throws IdentityServiceException, TargetNotFoundException, DuplicateTargetException {
         final long probeId = 0;
         when(identityProvider.getIdsForEntities(
             eq(probeId), eq(new ArrayList<>(entities.values()))))
@@ -229,8 +231,12 @@ public class SharedStorageIntegrationTest {
         when(entityClock.millis()).thenReturn(discoveryTime);
 
         // Pretend that any target exists
-        when(targetStore.getTarget(anyLong())).thenReturn(Optional.of(Mockito.mock(Target.class)));
-
+        final Target mockTarget = mock(Target.class);
+        final ProbeInfo probeInfo = ProbeInfo.newBuilder()
+                .setProbeCategory(ProbeCategory.STORAGE.getCategory())
+                .setProbeType("Whatever").build();
+        when(mockTarget.getProbeInfo()).thenReturn(probeInfo);
+        when(targetStore.getTarget(anyLong())).thenReturn(Optional.of(mockTarget));
         entityStore.entitiesDiscovered(probeId, targetId, 0,
             DiscoveryType.FULL, new ArrayList<>(entities.values()));
     }

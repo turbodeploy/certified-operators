@@ -2,7 +2,6 @@ package com.vmturbo.topology.processor.operation;
 
 import java.io.IOException;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -44,12 +43,15 @@ import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionResponseState;
+import com.vmturbo.platform.common.dto.CommonDTO.NotificationDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.NotificationDTO.Severity;
 import com.vmturbo.platform.common.dto.CommonDTO.UpdateType;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryContextDTO;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO;
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorSeverity;
+import com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorType;
 import com.vmturbo.platform.common.dto.Discovery.ValidationResponse;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionApprovalRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionApprovalResponse;
@@ -68,6 +70,7 @@ import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.RequestTargetId;
 import com.vmturbo.platform.sdk.common.MediationMessage.TargetUpdateRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ValidationRequest;
+import com.vmturbo.platform.sdk.common.util.NotificationCategoryDTO;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKUtil;
 import com.vmturbo.proactivesupport.DataMetricGauge;
@@ -107,6 +110,7 @@ import com.vmturbo.topology.processor.probes.ProbeException;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.probes.ProbeStoreListener;
 import com.vmturbo.topology.processor.targets.DerivedTargetParser;
+import com.vmturbo.topology.processor.targets.DuplicateTargetException;
 import com.vmturbo.topology.processor.targets.GroupScopeResolver;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
@@ -1017,7 +1021,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
 
     private void processDiscoveryResponse(@Nonnull final Discovery discovery,
             @Nonnull final DiscoveryResponse response, boolean processDerivedTargets) {
-        final boolean success = !hasGeneralCriticalError(response.getErrorDTOList());
+        boolean success = !hasGeneralCriticalError(response.getErrorDTOList());
         // Discovery response changed since last discovery
         final boolean change = !response.hasNoChange();
         final long targetId = discovery.getTargetId();
@@ -1035,6 +1039,12 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
 
         releaseSemaphore(discovery.getProbeId(), targetId, discoveryType);
 
+        /**
+         * We can't detect a duplicate target until we process the response. If we detect a
+         * duplicate target, we will alter responseUsed to reflect the duplicate target error.
+         */
+        DiscoveryResponse responseUsed = response;
+
         try {
             // Ensure this target hasn't been deleted since the discovery began
             final Optional<Target> target = targetStore.getTarget(targetId);
@@ -1042,20 +1052,49 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                 if (target.isPresent()) {
                     if (success) {
                         try {
+                            boolean duplicateTarget = false;
                             // TODO: (DavidBlinn 3/14/2018) if information makes it into the entityStore but fails later
                             // the topological information will be inconsistent. (ie if the entities are placed in the
                             // entityStore but the discoveredGroupUploader throws an exception, the entity and group
                             // information will be inconsistent with each other because we do not roll back on failure.
                             // these operations apply to all discovery types (FULL and INCREMENTAL for now)
-                            entityStore.entitiesDiscovered(discovery.getProbeId(), targetId,
-                                    discovery.getMediationMessageId(), discoveryType, response.getEntityDTOList());
+                            try {
+                                entityStore.entitiesDiscovered(discovery.getProbeId(), targetId,
+                                        discovery.getMediationMessageId(), discoveryType,
+                                        response.getEntityDTOList());
+                            } catch (DuplicateTargetException e) {
+                                logger.error("Detected duplicate for target {}", targetId, e);
+                                duplicateTarget = true;
+                                DiscoveryResponse.Builder responseBuilder =
+                                        // add an error DTO so that message will appear on targets
+                                        // page
+                                        DiscoveryResponse.newBuilder().addErrorDTO(
+                                                ErrorDTO.newBuilder()
+                                                        .setDescription(e.getLocalizedMessage())
+                                                        .setSeverity(ErrorSeverity.CRITICAL)
+                                                        .setErrorType(ErrorType.OTHER)
+                                                        .build());
+                                // only add a notification if it is a full discovery
+                                if (discoveryType == DiscoveryType.FULL) {
+                                    responseBuilder.addNotification(
+                                            NotificationDTO.newBuilder()
+                                                    .setCategory(
+                                                            NotificationCategoryDTO.DISCOVERY.name())
+                                                    .setEvent("DuplicateTarget")
+                                                    .setSeverity(Severity.CRITICAL)
+                                                    .setDescription(e.getLocalizedMessage())
+                                                    .build());
+                                }
+                                responseUsed = responseBuilder.build();
+                                success = false;
+                            }
                             DISCOVERY_SIZE_SUMMARY.labels(target.map(Target::getProbeInfo)
                                                                           .map(ProbeInfo::getProbeType)
                                                                           .orElse("UNKNOWN"))
                                             .observe((double)response.getEntityDTOCount());
                             // dump discovery response if required
                             final Optional<ProbeInfo> probeInfo = probeStore.getProbe(discovery.getProbeId());
-                            if (discoveryDumper != null) {
+                            if (discoveryDumper != null && !duplicateTarget) {
                                 String displayName = target.map(Target::getDisplayName).orElseGet(() -> "targetID-" + targetId);
                                 String targetName =
                                         probeInfo.get().getProbeType() + "_" + displayName;
@@ -1079,24 +1118,28 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                                                 response.getDiscoveryContext()));
                             }
                             // send notification from probe
-                            systemNotificationProducer.sendSystemNotification(response.getNotificationList(), target.get());
+                            systemNotificationProducer.sendSystemNotification(
+                                    responseUsed.getNotificationList(), target.get());
 
                             // these operations only apply to FULL discovery response for now
                             if (discoveryType == DiscoveryType.FULL) {
-                                discoveredGroupUploader.setTargetDiscoveredGroups(targetId, response.getDiscoveredGroupList());
+                                discoveredGroupUploader.setTargetDiscoveredGroups(targetId,
+                                        responseUsed.getDiscoveredGroupList());
                                 discoveredTemplateDeploymentProfileNotifier.recordTemplateDeploymentInfo(
-                                        targetId, response.getEntityProfileList(), response.getDeploymentProfileList(),
+                                        targetId, response.getEntityProfileList(),
+                                        responseUsed.getDeploymentProfileList(),
                                         response.getEntityDTOList());
-                                discoveredWorkflowUploader.setTargetWorkflows(targetId, response.getWorkflowList());
+                                discoveredWorkflowUploader.setTargetWorkflows(targetId, responseUsed.getWorkflowList());
                                 if (processDerivedTargets) {
-                                    derivedTargetParser.instantiateDerivedTargets(targetId, response.getDerivedTargetList());
+                                    derivedTargetParser.instantiateDerivedTargets(targetId, responseUsed.getDerivedTargetList());
                                 }
                                 discoveredCloudCostUploader.recordTargetCostData(targetId,
                                         targetStore.getProbeTypeForTarget(targetId), targetStore.getProbeCategoryForTarget(targetId), discovery,
-                                        response.getNonMarketEntityDTOList(), response.getCostDTOList(),
-                                        response.getPriceTable());
+                                        responseUsed.getNonMarketEntityDTOList(),
+                                        responseUsed.getCostDTOList(),
+                                        responseUsed.getPriceTable());
                                 // Flows
-                                matrix.update(response.getFlowDTOList());
+                                matrix.update(responseUsed.getFlowDTOList());
                             }
                         } catch (TargetNotFoundException e) {
                             final String message = "Failed to process " + discoveryType +
@@ -1124,7 +1167,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                                 return;
                 }
             }
-            operationComplete(discovery, success, response.getErrorDTOList());
+            operationComplete(discovery, success, responseUsed.getErrorDTOList());
             if (discovery.getCompletionTime() != null) {
                 try {
                     DISCOVERY_TIMES.labels(getProbeTypeWithCheck(target.get()), discoveryType.toString(), Boolean.toString(success))
@@ -1143,7 +1186,10 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
             logger.error(message, e);
             failDiscovery(discovery, message);
         }
-        activatePendingDiscovery(targetId, discoveryType);
+        // Only activate a pending discovery if the probe is connected
+        if (probeStore.isProbeConnected(discovery.getProbeId())) {
+            activatePendingDiscovery(targetId, discoveryType);
+        }
     }
 
     protected String getProbeTypeWithCheck(Target target) throws ProbeException {

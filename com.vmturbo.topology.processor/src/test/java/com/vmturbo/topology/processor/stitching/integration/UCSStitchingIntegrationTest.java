@@ -61,6 +61,7 @@ import com.vmturbo.topology.processor.stitching.StitchingManager;
 import com.vmturbo.topology.processor.stitching.StitchingTestUtils;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory.ConfigurableStitchingJournalFactory;
+import com.vmturbo.topology.processor.targets.DuplicateTargetException;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
@@ -111,7 +112,7 @@ public class UCSStitchingIntegrationTest extends StitchingIntegrationTest {
     private StitchingContext prepareStitchingContext(Map<Long, EntityDTO> ucsEntities,
                     Map<Long, EntityDTO> hypervisorEntities,
                     List<StitchingOperation<?, ?>> fabricStitchingOperationsToTest)
-                        throws TargetNotFoundException, IdentityServiceException  {
+            throws TargetNotFoundException, IdentityServiceException, DuplicateTargetException {
         addEntities(ucsEntities, ucsTargetId);
         addEntities(hypervisorEntities, vcTargetId);
 
