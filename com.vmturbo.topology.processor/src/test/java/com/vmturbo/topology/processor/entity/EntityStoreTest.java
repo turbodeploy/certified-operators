@@ -13,6 +13,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -22,6 +23,8 @@ import static org.mockito.Mockito.when;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -30,10 +33,12 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -45,6 +50,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
+import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.proactivesupport.DataMetricGauge.GaugeData;
 import com.vmturbo.stitching.StitchingEntity;
@@ -52,6 +58,7 @@ import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSe
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingGraph;
+import com.vmturbo.topology.processor.targets.DuplicateTargetException;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 import com.vmturbo.topology.processor.targets.TargetStore;
@@ -63,20 +70,78 @@ import com.vmturbo.topology.processor.targets.TargetStoreListener;
 public class EntityStoreTest {
     private final long targetId = 1234;
 
+    private final long target2Id = 9137L;
+
+    private final Target target = mock(Target.class);
+
+    private final Target target2 = mock(Target.class);
+
+    private final String targetDisplayName = "Target1";
+
+    private final String target2DisplayName = "Target2";
+
     private final TargetStore targetStore = Mockito.mock(TargetStore.class);
+
+    private final ProbeInfo probeInfoHypervisorBar = ProbeInfo.newBuilder()
+            .setProbeCategory(ProbeCategory.HYPERVISOR.getCategory())
+            .setProbeType(SDKProbeType.HYPERV.name())
+            .build();
 
     private final IdentityProvider identityProvider = Mockito.mock(IdentityProvider.class);
 
     private final TopologyProcessorNotificationSender sender = Mockito.mock(TopologyProcessorNotificationSender.class);
 
+    private final Target firstTarget = mock(Target.class);
+
+    private final Target duplicateTarget = mock(Target.class);
+
+    private final Target secondDuplicateTarget = mock(Target.class);
+
+    private final long firstTargetId = 1111L;
+
+    private final long duplicateTargetId = 2222L;
+
+    private final long secondDuplicateTargetId = 3333L;
+
+    private final String firstTargetDisplayName = "firstTarget";
+
+    private final String duplicateTargetDisplayName = "duplicateTarget";
+
+    private final String secondDuplicateTargetDisplayName = "duplicateTarget2";
+
+    private final ProbeInfo probeInfoHypervisor = ProbeInfo.newBuilder()
+            .setProbeCategory(ProbeCategory.HYPERVISOR.getCategory())
+            .setProbeType("foo")
+            .build();
+
     private EntityStore entityStore = new EntityStore(targetStore, identityProvider,
-        sender, Clock.systemUTC());
+        sender, 0.3F, true, Clock.systemUTC());
 
     /**
      * Expected exception rule.
      */
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
+
+    /**
+     * Setup the targets.
+     */
+    @Before
+    public void setup() {
+        when(target.getId()).thenReturn(targetId);
+        when(target.getDisplayName()).thenReturn(targetDisplayName);
+        when(target.toString()).thenReturn(targetDisplayName);
+        when(target2.getId()).thenReturn(target2Id);
+        when(target2.getDisplayName()).thenReturn(target2DisplayName);
+        when(target2.toString()).thenReturn(target2DisplayName);
+        when(targetStore.getTarget(targetId)).thenReturn(Optional.of(target));
+        when(target.getProbeInfo()).thenReturn(probeInfoHypervisorBar);
+        when(targetStore.getTarget(target2Id)).thenReturn(Optional.of(target2));
+        when(target2.getProbeInfo()).thenReturn(probeInfoHypervisorBar);
+        when(targetStore.getTargetDisplayName(targetId)).thenReturn(Optional.of(targetDisplayName));
+        when(targetStore.getTargetDisplayName(target2Id)).thenReturn(Optional.of(target2DisplayName));
+        when(targetStore.getAll()).thenReturn(ImmutableList.of(target, target2));
+    }
 
     /**
      * Test querying entities added to the repository.
@@ -90,14 +155,205 @@ public class EntityStoreTest {
                 .setId(id1).build();
         Map<Long, EntityDTO> entitiesMap = ImmutableMap.of(1L, entity1);
 
-        // Pretend that any target exists
-        when(targetStore.getTarget(anyLong())).thenReturn(Optional.of(Mockito.mock(Target.class)));
-
         addEntities(entitiesMap);
 
         Assert.assertTrue(entityStore.getTargetEntityIdMap(targetId).isPresent());
         Assert.assertTrue(entityStore.getEntity(1L).isPresent());
         assertEquals(entitiesMap, entityStore.discoveredByTarget(targetId));
+    }
+
+    private EntityDTO createEntity(@Nonnull String id, @Nonnull EntityType entityType) {
+        return EntityDTO.newBuilder().setEntityType(entityType)
+                .setId(id).build();
+    }
+
+    private Map<Long, EntityDTO> createEntityMap(long firstOid, @Nonnull EntityType entityType,
+            int size) {
+        Map<Long, EntityDTO> retVal = new HashMap<>();
+        for (int i = 0; i < size; i++) {
+            retVal.put(firstOid + i, createEntity(String.valueOf(firstOid + i), entityType));
+        }
+        return retVal;
+    }
+
+    private void setupMocksForTarget(@Nonnull Target target, long targetId, String displayName,
+            @Nonnull ProbeInfo probeInfo) {
+        when(targetStore.getTarget(targetId)).thenReturn(Optional.of(target));
+        when(targetStore.getTargetDisplayName(targetId))
+                .thenReturn(Optional.of(displayName));
+        when(target.getProbeInfo()).thenReturn(probeInfo);
+        when(target.getDisplayName()).thenReturn(displayName);
+        when(target.getId()).thenReturn(targetId);
+        when(target.toString()).thenReturn(displayName);
+
+    }
+
+    /**
+     * Test that 2 hypervisor targets that overlap in 33% of their VMs are identified as duplicates.
+     *
+     * @throws Exception if an exception is encountered.
+     */
+    @Test
+    public void testDuplicateTargetDetected() throws Exception {
+        setupMocksForTarget(firstTarget, firstTargetId, firstTargetDisplayName, probeInfoHypervisor);
+        setupMocksForTarget(duplicateTarget, duplicateTargetId, duplicateTargetDisplayName,
+                probeInfoHypervisor);
+        setupMocksForTarget(secondDuplicateTarget, secondDuplicateTargetId,
+                secondDuplicateTargetDisplayName, probeInfoHypervisor);
+        when(targetStore.getAll()).thenReturn(ImmutableList.of(firstTarget, duplicateTarget,
+                secondDuplicateTarget));
+        final EntityDTO commonVM = createEntity("one", EntityType.VIRTUAL_MACHINE);
+        final Map<Long, EntityDTO> firstTargetEntitiesMap =
+                createEntityMap(2L, EntityType.VIRTUAL_MACHINE, 2);
+        firstTargetEntitiesMap.put(1L, commonVM);
+        final Map<Long, EntityDTO> duplicateTargetEntitiesMap =
+                createEntityMap(4L, EntityType.VIRTUAL_MACHINE, 2);
+        duplicateTargetEntitiesMap.put(1L, commonVM);
+        final Map<Long, EntityDTO> secondDuplicateTargetEntitiesMap =
+                createEntityMap(6L, EntityType.VIRTUAL_MACHINE, 2);
+        secondDuplicateTargetEntitiesMap.put(1L, commonVM);
+        addEntities(firstTargetEntitiesMap, firstTargetId, 0L, DiscoveryType.FULL, 0);
+        assertEquals(firstTargetEntitiesMap, entityStore.discoveredByTarget(firstTargetId));
+        try {
+            addEntities(duplicateTargetEntitiesMap, duplicateTargetId, 0L, DiscoveryType.FULL, 0);
+            fail("Did not get exception when target " + duplicateTarget + " was added.");
+        } catch (DuplicateTargetException ex) {
+            assertTrue(ex.getLocalizedMessage().startsWith("Target " + duplicateTargetDisplayName
+                    + " is a duplicate of target " + firstTargetDisplayName));
+            try {
+                addEntities(secondDuplicateTargetEntitiesMap, secondDuplicateTargetId, 0L, DiscoveryType.FULL, 0);
+                fail("Did not get exception when target " + secondDuplicateTarget + " was added.");
+            } catch (DuplicateTargetException ex2) {
+                assertTrue(ex2.getLocalizedMessage().startsWith("Target " + secondDuplicateTargetDisplayName
+                        + " is a duplicate of targets " + firstTargetDisplayName + ", "
+                        + duplicateTargetDisplayName));
+            }
+        }
+
+        final ArgumentCaptor<TargetStoreListener> captor =
+                ArgumentCaptor.forClass(TargetStoreListener.class);
+        Mockito.verify(targetStore, times(2)).addListener(captor.capture());
+        final TargetStoreListener storeListener1 = captor.getAllValues().get(0);
+        final TargetStoreListener storeListener2 = captor.getAllValues().get(1);
+        storeListener1.onTargetRemoved(firstTarget);
+        storeListener2.onTargetRemoved(firstTarget);
+        // after deleting firstTarget, duplicateTarget is now the target we keep and
+        // secondDuplicateTarget is a duplicate of duplicateTarget
+        entityStore.entitiesDiscovered(0L, duplicateTargetId, 0,
+                DiscoveryType.INCREMENTAL, Collections.emptyList());
+        try {
+            entityStore.entitiesDiscovered(0L, secondDuplicateTargetId, 0,
+                    DiscoveryType.INCREMENTAL, Collections.emptyList());
+            fail("Expected DuplicateTargetException when processing discovery of "
+                    + secondDuplicateTarget);
+        } catch (DuplicateTargetException e) {
+            assertTrue(e.getLocalizedMessage().startsWith("Target " + secondDuplicateTargetDisplayName
+                    + " is a duplicate of target " + duplicateTargetDisplayName));
+        }
+
+        // now delete duplicateTarget and secondDuplicateTarget should no longer be a duplicate
+        storeListener1.onTargetRemoved(duplicateTarget);
+        storeListener2.onTargetRemoved(duplicateTarget);
+        addEntities(secondDuplicateTargetEntitiesMap, secondDuplicateTargetId, 0L, DiscoveryType.FULL, 0);
+        Assert.assertTrue(entityStore.getTargetEntityIdMap(secondDuplicateTargetId).isPresent());
+        Assert.assertTrue(entityStore.getEntity(1L).isPresent());
+        assertEquals(secondDuplicateTargetEntitiesMap,
+                entityStore.discoveredByTarget(secondDuplicateTargetId));
+    }
+
+    /**
+     * Test that if we have a Hypervisor target with no Virtual Machines, we don't automatically
+     * assume it is a duplicate of other Hypervisor targets. This is to make sure that we don't
+     * use an overlap size of 0 when we have 0 VMs in the target we are testing for duplication.
+     *
+     * @throws TargetNotFoundException if the target is not in the target store
+     * @throws DuplicateTargetException if the target is found to be a duplicate
+     * @throws IdentityServiceException if there is a problem with the identity service
+     */
+    @Test
+    public void testTargetWithNoVmsNotDuplicate()
+            throws TargetNotFoundException, DuplicateTargetException, IdentityServiceException {
+        setupMocksForTarget(firstTarget, firstTargetId, firstTargetDisplayName, probeInfoHypervisor);
+        setupMocksForTarget(duplicateTarget, duplicateTargetId, duplicateTargetDisplayName,
+                probeInfoHypervisor);
+        when(targetStore.getAll()).thenReturn(ImmutableList.of(firstTarget, duplicateTarget));
+        final Map<Long, EntityDTO> firstTargetEntitiesMap =
+                createEntityMap(1L, EntityType.VIRTUAL_MACHINE, 3);
+        final Map<Long, EntityDTO> duplicateTargetEntitiesMap =
+                createEntityMap(4L, EntityType.STORAGE, 3);
+        addEntities(firstTargetEntitiesMap, firstTargetId, 0L, DiscoveryType.FULL, 0);
+        assertEquals(firstTargetEntitiesMap, entityStore.discoveredByTarget(firstTargetId));
+        // this will throw a DuplicateTargetException if duplicate detection logic does not properly
+        // handle the 0 VM case
+        addEntities(duplicateTargetEntitiesMap, duplicateTargetId, 0L, DiscoveryType.FULL, 0);
+        assertEquals(duplicateTargetEntitiesMap, entityStore.discoveredByTarget(duplicateTargetId));
+    }
+
+    /**
+     * Test that two Kubernetes targets are treated as duplicates even if the probe types have
+     * different suffixes.
+     * @throws Exception if an exception occurs.
+     */
+    @Test
+    public void testKubernetesDuplicateTargets() throws Exception {
+        final String probe1Type = "Kubernetes-foo";
+        final String probe2Type = "Kubernetes-bar";
+        final ProbeInfo.Builder probeInfoKubernetesBuilder = ProbeInfo.newBuilder()
+                .setProbeCategory(ProbeCategory.CLOUD_NATIVE.getCategory());
+        final ProbeInfo probeInfo1 = probeInfoKubernetesBuilder.setProbeType(probe1Type).build();
+        final ProbeInfo probeInfo2 = probeInfoKubernetesBuilder.setProbeType(probe2Type).build();
+
+        setupMocksForTarget(firstTarget, firstTargetId, firstTargetDisplayName, probeInfo1);
+        setupMocksForTarget(duplicateTarget, duplicateTargetId, duplicateTargetDisplayName,
+                probeInfo2);
+        when(targetStore.getAll()).thenReturn(ImmutableList.of(firstTarget, duplicateTarget));
+
+        final EntityDTO commonNamespace = createEntity("one", EntityType.NAMESPACE);
+        final Map<Long, EntityDTO> firstTargetEntitiesMap =
+                createEntityMap(2L, EntityType.NAMESPACE, 2);
+        firstTargetEntitiesMap.put(1L, commonNamespace);
+        final Map<Long, EntityDTO> duplicateTargetEntitiesMap =
+                createEntityMap(4L, EntityType.NAMESPACE, 2);
+        duplicateTargetEntitiesMap.put(1L, commonNamespace);
+        addEntities(firstTargetEntitiesMap, firstTargetId, 0L, DiscoveryType.FULL, 0);
+        assertEquals(firstTargetEntitiesMap, entityStore.discoveredByTarget(firstTargetId));
+        expectedException.expect(DuplicateTargetException.class);
+        expectedException.expectMessage("Target " + duplicateTargetDisplayName
+                + " is a duplicate of target " + firstTargetDisplayName);
+        addEntities(duplicateTargetEntitiesMap, duplicateTargetId, 0L, DiscoveryType.FULL, 0);
+    }
+
+    /**
+     * Check that two targets are not treated as duplicates if they overlap in the checked
+     * EntityType (VirtualMachine) by less than 30%. This is true even if they overlap in other
+     * entity types (Storage in this case).
+     *
+     * @throws Exception if an exception is thrown.
+     */
+    @Test
+    public void testNoFalseDuplicateTargets() throws Exception {
+        final ProbeInfo probeInfoPublicCloud = ProbeInfo.newBuilder()
+                .setProbeCategory(ProbeCategory.PUBLIC_CLOUD.getCategory())
+                .setProbeType("foo")
+                .build();
+        setupMocksForTarget(firstTarget, firstTargetId, firstTargetDisplayName,
+                probeInfoPublicCloud);
+        setupMocksForTarget(duplicateTarget, duplicateTargetId, duplicateTargetDisplayName,
+                probeInfoPublicCloud);
+        final EntityDTO commonVM = createEntity("one", EntityType.VIRTUAL_MACHINE);
+        final Map<Long, EntityDTO> firstTargetEntitiesMap =
+                createEntityMap(2L, EntityType.VIRTUAL_MACHINE, 3);
+        firstTargetEntitiesMap.put(1L, commonVM);
+        final Map<Long, EntityDTO> duplicateTargetEntitiesMap =
+                createEntityMap(5L, EntityType.VIRTUAL_MACHINE, 3);
+        duplicateTargetEntitiesMap.put(1L, commonVM);
+        final Map<Long, EntityDTO> storageEntities = createEntityMap(10L, EntityType.STORAGE, 4);
+        firstTargetEntitiesMap.putAll(storageEntities);
+        duplicateTargetEntitiesMap.putAll(storageEntities);
+        addEntities(firstTargetEntitiesMap, firstTargetId, 0L, DiscoveryType.FULL, 0);
+        assertEquals(firstTargetEntitiesMap, entityStore.discoveredByTarget(firstTargetId));
+        addEntities(duplicateTargetEntitiesMap, duplicateTargetId, 0L, DiscoveryType.FULL, 0);
+        assertEquals(duplicateTargetEntitiesMap, entityStore.discoveredByTarget(duplicateTargetId));
     }
 
     /**
@@ -198,9 +454,6 @@ public class EntityStoreTest {
         final EntityDTO entity1 = EntityDTO.newBuilder().setEntityType(EntityType.VIRTUAL_MACHINE)
                 .setId(id1).build();
 
-        // Pretend that any target exists
-        when(targetStore.getTarget(anyLong())).thenReturn(Optional.of(Mockito.mock(Target.class)));
-
         addEntities(ImmutableMap.of(1L, entity1));
 
         Assert.assertTrue(entityStore.getTargetEntityIdMap(targetId).isPresent());
@@ -208,11 +461,11 @@ public class EntityStoreTest {
 
         final ArgumentCaptor<TargetStoreListener> captor =
                 ArgumentCaptor.forClass(TargetStoreListener.class);
-        Mockito.verify(targetStore).addListener(captor.capture());
-        final TargetStoreListener storeListener = captor.getValue();
-        final Target target = Mockito.mock(Target.class);
-        Mockito.when(target.getId()).thenReturn(targetId);
-        storeListener.onTargetRemoved(target);
+        Mockito.verify(targetStore, times(2)).addListener(captor.capture());
+        final TargetStoreListener storeListener1 = captor.getAllValues().get(0);
+        final TargetStoreListener storeListener2 = captor.getAllValues().get(1);
+        storeListener1.onTargetRemoved(target);
+        storeListener2.onTargetRemoved(target);
 
         Assert.assertFalse(entityStore.getTargetEntityIdMap(targetId).isPresent());
         Assert.assertFalse(entityStore.getEntity(1L).isPresent());
@@ -223,23 +476,21 @@ public class EntityStoreTest {
      *
      * @throws TargetNotFoundException Should not happen.
      * @throws IdentityServiceException Should not happen.
+     * @throws DuplicateTargetException Should not happen.
      */
     @Test
     public void testGetEntityIdByLocalId()
-            throws TargetNotFoundException, IdentityServiceException {
-
-        // Pretend that any target exists
-        when(targetStore.getTarget(anyLong())).thenReturn(Optional.of(Mockito.mock(Target.class)));
+            throws TargetNotFoundException, IdentityServiceException, DuplicateTargetException {
 
         // Add entity 1 from target 1
         final String localId1 = "localId1";
         final long id1 = 1L;
-        addVmEntity(id1, localId1, 12345L);
+        addVmEntity(id1, localId1, targetId);
 
         // Add entity 2 from target 2
         final String localId2 = "localId2";
         final long id2 = 2L;
-        addVmEntity(id2, localId2, 23456L);
+        addVmEntity(id2, localId2, target2Id);
 
         // Check entity 1
         final Optional<Long> id1Opt = entityStore.getEntityIdByLocalId(localId1);
@@ -256,7 +507,7 @@ public class EntityStoreTest {
     }
 
     private void addVmEntity(final long id, final String localId, final long targetId)
-            throws TargetNotFoundException, IdentityServiceException {
+            throws TargetNotFoundException, IdentityServiceException, DuplicateTargetException {
         final EntityDTO entity = EntityDTO.newBuilder()
                 .setEntityType(EntityType.VIRTUAL_MACHINE)
                 .setId(localId)
@@ -268,11 +519,12 @@ public class EntityStoreTest {
      * Tests construct stitching graph for single target.
      *
      * @throws IdentityServiceException on service exceptions
-     * @throws TargetNotFoundException if taret not found
+     * @throws TargetNotFoundException if target not found
+     * @throws DuplicateTargetException if target is a duplicate of existing target
      */
     @Test
     public void testConstructStitchingGraphSingleTarget()
-            throws IdentityServiceException, TargetNotFoundException {
+            throws IdentityServiceException, TargetNotFoundException, DuplicateTargetException {
         final Map<Long, EntityDTO> entities = ImmutableMap.of(
             1L, virtualMachine("foo")
                 .buying(vCpuMHz().from("bar").used(100.0))
@@ -283,10 +535,8 @@ public class EntityStoreTest {
 
         final Clock mockClock = Mockito.mock(Clock.class);
         Mockito.when(mockClock.millis()).thenReturn(12345L);
-        entityStore = new EntityStore(targetStore, identityProvider, sender, mockClock);
-
-        // Pretend that any target exists
-        when(targetStore.getTarget(anyLong())).thenReturn(Optional.of(Mockito.mock(Target.class)));
+        entityStore = new EntityStore(targetStore, identityProvider, sender, 0.3F, true,
+                mockClock);
 
         addEntities(entities);
         // the probe type doesn't matter here, just return any non-cloud probe type so it gets
@@ -317,14 +567,13 @@ public class EntityStoreTest {
      * Tests construct stitching graph for multiple targets.
      *
      * @throws IdentityServiceException on service exceptions
-     * @throws TargetNotFoundException if taret not found
+     * @throws TargetNotFoundException if target not found
+     * @throws DuplicateTargetException if target is a duplicate of existing target
      */
     @Test
     public void testConstructStitchingGraphMultipleTargets()
-            throws IdentityServiceException, TargetNotFoundException {
+            throws IdentityServiceException, TargetNotFoundException, DuplicateTargetException {
 
-        final long target1Id = 1234L;
-        final long target2Id = 5678L;
         final Map<Long, EntityDTO> firstTargetEntities = ImmutableMap.of(
             1L, virtualMachine("foo")
                 .buying(vCpuMHz().from("bar").used(100.0))
@@ -340,10 +589,7 @@ public class EntityStoreTest {
             5L, physicalMachine("werewolf").build(),
             6L, storage("dragon").build());
 
-        // Pretend that any target exists
-        when(targetStore.getTarget(anyLong())).thenReturn(Optional.of(Mockito.mock(Target.class)));
-
-        addEntities(firstTargetEntities, target1Id, 0L, DiscoveryType.FULL, 0);
+        addEntities(firstTargetEntities, targetId, 0L, DiscoveryType.FULL, 0);
         addEntities(secondTargetEntities, target2Id, 1L, DiscoveryType.FULL, 1);
         // the probe type doesn't matter here, just return any non-cloud probe type so it gets
         // treated as normal probe
@@ -361,7 +607,7 @@ public class EntityStoreTest {
             .map(StitchingEntity::getLocalId)
             .collect(Collectors.toList()), containsInAnyOrder("werewolf", "dragon"));
 
-        assertEquals(target1Id, entityByLocalId(graph, "foo").getTargetId());
+        assertEquals(targetId, entityByLocalId(graph, "foo").getTargetId());
         assertEquals(target2Id, entityByLocalId(graph, "werewolf").getTargetId());
     }
 
@@ -369,19 +615,19 @@ public class EntityStoreTest {
      * Tests construct stitching graph for single target.
      *
      * @throws IdentityServiceException on service exceptions
-     * @throws TargetNotFoundException if taret not found
+     * @throws TargetNotFoundException if target not found
+     * @throws DuplicateTargetException if target is a duplicate of existing target
      */
     @Test
     public void testApplyIncrementalEntities()
-            throws IdentityServiceException, TargetNotFoundException {
+            throws IdentityServiceException, TargetNotFoundException, DuplicateTargetException {
         final Clock mockClock = Mockito.mock(Clock.class);
         Mockito.when(mockClock.millis()).thenReturn(12345L);
-        entityStore = new EntityStore(targetStore, identityProvider, sender, mockClock);
+        entityStore = new EntityStore(targetStore, identityProvider, sender, 0.3F, true,
+                mockClock);
         // the probe type doesn't matter here, just return any non-cloud probe type so it gets
         // treated as normal probe
         when(targetStore.getProbeTypeForTarget(Mockito.anyLong())).thenReturn(Optional.of(SDKProbeType.HYPERV));
-        // Pretend that any target exists
-        when(targetStore.getTarget(anyLong())).thenReturn(Optional.of(Mockito.mock(Target.class)));
 
         // full discovery: maintenance is false
         final Map<Long, EntityDTO> fullEntities1 = ImmutableMap.of(
@@ -433,16 +679,14 @@ public class EntityStoreTest {
      * Tests entities restored.
      *
      * @throws TargetNotFoundException if target not found
+     * @throws DuplicateTargetException if target is a duplicate of existing target
      */
     @Test
-    public void testEntitiesRestored() throws TargetNotFoundException {
+    public void testEntitiesRestored() throws TargetNotFoundException, DuplicateTargetException {
         final String id1 = "en-hypervisorTarget";
         final EntityDTO entity1 = EntityDTO.newBuilder().setEntityType(EntityType.VIRTUAL_MACHINE)
             .setId(id1).build();
         Map<Long, EntityDTO> entitiesMap = ImmutableMap.of(1L, entity1);
-
-        // Pretend that any target exists
-        when(targetStore.getTarget(anyLong())).thenReturn(Optional.of(Mockito.mock(Target.class)));
 
         entityStore.entitiesRestored(targetId, 5678L, entitiesMap);
 
@@ -475,27 +719,18 @@ public class EntityStoreTest {
         verify(sender, times(1)).onEntitiesWithNewState(Mockito.any());
     }
 
-    /**
-     * Tests restoring multiple entities with same OIDs on different targets.
-     *
-     * @throws TargetNotFoundException if target not found
-     */
-    @Test
-    public void testRestoreMultipleEntitiesSameOidDifferentTargets() throws TargetNotFoundException {
+    private void restoreWithSharedEntity(@Nonnull EntityType entityType)
+            throws TargetNotFoundException, DuplicateTargetException {
         final String sharedId = "en-hypervisorTarget";
         final long sharedOid = 1L;
 
-        // Pretend that any target exists
-        when(targetStore.getTarget(anyLong())).thenReturn(Optional.of(Mockito.mock(Target.class)));
-
-        final EntityDTO entity1 = EntityDTO.newBuilder().setEntityType(EntityType.VIRTUAL_MACHINE)
-            .setId(sharedId).build();
+        final EntityDTO entity1 = EntityDTO.newBuilder().setEntityType(entityType)
+                .setId(sharedId).build();
         Map<Long, EntityDTO> target1Map = ImmutableMap.of(sharedOid, entity1);
         entityStore.entitiesRestored(targetId, 5678L, target1Map);
 
-        final long target2Id = 9137L;
-        final EntityDTO entity2 = EntityDTO.newBuilder().setEntityType(EntityType.VIRTUAL_MACHINE)
-            .setId(sharedId).build();
+        final EntityDTO entity2 = EntityDTO.newBuilder().setEntityType(entityType)
+                .setId(sharedId).build();
         Map<Long, EntityDTO> target2Map = ImmutableMap.of(sharedOid, entity2);
         entityStore.entitiesRestored(target2Id, 87942L, target2Map);
 
@@ -505,6 +740,33 @@ public class EntityStoreTest {
 
         assertEquals(target1Map, entityStore.discoveredByTarget(targetId));
         assertEquals(target1Map, entityStore.discoveredByTarget(target2Id));
+
+    }
+
+    /**
+     * Tests restoring multiple entities with same OIDs on different targets.
+     *
+     * @throws TargetNotFoundException if target not found
+     * @throws DuplicateTargetException if target is a duplicate of existing target
+     */
+    @Test
+    public void testRestoreMultipleEntitiesSameOidDifferentTargets() throws TargetNotFoundException,
+            DuplicateTargetException {
+        restoreWithSharedEntity(EntityType.STORAGE);
+    }
+
+    /**
+     * Test that if you restore two targets that are considered duplicates, we detect the
+     * duplicate target.
+     *
+     * @throws Exception if underlying calls throw an exception.
+     */
+    @Test
+    public void testRestoreDuplicateTarget() throws Exception {
+        expectedException.expect(DuplicateTargetException.class);
+        expectedException.expectMessage("Target " + target2DisplayName
+                + " is a duplicate of target " + targetDisplayName);
+        restoreWithSharedEntity(EntityType.VIRTUAL_MACHINE);
     }
 
     private TopologyStitchingEntity entityByLocalId(@Nonnull final TopologyStitchingGraph graph,
@@ -516,13 +778,13 @@ public class EntityStoreTest {
     }
 
     private void addEntities(@Nonnull final Map<Long, EntityDTO> entities)
-            throws IdentityServiceException, TargetNotFoundException {
+            throws IdentityServiceException, TargetNotFoundException, DuplicateTargetException {
         addEntities(entities, targetId, 0, DiscoveryType.FULL, 0);
     }
 
     private void addEntities(@Nonnull final Map<Long, EntityDTO> entities, final long targetId,
                              final long probeId, DiscoveryType discoveryType, int messageId)
-            throws IdentityServiceException, TargetNotFoundException {
+            throws IdentityServiceException, TargetNotFoundException, DuplicateTargetException {
         Mockito.when(identityProvider.getIdsForEntities(
             Mockito.eq(probeId), Mockito.eq(new ArrayList<>(entities.values()))))
             .thenReturn(entities);

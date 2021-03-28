@@ -40,11 +40,29 @@ public class EntityConfig {
     @Value("${entityDetailsEnabled:false}")
     private boolean entityDetailsEnabled;
 
+    /**
+     * Ratio of overlap between among key entity type of two targets for us to declare them
+     * duplicates. Set to 0 or negative to disable.
+     */
+    @Value("${targetDeduplicationOverlapRatio:0.0f}")
+    private float targetDeduplicationOverlapRatio;
+
+    /**
+     * Kubernetes targets all have different probe types for historical reasons. Set this to true
+     * in order to treat them all as the same type for the purposes of detecing duplicate targets.
+     * In other words, if this is true, all Kubernetes targets are compared to one another when
+     * checking for duplicate targets.
+     */
+    @Value("${targetDeduplicationMergeKubernetesProbeTypes:true}")
+    private boolean targetDeduplicationMergeKubernetesProbeTypes;
+
     @Bean
     public EntityStore entityStore() {
         EntityStore store = new EntityStore(targetConfig.targetStore(),
             identityProviderConfig.identityProvider(),
             sender,
+            targetDeduplicationOverlapRatio,
+            targetDeduplicationMergeKubernetesProbeTypes,
             clockConfig.clock());
         store.setEntityDetailsEnabled(entityDetailsEnabled);
         return store;
@@ -64,4 +82,5 @@ public class EntityConfig {
     public EntityInfoREST.EntityServiceController entityInfoServiceController() {
         return new EntityInfoREST.EntityServiceController(entityInfoRpcService());
     }
+
 }

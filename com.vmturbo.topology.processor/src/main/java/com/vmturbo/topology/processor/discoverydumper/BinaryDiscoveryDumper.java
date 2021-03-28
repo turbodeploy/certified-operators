@@ -271,11 +271,18 @@ public class BinaryDiscoveryDumper implements DiscoveryDumper, CustomDiagHandler
         ByteArrayOutputStream fos = new ByteArrayOutputStream();
         byte[] buffer = new byte[1024];
         int len;
-        while ((len = gis.read(buffer)) != -1) {
-            fos.write(buffer, 0, len);
+        try {
+            while ((len = gis.read(buffer)) != -1) {
+                fos.write(buffer, 0, len);
+            }
+        } catch (NullPointerException e) {
+            // LZ4FrameInputStream::read seems to throw an NPE if the file is empty
+            throw new IOException("Encountered NullPointerException while reading file "
+                    + file.getName());
+        } finally {
+            fos.close();
+            gis.close();
         }
-        fos.close();
-        gis.close();
         return fos.toByteArray();
     }
 

@@ -790,6 +790,7 @@ public class OperationManagerWithQueueTest {
         DiscoveryResponse.Builder responseBuilder = DiscoveryResponse.newBuilder()
                 .addEntityDTO(entity);
 
+        when(probeStore.isProbeConnected(anyLong())).thenReturn(true);
         OperationTestUtilities.notifyAndWaitForDiscovery(operationManager, originalDiscovery,
                 responseBuilder.build());
         verify(entityStore).entitiesDiscovered(eq(probeIdVc), eq(target1Id), anyInt(),
