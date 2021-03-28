@@ -469,30 +469,64 @@ public class TargetController {
 
     private ITargetHealthInfo targetToTargetHealthInfo(@Nonnull final Target target) {
         long targetId = target.getId();
-        //Check last validation.
+        String targetName = target.getDisplayName();
+
         Optional<Validation> lastValidation = operationManager.getLastValidationForTarget(targetId);
+        Optional<Discovery> lastDiscovery = operationManager.getLastDiscoveryForTarget(
+                        targetId, DiscoveryType.FULL);
+
+        //Check if we have info about validation.
         if (!lastValidation.isPresent())    {
-            return new TargetHealthInfo(TargetHealthSubcategory.VALIDATION, targetId,
-                            target.getDisplayName(), "No finished validation.");
-        }
-        Validation validation = lastValidation.get();
-        List<ErrorType> validationErrorTypes = validation.getErrorTypes();
-        if (!validationErrorTypes.isEmpty())    {
-            return new TargetHealthInfo(TargetHealthSubcategory.VALIDATION, targetId,
-                            target.getDisplayName(), validationErrorTypes.get(0),
-                            validation.getErrors().get(0), validation.getCompletionTime());
+            if (!lastDiscovery.isPresent())  {
+                return new TargetHealthInfo(TargetHealthSubcategory.VALIDATION, targetId,
+                                targetName, "No finished validation.");
+            } else {
+                return verifyDiscovery(targetId, targetName);
+            }
         }
 
-        //Validation was Ok, check last discovery.
+        Validation validation = lastValidation.get();
+        List<ErrorType> validationErrorTypes = validation.getErrorTypes();
+        //Check if the validation has passed fine.
+        if (validationErrorTypes.isEmpty())    {
+            if (!lastDiscovery.isPresent())  {
+                return new TargetHealthInfo(TargetHealthSubcategory.VALIDATION, targetId, targetName);
+            } else {
+                return verifyDiscovery(targetId, targetName);
+            }
+        }
+
+        //Validation was not Ok, but check the last discovery.
+        if (lastDiscovery.isPresent())  {
+            LocalDateTime validationCompletionTime = validation.getCompletionTime();
+            LocalDateTime discoveryCompletionTime = lastDiscovery.get().getCompletionTime();
+            Map<Long, DiscoveryFailure> targetToFailedDiscoveries = failedDiscoveriesTracker.getFailedDiscoveries();
+            DiscoveryFailure discoveryFailure = targetToFailedDiscoveries.get(targetId);
+            //Check if there's a discovery that has happened later and passed fine.
+            if (discoveryCompletionTime.compareTo(validationCompletionTime) >= 0 &&
+                            discoveryFailure == null) {
+                //All is good!
+                return new TargetHealthInfo(TargetHealthSubcategory.DISCOVERY, targetId, targetName);
+            }
+        }
+
+        //Report the failed validation.
+        return new TargetHealthInfo(TargetHealthSubcategory.VALIDATION, targetId, targetName,
+                        validationErrorTypes.get(0), validation.getErrors().get(0),
+                        validation.getCompletionTime());
+    }
+
+    private ITargetHealthInfo verifyDiscovery(long targetId, String targetName)  {
         Map<Long, DiscoveryFailure> targetToFailedDiscoveries = failedDiscoveriesTracker.getFailedDiscoveries();
         DiscoveryFailure discoveryFailure = targetToFailedDiscoveries.get(targetId);
         if (discoveryFailure != null)   {
-            return new TargetHealthInfo(TargetHealthSubcategory.DISCOVERY, targetId,
-                            target.getDisplayName(), discoveryFailure.getErrorType(),
-                            discoveryFailure.getErrorText(), discoveryFailure.getFailTime());
+            //There was a discovery failure.
+            return new TargetHealthInfo(TargetHealthSubcategory.DISCOVERY, targetId, targetName,
+                            discoveryFailure.getErrorType(), discoveryFailure.getErrorText(),
+                            discoveryFailure.getFailTime(), discoveryFailure.getFailsCount());
+        } else {
+            //The discovery was ok.
+            return new TargetHealthInfo(TargetHealthSubcategory.DISCOVERY, targetId, targetName);
         }
-
-        //All checks passed, the target is in good health for the moment.
-        return new TargetHealthInfo(TargetHealthSubcategory.DISCOVERY, targetId, target.getDisplayName());
     }
 }
