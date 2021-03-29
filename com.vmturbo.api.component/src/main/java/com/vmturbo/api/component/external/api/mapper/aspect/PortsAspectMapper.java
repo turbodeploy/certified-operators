@@ -7,6 +7,7 @@ import static com.vmturbo.common.protobuf.utils.StringConstants.RELATION_SOLD;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -23,15 +24,19 @@ import com.vmturbo.api.component.external.api.util.CommodityCommonFieldsExtracto
 import com.vmturbo.api.component.external.api.util.StatsUtils;
 import com.vmturbo.api.component.external.api.util.StatsUtils.PrecisionEnum;
 import com.vmturbo.api.conversion.entity.CommodityTypeMapping;
+import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.entityaspect.PortsAspectApiDTO;
 import com.vmturbo.api.dto.statistic.PortChannelApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.enums.AspectName;
+import com.vmturbo.api.exceptions.ConversionException;
+import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.utils.StringConstants;
@@ -76,6 +81,24 @@ public class PortsAspectMapper extends AbstractAspectMapper {
         aspect.setPortChannels(portChannels);
         aspect.setPorts(nonAggregatedPorts);
         return aspect;
+    }
+
+    @Nonnull
+    @Override
+    public Optional<Map<Long, EntityAspect>> mapPlanEntityToAspectBatch(
+        @Nonnull List<TopologyEntityDTO> entities, final long planTopologyContextId)
+        throws InterruptedException, ConversionException, InvalidOperationException {
+        throw new InvalidOperationException(
+            String.format("Plan entity aspects not supported by {}", getClass().getSimpleName()));
+    }
+
+    @Nonnull
+    @Override
+    public Optional<Map<Long, EntityAspect>> mapPlanEntityToAspectBatchPartial(
+        @Nonnull List<ApiPartialEntity> entities, final long planTopologyContextId)
+        throws InterruptedException, ConversionException, InvalidOperationException {
+        throw new InvalidOperationException(
+            String.format("Plan entity aspects not supported by {}", getClass().getSimpleName()));
     }
 
     /**

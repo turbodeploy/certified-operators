@@ -3,6 +3,8 @@ package com.vmturbo.api.component.external.api.mapper.aspect;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -13,12 +15,16 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.entityaspect.PMDiskAspectApiDTO;
 import com.vmturbo.api.dto.entityaspect.PMDiskGroupAspectApiDTO;
 import com.vmturbo.api.dto.entityaspect.PMEntityAspectApiDTO;
 import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.api.enums.DiskRoleType;
+import com.vmturbo.api.exceptions.ConversionException;
+import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
@@ -86,6 +92,24 @@ public class PhysicalMachineAspectMapper extends AbstractAspectMapper {
         // map networks
         aspect.setConnectedNetworks(new ArrayList<>(getNetworks(entity)));
         return aspect;
+    }
+
+    @Nonnull
+    @Override
+    public Optional<Map<Long, EntityAspect>> mapPlanEntityToAspectBatch(
+        @Nonnull List<TopologyEntityDTO> entities, final long planTopologyContextId)
+        throws InterruptedException, ConversionException, InvalidOperationException {
+        throw new InvalidOperationException(
+            String.format("Plan entity aspects not supported by {}", getClass().getSimpleName()));
+    }
+
+    @Nonnull
+    @Override
+    public Optional<Map<Long, EntityAspect>> mapPlanEntityToAspectBatchPartial(
+        @Nonnull List<ApiPartialEntity> entities, final long planTopologyContextId)
+        throws InterruptedException, ConversionException, InvalidOperationException {
+        throw new InvalidOperationException(
+            String.format("Plan entity aspects not supported by {}", getClass().getSimpleName()));
     }
 
     @Nonnull

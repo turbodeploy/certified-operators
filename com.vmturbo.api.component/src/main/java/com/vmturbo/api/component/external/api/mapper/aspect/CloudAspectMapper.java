@@ -31,6 +31,8 @@ import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.enums.AspectName;
+import com.vmturbo.api.exceptions.ConversionException;
+import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.common.protobuf.VirtualMachineProtoUtil;
 import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
@@ -293,6 +295,24 @@ public class CloudAspectMapper extends AbstractAspectMapper {
         }
 
         return Optional.of(resp);
+    }
+
+    @Nonnull
+    @Override
+    public Optional<Map<Long, EntityAspect>> mapPlanEntityToAspectBatch(
+        @Nonnull List<TopologyEntityDTO> entities, final long planTopologyContextId)
+        throws InterruptedException, ConversionException, InvalidOperationException {
+        throw new InvalidOperationException(
+            String.format("Plan entity aspects not supported by {}", getClass().getSimpleName()));
+    }
+
+    @Nonnull
+    @Override
+    public Optional<Map<Long, EntityAspect>> mapPlanEntityToAspectBatchPartial(
+        @Nonnull List<ApiPartialEntity> entities, final long planTopologyContextId)
+        throws InterruptedException, ConversionException, InvalidOperationException {
+        throw new InvalidOperationException(
+            String.format("Plan entity aspects not supported by {}", getClass().getSimpleName()));
     }
 
     /**

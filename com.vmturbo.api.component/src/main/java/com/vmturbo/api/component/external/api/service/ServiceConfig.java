@@ -437,6 +437,7 @@ public class ServiceConfig {
                 actionSearchUtil(),
                 entitySettingQueryExecutor(),
                 licenseCheckClientConfig.licenseCheckClient(),
+                mapperConfig.entityAspectMapper(),
                 communicationConfig.getRealtimeTopologyContextId());
     }
 

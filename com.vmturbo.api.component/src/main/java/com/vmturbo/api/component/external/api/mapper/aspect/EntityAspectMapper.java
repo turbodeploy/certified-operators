@@ -336,7 +336,6 @@ public class EntityAspectMapper {
             // We will first call mapper.mapEntityToAspectBatch(), which handles entities in bulk.
             // If mapEntityToAspectBatch() is not implemented for this mapper, it will return an empty Optional.
             // In that case, revert to mapper.mapEntityToAspect(), which handles entities one at a time.
-
             Optional<Map<Long, EntityAspect>> aspectMap = mapper.mapEntityToAspectBatch(matchingEntities);
             if (aspectMap.isPresent()) {
                 aspectMap.get().forEach((oid, aspect) -> {

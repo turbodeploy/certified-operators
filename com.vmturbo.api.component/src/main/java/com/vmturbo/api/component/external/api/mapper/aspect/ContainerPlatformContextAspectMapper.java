@@ -1,7 +1,7 @@
 package com.vmturbo.api.component.external.api.mapper.aspect;
 
-import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -28,7 +28,9 @@ import com.vmturbo.api.dto.entityaspect.ContainerPlatformContextAspectApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.api.exceptions.ConversionException;
+import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsRequest;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsRequest.Builder;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainScope;
@@ -53,21 +55,20 @@ public class ContainerPlatformContextAspectMapper extends AbstractAspectMapper {
      * @param supplyChainRpcService Supply chain search service
      * @param repositoryApi  Repository access to fetch entities.
      * @param realtimeTopologyContextId The real time topology context id.
-     *                                 Note: This only permits the lookup of aspects on the
-     *                                 realtime topology and not plan entities.
+     *                                  Note: This only permits the lookup of aspects on the
+     *                                  realtime topology and not plan entities.
      */
     public ContainerPlatformContextAspectMapper(@Nonnull final SupplyChainServiceBlockingStub supplyChainRpcService,
                                           @Nonnull final RepositoryApi repositoryApi,
                                           @Nonnull final Long realtimeTopologyContextId) {
-        containerPlatformContextMapper = new ContainerPlatformContextMapper(supplyChainRpcService,
-                                                            repositoryApi, realtimeTopologyContextId);
+        containerPlatformContextMapper = new ContainerPlatformContextMapper(
+            supplyChainRpcService, repositoryApi, realtimeTopologyContextId);
     }
 
     @Override
     public Optional<Map<Long, EntityAspect>> mapEntityToAspectBatchPartial(@Nonnull List<ApiPartialEntity> entities)
-            throws InterruptedException, ConversionException {
-        Map<Long, EntityAspect> aspectMap = containerPlatformContextMapper.bulkMapContainerPlatformContext(entities);
-        return Optional.of(aspectMap);
+        throws InterruptedException, ConversionException {
+        return Optional.of(containerPlatformContextMapper.bulkMapContainerPlatformContext(entities, Optional.empty()));
     }
 
     /**
@@ -81,8 +82,7 @@ public class ContainerPlatformContextAspectMapper extends AbstractAspectMapper {
     @Nonnull
     @Override
     public Optional<Map<Long, EntityAspect>> mapEntityToAspectBatch(@Nonnull final List<TopologyEntityDTO> entities) {
-        Map<Long, EntityAspect> aspectMap = containerPlatformContextMapper.getContainerPlatformContext(entities);
-        return Optional.of(aspectMap);
+        return Optional.of(containerPlatformContextMapper.getContainerPlatformContext(entities, Optional.empty()));
     }
 
     /**
@@ -94,13 +94,9 @@ public class ContainerPlatformContextAspectMapper extends AbstractAspectMapper {
     @Nullable
     @Override
     public EntityAspect mapEntityToAspect(@Nonnull final TopologyEntityDTO entity) {
-        Optional<Map<Long, EntityAspect>> result = mapEntityToAspectBatch(Arrays.asList(entity));
-
-        if (!result.isPresent()) {
-            return result.get().get(entity.getOid());
-
-        }
-        return null;
+        return mapEntityToAspectBatch(Collections.singletonList(entity))
+            .map(result -> result.get(entity.getOid()))
+            .orElse(null);
     }
 
     /**
@@ -114,6 +110,23 @@ public class ContainerPlatformContextAspectMapper extends AbstractAspectMapper {
         return AspectName.CONTAINER_PLATFORM_CONTEXT;
     }
 
+    @Nonnull
+    @Override
+    public Optional<Map<Long, EntityAspect>> mapPlanEntityToAspectBatch(
+        @Nonnull List<TopologyEntityDTO> entities, final long planTopologyContextId)
+        throws InterruptedException, ConversionException, InvalidOperationException {
+        return Optional.of(containerPlatformContextMapper.getContainerPlatformContext(entities,
+            Optional.of(planTopologyContextId)));
+    }
+
+    @Nonnull
+    @Override
+    public Optional<Map<Long, EntityAspect>> mapPlanEntityToAspectBatchPartial(
+        @Nonnull List<ApiPartialEntity> entities, final long planTopologyContextId)
+        throws InterruptedException, ConversionException, InvalidOperationException {
+        return Optional.of(containerPlatformContextMapper.bulkMapContainerPlatformContext(entities,
+            Optional.of(planTopologyContextId)));
+    }
 
     /**
      * Convenience class to obtain container platform context information for entities
@@ -122,28 +135,27 @@ public class ContainerPlatformContextAspectMapper extends AbstractAspectMapper {
      * and is obtained by traversing the supply chain to find namespace and cluster entities
      * that the entity is connected to. The context information is then
      * represented as {@link ContainerPlatformContextAspectApiDTO} for api calls.
-     *
      */
-     @VisibleForTesting
-     static class ContainerPlatformContextMapper {
+    @VisibleForTesting
+    static class ContainerPlatformContextMapper {
         private final Logger logger = LogManager.getLogger();
         private final long realtimeTopologyContextId;
         private final SupplyChainServiceBlockingStub supplyChainRpcService;
         private final RepositoryApi repositoryApi;
 
         private static final Set<Integer> CLOUD_NATIVE_ENTITY_CONNECTIONS
-                = ImmutableSet.of(EntityType.NAMESPACE_VALUE, EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE);
+            = ImmutableSet.of(EntityType.NAMESPACE_VALUE, EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE);
 
         private static final Map<Integer, Set<Integer>> ENTITY_TYPE_TO_CONNECTIONS
-                = ImmutableMap.<Integer, Set<Integer>>builder()
-                .put(EntityType.CONTAINER_VALUE,           CLOUD_NATIVE_ENTITY_CONNECTIONS)
-                .put(EntityType.CONTAINER_POD_VALUE,       CLOUD_NATIVE_ENTITY_CONNECTIONS)
-                .put(EntityType.CONTAINER_SPEC_VALUE,      CLOUD_NATIVE_ENTITY_CONNECTIONS)
-                .put(EntityType.WORKLOAD_CONTROLLER_VALUE, CLOUD_NATIVE_ENTITY_CONNECTIONS)
-                .put(EntityType.SERVICE_VALUE,             CLOUD_NATIVE_ENTITY_CONNECTIONS)
-                //VM's don't actually belong to a specific namespace so only fetch cluster name
-                .put(EntityType.VIRTUAL_MACHINE_VALUE,      ImmutableSet.of(EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE))
-                .build();
+            = ImmutableMap.<Integer, Set<Integer>>builder()
+            .put(EntityType.CONTAINER_VALUE, CLOUD_NATIVE_ENTITY_CONNECTIONS)
+            .put(EntityType.CONTAINER_POD_VALUE, CLOUD_NATIVE_ENTITY_CONNECTIONS)
+            .put(EntityType.CONTAINER_SPEC_VALUE, CLOUD_NATIVE_ENTITY_CONNECTIONS)
+            .put(EntityType.WORKLOAD_CONTROLLER_VALUE, CLOUD_NATIVE_ENTITY_CONNECTIONS)
+            .put(EntityType.SERVICE_VALUE, CLOUD_NATIVE_ENTITY_CONNECTIONS)
+            //VM's don't actually belong to a specific namespace so only fetch cluster name
+            .put(EntityType.VIRTUAL_MACHINE_VALUE, ImmutableSet.of(EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE))
+            .build();
 
         /**
          * Constructor for the ContainerPlatformContextMapper.
@@ -152,7 +164,7 @@ public class ContainerPlatformContextAspectMapper extends AbstractAspectMapper {
          * @param repositoryApi To fetch entities.
          * @param realtimeTopologyContextId The real time topology context id.
          *                                  Note: This only permits the lookup of aspects on the
-         *                                    realtime topology and not plan entities.
+         *                                  realtime topology and not plan entities.
          */
         ContainerPlatformContextMapper(@Nonnull final SupplyChainServiceBlockingStub supplyChainRpcService,
                                               @Nonnull final RepositoryApi repositoryApi,
@@ -165,38 +177,46 @@ public class ContainerPlatformContextAspectMapper extends AbstractAspectMapper {
         /**
          * Return the {@link ContainerPlatformContextAspectApiDTO} containing the namespace
          * and container platform cluster for the given set of topology entities.
+         * <p/>
+         * Note that we are unable to fetch the correct context for market-provisioned entities
+         * given only {@link ApiPartialEntity} information. This will, however, work for
+         * entities in the original topology that also make it into the projected plan topology.
          *
-         * @param entities Collection for {@link ApiPartialEntity}'s
+         * @param entities      Collection for {@link ApiPartialEntity}'s
+         * @param planContextId The context ID of the plan topology from which to fetch the entities.
+         *                      Provide {@link Optional#empty()} to retrieve data from the realtime topology.
          * @return map containing the entity OID and its corresponding container platform aspect
          */
-         Map<Long, EntityAspect> bulkMapContainerPlatformContext(Collection<ApiPartialEntity> entities) {
-            Map<Long, EntityAspect> entityAspectMap = new HashMap<>();
+        Map<Long, EntityAspect> bulkMapContainerPlatformContext(
+            @Nonnull final Collection<ApiPartialEntity> entities,
+            final Optional<Long> planContextId) {
+            final Map<Long, EntityAspect> entityAspectMap = new HashMap<>();
+            final long topologyContextId = planContextId.orElse(realtimeTopologyContextId);
 
             // Request to the supply chain search service to find the cloud native connections
             final GetMultiSupplyChainsRequest.Builder requestBuilder =
-                    GetMultiSupplyChainsRequest.newBuilder()
-                            .setContextId(realtimeTopologyContextId);
+                GetMultiSupplyChainsRequest.newBuilder()
+                    .setContextId(topologyContextId);
 
             entities.stream()
-                    .filter( entity -> ENTITY_TYPE_TO_CONNECTIONS.containsKey(entity.getEntityType()))
-                    .forEach( entity -> {
-                        long entityOid = entity.getOid();
-                        requestBuilder.addSeeds(
-                                SupplyChainSeed.newBuilder()
-                                        .setSeedOid(entityOid)
-                                        .setScope(SupplyChainScope.newBuilder()
-                                                .addStartingEntityOid(entityOid)
-                                                .addAllEntityTypesToInclude(
-                                                        ENTITY_TYPE_TO_CONNECTIONS.get(entity.getEntityType()))
-                                        ));
-
-                    });
+                .filter(entity -> ENTITY_TYPE_TO_CONNECTIONS.containsKey(entity.getEntityType()))
+                .forEach(entity -> {
+                    long entityOid = entity.getOid();
+                    requestBuilder.addSeeds(
+                        SupplyChainSeed.newBuilder()
+                            .setSeedOid(entityOid)
+                            .setScope(SupplyChainScope.newBuilder()
+                                .addStartingEntityOid(entityOid)
+                                .addAllEntityTypesToInclude(
+                                    ENTITY_TYPE_TO_CONNECTIONS.get(entity.getEntityType()))
+                            ));
+                });
 
             if (requestBuilder.getSeedsCount() == 0) {
                 return entityAspectMap;
             }
 
-            return getCloudNativeConnectedEntities(requestBuilder);
+            return getCloudNativeConnectedEntities(requestBuilder, topologyContextId, Collections.emptyMap());
         }
 
         /**
@@ -204,10 +224,15 @@ public class ContainerPlatformContextAspectMapper extends AbstractAspectMapper {
          * and then retrieve the corresponding entities from the repository.
          *
          * @param requestBuilder GetMultiSupplyChainsRequest
+         * @param topologyContextId The context ID of the topology from which to fetch the entities.
+         * @param analysisOriginMap A map of original entity ID -> cloned entity ID for entities added as a result
+         *                          of provision actions in the market.
          * @return map containing the entity OID and its corresponding container platform aspect
          */
-        private Map<Long, EntityAspect> getCloudNativeConnectedEntities(GetMultiSupplyChainsRequest.Builder requestBuilder) {
-            Map<Long, EntityAspect> connectedEntities = new HashMap<>();
+        private Map<Long, EntityAspect> getCloudNativeConnectedEntities(
+            @Nonnull final Builder requestBuilder,
+            final long topologyContextId, Map<Long, ClonedEntityMapping> analysisOriginMap) {
+            @Nonnull final  Map<Long, EntityAspect> connectedEntities = new HashMap<>();
 
             // First search the supply chain to get the connected namespace and cluster for each entity.
             // set of the OIDs for each unique connection entity
@@ -240,7 +265,7 @@ public class ContainerPlatformContextAspectMapper extends AbstractAspectMapper {
 
             if (!connectedEntityIds.isEmpty()) {
                 // Second repository rpc call to get the name for each of the unique connection entity
-                Map<Long, MinimalEntity> repositoryEntities = getRepositoryEntities(visited);
+                Map<Long, MinimalEntity> repositoryEntities = getRepositoryEntities(visited, topologyContextId);
 
                 connectedEntityIds.forEach((eId, connections) -> {
                     final ContainerPlatformContextAspectApiDTO aspect = new ContainerPlatformContextAspectApiDTO();
@@ -259,7 +284,15 @@ public class ContainerPlatformContextAspectMapper extends AbstractAspectMapper {
                         }
                     }
 
-                    connectedEntities.put(eId, aspect);
+                    ClonedEntityMapping clonedEntityMapping = analysisOriginMap.get(eId);
+                    if (clonedEntityMapping != null) {
+                        clonedEntityMapping.cloneOids.forEach(cloneOid -> connectedEntities.put(cloneOid, aspect));
+                        if (clonedEntityMapping.includeOriginalEntity) {
+                            connectedEntities.put(eId, aspect);
+                        }
+                    } else {
+                        connectedEntities.put(eId, aspect);
+                    }
                 });
             }
 
@@ -268,19 +301,23 @@ public class ContainerPlatformContextAspectMapper extends AbstractAspectMapper {
 
         /**
          * Retrieve the entities from the repository for the given list of OIDs.
-         * @param entityOids list of entity OIDs
+         *
+         * @param entityOids        list of entity OIDs
+         * @param topologyContextId The context ID of the topology from which to fetch the entities.
          * @return Map containing the entity OID and its {@link BaseApiDTO}
          */
-        private Map<Long, MinimalEntity> getRepositoryEntities(Set<Long> entityOids) {
+        private Map<Long, MinimalEntity> getRepositoryEntities(@Nonnull final Set<Long> entityOids,
+                                                               final long topologyContextId) {
             Map<Long, MinimalEntity> minimalEntityMap = new HashMap<>(entityOids.size());
             if (entityOids.isEmpty()) {
                 return minimalEntityMap;
             }
 
             try {
-                repositoryApi.entitiesRequest(entityOids).getMinimalEntities().forEach(minimalEntity -> {
-                    minimalEntityMap.put(minimalEntity.getOid(), minimalEntity);
-                });
+                repositoryApi.entitiesRequest(entityOids)
+                    .contextId(topologyContextId)
+                    .getMinimalEntities()
+                    .forEach(minimalEntity -> minimalEntityMap.put(minimalEntity.getOid(), minimalEntity));
             } catch (StatusRuntimeException e) {
                 logger.error("Failed to retrieve cloud native context entities from repository", e);
             }
@@ -293,36 +330,91 @@ public class ContainerPlatformContextAspectMapper extends AbstractAspectMapper {
          * and container platform cluster for the given set of topology entities.
          *
          * @param entities collection of {@link TopologyEntityDTO}
+         * @param planContextId The context ID of the plan topology from which to fetch the entities.
+         *                      Provide {@link Optional#empty()} to retrieve data from the realtime topology.
          * @return map containing the entity OID and its corresponding container platform aspect
          */
-         Map<Long, EntityAspect> getContainerPlatformContext( Collection<TopologyEntityDTO> entities) {
-            Map<Long, EntityAspect> entityAspectMap = new HashMap<>();
+        Map<Long, EntityAspect> getContainerPlatformContext(
+            @Nonnull final Collection<TopologyEntityDTO> entities,
+            final Optional<Long> planContextId) {
+            final Map<Long, EntityAspect> entityAspectMap = new HashMap<>();
+            final long topologyContextId = planContextId.orElse(realtimeTopologyContextId);
+            final Map<Long, ClonedEntityMapping> analysisOriginMap = new HashMap<>();
 
             // Request to the supply chain search service to find the cloud native connections
             final GetMultiSupplyChainsRequest.Builder requestBuilder =
-                    GetMultiSupplyChainsRequest.newBuilder()
-                            .setContextId(realtimeTopologyContextId);
+                GetMultiSupplyChainsRequest.newBuilder()
+                    .setContextId(topologyContextId);
+            final Set<Long> entityOids = new HashSet<>(entities.size());
+            final Set<Long> seeds = new HashSet<>(entities.size());
 
             entities.stream()
-                    .filter( entity -> ENTITY_TYPE_TO_CONNECTIONS.containsKey(entity.getEntityType()))
-                    .forEach( entity -> {
-                        Long entityOid = entity.getOid();
-                        requestBuilder.addSeeds(
-                                SupplyChainSeed.newBuilder()
-                                        .setSeedOid(entityOid)
-                                        .setScope(SupplyChainScope.newBuilder()
-                                                .addStartingEntityOid(entityOid)
-                                                .addAllEntityTypesToInclude(
-                                                        ENTITY_TYPE_TO_CONNECTIONS.get(entity.getEntityType()))
-                                        ));
+                .filter(entity -> ENTITY_TYPE_TO_CONNECTIONS.containsKey(entity.getEntityType()))
+                .forEach(entity -> {
+                    long entityOid = entity.getOid();
+                    entityOids.add(entityOid);
 
-                    });
+                    // In the case of an entity added by the market as the result of a provision
+                    // action, fetch the supply chain for the original entity because the provisioned
+                    // entity does not have all its relationships set up. Retain the mapping from
+                    // original -> clone
+                    if (entity.hasOrigin() && entity.getOrigin().hasAnalysisOrigin()) {
+                        final long originalEntityId = entity.getOrigin().getAnalysisOrigin().getOriginalEntityId();
+                        analysisOriginMap.computeIfAbsent(originalEntityId,
+                            oid -> new ClonedEntityMapping(entityOids.contains(originalEntityId)))
+                            .cloneOids.add(entityOid);
+                        entityOid = originalEntityId;
+                    } else {
+                        analysisOriginMap.computeIfPresent(entityOid, (oid, mapping) -> {
+                            mapping.includeOriginalEntity = true;
+                            return mapping;
+                        });
+                    }
+
+                    // Only add the seed if it hasn't already been added. The same entity may come up
+                    // multiple times if there are clones of an entity.
+                    if (seeds.add(entityOid)) {
+                        requestBuilder.addSeeds(
+                            SupplyChainSeed.newBuilder()
+                                .setSeedOid(entityOid)
+                                .setScope(SupplyChainScope.newBuilder()
+                                    .addStartingEntityOid(entityOid)
+                                    .addAllEntityTypesToInclude(
+                                        ENTITY_TYPE_TO_CONNECTIONS.get(entity.getEntityType()))
+                                ));
+                    }
+                });
 
             if (requestBuilder.getSeedsCount() == 0) {
                 return entityAspectMap;
             }
 
-            return getCloudNativeConnectedEntities(requestBuilder);
+            return getCloudNativeConnectedEntities(requestBuilder, topologyContextId, analysisOriginMap);
+        }
+    }
+
+    /**
+     * A mapping for an entity that has been cloned by the market. When we identify a cloned entity,
+     * we look up the context for the original entity and apply that to all the clones of the original
+     * entity.
+     */
+    private static class ClonedEntityMapping {
+        /**
+         * The OIDs of the entities that are clones of an original.
+         */
+        private final Set<Long> cloneOids = new HashSet<>();
+        /**
+         * Whether the original entity also needs to have its context aspect included in the results.
+         */
+        private boolean includeOriginalEntity;
+
+        /**
+         * Create a new {@link ClonedEntityMapping}.
+         *
+         * @param includeOriginalEntity Whether to include the original entity in returned aspects.
+         */
+        private ClonedEntityMapping(final boolean includeOriginalEntity) {
+            this.includeOriginalEntity = includeOriginalEntity;
         }
     }
 }

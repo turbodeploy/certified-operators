@@ -401,6 +401,36 @@ public class ServiceEntityMapper {
     }
 
     /**
+     * Populate aspects for a given service entity.
+     *
+     * @param entity The entity whose aspects should be populated.
+     * @param aspects The specific aspects that should be populated.
+     * @param oid The oid of the entity to be populated.
+     */
+    public void populateAspects(@Nonnull final ServiceEntityApiDTO entity,
+                                @Nonnull final  Map<Long, Map<AspectName, EntityAspect>> aspects,
+                                final long oid) {
+        if (aspects.containsKey(oid)) {
+            final Map<AspectName, EntityAspect> aspectMap = aspects.get(oid);
+
+            for (final EntityAspect aspect : aspectMap.values()) {
+                if (aspect instanceof CloudAspectApiDTO) {
+                    final BaseApiDTO cloudTemplate = ((CloudAspectApiDTO)aspect).getTemplate();
+                    if (cloudTemplate != null) {
+                        final TemplateApiDTO template = new TemplateApiDTO();
+                        template.setUuid(cloudTemplate.getUuid());
+                        template.setDisplayName(cloudTemplate.getDisplayName());
+                        entity.setTemplate(template);
+                        break;
+                    }
+                }
+            }
+
+            entity.setAspectsByName(aspectMap);
+        }
+    }
+
+    /**
      * Set prices for entity components, including the cost of the entity itself and its components,
      * such as a template.
      *
@@ -465,24 +495,7 @@ public class ServiceEntityMapper {
     private ServiceEntityApiDTO entityToSeWithAspect(final TopologyEntityDTO entity,
             final Map<Long, Map<AspectName, EntityAspect>> aspects) {
         final ServiceEntityApiDTO se = toServiceEntityApiDTO(entity);
-        if (aspects.containsKey(entity.getOid())) {
-            final Map<AspectName, EntityAspect> aspectMap = aspects.get(entity.getOid());
-
-            for (final EntityAspect aspect : aspectMap.values()) {
-                if (aspect instanceof CloudAspectApiDTO) {
-                    final BaseApiDTO cloudTemplate = ((CloudAspectApiDTO)aspect).getTemplate();
-                    if (cloudTemplate != null) {
-                        final TemplateApiDTO template = new TemplateApiDTO();
-                        template.setUuid(cloudTemplate.getUuid());
-                        template.setDisplayName(cloudTemplate.getDisplayName());
-                        se.setTemplate(template);
-                        break;
-                    }
-                }
-            }
-
-            se.setAspectsByName(aspectMap);
-        }
+        populateAspects(se, aspects, entity.getOid());
 
         return se;
     }

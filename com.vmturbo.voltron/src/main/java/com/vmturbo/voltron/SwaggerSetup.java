@@ -11,6 +11,7 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.apache.commons.io.FileUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -81,6 +82,7 @@ public class SwaggerSetup {
         final Path apiDocsPath = Paths.get(this.apiDocsPath);
 
         if (shouldCopyFiles(destinationPath, generatedDocsPath, force)) {
+            deleteDirectory(destinationPath);
             copyFolder(generatedDocsPath, destinationPath);
             copyFolder(apiDocsPath, destinationPath);
         }
@@ -112,8 +114,13 @@ public class SwaggerSetup {
         }
 
         try {
-            final BasicFileAttributes destFileAttrs = Files.readAttributes(Paths.get(
-                destinationPath.toString(), SWAGGER_JSON_FILE), BasicFileAttributes.class);
+            Path dstSwaggerJson = Paths.get(destinationPath.toString(), SWAGGER_JSON_FILE);
+            if (!Files.exists(dstSwaggerJson)) {
+                return true;
+            }
+
+            final BasicFileAttributes destFileAttrs = Files.readAttributes(dstSwaggerJson,
+                BasicFileAttributes.class);
             final BasicFileAttributes srcFileAttrs = Files.readAttributes(Paths.get(
                 generatedDocsPath.toString(), SWAGGER_JSON_FILE), BasicFileAttributes.class);
 
@@ -121,6 +128,20 @@ public class SwaggerSetup {
         } catch (IOException e) {
             logger.error("Error getting file attributes: ", e);
             return false;
+        }
+    }
+
+    private void deleteDirectory(Path toDelete) {
+        if (Files.exists(toDelete)) {
+            final File dir = new File(toDelete.toString());
+            if (dir.isDirectory()) {
+                try {
+                    FileUtils.forceDelete(dir);
+                    logger.info("Deleted external API swagger directory '{}'", dir);
+                } catch (IOException e) {
+                    logger.error(String.format("Unable to delete directory %s: ", dir.toString()), e);
+                }
+            }
         }
     }
 
@@ -132,7 +153,11 @@ public class SwaggerSetup {
         }
 
         try (Stream<Path> stream = Files.walk(src)) {
-            stream.forEach(source -> copy(source, dest.resolve(src.relativize(source))));
+            stream.forEach(source -> {
+                if (!Files.isDirectory(source)) {
+                    copy(source, dest.resolve(src.relativize(source)));
+                }
+            });
         } catch (IOException e) {
             final String message = String.format("Unable to copy folder '%s' to '%s': ", src, dest);
             logger.error(message, e);

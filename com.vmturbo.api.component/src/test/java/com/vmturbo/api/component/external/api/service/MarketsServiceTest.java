@@ -9,6 +9,8 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -47,6 +49,7 @@ import com.vmturbo.api.MarketNotificationDTO.StatusNotification;
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
+import com.vmturbo.api.component.communication.RepositoryApi.PaginatedEntitiesRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.MarketMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
@@ -57,6 +60,7 @@ import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedPlanInfo;
+import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.ServiceProviderExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
@@ -70,11 +74,14 @@ import com.vmturbo.api.dto.entity.FailedResourceApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.entity.UnplacementDetailsApiDTO;
 import com.vmturbo.api.dto.entity.UnplacementReasonApiDTO;
+import com.vmturbo.api.dto.entityaspect.EntityAspect;
+import com.vmturbo.api.dto.entityaspect.WorkloadControllerAspectApiDTO;
 import com.vmturbo.api.dto.market.MarketApiDTO;
 import com.vmturbo.api.dto.policy.PolicyApiDTO;
 import com.vmturbo.api.dto.policy.PolicyApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
 import com.vmturbo.api.enums.ActionDetailLevel;
+import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.MergePolicyType;
 import com.vmturbo.api.enums.PolicyType;
@@ -142,11 +149,14 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.Scenario;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.common.protobuf.plan.ScenarioServiceGrpc;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
-import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
+import com.vmturbo.common.protobuf.search.Search.SearchQuery;
 import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
+import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -235,6 +245,7 @@ public class MarketsServiceTest {
     private RepositoryApi repositoryApi = mock(RepositoryApi.class);
 
     private ServiceEntityMapper serviceEntityMapper = mock(ServiceEntityMapper.class);
+    private final EntityAspectMapper entityAspectMapper = mock(EntityAspectMapper.class);
 
     private SeverityPopulator severityPopulator = mock(SeverityPopulator.class);
     private PriceIndexPopulator priceIndexPopulator = mock(PriceIndexPopulator.class);
@@ -313,6 +324,7 @@ public class MarketsServiceTest {
                                  REALTIME_CONTEXT_ID),
             entitySettingQueryExecutor,
             licenseCheckClient,
+            entityAspectMapper,
             REALTIME_CONTEXT_ID
         );
 
@@ -686,8 +698,7 @@ public class MarketsServiceTest {
     }
 
     /**
-     * Test that getting entities by real market Id causes a searchEntities call
-     * to the search rpc service.
+     * Test that getting entities by real market Id triggers a search.
      *
      * @throws Exception If anything goes wrong.
      */
@@ -695,30 +706,109 @@ public class MarketsServiceTest {
     public void testRetrieveTopologyEntities() throws Exception {
         ApiTestUtils.mockRealtimeId(MARKET_UUID, REALTIME_PLAN_ID, uuidMapper);
 
-        ServiceEntityApiDTO se1 = new ServiceEntityApiDTO();
-        se1.setClassName(ApiEntityType.VIRTUAL_MACHINE.apiStr());
-        se1.setUuid("1");
-        ApiPartialEntity entity = ApiPartialEntity.newBuilder()
-            .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
-            .setOid(1)
-            .build();
-        doReturn(SearchEntitiesResponse.newBuilder()
-            .addEntities(PartialEntity.newBuilder()
-                .setApi(entity))
-            .build()).when(searchBackend).searchEntities(any());
-        when(serviceEntityMapper.toServiceEntityApiDTO(Collections.singletonList(entity)))
-            .thenReturn(Collections.singletonList(se1));
+        final EntityPaginationResponse expectedResponse = mock(EntityPaginationResponse.class);
+        final PaginatedEntitiesRequest paginatedEntitiesRequest = mock(PaginatedEntitiesRequest.class);
+        when(repositoryApi.newPaginatedEntities(any(SearchQuery.class), eq(Collections.emptySet()), any(EntityPaginationRequest.class)))
+            .thenReturn(paginatedEntitiesRequest);
+        when(paginatedEntitiesRequest.getResponse()).thenReturn(expectedResponse);
 
-        when(paginationMapper.toProtoParams(any())).thenReturn(PaginationParameters.getDefaultInstance());
         // act
         EntityPaginationResponse response = marketsService.getEntitiesByMarketUuid(MARKET_UUID,
-            new EntityPaginationRequest(null, null, true, null));
+            null, null, null, new EntityPaginationRequest(null, null, true, null));
 
         // verify
-        assertThat(response.getRawResults(), containsInAnyOrder(se1));
-        verify(searchBackend).searchEntities(any());
-        verify(priceIndexPopulator).populateRealTimeEntities(Collections.singletonList(se1));
-        verify(severityPopulator).populate(REALTIME_CONTEXT_ID, Collections.singletonList(se1));
+        assertThat(response, is(expectedResponse));
+        verify(paginatedEntitiesRequest, never()).requestAspects(any(), any());
+    }
+
+    /**
+     * Test that getting entities filters by entity type if provided.
+     *
+     * @throws Exception If anything goes wrong.
+     */
+    @Test
+    public void testRetrieveTopologyEntitiesFilterByType() throws Exception {
+        ApiTestUtils.mockRealtimeId(MARKET_UUID, REALTIME_PLAN_ID, uuidMapper);
+
+        final EntityPaginationResponse expectedResponse = mock(EntityPaginationResponse.class);
+        final PaginatedEntitiesRequest paginatedEntitiesRequest = mock(PaginatedEntitiesRequest.class);
+        ArgumentCaptor<SearchQuery> searchQueryArgument = ArgumentCaptor.forClass(SearchQuery.class);
+        when(repositoryApi.newPaginatedEntities(searchQueryArgument.capture(), eq(Collections.emptySet()),
+            any(EntityPaginationRequest.class)))
+            .thenReturn(paginatedEntitiesRequest);
+        when(paginatedEntitiesRequest.getResponse()).thenReturn(expectedResponse);
+
+        // act
+        EntityPaginationResponse response = marketsService.getEntitiesByMarketUuid(MARKET_UUID,
+            null, Arrays.asList(ApiEntityType.VIRTUAL_MACHINE.apiStr(), ApiEntityType.PHYSICAL_MACHINE.apiStr()),
+            null, new EntityPaginationRequest(null, null, true, null));
+
+        // verify
+        assertThat(response, is(expectedResponse));
+        verify(paginatedEntitiesRequest, never()).requestAspects(any(), any());
+        final SearchQuery searchQuery = searchQueryArgument.getValue();
+        final PropertyFilter startingFilter = searchQuery.getSearchParametersList().get(0).getStartingFilter();
+        assertEquals(SearchableProperties.ENTITY_TYPE, startingFilter.getPropertyName());
+        assertThat(startingFilter.getStringFilter().getOptionsList(),
+            containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.apiStr(), ApiEntityType.PHYSICAL_MACHINE.apiStr()));
+    }
+
+
+    /**
+     * Test that getting entities filters by OID if provided.
+     *
+     * @throws Exception If anything goes wrong.
+     */
+    @Test
+    public void testRetrieveTopologyEntitiesFilterByOid() throws Exception {
+        ApiTestUtils.mockRealtimeId(MARKET_UUID, REALTIME_PLAN_ID, uuidMapper);
+
+        final EntityPaginationResponse expectedResponse = mock(EntityPaginationResponse.class);
+        final PaginatedEntitiesRequest paginatedEntitiesRequest = mock(PaginatedEntitiesRequest.class);
+        ArgumentCaptor<SearchQuery> searchQueryArgument = ArgumentCaptor.forClass(SearchQuery.class);
+        when(repositoryApi.newPaginatedEntities(searchQueryArgument.capture(), eq(Collections.emptySet()),
+            any(EntityPaginationRequest.class)))
+            .thenReturn(paginatedEntitiesRequest);
+        when(paginatedEntitiesRequest.getResponse()).thenReturn(expectedResponse);
+
+        // act
+        EntityPaginationResponse response = marketsService.getEntitiesByMarketUuid(MARKET_UUID,
+            Arrays.asList("1234", "5678"), null,
+            null, new EntityPaginationRequest(null, null, true, null));
+
+        // verify
+        assertThat(response, is(expectedResponse));
+        verify(paginatedEntitiesRequest, never()).requestAspects(any(), any());
+        final SearchQuery searchQuery = searchQueryArgument.getValue();
+        final PropertyFilter startingFilter = searchQuery.getSearchParametersList().get(0).getStartingFilter();
+        assertEquals(SearchableProperties.OID, startingFilter.getPropertyName());
+        assertThat(startingFilter.getStringFilter().getOptionsList(),
+            containsInAnyOrder("1234", "5678"));
+    }
+
+    /**
+     * Test that getting entities by real market Id triggers a search with appropriate aspects.
+     *
+     * @throws Exception If anything goes wrong.
+     */
+    @Test
+    public void testRetrieveTopologyEntitiesWithAspects() throws Exception {
+        ApiTestUtils.mockRealtimeId(MARKET_UUID, REALTIME_PLAN_ID, uuidMapper);
+
+        final EntityPaginationResponse expectedResponse = mock(EntityPaginationResponse.class);
+        final PaginatedEntitiesRequest paginatedEntitiesRequest = mock(PaginatedEntitiesRequest.class);
+        when(repositoryApi.newPaginatedEntities(any(SearchQuery.class), eq(Collections.emptySet()),
+            any(EntityPaginationRequest.class)))
+            .thenReturn(paginatedEntitiesRequest);
+        when(paginatedEntitiesRequest.getResponse()).thenReturn(expectedResponse);
+
+        // act
+        EntityPaginationResponse response = marketsService.getEntitiesByMarketUuid(MARKET_UUID,
+            null, null, Arrays.asList("foo", "bar"), new EntityPaginationRequest(null, null, true, null));
+
+        // verify
+        assertThat(response, is(expectedResponse));
+        verify(paginatedEntitiesRequest).requestAspects(eq(entityAspectMapper), eq(Arrays.asList("foo", "bar")));
     }
 
     /**
@@ -776,7 +866,7 @@ public class MarketsServiceTest {
         final Integer limit = 2;
         // act
         EntityPaginationResponse response = marketsService.getEntitiesByMarketUuid(
-            planUuid,
+            planUuid, null, null, null,
             new EntityPaginationRequest(cursor, limit, true, null));
 
         // verify
@@ -791,6 +881,124 @@ public class MarketsServiceTest {
     }
 
     /**
+     * Test getting plan entities filtered by ID.
+     *
+     * @throws Exception If anything goes wrong.
+     */
+    @Test
+    public void testRetrievePlanEntitiesById() throws Exception {
+        final String planUuid = Long.toString(REALTIME_PLAN_ID);
+        final long projectedPlanTopologyId = 56;
+        ApiTestUtils.mockPlanId(planUuid, uuidMapper);
+        doReturn(OptionalPlanInstance.newBuilder()
+            .setPlanInstance(PlanInstance.newBuilder()
+                .setPlanId(123)
+                .setProjectedTopologyId(projectedPlanTopologyId)
+                .setStatus(PlanStatus.SUCCEEDED))
+            .build())
+            .when(planBackend).getPlan(any());
+
+        ArgumentCaptor<RetrieveTopologyEntitiesRequest> captor = ArgumentCaptor.forClass(RetrieveTopologyEntitiesRequest.class);
+        when(repositoryBackend.retrieveTopologyEntities(captor.capture()))
+            .thenReturn(Collections.emptyList());
+
+        // act
+        marketsService.getEntitiesByMarketUuid(planUuid,
+            Arrays.asList("1234", "5678"), null,
+            null, new EntityPaginationRequest(null, null, true, null));
+
+        // verify
+        final RetrieveTopologyEntitiesRequest request = captor.getValue();
+        assertThat(request.getEntityOidsList(), containsInAnyOrder(1234L, 5678L));
+    }
+
+    /**
+     * Test getting plan entities filtered by entity type.
+     *
+     * @throws Exception If anything goes wrong.
+     */
+    @Test
+    public void testRetrievePlanEntitiesByType() throws Exception {
+        final String planUuid = Long.toString(REALTIME_PLAN_ID);
+        final long projectedPlanTopologyId = 56;
+        ApiTestUtils.mockPlanId(planUuid, uuidMapper);
+        doReturn(OptionalPlanInstance.newBuilder()
+            .setPlanInstance(PlanInstance.newBuilder()
+                .setPlanId(123)
+                .setProjectedTopologyId(projectedPlanTopologyId)
+                .setStatus(PlanStatus.SUCCEEDED))
+            .build())
+            .when(planBackend).getPlan(any());
+
+        ArgumentCaptor<RetrieveTopologyEntitiesRequest> captor = ArgumentCaptor.forClass(RetrieveTopologyEntitiesRequest.class);
+        when(repositoryBackend.retrieveTopologyEntities(captor.capture()))
+            .thenReturn(Collections.emptyList());
+
+        // act
+        marketsService.getEntitiesByMarketUuid(planUuid,
+            null, Arrays.asList(ApiEntityType.VIRTUAL_MACHINE.apiStr(), ApiEntityType.PHYSICAL_MACHINE.apiStr()),
+            null, new EntityPaginationRequest(null, null, true, null));
+
+        // verify
+        final RetrieveTopologyEntitiesRequest request = captor.getValue();
+        assertThat(request.getEntityTypeList(),
+            containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.typeNumber(),
+                ApiEntityType.PHYSICAL_MACHINE.typeNumber()));
+    }
+
+    /**
+     * Test getting aspects for plan entities.
+     *
+     * @throws Exception If anything goes wrong.
+     */
+    @Test
+    public void testRetrievePlanEntityAspects() throws Exception {
+        final String planUuid = Long.toString(REALTIME_PLAN_ID);
+        final long projectedPlanTopologyId = 56;
+        ApiTestUtils.mockPlanId(planUuid, uuidMapper);
+
+        ServiceEntityApiDTO se1 = new ServiceEntityApiDTO();
+        se1.setClassName(ApiEntityType.VIRTUAL_MACHINE.apiStr());
+        se1.setDisplayName("SE1");
+        se1.setUuid("1");
+        final List<PartialEntity> partialEntities = Stream.of(1)
+            .map(id -> PartialEntity.newBuilder()
+                .setApi(ApiPartialEntity.newBuilder()
+                    .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+                    .setOid(id))
+                .build())
+            .collect(Collectors.toList());
+        doReturn(OptionalPlanInstance.newBuilder()
+            .setPlanInstance(PlanInstance.newBuilder()
+                .setPlanId(123)
+                .setProjectedTopologyId(projectedPlanTopologyId)
+                .setStatus(PlanStatus.SUCCEEDED))
+            .build())
+            .when(planBackend).getPlan(any());
+        doReturn(Collections.singletonList(PartialEntityBatch.newBuilder()
+            .addAllEntities(partialEntities)
+            .build())).when(repositoryBackend).retrieveTopologyEntities(any());
+        when(serviceEntityMapper.toServiceEntityApiDTO(any(TopologyEntityDTO.class))).thenReturn(se1);
+
+        Map<Long, Map<AspectName, EntityAspect>> aspectMap =
+            ImmutableMap.of(1L, ImmutableMap.of(AspectName.WORKLOAD_CONTROLLER, new WorkloadControllerAspectApiDTO()));
+        when(paginationMapper.toProtoParams(any())).thenReturn(PaginationParameters.getDefaultInstance());
+        when(entityAspectMapper.getAspectsByEntities(any(), eq(Collections.singletonList("foo"))))
+            .thenReturn(aspectMap);
+
+        // act
+        EntityPaginationResponse response = marketsService.getEntitiesByMarketUuid(
+            planUuid, null, null, Collections.singletonList("foo"),
+            new EntityPaginationRequest(null, null, true, null));
+
+        // verify
+        verify(planBackend).getPlan(any());
+        verify(repositoryBackend).retrieveTopologyEntities(any());
+        verify(entityAspectMapper).getAspectsByEntities(any(), eq(Collections.singletonList("foo")));
+        verify(serviceEntityMapper).populateAspects(eq(se1), eq(aspectMap), anyLong());
+    }
+
+    /**
      * Requesting plan entities without the planner feature should fail
      * @throws Exception
      */
@@ -801,7 +1009,7 @@ public class MarketsServiceTest {
         // create a plan id
         ApiTestUtils.mockPlanId("1", uuidMapper);
         // this should trigger a LicenseFeaturesRequiredException
-        marketsService.getEntitiesByMarketUuid("1",
+        marketsService.getEntitiesByMarketUuid("1", null, null, null,
                 new EntityPaginationRequest(null, null, true, EntityOrderBy.NAME.name()));
     }
 
@@ -985,7 +1193,10 @@ public class MarketsServiceTest {
 
         List<ServiceEntityApiDTO> unplacedEntities =
             marketsService.convertServiceEntitiesForPlan(plan,
-                Collections.singletonList(unplacedVm));
+                Collections.singletonList(unplacedVm))
+            .stream()
+            .map(entity -> entity.apiEntity)
+            .collect(Collectors.toList());
 
         assertEquals(1, unplacedEntities.size());
         ServiceEntityApiDTO unplaced = unplacedEntities.get(0);

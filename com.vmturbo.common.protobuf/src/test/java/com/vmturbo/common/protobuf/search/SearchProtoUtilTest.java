@@ -6,6 +6,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 
+import java.util.Arrays;
 import java.util.Collections;
 
 import com.google.common.collect.ImmutableList;
@@ -178,5 +179,15 @@ public class SearchProtoUtilTest {
         assertEquals("ACTIVE", SearchProtoUtil.stripFullRegex("^ACTIVE$"));
         assertEquals("ACTIVE", SearchProtoUtil.stripFullRegex("ACTIVE"));
         assertEquals("", SearchProtoUtil.stripFullRegex(""));
+    }
+
+    /**
+     * Test string ID filter.
+     */
+    @Test
+    public void testStringIdFilter() {
+        PropertyFilter filter = SearchProtoUtil.stringIdFilter(Arrays.asList("1234", "5678"));
+        assertEquals(SearchableProperties.OID, filter.getPropertyName());
+        assertEquals(filter.getStringFilter().getOptionsList(), Arrays.asList("1234", "5678"));
     }
 }

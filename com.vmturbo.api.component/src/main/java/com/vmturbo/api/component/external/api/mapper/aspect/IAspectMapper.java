@@ -10,6 +10,7 @@ import javax.annotation.Nullable;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.api.exceptions.ConversionException;
+import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 
@@ -65,6 +66,69 @@ public interface IAspectMapper {
     default Optional<Map<Long, EntityAspect>> mapEntityToAspectBatchPartial(@Nonnull List<ApiPartialEntity> entities)
             throws InterruptedException, ConversionException {
         return Optional.empty();
+    }
+
+    /**
+     * Map a list of {@link TopologyEntityDTO} into map of oid -> {@link EntityAspect}.
+     * This function generates aspects for a list of entities.
+     * This function is for performance improvement. In some cases, it may be more efficient to
+     * generate aspects for all topology entities in a single function. Eg: We can do a single RPC call
+     * for all topology entities, vs doing one RPC call per entity (serially), which is very slow.
+     * EntityAspectMapper will call aspect.mapEntityToAspectBatch() first, and pass in all supported entities (as
+     * defined in EntityAspectMapper). If mapEntityToAspectBatch() returns aspects, we will use that
+     * to set aspects on service entities.
+     * If it returns empty, EntityAspectMapper will revert to mapEntityToAspect(), which handles a single
+     * entity at a time.
+     * <p/>
+     * Most aspects will be the same in a plan as they are in the realtime topology (ie the IP address of a VM),
+     * but sometimes they will be different (ie relationship-based information may change in a plan,
+     * some entities that were added as part of a plan may not exist in the realtime topology, etc.)
+     * <p/>
+     * If an {@link IAspectMapper} does not override the default implementation of this method it will return
+     * the same aspects it does for the realtime topology. If a request is made for an aspect type not
+     * currently supported in plans, the mapper should throw a {@link InvalidOperationException}. If clients
+     * do end up needing the particular aspect for a plan entity, the mapper should look into implementing
+     * that support.
+     *
+     * @param entities the list of {@link TopologyEntityDTO} to get aspects for
+     * @param planTopologyContextId The topology context ID (plan ID) for the plan where the aspects should be fetched.
+     * @return optional: a map containing all aspects for the list of entities, keyed by oid
+     * @throws InterruptedException if thread has been interrupted
+     * @throws ConversionException if errors faced during converting data to API DTOs
+     * @throws InvalidOperationException if the mapper has not implemented support for the aspect in plan entities.
+     */
+    @Nonnull
+    default Optional<Map<Long, EntityAspect>> mapPlanEntityToAspectBatch(
+        @Nonnull List<TopologyEntityDTO> entities, final long planTopologyContextId)
+            throws InterruptedException, ConversionException, InvalidOperationException {
+        return mapEntityToAspectBatch(entities);
+    }
+
+    /**
+     * Map a list of partial entities to aspect.
+     * <p/>
+     * Most aspects will be the same in a plan as they are in the realtime topology (ie the IP address of a VM),
+     * but sometimes they will be different (ie relationship-based information may change in a plan,
+     * some entities that were added as part of a plan may not exist in the realtime topology, etc.)
+     * <p/>
+     * If an {@link IAspectMapper} does not override the default implementation of this method it will return
+     * the same aspects it does for the realtime topology. If a request is made for an aspect type not
+     * currently supported in plans, the mapper should throw a {@link InvalidOperationException}. If clients
+     * do end up needing the particular aspect for a plan entity, the mapper should look into implementing
+     * that support.
+     *
+     * @param entities List of entities for conversion.
+     * @param planTopologyContextId The topology context ID (plan ID) for the plan where the aspects should be fetched.
+     * @return optional: a map containing aspects, keyed by oid
+     * @throws InterruptedException if thread has been interrupted
+     * @throws ConversionException if errors faced during converting data to API DTOs
+     * @throws InvalidOperationException if the mapper has not implemented support for the aspect in plan entities.
+     */
+    @Nonnull
+    default Optional<Map<Long, EntityAspect>> mapPlanEntityToAspectBatchPartial(
+        @Nonnull List<ApiPartialEntity> entities, final long planTopologyContextId)
+            throws InterruptedException, ConversionException, InvalidOperationException {
+        return mapEntityToAspectBatchPartial(entities);
     }
 
     /**
