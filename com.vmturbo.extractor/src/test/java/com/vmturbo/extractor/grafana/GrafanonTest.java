@@ -1,16 +1,27 @@
 package com.vmturbo.extractor.grafana;
 
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.when;
 
 import java.sql.Timestamp;
 import java.text.DateFormat;
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import org.jooq.DSLContext;
 import org.jooq.Field;
@@ -20,11 +31,20 @@ import org.jooq.SQLDialect;
 import org.jooq.impl.DSL;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
+import org.mockito.MockitoAnnotations;
 
+import reactor.core.publisher.Flux;
+
+import com.vmturbo.auth.api.licensing.LicenseCheckClient;
+import com.vmturbo.common.protobuf.LicenseProtoUtil;
+import com.vmturbo.common.protobuf.licensing.Licensing.LicenseSummary;
 import com.vmturbo.extractor.ExtractorGlobalConfig.ExtractorFeatureFlags;
 import com.vmturbo.extractor.grafana.Grafanon.GrafanonConfig;
 import com.vmturbo.extractor.grafana.client.GrafanaClient;
 import com.vmturbo.extractor.grafana.model.FolderInput;
+import com.vmturbo.extractor.grafana.model.Role;
+import com.vmturbo.extractor.grafana.model.UserInput;
 import com.vmturbo.sql.utils.DbEndpoint;
 
 /**
@@ -36,25 +56,64 @@ public class GrafanonTest {
     private DbEndpoint dbendpointMock;
     private DSLContext dslContextSpy;
 
+    private GrafanaClient grafanaClientMock = mock(GrafanaClient.class);
+    private GrafanonConfig grafanonConfigMock = mock(GrafanonConfig.class);
+    private LicenseCheckClient licenseCheckClient = mock(LicenseCheckClient.class);
+
+    private final int reportEditorCount = 2;
+
+    private DashboardsOnDisk dashboardsOnDiskMock = mock(DashboardsOnDisk.class);
+    private ExtractorFeatureFlags extractorFeatureFlags = mock(ExtractorFeatureFlags.class);
+
     /**
      * Test setup.
+     *
+     * @throws Exception If anything is wrong.
      */
     @Before
-    public void setup() {
-        try {
-            dbendpointMock = mock(DbEndpoint.class);
-            dslContextSpy = spy(DSL.using(SQLDialect.POSTGRES));
-            doReturn(dslContextSpy).when(dbendpointMock).dslContext();
+    public void setup() throws Exception {
+        MockitoAnnotations.initMocks(this);
+        dbendpointMock = mock(DbEndpoint.class);
+        dslContextSpy = spy(DSL.using(SQLDialect.POSTGRES));
+        doReturn(dslContextSpy).when(dbendpointMock).dslContext();
 
-            GrafanonConfig grafanonConfigMock = mock(GrafanonConfig.class);
-            DashboardsOnDisk dashboardsOnDiskMock = mock(DashboardsOnDisk.class);
-            GrafanaClient grafanaClientMock = mock(GrafanaClient.class);
-            ExtractorFeatureFlags extractorFeatureFlags = mock(ExtractorFeatureFlags.class);
 
-            grafanon = new Grafanon(grafanonConfigMock, dashboardsOnDiskMock, grafanaClientMock, extractorFeatureFlags, dbendpointMock);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        Flux<LicenseSummary> fakeStream = Flux.empty();
+        when(licenseCheckClient.getUpdateEventStream()).thenReturn(fakeStream);
+        grafanon = new Grafanon(grafanonConfigMock, dashboardsOnDiskMock, grafanaClientMock, extractorFeatureFlags, dbendpointMock, licenseCheckClient);
+    }
+
+    /**
+     * Test that refreshing turbo editors is triggered by a license summary update,
+     * and makes the necessary calls to the Grafana client.
+     */
+    @Test
+    public void testRefreshEditors() {
+        // ARRANGE
+        final String editorPrefix = "turbo-report-editor";
+        final String editorUsername = "Me";
+        when(grafanonConfigMock.getEditorUsernamePrefix()).thenReturn(editorPrefix);
+        when(grafanonConfigMock.getEditorDisplayName()).thenReturn(editorUsername);
+        when(grafanonConfigMock.validEditorConfig()).thenReturn(true);
+        Flux<LicenseSummary> streamWithLicense = Flux.just(LicenseSummary.newBuilder()
+                .setMaxReportEditorsCount(reportEditorCount)
+                .build());
+        when(licenseCheckClient.getUpdateEventStream()).thenReturn(streamWithLicense);
+
+        verifyZeroInteractions(grafanaClientMock);
+
+        // ACT
+        new Grafanon(grafanonConfigMock, dashboardsOnDiskMock, grafanaClientMock, extractorFeatureFlags, dbendpointMock, licenseCheckClient);
+
+        // ASSERT
+        ArgumentCaptor<UserInput> inputCaptor = ArgumentCaptor.forClass(UserInput.class);
+        verify(grafanaClientMock, times(reportEditorCount)).ensureUserExists(inputCaptor.capture(), eq(Role.ADMIN), any());
+        List<UserInput> capturedInputs = inputCaptor.getAllValues();
+        Set<String> expectedNames = IntStream.range(0, reportEditorCount)
+                .mapToObj(idx -> LicenseProtoUtil.formatReportEditorUsername(editorPrefix, idx))
+                .collect(Collectors.toSet());
+        assertThat(capturedInputs.stream()
+                .map(UserInput::getUsername).collect(Collectors.toSet()), is(expectedNames));
     }
 
     /**

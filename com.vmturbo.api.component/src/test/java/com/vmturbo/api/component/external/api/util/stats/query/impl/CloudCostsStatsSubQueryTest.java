@@ -25,6 +25,7 @@ import com.google.common.collect.Sets;
 
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
@@ -90,6 +91,7 @@ import com.vmturbo.topology.processor.api.util.ImmutableThinTargetInfo;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 
+@Ignore
 public class CloudCostsStatsSubQueryTest {
 
     private CostServiceMole costServiceMole = spy(new CostServiceMole());
