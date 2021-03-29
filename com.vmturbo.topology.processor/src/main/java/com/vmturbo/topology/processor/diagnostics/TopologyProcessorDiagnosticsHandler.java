@@ -42,6 +42,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredSettingPolicyInfo;
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfileInfo;
 import com.vmturbo.common.protobuf.topology.DiscoveredGroup.DiscoveredGroupInfo;
+import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.diagnostics.BinaryDiagsRestorable;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
@@ -350,7 +351,7 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
         Pattern.compile("DiscoveredDeploymentProfilesAndTemplates\\.(\\d*)-(\\d*)\\.diags");
 
     private Comparator<Diags> diagsRestoreComparator =
-        Comparator.comparingInt(TopologyProcessorDiagnosticsHandler::diagsRestorePriority);
+        Comparator.comparingLong(TopologyProcessorDiagnosticsHandler::diagsRestorePriority);
 
     /**
      * Retrieve the priority level for restoring a diags file.
@@ -359,24 +360,34 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
      * @param diags the diagnostics file to determine the load priority for
      * @return the load priority to determine the order to load the given Diags object
      */
-    private static Integer diagsRestorePriority(Diags diags) {
+    private static Long diagsRestorePriority(Diags diags) {
         // TODO remote this method. We should export diags in an order suitable for restoring
         final String diagsName = diags.getName();
 
+        // Sort the Entities files so they are last and ordered among themselves by the time the
+        // target was added.
+        // We rely on the fact that the targetId includes the time it was first added as part of
+        // its OID.
+        Matcher entitiesMatcher = ENTITIES_PATTERN.matcher(diagsName);
+        if (entitiesMatcher.matches()) {
+            long targetId = Long.parseLong(entitiesMatcher.group(1));
+            return IdentityGenerator.toMilliTime(targetId) + 7L;
+        }
+
         switch (diagsName) {
             case IdentityProviderImpl.ID_DIAGS_FILE_NAME:
-                return 1;
+                return 1L;
             case PROBES_DIAGS_FILE_NAME:
-                return 2;
+                return 2L;
             case PersistentTargetSpecIdentityStore.TARGET_IDENTIFIERS_DIAGS_FILE_NAME:
-                return 3;
+                return 3L;
             case TARGETS_DIAGS_FILE_NAME:
-                return 4;
+                return 4L;
             case SCHEDULES_DIAGS_FILE_NAME:
-                return 5;
+                return 5L;
             // All other diagnostics files receive equal priority and may be loaded in any order
             default:
-                return 6;
+                return 6L;
         }
     }
 

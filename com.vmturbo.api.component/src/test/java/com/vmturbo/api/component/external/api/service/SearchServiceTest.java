@@ -50,12 +50,14 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
+import org.springframework.http.ResponseEntity;
 
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
@@ -101,6 +103,7 @@ import com.vmturbo.api.pagination.SearchOrderBy;
 import com.vmturbo.api.pagination.SearchPaginationRequest;
 import com.vmturbo.api.pagination.SearchPaginationRequest.SearchPaginationResponse;
 import com.vmturbo.api.pagination.TagPaginationRequest;
+import com.vmturbo.api.pagination.TagPaginationRequest.TagPaginationResponse;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.api.mappers.EnvironmentTypeMapper;
 import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
@@ -1114,51 +1117,6 @@ public class SearchServiceTest {
                 paginationRequest, null, null);
         List<BaseApiDTO> results = response.getRawResults();
 
-        assertEquals(1, results.size());
-        assertTrue(results.get(0) instanceof ServiceEntityApiDTO);
-        assertEquals("1", results.get(0).getUuid());
-    }
-
-    /**
-     * Test that GetMembersBasedOnFilter is not raising an exception if there is a filter type based on REGEX.
-     */
-    @Test
-    public void testGetMembersBasedOnRegexFilterNoException() throws Exception {
-        GroupApiDTO request1 = new GroupApiDTO();
-        FilterApiDTO filter1 = new FilterApiDTO();
-        filter1.setExpVal(".*PT.*");
-        filter1.setFilterType("vmsByName");
-        filter1.setExpType(EntityFilterMapper.REGEX_MATCH);
-        ArrayList<FilterApiDTO> criteriaList1 = new ArrayList<>(1);
-        criteriaList1.add(filter1);
-        request1.setCriteriaList(criteriaList1);
-        GroupApiDTO request2 = new GroupApiDTO();
-        FilterApiDTO filter2 = new FilterApiDTO();
-        filter2.setExpVal(".*PT.*");
-        filter2.setFilterType("vmsByName");
-        filter2.setExpType(EntityFilterMapper.REGEX_NO_MATCH);
-        ArrayList<FilterApiDTO> criteriaList2 = new ArrayList<>(1);
-        criteriaList2.add(filter2);
-        request2.setCriteriaList(criteriaList2);
-        List<ServiceEntityApiDTO> serviceEntities = Collections.singletonList(
-                supplyChainTestUtils.createServiceEntityApiDTO(1L, targetId1));
-        final SearchPaginationRequest paginationRequest =
-                new SearchPaginationRequest("0", 10, true, SearchOrderBy.SEVERITY.name());
-        RepositoryApi.PaginatedSearchRequest searchReq = ApiTestUtils.mockPaginatedSearchRequest(paginationRequest, serviceEntities);
-        when(repositoryApi.newPaginatedSearch(any(), any(), any())).thenReturn(searchReq);
-
-        // test REGEX_MATCH
-        SearchPaginationResponse response = searchService.getMembersBasedOnFilter("", request1,
-                paginationRequest, null, null);
-        List<BaseApiDTO> results = response.getRawResults();
-        assertEquals(1, results.size());
-        assertTrue(results.get(0) instanceof ServiceEntityApiDTO);
-        assertEquals("1", results.get(0).getUuid());
-
-        // test REGEX_NO_MATCH
-        response = searchService.getMembersBasedOnFilter("", request2,
-                paginationRequest, null, null);
-        results = response.getRawResults();
         assertEquals(1, results.size());
         assertTrue(results.get(0) instanceof ServiceEntityApiDTO);
         assertEquals("1", results.get(0).getUuid());
