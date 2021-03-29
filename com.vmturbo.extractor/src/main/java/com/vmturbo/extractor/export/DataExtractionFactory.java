@@ -21,7 +21,7 @@ public class DataExtractionFactory {
      * @return an instance of {@link PrimitiveFieldsOnTEDPatcher}
      */
     public PrimitiveFieldsOnTEDPatcher newAttrsExtractor() {
-        return new PrimitiveFieldsOnTEDPatcher(true, true);
+        return new PrimitiveFieldsOnTEDPatcher(true, true, true);
     }
 
     /**
