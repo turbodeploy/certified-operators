@@ -32,21 +32,18 @@ import com.vmturbo.topology.processor.rpc.DiscoveredGroupRpcService;
  */
 public class InterpretedGroup {
 
-    private final long targetId;
     private final CommonDTO.GroupDTO sdkDTO;
+
     private final Optional<GroupDefinition.Builder> groupDefinition;
 
     /**
      * Constructor for {@link InterpretedGroup}.
      *
-     * @param targetId target id from which the group was discovered
      * @param sdkDTO the original sdk group dto coming from probe
      * @param groupDefinition the interpreted group, which may be empty if any error occurred
      */
-    public InterpretedGroup(final long targetId,
-                            @Nonnull final CommonDTO.GroupDTO sdkDTO,
+    public InterpretedGroup(@Nonnull final CommonDTO.GroupDTO sdkDTO,
                             @Nonnull final Optional<GroupDefinition.Builder> groupDefinition) {
-        this.targetId = targetId;
         this.sdkDTO = Objects.requireNonNull(sdkDTO);
         this.groupDefinition = Objects.requireNonNull(groupDefinition);
     }
@@ -109,15 +106,6 @@ public class InterpretedGroup {
     }
 
     /**
-     * Gets target id from which the group was discovered.
-     *
-     * @return the target id.
-     */
-    public long getTargetId() {
-        return targetId;
-    }
-
-    /**
      * Get the result of the interpretation as a {@link GroupDefinition.Builder}.
      *
      * @return internal {@link GroupDefinition.Builder} representation of the sdk group dto
@@ -166,12 +154,12 @@ public class InterpretedGroup {
         final CommonDTO.GroupDTO dto = GroupDTO.newBuilder(source.sdkDTO).build();
         final Optional<GroupDefinition.Builder> groupDefinition = source.groupDefinition.map(
                 group -> GroupDefinition.newBuilder(group.build()));
-        return new InterpretedGroup(source.targetId, dto, groupDefinition);
+        return new InterpretedGroup(dto, groupDefinition);
     }
 
     @Override
     public int hashCode() {
-        return com.google.common.base.Objects.hashCode(targetId, sdkDTO, groupDefinition);
+        return com.google.common.base.Objects.hashCode(sdkDTO, groupDefinition);
     }
 
     @Override
@@ -181,15 +169,16 @@ public class InterpretedGroup {
         }
 
         final InterpretedGroup ig = (InterpretedGroup)other;
-        return targetId == ig.targetId && com.google.common.base.Objects.equal(sdkDTO, ig.sdkDTO)
-                && com.google.common.base.Objects.equal(
-                groupDefinition.map(GroupDefinition.Builder::build),
-                ig.groupDefinition.map(GroupDefinition.Builder::build));
+        return com.google.common.base.Objects.equal(sdkDTO, ig.sdkDTO) &&
+                com.google.common.base.Objects.equal(
+                        groupDefinition.map(GroupDefinition.Builder::build),
+                        ig.groupDefinition.map(GroupDefinition.Builder::build));
     }
 
     @Override
     public String toString() {
-        return "InterpretedGroup{" + "targetId=" + targetId + ", sdkDTO=" + sdkDTO
-                + ", groupDefinition=" + groupDefinition + '}';
+        return "InterpretedGroup[\n" + sdkDTO
+                + ",\n" + groupDefinition +
+                "\n]";
     }
 }
