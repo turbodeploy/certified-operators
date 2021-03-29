@@ -870,7 +870,8 @@ public class CloudCostCalculator<ENTITY_CLASS> {
     @Nonnull
     private Price calculateRDBStorageCost(@Nonnull final List<Price> dependentPricesList,
                                           @Nonnull final ENTITY_CLASS entity) {
-        final String entityTypeName = EntityType.forNumber(entityInfoExtractor.getEntityType(entity)).name();
+        final int entityType = entityInfoExtractor.getEntityType(entity);
+        final String entityTypeName = EntityType.forNumber(entityType).name();
         final float storageAmount;
         final float storageAmountInMB;
         final Optional<Float> dbStorageCapacity = entityInfoExtractor.getRDBStorageCapacity(entity);
@@ -921,7 +922,8 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                 break;
             }
         }
-        if (currentSize < storageAmount) {
+        //TODO: suppress this message for RDS until OM-68021 will be implemented
+        if (currentSize < storageAmount && entityType != EntityType.DATABASE_SERVER_VALUE) {
             logger.error("The storage tier was unable to satisfy {}: {} storage requirement."
                     + "This will lead to incorrect cost calculation.", entityTypeName, entityInfoExtractor.getName(entity));
         }
