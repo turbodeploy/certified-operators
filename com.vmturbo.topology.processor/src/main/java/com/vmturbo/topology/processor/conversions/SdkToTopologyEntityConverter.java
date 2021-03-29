@@ -66,6 +66,7 @@ import com.vmturbo.topology.processor.conversions.typespecific.BusinessAccountIn
 import com.vmturbo.topology.processor.conversions.typespecific.BusinessUserMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.CloudCommitmentInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.ComputeTierInfoMapper;
+import com.vmturbo.topology.processor.conversions.typespecific.ContainerInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.ContainerPlatformClusterInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.DatabaseServerTierInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.DatabaseTierInfoMapper;
@@ -126,6 +127,7 @@ public class SdkToTopologyEntityConverter {
                     .put(EntityType.CLOUD_COMMITMENT, new CloudCommitmentInfoMapper())
                     .put(EntityType.NAMESPACE, new NamespaceInfoMapper())
                     .put(EntityType.CONTAINER_PLATFORM_CLUSTER, new ContainerPlatformClusterInfoMapper())
+                    .put(EntityType.CONTAINER, new ContainerInfoMapper())
                     .build();
 
     private static final Set<CommodityDTO.CommodityType> DSPM_OR_DATASTORE =
