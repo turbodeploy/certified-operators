@@ -25,6 +25,7 @@ import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 import org.springframework.web.socket.server.standard.ServerEndpointExporter;
 
+import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyDTOMoles;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
@@ -372,8 +373,14 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
             5, 10, 1, 1,
             TheMatrix.instance(),
             binaryDiscoveryDumper(),
-            false
+            false,
+            licenseCheckClient()
             );
+    }
+
+    @Bean
+    public LicenseCheckClient licenseCheckClient() {
+        return mock(LicenseCheckClient.class);
     }
 
     @Bean

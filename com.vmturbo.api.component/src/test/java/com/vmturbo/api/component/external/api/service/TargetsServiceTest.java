@@ -8,6 +8,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.fail;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -104,6 +105,8 @@ import com.vmturbo.api.serviceinterfaces.ISettingsPoliciesService;
 import com.vmturbo.api.serviceinterfaces.IUsersService;
 import com.vmturbo.api.utils.ParamStrings;
 import com.vmturbo.api.validators.InputDTOValidator;
+import com.vmturbo.auth.api.licensing.LicenseCheckClient;
+import com.vmturbo.auth.api.licensing.LicenseFeaturesRequiredException;
 import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
@@ -122,6 +125,7 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo.CreationMode;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
+import com.vmturbo.platform.sdk.common.util.ProbeLicense;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.AccountDefEntry;
 import com.vmturbo.topology.processor.api.AccountFieldValueType;
@@ -151,6 +155,9 @@ public class TargetsServiceTest {
     private static final String PROBE_NOT_FOUND = "Probe not found: ";
 
     private static final String TARGET_DISPLAY_NAME = "target name";
+    private static final String APP_CONTROL = "app_control";
+    private static final Duration MILLIS_100 = Duration.ofMillis(100);
+    private static final Duration MILLIS_50 = Duration.ofMillis(50);
 
     @Autowired
     private TopologyProcessor topologyProcessor;
@@ -264,14 +271,13 @@ public class TargetsServiceTest {
         });
         apiWebsocketHandler = new ApiWebsocketHandler();
 
+        LicenseCheckClient licenseCheckClient = Mockito.mock(LicenseCheckClient.class);
 
-        this.targetsService = new TargetsService(
-                topologyProcessor, Duration.ofMillis(50),
-                Duration.ofMillis(100), Duration.ofMillis(50),
-                Duration.ofMillis(100), null,
-                apiComponentTargetListener, repositoryApi,
-                actionSpecMapper, actionSearchUtil,
-                apiWebsocketHandler, true, 100);
+        this.targetsService = new TargetsService(topologyProcessor, MILLIS_50, MILLIS_100,
+                                                 MILLIS_50, MILLIS_100, licenseCheckClient,
+                                                 apiComponentTargetListener, repositoryApi,
+                                                 actionSpecMapper, actionSearchUtil,
+                                                 apiWebsocketHandler, true, 100);
     }
 
     private ProbeInfo createMockProbeInfo(long probeId, String type, String category, String uiCategory,
@@ -280,7 +286,12 @@ public class TargetsServiceTest {
     }
 
     private ProbeInfo createMockProbeInfo(long probeId, String type, String category, String uiCategory,
-            CreationMode creationMode, AccountDefEntry... entries) throws Exception {
+                                          CreationMode creationMode,  AccountDefEntry... entries) throws Exception {
+        return createMockProbeInfo(probeId, type, category, uiCategory, creationMode, null, entries);
+    }
+
+    private ProbeInfo createMockProbeInfo(long probeId, String type, String category, String uiCategory,
+            CreationMode creationMode, String license, AccountDefEntry... entries) throws Exception {
         final ProbeInfo newProbeInfo = Mockito.mock(ProbeInfo.class);
         when(newProbeInfo.getId()).thenReturn(probeId);
         when(newProbeInfo.getType()).thenReturn(type);
@@ -288,6 +299,7 @@ public class TargetsServiceTest {
         when(newProbeInfo.getUICategory()).thenReturn(uiCategory);
         when(newProbeInfo.getAccountDefinitions()).thenReturn(Arrays.asList(entries));
         when(newProbeInfo.getCreationMode()).thenReturn(creationMode);
+        when(newProbeInfo.getLicense()).thenReturn(Optional.ofNullable(license));
         if (entries.length > 0) {
             when(newProbeInfo.getIdentifyingFields())
                             .thenReturn(Collections.singletonList(entries[0].getName()));
@@ -1030,13 +1042,10 @@ public class TargetsServiceTest {
         final long targetId = 3;
 
         final TopologyProcessor topologyProcessor = Mockito.mock(TopologyProcessor.class);
-        final TargetsService targetsService = new TargetsService(
-                                                    topologyProcessor, Duration.ofMillis(50),
-                                                    Duration.ofMillis(100), Duration.ofMillis(50),
-                                                    Duration.ofMillis(100), null,
-                                                    apiComponentTargetListener, repositoryApi,
-                                                    actionSpecMapper, actionSearchUtil,
-                                                    apiWebsocketHandler, true, 100);
+        final TargetsService targetsService = new TargetsService(topologyProcessor, MILLIS_50,
+                        MILLIS_100, MILLIS_50, MILLIS_100, Mockito.mock(LicenseCheckClient.class),
+                        apiComponentTargetListener, repositoryApi, actionSpecMapper,
+                        actionSearchUtil, apiWebsocketHandler, true, 100);
 
         final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
         when(targetInfo.getId()).thenReturn(targetId);
@@ -1061,10 +1070,10 @@ public class TargetsServiceTest {
         final long targetId = 1;
         final TopologyProcessor topologyProcessor = Mockito.mock(TopologyProcessor.class);
         final TargetsService targetsService = new TargetsService(
-            topologyProcessor, Duration.ofMillis(50), Duration.ofMillis(100),
-            Duration.ofMillis(50), Duration.ofMillis(100), null, apiComponentTargetListener,
-            repositoryApi, actionSpecMapper, actionSearchUtil,
-            apiWebsocketHandler, true, 100);
+                        topologyProcessor, MILLIS_50, MILLIS_100, MILLIS_50, MILLIS_100,
+                        Mockito.mock(LicenseCheckClient.class), apiComponentTargetListener,
+                        repositoryApi, actionSpecMapper, actionSearchUtil,
+                        apiWebsocketHandler, true, 100);
 
         final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
         when(targetInfo.getId()).thenReturn(targetId);
@@ -1088,12 +1097,10 @@ public class TargetsServiceTest {
 
         final TopologyProcessor topologyProcessor = Mockito.mock(TopologyProcessor.class);
         final TargetsService targetsService = new TargetsService(
-                                                topologyProcessor, Duration.ofMillis(50),
-                                                Duration.ofMillis(100), Duration.ofMillis(50),
-                                                Duration.ofMillis(100), null,
-                                                apiComponentTargetListener, repositoryApi, actionSpecMapper,
-                                                actionSearchUtil,
-                                                apiWebsocketHandler, true, 100);
+                        topologyProcessor, MILLIS_50, MILLIS_100, MILLIS_50, MILLIS_100,
+                        Mockito.mock(LicenseCheckClient.class), apiComponentTargetListener,
+                        repositoryApi, actionSpecMapper, actionSearchUtil,
+                        apiWebsocketHandler, true, 100);
 
         final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
         when(targetInfo.getId()).thenReturn(targetId);
@@ -1453,12 +1460,23 @@ public class TargetsServiceTest {
     @Test(expected = IllegalStateException.class)
     public void testDisableTargetChangesInIntegrationMode() throws Exception {
         final TopologyProcessor topologyProcessor = Mockito.mock(TopologyProcessor.class);
+        final long probeId = 2;
+        final long targetId = 3;
+        final long uuid = 111;
+        final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
+        when(targetInfo.getId()).thenReturn(targetId);
+        when(targetInfo.getProbeId()).thenReturn(probeId);
+        when(targetInfo.getCommunicationBindingChannel()).thenReturn(Optional.empty());
+        when(targetInfo.getStatus()).thenReturn(StringConstants.TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS);
+
+        when(topologyProcessor.getTarget(targetId)).thenReturn(targetInfo);
+        when(topologyProcessor.getTarget(uuid)).thenReturn(targetInfo);
+
         final TargetsService targetsService =
-                new TargetsService(topologyProcessor, Duration.ofMillis(50), Duration.ofMillis(100),
-                        Duration.ofMillis(50), Duration.ofMillis(100), null,
-                        apiComponentTargetListener, repositoryApi, actionSpecMapper,
-                        actionSearchUtil,
-                        apiWebsocketHandler, false, 100);
+                new TargetsService(topologyProcessor, MILLIS_50, MILLIS_100, MILLIS_50,
+                                   MILLIS_100, Mockito.mock(LicenseCheckClient.class),
+                                   apiComponentTargetListener, repositoryApi, actionSpecMapper,
+                                   actionSearchUtil, apiWebsocketHandler, false, 100);
         // Get is allowed
         targetsService.getTargets(EnvironmentType.HYBRID);
         try {
@@ -1470,13 +1488,13 @@ public class TargetsServiceTest {
         }
         try {
             // Edit is is NOT allowed
-            targetsService.editTarget("111", Collections.emptyList());
+            targetsService.editTarget(String.valueOf(uuid), Collections.emptyList());
             fail("should fail to manage target");
         } catch (IllegalStateException e) {
             // expected
         }
         // Delete is NOT allowed
-        targetsService.deleteTarget("111");
+        targetsService.deleteTarget(String.valueOf(uuid));
     }
 
     private TargetApiDTO postAndReturn(String query) throws Exception {
@@ -1618,16 +1636,17 @@ public class TargetsServiceTest {
 
         @Bean
         public TargetsService targetsService() {
-            return new TargetsService(topologyProcessor(), Duration.ofSeconds(60), Duration.ofSeconds(1),
-                Duration.ofSeconds(60), Duration.ofSeconds(1), null,
-                apiComponentTargetListener(), repositoryApi(), actionSpecMapper(),
-                new ActionSearchUtil(actionRpcService(), actionSpecMapper(),
-                                     Mockito.mock(PaginationMapper.class),
-                                     Mockito.mock(SupplyChainFetcherFactory.class),
-                                     Mockito.mock(GroupExpander.class),
-                                     Mockito.mock(ServiceProviderExpander.class),
-                                     REALTIME_CONTEXT_ID),
-                new ApiWebsocketHandler(), true, 100);
+            return new TargetsService(topologyProcessor(), Duration.ofSeconds(60),
+                            Duration.ofSeconds(1), Duration.ofSeconds(60),
+                            Duration.ofSeconds(1), Mockito.mock(LicenseCheckClient.class),
+                            apiComponentTargetListener(), repositoryApi(), actionSpecMapper(),
+                            new ActionSearchUtil(actionRpcService(), actionSpecMapper(),
+                                        Mockito.mock(PaginationMapper.class),
+                                        Mockito.mock(SupplyChainFetcherFactory.class),
+                                        Mockito.mock(GroupExpander.class),
+                                        Mockito.mock(ServiceProviderExpander.class),
+                                        REALTIME_CONTEXT_ID),
+                            new ApiWebsocketHandler(), true, 100);
         }
 
         @Bean

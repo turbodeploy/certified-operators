@@ -34,6 +34,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.exception.DataAccessException;
 
+import com.vmturbo.auth.api.licensing.LicenseCheckClient;
+import com.vmturbo.auth.api.licensing.LicenseFeaturesRequiredException;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.identity.exceptions.IdentityServiceException;
@@ -72,6 +74,7 @@ import com.vmturbo.platform.sdk.common.MediationMessage.TargetUpdateRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ValidationRequest;
 import com.vmturbo.platform.sdk.common.util.NotificationCategoryDTO;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
+import com.vmturbo.platform.sdk.common.util.ProbeLicense;
 import com.vmturbo.platform.sdk.common.util.SDKUtil;
 import com.vmturbo.proactivesupport.DataMetricGauge;
 import com.vmturbo.proactivesupport.DataMetricHistogram;
@@ -247,6 +250,8 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
 
     private final boolean enableDiscoveryResponsesCaching;
 
+    private final LicenseCheckClient licenseCheckClient;
+
     /**
      * Timeout for acquiring the permit for running a discovering operation
      * on a target.
@@ -285,7 +290,8 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                             final int probeDiscoveryPermitWaitTimeoutIntervalMins,
                             final @Nonnull MatrixInterface matrix,
                             final BinaryDiscoveryDumper binaryDiscoveryDumper,
-                            final boolean enableDiscoveryResponsesCaching) {
+                            final boolean enableDiscoveryResponsesCaching,
+                            final LicenseCheckClient licenseCheckClient) {
         this.identityProvider = Objects.requireNonNull(identityProvider);
         this.targetStore = Objects.requireNonNull(targetStore);
         this.probeStore = Objects.requireNonNull(probeStore);
@@ -323,6 +329,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         // On restart we notify any listeners that all previously existing operations are now
         // cleared.
         operationListener.notifyOperationsCleared();
+        this.licenseCheckClient = licenseCheckClient;
     }
 
     @Override
@@ -437,6 +444,24 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
 
         final Validation validation = new Validation(target.getProbeId(),
                 target.getId(), identityProvider);
+
+        // Check the license before validation starts
+        try {
+            ProbeLicense.create(target.getProbeInfo().getLicense())
+                            .ifPresent(licenseCheckClient::checkFeatureAvailable);
+        } catch (LicenseFeaturesRequiredException e) {
+            logger.error("Failed to validate license for target {}", target.getId(), e);
+
+            final ErrorDTO.Builder errorBuilder = ErrorDTO.newBuilder()
+                            .setSeverity(ErrorSeverity.CRITICAL);
+            errorBuilder.setDescription(e.getLocalizedMessage());
+
+            operationComplete(validation, false, Collections.singletonList(errorBuilder.build()));
+            targetOperationContext.operationCompleted(validation);
+            targetOperationContext.setCurrentValidation(validation);
+            return validation;
+        }
+
         final OperationCallback<ValidationResponse> callback = new ValidationOperationCallback(
                 validation);
         final ValidationRequest validationRequest = ValidationRequest.newBuilder()
@@ -565,6 +590,25 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
 
             probeId = target.getProbeId();
             discovery = new Discovery(probeId, target.getId(), discoveryType, identityProvider);
+
+            // Check the license before discovery starts
+            try {
+                ProbeLicense.create(target.getProbeInfo().getLicense())
+                                .ifPresent(licenseCheckClient::checkFeatureAvailable);
+            } catch (LicenseFeaturesRequiredException e) {
+                final ErrorDTO.Builder errorBuilder = ErrorDTO.newBuilder()
+                                .setSeverity(ErrorSeverity.CRITICAL);
+                errorBuilder.setDescription(e.getLocalizedMessage());
+
+                operationComplete(discovery, false, Collections.singletonList(errorBuilder.build()));
+
+                final TargetOperationContext targetOperationContext =
+                                targetOperationContexts.computeIfAbsent(targetId, k -> new TargetOperationContext());
+
+                targetOperationContext.operationCompleted(discovery);
+                targetOperationContext.setCurrentDiscovery(discoveryType, discovery);
+                return Optional.of(discovery);
+            }
 
             discoveryRequest = DiscoveryRequest.newBuilder()
                 .setProbeType(probeType)

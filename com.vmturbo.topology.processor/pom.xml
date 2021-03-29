@@ -410,5 +410,9 @@
             <artifactId>hibernate-validator</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>auth-api</artifactId>
+        </dependency>
     </dependencies>
 </project>
