@@ -14,7 +14,6 @@ import com.vmturbo.auth.component.RepositoryClientConfig;
 import com.vmturbo.auth.component.licensing.LicenseCheckService.LicenseSummaryPublisher;
 import com.vmturbo.auth.component.licensing.store.ILicenseStore;
 import com.vmturbo.auth.component.licensing.store.LicenseKVStore;
-import com.vmturbo.common.protobuf.licensing.LicenseManagerServiceGrpc;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseSummary;
 import com.vmturbo.common.protobuf.licensing.LicensingREST.LicenseManagerServiceController;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
@@ -53,6 +52,9 @@ public class LicensingConfig {
      */
     @Value("${numBeforeLicenseExpirationDays:2}")
     private int numBeforeLicenseExpirationDays;
+
+    @Value("${allowedMaximumEditor:1}")
+    private int allowedMaximumEditor;
 
     @Bean
     public ILicenseStore licenseStore() {
@@ -111,7 +113,8 @@ public class LicensingConfig {
                 mailManager(),
                 Clock.systemUTC(),
                 numBeforeLicenseExpirationDays,
-                true);
+                true,
+                allowedMaximumEditor);
     }
 
     @Bean

@@ -26,14 +26,14 @@ public class UserInput {
     /**
      * Create a new instance of this DTO.
      *
-     * @param name The display name.
+     * @param displayName The display name.
      * @param username The username.
      * @param password The password.
      */
-    public UserInput(@Nonnull final String name,
+    public UserInput(@Nonnull final String displayName,
             @Nonnull final String username,
             @Nonnull final String password) {
-        this.displayName = name;
+        this.displayName = displayName;
         this.username = username;
         this.password = password;
     }

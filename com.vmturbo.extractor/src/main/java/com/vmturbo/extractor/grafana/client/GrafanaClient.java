@@ -154,25 +154,26 @@ public class GrafanaClient {
         }
     }
 
+    @Nonnull
+    private List<OrganizationUser> getGrafanaUsers(@Nonnull String orgId) {
+        final URI checkUri =  grafanaClientConfig.getGrafanaUrl("orgs", orgId, "users");
+        ResponseEntity<OrganizationUser[]> response = restTemplate.getForEntity(checkUri, OrganizationUser[].class);
+        return response.getBody() == null ? Collections.emptyList() : Arrays.asList(response.getBody());
+    }
+
     /**
      * Ensure that the "report-editor" user is an admin, and that no other users in the
      * organizations have admin privileges. This is important to avoid violating out license.
      *
-     * @param reportEditorUsername The name of the user that should be allowed to edit reports.
+     * @param reportEditorUsernamePrefix The names of the users that should be allowed to edit reports.
      * @param operationSummary To record the operations.
      */
-    public void ensureReportEditorIsAdmin(@Nonnull final String reportEditorUsername,
+    public void ensureReportEditorsAreAdmin(@Nonnull final String reportEditorUsernamePrefix,
                                           @Nonnull final OperationSummary operationSummary) {
         final String defaultOrgId = "1";
-        final URI checkUri =  grafanaClientConfig.getGrafanaUrl("orgs", defaultOrgId, "users");
-        ResponseEntity<OrganizationUser[]> response = restTemplate.getForEntity(checkUri, OrganizationUser[].class);
-        if (response.getBody() == null) {
-            logger.warn("No response when getting users in default org: {}", defaultOrgId);
-            return;
-        }
-
-        for (OrganizationUser user : response.getBody()) {
-            if (user.getUsername().equalsIgnoreCase(reportEditorUsername)) {
+        List<OrganizationUser> users = getGrafanaUsers(defaultOrgId);
+        for (OrganizationUser user : users) {
+            if (user.getUsername().startsWith(reportEditorUsernamePrefix)) {
                 // The specified user should be an admin.
                 // If it's not the required role...
                 if (user.getRole() != Role.ADMIN) {

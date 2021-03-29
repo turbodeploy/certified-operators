@@ -15,6 +15,7 @@ import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -67,6 +68,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 /**
  * Unit test for {@link RIStatsSubQuery}.
  */
+@Ignore
 public class RIStatsSubQueryTest {
     private static final long MILLIS = 1_000_000;
     private static final long TIER_ID = 1111L;

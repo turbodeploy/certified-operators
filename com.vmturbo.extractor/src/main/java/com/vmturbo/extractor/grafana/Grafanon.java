@@ -11,6 +11,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Stopwatch;
@@ -22,6 +23,9 @@ import org.apache.logging.log4j.Logger;
 import org.jooq.Record;
 import org.jooq.Result;
 
+import com.vmturbo.auth.api.licensing.LicenseCheckClient;
+import com.vmturbo.common.protobuf.LicenseProtoUtil;
+import com.vmturbo.common.protobuf.licensing.Licensing.LicenseSummary;
 import com.vmturbo.components.common.RequiresDataInitialization;
 import com.vmturbo.components.common.utils.BuildProperties;
 import com.vmturbo.extractor.ExtractorGlobalConfig.ExtractorFeatureFlags;
@@ -65,18 +69,27 @@ public class Grafanon implements RequiresDataInitialization {
 
     protected final DbEndpoint dbEndpoint;
 
+    private final LicenseCheckClient licenseCheckClient;
+
     private CompletableFuture<RefreshSummary> initilizationResult = new CompletableFuture<>();
 
     Grafanon(@Nonnull final GrafanonConfig grafanonConfig,
             @Nonnull final DashboardsOnDisk dashboardsOnDisk,
             @Nonnull final GrafanaClient grafanaClient,
             @Nonnull final ExtractorFeatureFlags extractorFeatureFlags,
-            @Nonnull final DbEndpoint dbEndpoint) {
+            @Nonnull final DbEndpoint dbEndpoint,
+            @Nonnull final LicenseCheckClient licenseCheckClient) {
         this.grafanonConfig = grafanonConfig;
         this.dashboardsOnDisk = dashboardsOnDisk;
         this.grafanaClient = grafanaClient;
         this.extractorFeatureFlags = extractorFeatureFlags;
         this.dbEndpoint = dbEndpoint;
+        this.licenseCheckClient = licenseCheckClient;
+        licenseCheckClient.getUpdateEventStream().subscribe(licenseSummary -> {
+            RefreshSummary refreshSummary = new RefreshSummary();
+            refreshTurboEditors(refreshSummary, licenseSummary);
+            logger.info("Turbo editor refresh result: {}", refreshSummary);
+        });
     }
 
     @Nonnull
@@ -147,11 +160,7 @@ public class Grafanon implements RequiresDataInitialization {
      * @throws IllegalArgumentException If there is some configuration error.
      */
     public void refreshGrafana(@Nonnull final RefreshSummary refreshSummary) {
-        if (grafanonConfig.getEditorUserInput().isPresent()) {
-            UserInput userInput = grafanonConfig.getEditorUserInput().get();
-            grafanaClient.ensureUserExists(userInput, Role.ADMIN, refreshSummary);
-            grafanaClient.ensureReportEditorIsAdmin(userInput.getUsername(), refreshSummary);
-        }
+        refreshTurboEditors(refreshSummary, licenseCheckClient.geCurrentLicenseSummary());
 
         try {
             // Get the endpoint here (inside the initialization thread) to avoid blocking the
@@ -184,6 +193,25 @@ public class Grafanon implements RequiresDataInitialization {
                 processDashboard(uid, dashboardSpec, folder, existingDashboardsByUid, refreshSummary);
             });
         });
+    }
+
+    private void refreshTurboEditors(@Nonnull RefreshSummary refreshSummary, @Nullable LicenseSummary licenseSummary) {
+        if (!grafanonConfig.validEditorConfig()) {
+            return;
+        }
+
+        final int requiredNumberOfReportEditors = LicenseProtoUtil.numberOfSupportedReportEditors(licenseSummary);
+        final String reportEditorPrefix = grafanonConfig.getEditorUsernamePrefix();
+        final String reportEditorDisplayName = grafanonConfig.getEditorDisplayName();
+        for (int i = 0; i < requiredNumberOfReportEditors; i++) {
+            String reportEditorUsername = LicenseProtoUtil.formatReportEditorUsername(reportEditorPrefix, i);
+            String password = RandomStringUtils.randomAlphanumeric(10).toUpperCase();
+            UserInput newReportEditor = new UserInput(reportEditorDisplayName, reportEditorUsername, password);
+
+            grafanaClient.ensureUserExists(newReportEditor, Role.ADMIN, refreshSummary);
+        }
+
+        grafanaClient.ensureReportEditorsAreAdmin(reportEditorPrefix, refreshSummary);
     }
 
     /**
@@ -421,24 +449,20 @@ public class Grafanon implements RequiresDataInitialization {
         }
 
         /**
-         * Get the {@link UserInput} for the common "report viewer" user.
+         * Return whether or not the editor user configuration properties are set correctly.
          *
-         * @return The {@link UserInput} optional.
+         * @return True or false.
          */
-        @Nonnull
-        public Optional<UserInput> getEditorUserInput() {
-            if (StringUtils.isEmpty(editorDisplayName) || StringUtils.isEmpty(editorUsername)) {
-                return Optional.empty();
-            } else {
-                String password = editorPassword;
-                if (StringUtils.isEmpty(password)) {
-                    // If there is no explicit password provided, create a random alpha-numeric
-                    // password. We don't really care about this password, because we never log
-                    // in with the "viewer" user directly, only through the reverse proxy.
-                    password = RandomStringUtils.randomAlphanumeric(10).toUpperCase();
-                }
-                return Optional.of(new UserInput(editorDisplayName, editorUsername, password));
-            }
+        public boolean validEditorConfig() {
+            return !(StringUtils.isEmpty(editorDisplayName) || StringUtils.isEmpty(editorUsername));
+        }
+
+        public String getEditorUsernamePrefix() {
+            return editorUsername;
+        }
+
+        public String getEditorDisplayName() {
+            return editorDisplayName;
         }
 
         /**
