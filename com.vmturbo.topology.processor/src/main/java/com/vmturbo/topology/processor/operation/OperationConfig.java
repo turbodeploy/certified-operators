@@ -102,12 +102,6 @@ public class OperationConfig {
     @Value("${actionTimeoutSeconds:30}")
     private long actionTimeoutSeconds;
 
-    @Value("${maxConcurrentTargetDiscoveriesPerProbeCount:10}")
-    private int maxConcurrentTargetDiscoveriesPerProbeCount;
-
-    @Value("${maxConcurrentTargetIncrementalDiscoveriesPerProbeCount:10}")
-    private int maxConcurrentTargetIncrementalDiscoveriesPerProbeCount;
-
     @Value("${probeDiscoveryPermitWaitTimeoutMins:40}")
     private int probeDiscoveryPermitWaitTimeoutMins;
 
@@ -207,8 +201,8 @@ public class OperationConfig {
             discoveryTimeoutSeconds,
             validationTimeoutSeconds,
             actionTimeoutSeconds,
-            maxConcurrentTargetDiscoveriesPerProbeCount,
-            maxConcurrentTargetIncrementalDiscoveriesPerProbeCount,
+            sdkServerConfig.getMaxConcurrentTargetDiscoveriesPerProbeCount(),
+            sdkServerConfig.getMaxConcurrentTargetIncrementalDiscoveriesPerProbeCount(),
             probeDiscoveryPermitWaitTimeoutMins,
             probeDiscoveryPermitWaitTimeoutIntervalMins,
             matrixConfig.matrixInterface(),
