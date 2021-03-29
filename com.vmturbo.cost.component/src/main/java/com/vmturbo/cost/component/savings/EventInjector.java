@@ -10,7 +10,9 @@ import java.nio.file.StandardWatchEventKinds;
 import java.nio.file.WatchEvent;
 import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.List;
@@ -171,10 +173,13 @@ public class EventInjector implements Runnable {
             // Remove the events available file.
             availableFile.delete();
         }
-        // Call the tracker here to handle the injected events.  Always process all events. This
-        // prevents the savings tracker discarding the injected events due to their timestamps
-        // potentially occurring before the previous processing period.
-        entitySavingsTracker.processEvents(LocalDateTime.MIN, LocalDateTime.now().truncatedTo(ChronoUnit.HOURS));
+        // Call the tracker here to handle the injected events.  Always process all events.
+        Long oldestEventTime = entityEventsJournal.getOldestEventTime();
+        if (oldestEventTime != null) {
+            LocalDateTime startTime = Instant.ofEpochMilli(oldestEventTime).atZone(ZoneId.of("UTC"))
+                    .toLocalDateTime().truncatedTo(ChronoUnit.HOURS);
+            entitySavingsTracker.processEvents(startTime, LocalDateTime.now().truncatedTo(ChronoUnit.HOURS));
+        }
     }
 
     /**
