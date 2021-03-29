@@ -3,8 +3,6 @@ package com.vmturbo.api.component.external.api.service;
 import static com.vmturbo.common.protobuf.utils.StringConstants.COMMUNICATION_BINDING_CHANNEL;
 
 import java.time.Duration;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -15,7 +13,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiFunction;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -23,8 +20,6 @@ import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableBiMap;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -65,8 +60,8 @@ import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.PaginationUtil;
 import com.vmturbo.api.serviceinterfaces.ITargetsService;
-import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
+import com.vmturbo.auth.api.licensing.LicenseFeaturesRequiredException;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.common.Pagination;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy.SearchOrderBy;
@@ -75,11 +70,8 @@ import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo.CreationMode;
-import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.platform.sdk.common.util.ProbeLicense;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
-import com.vmturbo.topology.processor.api.AccountDefEntry;
-import com.vmturbo.topology.processor.api.AccountFieldValueType;
 import com.vmturbo.topology.processor.api.AccountValue;
 import com.vmturbo.topology.processor.api.ProbeInfo;
 import com.vmturbo.topology.processor.api.TargetData;
@@ -415,6 +407,8 @@ public class TargetsService implements ITargetsService {
             throws OperationFailedException, InterruptedException, InvalidOperationException {
         logger.debug("Add target {}", probeType);
         Objects.requireNonNull(probeType);
+        // Check if the probe type is licensed. If it's not then runtime exception will be thrown.
+        checkLicenseByProbeType(probeType);
         Objects.requireNonNull(inputFields);
         Preconditions.checkState(allowTargetManagement,
                 "Targets management public APIs are not allowed in integration mode");
@@ -509,7 +503,6 @@ public class TargetsService implements ITargetsService {
             InterruptedException {
         logger.debug("Execute validate={}, discover={} on target {}", validate, rediscover, uuid);
         long targetId = Long.valueOf(uuid);
-
         try {
             Optional<TargetInfo> result = Optional.empty();
             if (validate != null && validate) {
@@ -559,6 +552,8 @@ public class TargetsService implements ITargetsService {
             throws OperationFailedException, UnauthorizedObjectException, InterruptedException,
             InvalidOperationException {
         logger.debug("Edit target {}", uuid);
+        // Check if the probe type is licensed. If it's not then runtime exception will be thrown.
+        checkLicenseByTargetUuid(uuid);
         Preconditions.checkState(allowTargetManagement,
                 "Targets management public APIs are not allowed in integration mode");
         long targetId = Long.valueOf(uuid);
@@ -988,6 +983,42 @@ public class TargetsService implements ITargetsService {
             return targetMapper.mapTargetHealthInfoToDTO(healthInfo);
         } catch (CommunicationException | TopologyProcessorException e) {
             throw new RuntimeException("Error getting target health info", e);
+        }
+    }
+
+    /**
+     * Check if probe type of the target is licensed. If it's not, then runtime
+     * {@link LicenseFeaturesRequiredException} will be thrown.
+     *
+     * @param uuid the uuid of the target to be validated
+     * @throws LicenseFeaturesRequiredException if target probe type is not licensed
+     */
+    private void checkLicenseByTargetUuid(String uuid) throws LicenseFeaturesRequiredException {
+        try {
+            final TargetApiDTO target = getTarget(uuid);
+            checkLicenseByProbeType(target.getType());
+        } catch (UnknownObjectException e) {
+            logger.error("Failed to check license for target " + uuid, e);
+        }
+    }
+
+    /**
+     * Check if probe type is licensed. If it's not then runtime
+     * {@link LicenseFeaturesRequiredException} will be thrown.
+     *
+     * @param probeType probe type
+     * @throws LicenseFeaturesRequiredException if probe type is not licensed
+     */
+    private void checkLicenseByProbeType(String probeType) throws LicenseFeaturesRequiredException {
+        try {
+            topologyProcessor.getAllProbes().stream()
+                            .filter(p -> p.getType().equals(probeType))
+                            .findAny()
+                            .flatMap(ProbeInfo::getLicense)
+                            .flatMap(ProbeLicense::create)
+                            .ifPresent(licenseCheckClient::checkFeatureAvailable);
+        } catch (CommunicationException e) {
+            logger.error("Failed to check license for probe type " + probeType, e);
         }
     }
 }

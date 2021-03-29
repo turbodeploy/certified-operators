@@ -44,6 +44,8 @@ import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
+import com.vmturbo.auth.api.licensing.LicenseCheckClient;
+import com.vmturbo.auth.api.licensing.LicenseFeaturesRequiredException;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.ITransport;
 import com.vmturbo.identity.exceptions.IdentityServiceException;
@@ -77,6 +79,7 @@ import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.ValidationRequest;
 import com.vmturbo.platform.sdk.common.util.NotificationCategoryDTO;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
+import com.vmturbo.platform.sdk.common.util.ProbeLicense;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
 import com.vmturbo.topology.processor.TestIdentityStore;
@@ -140,6 +143,8 @@ public class OperationManagerTest {
 
     private final IdentityProvider identityProvider = Mockito.mock(IdentityProvider.class);
 
+    private final LicenseCheckClient licenseCheckClient = Mockito.mock(LicenseCheckClient.class);
+
     private final TestProbeStore probeStore = new TestProbeStore(identityProvider);
 
     private final IdentityStore<TopologyProcessorDTO.TargetSpec> targetIdentityStore = new TestIdentityStore<>(
@@ -184,6 +189,10 @@ public class OperationManagerTest {
     private static final long MOVE_SOURCE_ID = 20L;
     private static final long MOVE_DESTINATION_ID = 30L;
 
+    private static final String LICENSE_ERROR
+                    = "CRITICAL: Requires an active license with the following features: "
+                      + ProbeLicense.APP_CONTROL.getKey();
+
     @SuppressWarnings("unchecked")
     private final ITransport<MediationServerMessage, MediationClientMessage> transport =
             Mockito.mock(ITransport.class);
@@ -212,7 +221,7 @@ public class OperationManagerTest {
             mockRemoteMediationServer, operationListener, entityStore, discoveredGroupUploader,
             discoveredWorkflowUploader, discoveredCloudCostUploader, discoveredTemplatesUploader,
             entityActionDao, derivedTargetParser, groupScopeResolver, targetDumpingSettings, systemNotificationProducer, 10, 10, 10,
-            5, 10, 1, 1, TheMatrix.instance(), binaryDiscoveryDumper, false);
+            5, 10, 1, 1, TheMatrix.instance(), binaryDiscoveryDumper, false, licenseCheckClient);
         IdentityGenerator.initPrefix(0);
         when(identityProvider.generateOperationId()).thenAnswer((invocation) -> IdentityGenerator.next());
 
@@ -235,6 +244,9 @@ public class OperationManagerTest {
 
         when(targetDumpingSettings.getDumpsToHold(any())).thenReturn(0);
         doNothing().when(targetDumpingSettings).refreshSettings();
+
+        doThrow(new LicenseFeaturesRequiredException(Collections.singleton(ProbeLicense.APP_CONTROL)))
+                        .when(licenseCheckClient).checkFeatureAvailable(ProbeLicense.APP_CONTROL);
     }
 
     /**
@@ -281,6 +293,38 @@ public class OperationManagerTest {
         Mockito.verify(mockRemoteMediationServer).sendDiscoveryRequest(eq(target),
                 any(DiscoveryRequest.class), any(OperationMessageHandler.class));
         Assert.assertEquals(discovery, operationManager.getInProgressDiscovery(discovery.getId()).get());
+    }
+
+    /**
+     * Test discovery failing because of license issue.
+     *
+     * @param discoveryType discovery type
+     * @throws Exception If anything goes wrong.
+     */
+    @Test
+    @Parameters({"FULL", "INCREMENTAL"})
+    public void testDiscoveryTargetWithLicense(DiscoveryType discoveryType) throws Exception {
+        long targetIdWithLicense;
+        Target targetWithLicense;
+
+        final ProbeInfo probeInfo = ProbeInfo.newBuilder(Probes.emptyProbe)
+                        .setProbeCategory(ProbeCategory.COST.getCategory())
+                        .setLicense(ProbeLicense.APP_CONTROL.getKey())
+                        .build();
+        probeStore.registerNewProbe(probeInfo, transport);
+
+        final TargetSpec targetSpec = new TargetSpec(probeId,
+                                                     Collections.singletonList(
+                                                                     new InputField("targetId",
+                                                                                    "321",
+                                                                                    Optional.empty())),
+                                                     Optional.empty());
+        targetWithLicense = targetStore.createTarget(targetSpec.toDto());
+        targetIdWithLicense = targetWithLicense.getId();
+
+        final Discovery discovery = operationManager.startDiscovery(targetIdWithLicense, discoveryType, false).get();
+        Assert.assertEquals(Status.FAILED, discovery.getStatus());
+        Assert.assertEquals(LICENSE_ERROR, discovery.getErrors().get(0));
     }
 
     /**
@@ -708,6 +752,36 @@ public class OperationManagerTest {
             any(ValidationRequest.class), any(OperationMessageHandler.class));
         Assert.assertEquals(validation, operationManager.getInProgressValidation(validation.getId()).get());
 
+    }
+
+    /**
+     * Test validation failed because of license issue.
+     *
+     * @throws Exception If anything goes wrong.
+     */
+    @Test
+    public void testValidateTargetWithLicense() throws Exception {
+        long targetIdWithLicense;
+        Target targetWithLicense;
+
+        final ProbeInfo probeInfo = ProbeInfo.newBuilder(Probes.emptyProbe)
+                        .setProbeCategory(ProbeCategory.COST.getCategory())
+                        .setLicense(ProbeLicense.APP_CONTROL.getKey())
+                        .build();
+        probeStore.registerNewProbe(probeInfo, transport);
+
+        final TargetSpec targetSpec = new TargetSpec(probeId,
+                                                     Collections.singletonList(
+                                                                     new InputField("targetId",
+                                                                                    "321",
+                                                                                    Optional.empty())),
+                                                     Optional.empty());
+        targetWithLicense = targetStore.createTarget(targetSpec.toDto());
+        targetIdWithLicense = targetWithLicense.getId();
+
+        final Validation validation = operationManager.startValidation(targetIdWithLicense);
+        Assert.assertEquals(Status.FAILED, validation.getStatus());
+        Assert.assertEquals(LICENSE_ERROR, validation.getErrors().get(0));
     }
 
     /**

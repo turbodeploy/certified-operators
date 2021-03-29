@@ -10,6 +10,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.auth.api.licensing.LicenseCheckClientConfig;
 import com.vmturbo.notification.api.NotificationApiConfig;
 import com.vmturbo.notification.api.NotificationSender;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorApiConfig;
@@ -47,7 +48,8 @@ import com.vmturbo.topology.processor.workflow.WorkflowConfig;
     TemplateConfig.class,
     ComponentBasedTargetDumpingSettingsConfig.class,
     NotificationApiConfig.class,
-    MatrixConfig.class
+    MatrixConfig.class,
+    LicenseCheckClientConfig.class
 })
 public class OperationConfig {
 
@@ -92,6 +94,9 @@ public class OperationConfig {
 
     @Autowired
     private MatrixConfig matrixConfig;
+
+    @Autowired
+    private LicenseCheckClientConfig licenseCheckClientConfig;
 
     @Value("${discoveryTimeoutSeconds:120}")
     private long discoveryTimeoutSeconds;
@@ -187,7 +192,8 @@ public class OperationConfig {
                 actionTimeoutSeconds,
                 matrixConfig.matrixInterface(),
                 binaryDiscoveryDumper(),
-                enableDiscoveryResponsesCaching
+                enableDiscoveryResponsesCaching,
+                licenseCheckClientConfig.licenseCheckClient()
             )
                 : new OperationManager(identityProviderConfig.identityProvider(),
             targetConfig.targetStore(),
@@ -213,7 +219,8 @@ public class OperationConfig {
             probeDiscoveryPermitWaitTimeoutIntervalMins,
             matrixConfig.matrixInterface(),
             binaryDiscoveryDumper(),
-            enableDiscoveryResponsesCaching
+            enableDiscoveryResponsesCaching,
+            licenseCheckClientConfig.licenseCheckClient()
         );
     }
 }

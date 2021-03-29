@@ -48,6 +48,7 @@ import org.springframework.web.context.WebApplicationContext;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 
+import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.communication.ITransport;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.identity.store.IdentityStore;
@@ -246,6 +247,11 @@ public class OperationControllerTest {
         }
 
         @Bean
+        LicenseCheckClient licenseCheckClient() {
+            return Mockito.mock(LicenseCheckClient.class);
+        }
+
+        @Bean
         AggregatingDiscoveryQueue discoveryQueue() {
             @SuppressWarnings("unchecked")
             final ITransport<MediationServerMessage, MediationClientMessage> transport =
@@ -274,7 +280,8 @@ public class OperationControllerTest {
                                         5, 10, 1, 1,
                                         TheMatrix.instance(),
                                         binaryDiscoveryDumper(),
-                                        false);
+                                        false,
+                                        licenseCheckClient());
         }
 
         @Bean

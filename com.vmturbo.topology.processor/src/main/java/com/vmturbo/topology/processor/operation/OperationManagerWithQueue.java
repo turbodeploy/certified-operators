@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 
+import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.matrix.component.external.MatrixInterface;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryContextDTO;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
@@ -83,6 +84,7 @@ public class OperationManagerWithQueue extends OperationManager {
      * @param matrix MatrixInterface.
      * @param binaryDiscoveryDumper handles recording discovery responses in binary.
      * @param enableDiscoveryResponsesCaching whether or not to cache discovery responses.
+     * @param licenseCheckClient license check client.
      */
     public OperationManagerWithQueue(@Nonnull final IdentityProvider identityProvider,
                             @Nonnull final TargetStore targetStore,
@@ -105,14 +107,15 @@ public class OperationManagerWithQueue extends OperationManager {
                             final long actionTimeoutSeconds,
                             final @Nonnull MatrixInterface matrix,
                             final BinaryDiscoveryDumper binaryDiscoveryDumper,
-                            final boolean enableDiscoveryResponsesCaching) {
+                            final boolean enableDiscoveryResponsesCaching,
+                            final LicenseCheckClient licenseCheckClient) {
         super(identityProvider, targetStore, probeStore, remoteMediationServer, operationListener,
                 entityStore, discoveredGroupUploader, discoveredWorkflowUploader,
                 discoveredCloudCostUploader, discoveredTemplateDeploymentProfileNotifier,
                 entityActionDao, derivedTargetParser, groupScopeResolver, targetDumpingSettings,
                 systemNotificationProducer, discoveryTimeoutSeconds, validationTimeoutSeconds,
                 actionTimeoutSeconds, 0, 0, 0, 0, matrix, binaryDiscoveryDumper,
-                enableDiscoveryResponsesCaching);
+                enableDiscoveryResponsesCaching, licenseCheckClient);
 
         this.discoveryQueue = discoveryQueue;
     }

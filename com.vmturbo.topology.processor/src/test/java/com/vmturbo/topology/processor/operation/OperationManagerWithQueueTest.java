@@ -40,6 +40,7 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
+import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.commons.Pair;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.CommunicationException;
@@ -129,6 +130,8 @@ public class OperationManagerWithQueueTest {
     private BinaryDiscoveryDumper binaryDiscoveryDumper =
         mock(BinaryDiscoveryDumper.class);
 
+    private final LicenseCheckClient licenseCheckClient = mock(LicenseCheckClient.class);
+
     @Mock
     private ITransport<MediationServerMessage, MediationClientMessage> transport1;
 
@@ -203,7 +206,8 @@ public class OperationManagerWithQueueTest {
                 discoveredWorkflowUploader, discoveredCloudCostUploader,
                 discoveredTemplatesUploader, entityActionDao, derivedTargetParser,
                 groupScopeResolver, targetDumpingSettings, systemNotificationProducer,
-                discoveryQueue, 10, 10, 10, TheMatrix.instance(), binaryDiscoveryDumper, false);
+                discoveryQueue, 10, 10, 10, TheMatrix.instance(), binaryDiscoveryDumper, false,
+                licenseCheckClient);
         IdentityGenerator.initPrefix(0);
         when(identityProvider.generateOperationId()).thenAnswer((invocation) -> IdentityGenerator.next());
 
