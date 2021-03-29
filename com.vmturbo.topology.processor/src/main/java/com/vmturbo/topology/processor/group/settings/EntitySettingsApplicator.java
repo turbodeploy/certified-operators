@@ -1491,17 +1491,17 @@ public class EntitySettingsApplicator {
             if (entity.getEntityType() == EntityType.APPLICATION_COMPONENT_VALUE) {
                 final String settingValue = setting.getEnumSettingValue().getValue();
                 boolean resizeScaling = ScalingPolicyEnum.RESIZE.name().equals(settingValue);
-                boolean provisionScaling = ScalingPolicyEnum.PROVISION.name().equals(settingValue);
+                boolean horizontalScaling = ScalingPolicyEnum.HORIZONTAL_SCALE.name().equals(settingValue);
 
-                if (!resizeScaling && !provisionScaling) {
+                if (!resizeScaling && !horizontalScaling) {
                     logger.error("Entity {} has an invalid scaling policy: {}",
                             entity.getDisplayName(), settingValue);
                     return;
                 }
                 // Explicitly disable provision and suspension only when the scaling policy is Resize
-                // Otherwise (i.e., the scaling policy is Provision), leave the provision and suspension
-                // setting the way they were set by the probe.
-                if (!provisionScaling) {
+                // Otherwise (i.e., the scaling policy is Horizontal Scale), leave the provision and
+                // suspension setting the way they were set by the probe.
+                if (!horizontalScaling) {
                     entity.getAnalysisSettingsBuilder().setCloneable(false);
                     entity.getAnalysisSettingsBuilder().setSuspendable(false);
                 }
