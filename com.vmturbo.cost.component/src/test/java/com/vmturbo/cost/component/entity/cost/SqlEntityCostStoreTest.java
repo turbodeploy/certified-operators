@@ -11,7 +11,6 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.util.concurrent.MoreExecutors;
 
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.MatcherAssert;
@@ -114,7 +113,7 @@ public class SqlEntityCostStoreTest {
 
     @Before
     public void setup() throws Exception {
-        store = new SqlEntityCostStore(dsl, clock, MoreExecutors.newDirectExecutorService(),1);
+        store = new SqlEntityCostStore(dsl, clock, 1);
     }
 
     @Test

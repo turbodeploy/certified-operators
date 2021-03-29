@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.stitching;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
@@ -56,9 +57,8 @@ public class StitchingGroupFixer {
     private final Logger logger = LogManager.getLogger();
     /**
      * The cache of modified group memberships after the StitchingGroupAnalyzerStage.
-     * Target ID -> group ID -> discovered group members.
      */
-    private final Map<Long, Map<String, DiscoveredGroupMembers>> modifiedGroups = new HashMap<>();
+    private final Map<String, DiscoveredGroupMembers> modifiedGroups = new HashMap<>();
 
     /**
      * Analyze and cache groups whose member ids are replaced as a result of stitching with
@@ -77,7 +77,7 @@ public class StitchingGroupFixer {
         stitchingGraph.entities()
             .filter(TopologyStitchingEntity::hasMergeInformation)
             .forEach(entity -> cacheModifiedGroupFor(entity, groupCache));
-        return modifiedGroups.values().stream().mapToInt(Map::size).sum();
+        return modifiedGroups.size();
     }
 
     /**
@@ -104,15 +104,12 @@ public class StitchingGroupFixer {
             .forEach(group -> {
                 // Swap the merge OID with the OID of the entity that was merged "onto".
                 group.swapMember(mergeInfo.getOid(), entity.getOid());
-                final InterpretedGroup associatedGroup = group.getAssociatedGroup();
                 if (logger.isDebugEnabled()) {
-                    logger.debug("Cache modified member for group {} from target {}: {} -> {}.",
-                            associatedGroup.getSourceId(), associatedGroup.getTargetId(),
-                            mergeInfo.getOid(), entity.getOid());
+                    logger.debug("Cache modified member for group {}: {} -> {}.",
+                            group.getAssociatedGroup().getSourceId(), mergeInfo.getOid(), entity.getOid());
                 }
                 // Add the group to the modified groups map so that we can fix up memberships at the end.
-                modifiedGroups.computeIfAbsent(associatedGroup.getTargetId(),
-                        targetId -> new HashMap<>()).put(associatedGroup.getSourceId(), group);
+                modifiedGroups.put(group.getAssociatedGroup().getSourceId(), group);
             }));
     }
 
@@ -123,23 +120,16 @@ public class StitchingGroupFixer {
      * @param group The group whose membership may be replaced.
      */
     private void replaceGroupMembersFor(@Nonnull final InterpretedGroup group) {
-        final Map<String, DiscoveredGroupMembers> groupIdToDiscvoeredGroupMembers =
-                modifiedGroups.get(group.getTargetId());
-        if (groupIdToDiscvoeredGroupMembers != null) {
-            final DiscoveredGroupMembers modifiedGroup = groupIdToDiscvoeredGroupMembers.get(
-                    group.getSourceId());
-            if (modifiedGroup != null) {
-                group.getGroupDefinition()
+        Optional.ofNullable(modifiedGroups.get(group.getSourceId()))
+                .ifPresent(modifiedGroup -> group.getGroupDefinition()
                         .map(GroupDefinition.Builder::getStaticGroupMembersBuilder)
                         .ifPresent(memberBuilder -> {
                             if (logger.isDebugEnabled()) {
-                                logger.debug("Replace members for group {} from target {}.",
-                                        group.getSourceId(), group.getTargetId());
+                                logger.debug("Replace members for group {}.",
+                                        group.getSourceId());
                             }
                             memberBuilder.clear();
                             memberBuilder.addAllMembersByType(modifiedGroup.getMembers());
-                        });
-            }
-        }
+                        }));
     }
 }

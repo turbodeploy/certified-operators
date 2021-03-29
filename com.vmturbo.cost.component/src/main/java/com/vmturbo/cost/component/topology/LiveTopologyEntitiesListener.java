@@ -53,8 +53,6 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
 
     private final TopologyInfoTracker liveTopologyInfoTracker;
 
-    private final IngestedTopologyStore ingestedTopologyStore;
-
     private final Object topologyProcessorLock = new Object();
 
     private ThreadFactory threadFactory;
@@ -67,13 +65,11 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
                                         @Nonnull final ReservedInstanceCoverageUpdate reservedInstanceCoverageUpdate,
                                         @Nonnull final BusinessAccountHelper businessAccountHelper,
                                         @Nonnull final TopologyInfoTracker liveTopologyInfoTracker,
-                                        @Nonnull final IngestedTopologyStore ingestedTopologyStore,
                                         @Nonnull final List<LiveCloudTopologyListener> cloudTopologyListenerList) {
         this.cloudTopologyFactory = cloudTopologyFactory;
         this.reservedInstanceCoverageUpdate = Objects.requireNonNull(reservedInstanceCoverageUpdate);
         this.businessAccountHelper = Objects.requireNonNull(businessAccountHelper);
         this.liveTopologyInfoTracker = Objects.requireNonNull(liveTopologyInfoTracker);
-        this.ingestedTopologyStore = Objects.requireNonNull(ingestedTopologyStore);
         threadFactory = new ThreadFactoryBuilder()
                 .setNameFormat("LiveCloudTopologyListener-%d")
                 .build();
@@ -141,9 +137,6 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
                         logger.error("Execution Exception encountered while running live topology cloud listener {}", currentTask, e);
                     }
                 }
-
-                ingestedTopologyStore.recordIngestedTopology(topologyInfo);
-
             } else {
                 logger.info("Live topology with topologyId {}  doesn't have Cloud entities."
                         + " Partial processing will include Buy RI Analysis only.",

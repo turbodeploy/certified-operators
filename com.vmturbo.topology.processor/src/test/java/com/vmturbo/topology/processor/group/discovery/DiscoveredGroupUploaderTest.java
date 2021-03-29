@@ -294,10 +294,10 @@ public class DiscoveredGroupUploaderTest {
     }
 
     @Test
-    public void testFixupGroupsModifiesUploadedGroups() {
-        when(converter.interpretSdkGroupList(any(), eq(TARGET_ID))).thenReturn(
-                Collections.singletonList(new InterpretedGroup(TARGET_ID, STATIC_MEMBER_DTO,
-                        Optional.of(PLACEHOLDER_GROUP.getDefinition().toBuilder()))));
+    public void testFixupGroupsModifiesUploadedGroups() throws Exception {
+        when(converter.interpretSdkGroupList(any(), eq(TARGET_ID)))
+            .thenReturn(Collections.singletonList(new InterpretedGroup(
+                    STATIC_MEMBER_DTO, Optional.of(PLACEHOLDER_GROUP.getDefinition().toBuilder()))));
         when(interpretedGroup.getGroupDefinition()).thenReturn(
                 Optional.of(PLACEHOLDER_GROUP.getDefinition().toBuilder()));
         recorderSpy.setTargetDiscoveredGroups(TARGET_ID, Collections.singletonList(STATIC_MEMBER_DTO));

@@ -41,7 +41,6 @@ import com.vmturbo.common.protobuf.cost.Pricing.SpotInstancePriceTable.SpotPrice
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.components.common.utils.FuzzyDouble;
 import com.vmturbo.cost.calculation.ReservedInstanceApplicator.ReservedInstanceApplicatorFactory;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.LicensePriceTuple;
@@ -551,17 +550,13 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                     recordVMIpCost(entity, computeTier, onDemandPriceTable.get(), journal);
                 }
                 // Add entity uptime discounts to all categories
-                final FuzzyDouble entityUptimePercentage = FuzzyDouble.newFuzzy(cloudCostData.getEntityUptimePercentage(entityId));
-                if (entityUptimePercentage.isLessThan(100.0)) {
-                    TraxNumber entityUptimeDiscountValue = trax((entityUptimePercentage.value()),
+                Double entityUptimePercentage = cloudCostData.getEntityUptimePercentage(entityId);
+                TraxNumber entityUptimeDiscountValue = trax((entityUptimePercentage),
                             "EntityUptimeDiscountMultiplier");
-                    entityUptimeDiscountValue = entityUptimeDiscountValue.times(-1).compute()
+                entityUptimeDiscountValue = entityUptimeDiscountValue.times(-1).compute()
                             .plus(100F).compute()
                             .dividedBy(100f).compute();
-                    journal.addUptimeDiscountToAllCategories(entityUptimeDiscountValue);
-                } else {
-                    logger.trace("Skipping entity uptime discount for {}", entityId);
-                }
+                journal.addUptimeDiscountToAllCategories( entityUptimeDiscountValue);
 
             });
         });

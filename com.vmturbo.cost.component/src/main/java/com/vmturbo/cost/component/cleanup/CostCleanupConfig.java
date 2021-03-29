@@ -20,7 +20,6 @@ import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadFactory;
@@ -80,9 +79,6 @@ public class CostCleanupConfig {
 
     @Value("${tableCleanup.cleanupIntervalSeconds:3600}")
     private int cleanupIntervalSeconds;
-
-    @Value("${tableCleanup.entityCostBatchDelete:1000}")
-    private int entityCostBatchDelete;
 
     @Autowired
     private CostDBConfig sqlDatabaseConfig;
@@ -307,9 +303,6 @@ public class CostCleanupConfig {
                         .timeField(ENTITY_COST.CREATED_TIME)
                         .table(ENTITY_COST)
                         .shortTableName("entity_cost")
-                        .numRowsToBatchDelete(entityCostBatchDelete > 0
-                                ? Optional.of(entityCostBatchDelete)
-                                : Optional.empty())
                         .build(),
                 retentionPeriodFetcher());
     }
@@ -327,9 +320,6 @@ public class CostCleanupConfig {
                         .timeField(ENTITY_COST_BY_HOUR.CREATED_TIME)
                         .table(ENTITY_COST_BY_HOUR)
                         .shortTableName("entity_cost_by_hour")
-                        .numRowsToBatchDelete(entityCostBatchDelete > 0
-                                ? Optional.of(entityCostBatchDelete)
-                                : Optional.empty())
                         .build(),
                 retentionPeriodFetcher());
     }
@@ -347,9 +337,6 @@ public class CostCleanupConfig {
                         .timeField(ENTITY_COST_BY_DAY.CREATED_TIME)
                         .table(ENTITY_COST_BY_DAY)
                         .shortTableName("entity_cost_by_day")
-                        .numRowsToBatchDelete(entityCostBatchDelete > 0
-                                ? Optional.of(entityCostBatchDelete)
-                                : Optional.empty())
                         .build(),
                 retentionPeriodFetcher());
     }
@@ -367,9 +354,6 @@ public class CostCleanupConfig {
                         .timeField(ENTITY_COST_BY_MONTH.CREATED_TIME)
                         .table(ENTITY_COST_BY_MONTH)
                         .shortTableName("entity_cost_by_month")
-                        .numRowsToBatchDelete(entityCostBatchDelete > 0
-                                ? Optional.of(entityCostBatchDelete)
-                                : Optional.empty())
                         .build(),
                 retentionPeriodFetcher());
     }

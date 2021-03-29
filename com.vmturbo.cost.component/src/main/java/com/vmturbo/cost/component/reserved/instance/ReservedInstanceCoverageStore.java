@@ -4,7 +4,6 @@ import static com.vmturbo.cost.component.db.tables.ReservedInstanceCoverageLates
 import static com.vmturbo.cost.component.reserved.instance.ReservedInstanceUtil.SNAPSHOT_TIME;
 import static com.vmturbo.cost.component.reserved.instance.ReservedInstanceUtil.createSelectFieldsForRIUtilizationCoverage;
 
-import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.HashMap;
@@ -85,9 +84,8 @@ public class ReservedInstanceCoverageStore implements MultiStoreDiagnosable {
      */
     public void updateReservedInstanceCoverageStore(
             @Nonnull final DSLContext context,
-            @Nonnull Instant topologyCreationTime,
             @Nonnull final List<ServiceEntityReservedInstanceCoverageRecord> entityRiCoverages) {
-        final LocalDateTime currentTime = topologyCreationTime.atOffset(ZoneOffset.UTC).toLocalDateTime();
+        final LocalDateTime currentTime = LocalDateTime.now(ZoneOffset.UTC);
         List<ReservedInstanceCoverageLatestRecord> riCoverageRecords = entityRiCoverages.stream()
                 .map(entityRiCoverage -> createReservedInstanceCoverageRecord(context, currentTime,
                         entityRiCoverage))

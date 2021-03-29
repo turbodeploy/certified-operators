@@ -1,7 +1,6 @@
 package com.vmturbo.cost.component.cleanup;
 
 import java.time.LocalDateTime;
-import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
@@ -78,7 +77,5 @@ public interface CostTableCleanup {
          * @return The short table name.
          */
         String shortTableName();
-
-        Optional<Integer> numRowsToBatchDelete();
     }
 }

@@ -338,9 +338,9 @@ public class ReservedInstanceCoverageUpdateTest {
         verify(entityReservedInstanceMappingStore).updateEntityReservedInstanceMapping(
                 any(), entityRIMappingStoreCoverageCaptor.capture());
         verify(reservedInstanceCoverageStore).updateReservedInstanceCoverageStore(
-                any(), any(), riCoverageStoreCoverageCaptor.capture());
+                any(), riCoverageStoreCoverageCaptor.capture());
         verify(reservedInstanceUtilizationStore).updateReservedInstanceUtilization(
-                any(), any());
+                any());
 
 
         // asserts
@@ -393,9 +393,9 @@ public class ReservedInstanceCoverageUpdateTest {
         verify(entityReservedInstanceMappingStore).updateEntityReservedInstanceMapping(
                 any(), entityRIMappingStoreCoverageCaptor.capture());
         verify(reservedInstanceCoverageStore).updateReservedInstanceCoverageStore(
-                any(), any(), riCoverageStoreCoverageCaptor.capture());
+                any(), riCoverageStoreCoverageCaptor.capture());
         verify(reservedInstanceUtilizationStore).updateReservedInstanceUtilization(
-                any(), any());
+                any());
 
 
         // asserts

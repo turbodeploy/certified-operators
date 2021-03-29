@@ -8,7 +8,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility;
@@ -143,26 +142,5 @@ public class ExportUtils {
                         .stream().sorted().collect(Collectors.toList()));
         });
         return map;
-    }
-
-    /**
-     * Convert given {@link Tags} to a list of key value combinations, no order is ensured here.
-     * It combines tag key and value using = as separator and put all combinations into a list
-     * like: ["owner=alex","owner=bob"]. If the value is empty, it just adds the key into the list.
-     *
-     * @param tags {@link Tags}
-     * @return list of key value combinations
-     */
-    public static List<String> tagsToKeyValueConcatList(@Nonnull Tags tags) {
-        List<String> keyValueConcat = new ArrayList<>();
-        tags.getTagsMap().forEach((key, values) -> {
-            List<String> valuesList = values.getValuesList();
-            if (valuesList.isEmpty()) {
-                keyValueConcat.add(key);
-            } else {
-                valuesList.forEach(value -> keyValueConcat.add(key + "=" + value));
-            }
-        });
-        return keyValueConcat;
     }
 }

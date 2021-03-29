@@ -125,9 +125,9 @@ public class EntityMetricWriter extends TopologyWriterBase {
      * List of wasted files records by storage oid.
      */
     private final Long2ObjectMap<List<Record>> wastedFileRecordsByStorageId = new Long2ObjectOpenHashMap<>();
-    private final PrimitiveFieldsOnTEDPatcher tedPatcher = new PrimitiveFieldsOnTEDPatcher(true, true, false);
+    private final PrimitiveFieldsOnTEDPatcher tedPatcher = new PrimitiveFieldsOnTEDPatcher(true, true);
     private final GroupPrimitiveFieldsOnGroupingPatcher groupPatcher =
-            new GroupPrimitiveFieldsOnGroupingPatcher(true, false);
+            new GroupPrimitiveFieldsOnGroupingPatcher(true);
     private final DataPack<Long> oidPack;
     private final ScopeManager scopeManager;
     private DSLContext dsl;

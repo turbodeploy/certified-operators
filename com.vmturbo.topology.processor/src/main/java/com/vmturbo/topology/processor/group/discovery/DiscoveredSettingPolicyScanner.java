@@ -111,7 +111,7 @@ public class DiscoveredSettingPolicyScanner {
             if (targetDisplayName.isPresent()) {
                 targetUtilizationThresholds.getSettingPolicyBuilders()
                     .forEach(builder -> builder.addGroupsAndSettingPolicies(
-                        groupsByName, settingPoliciesByName, targetId, targetDisplayName.get()));
+                        groupsByName, settingPoliciesByName, targetDisplayName.get()));
                 groupUploader.setScannedGroupsAndPolicies(targetId, groupsByName.values(), settingPoliciesByName.values());
             } else {
                 logger.error("Unable to find targetName for target {}. Skipping " +
@@ -509,12 +509,10 @@ public class DiscoveredSettingPolicyScanner {
          * @param settingPoliciesByName The list of setting policies that this {@link DiscoveredSettingPolicyCreator}
          *                        will add a setting policy to. This setting policy is always added,
          *                        not conditionally added.
-         * @param targetId the target id
          * @param targetName the name of the target
          */
         public void addGroupsAndSettingPolicies(@Nonnull final Map<String, InterpretedGroup> groupsByName,
                                                 @Nonnull final Map<String, DiscoveredSettingPolicyInfo> settingPoliciesByName,
-                                                final long targetId,
                                                 @Nonnull final String targetName) {
             DiscoveredSettingPolicyInfo.Builder settingBuilder = DiscoveredSettingPolicyInfo.newBuilder()
                 .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE);
@@ -545,7 +543,7 @@ public class DiscoveredSettingPolicyScanner {
                                 .setType(MemberType.newBuilder()
                                     .setEntity(EntityType.PHYSICAL_MACHINE_VALUE))
                                 .addAllMembers(hostOids)));
-                    return new InterpretedGroup(targetId, groupDTO, Optional.of(groupDefinition));
+                    return new InterpretedGroup(groupDTO, Optional.of(groupDefinition));
                 });
 
                 // Associate the policy with the group.
