@@ -14,6 +14,7 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
@@ -22,6 +23,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableMap;
@@ -30,12 +32,12 @@ import com.google.common.collect.Sets;
 
 import io.grpc.StatusRuntimeException;
 
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
-import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
@@ -103,8 +105,8 @@ public class PercentileEditor extends
     private static final Map<EntityType, Set<CommodityType>> ENABLED_BOUGHT_FROM_PROVIDER_TYPES =
         ImmutableMap.of(EntityType.COMPUTE_TIER,
             ImmutableSet.of(CommodityType.STORAGE_ACCESS, CommodityType.IO_THROUGHPUT));
-    protected static final String FULL_DIAG_NAME_SUFFIX = "full";
-    protected static final String LATEST_DIAG_NAME_SUFFIX = "latest";
+    private static final String FULL_DIAG_NAME_SUFFIX = "full";
+    private static final String LATEST_DIAG_NAME_SUFFIX = "latest";
 
     /**
      * Entity types for which percentile calculation is supported.
@@ -127,31 +129,41 @@ public class PercentileEditor extends
                                .withHelp("The time spent on daily maintenance of percentile cache "
                                          + "(this is also part of tp_historical_completion_time_percentile)")
                                .build();
+    private static final String MAINTENANCE = "Maintenance";
     private static final String NOTIFICATION_EVENT = "Percentile";
-    private static final String MAINTENANCE_FAILED_NOTIFICATION_MESSAGE_FORMAT =
-            "Percentile sliding observation window maintenance failed for %s checkpoint, last checkpoint was at %s";
     private static final String FAILED_READ_PERCENTILE_TRANSACTION_MESSAGE =
-            "Failed to read the percentile transaction log entry for timestamp ";
+                    "Failed to read the percentile transaction log entry for timestamp '%s' when performing %s";
+    private static final String FAILED_TO_READ_FULL_BLOB_MESSAGE =
+                    "Failed to read percentile full window data, re-assembling from the daily blobs";
+    private static final String FAILED_TO_LOAD_LATEST_BLOB_MESSAGE =
+                    "Failed to load percentile latest window data, proceeding with empty";
 
     private final Clock clock;
     private final StatsHistoryServiceBlockingStub statsHistoryBlockingClient;
+    private final SystemNotificationProducer systemNotificationProducer;
 
     private boolean historyInitialized;
     // moment of most recent checkpoint i.e. save of full window in the persistent store
-    private long maintenanceLastCheckpointMs;
+    private long lastCheckpointMs;
     // number of checkpoints happened so far for logging purposes
     private long checkpoints;
-    /*
-     * Flag set to true in case we need to enforce maintenance. Currently there is only one use
-     * case for this - when percentile observation window changed. In case there are no changes
-     * in percentile observation window than it is setting to false.
-     */
-    private boolean enforceMaintenance;
-    private final SystemNotificationProducer systemNotificationProducer;
     /**
      * Pre-calculated in non-plan context during initialization to reuse in multiple stages.
      */
     private Map<Long, Integer> entity2period;
+    /**
+     * Contains entities that are going to be/have been reassembled. By default it should be empty.
+     * Every broadcast we are clearing it. TTL of this variable is one broadcast.
+     * It is getting populated in the following use-cases:
+     *  - During TP start in case full blob failed to load we are placing all entities from the
+     *  current broadcast into this collection.
+     *  - During regular TP broadcast we are placing entities which max observation period has
+     *  changed since last broadcast. Ignored in case it is already populated.
+     *  - In case the time has come to do scheduled reassemble all entities from the cache are
+     *  going to be placed into this map.
+     */
+    private Map<EntityCommodityFieldReference, PercentileCommodityData> entitiesToReassemble =
+                    new HashMap<>();
 
     /**
      * Construct the instance of percentile editor.
@@ -161,17 +173,19 @@ public class PercentileEditor extends
      * @param statsHistoryBlockingClient persistence component blocking access handler
      * @param clock the {@link Clock}
      * @param historyLoadingTaskCreator creator of task to load or save data
+     * @param systemNotificationProducer system notification producer
      */
     public PercentileEditor(@Nonnull PercentileHistoricalEditorConfig config,
                     @Nonnull StatsHistoryServiceStub statsHistoryClient,
                     @Nonnull StatsHistoryServiceBlockingStub statsHistoryBlockingClient,
                     @Nonnull Clock clock,
-                    @Nonnull BiFunction<StatsHistoryServiceStub, Pair<Long, Long>, PercentilePersistenceTask> historyLoadingTaskCreator, @Nonnull SystemNotificationProducer systemNotificationProducer) {
+                    @Nonnull BiFunction<StatsHistoryServiceStub, Pair<Long, Long>, PercentilePersistenceTask> historyLoadingTaskCreator,
+                    @Nonnull SystemNotificationProducer systemNotificationProducer) {
         super(config, statsHistoryClient, historyLoadingTaskCreator, PercentileCommodityData::new);
         this.clock = clock;
         this.statsHistoryBlockingClient = statsHistoryBlockingClient;
         this.systemNotificationProducer = systemNotificationProducer;
-}
+    }
 
     @Override
     public boolean isApplicable(List<ScenarioChange> changes, TopologyInfo topologyInfo,
@@ -226,27 +240,39 @@ public class PercentileEditor extends
                             @Nonnull List<EntityCommodityReference> eligibleComms)
                     throws HistoryCalculationException, InterruptedException {
         super.initContext(context, eligibleComms);
-
+        final boolean isRealtime = !context.isPlan();
+        if (isRealtime) {
+            entitiesToReassemble.clear();
+        }
+        initializeCacheValues(context, eligibleComms);
         // will be required for initial loading, maintenance, observation period change check
-        if (!context.isPlan() || !historyInitialized) {
+        if (isRealtime || !historyInitialized) {
             entity2period = getEntityToPeriod(context);
         }
 
-        // read the latest and full window blobs if haven't yet, set into cache
-        loadPersistedData(context, eligibleComms, checkpoint -> {
-            // latest
-            return Pair.create(null,
-                    createTask(checkpoint).load(Collections.emptyList(), getConfig()));
-        }, maintenance -> {
-            // full
-            final PercentilePersistenceTask fullTask = createTask(maintenance);
-            final Map<EntityCommodityFieldReference, PercentileRecord> records = fullTask.load(
-                    Collections.emptyList(), getConfig());
-            return Pair.create(fullTask.getLastCheckpointMs(), records);
-        });
+        try (CacheBackup<PercentileCommodityData> backup = createCacheBackup()) {
+            // read the latest and full window blobs if haven't yet, set into cache
+            loadPersistedData(context, latestTimestamp -> {
+                // latest
+                return Pair.create(null, createTask(latestTimestamp)
+                                .load(Collections.emptyList(), getConfig()));
+            }, fullTimestamp -> {
+                // full
+                final PercentilePersistenceTask fullTask = createTask(fullTimestamp);
+                final Map<EntityCommodityFieldReference, PercentileRecord> records =
+                                fullTask.load(Collections.emptyList(), getConfig());
+                return Pair.create(fullTask.getLastCheckpointMs(), records);
+            });
 
-        if (!context.isPlan()) {
-            checkObservationPeriodsChanged(context);
+            /*
+             There is no sense to check observation period changes in case we've already reassembled
+             data in memory, which might happen only in case full blob loading failed. Reassembling
+             making sure that max observation period is correct, so no reason to check it again.
+             */
+            if (isRealtime && entitiesToReassemble.isEmpty()) {
+                checkObservationPeriodsChanged(context);
+            }
+            backup.keepCacheOnClose();
         }
     }
 
@@ -255,7 +281,6 @@ public class PercentileEditor extends
     public List<? extends Callable<List<EntityCommodityFieldReference>>>
            createPreparationTasks(@Nonnull HistoryAggregationContext context,
                                   @Nonnull List<EntityCommodityReference> commodityRefs) {
-        initializeCacheValues(context, commodityRefs);
         return Collections.emptyList();
     }
 
@@ -299,27 +324,23 @@ public class PercentileEditor extends
                                 entriesBefore - entriesAfter, entriesBefore);
             }
 
-            // TODO run all the subsequent memory-changing calls within one single CacheBackup
-
-            // persist the daily blob
-            persistDailyRecord();
-
-            if (shouldReassemble()) {
-                logger.info(
-                        "Performing reassembly full page - maintenance will be skipped. Last checkpoint maintenance changed from {} to {}.",
-                        Instant.ofEpochMilli(maintenanceLastCheckpointMs), Instant.ofEpochMilli(potentialNewCheckpoint));
-                // perform scheduled reassembly of the full page if needed
-                periodicReassembleFullPage(potentialNewCheckpoint);
-            } else {
-                // perform enforce maintenance if required
-                if (enforceMaintenance && !shouldRegularMaintenanceHappen(potentialNewCheckpoint)) {
-                    enforcedMaintenance(potentialNewCheckpoint);
-                } else {
-                    // perform daily maintenance if needed - synchronously within broadcast
-                    maintenance(potentialNewCheckpoint);
-                }
+            /*
+              Latest should always be stored with the timestamp of the last full blob successful
+              persistence. In case there is no such timestamp, i.e. TP just started, then we are
+              taking current midnight.
+              For reason: this ensures the sum of all records in the observation period is the same
+              as full record.
+             */
+            persistBlob(lastCheckpointMs, getMaintenanceWindowInMs(),
+                            UtilizationCountStore::getLatestCountsRecord);
+            final boolean maintenanceRequired = shouldRegularMaintenanceHappen(potentialNewCheckpoint);
+            if (!maintenanceRequired) {
+                logger.trace("Percentile cache checkpoint skipped - not enough time passed since last checkpoint "
+                                + lastCheckpointMs);
             }
-
+            final boolean reassembleRequired = shouldReassemble(potentialNewCheckpoint);
+            checkpoint(potentialNewCheckpoint, maintenanceRequired, reassembleRequired,
+                            reassembleRequired);
             // print the utilization counts from cache for the configured OID in logs
             // if debug is enabled.
             debugLogDataValues(logger,
@@ -328,7 +349,96 @@ public class PercentileEditor extends
         }
     }
 
-    private boolean shouldReassemble() {
+    /**
+     * Persists full blob if required. Creates new full blob instance which is ready to be recorded
+     * to DB in case it is required:
+     * <ul>
+     *     <li>regular maintenance;</li>
+     *     <li>observation period changed;</li>
+     *     <li>scheduled reassemble.</li>
+     * </ul>
+     * In case full blob was created it will be send to history component, so it will be written.
+     * Right after full writing it is required to persist updated latest blob. In all cases when we
+     * are going to write full blob we are clearing latest and its clear state should be persisted.
+     *
+     * @param potentialNewCheckpoint timestamp which might be used to persist full
+     *                 blob. It will be also used as a start timestamp for cleared latest.
+     * @param maintenanceRequired {@code true} in case it is time to do
+     *                 maintenance.
+     * @param reassembleRequired {@code true} in case it is time to do reassemble or
+     *                 in case reassemble called through API call.
+     * @param updateReassemblyCheckpoint {@code true} in case scheduled reassembly
+     *                 happened.
+     * @throws InterruptedException in case operation has been interrupted.
+     */
+    private void checkpoint(long potentialNewCheckpoint, boolean maintenanceRequired,
+                    boolean reassembleRequired, boolean updateReassemblyCheckpoint)
+                    throws InterruptedException {
+        try (CacheBackup<PercentileCommodityData> backup = createCacheBackup()) {
+            final PercentileCounts.Builder full =
+                            createFullForPersistence(potentialNewCheckpoint, reassembleRequired,
+                                            maintenanceRequired);
+            if (full != null) {
+                writeBlob(full, potentialNewCheckpoint, PercentilePersistenceTask.TOTAL_TIMESTAMP);
+                persistBlob(potentialNewCheckpoint, getMaintenanceWindowInMs(),
+                                UtilizationCountStore::getLatestCountsRecord);
+                logger.info("Last percentile checkpoint is going to be changed from {} to {}.",
+                                Instant.ofEpochMilli(lastCheckpointMs),
+                                Instant.ofEpochMilli(potentialNewCheckpoint));
+                lastCheckpointMs = potentialNewCheckpoint;
+            }
+            if (updateReassemblyCheckpoint) {
+                getConfig().setFullPageReassemblyLastCheckpoint(potentialNewCheckpoint);
+            }
+            backup.keepCacheOnClose();
+        } catch (HistoryCalculationException ex) {
+            final String operation = reassembleRequired ?
+                            "Reassemble" :
+                            maintenanceRequired ? MAINTENANCE : "Broadcast";
+            final String message =
+                            String.format("%s failed for '%s' checkpoint, last checkpoint was at '%s'",
+                                            operation, Instant.ofEpochMilli(potentialNewCheckpoint),
+                                            Instant.ofEpochMilli(lastCheckpointMs));
+            sendNotification(message, Severity.CRITICAL);
+            logger.error(message, ex);
+        } finally {
+            entitiesToReassemble.clear();
+        }
+    }
+
+    @Nullable
+    private PercentileCounts.Builder createFullForPersistence(long potentialNewCheckpoint,
+                    boolean reassemble, boolean maintenance)
+                    throws InterruptedException, HistoryCalculationException {
+        /*
+         Reassemble only in case the time has come and we did not reassemble full for
+         all entities in initContext. It might be in two cases:
+          - all entities changed theirs observation period;
+          - we had problems in reading full blob, so it was reassembled.
+         */
+        if (reassemble && entitiesToReassemble.size() < getCache()
+                        .size()) {
+            entitiesToReassemble.putAll(getCache());
+            final int maxObservationPeriod = getMaxObservationPeriod();
+            logger.info("Performing reassembly full page for '{}' entities with '{}' max observation period at '{}' - maintenance will be skipped.",
+                            entitiesToReassemble.size(), maxObservationPeriod,
+                            potentialNewCheckpoint);
+            reassembleFullPageInMemory(maxObservationPeriod);
+        }
+        /*
+         There is no sense in tries to remove outdated records in case whole full blob
+         has been reassembled.
+         */
+        if (maintenance && entitiesToReassemble.size() < getCache().size()) {
+            return removeOutdated(potentialNewCheckpoint);
+        }
+        if (!entitiesToReassemble.isEmpty()) {
+            return createBlob(store -> store.checkpoint(Collections.emptyList(), true));
+        }
+        return null;
+    }
+
+    private boolean shouldReassemble(long now) {
         final PercentileHistoricalEditorConfig config = getConfig();
         final long reassemblyLastCheckpointInMs = config.getFullPageReassemblyLastCheckpointInMs();
         final int fullPageReassemblyPeriodInDays = config.getFullPageReassemblyPeriodInDays();
@@ -342,12 +452,12 @@ public class PercentileEditor extends
                     "Full page reassembly period is set to 0 - periodic reassembly will not be performed");
             return false;
         }
-        if (reassemblyLastCheckpointInMs == 0 && maintenanceLastCheckpointMs > 0) {
-            config.setFullPageReassemblyLastCheckpoint(maintenanceLastCheckpointMs);
+        if (reassemblyLastCheckpointInMs == 0 && lastCheckpointMs > 0) {
+            config.setFullPageReassemblyLastCheckpoint(lastCheckpointMs);
             return false;
         }
-        if (clock.millis() - reassemblyLastCheckpointInMs < TimeUnit.DAYS.toMillis(
-                fullPageReassemblyPeriodInDays)) {
+        if (now - reassemblyLastCheckpointInMs < TimeUnit.DAYS
+                        .toMillis(fullPageReassemblyPeriodInDays)) {
             logger.trace(
                     "Full page reassembly execution skipped - not enough time passed since last checkpoint "
                             + reassemblyLastCheckpointInMs);
@@ -356,33 +466,23 @@ public class PercentileEditor extends
         return true;
     }
 
-    private void periodicReassembleFullPage(long maintenanceCheckpoint)
-            throws HistoryCalculationException, InterruptedException {
-        reassembleFullPage(true, maintenanceCheckpoint);
-        getConfig().setFullPageReassemblyLastCheckpoint(maintenanceCheckpoint);
-    }
-
     /**
      * Re-compute the full page from the daily pages over the maximum defined observation period.
      * Update memory cache and if necessary persisting it.
      * Execute synchronously (will block the ongoing broadcast, if happens at the same time).
      *
-     * @param persist whether to persist the full blob into DB after reassembly.
      * @param checkpointMs moment of time to store as checkpoint
      * @throws InterruptedException when interrupted
-     * @throws HistoryCalculationException when failed
      */
-    public synchronized void reassembleFullPage(boolean persist, long checkpointMs)
-            throws InterruptedException, HistoryCalculationException {
-        int maxPeriod = getCache().values().stream()
-                        .map(PercentileCommodityData::getUtilizationCountStore)
+    public synchronized void requestedReassembleFullPage(long checkpointMs)
+            throws InterruptedException {
+        checkpoint(checkpointMs, false, true, false);
+    }
+
+    private int getMaxObservationPeriod() {
+        return getCache().values().stream().map(PercentileCommodityData::getUtilizationCountStore)
                         .map(UtilizationCountStore::getPeriodDays).max(Long::compare)
-                        .orElse(PercentileHistoricalEditorConfig
-                                        .getDefaultObservationPeriod());
-        reassembleFullPageInMemory(getCache(), maxPeriod);
-        if (enforceMaintenance = persist) {
-            enforcedMaintenance(checkpointMs);
-        }
+                        .orElse(PercentileHistoricalEditorConfig.getDefaultObservationPeriod());
     }
 
     private HistoryAggregationContext createEmptyContext() {
@@ -396,13 +496,6 @@ public class PercentileEditor extends
         final GraphWithSettings graphWithSettings = new GraphWithSettings(graph, oidToSettings,
                 defaultPolicies);
         return new HistoryAggregationContext(topologyInfo, graphWithSettings, false);
-    }
-
-    private void persistDailyRecord() throws InterruptedException, HistoryCalculationException {
-        // When we are in checkpoint time, we persist the latest in last successfully written day record.
-        // For reason: this ensures the sum of all records in the observation period is the same as full record.
-        persistBlob(maintenanceLastCheckpointMs, getMaintenanceWindowInMs(),
-                UtilizationCountStore::getLatestCountsRecord);
     }
 
     private void persistBlob(long taskTimestamp, long periodMs,
@@ -429,14 +522,13 @@ public class PercentileEditor extends
     }
 
     private synchronized void loadPersistedData(@Nonnull HistoryAggregationContext context,
-                    @Nonnull List<EntityCommodityReference> eligibleComms,
                     @Nonnull ThrowingFunction<Long, Pair<Long, Map<EntityCommodityFieldReference, PercentileRecord>>, HistoryCalculationException> latestLoader,
                     @Nonnull ThrowingFunction<Long, Pair<Long, Map<EntityCommodityFieldReference, PercentileRecord>>, HistoryCalculationException> fullLoader)
                     throws HistoryCalculationException, InterruptedException {
         if (!historyInitialized) {
             // assume today's midnight
             long now = clock.millis();
-            maintenanceLastCheckpointMs = getDefaultMaintenanceCheckpointTimeMs(now);
+            lastCheckpointMs = getDefaultMaintenanceCheckpointTimeMs(now);
             Stopwatch sw = Stopwatch.createStarted();
             // read the latest and full window blobs if haven't yet, set into cache
             try {
@@ -457,20 +549,32 @@ public class PercentileEditor extends
                 }
                 if (full.getFirst() > 0) {
                     // if full is present in the db, it's 'end' is the actual checkpoint moment
-                    maintenanceLastCheckpointMs = full.getFirst();
+                    lastCheckpointMs = full.getFirst();
                 }
                 logger.info("Initialized percentile full window data for {} commodities in {}",
                              fullPage::size, sw::toString);
             } catch (InvalidHistoryDataException e) {
-                logger.warn("Failed to read percentile full window data, re-assembling from the daily blobs", e);
-                initializeCacheValues(context, eligibleComms);
-                reassembleFullPage(true, now);
+                sendNotification(FAILED_TO_READ_FULL_BLOB_MESSAGE, Severity.MAJOR);
+                logger.warn(FAILED_TO_READ_FULL_BLOB_MESSAGE, e);
+                entitiesToReassemble.putAll(getCache());
+                /*
+                 Attempt to reassemble full page will create clear latest blob. It means that all
+                 blobs created before current moment should now be included in full.
+                 */
+                lastCheckpointMs = now;
+                /*
+                  We should reassemble full page here because otherwise we will never know what
+                  is the timestamp for latest.
+                 */
+                reassembleFullPageInMemory(getMaxObservationPeriod());
+                historyInitialized = true;
+                return;
             }
             sw.reset();
             sw.start();
             try {
                 final Pair<Long, Map<EntityCommodityFieldReference, PercentileRecord>> loaded =
-                                latestLoader.apply(maintenanceLastCheckpointMs);
+                                latestLoader.apply(lastCheckpointMs);
                 final Map<EntityCommodityFieldReference, PercentileRecord> latestPage =
                                 loaded.getSecond();
                 for (Map.Entry<EntityCommodityFieldReference, PercentileRecord> latestEntry : latestPage.entrySet()) {
@@ -486,76 +590,83 @@ public class PercentileEditor extends
                     }
                 }
                 logger.info("Initialized percentile latest window data for timestamp {} and {} commodities in {}",
-                        maintenanceLastCheckpointMs, latestPage.size(), sw);
+                                lastCheckpointMs, latestPage.size(), sw);
             } catch (InvalidHistoryDataException e) {
-                logger.warn("Failed to load percentile latest window data, proceeding with empty", e);
+                sendNotification(FAILED_TO_LOAD_LATEST_BLOB_MESSAGE, Severity.MAJOR);
+                logger.warn(FAILED_TO_LOAD_LATEST_BLOB_MESSAGE, e);
             }
             historyInitialized = true;
         }
     }
 
     private void checkObservationPeriodsChanged(@Nonnull HistoryAggregationContext context)
-            throws HistoryCalculationException, InterruptedException {
+                    throws InterruptedException, HistoryCalculationException {
         final Map<EntityCommodityFieldReference, PercentileCommodityData> changedPeriodEntries =
                 new HashMap<>();
         int maxOfChangedPeriods = 0;
-        for (Map.Entry<EntityCommodityFieldReference, PercentileCommodityData> entry : getCache().entrySet()) {
-            final Integer observationPeriod = entity2period.get(entry.getKey().getEntityOid());
+        for (Map.Entry<EntityCommodityFieldReference, PercentileCommodityData> entry : getCache()
+                        .entrySet()) {
+            final EntityCommodityFieldReference ref = entry.getKey();
+            final Integer observationPeriod = entity2period.get(ref.getEntityOid());
             if (observationPeriod != null) {
-                final UtilizationCountStore store = entry.getValue().getUtilizationCountStore();
+                final PercentileCommodityData data = entry.getValue();
                 // We are only interested in "changes" but not in handling the new entities.
-                if (entry.getValue().needsReinitialization(entry.getKey(), context, getConfig())) {
-                    changedPeriodEntries.put(entry.getKey(), entry.getValue());
+                if (data.needsReinitialization(ref, context, getConfig())) {
+                    changedPeriodEntries.put(ref, data);
                     // Update percentile data with observation windows values.
                     // The needed pages count to load will be determined by the max observation period.
                     maxOfChangedPeriods = Math.max(maxOfChangedPeriods, observationPeriod);
                 }
-                // TODO these changes to cache are made outside of 'cache backup'
-                // they don't get reverted if reassembly fails
-                // instead of modifying here they should be collected and passed to reassemble call below
-                store.setPeriodDays(observationPeriod);
             }
         }
 
         if (changedPeriodEntries.isEmpty()) {
             logger.debug("Observation periods for cache entries have not changed.");
-            enforceMaintenance = false;
         } else {
-            reassembleFullPageInMemory(changedPeriodEntries, maxOfChangedPeriods);
-            enforceMaintenance = true;
+            entitiesToReassemble.putAll(changedPeriodEntries);
+            /*
+             * It is required to do reassemble at least in memory, because without it new setting
+             * for observation period will not take place, before we will do percentile
+             * calculations.
+             */
+            reassembleFullPageInMemory(maxOfChangedPeriods);
         }
     }
 
-    private void reassembleFullPageInMemory(
-            Map<EntityCommodityFieldReference, PercentileCommodityData> entriesToUpdate,
-            int maxOfPeriods) throws HistoryCalculationException, InterruptedException {
+    private synchronized long reassembleFullPageInMemory(int maxOfPeriods)
+                    throws HistoryCalculationException, InterruptedException {
         logger.debug("Reassembling full page for {} entries from up to {} days",
-                        entriesToUpdate.size(), maxOfPeriods);
-        try (DataMetricTimer timer = SETTINGS_CHANGE_SUMMARY_METRIC.startTimer();
-             CacheBackup<PercentileCommodityData> backup = createCacheBackup()) {
+                        entitiesToReassemble.size(), maxOfPeriods);
+        try (DataMetricTimer timer = SETTINGS_CHANGE_SUMMARY_METRIC.startTimer()) {
             final Stopwatch sw = Stopwatch.createStarted();
-
-            for (PercentileCommodityData data : entriesToUpdate.values()) {
-                data.getUtilizationCountStore().clearFullRecord();
+            for (Entry<EntityCommodityFieldReference, PercentileCommodityData> entry : entitiesToReassemble
+                                                        .entrySet()) {
+                final Integer observationPeriod = entity2period.get(entry.getKey().getEntityOid());
+                final UtilizationCountStore utilizationCountStore =
+                                entry.getValue().getUtilizationCountStore();
+                if (observationPeriod != null) {
+                    utilizationCountStore.setPeriodDays(observationPeriod);
+                }
+                utilizationCountStore.clearFullRecord();
             }
 
             // Read as many page blobs from persistence as constitute the max of new periods
             // and accumulate them into percentile cache, respect per-entity observation window settings
 
-            final long startTimestamp = shiftByObservationPeriod(maintenanceLastCheckpointMs, maxOfPeriods);
+            final long startTimestamp = shiftByObservationPeriod(lastCheckpointMs, maxOfPeriods);
             logger.debug("Reassembling daily blobs in range [{} - {})",
                             Instant.ofEpochMilli(startTimestamp),
-                            Instant.ofEpochMilli(maintenanceLastCheckpointMs));
+                            Instant.ofEpochMilli(lastCheckpointMs));
             // Load snapshots by selecting from history
-            List<Long> timestamps = getTimestampsInRange(startTimestamp, maintenanceLastCheckpointMs);
+            final List<Long> timestamps = getTimestampsInRange(startTimestamp, lastCheckpointMs,
+                            "to reassemble full page");
             for (long timestamp : timestamps) {
                 final Map<EntityCommodityFieldReference, PercentileRecord> page;
                 try {
                     page = createTask(timestamp).load(Collections.emptyList(), getConfig());
                 } catch (InvalidHistoryDataException e) {
-                    sendNotification(
-                            FAILED_READ_PERCENTILE_TRANSACTION_MESSAGE + startTimestamp
-                                    + " when performing full page reassembly", Severity.MAJOR);
+                    sendNotification(String.format(FAILED_READ_PERCENTILE_TRANSACTION_MESSAGE,
+                                    startTimestamp, "full page reassembly"), Severity.MAJOR);
                     logger.warn("Failed to read percentile daily blob for {}, skipping it for full page reassembly",
                                     timestamp, e);
                     continue;
@@ -563,14 +674,13 @@ public class PercentileEditor extends
 
                 // For each entry in cache with a changed observation period,
                 // apply loaded percentile commodity entries.
-                for (Map.Entry<EntityCommodityFieldReference, PercentileCommodityData> entry : entriesToUpdate
+                for (Map.Entry<EntityCommodityFieldReference, PercentileCommodityData> entry : entitiesToReassemble
                         .entrySet()) {
                     final UtilizationCountStore store = entry.getValue().getUtilizationCountStore();
                     // Calculate bound timestamp for specific entry.
                     // This is necessary if the changed observation period
                     // for a given entry is less than the maximum modified observation period.
-                    final long timestampBound = shiftByObservationPeriod(
-                                    maintenanceLastCheckpointMs, store.getPeriodDays());
+                    final long timestampBound = shiftByObservationPeriod(lastCheckpointMs, store.getPeriodDays());
                     if (timestampBound <= timestamp) {
                         final PercentileRecord percentileRecord = page.get(entry.getKey());
                         if (percentileRecord != null) {
@@ -587,40 +697,33 @@ public class PercentileEditor extends
 
             // at this point full record is a sum of all previous days up to period
             // except the latest page -> add latest to full, rescaling as necessary
-            for (PercentileCommodityData entry : entriesToUpdate.values()) {
+            for (PercentileCommodityData entry : entitiesToReassemble.values()) {
                 PercentileRecord.Builder record = entry.getUtilizationCountStore().getLatestCountsRecord();
                 if (record != null) {
                     entry.getUtilizationCountStore().setLatestCountsRecord(record.build());
                 }
             }
-
-            backup.keepCacheOnClose();
             logger.info("Reassembled full page for {} entries from {} pages in {}",
-                    entriesToUpdate.size(), maxOfPeriods, sw);
+                            entitiesToReassemble.size(), maxOfPeriods, sw);
+            return timestamps.stream().reduce((f, s) -> s).orElse(lastCheckpointMs);
         }
     }
 
-    private void maintenance(long newCheckpointMs) throws InterruptedException {
-        if (!historyInitialized) {
-            logger.warn("Not performing maintenance: percentile history is not initialized.");
-            return;
-        }
+    private void sendNotification(@Nonnull String description, @Nonnull Severity severity) {
+        systemNotificationProducer.sendSystemNotification(
+                        Collections.singletonList(NotificationDTO.newBuilder()
+                                        .setEvent(NOTIFICATION_EVENT)
+                                        .setSeverity(severity)
+                                        .setCategory(NotificationCategoryDTO.NOTIFICATION.name())
+                                        .setDescription(description)
+                                        .build()), null);
+    }
 
-        if (!shouldRegularMaintenanceHappen(newCheckpointMs)) {
-            logger.trace("Percentile cache checkpoint skipped - not enough time passed since last checkpoint "
-                         + maintenanceLastCheckpointMs);
-            return;
-        }
-
+    @Nullable
+    private PercentileCounts.Builder removeOutdated(long newCheckpointMs)
+                    throws InterruptedException, HistoryCalculationException {
         final Stopwatch sw = Stopwatch.createStarted();
-        try (DataMetricTimer timer = MAINTENANCE_SUMMARY_METRIC.startTimer();
-                        CacheBackup<PercentileCommodityData> backup = createCacheBackup()) {
-            logger.debug("Performing percentile cache maintenance {} for {}",
-                        ++checkpoints,
-                        Instant.ofEpochMilli(newCheckpointMs));
-
-            final Set<Integer> periods = new HashSet<>(entity2period.values());
-
+        try (DataMetricTimer timer = MAINTENANCE_SUMMARY_METRIC.startTimer()) {
             /*
              Process outdated percentiles day by day:
 
@@ -631,132 +734,72 @@ public class PercentileEditor extends
                  for each entity in cache:
                      if outdatedPercentiles contain entity:
                          subtract outdated utilization counts from cache
-             Save current cache to db.
-             Clear and save latest cache to db.
+             Clear latest.
             */
-            Map<PercentileCommodityData, List<PercentileRecord>> dataRef2outdatedRecords = new HashMap<>();
-            // initialize with empty collections
-            getCache().values().forEach(dataRef -> dataRef2outdatedRecords.put(dataRef, new LinkedList<>()));
-
-            for (Integer periodInDays : periods) {
-                final long outdatedStart = shiftByObservationPeriod(maintenanceLastCheckpointMs, periodInDays);
-                final long outdatedEnd = shiftByObservationPeriod(newCheckpointMs, periodInDays);
-                logger.info("Loading outdated blobs for period {} in range [{} - {})",
-                                periodInDays,
-                                Instant.ofEpochMilli(outdatedStart),
-                                Instant.ofEpochMilli(outdatedEnd));
-                // Load snapshots by selecting from history
-                List<Long> timestamps = getTimestampsInRange(outdatedStart, outdatedEnd);
-                for (long outdatedTimestamp : timestamps) {
-                    final PercentilePersistenceTask loadOutdated = createTask(outdatedTimestamp);
-                    logger.debug("Started checkpoint percentile cache for timestamp {} with period of {} days",
-                                    outdatedTimestamp, periodInDays);
-
-                    final Map<EntityCommodityFieldReference, PercentileRecord> oldValues;
-                    try {
-                        oldValues = loadOutdated.load(Collections.emptyList(), getConfig());
-                    } catch (InvalidHistoryDataException e) {
-                        sendNotification(
-                                FAILED_READ_PERCENTILE_TRANSACTION_MESSAGE
-                                        + outdatedTimestamp + " when performing maintenance", Severity.MAJOR);
-                        logger.warn("Failed to read percentile daily blob for {}, skipping it for maintenance",
-                                        outdatedTimestamp, e);
-                        continue;
-                    }
-                    for (Map.Entry<EntityCommodityFieldReference, PercentileCommodityData> fieldRef2data : getCache()
-                                    .entrySet()) {
-                        final EntityCommodityFieldReference ref = fieldRef2data.getKey();
-                        if (!periodInDays.equals(entity2period.get(ref.getEntityOid()))) {
-                            continue;
-                        }
-                        final PercentileRecord oldRecord = oldValues.get(ref);
-                        if (oldRecord != null) {
-                            // accumulate daily records that go out of observation window for each cached commodity reference
-                            dataRef2outdatedRecords.get(fieldRef2data.getValue()).add(oldRecord);
-                        }
-                    }
-                }
-            }
-
+            final Map<PercentileCommodityData, List<PercentileRecord>> dataRef2outdatedRecords =
+                            collectOutdatedRecords(newCheckpointMs);
             final PercentileCounts.Builder total = PercentileCounts.newBuilder();
-            for (Map.Entry<PercentileCommodityData, List<PercentileRecord>> entry : dataRef2outdatedRecords.entrySet()) {
+            for (Map.Entry<PercentileCommodityData, List<PercentileRecord>> entry : dataRef2outdatedRecords
+                            .entrySet()) {
                 final PercentileRecord.Builder checkpoint =
                                 entry.getKey().checkpoint(entry.getValue());
                 if (checkpoint != null) {
                     total.addPercentileRecords(checkpoint);
                 }
             }
-            writeBlob(total, newCheckpointMs, PercentilePersistenceTask.TOTAL_TIMESTAMP);
-
-            // store the cleared latest
-            persistBlob(newCheckpointMs, getMaintenanceWindowInMs(),
-                    UtilizationCountStore::getLatestCountsRecord);
-
-            backup.keepCacheOnClose();
-            maintenanceLastCheckpointMs = newCheckpointMs;
-
-        } catch (HistoryCalculationException e) {
-            sendNotification(String.format(MAINTENANCE_FAILED_NOTIFICATION_MESSAGE_FORMAT,
-                    Instant.ofEpochMilli(newCheckpointMs),
-                    Instant.ofEpochMilli(maintenanceLastCheckpointMs)), Severity.CRITICAL);
-            logger.error("{} maintenance failed for '{}' checkpoint, last checkpoint was at '{}'",
-                    enforceMaintenance ? "Enforced" : "Regular", Instant.ofEpochMilli(newCheckpointMs),
-                    Instant.ofEpochMilli(maintenanceLastCheckpointMs), e);
+            return total;
         } finally {
-            logger.info("Percentile cache {}maintenance {} took {}",
-                            enforceMaintenance ? "enforced " : "", checkpoints, sw);
+            logger.info("Outdated records removal {} took {} ms", checkpoints,
+                            sw.elapsed(TimeUnit.MILLISECONDS));
         }
     }
 
- private void sendNotification(@Nonnull String description, @Nonnull Severity severity) {
-        systemNotificationProducer.sendSystemNotification(
-                Collections.singletonList(NotificationDTO.newBuilder()
-                        .setEvent(NOTIFICATION_EVENT)
-                        .setSeverity(severity)
-                        .setCategory(NotificationCategoryDTO.NOTIFICATION.name())
-                        .setDescription(description)
-                        .build()), null);
-    }
+    @Nonnull
+    private Map<PercentileCommodityData, List<PercentileRecord>> collectOutdatedRecords(
+                    long newCheckpointMs) throws HistoryCalculationException, InterruptedException {
+        final Map<PercentileCommodityData, List<PercentileRecord>> result = new HashMap<>();
+        // initialize with empty collections
+        getCache().values().forEach(dataRef -> result.put(dataRef, new LinkedList<>()));
+        final Iterable<Integer> periods = new HashSet<>(entity2period.values());
+        for (Integer periodInDays : periods) {
+            final long outdatedStart =
+                            shiftByObservationPeriod(lastCheckpointMs, periodInDays);
+            final long outdatedEnd = shiftByObservationPeriod(newCheckpointMs, periodInDays);
+            logger.debug("Loading outdated blobs for period {} in range [{} - {})", periodInDays,
+                            Instant.ofEpochMilli(outdatedStart), Instant.ofEpochMilli(outdatedEnd));
+            // Load snapshots by selecting from history
+            final List<Long> timestamps = getTimestampsInRange(outdatedStart, outdatedEnd,
+                            "to remove outdated records");
+            for (long outdatedTimestamp : timestamps) {
+                final PercentilePersistenceTask loadOutdated = createTask(outdatedTimestamp);
+                logger.debug("Started checkpoint percentile cache for timestamp {} with period of {} days",
+                                outdatedTimestamp, periodInDays);
 
-    private void enforcedMaintenance(long checkpointMs) throws InterruptedException {
-        if (!historyInitialized) {
-            logger.warn("Not performing enforced maintenance: percentile history is not initialized.");
-            return;
+                final Map<EntityCommodityFieldReference, PercentileRecord> oldValues;
+                try {
+                    oldValues = loadOutdated.load(Collections.emptyList(), getConfig());
+                } catch (InvalidHistoryDataException e) {
+                    sendNotification(String.format(FAILED_READ_PERCENTILE_TRANSACTION_MESSAGE,
+                                    outdatedTimestamp, "maintenance"), Severity.MAJOR);
+                    logger.warn("Failed to read percentile daily blob for {}, skipping it for maintenance",
+                                    outdatedTimestamp, e);
+                    continue;
+                }
+                for (Map.Entry<EntityCommodityFieldReference, PercentileCommodityData> fieldRef2data : getCache()
+                                .entrySet()) {
+                    final EntityCommodityFieldReference ref = fieldRef2data.getKey();
+                    if (!periodInDays.equals(entity2period.get(ref.getEntityOid()))) {
+                        continue;
+                    }
+                    final PercentileRecord oldRecord = oldValues.get(ref);
+                    if (oldRecord != null) {
+                        // accumulate daily records that go out of observation window for each cached commodity reference
+                        result.get(fieldRef2data.getValue()).add(oldRecord);
+                    }
+                }
+            }
         }
-
-        final Stopwatch sw = Stopwatch.createStarted();
-        try (DataMetricTimer timer = MAINTENANCE_SUMMARY_METRIC.startTimer();
-             CacheBackup<PercentileCommodityData> backup = createCacheBackup()) {
-
-            logger.debug("Performing enforced percentile cache maintenance for {}",
-                         () -> Instant.ofEpochMilli(checkpointMs));
-            // checkpoint() also clears latest
-            persistBlob(PercentilePersistenceTask.TOTAL_TIMESTAMP, maintenanceLastCheckpointMs,
-                        store -> store.checkpoint(Collections.emptyList(), true));
-
-            // TODO currently 'enforced maintenance' does not subtract outdated blobs
-            // in a range [old checkpoint - period, new checkpoint - period)
-            // that contradicts the 'reassemble' behavior that implicitly drops values from outdated blobs
-            // 'enforced' should be merged with 'maintenance' to repeat that behavior
-
-            // store the cleared latest
-            persistBlob(checkpointMs, getMaintenanceWindowInMs(),
-                    UtilizationCountStore::getLatestCountsRecord);
-
-            backup.keepCacheOnClose();
-            maintenanceLastCheckpointMs = checkpointMs;
-
-        } catch (HistoryCalculationException e) {
-            sendNotification(String.format(MAINTENANCE_FAILED_NOTIFICATION_MESSAGE_FORMAT,
-                    Instant.ofEpochMilli(checkpointMs),
-                    Instant.ofEpochMilli(maintenanceLastCheckpointMs)), Severity.CRITICAL);
-            logger.error("{} maintenance failed for '{}' checkpoint, last checkpoint was at '{}'",
-                    enforceMaintenance ? "Enforced" : "Regular", Instant.ofEpochMilli(checkpointMs),
-                    Instant.ofEpochMilli(maintenanceLastCheckpointMs), e);
-        } finally {
-            logger.info("Percentile cache {}maintenance {} took {}",
-                enforceMaintenance ? "enforced " : "", checkpoints, sw);
-        }
+        return result;
     }
 
     /**
@@ -816,12 +859,8 @@ public class PercentileEditor extends
     private boolean shouldRegularMaintenanceHappen(long now) {
         // still try to run it around midnights but not if checkpoint happened just recently
         // e.g. if checkpoint for whatever reason happened at 23:30, do not run another this midnight
-        return maintenanceLastCheckpointMs <= getDefaultMaintenanceCheckpointTimeMs(now)
-                        - TimeUnit.HOURS.toMillis(1L);
-    }
-
-   protected SystemNotificationProducer getSystemNotificationProducer() {
-        return systemNotificationProducer;
+        return lastCheckpointMs
+                        <= getDefaultMaintenanceCheckpointTimeMs(now) - TimeUnit.HOURS.toMillis(1L);
     }
 
     @Override
@@ -834,7 +873,7 @@ public class PercentileEditor extends
              InputStream full = new ByteArrayInputStream(fullDiags)) {
             historyInitialized = false;
             getCache().clear();
-            loadPersistedData(context, Collections.emptyList(),
+            loadPersistedData(context,
                             (timestamp) -> loadCachePart(timestamp, latest, LATEST_DIAG_NAME_SUFFIX),
                             (timestamp) -> loadCachePart(timestamp, full, FULL_DIAG_NAME_SUFFIX));
         } catch (HistoryCalculationException | InterruptedException | IOException e) {
@@ -855,11 +894,9 @@ public class PercentileEditor extends
      * ------------- Percentile.Editor.state.latest.binary
      * @param compressedDiags Percentile diags zip
      * @return combined diags (full + latest) to be consumed by the loading logic
-     * @throws IOException if failed to read bits
-     * @throws DiagnosticsException if full or latest diags part is missing
      */
     @Nonnull
-    private Map<String, byte[]> getDiagsMaping(@Nonnull final byte[] compressedDiags) {
+    private static Map<String, byte[]> getDiagsMaping(@Nonnull final byte[] compressedDiags)  {
         final Map<String, byte[]> nameToBytes = new HashMap<>();
         final Iterable<Diags> diagsReader = new DiagsZipReader(
             new ByteArrayInputStream(compressedDiags), null, true);
@@ -970,16 +1007,17 @@ public class PercentileEditor extends
         return counts.getPercentileRecordsCount();
     }
 
-    private List<Long> getTimestampsInRange(long startMs, long endMs)
+    private List<Long> getTimestampsInRange(long startMs, long endMs, String operation)
                     throws HistoryCalculationException {
         try {
-            GetTimestampsRangeResponse response = statsHistoryBlockingClient
+            final GetTimestampsRangeResponse response = statsHistoryBlockingClient
                             .getPercentileTimestamps(GetTimestampsRangeRequest.newBuilder()
                                             .setStartTimestamp(startMs).setEndTimestamp(endMs).build());
-            logger.info("Blobs in range [{} - {}): {}",
+            logger.info("Blobs in range [{} - {}): {} loaded {}",
                             Instant.ofEpochMilli(startMs),
                             Instant.ofEpochMilli(endMs),
-                            response.getTimestampList());
+                            response.getTimestampList(),
+                            operation);
             return response.getTimestampList();
         } catch (StatusRuntimeException e) {
             throw new HistoryCalculationException("Failed to query daily blobs in range", e);
