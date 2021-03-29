@@ -1,4 +1,4 @@
-package com.vmturbo.cloud.common.util;
+package com.vmturbo.components.common.utils;
 
 import javax.annotation.Nonnull;
 

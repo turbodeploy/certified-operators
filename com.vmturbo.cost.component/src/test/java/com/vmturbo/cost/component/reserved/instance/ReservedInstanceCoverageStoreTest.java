@@ -3,6 +3,7 @@ package com.vmturbo.cost.component.reserved.instance;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -99,6 +100,7 @@ public class ReservedInstanceCoverageStoreTest {
     @Test
     public void testUpdateReservedInstanceCoverageStore() {
         reservedInstanceCoverageStore.updateReservedInstanceCoverageStore(dsl,
+                Instant.now(),
                 Arrays.asList(firstEntity, secondEntity, thirdEntity));
         final List<ReservedInstanceCoverageLatestRecord> records =
                 dsl.selectFrom(Tables.RESERVED_INSTANCE_COVERAGE_LATEST).fetch();
@@ -126,6 +128,7 @@ public class ReservedInstanceCoverageStoreTest {
     @Test
     public void testGetReservedInstanceCoverageStatsRecords() {
         reservedInstanceCoverageStore.updateReservedInstanceCoverageStore(dsl,
+                Instant.now(),
                 Arrays.asList(firstEntity, secondEntity, thirdEntity));
         List<Long> ids = new ArrayList<>();
         ids.add(123L);
