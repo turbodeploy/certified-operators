@@ -34,6 +34,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
@@ -182,7 +183,8 @@ public class DataExtractionWriterTest {
                 ))
                 .setTags(Tags.newBuilder()
                         .putTags("foo", TagValuesDTO.newBuilder().addValues("a").build())
-                        .putTags("bar", TagValuesDTO.newBuilder().addValues("b").addValues("c").build()))
+                        .putTags("bar", TagValuesDTO.newBuilder().addValues("b").addValues("c").build())
+                        .putTags("baz", TagValuesDTO.getDefaultInstance()))
                 .build();
 
         // mock supply chain
@@ -241,10 +243,8 @@ public class DataExtractionWriterTest {
         assertThat(vmAttrs.get("num_cpus"), is(12));
         assertThat(vmAttrs.get("guest_os_type"), is(OSType.LINUX));
         assertThat(vmAttrs.get("connected_networks"), is(Lists.newArrayList("net1")));
-        assertThat(vmAttrs.get(ExportUtils.TAGS_JSON_KEY_NAME), is(ImmutableMap.of(
-                "foo", Lists.newArrayList("a"),
-                "bar", Lists.newArrayList("b", "c")
-        )));
+        assertThat((Set<String>)vmAttrs.get(ExportUtils.TAGS_JSON_KEY_NAME),
+                containsInAnyOrder("foo=a", "bar=b", "bar=c", "baz"));
 
         Map<String, Object> pmAttrs = pmEntity.getAttrs();
         assertThat(pmAttrs.size(), is(4));
