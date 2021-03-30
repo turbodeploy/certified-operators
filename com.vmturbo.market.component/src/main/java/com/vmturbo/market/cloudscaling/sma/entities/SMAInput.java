@@ -732,8 +732,6 @@ public class SMAInput {
                 .findAny().orElse(null);
 
             if (computePrice == null) {
-                logger.error("updateTemplateRate: no on-demand hourlyRate in {} computePrices for template ID={}:name={} in accountId={} osType={} {}",
-                    computePriceSize, oid, name, businessAccountId, osType.name(), context);
                 return;
             } else if (osType != OSType.UNKNOWN_OS) {
                 logger.trace("updateTemplateRate: on-demand Rate={}: template ID={}:name={} in accountId={} osType={} {}",
