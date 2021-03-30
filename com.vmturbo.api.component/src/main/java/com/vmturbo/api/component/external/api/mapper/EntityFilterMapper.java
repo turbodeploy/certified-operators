@@ -22,14 +22,13 @@ import javax.annotation.concurrent.Immutable;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser.GroupUseCase.GroupUseCaseCriteria;
 import com.vmturbo.api.dto.group.FilterApiDTO;
-import com.vmturbo.clustermgr.api.ComponentProperties;
+import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters.EntityFilter;
 import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
 import com.vmturbo.common.protobuf.search.Search.GroupFilter;
@@ -57,7 +56,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
-import com.vmturbo.api.dto.group.GroupApiDTO;
 
 
 /**
@@ -1135,10 +1133,12 @@ public class EntityFilterMapper {
 
     /**
      * @param key: the key that we want to seee if exists in map
-     * @return true if COMPARISON_STRING_TO_COMPARISON_OPERATOR contains key else false
+     * @return true if it's a regex operator or COMPARISON_STRING_TO_COMPARISON_OPERATOR contains the key, else false
      */
     public static boolean checkIfValidComparisonOperator(String key) {
-        return (COMPARISON_STRING_TO_COMPARISON_OPERATOR.get(key) != null);
+        return key.equals(REGEX_MATCH)
+                || key.equals(REGEX_NO_MATCH)
+                || (COMPARISON_STRING_TO_COMPARISON_OPERATOR.get(key) != null);
     }
 
     /**
