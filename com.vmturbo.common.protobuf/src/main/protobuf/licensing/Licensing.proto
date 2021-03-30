@@ -74,6 +74,9 @@ message LicenseDTO {
         // The payload, encoded as a string. The contents of the license are opaque, since different
         // third-party software can have completely different license formats.
         optional string payload = 30;
+
+        // Reasons of failed validation. If it is not empty then license is invalid.
+        repeated string error_reason = 32;
     }
 }
 
@@ -103,6 +106,14 @@ message LicenseSummary {
     // One summary for each external license type.
     repeated ExternalLicenseSummary external_licenses_by_type = 50;
 
+    // The max count of allowed report editors. Report editors are inherently tied to the
+    // external license provided for Grafana. However, we want the auth component to be the source
+    // of truth for the number of report editors even when no Grafana license has been added.
+    // That's why this is outside the "external_licenses_by_type."
+    //
+    // It's 1 by default because it should always be safe to have at least one editor.
+    optional int32 max_report_editors_count = 51;
+
     message ExternalLicenseSummary {
         // The type of external license for this summary.
         optional LicenseDTO.ExternalLicense.Type type = 1;
@@ -110,6 +121,7 @@ message LicenseSummary {
         // The latest expiration date of licenses of this type.
         optional string expiration_date = 10;
         optional bool is_expired = 11 [default = false];
+
 
         // Checksum of all the external license payloads of this type.
         // Since we don't have any semantic insight into external licenses this is the only

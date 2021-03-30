@@ -1,27 +1,48 @@
 package com.vmturbo.auth.component.policy;
 
+import javax.annotation.Nonnull;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import com.vmturbo.auth.component.licensing.LicenseCheckService;
+import com.vmturbo.common.protobuf.licensing.Licensing.LicenseSummary;
+
 /**
  * Report related policies.
  */
 public class ReportPolicy {
-    private final int allowedMaximumEditor;
+
+    private final Logger logger = LogManager.getLogger(getClass());
+    private final LicenseCheckService licenseCheckService;
 
     /**
      * Constructor.
      *
-     * @param allowedMaximumEditor allowed number of maximum editor.
+     * @param licenseCheckService the license check service.
      */
-    public ReportPolicy(final int allowedMaximumEditor) {
-        this.allowedMaximumEditor = allowedMaximumEditor;
+    public ReportPolicy(@Nonnull final LicenseCheckService licenseCheckService) {
+        this.licenseCheckService = licenseCheckService;
     }
 
     /**
-     * Getter.
+     * Get the max count of allowed report editors.
+     * If there is an external grafana licence which has information about max count of editors
+     * then return it.
+     * If an external grafana licence don't have information about max count of editors or there
+     * is no grafana license then return predefined default max count of report editors.
      *
-     * @return allowed number of maximum editor
-     *
+     * @return the max count of allowed reports editors.
      */
-    public int getAllowedMaximumEditor() {
-        return allowedMaximumEditor;
+    public int getAllowedMaximumEditors() {
+        LicenseSummary lastSummary = licenseCheckService.getLastSummary();
+        if (lastSummary != null) {
+            return lastSummary.getMaxReportEditorsCount();
+        } else {
+            final int defaultEditorCount = LicenseSummary.getDefaultInstance().getMaxReportEditorsCount();
+            logger.warn("There is no available license summary. Using default instance with"
+                    + "editor count {}", defaultEditorCount);
+            return defaultEditorCount;
+        }
     }
 }

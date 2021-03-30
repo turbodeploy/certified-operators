@@ -3,6 +3,7 @@ package com.vmturbo.auth.component;
 import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.ADMINISTRATOR;
 import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.OBSERVER;
 import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.REPORT_EDITOR;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -16,6 +17,7 @@ import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 
@@ -87,12 +89,15 @@ import com.vmturbo.auth.api.usermgmt.AuthUserModifyDTO;
 import com.vmturbo.auth.api.usermgmt.AuthorizeUserInGroupsInputDTO;
 import com.vmturbo.auth.api.usermgmt.AuthorizeUserInputDTO;
 import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
+import com.vmturbo.auth.component.licensing.LicenseCheckService;
+import com.vmturbo.auth.component.licensing.store.ILicenseStore;
 import com.vmturbo.auth.component.policy.ReportPolicy;
 import com.vmturbo.auth.component.policy.UserPolicy;
 import com.vmturbo.auth.component.policy.UserPolicy.LoginPolicy;
 import com.vmturbo.auth.component.services.AuthUsersController;
 import com.vmturbo.auth.component.store.AuthProvider;
 import com.vmturbo.auth.component.store.sso.SsoUtil;
+import com.vmturbo.common.protobuf.licensing.Licensing.LicenseSummary;
 import com.vmturbo.kvstore.IPublicKeyStore;
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.kvstore.MapKeyValueStore;
@@ -222,9 +227,13 @@ public class RestTest {
 
         @Bean
         public AuthProvider targetStore() {
+            final LicenseCheckService licenseCheckService = Mockito.mock(LicenseCheckService.class);
+            when(licenseCheckService.getLastSummary()).thenReturn(LicenseSummary.newBuilder()
+                    .setMaxReportEditorsCount(1)
+                    .build());
             authStore = new AuthProvider(kvStore, null,
                     () -> System.getProperty("com.vmturbo.kvdir"), null, new UserPolicy(LoginPolicy.ALL,
-                    new ReportPolicy(1)), ssoUtil, false, false, () -> false);
+                    new ReportPolicy(licenseCheckService)), ssoUtil, false, false, () -> false);
             return authStore;
         }
 
