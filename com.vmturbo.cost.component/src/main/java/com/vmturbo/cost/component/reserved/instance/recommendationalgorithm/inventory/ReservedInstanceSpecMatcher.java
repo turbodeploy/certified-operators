@@ -170,6 +170,22 @@ public class ReservedInstanceSpecMatcher {
         default long reservedInstanceSpecId() {
             return reservedInstanceSpec().getId();
         }
+
+        /**
+         * The scaling penalty associated with the {@link #computeTier()} for this spec. The scaling penalty
+         * may be used as a tie-breaker in comparing specs.
+         * @return The scaling penalty value.
+         */
+        @Value.Lazy
+        default float scalingPenalty() {
+            if (computeTier().getTypeSpecificInfo().hasComputeTier()) {
+                return computeTier().getTypeSpecificInfo().getComputeTier()
+                        .getScalePenalty()
+                        .getPenalty();
+            } else {
+                return 0.0f;
+            }
+        }
     }
 
 }
