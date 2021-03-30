@@ -2,6 +2,7 @@ package com.vmturbo.sql.utils;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -11,9 +12,13 @@ import java.util.function.Function;
 import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Functions;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableMap;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.flywaydb.core.api.callback.FlywayCallback;
 import org.jooq.SQLDialect;
 import org.springframework.core.env.Environment;
@@ -42,44 +47,44 @@ import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
  * </ul>
  */
 public class DbEndpointResolver {
-    // names of properties for endpoint configuration (minus tag prefixes)
+    private static final Logger logger = LogManager.getLogger();
+
+    // names of properties for endpoint configuration
 
     /** dbHost property. */
-    public static final String DB_HOST_PROPERTY = "dbHost";
+    public static final String HOST_PROPERTY = "host";
     /** dbPort property. */
-    public static final String DB_PORT_PROPERTY = "dbPort";
+    public static final String PORT_PROPERTY = "port";
     /** dbDatabaseName property. */
-    public static final String DB_DATABASE_NAME_PROPERTY = "dbDatabaseName";
+    public static final String DATABASE_NAME_PROPERTY = "databaseName";
     /** dbSchemaName property. */
-    public static final String DB_SCHEMA_NAME_PROPERTY = "dbSchemaName";
+    public static final String SCHEMA_NAME_PROPERTY = "schemaName";
     /** dbUserName property. */
-    public static final String DB_USER_NAME_PROPERTY = "dbUserName";
+    public static final String USER_NAME_PROPERTY = "userName";
     /** dbPassword property. */
-    public static final String DB_PASSWORD_PROPERTY = "dbPassword";
+    public static final String PASSWORD_PROPERTY = "password";
     /** dbAccess property. */
-    public static final String DB_ACCESS_PROPERTY = "dbAccess";
+    public static final String ACCESS_PROPERTY = "access";
     /** dbRootUserName property. */
-    public static final String DB_ROOT_USER_NAME_PROPERTY = "dbRootUserName";
+    public static final String ROOT_USER_NAME_PROPERTY = "rootUserName";
     /** dbRootPassword property. */
-    public static final String DB_ROOT_PASSWORD_PROPERTY = "dbRootPassword";
+    public static final String ROOT_PASSWORD_PROPERTY = "rootPassword";
     /** dbDriverProperties property. */
-    public static final String DRIVER_PROPERTIES_PROPERTY = "dbDriverProperties";
+    public static final String DRIVER_PROPERTIES_PROPERTY = "driverProperties";
     /** dbSecure property. */
-    public static final String SECURE_PROPERTY_NAME = "dbSecure";
+    public static final String SECURE_PROPERTY_NAME = "secure";
     /** dbMigrationLocations property. */
-    public static final String DB_MIGRATION_LOCATIONS_PROPERTY = "dbMigrationLocation";
+    public static final String MIGRATION_LOCATIONS_PROPERTY = "migrationLocations";
     /** dbDestructiveProvisioningEnabled property. */
-    public static final String DB_DESTRUCTIVE_PROVISIONING_ENABLED_PROPERTY = "dbDestructiveProvisioningEnabled";
+    public static final String DESTRUCTIVE_PROVISIONING_ENABLED_PROPERTY = "destructiveProvisioningEnabled";
     /** dbEndpointEnabled property. */
-    public static final String DB_ENDPOINT_ENABLED_PROPERTY = "dbEndpointEnabled";
+    public static final String ENDPOINT_ENABLED_PROPERTY = "endpointEnabled";
     /** dbProvisioningSuffix property. */
-    public static final String DB_NAME_SUFFIX_PROPERTY = "dbNameSuffix";
-    /** dbRetryBackoffTimesSec property. */
-    public static final String DB_RETRY_BACKOFF_TIMES_SEC_PROPERTY = "dbRetryBackoffTimesSec";
+    public static final String NAME_SUFFIX_PROPERTY = "nameSuffix";
     /** dbShouldProvisionDatabase property. */
-    public static final String DB_SHOULD_PROVISION_DATABASE_PROPERTY = "dbShouldProvisionDatabase";
+    public static final String SHOULD_PROVISION_DATABASE_PROPERTY = "shouldProvisionDatabase";
     /** dbShouldProvisionUser property. */
-    public static final String DB_SHOULD_PROVISION_USER_PROPERTY = "dbShouldProvisionUser";
+    public static final String SHOULD_PROVISION_USER_PROPERTY = "shouldProvisionUser";
 
     /** system property name for retrieving component name for certain property defaults. */
     public static final String COMPONENT_TYPE_PROPERTY = "component_type";
@@ -91,16 +96,13 @@ public class DbEndpointResolver {
     /** default port for PostgreSQL. */
     public static final int DEFAULT_POSTGRES_PORT = 5432;
     /** default for secure connection. */
-    public static final Boolean DEFAULT_DB_SECURE_VALUE = Boolean.FALSE;
+    public static final Boolean DEFAULT_SECURE_VALUE = Boolean.FALSE;
     /** default migration location, prepended to component name. */
-    public static final String DEFAULT_DB_MIGRATION_LOCATION_PREFIX = "db.migration.";
+    public static final String DEFAULT_MIGRATION_LOCATION_PREFIX = "db.migration.";
     /** default for access level. */
-    public static final String DEFAULT_DB_ACCESS_VALUE = DbEndpointAccess.READ_ONLY.name();
+    public static final String DEFAULT_ACCESS_VALUE = DbEndpointAccess.READ_ONLY.name();
     /** default value for host name. */
-    public static final String DEFAULT_DB_HOST_VALUE = "localhost";
-
-    /** separator between tag name and property name when configuring tagged endpoints. */
-    public static final String TAG_PREFIX_SEPARATOR = "_";
+    public static final String DEFAULT_HOST_VALUE = "localhost";
 
     private static final SpelExpressionParser spel = new SpelExpressionParser();
 
@@ -108,7 +110,7 @@ public class DbEndpointResolver {
 
     private final DbEndpointConfig config;
     private final DbEndpointConfig template;
-    private final String tag;
+    private final String name;
     private final SQLDialect dialect;
     private final UnaryOperator<String> resolver;
 
@@ -124,31 +126,31 @@ public class DbEndpointResolver {
         this.config = config;
         this.resolver = resolver;
         this.dbPasswordUtil = dbPasswordUtil;
-        this.tag = Strings.isNullOrEmpty(config.getTag()) ? null : config.getTag();
+        this.name = Strings.isNullOrEmpty(config.getName()) ? null : config.getName();
         this.dialect = config.getDialect();
         this.template = config.getTemplate() != null ? config.getTemplate().getConfig() : null;
     }
 
     void resolve() throws UnsupportedDialectException {
-        if (!config.dbIsAbstract()) {
-            resolveDbProvisioningSuffix();
-            resolveDbHost();
-            resolveDbPort();
-            resolveDbDatabaseName();
-            resolveDbSchemaName();
-            resolveDbUserName();
-            resolveDbPassword();
-            resolveDbAccess();
-            resolveDbRootUserName();
-            resolveDbRootPassword();
-            resolveDbDriverProperties();
-            resolveDbSecure();
-            resolveDbMigrationLocations();
-            resolveDbFlywayCallbacks();
-            resolveDbDestructiveProvisioningEnabled();
-            resolveDbEndpointEnabled();
-            resolveDbShouldProvisionDatabase();
-            resolveDbShouldProvisionUser();
+        if (!config.isAbstract()) {
+            resolveProvisioningSuffix();
+            resolveHost();
+            resolvePort();
+            resolveDatabaseName();
+            resolveSchemaName();
+            resolveUserName();
+            resolvePassword();
+            resolveAccess();
+            resolveRootUserName();
+            resolveRootPassword();
+            resolveDriverProperties();
+            resolveSecure();
+            resolveMigrationLocations();
+            resolveFlywayCallbacks();
+            resolveDestructiveProvisioningEnabled();
+            resolveEndpointEnabled();
+            resolveShouldProvisionDatabase();
+            resolveShouldProvisionUser();
         }
     }
 
@@ -157,10 +159,14 @@ public class DbEndpointResolver {
      *
      * @throws UnsupportedDialectException if endpoint has bad dialect
      */
-    private void resolveDbHost() throws UnsupportedDialectException {
-        final String fromTemplate = getFromTemplate(DbEndpointConfig::getDbHost);
-        config.setDbHost(choosePropertyValue(dbTag(DB_HOST_PROPERTY),
-                or(config.getDbHost(), fromTemplate, DEFAULT_DB_HOST_VALUE)));
+    private void resolveHost() throws UnsupportedDialectException {
+        final String fromTemplate = getFromTemplate(DbEndpointConfig::getHost);
+        config.setHost(firstNonNull(configuredPropValue(HOST_PROPERTY),
+                config.getHost(), fromTemplate,
+                // backward compatibility for customers who are still using old operator
+                // this should be dropped when we have no at-risk customers
+                resolver.apply("dbHost"),
+                DEFAULT_HOST_VALUE));
     }
 
     /**
@@ -168,13 +174,13 @@ public class DbEndpointResolver {
      *
      * @throws UnsupportedDialectException if this endpoint is mis-configured
      */
-    private void resolveDbPort() throws UnsupportedDialectException {
-        String fromTemplate = getFromTemplate(DbEndpointConfig::getDbPort);
+    private void resolvePort() throws UnsupportedDialectException {
+        String fromTemplate = getFromTemplate(DbEndpointConfig::getPort);
         String fromDefault = Integer.toString(getDefaultPort(dialect));
-        String currentValue = config.getDbPort() != null ? config.getDbPort().toString() : null;
-        String propValue = choosePropertyValue(dbTag(DB_PORT_PROPERTY),
-                or(currentValue, fromTemplate, fromDefault));
-        config.setDbPort(Integer.parseInt(propValue));
+        String currentValue = config.getPort() != null ? config.getPort().toString() : null;
+        String propValue = firstNonNull(configuredPropValue(PORT_PROPERTY),
+                currentValue, fromTemplate, fromDefault);
+        config.setPort(Integer.parseInt(propValue));
     }
 
     /**
@@ -182,11 +188,11 @@ public class DbEndpointResolver {
      *
      * @throws UnsupportedDialectException if endpoint has bad dialect
      */
-    public void resolveDbDatabaseName() throws UnsupportedDialectException {
-        final String fromTemplate = getFromTemplate(DbEndpointConfig::getDbDatabaseName);
-        final String value = choosePropertyValue(dbTag(DB_DATABASE_NAME_PROPERTY),
-                or(config.getDbDatabaseName(), fromTemplate, tag, getComponentName()));
-        config.setDbDatabaseName(addSuffix(value));
+    public void resolveDatabaseName() throws UnsupportedDialectException {
+        final String fromTemplate = getFromTemplate(DbEndpointConfig::getDatabaseName);
+        final String value = firstNonNull(configuredPropValue(DATABASE_NAME_PROPERTY),
+                config.getDatabaseName(), fromTemplate, getComponentName());
+        config.setDatabaseName(addSuffix(value));
     }
 
     /**
@@ -194,11 +200,11 @@ public class DbEndpointResolver {
      *
      * @throws UnsupportedDialectException if endpoint has bad dialect
      */
-    public void resolveDbSchemaName() throws UnsupportedDialectException {
-        final String fromTemplate = getFromTemplate(DbEndpointConfig::getDbSchemaName);
-        final String value = choosePropertyValue(dbTag(DB_SCHEMA_NAME_PROPERTY),
-                or(config.getDbSchemaName(), fromTemplate, tag, getComponentName()));
-        config.setDbSchemaName(addSuffix(value));
+    public void resolveSchemaName() throws UnsupportedDialectException {
+        final String fromTemplate = getFromTemplate(DbEndpointConfig::getSchemaName);
+        final String value = firstNonNull(configuredPropValue(SCHEMA_NAME_PROPERTY),
+                config.getSchemaName(), fromTemplate, getComponentName());
+        config.setSchemaName(addSuffix(value));
     }
 
     /**
@@ -206,11 +212,11 @@ public class DbEndpointResolver {
      *
      * @throws UnsupportedDialectException if endpoint has bad dialect
      */
-    public void resolveDbUserName() throws UnsupportedDialectException {
-        final String fromTemplate = getFromTemplate(DbEndpointConfig::getDbUserName);
-        final String value = choosePropertyValue(dbTag(DB_USER_NAME_PROPERTY),
-                or(config.getDbUserName(), fromTemplate, tag, getComponentName()));
-        config.setDbUserName(addSuffix(value));
+    public void resolveUserName() throws UnsupportedDialectException {
+        final String fromTemplate = getFromTemplate(DbEndpointConfig::getUserName);
+        final String value = firstNonNull(configuredPropValue(USER_NAME_PROPERTY),
+                config.getUserName(), fromTemplate, getComponentName());
+        config.setUserName(addSuffix(value));
     }
 
     /**
@@ -218,10 +224,10 @@ public class DbEndpointResolver {
      *
      * @throws UnsupportedDialectException if endpoint has bad dialect
      */
-    public void resolveDbPassword() throws UnsupportedDialectException {
-        final String fromTemplate = getFromTemplate(DbEndpointConfig::getDbPassword);
-        config.setDbPassword(choosePropertyValue(dbTag(DB_PASSWORD_PROPERTY),
-                or(config.getDbPassword(), fromTemplate, dbPasswordUtil.getSqlDbRootPassword())));
+    public void resolvePassword() throws UnsupportedDialectException {
+        final String fromTemplate = getFromTemplate(DbEndpointConfig::getPassword);
+        config.setPassword(firstNonNull(configuredPropValue(PASSWORD_PROPERTY),
+                config.getPassword(), fromTemplate, dbPasswordUtil.getSqlDbRootPassword()));
     }
 
     /**
@@ -229,11 +235,12 @@ public class DbEndpointResolver {
      *
      * @throws UnsupportedDialectException if endpoint has bad dialect
      */
-    public void resolveDbAccess() throws UnsupportedDialectException {
-        String currentValue = config.getDbAccess() != null ? config.getDbAccess().name() : null;
-        String fromTemplate = getFromTemplate(DbEndpointConfig::getDbAccess);
-        config.setDbAccess(DbEndpointAccess.valueOf(choosePropertyValue(
-                dbTag(DB_ACCESS_PROPERTY), or(currentValue, fromTemplate, DEFAULT_DB_ACCESS_VALUE))));
+    public void resolveAccess() throws UnsupportedDialectException {
+        String currentValue = config.getAccess() != null ? config.getAccess().name() : null;
+        String fromTemplate = getFromTemplate(DbEndpointConfig::getAccess);
+        config.setAccess(DbEndpointAccess.valueOf(
+                firstNonNull(configuredPropValue(ACCESS_PROPERTY),
+                        currentValue, fromTemplate, DEFAULT_ACCESS_VALUE)));
     }
 
     /**
@@ -241,11 +248,11 @@ public class DbEndpointResolver {
      *
      * @throws UnsupportedDialectException if endpoint has bad dialect
      */
-    public void resolveDbRootUserName() throws UnsupportedDialectException {
-        final String fromTemplate = getFromTemplate(DbEndpointConfig::getDbRootUserName);
-        config.setDbRootUserName(choosePropertyValue(dbTag(DB_ROOT_USER_NAME_PROPERTY),
-                or(config.getDbRootUserName(), fromTemplate,
-                        dbPasswordUtil.getSqlDbRootUsername(dialect.toString()))));
+    public void resolveRootUserName() throws UnsupportedDialectException {
+        final String fromTemplate = getFromTemplate(DbEndpointConfig::getRootUserName);
+        config.setRootUserName(firstNonNull(configuredPropValue(ROOT_USER_NAME_PROPERTY),
+                config.getRootUserName(), fromTemplate,
+                dbPasswordUtil.getSqlDbRootUsername(dialect.toString())));
     }
 
     /**
@@ -253,12 +260,11 @@ public class DbEndpointResolver {
      *
      * @throws UnsupportedDialectException if endpoint has bad dialect
      */
-    public void resolveDbRootPassword() throws UnsupportedDialectException {
-        final String fromTemplate = getFromTemplate(DbEndpointConfig::getDbRootPassword);
-        config.setDbRootPassword(choosePropertyValue(dbTag(DB_ROOT_PASSWORD_PROPERTY),
-                or(config.getDbRootPassword(), fromTemplate, dbPasswordUtil.getSqlDbRootPassword())));
+    public void resolveRootPassword() throws UnsupportedDialectException {
+        final String fromTemplate = getFromTemplate(DbEndpointConfig::getRootPassword);
+        config.setRootPassword(firstNonNull(configuredPropValue(ROOT_PASSWORD_PROPERTY),
+                config.getRootPassword(), fromTemplate, dbPasswordUtil.getSqlDbRootPassword()));
     }
-
 
     /**
      * Resolve the dbDriverProperties property for this endpoint.
@@ -271,22 +277,23 @@ public class DbEndpointResolver {
      *
      * @throws UnsupportedDialectException if this endpoint is mis-configured
      */
-    public void resolveDbDriverProperties() throws UnsupportedDialectException {
-        Map<String, String> base = config.getDbDriverProperties();
+    public void resolveDriverProperties() throws UnsupportedDialectException {
+        Map<String, String> base = config.getDriverProperties();
         if (base == null) {
-            base = getFromTemplate(template, DbEndpointConfig::getDbDriverProperties);
+            base = getFromTemplate(template, DbEndpointConfig::getDriverProperties);
         }
         if (base == null) {
             base = new HashMap<>(getDefaultDriverProperties(dialect));
         }
-        final String injectedProperties = choosePropertyValue(dbTag(DRIVER_PROPERTIES_PROPERTY));
+        final String injectedProperties = configuredPropValue(DRIVER_PROPERTIES_PROPERTY);
         if (injectedProperties != null) {
             @SuppressWarnings("unchecked")
-            final Map<? extends String, ? extends String> injectedMap
-                    = (Map<? extends String, ? extends String>)spel.parseRaw(injectedProperties).getValue();
+            final Map<? extends String, ? extends String> injectedMap =
+                    (Map<? extends String, ? extends String>)spel.parseRaw(injectedProperties)
+                            .getValue();
             base.putAll(injectedMap != null ? injectedMap : Collections.emptyMap());
         }
-        config.setDbDriverProperties(base);
+        config.setDriverProperties(base);
     }
 
     /**
@@ -294,11 +301,11 @@ public class DbEndpointResolver {
      *
      * @throws UnsupportedDialectException if endpoint has bad dialect
      */
-    public void resolveDbSecure() throws UnsupportedDialectException {
-        final String currentValue = config.getDbSecure() != null ? config.getDbSecure().toString() : null;
-        final String fromTemplate = getFromTemplate(DbEndpointConfig::getDbSecure);
-        config.setDbSecure(Boolean.parseBoolean(choosePropertyValue(dbTag(SECURE_PROPERTY_NAME),
-                or(currentValue, fromTemplate, DEFAULT_DB_SECURE_VALUE.toString()))));
+    public void resolveSecure() throws UnsupportedDialectException {
+        final String currentValue = config.getSecure() != null ? config.getSecure().toString() : null;
+        final String fromTemplate = getFromTemplate(DbEndpointConfig::getSecure);
+        config.setSecure(Boolean.parseBoolean(firstNonNull(configuredPropValue(SECURE_PROPERTY_NAME),
+                currentValue, fromTemplate, DEFAULT_SECURE_VALUE.toString())));
     }
 
     /**
@@ -306,11 +313,11 @@ public class DbEndpointResolver {
      *
      * @throws UnsupportedDialectException if endpoint has bad dialect
      */
-    public void resolveDbMigrationLocations() throws UnsupportedDialectException {
-        String fromTemplate = getFromTemplate(DbEndpointConfig::getDbMigrationLocations);
-        config.setDbMigrationLocations(choosePropertyValue(dbTag(DB_MIGRATION_LOCATIONS_PROPERTY),
-                or(config.getDbMigrationLocations(), fromTemplate,
-                        DEFAULT_DB_MIGRATION_LOCATION_PREFIX + getComponentName())));
+    public void resolveMigrationLocations() throws UnsupportedDialectException {
+        String fromTemplate = getFromTemplate(DbEndpointConfig::getMigrationLocations);
+        config.setMigrationLocations(firstNonNull(configuredPropValue(MIGRATION_LOCATIONS_PROPERTY),
+                config.getMigrationLocations(), fromTemplate,
+                DEFAULT_MIGRATION_LOCATION_PREFIX + getComponentName()));
     }
 
     /**
@@ -318,11 +325,11 @@ public class DbEndpointResolver {
      *
      * <p>This property cannot be set via external configuration.</p>
      */
-    public void resolveDbFlywayCallbacks() {
-        if (config.getDbFlywayCallbacks() == null) {
+    public void resolveFlywayCallbacks() {
+        if (config.getFlywayCallbacks() == null) {
             final FlywayCallback[] fromTemplate =
-                    getFromTemplate(template, DbEndpointConfig::getDbFlywayCallbacks);
-            config.setDbFlywayCallbacks(fromTemplate != null ? fromTemplate : new FlywayCallback[0]);
+                    getFromTemplate(template, DbEndpointConfig::getFlywayCallbacks);
+            config.setFlywayCallbacks(fromTemplate != null ? fromTemplate : new FlywayCallback[0]);
         }
     }
 
@@ -331,13 +338,13 @@ public class DbEndpointResolver {
      *
      * @throws UnsupportedDialectException if endpoint has bad dialect
      */
-    public void resolveDbDestructiveProvisioningEnabled() throws UnsupportedDialectException {
-        final String currentValue = config.getDbDestructiveProvisioningEnabled() != null
-                ? config.getDbDestructiveProvisioningEnabled().toString() : null;
-        final String fromTemplate = getFromTemplate(DbEndpointConfig::getDbDestructiveProvisioningEnabled);
-        config.setDbDestructiveProvisioningEnabled(Boolean.parseBoolean(
-                choosePropertyValue(dbTag(DB_DESTRUCTIVE_PROVISIONING_ENABLED_PROPERTY),
-                        or(currentValue, fromTemplate, Boolean.FALSE.toString()))));
+    public void resolveDestructiveProvisioningEnabled() throws UnsupportedDialectException {
+        final String currentValue = config.getDestructiveProvisioningEnabled() != null
+                ? config.getDestructiveProvisioningEnabled().toString() : null;
+        final String fromTemplate = getFromTemplate(DbEndpointConfig::getDestructiveProvisioningEnabled);
+        config.setDestructiveProvisioningEnabled(Boolean.parseBoolean(firstNonNull(
+                configuredPropValue(DESTRUCTIVE_PROVISIONING_ENABLED_PROPERTY),
+                currentValue, fromTemplate, Boolean.FALSE.toString())));
     }
 
     /**
@@ -345,13 +352,15 @@ public class DbEndpointResolver {
      *
      * @throws UnsupportedDialectException if endpoint has bad dialect
      */
-    public void resolveDbEndpointEnabled() throws UnsupportedDialectException {
-        final String currentValue = config.getDbEndpointEnabled() != null
-                ? config.getDbEndpointEnabled().toString() : null;
-        final String fromTemplate = getFromTemplate(DbEndpointConfig::getDbEndpointEnabled);
-        config.setDbEndpointEnabled(Boolean.parseBoolean(
-                choosePropertyValue(dbTag(DB_ENDPOINT_ENABLED_PROPERTY),
-                        or(currentValue, fromTemplate, Boolean.TRUE.toString()))));
+    public void resolveEndpointEnabled() throws UnsupportedDialectException {
+        // enablement is always set with a function, even when a boolean value is provided,
+        // to make things less complicated here
+        final String currentValue = config.getEndpointEnabledFn() != null
+                ? config.getEndpointEnabledFn().apply(resolver).toString() : null;
+        final String fromTemplate = getFromTemplate(DbEndpointConfig::getEndpointEnabled);
+        config.setEndpointEnabled(Boolean.parseBoolean(firstNonNull(
+                configuredPropValue(ENDPOINT_ENABLED_PROPERTY),
+                currentValue, fromTemplate, Boolean.TRUE.toString())));
     }
 
 
@@ -360,95 +369,92 @@ public class DbEndpointResolver {
      *
      * @throws UnsupportedDialectException if endpoint has bad dialect
      */
-    public void resolveDbProvisioningSuffix() throws UnsupportedDialectException {
-        final String fromTemplate = getFromTemplate(DbEndpointConfig::getDbProvisioningSuffix);
-        config.setDbProvisioningSuffix(
-                choosePropertyValue(dbTag(DB_NAME_SUFFIX_PROPERTY),
-                        or(config.getDbProvisioningSuffix(), fromTemplate, "")));
+    public void resolveProvisioningSuffix() throws UnsupportedDialectException {
+        final String fromTemplate = getFromTemplate(DbEndpointConfig::getProvisioningSuffix);
+        config.setProvisioningSuffix(firstNonNull(configuredPropValue(NAME_SUFFIX_PROPERTY),
+                config.getProvisioningSuffix(), fromTemplate, ""));
     }
 
     /**
      * Resolve the dbShouldProvisionDatabase property.
      *
-     * @throws UnsupportedDialectException if endpoint is misconfigured
+     * @throws UnsupportedDialectException if endpoint is mis-configured
      */
-    public void resolveDbShouldProvisionDatabase() throws UnsupportedDialectException {
-        final String currentValue = config.getDbShouldProvisionDatabase() != null
-                ? config.getDbShouldProvisionDatabase().toString() : null;
-        final String fromTemplate = getFromTemplate(DbEndpointConfig::getDbShouldProvisionDatabase);
-        config.setDbShouldProvisionDatabase(Boolean.parseBoolean(
-                choosePropertyValue(dbTag(DB_SHOULD_PROVISION_DATABASE_PROPERTY),
-                        or(currentValue, fromTemplate, Boolean.toString(false)))));
+    public void resolveShouldProvisionDatabase() throws UnsupportedDialectException {
+        final String currentValue = config.getShouldProvisionDatabase() != null
+                ? config.getShouldProvisionDatabase().toString() : null;
+        final String fromTemplate = getFromTemplate(DbEndpointConfig::getShouldProvisionDatabase);
+        config.setShouldProvisionDatabase(Boolean.parseBoolean(firstNonNull(
+                configuredPropValue(SHOULD_PROVISION_DATABASE_PROPERTY),
+                currentValue, fromTemplate, Boolean.toString(false))));
     }
 
     /**
      * Resolve the dbShouldProvisionUser property.
      *
-     * @throws UnsupportedDialectException if endpoint is misconfigured
+     * @throws UnsupportedDialectException if endpoint is mis-configured
      */
-    public void resolveDbShouldProvisionUser() throws UnsupportedDialectException {
-        final String currentValue = config.getDbShouldProvisionUser() != null
-                ? config.getDbShouldProvisionUser().toString() : null;
-        final String fromTemplate = getFromTemplate(DbEndpointConfig::getDbShouldProvisionUser);
-        config.setDbShouldProvisionUser(Boolean.parseBoolean(
-                choosePropertyValue(dbTag(DB_SHOULD_PROVISION_USER_PROPERTY),
-                        or(currentValue, fromTemplate, Boolean.toString(false)))));
+    public void resolveShouldProvisionUser() throws UnsupportedDialectException {
+        final String currentValue = config.getShouldProvisionUser() != null
+                ? config.getShouldProvisionUser().toString() : null;
+        final String fromTemplate = getFromTemplate(DbEndpointConfig::getShouldProvisionUser);
+        config.setShouldProvisionUser(Boolean.parseBoolean(firstNonNull(
+                configuredPropValue(SHOULD_PROVISION_USER_PROPERTY),
+                currentValue, fromTemplate, Boolean.toString(false))));
     }
 
-    /**
-     * Obtain a value for a property name, choosing the first non-null string among offered
-     * choices.
-     *
-     * <p>Choices appear string streams, because certain options for some properties yield multiple
-     * choices.</p>
-     *
-     * @param choiceStreams streams providing choices to be considered for this property
-     * @return first non-null choice, or null if there was none
-     */
-    @SafeVarargs
-    private final String choosePropertyValue(final Stream<String>... choiceStreams) {
-        return Arrays.stream(choiceStreams)
-                .flatMap(Function.identity())
+    private String configuredPropValue(String propertyName) throws UnsupportedDialectException {
+        // top priority choices are the property name prefixed with all the dot-boundary prefixes
+        // of the endpoint name, from longest to shortest; after that come dialect-specific
+        // prefixes
+        return Stream.of(dotPrefixes(name).stream(), dialectPropertyPrefixes().stream())
+                .flatMap(Functions.identity())
+                // lookup each choice
+                .map(prefix -> prefix + "." + propertyName)
+                // lookup each choice in resolver
+                .map(resolver)
+                // skip names that could not be resolved
                 .filter(Objects::nonNull)
+                // and return first hit, if any
                 .findFirst()
                 .orElse(null);
     }
 
-    private Stream<String> dbTag(String propertyName) throws UnsupportedDialectException {
-        String undbName = propertyName.startsWith("db") ? propertyName.substring(2) : propertyName;
-        List<String> choices = new ArrayList<>();
-        for (String tagPrefix : (Iterable<String>)tagPrefixes()::iterator) {
-            for (String dbPrefix : dialectPropertyPrefixes()) {
-                final String name = tagPrefix + (dbPrefix != null ? dbPrefix + undbName : propertyName);
-                choices.add(resolver.apply(name));
-            }
+    private Collection<String> dotPrefixes(final String name) {
+        String prefix = name;
+        List<String> result = new ArrayList<>();
+        while (prefix != null) {
+            result.add(prefix);
+            final int lastDot = prefix.lastIndexOf('.');
+            prefix = lastDot >= 0 ? prefix.substring(0, lastDot) : null;
         }
-        return choices.stream();
+        return result;
     }
 
     private List<String> dialectPropertyPrefixes() throws UnsupportedDialectException {
+        return dialectPropertyPrefixes(dialect);
+    }
+
+    @VisibleForTesting
+    static List<String> dialectPropertyPrefixes(SQLDialect dialect) throws UnsupportedDialectException {
         switch (dialect) {
             case MYSQL:
-                return Arrays.asList("mysql", "mariadb", null);
+                return Arrays.asList("dbs.mysqlDefault", "dbs.mariadbDefault", null);
             case MARIADB:
-                return Arrays.asList("mariadb", "mysql", null);
+                return Arrays.asList("dbs.mariadbDefault", "dbs.mysqlDefault", null);
             case POSTGRES:
-                return Arrays.asList("postgres", null);
+                return Arrays.asList("dbs.postgresDefault", null);
             default:
                 throw new UnsupportedDialectException(dialect);
         }
     }
 
-    private Stream<String> tagPrefixes() {
-        return Strings.isNullOrEmpty(tag) ? Stream.of("") : Stream.of(tag + "_", "");
-    }
-
-    private Stream<String> or(String... choices) {
-        return Stream.of(choices);
+    private String firstNonNull(String... choices) {
+        return Stream.of(choices).filter(Objects::nonNull).findFirst().orElse(null);
     }
 
     private String addSuffix(String value) {
-        final String suffix = config.getDbProvisioningSuffix();
+        final String suffix = config.getProvisioningSuffix();
         return !Strings.isNullOrEmpty(suffix) && !value.endsWith(suffix)
                 ? value + suffix
                 : value;
@@ -483,7 +489,7 @@ public class DbEndpointResolver {
      * @return component name, or null if not available
      */
     private String getComponentName() {
-        return resolver.apply("component_type");
+        return resolver.apply(COMPONENT_TYPE_PROPERTY);
     }
 
     /**

@@ -90,10 +90,10 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
                     <systemPropertyVariables>
-                        <dbHost>${postgresHost}</dbHost>
-                        <dbPort>${postgresPort}</dbPort>
-                        <dbUserName>${postgresUserName}</dbUserName>
-                        <dbPassword>${postgresPassword}</dbPassword>
+                        <dbs.postgresDefault.host>${postgresHost}</dbs.postgresDefault.host>
+                        <dbs.postgresDefault.port>${postgresPort}</dbs.postgresDefault.port>
+                        <dbs.postgresDefault.userName>${postgresUserName}</dbs.postgresDefault.userName>
+                        <dbs.postgresDefault.password>${postgresPassword}</dbs.postgresDefault.password>
                     </systemPropertyVariables>
                 </configuration>
             </plugin>

@@ -1,8 +1,5 @@
 package com.vmturbo.search;
 
-import static com.vmturbo.extractor.schema.ExtractorDbBaseConfig.QUERY_ENDPOINT_TAG;
-
-import org.jooq.SQLDialect;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -40,11 +37,11 @@ public class SearchDBConfig {
 
     @Bean
     DbEndpoint queryEndpoint() {
-        return dbConfig.secondaryDbEndpoint(QUERY_ENDPOINT_TAG, SQLDialect.POSTGRES)
-                .like(extractorDbBaseConfig.ingesterEndpointBase())
+        return dbConfig.derivedDbEndpoint("dbs.extractor.query",
+                extractorDbBaseConfig.extractorQueryDbEndpointBase())
                 // extractor component is responsible for provisioning
-                .withDbShouldProvision(false)
-                .withNoDbMigrations()
+                .withShouldProvision(false)
+                .withNoMigrations()
                 .build();
     }
 

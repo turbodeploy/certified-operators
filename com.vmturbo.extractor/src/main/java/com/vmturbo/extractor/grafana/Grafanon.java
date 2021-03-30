@@ -20,7 +20,10 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Record;
+import org.jooq.Record1;
 import org.jooq.Result;
+import org.jooq.ResultQuery;
+import org.jooq.impl.DSL;
 
 import com.vmturbo.components.common.RequiresDataInitialization;
 import com.vmturbo.components.common.utils.BuildProperties;
@@ -34,6 +37,8 @@ import com.vmturbo.extractor.grafana.model.Folder;
 import com.vmturbo.extractor.grafana.model.FolderInput;
 import com.vmturbo.extractor.grafana.model.Role;
 import com.vmturbo.extractor.grafana.model.UserInput;
+import com.vmturbo.extractor.schema.tables.EntityOld;
+import com.vmturbo.extractor.schema.tables.records.EntityOldRecord;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.sql.utils.DbEndpointConfig;
@@ -65,7 +70,7 @@ public class Grafanon implements RequiresDataInitialization {
 
     protected final DbEndpoint dbEndpoint;
 
-    private CompletableFuture<RefreshSummary> initilizationResult = new CompletableFuture<>();
+    private final CompletableFuture<RefreshSummary> initializationResult = new CompletableFuture<>();
 
     Grafanon(@Nonnull final GrafanonConfig grafanonConfig,
             @Nonnull final DashboardsOnDisk dashboardsOnDisk,
@@ -81,7 +86,7 @@ public class Grafanon implements RequiresDataInitialization {
 
     @Nonnull
     CompletableFuture<RefreshSummary> getInitializationFuture() {
-        return initilizationResult;
+        return initializationResult;
     }
 
     @Override
@@ -101,7 +106,7 @@ public class Grafanon implements RequiresDataInitialization {
                     logger.info("Grafana initialization completed successfully in {}ms", stopwatch.elapsed(TimeUnit.MILLISECONDS));
                     logger.info(refreshSummary.summarize(logger.isDebugEnabled()));
                     initialized = true;
-                    initilizationResult.complete(refreshSummary);
+                    initializationResult.complete(refreshSummary);
                 } catch (RuntimeException e) {
                     logger.error("Failed to initialize some, or all, of the Grafana setup. Error:", e);
                     refreshSummary.recordError(e);
@@ -111,7 +116,7 @@ public class Grafanon implements RequiresDataInitialization {
                     } catch (InterruptedException interruptedException) {
                         logger.error("Grafana initialization thread interrupted." + " Exiting without completing initialization.",
                                 interruptedException);
-                        initilizationResult.completeExceptionally(interruptedException);
+                        initializationResult.completeExceptionally(interruptedException);
                         break;
                     }
                 }
@@ -126,8 +131,11 @@ public class Grafanon implements RequiresDataInitialization {
     @Nonnull
     @VisibleForTesting
     String getMigrationV14TimeStamp() {
-        String query = "select installed_on from extractor.schema_version where version = '1.14' limit 1";
-        Optional<Result<Record>> results = executeRawQuery(query);
+        ResultQuery<Record1<Timestamp>> query = DSL.select(DSL.field("installed_on", Timestamp.class))
+                .from(DSL.table("schema_version"))
+                .where(DSL.field("version", String.class).eq("1.14"))
+                .limit(1);
+        Optional<Result<Record1<Timestamp>>> results = executeRawQuery(query);
         if (results.isPresent()) {
             //We have limited the query to only return 1 result with 1 column
             Timestamp timestamp = (Timestamp)results.get().get(0).get(0);
@@ -169,7 +177,7 @@ public class Grafanon implements RequiresDataInitialization {
             Optional<FolderInput> folderInputOptional = folderData.getFolderSpec();
             if (skipFolder(folderInputOptional)) {
                 folderInputOptional.ifPresent(folderInput ->
-                          logger.info("Skipping folder uuid:", folderInput.getUid()));
+                          logger.info("Skipping folder uuid: {}", folderInput.getUid()));
                 return;
             }
             Optional<Folder> folder = folderInputOptional.map(folderInput -> {
@@ -204,32 +212,34 @@ public class Grafanon implements RequiresDataInitialization {
      *
      * <p>We will not have data in entity_old table on fresh installs and won't
      * require the old reports folder to be generated.</p>
-     * @param folderInput folderinput of focus
+     * @param folderInput FolderInput of focus
      * @return true if folder should be skipped
      */
     private boolean skipFolderV1(FolderInput folderInput) {
         if (!folderInput.getUid().equals(REPORTS_V1_FOLDER_UUID)) {
             return false;
         }
-        String query = "select * from entity_old limit 1";
-        Optional<Result<Record>> results = executeRawQuery(query);
+        ResultQuery<EntityOldRecord> query = DSL.selectFrom(EntityOld.ENTITY_OLD).limit(1);
+        Optional<Result<EntityOldRecord>> results = executeRawQuery(query);
         return !results.isPresent();
     }
 
     /**
-     * Executes rawSql query.
+     * Executes sql query.
+     *
      * @param query to execute.
+     * @param <R> type of return record
      * @return results if query returned any else, empty optional
      */
-    private Optional<Result<Record>> executeRawQuery(String query) {
+    private <R extends Record> Optional<Result<R>> executeRawQuery(ResultQuery<R> query) {
         try {
-            Result<Record> results =  dbEndpoint.dslContext().fetch(query);
+            Result<R> results = dbEndpoint.dslContext().fetch(query);
             return results.isEmpty() ? Optional.empty() : Optional.of(results);
         } catch (UnsupportedDialectException | SQLException e) {
-            logger.error("Error executing query", e);
+            logger.error("Error executing query {}", query.getSQL(), e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            logger.error("Error executing query", e);
+            logger.error("Error executing query {}", query.getSQL(), e);
         }
         return Optional.empty();
     }
