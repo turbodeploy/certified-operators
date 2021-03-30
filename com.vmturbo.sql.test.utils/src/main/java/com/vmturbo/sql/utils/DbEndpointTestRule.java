@@ -1,9 +1,10 @@
 package com.vmturbo.sql.utils;
 
 import static com.vmturbo.sql.utils.DbEndpointResolver.COMPONENT_TYPE_PROPERTY;
-import static com.vmturbo.sql.utils.DbEndpointResolver.DB_HOST_PROPERTY;
-import static com.vmturbo.sql.utils.DbEndpointResolver.DB_NAME_SUFFIX_PROPERTY;
-import static com.vmturbo.sql.utils.DbEndpointResolver.DB_PORT_PROPERTY;
+import static com.vmturbo.sql.utils.DbEndpointResolver.DESTRUCTIVE_PROVISIONING_ENABLED_PROPERTY;
+import static com.vmturbo.sql.utils.DbEndpointResolver.HOST_PROPERTY;
+import static com.vmturbo.sql.utils.DbEndpointResolver.NAME_SUFFIX_PROPERTY;
+import static com.vmturbo.sql.utils.DbEndpointResolver.PORT_PROPERTY;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -17,8 +18,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-
-import com.google.common.base.Strings;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -117,21 +116,23 @@ public class DbEndpointTestRule implements TestRule {
 
     private void setOverridesForEndpoint(final DbEndpoint endpoint, final String provisioningSuffix)
             throws UnsupportedDialectException {
-        final String tag = endpoint.getConfig().getTag();
         final SQLDialect dialect = endpoint.getConfig().getDialect();
+        final String endpointName = endpoint.getConfig().getName();
         // set dbHost property
-        String dbHostDefault = System.getProperty(taggedPropertyName(tag, DB_HOST_PROPERTY));
-        dbHostDefault = dbHostDefault != null ? dbHostDefault : System.getProperty(DB_HOST_PROPERTY);
+        String dbHostDefault = getFromSystemProperties(endpointName, HOST_PROPERTY, dialect);
+        logger.info("Host: {}", dbHostDefault);
         dbHostDefault = dbHostDefault != null ? dbHostDefault : "localhost";
-        propertySettings.putIfAbsent(taggedPropertyName(tag, DB_HOST_PROPERTY), dbHostDefault);
+        propertySettings.putIfAbsent(getPropertyName(endpointName, HOST_PROPERTY), dbHostDefault);
         // set dbPort property
-        String dbPortDefault = System.getProperty(taggedPropertyName(tag, DB_PORT_PROPERTY));
-        dbPortDefault = dbPortDefault != null ? dbPortDefault : System.getProperty(DB_PORT_PROPERTY);
+        String dbPortDefault = getFromSystemProperties(endpointName, PORT_PROPERTY, dialect);
         dbPortDefault = dbPortDefault != null ? dbPortDefault
                 : Integer.toString(DbEndpointResolver.getDefaultPort(dialect));
-        propertySettings.putIfAbsent(taggedPropertyName(tag, DB_PORT_PROPERTY), dbPortDefault);
+        propertySettings.putIfAbsent(getPropertyName(endpointName, PORT_PROPERTY), dbPortDefault);
         // set suffix for provisioned object names
-        propertySettings.putIfAbsent(taggedPropertyName(tag, DB_NAME_SUFFIX_PROPERTY), provisioningSuffix);
+        propertySettings.putIfAbsent(getPropertyName(endpointName, NAME_SUFFIX_PROPERTY), provisioningSuffix);
+        // we should always allow destructive provisioning operations in a test database
+        propertySettings.putIfAbsent(
+                getPropertyName(endpointName, DESTRUCTIVE_PROVISIONING_ENABLED_PROPERTY), "true");
     }
 
     private void before() {
@@ -214,9 +215,9 @@ public class DbEndpointTestRule implements TestRule {
                 } catch (Exception e) {
                     logger.warn("Endpoint {} initialization failed; entering retry loop", endpoint, e);
                 }
-                endpoint.awaitCompletion(30, TimeUnit.SECONDS);
+                endpoint.awaitCompletion(30L, TimeUnit.SECONDS);
             } else {
-                if (endpoint.getConfig().getDbAccess().isWriteAccess()) {
+                if (endpoint.getConfig().getAccess().isWriteAccess()) {
                     endpoint.getAdapter().truncateAllTables();
                 }
             }
@@ -224,9 +225,30 @@ public class DbEndpointTestRule implements TestRule {
         }
     }
 
-    private static String taggedPropertyName(String tag, String propertyName) {
-        return Strings.isNullOrEmpty(tag) ? propertyName
-                : tag + DbEndpointResolver.TAG_PREFIX_SEPARATOR + propertyName;
+    private static String getFromSystemProperties(String endpointName, String propertyName, SQLDialect dialect)
+            throws UnsupportedDialectException {
+        List<String> names = new ArrayList<>();
+        names.add(endpointName);
+        names.addAll(DbEndpointResolver.dialectPropertyPrefixes(dialect));
+        for (final String name : names) {
+            String prefix = name;
+            while (true) {
+                String value = System.getProperty(getPropertyName(prefix, propertyName));
+                if (value != null) {
+                    return value;
+                }
+                if (prefix.contains(".")) {
+                    prefix = prefix.substring(0, prefix.lastIndexOf('.'));
+                } else {
+                    break;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static String getPropertyName(String endpointName, String propertyName) {
+        return endpointName + "." + propertyName;
     }
 
     private DBPasswordUtil mockPasswordUtil() {

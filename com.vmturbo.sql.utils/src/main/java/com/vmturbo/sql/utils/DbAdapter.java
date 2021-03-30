@@ -46,15 +46,15 @@ public abstract class DbAdapter {
     void init() throws UnsupportedDialectException, SQLException {
         if (componentCredentialsFail()) {
             logger.debug("Setting up user {} for database {} / schema {}",
-                    config.getDbUserName(), config.getDbDatabaseName(), config.getDbSchemaName());
+                    config.getUserName(), config.getDatabaseName(), config.getSchemaName());
             // try to provision things if we can. If it doesn't work, the method will throw
             // an exception that should cause the retry loop to retry, in the hope tha it will
             // eventually work, or some other component will do it (we could fail because we don't
             // have provisioning authority configured)
             performProvisioning();
         }
-        if (!Strings.isNullOrEmpty(config.getDbMigrationLocations())) {
-            if (config.getDbShouldProvisionDatabase() && config.getDbAccess().isWriteAccess()) {
+        if (!Strings.isNullOrEmpty(config.getMigrationLocations())) {
+            if (config.getShouldProvisionDatabase() && config.getAccess().isWriteAccess()) {
                 // perform migrations if we have provisioning responsibilities
                 performMigrations();
             } else {
@@ -66,14 +66,14 @@ public abstract class DbAdapter {
     }
 
     DataSource getDataSource() throws UnsupportedDialectException, SQLException {
-        return getDataSource(getUrl(config), config.getDbUserName(), config.getDbPassword());
+        return getDataSource(getUrl(config), config.getUserName(), config.getPassword());
     }
 
     abstract DataSource getDataSource(String url, String user, String password)
             throws SQLException;
 
     DataSource getRootDataSource() throws UnsupportedDialectException, SQLException {
-        return getDataSource(getUrl(config), config.getDbRootUserName(), config.getDbRootPassword());
+        return getDataSource(getUrl(config), config.getRootUserName(), config.getRootPassword());
     }
 
     private boolean componentCredentialsFail() throws UnsupportedDialectException {
@@ -85,13 +85,13 @@ public abstract class DbAdapter {
     }
 
     private void performProvisioning() throws UnsupportedDialectException, SQLException {
-        if (config.getDbShouldProvisionDatabase()) {
+        if (config.getShouldProvisionDatabase()) {
             createSchema();
             createReadersGroup();
         }
-        if (config.getDbShouldProvisionUser()) {
+        if (config.getShouldProvisionUser()) {
             createNonRootUser();
-            performNonRootGrants(config.getDbAccess());
+            performNonRootGrants(config.getAccess());
         }
         // check whether things now work, and throw an exception if not
         if (componentCredentialsFail()) {
@@ -100,25 +100,25 @@ public abstract class DbAdapter {
     }
 
     private void performMigrations() throws UnsupportedDialectException, SQLException {
-        if (!config.getDbMigrationLocations().isEmpty()) {
+        if (!config.getMigrationLocations().isEmpty()) {
             new FlywayMigrator(Duration.ofMinutes(1),
                     Duration.ofSeconds(5),
-                    config.getDbSchemaName(),
-                    Optional.of(config.getDbMigrationLocations()).filter(s -> s.length() > 0),
+                    config.getSchemaName(),
+                    Optional.of(config.getMigrationLocations()).filter(s -> s.length() > 0),
                     getDataSource(),
-                    config.getDbFlywayCallbacks()
+                    config.getFlywayCallbacks()
             ).migrate();
         }
     }
 
     private void validateMigrations() throws UnsupportedDialectException, SQLException {
-        if (!config.getDbMigrationLocations().isEmpty()) {
+        if (!config.getMigrationLocations().isEmpty()) {
             new FlywayMigrator(Duration.ofMinutes(1),
                     Duration.ofSeconds(5),
-                    config.getDbSchemaName(),
-                    Optional.of(config.getDbMigrationLocations()).filter(s -> s.length() > 0),
+                    config.getSchemaName(),
+                    Optional.of(config.getMigrationLocations()).filter(s -> s.length() > 0),
                     getRootDataSource(),
-                    config.getDbFlywayCallbacks()
+                    config.getFlywayCallbacks()
             ).validate();
         }
     }
@@ -129,11 +129,11 @@ public abstract class DbAdapter {
             throws SQLException, UnsupportedDialectException;
 
     Connection getNonRootConnection() throws UnsupportedDialectException, SQLException {
-        return getConnection(getUrl(config), config.getDbUserName(), config.getDbPassword());
+        return getConnection(getUrl(config), config.getUserName(), config.getPassword());
     }
 
     protected Connection getRootConnection(String database) throws UnsupportedDialectException, SQLException {
-        return getConnection(getUrl(config, database), config.getDbRootUserName(), config.getDbRootPassword());
+        return getConnection(getUrl(config, database), config.getRootUserName(), config.getRootPassword());
     }
 
     Connection getConnection(String url, String user, String password)
@@ -158,7 +158,7 @@ public abstract class DbAdapter {
      * @throws UnsupportedDialectException if this endpoint is mis-configured
      */
     public static String getUrl(DbEndpointConfig config) throws UnsupportedDialectException {
-        return getUrl(config, config.getDbDatabaseName());
+        return getUrl(config, config.getDatabaseName());
     }
 
     /**
@@ -179,7 +179,7 @@ public abstract class DbAdapter {
 
     private static void updateBuilderForSecureConnection(
             DbEndpointConfig config, UriComponentsBuilder builder) {
-        if (config.getDbSecure()) {
+        if (config.getSecure()) {
             switch (config.getDialect()) {
                 case MYSQL:
                 case MARIADB:
@@ -195,9 +195,9 @@ public abstract class DbAdapter {
     private static UriComponentsBuilder getUrlBuilder(DbEndpointConfig config) throws UnsupportedDialectException {
         final UriComponentsBuilder builder = UriComponentsBuilder.newInstance()
                 .scheme("jdbc:" + getJdbcProtocol(config))
-                .host(config.getDbHost())
-                .port(config.getDbPort());
-        config.getDbDriverProperties().forEach(builder::queryParam);
+                .host(config.getHost())
+                .port(config.getPort());
+        config.getDriverProperties().forEach(builder::queryParam);
         return builder;
     }
 
@@ -209,7 +209,7 @@ public abstract class DbAdapter {
      * @return protocol string
      * @throws UnsupportedDialectException if this endpoint is mis-configured
      */
-    private static String getJdbcProtocol(DbEndpointConfig config) throws UnsupportedDialectException {
+     static String getJdbcProtocol(DbEndpointConfig config) throws UnsupportedDialectException {
         switch (config.getDialect()) {
             case MARIADB:
             case MYSQL:
@@ -265,7 +265,7 @@ public abstract class DbAdapter {
         try (Connection conn = getRootConnection(null)) {
             dropDatabaseIfExists(conn);
         } catch (UnsupportedDialectException | SQLException e) {
-            logger.error("Failed to drop database {}", config.getDbDatabaseName(), e);
+            logger.error("Failed to drop database {}", config.getDatabaseName(), e);
         }
     }
 
