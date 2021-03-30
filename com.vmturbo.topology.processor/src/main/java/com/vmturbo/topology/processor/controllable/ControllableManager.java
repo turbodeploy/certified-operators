@@ -2,8 +2,8 @@ package com.vmturbo.topology.processor.controllable;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.annotation.Nonnull;
@@ -13,9 +13,10 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
-import com.vmturbo.stitching.TopologyEntity.Builder;
+import com.vmturbo.topology.graph.TopologyGraph;
 
 /**
  * Controllable means that when there are some actions are executing, we should not let Market generate
@@ -40,18 +41,31 @@ public class ControllableManager {
      * First get all out of controllable entity ids, and change their TopologyEntityDTO controllable
      * flag to false.
      *
-     * @param topology a Map contains all topology entities, and which key is entity Id, and value
-     *                 is {@link TopologyEntity.Builder}.
+     * @param topology a topology graph.
      * @return Number of modified entities.
      */
-    public int applyControllable(@Nonnull final Map<Long, TopologyEntity.Builder> topology) {
+    public int applyControllable(@Nonnull final TopologyGraph<TopologyEntity> topology) {
+        int numModified = 0;
+        numModified += applyControllableEntityAction(topology);
+        numModified += markVMsOnFailoverHostAsNotControllable(topology);
+        return numModified;
+    }
+
+    /**
+     * First get all out of controllable entity ids, and change their TopologyEntityDTO controllable
+     * flag to false.
+     *
+     * @param topology a topology graph.
+     * @return Number of modified entities.
+     */
+    private int applyControllableEntityAction(@Nonnull final TopologyGraph<TopologyEntity> topology) {
         int numModified = 0;
         List<Long> oidsToRemoveFromDB = new ArrayList<>();
 
         for (long entityOid : entityActionDao.getNonControllableEntityIds()) {
-            Builder builder = topology.get(entityOid);
-            if (builder != null) {
-                TopologyEntityDTO.Builder entityBuilder = builder.getEntityBuilder();
+            Optional<TopologyEntity> entityOptional = topology.getEntity(entityOid);
+            if (entityOptional.isPresent()) {
+                TopologyEntityDTO.Builder entityBuilder = entityOptional.get().getTopologyEntityDtoBuilder();
 
                 if (entityBuilder.getEntityState() == EntityState.MAINTENANCE) {
                     // Clear action information regarding this entity from ENTITY_ACTION table so
@@ -64,11 +78,10 @@ public class ControllableManager {
                 }
 
                 if (entityBuilder.getCommoditiesBoughtFromProvidersList().stream()
-                    .map(shoppinglist -> topology.get(shoppinglist.getProviderId()))
-                    .filter(Objects::nonNull)
+                    .map(shoppinglist -> topology.getEntity(shoppinglist.getProviderId()))
+                    .filter(Optional::isPresent)
                     .anyMatch(supplier ->
-                        supplier.getEntityBuilder().getEntityState() == EntityState.MAINTENANCE)
-                ) {
+                        supplier.get().getTopologyEntityDtoBuilder().getEntityState() == EntityState.MAINTENANCE)) {
                     continue;
                 }
 
@@ -87,19 +100,38 @@ public class ControllableManager {
     }
 
     /**
+     * Mark VMs on a failover host as not controllable.
+     * We don't need to mark failover hosts non-controllable. We skip failover hosts in market analysis.
+     *
+     * @param topology a topology graph.
+     * @return Number of modified entities.
+     */
+    private int markVMsOnFailoverHostAsNotControllable(@Nonnull final TopologyGraph<TopologyEntity> topology) {
+        return topology.entitiesOfType(EntityDTO.EntityType.PHYSICAL_MACHINE)
+            .filter(entity -> entity.getTopologyEntityDtoBuilder().getEntityState() == EntityState.FAILOVER)
+            .flatMap(entity -> entity.getConsumers().stream())
+            .filter(entity -> entity.getEntityType() == EntityDTO.EntityType.VIRTUAL_MACHINE_VALUE)
+            .mapToInt(entity -> {
+                entity.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder().setControllable(false);
+                return 1;
+            })
+            .sum();
+    }
+
+    /**
      * If entity has an activate action in the table, it means the entity is about or
      * has been activated. It should not be suspendable in analysis.
      *
-     * @param topology a Map contains all topology entities, and which key is entity Id, and value is
-     *                 {@link TopologyEntity.Builder}.
+     * @param topology a topology graph.
      * @return Number of modified entities.
      */
-    public int applySuspendable(@Nonnull final Map<Long, TopologyEntity.Builder> topology) {
+    public int applySuspendable(@Nonnull final TopologyGraph<TopologyEntity> topology) {
         final AtomicInteger numModified = new AtomicInteger(0);
         entityActionDao.getNonSuspendableEntityIds().stream()
-            .filter(topology::containsKey)
-            .map(topology::get)
-            .map(TopologyEntity.Builder::getEntityBuilder)
+            .map(topology::getEntity)
+            .filter(Optional::isPresent)
+            .map(Optional::get)
+            .map(TopologyEntity::getTopologyEntityDtoBuilder)
             .forEach(entityBuilder -> {
                 if (entityBuilder.getAnalysisSettingsBuilder().getSuspendable()) {
                     // It's currently suspendable, and about to be marked
@@ -117,16 +149,16 @@ public class ControllableManager {
      * If entity has an SCALE (resize actions on cloud) action in the table, it means the entity is about or
      * has been scaled. It should not be resizeable in analysis.
      *
-     * @param topology a Map contains all topology entities, and which key is entity Id, and value is
-     *                 {@link TopologyEntity.Builder}.
+     * @param topology a topology graph.
      * @return Number of modified entities.
      */
-    public int applyScaleEligibility(@Nonnull final Map<Long, TopologyEntity.Builder> topology) {
+    public int applyScaleEligibility(@Nonnull final TopologyGraph<TopologyEntity> topology) {
         final AtomicInteger numModified = new AtomicInteger(0);
         entityActionDao.ineligibleForScaleEntityIds().stream()
-                .filter(topology::containsKey)
-                .map(topology::get)
-                .map(TopologyEntity.Builder::getEntityBuilder)
+                .map(topology::getEntity)
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .map(TopologyEntity::getTopologyEntityDtoBuilder)
                 // Set flag only for VMs
                 .filter(entityBuilder -> entityBuilder.getEntityType() == EntityType.VIRTUAL_MACHINE.getValue())
                 .forEach(entityBuilder -> {
@@ -147,16 +179,16 @@ public class ControllableManager {
      * If entity has an RIGHT_SIZE (resize actions on prem) action in the table, it means the entity is about or
      * has been resized. It should not be to resize down in analysis.
      *
-     * @param topology a Map contains all topology entities, and which key is entity Id, and value is
-     *                 {@link TopologyEntity.Builder}.
+     * @param topology a topology graph.
      * @return Number of modified entities.
      */
-    public int applyResizeDownEligibility(@Nonnull final Map<Long, TopologyEntity.Builder> topology) {
+    public int applyResizeDownEligibility(@Nonnull final TopologyGraph<TopologyEntity> topology) {
         final AtomicInteger numModified = new AtomicInteger(0);
         entityActionDao.ineligibleForResizeDownEntityIds().stream()
-                .filter(topology::containsKey)
-                .map(topology::get)
-                .map(TopologyEntity.Builder::getEntityBuilder)
+                .map(topology::getEntity)
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .map(TopologyEntity::getTopologyEntityDtoBuilder)
                 // Set flag only for VMs
                 .filter(entityBuilder -> entityBuilder.getEntityType() == EntityType.VIRTUAL_MACHINE.getValue())
                 .forEach(entityBuilder -> {
