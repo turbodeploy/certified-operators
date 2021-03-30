@@ -65,4 +65,11 @@ public interface CloudCommitmentSpecData<SpecTypeT> {
      */
     @Value.Auxiliary
     TopologyEntityDTO cloudTier();
+
+    /**
+     * The scaling penalty associated with the {@link #cloudTier()} for this spec. The scaling penalty
+     * may be used as a tie-breaker in comparing specs.
+     * @return The scaling penalty value.
+     */
+    float scalingPenalty();
 }

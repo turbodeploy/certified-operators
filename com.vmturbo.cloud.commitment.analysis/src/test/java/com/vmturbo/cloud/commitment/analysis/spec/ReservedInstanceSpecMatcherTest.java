@@ -45,8 +45,7 @@ public class ReservedInstanceSpecMatcherTest {
             .tenancy(Tenancy.HOST)
             .build();
 
-    private final ReservedInstanceSpecData matchingSpecData = ImmutableReservedInstanceSpecData
-            .builder()
+    private final ReservedInstanceSpecData matchingSpecData = ReservedInstanceSpecData.builder()
             .spec(ReservedInstanceSpec.newBuilder()
                     .setId(3L)
                     .build())

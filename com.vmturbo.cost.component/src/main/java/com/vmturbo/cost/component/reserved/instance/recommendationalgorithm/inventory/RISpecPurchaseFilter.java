@@ -65,6 +65,7 @@ public class RISpecPurchaseFilter {
                 // In selecting the first RI spec, we'll recommend the smallest instance type
                 // within a family.
                 .sorted(Comparator.comparing(ReservedInstanceSpecData::couponsPerInstance)
+                        .thenComparing(ReservedInstanceSpecData::scalingPenalty)
                         .thenComparing(ReservedInstanceSpecData::reservedInstanceSpecId))
                 .findFirst()
                 .orElse(null);

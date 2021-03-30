@@ -6,12 +6,14 @@ import javax.annotation.Nonnull;
 
 import org.immutables.value.Value;
 
+import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
 import com.vmturbo.common.protobuf.cloud.CloudCommitment.CloudCommitmentType;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 
 /**
  * An aggregate set of data about a {@link ReservedInstanceSpec} instance.
  */
+@HiddenImmutableImplementation
 @Value.Immutable
 public interface ReservedInstanceSpecData extends CloudCommitmentSpecData<ReservedInstanceSpec> {
 
@@ -61,4 +63,33 @@ public interface ReservedInstanceSpecData extends CloudCommitmentSpecData<Reserv
     default Period term() {
         return Period.ofYears(spec().getReservedInstanceSpecInfo().getType().getTermYears());
     }
+
+    /**
+     * {@inheritDoc}.
+     */
+    @Value.Lazy
+    @Override
+    default float scalingPenalty() {
+        if (cloudTier().getTypeSpecificInfo().hasComputeTier()) {
+            return cloudTier().getTypeSpecificInfo().getComputeTier()
+                    .getScalePenalty()
+                    .getPenalty();
+        } else {
+            return 0.0f;
+        }
+    }
+
+    /**
+     * Constructs and returns a new {@link Builder} instance.
+     * @return The newly constructed {@link Builder} instance.
+     */
+    @Nonnull
+    static Builder builder() {
+        return new Builder();
+    }
+
+    /**
+     * A builder class for constructing {@link ReservedInstanceSpecData} instances.
+     */
+    class Builder extends ImmutableReservedInstanceSpecData.Builder {}
 }
