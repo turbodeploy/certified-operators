@@ -17,9 +17,12 @@ import static org.mockito.Mockito.when;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
@@ -63,9 +66,11 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Edit;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Removed;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -94,6 +99,9 @@ import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.Consisten
 import com.vmturbo.market.topology.conversions.ReversibilitySettingFetcherFactory;
 import com.vmturbo.market.topology.conversions.TierExcluder;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ResizeTO;
+import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -109,6 +117,8 @@ public class AnalysisTest {
     private static final float DEFAULT_RATE_OF_RESIZE = 2.0f;
     private TopologyType topologyType = TopologyType.PLAN;
     private AnalysisRICoverageListener listener;
+
+    private static final double DELTA = 0.01;
 
     private static final long PM1_ID = 1L;
     private static final long PM2_ID = 2L;
@@ -637,6 +647,89 @@ public class AnalysisTest {
     }
 
     /**
+     * Test projectedContainerEntities post processing.
+     */
+    @Test
+    public void testProjectedContainerSpecsPostProcessing() {
+        // Container1 and Container2 are connected to the same ContainerSpec.
+        // Resize actions are generated on 2 containers and projectedContainerSpecsPostProcessing
+        // will update ContainerSpec commodity capacity and percentile utilization from projected
+        // Container entities.
+        long containerSpecOID = 11L;
+        final ProjectedTopologyEntity containerSpec = ProjectedTopologyEntity.newBuilder()
+            .setEntity(TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.CONTAINER_SPEC_VALUE)
+                .setOid(containerSpecOID)
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                    .setCommodityType(CommodityType.newBuilder()
+                        .setType(CommodityDTO.CommodityType.VCPU_VALUE)
+                        .build())
+                    .setCapacity(1)
+                    .setHistoricalUsed(HistoricalValues.newBuilder()
+                        .setPercentile(10)
+                        .build())
+                    .build())
+                .build())
+            .build();
+        long containerOID1 = 22L;
+        final ProjectedTopologyEntity container1 = ProjectedTopologyEntity.newBuilder()
+            .setEntity(TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.CONTAINER_VALUE)
+                .setOid(containerOID1)
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                    .setCommodityType(CommodityType.newBuilder()
+                        .setType(CommodityDTO.CommodityType.VCPU_VALUE)
+                        .build())
+                    .setCapacity(2)
+                    .build())
+                .addConnectedEntityList(ConnectedEntity.newBuilder()
+                    .setConnectedEntityId(containerSpecOID)
+                    .build())
+                .build())
+            .build();
+        long containerOID2 = 33L;
+        final ProjectedTopologyEntity container2 = ProjectedTopologyEntity.newBuilder()
+            .setEntity(TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.CONTAINER_VALUE)
+                .setOid(containerOID2)
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                    .setCommodityType(CommodityType.newBuilder()
+                        .setType(CommodityDTO.CommodityType.VCPU_VALUE)
+                        .build())
+                    .setCapacity(2)
+                    .build())
+                .addConnectedEntityList(ConnectedEntity.newBuilder()
+                    .setConnectedEntityId(containerSpecOID)
+                    .build())
+                .build())
+            .build();
+        final Map<Long, ProjectedTopologyEntity> projectedTopologyEntityMap = new HashMap<>();
+        projectedTopologyEntityMap.put(containerSpecOID, containerSpec);
+        projectedTopologyEntityMap.put(containerOID1, container1);
+        projectedTopologyEntityMap.put(containerOID2, container2);
+
+        ActionTO actionTO1 = mockActionTO(containerOID1, CommodityDTO.CommodityType.VCPU_VALUE);
+        ActionTO actionTO2 = mockActionTO(containerOID2, CommodityDTO.CommodityType.VCPU_VALUE);
+        List<ActionTO> actionTOList = Arrays.asList(actionTO1, actionTO2);
+
+        // On Analysis execution, projected entities are populated
+        final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR,
+            MOVE_COST_FACTOR, SuspensionsThrottlingConfig.DEFAULT,
+            Collections.emptyMap(), false, LICENSE_PRICE_WEIGHT_SCALE, false)
+            .build();
+        final Analysis analysis = getAnalysis(analysisConfig, Collections.emptySet());
+        analysis.projectedContainerSpecsPostProcessing(projectedTopologyEntityMap, actionTOList);
+
+        ProjectedTopologyEntity updatedProjectedContainerSpec =
+            projectedTopologyEntityMap.get(containerSpecOID);
+        Assert.assertNotNull(updatedProjectedContainerSpec);
+        Assert.assertEquals(2,
+            updatedProjectedContainerSpec.getEntity().getCommoditySoldList(0).getCapacity(), DELTA);
+        Assert.assertEquals(5,
+            updatedProjectedContainerSpec.getEntity().getCommoditySoldList(0).getHistoricalUsed().getPercentile(), DELTA);
+    }
+
+    /**
      * Test that when the hosts are over-provisioned, no move actions are generated for the VM.
      */
     @Test
@@ -796,4 +889,17 @@ public class AnalysisTest {
                 .build();
     }
 
+    private ActionTO mockActionTO(long entityOID, int commodityType) {
+        return ActionTO.newBuilder()
+            .setResize(ResizeTO.newBuilder()
+                .setSellingTrader(entityOID)
+                .setSpecification(CommoditySpecificationTO.newBuilder()
+                    .setType(1)
+                    .setBaseType(commodityType)
+                    .build())
+                .build())
+            .setImportance(100)
+            .setIsNotExecutable(false)
+            .build();
+    }
 }

@@ -251,8 +251,6 @@ public enum UICommodityType {
     CONCURRENT_WORKER(CommodityType.CONCURRENT_WORKER, "Concurrent Worker"),
     /** The commodity NUMBER_REPLICAS **/
     NUMBER_REPLICAS(CommodityType.NUMBER_REPLICAS, "Number Replicas"),
-    /** The commodity VCPU_THROTTLING **/
-    VCPU_THROTTLING(CommodityType.VCPU_THROTTLING, "VCPU Throttling"),
     /** The commodity UNKNOWN. */
     UNKNOWN(CommodityType.UNKNOWN, "Unknown");
 

@@ -502,9 +502,4 @@ public class StringConstants {
      * OS name property for display purposes.
      */
     public static final String PLAN_NEW_OS_NAME_PROPERTY = "plan.newOsLicenseName";
-
-    /**
-     * Optimize container cluster plan type.
-     */
-    public static final String OPTIMIZE_CONTAINER_CLUSTER_PLAN = "OPTIMIZE_CONTAINER_CLUSTER";
 }
