@@ -81,7 +81,7 @@ public class GrafanaConfig {
                 .setEditorDisplayName(grafanaEditorDisplayName)
                 .setEditorUsername(grafanaEditorUsername)
                 .setEditorPassword(grafanaEditorPassword);
-        return new Grafanon(config, dashboardsOnDisk(), grafanaClient(), extractorGlobalConfig.featureFlags(), extractorDbConfig.ingesterEndpoint());
+        return new Grafanon(config, dashboardsOnDisk(), grafanaClient(), extractorGlobalConfig.featureFlags(), extractorDbConfig.grafanaQueryEndpoint());
     }
 
     /**

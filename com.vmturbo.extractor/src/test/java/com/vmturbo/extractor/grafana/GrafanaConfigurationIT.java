@@ -76,14 +76,15 @@ public class GrafanaConfigurationIT {
                 ResourcePath.getTestResource(DashboardsOnDisk.class, "dashboards").toString());
 
         final Map<String, String> m = Collections.emptyMap();
-        final DbEndpointCompleter endpointCompleter = new DbEndpointCompleter(m::get, mock(DBPasswordUtil.class));
+        final DbEndpointCompleter endpointCompleter = new DbEndpointCompleter(
+                m::get, mock(DBPasswordUtil.class), "30s");
         final DbEndpointConfig endpointConfig =
             endpointCompleter.newEndpointBuilder("extractor", SQLDialect.POSTGRES)
-                .withDbDatabaseName("mydb")
-                .withDbUserName("me")
-                .withDbPassword("foo")
-                .withDbPort(300)
-                .withDbEndpointEnabled(false)
+                .withDatabaseName("mydb")
+                .withUserName("me")
+                .withPassword("foo")
+                .withPort(300)
+                .withEndpointEnabled(false)
                 .build().getConfig();
 
         GrafanonConfig config = new GrafanonConfig(() -> endpointConfig)

@@ -1,6 +1,7 @@
 package com.vmturbo.sql.utils;
 
 import java.sql.SQLException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -17,7 +18,6 @@ import javax.sql.DataSource;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.flywaydb.core.api.callback.FlywayCallback;
@@ -101,7 +101,7 @@ import com.vmturbo.components.api.ServerStartedNotifier.ServerStartedListener;
  *     <dt>dbFlywayCallbacks</dt>
  *     <dd>Array of {@link FlywayCallback} instances to be invoked during migration processing.
  *     This cannot be specified via configuration, but must be supplied in the endpoint definition
- *     using the {@link DbEndpointBuilder#withDbFlywayCallbacks(FlywayCallback...)} method.
+ *     using the {@link DbEndpointBuilder#withFlywayCallbacks(FlywayCallback...)} method.
  *     Defaults to no callbacks (empty array).
  *     </dd>
  *     <dt>dbDestructiveProvisioningEnabled</dt>
@@ -132,9 +132,9 @@ public class DbEndpoint {
     private DbAdapter adapter;
     private boolean retriesCompleted = false;
     private Throwable failureCause;
-    private DbEndpointCompleter endpointCompleter;
+    private final DbEndpointCompleter endpointCompleter;
 
-    private DbEndpoint(DbEndpointConfig config, DbEndpointCompleter endpointCompleter) {
+    DbEndpoint(DbEndpointConfig config, DbEndpointCompleter endpointCompleter) {
         this.config = config;
         this.future = new CompletableFuture<>();
         this.endpointCompleter = endpointCompleter;
@@ -166,8 +166,8 @@ public class DbEndpoint {
      * @throws InterruptedException        if interrupted
      */
     public DSLContext dslContext() throws UnsupportedDialectException, SQLException, InterruptedException {
-        awaitCompletion(config.getMaxAwaitCompletionMs(), TimeUnit.MILLISECONDS);
-        if (config.getDbEndpointEnabled()) {
+        awaitCompletion(endpointCompleter.getMaxAwaitCompletionMs(), TimeUnit.MILLISECONDS);
+        if (config.getEndpointEnabled()) {
             return DSL.using(getConfiguration());
         } else {
             throw new IllegalStateException("Attempt to use disabled database endpoint");
@@ -183,8 +183,8 @@ public class DbEndpoint {
      * @throws InterruptedException        if interrupted
      */
     public DataSource datasource() throws UnsupportedDialectException, SQLException, InterruptedException {
-        awaitCompletion(config.getMaxAwaitCompletionMs(), TimeUnit.MILLISECONDS);
-        if (config.getDbEndpointEnabled()) {
+        awaitCompletion(endpointCompleter.maxAwaitCompletionMs, TimeUnit.MILLISECONDS);
+        if (config.getEndpointEnabled()) {
             return adapter.getDataSource();
         } else {
             throw new IllegalStateException("Attempt to use disabled database endpoint");
@@ -236,12 +236,15 @@ public class DbEndpoint {
      * @throws InterruptedException if interrupted
      */
     public DbAdapter getAdapter() throws InterruptedException {
-        awaitCompletion(config.getMaxAwaitCompletionMs(), TimeUnit.MILLISECONDS);
+
+        awaitCompletion(endpointCompleter.maxAwaitCompletionMs, TimeUnit.MILLISECONDS);
         return adapter;
     }
 
     public boolean isReady() {
-        return future.isDone() && !future.isCompletedExceptionally() && !future.isCancelled();
+        return future != null
+                ? future.isDone() && !future.isCompletedExceptionally() && !future.isCancelled()
+                : false;
     }
 
     /**
@@ -260,9 +263,6 @@ public class DbEndpoint {
      *
      * <p>This is invoked other public methods of this class that would provide access to the
      * database, e.g. by returning a connection to the database.</p>
-     *
-     * <p>The operation of this method is controlled by the retry schedule configured via the
-     * {@link DbEndpointResolver#DB_RETRY_BACKOFF_TIMES_SEC_PROPERTY} property:</p>
      *
      * <ul>
      *     <li>
@@ -290,7 +290,12 @@ public class DbEndpoint {
      * @param timeUnit The time unit for the completion wait time.
      * @throws InterruptedException if interrupted
      */
-    public synchronized void awaitCompletion(long timeout, TimeUnit timeUnit) throws InterruptedException {
+    public synchronized void awaitCompletion(Long timeout, TimeUnit timeUnit) throws InterruptedException {
+        // TODO 64844 git rid of this!
+        if (timeout == null) {
+            timeout = 30L;
+            timeUnit = TimeUnit.MINUTES;
+        }
         try {
             if (isReady()) {
                 if (!retriesCompleted) {
@@ -357,19 +362,20 @@ public class DbEndpoint {
 
     @Override
     public String toString() {
-        // "tag"
-        String tagLabel = !StringUtils.isEmpty(config.getTag()) ? "tag " + config.getTag() : "untagged";
-        if (isReady()) {
-            String url;
-            try {
-                url = DbAdapter.getUrl(config);
-            } catch (UnsupportedDialectException e) {
-                url = "[invalid dialect]";
-            }
-            return FormattedString.format("DbEndpoint[{}; url={}; user={}]", tagLabel, url, config.getDbUserName());
-        } else {
-            return FormattedString.format("DbEndpoint[{}; uninitialized", tagLabel);
+        String protocol;
+        try {
+            protocol = DbAdapter.getJdbcProtocol(config);
+        } catch (UnsupportedDialectException e) {
+            protocol = "?";
         }
+        String url = String.format("jdbc:%s://%s:%s/%s", protocol,
+                config.getHost() != null ? config.getHost() : "?",
+                config.getPort() != null ? config.getPort() : "?",
+                config.getDatabaseName() != null ? config.getDatabaseName() : "?");
+        return String.format("DbEndpoint[%s; url=%s; user=%s (%s)]",
+                config.getName() != null ? config.getName() : "(unnamed)", url,
+                config.getUserName() != null ? config.getUserName() : "?",
+                isReady() ? "ready" : "not ready");
     }
 
     /**
@@ -383,19 +389,43 @@ public class DbEndpoint {
         private final AtomicBoolean serverStarted = new AtomicBoolean(false);
         private final AtomicReference<UnaryOperator<String>> resolver;
         private final AtomicReference<DBPasswordUtil> passwordUtil;
+        private final long maxAwaitCompletionMs;
 
         /**
          * Create a new {@link DbEndpointCompleter}.
          *
-         * @param resolver Resolves property values in the environment.
-         * @param passwordUtil The {@link DBPasswordUtil} used to retrieve passwords from the
-         *                     auth component.
+         * @param resolver           Resolves property values in the environment.
+         * @param passwordUtil       The {@link DBPasswordUtil} used to retrieve passwords from the
+         *                           auth component.
+         * @param maxAwaitCompletion max time to spend waiting for endpoint completion (see {@link
+         *                           #getDurationMs(String)}
          */
         public DbEndpointCompleter(@Nonnull final UnaryOperator<String> resolver,
-                @Nonnull final DBPasswordUtil passwordUtil) {
+                @Nonnull final DBPasswordUtil passwordUtil,
+                @Nonnull final String maxAwaitCompletion) {
             this.resolver = new AtomicReference<>(resolver);
             this.passwordUtil = new AtomicReference<>(passwordUtil);
+            this.maxAwaitCompletionMs = getDurationMs(maxAwaitCompletion);
             ServerStartedNotifier.get().registerListener(this);
+        }
+
+        /**
+         * Convert a simple duration specification into a # of milliseconds.
+         *
+         * <p>The spec can take the form that {@link Duration#parse(CharSequence)} recognizes,
+         * e.g. "PT2H15M" for 2-1/4 hours. But it can also be much simpler, like "1d", "3h", "15m"
+         * or "33s". Unfortunately, this is not smart enough to deal with cases where the number is
+         * larger than the proper range of the time unit, e.g. no "90m". But "1h30m" will do.</p>
+         *
+         * @param duration duration specification
+         * @return corresponding # of milliseconds
+         */
+        private static long getDurationMs(String duration) {
+            duration = duration.toUpperCase();
+            if (!duration.startsWith("P")) {
+                duration = "P" + (duration.endsWith("D") ? "" : "T") + duration;
+            }
+            return Duration.parse(duration).toMillis();
         }
 
         /**
@@ -414,7 +444,7 @@ public class DbEndpoint {
         }
 
         DbEndpoint register(DbEndpointConfig config) {
-            if (config.dbIsAbstract()) {
+            if (config.isAbstract()) {
                 // no need to register abstract endpoints, since there's no completion processing
                 // involved - just wrap the config in an abstract endpoint and we're done
                 return new AbstractDbEndpoint(config, this);
@@ -463,7 +493,7 @@ public class DbEndpoint {
          * @param endpoint db endpoint
          */
         void completePendingEndpoint(DbEndpoint endpoint) {
-            if (endpoint.config.dbIsAbstract() || endpoint.future.isDone()) {
+            if (endpoint.config.isAbstract() || endpoint.future.isDone()) {
                 return;
             }
             synchronized (pendingEndpoints) {
@@ -511,6 +541,10 @@ public class DbEndpoint {
                 this.resolver.set(null);
                 this.passwordUtil.set(null);
             }
+        }
+
+        public long getMaxAwaitCompletionMs() {
+            return maxAwaitCompletionMs;
         }
     }
 
@@ -578,7 +612,7 @@ public class DbEndpoint {
         }
 
         @Override
-        public synchronized void awaitCompletion(final long timeout, final TimeUnit timeUnit) {
+        public synchronized void awaitCompletion(final Long timeout, final TimeUnit timeUnit) {
             throw new UnsupportedOperationException("Abstract DbEndpoint cannot be used for database access");
         }
     }

@@ -16,6 +16,7 @@ import org.jooq.DSLContext;
 import org.jooq.Field;
 import org.jooq.Record1;
 import org.jooq.Result;
+import org.jooq.ResultQuery;
 import org.jooq.SQLDialect;
 import org.jooq.impl.DSL;
 import org.junit.Before;
@@ -70,7 +71,7 @@ public class GrafanonTest {
         Field field = DSL.field("installed_on");
         Result<Record1> result = dslContextSpy.newResult(field);
         result.add(dslContextSpy.newRecord(field).values(timestamp));
-        doReturn(result).when(dslContextSpy).fetch(any(String.class));
+        doReturn(result).when(dslContextSpy).fetch(any(ResultQuery.class));
 
         //WHEN
         String migrationTimestamp = grafanon.getMigrationV14TimeStamp();
@@ -87,7 +88,7 @@ public class GrafanonTest {
         //GIVEN
         Field field = DSL.field("installed_on");
         Result<Record1> result = dslContextSpy.newResult(field);
-        doReturn(result).when(dslContextSpy).fetch(any(String.class));
+        doReturn(result).when(dslContextSpy).fetch(any(ResultQuery.class));
 
         //WHEN
         String migrationTimestamp = grafanon.getMigrationV14TimeStamp();
@@ -127,7 +128,7 @@ public class GrafanonTest {
         //Mock returning empty result
         Field field = DSL.field("installed_on");
         Result<Record1> result = dslContextSpy.newResult(field);
-        doReturn(result).when(dslContextSpy).fetch(any(String.class));
+        doReturn(result).when(dslContextSpy).fetch(any(ResultQuery.class));
 
         //THEN
         assertTrue(grafanon.skipFolder(Optional.of(folderInput)));
@@ -147,7 +148,7 @@ public class GrafanonTest {
         Field field = DSL.field("installed_on");
         Result<Record1> result = dslContextSpy.newResult(field);
         result.add(dslContextSpy.newRecord(field).values(""));
-        doReturn(result).when(dslContextSpy).fetch(any(String.class));
+        doReturn(result).when(dslContextSpy).fetch(any(ResultQuery.class));
 
         //THEN
         assertFalse(grafanon.skipFolder(Optional.of(folderInput)));
