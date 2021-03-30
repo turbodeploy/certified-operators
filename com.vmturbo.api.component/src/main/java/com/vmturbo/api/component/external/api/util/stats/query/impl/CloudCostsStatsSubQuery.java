@@ -127,6 +127,8 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
 
     static final String COST_COMPONENT = "costComponent";
 
+    static final String COST_SOURCE = "costSource";
+
     /**
      *Collection of cloud cost stats metrics.
      */
@@ -1097,12 +1099,21 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
             final List<StatFilterApiDTO> filters = new ArrayList<>();
             final StatFilterApiDTO resultsTypeFilter = new StatFilterApiDTO();
             resultsTypeFilter.setType(COST_COMPONENT);
-            resultsTypeFilter.setValue(getCostCategoryString(statRecord));
+            resultsTypeFilter.setValue(statRecord.getCategory().name());
             filters.add(resultsTypeFilter);
+            // if an explicit group by had been set, the cost source will not be available
+            // in the returned stat record.
+            if (statRecord.hasCostSource()) {
+                final StatFilterApiDTO sourceFilter = new StatFilterApiDTO();
+                sourceFilter.setType(COST_SOURCE);
+                sourceFilter.setValue(statRecord.getCostSource().name());
+                filters.add(sourceFilter);
+            }
 
             if (filters.size() > 0) {
                 statApiDTO.setFilters(filters);
             }
+
         }
         // set related entity type
         if (statRecord.hasAssociatedEntityType()) {
@@ -1127,6 +1138,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
             return null;
         }
     }
+
 
     static class CloudStatRecordAggregator {
         /**
