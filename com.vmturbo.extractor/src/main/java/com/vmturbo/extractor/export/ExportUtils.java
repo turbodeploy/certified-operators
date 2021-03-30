@@ -4,10 +4,13 @@ import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility;
@@ -142,5 +145,26 @@ public class ExportUtils {
                         .stream().sorted().collect(Collectors.toList()));
         });
         return map;
+    }
+
+    /**
+     * Convert given {@link Tags} to a set of key value combinations. It combines tag key and value
+     * using = as separator and put all combinations into a set like: ["owner=alex","owner=bob"].
+     * If the value is empty, it just adds the key into the set.
+     *
+     * @param tags {@link Tags}
+     * @return set of key value combinations
+     */
+    public static Set<String> tagsToKeyValueConcatSet(@Nonnull Tags tags) {
+        Set<String> keyValueConcat = new HashSet<>();
+        tags.getTagsMap().forEach((key, values) -> {
+            List<String> valuesList = values.getValuesList();
+            if (valuesList.isEmpty()) {
+                keyValueConcat.add(key);
+            } else {
+                valuesList.forEach(value -> keyValueConcat.add(key + "=" + value));
+            }
+        });
+        return keyValueConcat;
     }
 }

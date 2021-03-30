@@ -82,17 +82,21 @@ public class PrimitiveFieldsOnTEDPatcher implements EntityRecordPatcher<Topology
 
     private final boolean patchCommonFieldsIfNoMetadata;
     private final boolean includeTags;
+    private final boolean concatTagKeyValue;
 
     /**
      * Create a new patcher.
-     *
-     * @param patchCommonFieldsIfNoMetadata if true, patch common fields even for entity types wholly
+     *  @param patchCommonFieldsIfNoMetadata if true, patch common fields even for entity types wholly
      *                                      lacking metadata
      * @param includeTags whether or not to patch tags
+     * @param concatTagKeyValue whether or not to combine tag key and value using = as separator
+     *                          and put all combinations into a list like: ["owner=alex","owner=bob"]
      */
-    public PrimitiveFieldsOnTEDPatcher(boolean patchCommonFieldsIfNoMetadata, boolean includeTags) {
+    public PrimitiveFieldsOnTEDPatcher(boolean patchCommonFieldsIfNoMetadata, boolean includeTags,
+            boolean concatTagKeyValue) {
         this.patchCommonFieldsIfNoMetadata = patchCommonFieldsIfNoMetadata;
         this.includeTags = includeTags;
+        this.concatTagKeyValue = concatTagKeyValue;
     }
 
     @Override
@@ -154,7 +158,11 @@ public class PrimitiveFieldsOnTEDPatcher implements EntityRecordPatcher<Topology
     public Map<String, Object> extractAttrs(@Nonnull TopologyEntityDTO e) {
         final Map<String, Object> attrs = new HashMap<>();
         if (includeTags && e.hasTags()) {
-            attrs.put(TAGS_JSON_KEY_NAME, ExportUtils.tagsToMap(e.getTags()));
+            if (concatTagKeyValue) {
+                attrs.put(TAGS_JSON_KEY_NAME, ExportUtils.tagsToKeyValueConcatSet(e.getTags()));
+            } else {
+                attrs.put(TAGS_JSON_KEY_NAME, ExportUtils.tagsToMap(e.getTags()));
+            }
         }
 
         final List<SearchMetadataMapping> attrsMetadata =

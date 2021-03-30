@@ -69,14 +69,18 @@ public class GroupPrimitiveFieldsOnGroupingPatcher implements EntityRecordPatche
             .collect(Collectors.toMap(p -> p.first, p -> p.second));
 
     private final boolean includeTags;
+    private final boolean concatTagKeyValue;
 
     /**
      * Constructor.
      *
      * @param includeTags whether or not to patch tags
+     * @param concatTagKeyValue whether or not to combine tag key and value using = as separator
+     *                          and put all combinations into a list like: ["owner=alex","owner=bob"]
      */
-    public GroupPrimitiveFieldsOnGroupingPatcher(boolean includeTags) {
+    public GroupPrimitiveFieldsOnGroupingPatcher(boolean includeTags, boolean concatTagKeyValue) {
         this.includeTags = includeTags;
+        this.concatTagKeyValue = concatTagKeyValue;
     }
 
     @Override
@@ -123,7 +127,11 @@ public class GroupPrimitiveFieldsOnGroupingPatcher implements EntityRecordPatche
     public Map<String, Object> extractAttrs(@Nonnull Grouping group) {
         final Map<String, Object> attrs = new HashMap<>();
         if (includeTags && group.getDefinition().hasTags()) {
-            attrs.put(TAGS_JSON_KEY_NAME, ExportUtils.tagsToMap(group.getDefinition().getTags()));
+            if (concatTagKeyValue) {
+                attrs.put(TAGS_JSON_KEY_NAME, ExportUtils.tagsToKeyValueConcatSet(group.getDefinition().getTags()));
+            } else {
+                attrs.put(TAGS_JSON_KEY_NAME, ExportUtils.tagsToMap(group.getDefinition().getTags()));
+            }
         }
 
         ListUtils.emptyIfNull(JSONB_COLUMN_METADATA_BY_GROUP_TYPE.get(group.getDefinition().getType()))
