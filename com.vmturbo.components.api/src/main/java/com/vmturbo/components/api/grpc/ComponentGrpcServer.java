@@ -102,8 +102,11 @@ public class ComponentGrpcServer implements ServerStartedListener {
      * but we are using a larger number since some of our use cases can involve larger-than-normal
      * message sizes. Most notably, any RPC involving entity information can vary greatly in size
      * based on the contents of the entities.
+     * According to gRPC developers, gRPC itself has no problem with a large message size. The
+     * reason for a low default limit is to encourage streaming and prevent lots of consumers from
+     * causing the server to crash with OOM.  
      */
-    private static final int DEFAULT_GRPC_MAX_MESSAGE_BYTES = 10000000;
+    private static final int DEFAULT_GRPC_MAX_MESSAGE_BYTES = 50_000_000;
 
     /**
      * The singleton instance.
