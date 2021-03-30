@@ -73,7 +73,7 @@ public class LicenseMapper {
                         .collect(Collectors.toSet()));
             }
         } else if (licenseDTO.hasExternal()) {
-            ExternalLicense externalLicense = licenseDTO.getExternal();
+            final ExternalLicense externalLicense = licenseDTO.getExternal();
             if (externalLicense.hasExpirationDate()) {
                 license.setExpirationDate(externalLicense.getExpirationDate());
             }
@@ -82,6 +82,13 @@ public class LicenseMapper {
                 license.setEdition(GRAFANA_LICENSE_DISPLAY_NAME);
             } else {
                 license.setEdition(UNKNOWN_LICENSE_DISPLAY_NAME);
+            }
+
+            if (externalLicense.getErrorReasonCount() > 0) {
+                license.setErrorReasons(externalLicense.getErrorReasonList()
+                        .stream()
+                        .map(ErrorReason::valueOf)
+                        .collect(Collectors.toSet()));
             }
         }
 
