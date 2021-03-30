@@ -31,7 +31,6 @@ import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.Aggre
 import com.vmturbo.cloud.commitment.analysis.spec.CloudCommitmentSpecMatcher;
 import com.vmturbo.cloud.commitment.analysis.spec.CommitmentSpecDemand;
 import com.vmturbo.cloud.commitment.analysis.spec.CommitmentSpecDemandSet;
-import com.vmturbo.cloud.commitment.analysis.spec.ImmutableReservedInstanceSpecData;
 import com.vmturbo.cloud.commitment.analysis.spec.ReservedInstanceSpecData;
 import com.vmturbo.cloud.commitment.analysis.spec.ReservedInstanceSpecMatcher;
 import com.vmturbo.cloud.commitment.analysis.spec.SpecMatcherOutput;
@@ -115,7 +114,7 @@ public class RecommendationSpecMatcherStageTest {
             .setReservedInstanceSpecInfo(ReservedInstanceSpecInfo.newBuilder().setOs(OSType.LINUX).setTenancy(Tenancy.DEFAULT)
                     .setRegionId(REGION_AWS).setTierId(12L).build()).build();
 
-    Optional<ReservedInstanceSpecData> riSpecData = Optional.of(ImmutableReservedInstanceSpecData.builder()
+    Optional<ReservedInstanceSpecData> riSpecData = Optional.of(ReservedInstanceSpecData.builder()
             .spec(spec1).cloudTier(computeTier).build());
 
     ReservedInstanceData cloudCommitmentData = ReservedInstanceData.builder().commitment(
