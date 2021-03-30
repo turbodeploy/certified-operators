@@ -30,7 +30,7 @@ class MariaDBMySqlAdapter extends DbAdapter {
         dataSource.setUrl(url);
         dataSource.setUser(user);
         dataSource.setPassword(password);
-        dataSource.setDatabaseName(config.getDbDatabaseName());
+        dataSource.setDatabaseName(config.getDatabaseName());
         return dataSource;
     }
 
@@ -38,22 +38,22 @@ class MariaDBMySqlAdapter extends DbAdapter {
     protected void createSchema() throws SQLException, UnsupportedDialectException {
         try (Connection conn = getRootConnection(null)) {
             execute(conn, String.format("CREATE DATABASE IF NOT EXISTS %s",
-                    config.getDbDatabaseName()));
+                    config.getDatabaseName()));
         }
     }
 
     @Override
     protected void createNonRootUser() throws UnsupportedDialectException, SQLException {
         try (Connection conn = getRootConnection(null)) {
-            dropUser(conn, config.getDbUserName());
+            dropUser(conn, config.getUserName());
             execute(conn, String.format("CREATE USER '%s'@'%%' IDENTIFIED BY '%s'",
-                    config.getDbUserName(), config.getDbPassword()));
+                    config.getUserName(), config.getPassword()));
         }
     }
 
     private void dropUser(final Connection conn, final String user) {
         // DROP USER IF NOT EXISTS is not supported in MySQL until v5.7, and breaks jenkins builds
-        if (!config.getDbDestructiveProvisioningEnabled()) {
+        if (!config.getDestructiveProvisioningEnabled()) {
             return;
         }
         try {
@@ -66,9 +66,9 @@ class MariaDBMySqlAdapter extends DbAdapter {
     @Override
     protected void performNonRootGrants(DbEndpointAccess access) throws SQLException, UnsupportedDialectException {
         String privileges = getPrivileges(access);
-        try (Connection conn = getRootConnection(config.getDbDatabaseName())) {
+        try (Connection conn = getRootConnection(config.getDatabaseName())) {
             execute(conn, String.format("GRANT %s ON `%s`.* TO '%s'@'%%'",
-                    privileges, config.getDbDatabaseName(), config.getDbUserName()));
+                    privileges, config.getDatabaseName(), config.getUserName()));
         }
     }
 

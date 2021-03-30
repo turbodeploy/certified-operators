@@ -3,8 +3,9 @@ package com.vmturbo.sql.utils;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 import javax.annotation.Nonnull;
 
@@ -38,18 +39,18 @@ public class DbEndpointBuilder {
     /**
      * Internal constructor for a new endpoint instance.
      *
-     * <p>Client code should use {@link SQLDatabaseConfig2#primaryDbEndpoint(SQLDialect)} or
-     * {@link SQLDatabaseConfig2#secondaryDbEndpoint(String, SQLDialect)} to declare endpoints.</p>
+     * <p>Client code should use {@link SQLDatabaseConfig2#dbEndpoint(String, SQLDialect)} or
+     * {@link SQLDatabaseConfig2#abstractDbEndpoint(String, SQLDialect)} or {@link
+     * SQLDatabaseConfig2#derivedDbEndpoint(String, DbEndpoint)} to declare endpoints.</p>
      *
-     * @param tag     tag for secondary endpoint, or an empty string for primary
-     * @param dialect server type, identified by {@link SQLDialect}
+     * @param name              name for this endpoint
+     * @param dialect           server type, identified by {@link SQLDialect}
      * @param endpointCompleter The {@link DbEndpointCompleter} that will complete the resulting
      *                          endpoint when the server is ready.
      */
-    DbEndpointBuilder(@Nonnull final String tag,
-            final SQLDialect dialect,
+    DbEndpointBuilder(final String name, final SQLDialect dialect,
             @Nonnull final DbEndpointCompleter endpointCompleter) {
-        config = new DbEndpointConfig(Objects.requireNonNull(tag, "Tag should be a string."));
+        config = new DbEndpointConfig(name);
         config.setDialect(dialect);
         this.endpointCompleter = endpointCompleter;
     }
@@ -69,134 +70,134 @@ public class DbEndpointBuilder {
     }
 
     /**
-     * Specify a dbHost property value for this endpoint.
+     * Specify a host property value for this endpoint.
      *
-     * @param dbHost property value
+     * @param host property value
      * @return this endpoint
      */
-    public DbEndpointBuilder withDbHost(@Nonnull String dbHost) {
-        config.setDbHost(Objects.requireNonNull(dbHost));
+    public DbEndpointBuilder withHost(@Nonnull String host) {
+        config.setHost(Objects.requireNonNull(host));
         return this;
     }
 
     /**
-     * Specify a dbPort property value for this endpoint.
+     * Specify a port property value for this endpoint.
      *
-     * @param dbPort property value
+     * @param port property value
      * @return this endpoint
      */
-    public DbEndpointBuilder withDbPort(int dbPort) {
-        config.setDbPort(dbPort);
+    public DbEndpointBuilder withPort(int port) {
+        config.setPort(port);
         return this;
     }
 
     /**
-     * Specify a dbDatabaseName property value for this endpoint.
+     * Specify a databaseName property value for this endpoint.
      *
-     * @param dbDatabaseName property value
+     * @param databaseName property value
      * @return this endpoint
      */
-    public DbEndpointBuilder withDbDatabaseName(@Nonnull String dbDatabaseName) {
-        config.setDbDatabaseName(Objects.requireNonNull(dbDatabaseName));
+    public DbEndpointBuilder withDatabaseName(@Nonnull String databaseName) {
+        config.setDatabaseName(Objects.requireNonNull(databaseName));
         return this;
     }
 
     /**
-     * Specify a dbSchemaName property value for this endpoint.
+     * Specify a schemaName property value for this endpoint.
      *
-     * @param dbSchemaName property value
+     * @param schemaName property value
      * @return this endpoint
      */
-    public DbEndpointBuilder withDbSchemaName(@Nonnull String dbSchemaName) {
-        config.setDbSchemaName(Objects.requireNonNull(dbSchemaName));
+    public DbEndpointBuilder withSchemaName(@Nonnull String schemaName) {
+        config.setSchemaName(Objects.requireNonNull(schemaName));
         return this;
     }
 
     /**
-     * Specify a dbUserName property value for this endpoint.
+     * Specify a userName property value for this endpoint.
      *
-     * @param dbUserName property value
+     * @param userName property value
      * @return this endpoint
      */
-    public DbEndpointBuilder withDbUserName(@Nonnull String dbUserName) {
-        config.setDbUserName(Objects.requireNonNull(dbUserName));
+    public DbEndpointBuilder withUserName(@Nonnull String userName) {
+        config.setUserName(Objects.requireNonNull(userName));
         return this;
     }
 
     /**
-     * Specify a dbPassword property value for this endpoint.
+     * Specify a password property value for this endpoint.
      *
-     * @param dbPassword property value
+     * @param password property value
      * @return this endpoint
      */
-    public DbEndpointBuilder withDbPassword(@Nonnull String dbPassword) {
-        config.setDbPassword(Objects.requireNonNull(dbPassword));
+    public DbEndpointBuilder withPassword(@Nonnull String password) {
+        config.setPassword(Objects.requireNonNull(password));
         return this;
     }
 
     /**
-     * Specify a dbAccess property value for this endpoint.
+     * Specify a access property value for this endpoint.
      *
-     * @param dbAccess property value
+     * @param access property value
      * @return this endpoint
      */
-    public DbEndpointBuilder withDbAccess(@Nonnull DbEndpointAccess dbAccess) {
-        config.setDbAccess(Objects.requireNonNull(dbAccess));
+    public DbEndpointBuilder withAccess(@Nonnull DbEndpointAccess access) {
+        config.setAccess(Objects.requireNonNull(access));
         return this;
     }
 
     /**
-     * Specify a dbRootUserName property value for this endpoint.
+     * Specify a rootUserName property value for this endpoint.
      *
-     * @param dbRootUserName property value
+     * @param rootUserName property value
      * @return this endpoint
      */
-    public DbEndpointBuilder withDbRootUserName(@Nonnull String dbRootUserName) {
-        config.setDbRootUserName(Objects.requireNonNull(dbRootUserName));
+    public DbEndpointBuilder withRootUserName(@Nonnull String rootUserName) {
+        config.setRootUserName(Objects.requireNonNull(rootUserName));
         return this;
     }
 
     /**
-     * Specify a dbRootPassword property value for this endpoint.
+     * Specify a rootPassword property value for this endpoint.
      *
-     * @param dbRootPassword property value
+     * @param rootPassword property value
      * @return this endpoint
      */
-    public DbEndpointBuilder withDbRootPassword(@Nonnull String dbRootPassword) {
-        config.setDbRootPassword(Objects.requireNonNull(dbRootPassword));
+    public DbEndpointBuilder withRootPassword(@Nonnull String rootPassword) {
+        config.setRootPassword(Objects.requireNonNull(rootPassword));
         return this;
     }
 
     /**
-     * Specify a dbDriverProperties property value for this endpoint.
+     * Specify a driverProperties property value for this endpoint.
      *
-     * @param dbDriverProperties property value
+     * @param driverProperties property value
      * @return this endpoint
      */
-    public DbEndpointBuilder withDbDriverProperties(@Nonnull Map<String, String> dbDriverProperties) {
-        config.setDbDriverProperties(ImmutableMap.copyOf(Objects.requireNonNull(dbDriverProperties)));
+    public DbEndpointBuilder withDriverProperties(@Nonnull Map<String, String> driverProperties) {
+        config.setDriverProperties(ImmutableMap.copyOf(Objects.requireNonNull(driverProperties)));
         return this;
     }
 
     /**
-     * Specify a dbSecure property value for this endpoint.
+     * Specify a secure property value for this endpoint.
      *
-     * @param dbSecure property value
+     * @param secure property value
      * @return this endpoint
      */
-    public DbEndpointBuilder withDbSecure(boolean dbSecure) {
-        config.setDbSecure(dbSecure);
+    public DbEndpointBuilder withSecure(boolean secure) {
+        config.setSecure(secure);
         return this;
     }
 
     /**
-     * Specify a dbMigrationLocations property value for this endpoint.
+     * Specify a migrationLocations property value for this endpoint.
      *
-     * @param dbMigrationLocations property value
+     * @param migrationLocations property value
      * @return this endpoint
      */
-    public DbEndpointBuilder withDbMigrationLocations(String... dbMigrationLocations) {
-        config.setDbMigrationLocations(String.join(",", dbMigrationLocations));
+    public DbEndpointBuilder withMigrationLocations(String... migrationLocations) {
+        config.setMigrationLocations(String.join(",", migrationLocations));
         return this;
     }
 
@@ -205,83 +206,87 @@ public class DbEndpointBuilder {
      *
      * @return this endpoint
      */
-    public DbEndpointBuilder withNoDbMigrations() {
-        config.setDbMigrationLocations("");
+    public DbEndpointBuilder withNoMigrations() {
+        config.setMigrationLocations("");
         return this;
     }
 
     /**
-     * Specify a dbFlywayCallbacks property value for this endpoint.
+     * Specify a flywayCallbacks property value for this endpoint.
      *
-     * @param dbFlywayCallbacks property value
+     * @param flywayCallbacks property value
      * @return this endpoint
      */
-    public DbEndpointBuilder withDbFlywayCallbacks(FlywayCallback... dbFlywayCallbacks) {
-        config.setDbFlywayCallbacks(dbFlywayCallbacks);
+    public DbEndpointBuilder withFlywayCallbacks(FlywayCallback... flywayCallbacks) {
+        config.setFlywayCallbacks(flywayCallbacks);
         return this;
     }
 
     /**
-     * Specify a dbDestructiveProvisioningEnabled property value for this endpoint.
+     * Specify a destructiveProvisioningEnabled property value for this endpoint.
      *
      * <p>This will permit operations like dropping a user or a database to be performed using
      * root credentials, during endpoint initialization, in order to attempt to fix a situation
      * where the non-root user credentials are found not to work.</p>
      *
-     * @param dbDestructiveProvisioningEnabled property value
+     * @param destructiveProvisioningEnabled property value
      * @return this endpoint
      */
-    public DbEndpointBuilder withDbDestructiveProvisioningEnabled(boolean dbDestructiveProvisioningEnabled) {
-        config.setDbDestructiveProvisioningEnabled(dbDestructiveProvisioningEnabled);
+    public DbEndpointBuilder withDestructiveProvisioningEnabled(boolean destructiveProvisioningEnabled) {
+        config.setDestructiveProvisioningEnabled(destructiveProvisioningEnabled);
         return this;
     }
 
     /**
-     * Specify a dbEndpointEnabled property value for this endpoint.
+     * Specify a endpointEnabled property value for this endpoint.
      *
      * <p>Setting this to false will prevent initialization of the endpoint. It may be useful in
      * some debugging and testing scenarios, allowing the effective removal of an endpoint without
      * actually removing it from the code.
      *
-     * @param dbEndpointEnabled property value
+     * @param endpointEnabled property value
      * @return this endpoint
      */
-    public DbEndpointBuilder withDbEndpointEnabled(boolean dbEndpointEnabled) {
-        config.setDbEndpointEnabled(dbEndpointEnabled);
+    public DbEndpointBuilder withEndpointEnabled(boolean endpointEnabled) {
+        config.setEndpointEnabledFn(r -> endpointEnabled);
         return this;
     }
 
     /**
-     * Specify how long to wait for "completion" (i.e. for all property values to be available).
+     * Specify a function to determine, during endpoint resolution, whether this endpoint should be
+     * enabled or disabled.
      *
-     * @param maxAwaitCompletion The duration to wait.
-     * @param timeUnit The time unit for the duration.
-     * @return this endpoint.
+     * <p>The function will be handed the same "resolve" object used by the endpoint resolver,
+     * in the form of a unary String operator (i.e. a String->String function). This can be used
+     * to interrogate configured properties on which enablement may depend.</p>
+     *
+     * @param fn function to determine whether this endpoint should be enabled
+     * @return this endpoint
      */
-    public DbEndpointBuilder withMaxAwaitCompletion(long maxAwaitCompletion, TimeUnit timeUnit) {
-        config.setMaxAwaitCompletion(maxAwaitCompletion, timeUnit);
+    public DbEndpointBuilder withEndpointEnabled(Function<UnaryOperator<String>, Boolean> fn) {
+        config.setEndpointEnabledFn(fn);
         return this;
     }
 
     /**
-     * Specify that this endpoint is abstract, and will never be operationalized.
+     * Specify that this endpoint is abstract, and will never be made operational.
      *
      * @return this endpoint
      */
     public DbEndpointBuilder setAbstract() {
-        config.setDbAbstract();
+        config.setAbstract();
         return this;
     }
 
     /**
      * Enable or disable both database and user provisioning for this endpoint.
      *
-     * @param dbShouldProvision whether database and user provisioning should be done
+     * @param shouldProvision whether database and user provisioning should be done
      * @return this endpoint
      */
-    public DbEndpointBuilder withDbShouldProvision(boolean dbShouldProvision) {
-        return withDbShouldProvisionDatabase(dbShouldProvision)
-                .withDbShouldProvisionUser(dbShouldProvision);
+    public DbEndpointBuilder withShouldProvision(boolean shouldProvision) {
+        return withShouldProvisionDatabase(shouldProvision)
+                .withShouldProvisionUser(shouldProvision);
     }
 
     /**
@@ -290,8 +295,8 @@ public class DbEndpointBuilder {
      * @param shouldProvisionDatabase whether database provisioning should be done
      * @return this endpoint
      */
-    public DbEndpointBuilder withDbShouldProvisionDatabase(boolean shouldProvisionDatabase) {
-        config.setDbShouldProvisionDatabase(shouldProvisionDatabase);
+    public DbEndpointBuilder withShouldProvisionDatabase(boolean shouldProvisionDatabase) {
+        config.setShouldProvisionDatabase(shouldProvisionDatabase);
         return this;
     }
 
@@ -301,8 +306,8 @@ public class DbEndpointBuilder {
      * @param shouldProvisionUser whether user provisioning should be done
      * @return this endpoint
      */
-    public DbEndpointBuilder withDbShouldProvisionUser(boolean shouldProvisionUser) {
-        config.setDbShouldProvisionUser(shouldProvisionUser);
+    public DbEndpointBuilder withShouldProvisionUser(boolean shouldProvisionUser) {
+        config.setShouldProvisionUser(shouldProvisionUser);
         return this;
     }
 
@@ -311,11 +316,11 @@ public class DbEndpointBuilder {
      *
      * <p>This is normally used in tests, and affects names of provisioned database objects.</p>
      *
-     * @param dbProvisioningSuffix provisioning suffix
+     * @param provisioningSuffix provisioning suffix
      * @return this endpoint
      */
-    public DbEndpointBuilder withDbProvisioningSuffix(String dbProvisioningSuffix) {
-        config.setDbProvisioningSuffix(dbProvisioningSuffix);
+    public DbEndpointBuilder withProvisioningSuffix(String provisioningSuffix) {
+        config.setProvisioningSuffix(provisioningSuffix);
         return this;
     }
 
