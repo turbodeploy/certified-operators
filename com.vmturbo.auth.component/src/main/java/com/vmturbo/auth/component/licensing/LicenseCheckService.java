@@ -14,7 +14,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.protobuf.Empty;
@@ -157,24 +156,7 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
     // thread pool for scheduled license check updates
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 
-    private final LicenseSummaryCreator licenseSummaryCreator;
-
-    /**
-     * Constructor.
-     *
-     * @param licenseManagerService license manager service
-     * @param settingService RPC client for the setting service
-     * @param licensedEntitiesCountCalculator responsible for calculating the number of licensed entities
-     * @param repositoryListener listener of repository notifications
-     * @param licenseSummarySender sender of license summaries
-     * @param notificationSender sender of notifications to kafka
-     * @param mailManager responsible for sending emails
-     * @param clock clock
-     * @param numBeforeLicenseExpirationDays the number of days before license expiration
-     * @param scheduleUpdates if true then license summary regularly updates
-     * @param defaultMaxReportEditorCount The maximum count of allowed report editors.
-     */
-    public LicenseCheckService(@Nonnull final LicenseManagerService licenseManagerService,
+    LicenseCheckService(@Nonnull final LicenseManagerService licenseManagerService,
                         @Nonnull final SettingServiceBlockingStub settingService,
                         @Nonnull final LicensedEntitiesCountCalculator licensedEntitiesCountCalculator,
                         @Nonnull final RepositoryNotificationReceiver repositoryListener,
@@ -183,8 +165,7 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
                         @Nonnull final MailManager mailManager,
                         @Nonnull final Clock clock,
                         final int numBeforeLicenseExpirationDays,
-                        boolean scheduleUpdates,
-                        final int defaultMaxReportEditorCount) {
+                        boolean scheduleUpdates) {
         this.licenseManagerService = licenseManagerService;
         this.settingService = settingService;
         // subscribe to the license manager event stream. This will trigger license check updates
@@ -202,7 +183,6 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
 
         this.mailManager = mailManager;
 
-        this.licenseSummaryCreator = new LicenseSummaryCreator(defaultMaxReportEditorCount);
         this.numBeforeLicenseExpirationDays = numBeforeLicenseExpirationDays;
 
         // subscribe to new topologies, so we can regenerate the license check when that happens
@@ -246,16 +226,6 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
         }
         responseObserver.onNext(responseBuilder.build());
         responseObserver.onCompleted();
-    }
-
-    /**
-     * Get the most recent {@link LicenseSummary}.
-     *
-     * @return The summary, or null if none has been generated so far.
-     */
-    @Nullable
-    public LicenseSummary getLastSummary() {
-        return lastSummary;
     }
 
     /**
@@ -335,7 +305,7 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
 
         // at this point we have the aggregate license and workload count. Combine them to create
         // the license summary.
-        LicenseSummary licenseSummary = licenseSummaryCreator.createLicenseSummary(licenseDTOs, licensedEntitiesCount);
+        LicenseSummary licenseSummary = LicenseDTOUtils.createLicenseSummary(licenseDTOs, licensedEntitiesCount);
         // publish the news!!
         publishNewLicenseSummary(licenseSummary);
 

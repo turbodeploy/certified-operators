@@ -43,7 +43,6 @@ public class RISpecPurchaseFilter implements CommitmentSpecPurchaseFilter<Virtua
 
     private static final Comparator<ReservedInstanceSpecData> RI_SPEC_PREFERENCE =
             Comparator.comparing(ReservedInstanceSpecData::couponsPerInstance)
-                    .thenComparing(ReservedInstanceSpecData::scalingPenalty)
                     .thenComparing(ReservedInstanceSpecData::specId);
 
     private final CloudTopology<TopologyEntityDTO> cloudTierTopology;
@@ -122,7 +121,7 @@ public class RISpecPurchaseFilter implements CommitmentSpecPurchaseFilter<Virtua
         final long computeTierOid = riSpec.getReservedInstanceSpecInfo().getTierId();
         return cloudTierTopology.getEntity(computeTierOid)
                 .map(computeTier ->
-                        ReservedInstanceSpecData.builder()
+                        ImmutableReservedInstanceSpecData.builder()
                                 .spec(riSpec)
                                 .cloudTier(computeTier)
                                 .build());

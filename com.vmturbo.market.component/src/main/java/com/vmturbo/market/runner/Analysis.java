@@ -4,7 +4,6 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -22,6 +21,7 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Table;
 
@@ -87,9 +87,6 @@ import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
 import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisService;
-import com.vmturbo.market.runner.postprocessor.ProjectedContainerClusterPostProcessor;
-import com.vmturbo.market.runner.postprocessor.ProjectedContainerSpecPostProcessor;
-import com.vmturbo.market.runner.postprocessor.ProjectedEntityPostProcessor;
 import com.vmturbo.market.runner.reservedcapacity.ReservedCapacityAnalysisEngine;
 import com.vmturbo.market.runner.reservedcapacity.ReservedCapacityResults;
 import com.vmturbo.market.runner.wastedfiles.WastedFilesAnalysisEngine;
@@ -115,6 +112,7 @@ import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
 import com.vmturbo.platform.analysis.ede.Ede;
 import com.vmturbo.platform.analysis.ede.ReplayActions;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ResizeTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults;
@@ -252,11 +250,6 @@ public class Analysis {
     // a set of on-prem application entity type
     private static final Set<Integer> entityTypesToSkip =
             new HashSet<>(Collections.singletonList(EntityType.BUSINESS_APPLICATION_VALUE));
-
-    // List of post processors to update corresponding projected topology entities after analysis.
-    private static final List<ProjectedEntityPostProcessor> PROJECTED_ENTITY_POST_PROCESSORS =
-            Arrays.asList(new ProjectedContainerSpecPostProcessor(),
-                          new ProjectedContainerClusterPostProcessor());
 
     /**
      * Create and execute a context for a Market Analysis given a topology, an optional 'scope' to
@@ -692,25 +685,17 @@ public class Analysis {
                                         .map(action -> action.getInfo().getDelete().getTarget().getId())
                                         .collect(Collectors.toSet());
 
+                                // Post process projected ContainerSpec entities by updating commodity
+                                // capacity and percentile utilization to reflect after-action changes
+                                // from corresponding Container resizing.
+                                projectedContainerSpecsPostProcessing(projectedEntities, actionsList);
+
                                 copySkippedEntitiesToProjectedTopology(
                                         wastedStorageActionsVolumeIds,
                                         convertedTopology.oidsToRemove,
                                         projectedTraderDTO,
                                         topologyDTOs,
                                         isMigrateToCloud);
-
-                                // Map of entity type to list of projected topology entities.
-                                Map<Integer, List<ProjectedTopologyEntity>> entityTypeToProjectedEntities =
-                                        projectedEntities.values().stream()
-                                                .collect(Collectors.groupingBy(entity ->
-                                                        entity.getEntity().getEntityType()));
-                                // Post process projected entities.
-                                for (ProjectedEntityPostProcessor postProcessor : PROJECTED_ENTITY_POST_PROCESSORS) {
-                                    if (postProcessor.appliesTo(topologyInfo, entityTypeToProjectedEntities)) {
-                                        postProcessor.process(topologyInfo, projectedEntities,
-                                            entityTypeToProjectedEntities, actionsList);
-                                    }
-                                }
 
                                 // Calculate the projected entity costs.
                                 projectedCloudTopology =
@@ -823,6 +808,84 @@ public class Analysis {
     }
 
     /**
+     * Post process projected ContainerSpec entities by updating commodity capacity and percentile
+     * utilization to reflect after-action changes from corresponding Container resizing.
+     *
+     * <p>A ContainerSpec entity represents shared portion of connected Containers. ContainerSpecs
+     * are not directly analyzed by Market so that projected entities have the same commodity data
+     * as original ones. To reflect after-action aggregated Container data on ContainerSpec, we need
+     * to update commodity capacity and percentile utilization of ContainerSpec from corresponding
+     * Containers with resize actions.
+     *
+     * @param projectedEntities Map from entity OID to all projected topology entities.
+     * @param actionsList       List of all actions from analysis results.
+     */
+    @VisibleForTesting
+    void projectedContainerSpecsPostProcessing(@Nonnull Map<Long, ProjectedTopologyEntity> projectedEntities,
+                                               @Nonnull List<ActionTO> actionsList) {
+        // Map from ContainerSpec OID to set of commodity types to be updated.
+        // A containerSpec could have multiple Containers connected. This map is used to avoid duplicate
+        // update on the same commodity of the same ContainerSpec entity.
+        final Map<Long, Set<Integer>> containerSpecCommodityTypeMap = new HashMap<>();
+        // Map from ContainerSpec OID to ProjectedTopologyEntity builder to be updated.
+        // This map is to avoid creating extra entity builder for the same ContainerSpec.
+        final Map<Long, ProjectedTopologyEntity.Builder> projectedContainerSpecEntityBuilderMap = new HashMap<>();
+        actionsList.stream()
+            // Get all Container resize actions
+            .filter(ActionTO::hasResize)
+            .map(ActionTO::getResize)
+            .filter(resizeTO -> projectedEntities.get(resizeTO.getSellingTrader()) != null
+                && projectedEntities.get(resizeTO.getSellingTrader()).getEntity().getEntityType() == EntityType.CONTAINER_VALUE)
+            .forEach(resizeTO ->
+                updateProjectedContainerSpec(resizeTO, projectedEntities, containerSpecCommodityTypeMap, projectedContainerSpecEntityBuilderMap));
+        // Set the updated projected ContainerSpec entities to projectedEntities map.
+        projectedContainerSpecEntityBuilderMap.forEach((containerSpecOID, entityBuilder) ->
+            projectedEntities.put(containerSpecOID, entityBuilder.build()));
+    }
+
+    private void updateProjectedContainerSpec(@Nonnull ResizeTO resizeTO, @Nonnull Map<Long, ProjectedTopologyEntity> projectedEntities,
+                                              @Nonnull Map<Long, Set<Integer>> containerSpecCommodityTypeMap,
+                                              @Nonnull Map<Long, ProjectedTopologyEntity.Builder> projectedContainerSpecEntityBuilderMap) {
+        final long containerOID = resizeTO.getSellingTrader();
+        final int commodityType = resizeTO.getSpecification().getBaseType();
+        // ProjectedContainer is guaranteed to exist in projectedEntities map here after previous filter.
+        ProjectedTopologyEntity projectedContainer = projectedEntities.get(containerOID);
+        projectedContainer.getEntity().getConnectedEntityListList().stream()
+            .map(ConnectedEntity::getConnectedEntityId)
+            // Include the ContainerSpecs if containerSpecOID is in projectedEntities map and given
+            // commodity type hasn't been updated.
+            .filter(projectedEntities::containsKey)
+            .filter(containerSpecOID -> !isContainerSpecCommodityUpdated(commodityType, containerSpecOID, containerSpecCommodityTypeMap))
+            .forEach(containerSpecOID -> {
+                // Find the commoditySoldDTO of current action commodity type from projected
+                // Container entity.
+                projectedContainer.getEntity().getCommoditySoldListList().stream()
+                    .filter(comm -> comm.getCommodityType().getType() == commodityType)
+                    .findFirst()
+                    .ifPresent(projectedCommSoldDTO -> {
+                        double newCapacity = projectedCommSoldDTO.getCapacity();
+                        ProjectedTopologyEntity.Builder projectedEntityBuilder =
+                            projectedContainerSpecEntityBuilderMap.computeIfAbsent(containerSpecOID,
+                                v -> projectedEntities.get(containerSpecOID).toBuilder());
+                        // Update commodity capacity and percentile utilization of projected ContainerSpec
+                        // entity with the new capacity from the connected projected Container entity.
+                        projectedEntityBuilder.getEntityBuilder().getCommoditySoldListBuilderList().stream()
+                            .filter(comm -> comm.getCommodityType().getType() == commodityType)
+                            .findAny()
+                            .ifPresent(comm -> {
+                                // Update commodity capacity and percentile utilization on the projected
+                                // ContainerSpec entity.
+                                double oldCapacity = comm.getCapacity();
+                                comm.setCapacity(newCapacity);
+                                double newPercentile = comm.getHistoricalUsed().getPercentile() * oldCapacity / newCapacity;
+                                comm.getHistoricalUsedBuilder().setPercentile(newPercentile);
+                            });
+                        containerSpecCommodityTypeMap.get(containerSpecOID).add(commodityType);
+                    });
+            });
+    }
+
+    /**
      * Call {@link InitialPlacementFinder} to trigger refresh of reservation economy caches.
      *
      * @param economy the economy associated with analysis.
@@ -839,6 +902,14 @@ public class Analysis {
                     .getCommodityConverter().getCommTypeAllocator().getReservationCommTypeToSpecMapping();
             initialPlacementFinder.updateCachedEconomy(economy, commTypeToSpecMap, isRealtime);
         }
+    }
+
+    private boolean isContainerSpecCommodityUpdated(int commodityType, long containerSpecOID,
+                                                    @Nonnull Map<Long, Set<Integer>> containerSpecCommodityTypeMap) {
+        Set<Integer> updatedCommodityTypes =
+            containerSpecCommodityTypeMap.computeIfAbsent(containerSpecOID, v -> new HashSet<>());
+        // If current commodity of this ContainerSpec entity has been updated, no need to update again.
+        return updatedCommodityTypes.contains(commodityType);
     }
 
     /**

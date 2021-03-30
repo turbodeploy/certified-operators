@@ -30,7 +30,7 @@ public class DatasourceInput {
     private String user;
 
     @SerializedName("orgId")
-    private final long orgId = 1;
+    private long orgId = 1;
 
     @SerializedName("type")
     private String datasourceType;
@@ -59,7 +59,7 @@ public class DatasourceInput {
     private PostgresJsonData jsonData = new PostgresJsonData();
 
     @SerializedName("secureJsonData")
-    private final SecureData secureJsonData = new SecureData();
+    private SecureData secureJsonData = new SecureData();
 
     /**
      * Create a new {@link DatasourceInput} which will configure a connection to the provided
@@ -77,16 +77,16 @@ public class DatasourceInput {
             throws UnsupportedDialectException {
         final DatasourceInput input = new DatasourceInput();
         input.displayName = displayName;
-        input.database = endpointConfig.getDatabaseName();
-        input.user = endpointConfig.getUserName();
+        input.database = endpointConfig.getDbDatabaseName();
+        input.user = endpointConfig.getDbUserName();
         // No scheme.
-        input.url = endpointConfig.getHost() + ":" + endpointConfig.getPort();
+        input.url = endpointConfig.getDbHost() + ":" + endpointConfig.getDbPort();
         if (endpointConfig.getDialect() == SQLDialect.POSTGRES) {
             input.datasourceType = "postgres";
         } else {
             throw new UnsupportedDialectException(endpointConfig.getDialect());
         }
-        input.secureJsonData.password = endpointConfig.getPassword();
+        input.secureJsonData.password = endpointConfig.getDbPassword();
         return input;
     }
 

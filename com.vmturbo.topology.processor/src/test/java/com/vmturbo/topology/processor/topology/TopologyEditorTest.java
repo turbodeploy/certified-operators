@@ -95,7 +95,6 @@ public class TopologyEditorTest {
     private static final long pmId = 20;
     private static final long stId = 30;
     private static final long podId = 40;
-    private static final long containerId = 50;
     private static final double USED = 100;
     private static final double VCPU_CAPACITY = 1000;
     private static final double VMEM_CAPACITY = 1000;
@@ -190,47 +189,13 @@ public class TopologyEditorTest {
                             .setAccesses(pmId).build())
     );
 
-    private static final TopologyEntity.Builder container =
-        TopologyEntityUtils.topologyEntityBuilder(TopologyEntityDTO.newBuilder()
-            .setOid(containerId)
-            .setDisplayName("Container")
-            .setEntityType(EntityType.CONTAINER_VALUE)
-            .setAnalysisSettings(
-                AnalysisSettings.newBuilder()
-                    .setSuspendable(false)
-                    .setControllable(false)
-            )
-            .addCommoditiesBoughtFromProviders(
-                CommoditiesBoughtFromProvider.newBuilder()
-                    .setProviderId(podId)
-                    .addCommodityBought(CommodityBoughtDTO.newBuilder()
-                        .setCommodityType(VMEM)
-                        .setUsed(USED)
-                        .build())
-                    .addCommodityBought(CommodityBoughtDTO.newBuilder()
-                        .setCommodityType(VCPU)
-                        .setUsed(USED)
-                        .build())
-                    .build())
-            .addCommoditySoldList(CommoditySoldDTO.newBuilder()
-                .setCommodityType(VCPU)
-                .setUsed(USED)
-                .setCapacity(VCPU_CAPACITY))
-            .addCommoditySoldList(CommoditySoldDTO.newBuilder()
-                .setCommodityType(VMEM)
-                .setUsed(USED)
-                .setCapacity(VMEM_CAPACITY))
-            .addCommoditySoldList(CommoditySoldDTO.newBuilder()
-                .setCommodityType(VMPM)
-                .setUsed(1.0)
-                .setCapacity(1.0)));
-
     // Create a test pod that is suspendable
     private static final TopologyEntity.Builder pod = TopologyEntityUtils.topologyEntityBuilder(
         TopologyEntityDTO.newBuilder()
             .setOid(podId)
             .setDisplayName("ContainerPod")
             .setEntityType(EntityType.CONTAINER_POD_VALUE)
+            .setAnalysisSettings(AnalysisSettings.newBuilder().setSuspendable(true).build())
             .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
                 .setProviderId(vmId)
                 .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(VMEM)
@@ -250,7 +215,7 @@ public class TopologyEditorTest {
                 .setCommodityType(VMPM)
                 .setUsed(1.0)
                 .setCapacity(1.0))
-    ).addConsumer(container);
+    );
 
     private static final int NUM_CLONES = 5;
 
@@ -1081,34 +1046,22 @@ public class TopologyEditorTest {
      */
     @Test
     public void testTopologyAdditionPodClone() throws Exception {
-        Map<Long, TopologyEntity.Builder> topology = Stream.of(container, pod, vm, pm)
+        Map<Long, TopologyEntity.Builder> topology = Stream.of(pod, vm, pm)
             .collect(Collectors.toMap(TopologyEntity.Builder::getOid, Function.identity()));
         List<ScenarioChange> changes = Lists.newArrayList(ADD_POD);
 
         topologyEditor.editTopology(topology, changes, context, groupResolver, sourceEntities, destinationEntities);
 
-        Map<Integer, List<TopologyEntity.Builder>> clonedEntitiesMap = topology.values().stream()
-            .filter(entity -> entity.getOid() != pod.getOid()
-                && entity.getOid() != container.getOid())
-            .filter(entity -> entity.getEntityType() == pod.getEntityType()
-                || entity.getEntityType() == container.getEntityType())
-            .collect(Collectors.groupingBy(TopologyEntity.Builder::getEntityType));
-        final List<TopologyEntity.Builder> clonedContainerPods = clonedEntitiesMap.get(EntityType.CONTAINER_POD_VALUE);
-        final List<TopologyEntity.Builder> clonedContainers = clonedEntitiesMap.get(EntityType.CONTAINER_VALUE);
-        // Cloned pods and containers exist.
-        assertNotNull("There must be cloned container pods.", clonedContainerPods);
-        assertNotNull("There must be cloned containers.", clonedContainers);
-        // There are NUM_CLONES cloned pods and containers.
-        assertEquals(NUM_CLONES, clonedContainerPods.size());
-        assertEquals(NUM_CLONES, clonedContainers.size());
+        List<TopologyEntity.Builder> clones = topology.values().stream()
+            .filter(entity -> entity.getOid() != pod.getOid())
+            .filter(entity -> entity.getEntityType() == pod.getEntityType())
+            .collect(Collectors.toList());
+        assertEquals(NUM_CLONES, clones.size());
 
-        // Verify that the cloned containers are not controllable and not suspendable.
-        final boolean noneControllable = clonedContainers.stream()
-            .noneMatch(clone -> clone.getEntityBuilder().getAnalysisSettings().getControllable());
-        final boolean noneSuspendable = clonedContainers.stream()
-            .noneMatch(clone -> clone.getEntityBuilder().getAnalysisSettings().getSuspendable());
-        assertTrue("Cloned containers must not be controllable", noneControllable);
-        assertTrue("Cloned containers must not be suspendable", noneSuspendable);
+        // Verify that these pods are not suspendable
+        boolean foundSuspendable = clones.stream()
+            .anyMatch(clone -> clone.getEntityBuilder().getAnalysisSettings().getSuspendable());
+        assertFalse("Cloned ContainerPods must not be suspendable", foundSuspendable);
     }
 
     /**

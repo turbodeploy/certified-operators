@@ -1,7 +1,11 @@
 package com.vmturbo.auth.component;
 
-import javax.annotation.Nonnull;
-
+import com.vmturbo.auth.api.authorization.keyprovider.EncryptionKeyProvider;
+import com.vmturbo.auth.api.authorization.keyprovider.IKeyImportIndicator;
+import com.vmturbo.auth.api.authorization.keyprovider.MasterKeyReader;
+import com.vmturbo.auth.api.authorization.kvstore.AuthApiKVConfig;
+import com.vmturbo.components.common.BaseVmtComponentConfig;
+import com.vmturbo.components.crypto.CryptoFacility;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -17,13 +21,8 @@ import org.springframework.security.web.firewall.DefaultHttpFirewall;
 
 import com.vmturbo.auth.api.SpringSecurityConfig;
 import com.vmturbo.auth.api.auditing.AuditLog;
-import com.vmturbo.auth.api.authorization.keyprovider.EncryptionKeyProvider;
-import com.vmturbo.auth.api.authorization.keyprovider.MasterKeyReader;
-import com.vmturbo.auth.api.authorization.kvstore.AuthApiKVConfig;
 import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.auth.component.handler.GlobalExceptionHandler;
-import com.vmturbo.auth.component.licensing.LicenseCheckService;
-import com.vmturbo.auth.component.licensing.LicensingConfig;
 import com.vmturbo.auth.component.policy.ReportPolicy;
 import com.vmturbo.auth.component.policy.UserPolicy;
 import com.vmturbo.auth.component.policy.UserPolicy.LoginPolicy;
@@ -34,9 +33,9 @@ import com.vmturbo.auth.component.store.sso.SsoUtil;
 import com.vmturbo.auth.component.widgetset.WidgetsetConfig;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
-import com.vmturbo.components.common.BaseVmtComponentConfig;
-import com.vmturbo.components.crypto.CryptoFacility;
 import com.vmturbo.group.api.GroupClientConfig;
+
+import javax.annotation.Nonnull;
 
 /**
  * Configure security for the REST API Dispatcher here.
@@ -45,8 +44,7 @@ import com.vmturbo.group.api.GroupClientConfig;
  */
 @Configuration
 @EnableWebSecurity
-@Import({AuthApiKVConfig.class, SpringSecurityConfig.class, AuthKVConfig.class,
-        GroupClientConfig.class, WidgetsetConfig.class, LicensingConfig.class})
+@Import({AuthApiKVConfig.class, SpringSecurityConfig.class, AuthKVConfig.class, GroupClientConfig.class, WidgetsetConfig.class})
 public class AuthRESTSecurityConfig extends WebSecurityConfigurerAdapter {
 
     @Value("${com.vmturbo.kvdir:/home/turbonomic/data/kv}")
@@ -60,6 +58,9 @@ public class AuthRESTSecurityConfig extends WebSecurityConfigurerAdapter {
 
     @Value("${enableMultiADGroupSupport:false}")
     private boolean enableMultiADGroupSupport;
+
+    @Value("${allowedMaximumEditor:1}")
+    private int allowedMaximumEditor;
 
     /**
      * If true, use Kubernetes secrets to read in the sensitive Auth data (like encryption keys and
@@ -85,9 +86,6 @@ public class AuthRESTSecurityConfig extends WebSecurityConfigurerAdapter {
 
     @Autowired
     private AuthApiKVConfig authApiKvConfig;
-
-    @Autowired
-    private LicensingConfig licensingConfig;
 
     @Override
     protected void configure(HttpSecurity http) throws Exception {
@@ -220,8 +218,7 @@ public class AuthRESTSecurityConfig extends WebSecurityConfigurerAdapter {
     @Bean
     public UserPolicy userPolicy() {
         final LoginPolicy policy = LoginPolicy.valueOf(loginPolicy);
-        final ReportPolicy reportPolicy =
-                new ReportPolicy(licensingConfig.licenseCheckService());
+        final ReportPolicy reportPolicy = new ReportPolicy(allowedMaximumEditor);
         final UserPolicy userPolicy = new UserPolicy(policy, reportPolicy);
         AuditLog.newEntry(userPolicy.getAuditAction(),
                 "User login policy is set to " + loginPolicy, true)

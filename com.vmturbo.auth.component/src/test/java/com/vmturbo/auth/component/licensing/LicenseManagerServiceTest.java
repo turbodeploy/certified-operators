@@ -11,8 +11,6 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.Month;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.Collection;
@@ -22,6 +20,7 @@ import java.util.Optional;
 import java.util.function.Predicate;
 
 import com.google.common.collect.ImmutableList;
+import com.google.protobuf.Empty;
 
 import org.apache.commons.io.IOUtils;
 import org.junit.Assert;
@@ -41,11 +40,7 @@ import com.vmturbo.common.protobuf.licensing.Licensing.AddLicensesResponse;
 import com.vmturbo.common.protobuf.licensing.Licensing.GetLicensesRequest;
 import com.vmturbo.common.protobuf.licensing.Licensing.GetLicensesResponse;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO;
-import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO.ExternalLicense.Type;
-import com.vmturbo.common.protobuf.licensing.Licensing.LicenseFilter;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseSummary;
-import com.vmturbo.common.protobuf.licensing.Licensing.ValidateLicensesRequest;
-import com.vmturbo.common.protobuf.licensing.Licensing.ValidateLicensesResponse;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.ResourcePath;
@@ -232,8 +227,8 @@ public class LicenseManagerServiceTest {
         Assert.assertTrue(allSaved);
 
         // create a license summary out of all the licenses we have now
-        LicenseSummary licenseSummary = new LicenseSummaryCreator(1)
-            .createLicenseSummary(licenseManagerService.getLicenses(), Optional.empty());
+        LicenseSummary licenseSummary = LicenseDTOUtils.createLicenseSummary(
+                licenseManagerService.getLicenses(), Optional.empty());
         // verify old features no longer available
         Assert.assertFalse(licenseSummary.getFeatureList().contains("Feature"));
         // verify new features ARE avaialble
@@ -358,182 +353,6 @@ public class LicenseManagerServiceTest {
         Predicate<ILicense> licenseMatcher = license -> (!license.isValid())
                 && (license.getErrorReasons().contains(ErrorReason.DUPLICATE_LICENSE));
         assertTrue(validatedLicenses.stream().allMatch(licenseMatcher));
-    }
-
-    /**
-     * Test that allows to add only one Grafana license.
-     */
-    @Test
-    public void testFailedToAddSeveralGrafanaLicenses() {
-        // ARRANGE
-        final LicenseDTO grafanaLicense1 = LicenseTestUtils.createExternalLicense(Type.GRAFANA,
-                LicenseTestUtils.createGrafanaJwtToken(2), LocalDateTime.MAX);
-        final LicenseDTO grafanaLicense2 = LicenseTestUtils.createExternalLicense(Type.GRAFANA,
-                LicenseTestUtils.createGrafanaJwtToken(5), LocalDateTime.MAX);
-        final AddLicensesResponse addLicensesResponse1 = clientStub.addLicenses(
-                AddLicensesRequest.newBuilder().addLicenseDTO(grafanaLicense1).buildPartial());
-
-        // check that first grafana license was valid and successfully added
-        Assert.assertTrue(
-                addLicensesResponse1.getLicenseDTO(0).getExternal().getErrorReasonList().isEmpty());
-        final GetLicensesRequest getAllGrafanaLicensesRequest = GetLicensesRequest.newBuilder()
-                .setFilter(LicenseFilter.newBuilder().setExternalLicenseType(Type.GRAFANA).build())
-                .buildPartial();
-        final GetLicensesResponse existedGrafanaLicenses =
-                clientStub.getLicenses(getAllGrafanaLicensesRequest);
-        Assert.assertEquals(1, existedGrafanaLicenses.getLicenseDTOList().size());
-
-        // ACT - attempt to add another grafana license
-        final AddLicensesResponse addLicensesResponse2 = clientStub.addLicenses(
-                AddLicensesRequest.newBuilder().addLicenseDTO(grafanaLicense2).buildPartial());
-
-        // ASSERT
-        // check that validation of second grafana license was failed (due to restriction to have
-        // only one grafana license) and license wasn't added
-        Assert.assertFalse(
-                addLicensesResponse2.getLicenseDTO(0).getExternal().getErrorReasonList().isEmpty());
-        Assert.assertTrue(addLicensesResponse2.getLicenseDTO(0)
-                .getExternal()
-                .getErrorReasonList()
-                .contains(ErrorReason.DUPLICATE_LICENSE.name()));
-        final GetLicensesResponse existedGrafanaLicenses2 =
-                clientStub.getLicenses(getAllGrafanaLicensesRequest);
-        Assert.assertEquals(1, existedGrafanaLicenses2.getLicenseDTOList().size());
-    }
-
-    /**
-     * Tests successful adding of different external licenses of the same type.
-     * payload.
-     */
-    @Test
-    public void testAddingMultipleDifferentExternalLicenses() {
-        // ARRANGE
-        final LicenseDTO externalLicense1 =
-                LicenseTestUtils.createExternalLicense(Type.UNKNOWN, "Licence payload 1", null);
-        final LicenseDTO externalLicense2 =
-                LicenseTestUtils.createExternalLicense(Type.UNKNOWN, "Licence payload 2", null);
-
-        // ACT
-        final AddLicensesResponse addLicensesResponse = clientStub.addLicenses(
-                AddLicensesRequest.newBuilder()
-                        .addAllLicenseDTO(Arrays.asList(externalLicense1, externalLicense2))
-                        .build());
-
-        // ASSERT
-        Assert.assertEquals(2, addLicensesResponse.getLicenseDTOList().size());
-        Assert.assertTrue(addLicensesResponse.getLicenseDTOList()
-                .stream()
-                .allMatch(license -> license.getExternal().getErrorReasonList().isEmpty()));
-        Assert.assertEquals(2, clientStub.getLicenses(GetLicensesRequest.getDefaultInstance())
-                .getLicenseDTOList()
-                .size());
-    }
-
-    /**
-     * Rejecting to add multiple grafana licenses. All licenses will have {@link
-     * ErrorReason#DUPLICATE_LICENSE} failed validation reason.
-     */
-    @Test
-    public void testRejectAddingMultipleGrafanaLicenses() {
-        // ARRANGE
-        final LicenseDTO grafanaLicense1 = LicenseTestUtils.createExternalLicense(Type.GRAFANA,
-                LicenseTestUtils.createGrafanaJwtToken(2), LocalDateTime.MAX);
-        final LicenseDTO grafanaLicense2 = LicenseTestUtils.createExternalLicense(Type.GRAFANA,
-                LicenseTestUtils.createGrafanaJwtToken(5), LocalDateTime.MAX);
-
-        // ACT
-        final AddLicensesResponse addLicensesResponse = clientStub.addLicenses(
-                AddLicensesRequest.newBuilder()
-                        .addAllLicenseDTO(Arrays.asList(grafanaLicense1, grafanaLicense2))
-                        .build());
-
-        // ASSERT
-        Assert.assertEquals(2, addLicensesResponse.getLicenseDTOList().size());
-        Assert.assertTrue(addLicensesResponse.getLicenseDTOList()
-                .stream()
-                .allMatch(license -> license.getExternal()
-                        .getErrorReasonList()
-                        .contains(ErrorReason.DUPLICATE_LICENSE.name())));
-        Assert.assertTrue(clientStub.getLicenses(GetLicensesRequest.getDefaultInstance())
-                .getLicenseDTOList()
-                .isEmpty());
-    }
-
-    /**
-     * Rejecting to add equals external licenses.
-     * Compares payload, type and expiration time of external licenses.
-     */
-    @Test
-    public void testFailedAddingEqualsExternalLicenses() {
-        // ARRANGE
-        final LicenseDTO externalLicense1 =
-                LicenseTestUtils.createExternalLicense(Type.UNKNOWN, "Test license payload",
-                        LocalDateTime.MAX).toBuilder().setFilename("File 1").build();
-        final LicenseDTO externalLicense2 =
-                LicenseTestUtils.createExternalLicense(Type.UNKNOWN, "Test license payload",
-                        LocalDateTime.MAX).toBuilder().setFilename("File 2").build();
-
-        // ACT
-        final AddLicensesResponse addLicensesResponse = clientStub.addLicenses(
-                AddLicensesRequest.newBuilder()
-                        .addAllLicenseDTO(Arrays.asList(externalLicense1, externalLicense2))
-                        .build());
-
-        // ASSERT
-        Assert.assertEquals(2, addLicensesResponse.getLicenseDTOList().size());
-        Assert.assertTrue(addLicensesResponse.getLicenseDTOList()
-                .stream()
-                .allMatch(license -> license.getExternal()
-                        .getErrorReasonList()
-                        .contains(ErrorReason.DUPLICATE_LICENSE.name())));
-        Assert.assertTrue(clientStub.getLicenses(GetLicensesRequest.getDefaultInstance())
-                .getLicenseDTOList()
-                .isEmpty());
-    }
-
-    /**
-     * Test that validation is succeeded for external not expired license.
-     */
-    @Test
-    public void testExternalLicenseSucceededValidation() {
-        // ARRANGE
-        final LicenseDTO externalLicense =
-                LicenseTestUtils.createExternalLicense(Type.UNKNOWN, "Test license payload",
-                        LocalDateTime.MAX);
-
-        // ACT
-        final ValidateLicensesResponse validateLicensesResponse = clientStub.validateLicenses(
-                ValidateLicensesRequest.newBuilder().addLicenseDTO(externalLicense).buildPartial());
-
-        // ASSERT
-        Assert.assertEquals(1, validateLicensesResponse.getLicenseDTOList().size());
-        Assert.assertTrue(validateLicensesResponse.getLicenseDTO(0)
-                .getExternal()
-                .getErrorReasonList()
-                .isEmpty());
-    }
-
-    /**
-     * Test that validation is failed for external expired license.
-     */
-    @Test
-    public void testExternalLicenseFailedValidation() {
-        // ARRANGE
-        final LicenseDTO externalLicense =
-                LicenseTestUtils.createExternalLicense(Type.UNKNOWN, "Test license payload",
-                        LocalDateTime.of(2020, Month.FEBRUARY, 2, 1, 2));
-
-        // ACT
-        final ValidateLicensesResponse validateLicensesResponse = clientStub.validateLicenses(
-                ValidateLicensesRequest.newBuilder().addLicenseDTO(externalLicense).buildPartial());
-
-        // ASSERT
-        Assert.assertEquals(1, validateLicensesResponse.getLicenseDTOList().size());
-        final LicenseDTO validatedLicense = validateLicensesResponse.getLicenseDTO(0);
-        Assert.assertFalse(validatedLicense.getExternal().getErrorReasonList().isEmpty());
-        Assert.assertTrue(validatedLicense.getExternal()
-                .getErrorReasonList()
-                .contains(ErrorReason.EXPIRED.name()));
     }
 
     // TODO: When we support authorization in this service (OM-35910), add test validating Admin role

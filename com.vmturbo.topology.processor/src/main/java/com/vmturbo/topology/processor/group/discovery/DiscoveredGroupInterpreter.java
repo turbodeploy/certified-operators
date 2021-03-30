@@ -162,8 +162,7 @@ class DiscoveredGroupInterpreter {
                                            @Nonnull final GroupInterpretationContext context) {
         Metrics.DISCOVERED_GROUP_COUNT.labels(sdkDTO.getGroupType().name()).increment();
         // convert sdk group to xl group and set source id and target id
-        return new InterpretedGroup(context.targetId, sdkDTO,
-                sdkToGroupDefinition(sdkDTO, context));
+        return new InterpretedGroup(sdkDTO, sdkToGroupDefinition(sdkDTO, context));
     }
 
     /**

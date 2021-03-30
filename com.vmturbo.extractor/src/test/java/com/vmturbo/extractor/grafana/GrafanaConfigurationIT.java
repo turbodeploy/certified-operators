@@ -20,7 +20,6 @@ import org.junit.Rule;
 import org.junit.Test;
 
 import com.vmturbo.auth.api.db.DBPasswordUtil;
-import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.components.api.test.ResourcePath;
 import com.vmturbo.components.test.utilities.ComponentTestRule;
 import com.vmturbo.components.test.utilities.component.ComponentCluster;
@@ -77,15 +76,14 @@ public class GrafanaConfigurationIT {
                 ResourcePath.getTestResource(DashboardsOnDisk.class, "dashboards").toString());
 
         final Map<String, String> m = Collections.emptyMap();
-        final DbEndpointCompleter endpointCompleter = new DbEndpointCompleter(
-                m::get, mock(DBPasswordUtil.class), "30s");
+        final DbEndpointCompleter endpointCompleter = new DbEndpointCompleter(m::get, mock(DBPasswordUtil.class));
         final DbEndpointConfig endpointConfig =
             endpointCompleter.newEndpointBuilder("extractor", SQLDialect.POSTGRES)
-                .withDatabaseName("mydb")
-                .withUserName("me")
-                .withPassword("foo")
-                .withPort(300)
-                .withEndpointEnabled(false)
+                .withDbDatabaseName("mydb")
+                .withDbUserName("me")
+                .withDbPassword("foo")
+                .withDbPort(300)
+                .withDbEndpointEnabled(false)
                 .build().getConfig();
 
         GrafanonConfig config = new GrafanonConfig(() -> endpointConfig)
@@ -95,8 +93,7 @@ public class GrafanaConfigurationIT {
         ExtractorFeatureFlags extractorFeatureFlags = mock(ExtractorFeatureFlags.class);
         when(extractorFeatureFlags.isReportingEnabled()).thenReturn(true);
         dbendpointMock = mock(DbEndpoint.class);
-        LicenseCheckClient licenseCheckClient = mock(LicenseCheckClient.class);
-        grafanon = new Grafanon(config, dashboardsOnDisk, grafanaClient, extractorFeatureFlags, dbendpointMock, licenseCheckClient);
+        grafanon = new Grafanon(config, dashboardsOnDisk, grafanaClient, extractorFeatureFlags, dbendpointMock);
     }
 
     /**

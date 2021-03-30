@@ -183,7 +183,7 @@ public class RISpecPurchaseFilterTest {
                 riSpecPurchaseFilter.getAvailableRegionalSpecs(specCatalogKey, regionOid);
 
         // expected result
-        final ReservedInstanceSpecData expectedRISpecData = ReservedInstanceSpecData.builder()
+        final ReservedInstanceSpecData expectedRISpecData = ImmutableReservedInstanceSpecData.builder()
                                 .spec(targetRISpec)
                                 .cloudTier(computeTierSmallFamilyA)
                                 .build();
@@ -233,7 +233,7 @@ public class RISpecPurchaseFilterTest {
                 riSpecPurchaseFilter.getAvailableRegionalSpecs(specCatalogKey, regionOid);
 
         // expected result
-        final ReservedInstanceSpecData expectedRISpecData = ReservedInstanceSpecData.builder()
+        final ReservedInstanceSpecData expectedRISpecData = ImmutableReservedInstanceSpecData.builder()
                 .spec(smallSpec)
                 .cloudTier(computeTierSmallFamilyA)
                 .build();
@@ -283,7 +283,7 @@ public class RISpecPurchaseFilterTest {
                     .tenancy(Tenancy.DEFAULT)
                     .build())
                 .collect(Collectors.toSet());
-        final ReservedInstanceSpecData expectedRISpecData = ReservedInstanceSpecData.builder()
+        final ReservedInstanceSpecData expectedRISpecData = ImmutableReservedInstanceSpecData.builder()
                 .spec(riSpec)
                 .cloudTier(computeTierSmallFamilyA)
                 .build();
@@ -329,7 +329,7 @@ public class RISpecPurchaseFilterTest {
                 riSpecPurchaseFilter.getAvailableRegionalSpecs(specCatalogKey, regionOid);
 
         // expected result
-        final ReservedInstanceSpecData expectedRISpecData = ReservedInstanceSpecData.builder()
+        final ReservedInstanceSpecData expectedRISpecData = ImmutableReservedInstanceSpecData.builder()
                 .spec(sizeFlexibleSpec)
                 .cloudTier(computeTierSmallFamilyA)
                 .build();

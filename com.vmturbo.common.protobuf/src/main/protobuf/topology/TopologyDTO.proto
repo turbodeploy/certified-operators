@@ -42,7 +42,6 @@ message TypeSpecificInfo {
         CloudCommitmentInfo cloud_commitment_data = 80;
         NamespaceInfo namespace = 81;
         ContainerPlatformClusterInfo container_platform_cluster = 82;
-        ContainerInfo container = 83;
     }
 
     message ApplicationInfo {
@@ -482,19 +481,6 @@ message TypeSpecificInfo {
         // cluster. The value represents the ratio of total containers VMem capacity / total nodes
         // VMem capacity.
         optional double vmem_overcommitment = 2;
-    }
-
-    message ContainerInfo {
-        // Whether a container has CPU limits set.
-        // If a container has CPU limits set, the discovered VCPU commodity capacity is the
-        // specified CPU limits; otherwise, the discovered VCPU commodity capacity is node (VM)
-        // VCPU capacity.
-        optional bool has_cpu_limit = 1;
-        // Whether a container has memory limits set.
-        // If a container has memory limits set, the discovered VMem commodity capacity is the
-        // specified memory limits; otherwise, the discovered VMem commodity capacity is node (VM)
-        // VMem capacity.
-        optional bool has_mem_limit = 2;
     }
 }
 

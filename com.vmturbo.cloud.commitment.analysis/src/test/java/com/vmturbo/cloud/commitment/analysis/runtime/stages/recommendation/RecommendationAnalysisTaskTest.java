@@ -32,7 +32,7 @@ import com.vmturbo.cloud.commitment.analysis.runtime.stages.recommendation.calcu
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.AggregateCloudTierDemand;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.AggregateCloudTierDemand.EntityInfo;
 import com.vmturbo.cloud.commitment.analysis.spec.CloudCommitmentSpecData;
-import com.vmturbo.cloud.commitment.analysis.spec.ReservedInstanceSpecData;
+import com.vmturbo.cloud.commitment.analysis.spec.ImmutableReservedInstanceSpecData;
 import com.vmturbo.cloud.common.data.TimeInterval;
 import com.vmturbo.cloud.common.identity.IdentityProvider.DefaultIdentityProvider;
 import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver;
@@ -94,7 +94,7 @@ public class RecommendationAnalysisTaskTest {
             .hourlyUpFrontRate(2.0)
             .build();
 
-    private final CloudCommitmentSpecData commitmentSpecData = ReservedInstanceSpecData.builder()
+    private final CloudCommitmentSpecData commitmentSpecData = ImmutableReservedInstanceSpecData.builder()
             .spec(ReservedInstanceSpec.newBuilder().setReservedInstanceSpecInfo(
                     ReservedInstanceSpecInfo.newBuilder().setType(ReservedInstanceType.newBuilder().setTermYears(1).build()).build()).build())
             .cloudTier(TopologyEntityDTO.newBuilder()

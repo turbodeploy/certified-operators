@@ -5,14 +5,11 @@ import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.ADVISOR;
 import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.REPORT_EDITOR;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import java.util.Collections;
 
 import com.google.common.collect.ImmutableList;
 
-import org.junit.Before;
 import org.junit.Test;
 
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
@@ -23,8 +20,8 @@ import com.vmturbo.auth.component.policy.UserPolicy.LoginPolicy;
  * Validate {@link UserPolicy}.
  */
 public class UserPolicyTest {
-    private UserPolicy oneEditorPolicy;
-    private UserPolicy twoEditorsPolicy;
+    private final UserPolicy oneEditorPolicy = new UserPolicy(LoginPolicy.LOCAL_ONLY, new ReportPolicy(1));
+    private final UserPolicy twoEditorsPolicy = new UserPolicy(LoginPolicy.LOCAL_ONLY, new ReportPolicy(2));
 
     private final AuthUserDTO
             localUser1AdminAndEditorRole = new AuthUserDTO(PROVIDER.LOCAL, "user1", "uuid",
@@ -45,19 +42,6 @@ public class UserPolicyTest {
     private final AuthUserDTO
             externalUser4AdvisorAndEditorRole = new AuthUserDTO(PROVIDER.LDAP, "user4", "uuid",
             ImmutableList.of(ADVISOR, REPORT_EDITOR));
-
-    /**
-     * Common code ran before every test.
-     */
-    @Before
-    public void setup() {
-        ReportPolicy oneEditor = mock(ReportPolicy.class);
-        when(oneEditor.getAllowedMaximumEditors()).thenReturn(1);
-        ReportPolicy twoEditor = mock(ReportPolicy.class);
-        when(twoEditor.getAllowedMaximumEditors()).thenReturn(2);
-        oneEditorPolicy = new UserPolicy(LoginPolicy.LOCAL_ONLY, oneEditor);
-        twoEditorsPolicy = new UserPolicy(LoginPolicy.LOCAL_ONLY, twoEditor);
-    }
 
     /**
      * LOCAL - Verify if the report policy allowed adding another report editor role, it will return true.

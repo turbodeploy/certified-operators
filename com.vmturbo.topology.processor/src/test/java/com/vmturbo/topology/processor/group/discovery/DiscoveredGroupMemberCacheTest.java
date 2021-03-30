@@ -26,6 +26,8 @@ import com.vmturbo.topology.processor.util.GroupTestUtils;
 
 public class DiscoveredGroupMemberCacheTest {
 
+    private static final long TARGET_ID = 1L;
+
     @Test
     public void testHasMemberGroup() {
         final DiscoveredGroupMembers groupMembers = new DiscoveredGroupMembers(
@@ -64,8 +66,7 @@ public class DiscoveredGroupMemberCacheTest {
                 EntityType.VIRTUAL_MACHINE_VALUE, Arrays.asList(1L, 2L, 3L));
 
         final InterpretedGroup interpretedGroup = new InterpretedGroup(
-                DiscoveredGroupConstants.TARGET_ID, DiscoveredGroupConstants.STATIC_MEMBER_DTO,
-                Optional.of(groupDef));
+                DiscoveredGroupConstants.STATIC_MEMBER_DTO, Optional.of(groupDef));
 
         final DiscoveredGroupMembers groupMembers = new DiscoveredGroupMembers(interpretedGroup);
 
@@ -109,8 +110,7 @@ public class DiscoveredGroupMemberCacheTest {
                 EntityType.VIRTUAL_MACHINE_VALUE, Arrays.asList(1L, 2L, 3L,
                         DiscoveredGroupConstants.PLACEHOLDER_CLUSTER_MEMBER));
         final InterpretedGroup multiMemberGroup = new InterpretedGroup(
-                DiscoveredGroupConstants.TARGET_ID, DiscoveredGroupConstants.STATIC_MEMBER_DTO,
-                Optional.of(groupDef));
+                DiscoveredGroupConstants.STATIC_MEMBER_DTO, Optional.of(groupDef));
 
         final Map<Long, List<InterpretedGroup>> groups = ImmutableMap.of(
             456L, Arrays.asList(multiMemberGroup, DiscoveredGroupConstants.PLACEHOLDER_INTERPRETED_CLUSTER));

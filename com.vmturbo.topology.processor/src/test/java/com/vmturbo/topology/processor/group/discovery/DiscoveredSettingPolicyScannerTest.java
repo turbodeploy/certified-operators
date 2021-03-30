@@ -245,7 +245,7 @@ public class DiscoveredSettingPolicyScannerTest {
 
         final DiscoveredSettingPolicyInfo.Builder settingPolicy =
             memAndCpuSettingPolicy(VMM_TARGET_ID, MEM_THRESHOLD, CPU_THRESHOLD).toBuilder();
-        final InterpretedGroup group = setupHostGroup(VMM_TARGET_ID, settingPolicy, hosts);
+        final InterpretedGroup group = setupHostGroup(settingPolicy, hosts);
 
         scanner.scanForDiscoveredSettingPolicies(stitchingContext, groupUploader);
         verify(groupUploader).setScannedGroupsAndPolicies(eq(VMM_TARGET_ID),
@@ -263,7 +263,7 @@ public class DiscoveredSettingPolicyScannerTest {
 
         final DiscoveredSettingPolicyInfo.Builder settingPolicy =
             memAndCpuSettingPolicy(VMM_TARGET_ID, MEM_THRESHOLD, CPU_THRESHOLD).toBuilder();
-        final InterpretedGroup group = setupHostGroup(VMM_TARGET_ID, settingPolicy, hosts);
+        final InterpretedGroup group = setupHostGroup(settingPolicy, hosts);
 
         scanner.scanForDiscoveredSettingPolicies(stitchingContext, groupUploader);
         verify(groupUploader).setScannedGroupsAndPolicies(eq(VMM_TARGET_ID),
@@ -285,15 +285,14 @@ public class DiscoveredSettingPolicyScannerTest {
         // same mem and CPU thresholds.
         final DiscoveredSettingPolicyInfo.Builder settingPolicy1 =
             memAndCpuSettingPolicy(VMM_TARGET_ID, MEM_THRESHOLD, CPU_THRESHOLD).toBuilder();
-        final InterpretedGroup group1 = setupHostGroup(VMM_TARGET_ID, settingPolicy1,
-                hosts.subList(0, 2));
+        final InterpretedGroup group1 = setupHostGroup(settingPolicy1, hosts.subList(0, 2));
         // The last host should be put in its own group because it has different thresholds.
         List<TopologyStitchingEntity> twoHosts = hosts.subList(2, 3);
         long host2Oid = twoHosts.stream().map(TopologyStitchingEntity::getOid).min(Long::compare).get();
         final DiscoveredSettingPolicyInfo.Builder settingPolicy2 =
             memAndCpuSettingPolicy(VMM_TARGET_ID, host2Oid, MEM_THRESHOLD_2, CPU_THRESHOLD)
                 .toBuilder();
-        final InterpretedGroup group2 = setupHostGroup(VMM_TARGET_ID, settingPolicy2, twoHosts);
+        final InterpretedGroup group2 = setupHostGroup(settingPolicy2, twoHosts);
 
         scanner.scanForDiscoveredSettingPolicies(stitchingContext, groupUploader);
         verify(groupUploader).setScannedGroupsAndPolicies(eq(VMM_TARGET_ID),
@@ -321,8 +320,7 @@ public class DiscoveredSettingPolicyScannerTest {
         // The hosts should be put in separate setting policies because they belong to different targets.
         final DiscoveredSettingPolicyInfo.Builder settingPolicy1 =
             memAndCpuSettingPolicy(VMM_TARGET_ID, MEM_THRESHOLD, CPU_THRESHOLD).toBuilder();
-        final InterpretedGroup group1 = setupHostGroup(VMM_TARGET_ID, settingPolicy1,
-                hosts.subList(0, 1));
+        final InterpretedGroup group1 = setupHostGroup(settingPolicy1, hosts.subList(0, 1));
         final DiscoveredSettingPolicyInfo settingPolicy2 =
             memAndCpuSettingPolicy(VC_TARGET_ID, MEM_THRESHOLD, CPU_THRESHOLD,
                 COMPUTE_CLUSTER_NAME);
@@ -436,21 +434,20 @@ public class DiscoveredSettingPolicyScannerTest {
     }
 
     private InterpretedGroup setupHostGroup(
-                    final long targetId,
                     @Nonnull final DiscoveredSettingPolicyInfo.Builder settingPolicy,
                     @Nonnull final List<TopologyStitchingEntity> hosts) {
         // This method is used only for VMM
         Optional<Double> mem = getThreshold(settingPolicy, "mem");
         Optional<Double> cpu = getThreshold(settingPolicy, "cpu");
 
-        final String groupName = "GROUP-" + composeSettingPolicyName(targetId, mem, cpu);
+        final String groupName = "GROUP-" + composeSettingPolicyName(VMM_TARGET_ID, mem, cpu);
         final String groupDisplayName = String.format(
             "PMs with Mem threshold %s and CPU threshold %s on VMM", mem.get(), cpu.get());
         settingPolicy.addDiscoveredGroupNames(GroupProtoUtil.createIdentifyingKey(
                 GroupType.REGULAR, groupName));
         settingPolicy.setDisplayName("HA Settings for " + groupDisplayName);
 
-        return interpretedGroupFor(targetId, hosts, groupName, groupDisplayName);
+        return interpretedGroupFor(hosts, groupName, groupDisplayName);
     }
 
     Optional<Double> getThreshold(DiscoveredSettingPolicyInfo.Builder settingPolicy, String type) {
@@ -473,7 +470,6 @@ public class DiscoveredSettingPolicyScannerTest {
 
     @Nonnull
     private InterpretedGroup interpretedGroupFor(
-                    final long targetId,
                     @Nonnull final List<TopologyStitchingEntity> hosts,
                     @Nonnull final String groupName,
                     @Nonnull final String groupDisplayName) {
@@ -495,7 +491,7 @@ public class DiscoveredSettingPolicyScannerTest {
                         .map(TopologyStitchingEntity::getOid)
                         .collect(Collectors.toList()));
 
-        return new InterpretedGroup(targetId, groupDTO, Optional.of(groupDef));
+        return new InterpretedGroup(groupDTO, Optional.of(groupDef));
     }
 
     /**

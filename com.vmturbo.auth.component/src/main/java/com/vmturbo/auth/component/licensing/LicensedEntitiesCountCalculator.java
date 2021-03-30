@@ -32,12 +32,7 @@ public class LicensedEntitiesCountCalculator {
 
     private final SearchServiceBlockingStub searchServiceClient;
 
-    /**
-     * Constructor.
-     *
-     * @param searchServiceClient an interface for making remote calls to the Search service.
-     */
-    public LicensedEntitiesCountCalculator(@Nonnull final SearchServiceBlockingStub searchServiceClient) {
+    LicensedEntitiesCountCalculator(@Nonnull final SearchServiceBlockingStub searchServiceClient) {
         this.searchServiceClient = searchServiceClient;
     }
 

@@ -116,8 +116,7 @@ public class LicenseCheckServiceTest {
                 mailManager,
                 clock,
                 NUM_BEFORE_LICENSE_EXPIRATION_DAYS,
-                false,
-                1); // no scheduled license checks
+                false); // no scheduled license checks
     }
 
     /**

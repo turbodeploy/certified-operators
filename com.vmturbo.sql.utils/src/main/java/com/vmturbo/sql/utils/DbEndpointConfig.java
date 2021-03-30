@@ -1,8 +1,7 @@
 package com.vmturbo.sql.utils;
 
 import java.util.Map;
-import java.util.function.Function;
-import java.util.function.UnaryOperator;
+import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 
@@ -17,33 +16,35 @@ import com.vmturbo.sql.utils.DbEndpoint.DbEndpointAccess;
  * <p>See {@link DbEndpoint} for a detailed description of all the properties.</p>
  */
 public class DbEndpointConfig {
-    private final String name;
+    private final String tag;
     private SQLDialect dialect;
 
-    private String host;
-    private Integer port;
-    private String databaseName;
-    private String schemaName;
-    private String userName;
-    private String password;
-    private DbEndpointAccess access;
-    private String rootUserName;
-    private String rootPassword;
-    private Map<String, String> driverProperties;
-    private Boolean secure;
-    private String migrationLocations;
-    private FlywayCallback[] flywayCallbacks;
-    private Boolean destructiveProvisioningEnabled;
-    private Boolean endpointEnabled;
-    private Function<UnaryOperator<String>, Boolean> endpointEnabledFn;
+    private String dbHost;
+    private Integer dbPort;
+    private String dbDatabaseName;
+    private String dbSchemaName;
+    private String dbUserName;
+    private String dbPassword;
+    private DbEndpointAccess dbAccess;
+    private String dbRootUserName;
+    private String dbRootPassword;
+    private Map<String, String> dbDriverProperties;
+    private Boolean dbSecure;
+    private String dbMigrationLocations;
+    private FlywayCallback[] dbFlywayCallbacks;
+    private Boolean dbDestructiveProvisioningEnabled;
+    private Boolean dbEndpointEnabled;
     private DbEndpoint template;
-    private String provisioningSuffix;
-    private Boolean shouldProvisionDatabase;
-    private Boolean shouldProvisionUser;
-    private boolean isAbstract;
+    private String dbProvisioningSuffix;
 
-    DbEndpointConfig(@Nonnull final String name) {
-        this.name = name;
+    // By default, wait for 30 minutes for context to finish initializing.
+    private long maxAwaitCompletionMs = TimeUnit.MINUTES.toMillis(30);
+    private boolean isAbstract;
+    private Boolean dbShouldProvisionDatabase;
+    private Boolean dbShouldProvisionUser;
+
+    DbEndpointConfig(@Nonnull final String tag) {
+        this.tag = tag;
     }
 
     /**
@@ -51,8 +52,27 @@ public class DbEndpointConfig {
      *
      * @return The tag.
      */
-    public String getName() {
-        return name;
+    public String getTag() {
+        return tag;
+    }
+
+    /**
+     * Set the maximum time to wait for completion.
+     *
+     * @param maxAwaitCompletion The time to wait for completion.
+     * @param timeUnit The time unit.
+     */
+    public void setMaxAwaitCompletion(long maxAwaitCompletion, TimeUnit timeUnit) {
+        this.maxAwaitCompletionMs = timeUnit.toMillis(maxAwaitCompletion);
+    }
+
+    /**
+     * Get the maximum time to wait for completion, in millis.
+     *
+     * @return The time, in millis.
+     */
+    public long getMaxAwaitCompletionMs() {
+        return maxAwaitCompletionMs;
     }
 
     public SQLDialect getDialect() {
@@ -63,132 +83,124 @@ public class DbEndpointConfig {
         this.dialect = dialect;
     }
 
-    public String getHost() {
-        return host;
+    public String getDbHost() {
+        return dbHost;
     }
 
-    public void setHost(final String host) {
-        this.host = host;
+    public void setDbHost(final String dbHost) {
+        this.dbHost = dbHost;
     }
 
-    public Integer getPort() {
-        return port;
+    public Integer getDbPort() {
+        return dbPort;
     }
 
-    public void setPort(final Integer port) {
-        this.port = port;
+    public void setDbPort(final Integer dbPort) {
+        this.dbPort = dbPort;
     }
 
-    public String getDatabaseName() {
-        return databaseName;
+    public String getDbDatabaseName() {
+        return dbDatabaseName;
     }
 
-    public void setDatabaseName(final String databaseName) {
-        this.databaseName = databaseName;
+    public void setDbDatabaseName(final String dbDatabaseName) {
+        this.dbDatabaseName = dbDatabaseName;
     }
 
-    public String getSchemaName() {
-        return schemaName;
+    public String getDbSchemaName() {
+        return dbSchemaName;
     }
 
-    public void setSchemaName(final String schemaName) {
-        this.schemaName = schemaName;
+    public void setDbSchemaName(final String dbSchemaName) {
+        this.dbSchemaName = dbSchemaName;
     }
 
-    public String getUserName() {
-        return userName;
+    public String getDbUserName() {
+        return dbUserName;
     }
 
-    public void setUserName(final String userName) {
-        this.userName = userName;
+    public void setDbUserName(final String dbUserName) {
+        this.dbUserName = dbUserName;
     }
 
-    public String getPassword() {
-        return password;
+    public String getDbPassword() {
+        return dbPassword;
     }
 
-    public void setPassword(final String password) {
-        this.password = password;
+    public void setDbPassword(final String dbPassword) {
+        this.dbPassword = dbPassword;
     }
 
-    public DbEndpointAccess getAccess() {
-        return access;
+    public DbEndpointAccess getDbAccess() {
+        return dbAccess;
     }
 
-    public void setAccess(final DbEndpointAccess access) {
-        this.access = access;
+    public void setDbAccess(final DbEndpointAccess dbAccess) {
+        this.dbAccess = dbAccess;
     }
 
-    public String getRootUserName() {
-        return rootUserName;
+    public String getDbRootUserName() {
+        return dbRootUserName;
     }
 
-    public void setRootUserName(final String rootUserName) {
-        this.rootUserName = rootUserName;
+    public void setDbRootUserName(final String dbRootUserName) {
+        this.dbRootUserName = dbRootUserName;
     }
 
-    public String getRootPassword() {
-        return rootPassword;
+    public String getDbRootPassword() {
+        return dbRootPassword;
     }
 
-    public void setRootPassword(final String rootPassword) {
-        this.rootPassword = rootPassword;
+    public void setDbRootPassword(final String dbRootPassword) {
+        this.dbRootPassword = dbRootPassword;
     }
 
-    public Map<String, String> getDriverProperties() {
-        return driverProperties;
+    public Map<String, String> getDbDriverProperties() {
+        return dbDriverProperties;
     }
 
-    public void setDriverProperties(final Map<String, String> driverProperties) {
-        this.driverProperties = driverProperties;
+    public void setDbDriverProperties(final Map<String, String> dbDriverProperties) {
+        this.dbDriverProperties = dbDriverProperties;
     }
 
-    public Boolean getSecure() {
-        return secure;
+    public Boolean getDbSecure() {
+        return dbSecure;
     }
 
-    public void setSecure(final Boolean secure) {
-        this.secure = secure;
+    public void setDbSecure(final Boolean dbSecure) {
+        this.dbSecure = dbSecure;
     }
 
-    public String getMigrationLocations() {
-        return migrationLocations;
+    public String getDbMigrationLocations() {
+        return dbMigrationLocations;
     }
 
-    public void setMigrationLocations(final String migrationLocations) {
-        this.migrationLocations = migrationLocations;
+    public void setDbMigrationLocations(final String dbMigrationLocations) {
+        this.dbMigrationLocations = dbMigrationLocations;
     }
 
-    public FlywayCallback[] getFlywayCallbacks() {
-        return flywayCallbacks;
+    public FlywayCallback[] getDbFlywayCallbacks() {
+        return dbFlywayCallbacks;
     }
 
-    public void setFlywayCallbacks(final FlywayCallback[] flywayCallbacks) {
-        this.flywayCallbacks = flywayCallbacks;
+    public void setDbFlywayCallbacks(final FlywayCallback[] dbFlywayCallbacks) {
+        this.dbFlywayCallbacks = dbFlywayCallbacks;
     }
 
-    public Boolean getDestructiveProvisioningEnabled() {
-        return destructiveProvisioningEnabled;
+    public Boolean getDbDestructiveProvisioningEnabled() {
+        return dbDestructiveProvisioningEnabled;
     }
 
-    public void setDestructiveProvisioningEnabled(final Boolean destructiveProvisioningEnabled) {
-        this.destructiveProvisioningEnabled = destructiveProvisioningEnabled;
+    public void setDbDestructiveProvisioningEnabled(final Boolean dbDestructiveProvisioningEnabled) {
+        this.dbDestructiveProvisioningEnabled = dbDestructiveProvisioningEnabled;
     }
 
-    public Boolean getEndpointEnabled() {
-        return endpointEnabled;
+    public Boolean getDbEndpointEnabled() {
+        return dbEndpointEnabled;
     }
 
-    public void setEndpointEnabled(final boolean endpointEnabled) {
-        this.endpointEnabled = endpointEnabled;
-    }
-
-    public Function<UnaryOperator<String>, Boolean> getEndpointEnabledFn() {
-        return endpointEnabledFn;
-    }
-
-    public void setEndpointEnabledFn(final Function<UnaryOperator<String>, Boolean> endpointEnabledFn) {
-        this.endpointEnabledFn = endpointEnabledFn;
+    public void setDbEndpointEnabled(final Boolean dbEndpointEnabled) {
+        this.dbEndpointEnabled = dbEndpointEnabled;
     }
 
     public DbEndpoint getTemplate() {
@@ -199,12 +211,12 @@ public class DbEndpointConfig {
         this.template = template;
     }
 
-    public String getProvisioningSuffix() {
-        return provisioningSuffix;
+    public String getDbProvisioningSuffix() {
+        return dbProvisioningSuffix;
     }
 
-    public void setProvisioningSuffix(final String provisioningSuffix) {
-        this.provisioningSuffix = provisioningSuffix;
+    public void setDbProvisioningSuffix(final String dbProvisioningSuffix) {
+        this.dbProvisioningSuffix = dbProvisioningSuffix;
     }
 
     /**
@@ -212,28 +224,28 @@ public class DbEndpointConfig {
      *
      * @return true if this is an abstract endpoint
      */
-    public boolean isAbstract() {
+    public boolean dbIsAbstract() {
         return isAbstract;
     }
 
     /** Mark this endpoint as abstract. */
-    public void setAbstract() {
+    public void setDbAbstract() {
         isAbstract = true;
     }
 
-    public Boolean getShouldProvisionDatabase() {
-        return shouldProvisionDatabase;
+    public Boolean getDbShouldProvisionDatabase() {
+        return dbShouldProvisionDatabase;
     }
 
-    public void setShouldProvisionDatabase(final boolean shouldProvisionDatabase) {
-        this.shouldProvisionDatabase = shouldProvisionDatabase;
+    public void setDbShouldProvisionDatabase(final boolean dbShouldProvisionDatabase) {
+        this.dbShouldProvisionDatabase = dbShouldProvisionDatabase;
     }
 
-    public Boolean getShouldProvisionUser() {
-        return shouldProvisionUser;
+    public Boolean getDbShouldProvisionUser() {
+        return dbShouldProvisionUser;
     }
 
-    public void setShouldProvisionUser(final Boolean shouldProvisionUser) {
-        this.shouldProvisionUser = shouldProvisionUser;
+    public void setDbShouldProvisionUser(final Boolean dbShouldProvisionUser) {
+        this.dbShouldProvisionUser = dbShouldProvisionUser;
     }
 }
