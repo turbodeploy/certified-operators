@@ -182,8 +182,7 @@ public class DataExtractionWriterTest {
                 ))
                 .setTags(Tags.newBuilder()
                         .putTags("foo", TagValuesDTO.newBuilder().addValues("a").build())
-                        .putTags("bar", TagValuesDTO.newBuilder().addValues("b").addValues("c").build())
-                        .putTags("baz", TagValuesDTO.getDefaultInstance()))
+                        .putTags("bar", TagValuesDTO.newBuilder().addValues("b").addValues("c").build()))
                 .build();
 
         // mock supply chain
@@ -242,8 +241,10 @@ public class DataExtractionWriterTest {
         assertThat(vmAttrs.get("num_cpus"), is(12));
         assertThat(vmAttrs.get("guest_os_type"), is(OSType.LINUX));
         assertThat(vmAttrs.get("connected_networks"), is(Lists.newArrayList("net1")));
-        assertThat((List<String>)vmAttrs.get(ExportUtils.TAGS_JSON_KEY_NAME),
-                containsInAnyOrder("foo=a", "bar=b", "bar=c", "baz"));
+        assertThat(vmAttrs.get(ExportUtils.TAGS_JSON_KEY_NAME), is(ImmutableMap.of(
+                "foo", Lists.newArrayList("a"),
+                "bar", Lists.newArrayList("b", "c")
+        )));
 
         Map<String, Object> pmAttrs = pmEntity.getAttrs();
         assertThat(pmAttrs.size(), is(4));

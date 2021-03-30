@@ -21,8 +21,15 @@ public interface ILicenseStore {
     Collection<LicenseDTO> getLicenses() throws IOException;
 
     /**
-     * Finds a stored license by uuid.
-     *
+     * Finds a stored license by key
+     * @param key the license key to search for
+     * @return The license data, if found. Null if not found.
+     * @throws IOException if there is an error loading the license
+     */
+//    String getLicense(String key) throws IOException;
+
+    /**
+     * Finds a stored license by uuid
      * @param uuid the license uuid to search for
      * @return The license object, if found. Null if not found.
      * @throws IOException if there is an error loading the license

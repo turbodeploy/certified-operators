@@ -18,7 +18,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
-import org.junit.Ignore;
 import org.junit.Test;
 
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
@@ -33,7 +32,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 /**
  * Unit tests for {@link BuyRiScopeHandler} class.
  */
-@Ignore
 public class BuyRiScopeHandlerTest {
 
     private static final long OID_ACCOUNT_1 = 1L;

@@ -71,7 +71,7 @@ public class SearchEntityWriter extends TopologyWriterBase {
      */
     private static final List<EntityRecordPatcher<TopologyEntityDTO>> ENTITY_PATCHERS_FOR_FIELDS_ON_TED =
             ImmutableList.of(
-                    new PrimitiveFieldsOnTEDPatcher(false, false, false),
+                    new PrimitiveFieldsOnTEDPatcher(false, false),
                     new CommoditiesPatcher()
             );
 
@@ -93,7 +93,7 @@ public class SearchEntityWriter extends TopologyWriterBase {
      */
     private static final List<EntityRecordPatcher<Grouping>> GROUP_PATCHERS_FOR_FIELDS_ON_GROUPING =
             ImmutableList.of(
-                    new GroupPrimitiveFieldsOnGroupingPatcher(false, false)
+                    new GroupPrimitiveFieldsOnGroupingPatcher(false)
             );
 
     /**

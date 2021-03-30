@@ -8,7 +8,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
-import com.vmturbo.auth.api.licensing.LicenseCheckClientConfig;
 import com.vmturbo.extractor.ExtractorDbConfig;
 import com.vmturbo.extractor.ExtractorGlobalConfig;
 import com.vmturbo.extractor.grafana.Grafanon.GrafanonConfig;
@@ -20,9 +19,7 @@ import com.vmturbo.extractor.schema.ExtractorDbBaseConfig;
  * Configures the Grafana initialization logic.
  */
 @Configuration
-@Import({ExtractorDbBaseConfig.class,
-        ExtractorGlobalConfig.class,
-        LicenseCheckClientConfig.class})
+@Import({ExtractorDbBaseConfig.class, ExtractorGlobalConfig.class})
 public class GrafanaConfig {
 
     @Value("${grafanaHost:grafana}")
@@ -71,9 +68,6 @@ public class GrafanaConfig {
     @Autowired
     private ExtractorGlobalConfig extractorGlobalConfig;
 
-    @Autowired
-    private LicenseCheckClientConfig licenseCheckClientConfig;
-
     /**
      * The one that drives the grafana refresh.
      *
@@ -87,12 +81,7 @@ public class GrafanaConfig {
                 .setEditorDisplayName(grafanaEditorDisplayName)
                 .setEditorUsername(grafanaEditorUsername)
                 .setEditorPassword(grafanaEditorPassword);
-        return new Grafanon(config,
-                dashboardsOnDisk(),
-                grafanaClient(),
-                extractorGlobalConfig.featureFlags(),
-                extractorDbConfig.ingesterEndpoint(),
-                licenseCheckClientConfig.licenseCheckClient());
+        return new Grafanon(config, dashboardsOnDisk(), grafanaClient(), extractorGlobalConfig.featureFlags(), extractorDbConfig.ingesterEndpoint());
     }
 
     /**

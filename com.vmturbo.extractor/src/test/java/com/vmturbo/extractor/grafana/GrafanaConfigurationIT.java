@@ -20,7 +20,6 @@ import org.junit.Rule;
 import org.junit.Test;
 
 import com.vmturbo.auth.api.db.DBPasswordUtil;
-import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.components.api.test.ResourcePath;
 import com.vmturbo.components.test.utilities.ComponentTestRule;
 import com.vmturbo.components.test.utilities.component.ComponentCluster;
@@ -94,8 +93,7 @@ public class GrafanaConfigurationIT {
         ExtractorFeatureFlags extractorFeatureFlags = mock(ExtractorFeatureFlags.class);
         when(extractorFeatureFlags.isReportingEnabled()).thenReturn(true);
         dbendpointMock = mock(DbEndpoint.class);
-        LicenseCheckClient licenseCheckClient = mock(LicenseCheckClient.class);
-        grafanon = new Grafanon(config, dashboardsOnDisk, grafanaClient, extractorFeatureFlags, dbendpointMock, licenseCheckClient);
+        grafanon = new Grafanon(config, dashboardsOnDisk, grafanaClient, extractorFeatureFlags, dbendpointMock);
     }
 
     /**

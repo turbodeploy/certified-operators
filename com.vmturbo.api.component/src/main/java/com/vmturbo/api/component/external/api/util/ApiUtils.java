@@ -29,7 +29,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.dto.user.RoleApiDTO;
-import com.vmturbo.api.dto.user.UserApiDTO;
 import com.vmturbo.auth.api.authorization.jwt.JwtCallCredential;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
@@ -242,19 +241,6 @@ public class ApiUtils {
             .filter(role -> !StringUtils.isBlank(role.getName()))
             .sorted(c.reversed())
             .collect(Collectors.toList());
-    }
-
-    /**
-     * Check if a user has a certain role.
-     * @param user the user
-     * @param role the role
-     * @return if the user contains the specified role
-     */
-    public static boolean hasUserRole(@Nonnull UserApiDTO user, @Nonnull final String role) {
-        return user.getRoles().stream()
-                .map(RoleApiDTO::getName)
-                .filter(name -> !StringUtils.isBlank(name))
-                .anyMatch(roleName -> roleName.equalsIgnoreCase(role));
     }
 
     /**

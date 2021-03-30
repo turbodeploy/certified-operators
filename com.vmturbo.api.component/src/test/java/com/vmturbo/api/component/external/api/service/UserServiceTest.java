@@ -54,7 +54,6 @@ import com.vmturbo.api.dto.user.ActiveDirectoryGroupApiDTO;
 import com.vmturbo.api.dto.user.RoleApiDTO;
 import com.vmturbo.api.dto.user.UserApiDTO;
 import com.vmturbo.auth.api.authentication.credentials.SAMLUserUtils;
-import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.auth.api.usermgmt.ActiveDirectoryDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
@@ -78,7 +77,7 @@ public class UserServiceTest {
     private WidgetSetsService widgetSetsService = mock(WidgetSetsService.class);
     private final SessionInformation sessionInformation = mock(SessionInformation.class);
     private final SessionRegistry sessionRegistry = mock(SessionRegistry.class);
-    private final ReportingUserCalculator reportingUserCalculator = mock(ReportingUserCalculator.class);
+    private final ReportingUserCalculator reportingUserCalculator = new ReportingUserCalculator(false, "foo");
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
@@ -86,7 +85,6 @@ public class UserServiceTest {
     @InjectMocks
     private UsersService usersService = new UsersService("", 0, "", restTemplate, "", false,
         groupsService, widgetSetsService, reportingUserCalculator);
-
     private static final String AUTH_REQUEST = UriComponentsBuilder.newInstance()
             .scheme("http")
             .host("")

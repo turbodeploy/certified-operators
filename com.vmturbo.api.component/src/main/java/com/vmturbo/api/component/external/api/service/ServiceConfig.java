@@ -723,8 +723,7 @@ public class ServiceConfig {
      */
     @Bean
     public ReportingUserCalculator reportingUserCalculator() {
-        return new ReportingUserCalculator(enableReporting, grafanaEditorUsername,
-                licenseCheckClientConfig.licenseCheckClient());
+        return new ReportingUserCalculator(enableReporting, grafanaEditorUsername);
     }
 
     /**
