@@ -56,6 +56,7 @@ import com.vmturbo.common.api.mappers.EnvironmentTypeMapper;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
+import com.vmturbo.common.protobuf.cost.Cost.CostSource;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsRequest;
@@ -93,6 +94,7 @@ public class StatsMapperTest {
     private static final String CSP = "CSP";
     private static final String AWS = "AWS";
     private static final String COST_COMPONENT = "costComponent";
+    private static final String COST_SOURCE = "costSource";
     private static final String PERCENTILE = "percentile";
     private static final String BYTE_PER_SEC = "Byte/sec";
 
@@ -791,7 +793,7 @@ public class StatsMapperTest {
     public void testToCloudStatSnapshotApiDTO() throws Exception{
         final CloudCostStatRecord cloudStatRecord = CloudCostStatRecord.newBuilder()
                 .setSnapshotDate(START_DATE)
-                .addStatRecords(getStatRecordBuilder(CostCategory.ON_DEMAND_COMPUTE, 1l, Optional.empty()))
+                .addStatRecords(getStatRecordBuilder(CostCategory.ON_DEMAND_COMPUTE, 1l, Optional.empty()).setCostSource(CostSource.ENTITY_UPTIME_DISCOUNT))
                 .addStatRecords(getStatRecordBuilder(CostCategory.IP, 2l, Optional.empty()))
                 .addStatRecords(getStatRecordBuilder(CostCategory.ON_DEMAND_LICENSE, 3l, Optional.empty()))
                 .addStatRecords(getStatRecordBuilder(CostCategory.STORAGE, 4l, Optional.empty()))
@@ -803,7 +805,7 @@ public class StatsMapperTest {
         assertEquals(5, cloudStatRecord.getStatRecordsCount());
         assertTrue(mapped.getStatistics().stream().allMatch(statApiDTO -> statApiDTO.getFilters() != null ));
         assertTrue(mapped.getStatistics().stream().anyMatch(statApiDTO -> statApiDTO.getFilters().get(0).getValue().equals(CostCategory.ON_DEMAND_COMPUTE.name())
-                && statApiDTO.getFilters().get(0).getType().equals(COST_COMPONENT) ));
+                && statApiDTO.getFilters().get(0).getType().equals(COST_COMPONENT) && statApiDTO.getFilters().get(1).getType().equals(COST_SOURCE)));
         assertTrue(mapped.getStatistics().stream().anyMatch(statApiDTO -> statApiDTO.getFilters().get(0).getValue().equals(CostCategory.IP.name())
                 && statApiDTO.getFilters().get(0).getType().equals(COST_COMPONENT) ));
         assertTrue(mapped.getStatistics().stream().anyMatch(statApiDTO -> statApiDTO.getFilters().get(0).getValue().equals(CostCategory.ON_DEMAND_LICENSE.name())

@@ -142,6 +142,11 @@ public class StatsMapper {
     private static final String COST_COMPONENT = "costComponent";
 
     /**
+     * Cloud cost component constant, a filter type for bottom-up cost
+     */
+    private static final String COST_SOURCE = "costSource";
+
+    /**
      * The related type in the api request which should be normalized to another type.
      */
     private static final Map<String, String> RELATED_TYPES_TO_NORMALIZE = ImmutableMap.of(
@@ -925,7 +930,12 @@ public class StatsMapper {
                                 break;
                         }
                         filters.add(resultsTypeFilter);
-
+                        if (statRecord.hasCostSource()) {
+                            final StatFilterApiDTO sourceFilter = new StatFilterApiDTO();
+                            sourceFilter.setType(COST_SOURCE);
+                            sourceFilter.setValue(statRecord.getCostSource().name());
+                            filters.add(sourceFilter);
+                        }
                         if (filters.size() > 0) {
                             statApiDTO.setFilters(filters);
                         }
