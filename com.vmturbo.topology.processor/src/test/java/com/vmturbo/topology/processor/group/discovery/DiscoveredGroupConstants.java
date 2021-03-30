@@ -131,10 +131,10 @@ class DiscoveredGroupConstants {
                             .setPropertyValueDouble(10.0)))
             .build();
 
-    static final InterpretedGroup PLACEHOLDER_INTERPRETED_GROUP = new InterpretedGroup(
+    static final InterpretedGroup PLACEHOLDER_INTERPRETED_GROUP = new InterpretedGroup(TARGET_ID,
             STATIC_MEMBER_DTO, Optional.of(PLACEHOLDER_GROUP.getDefinition().toBuilder()));
 
-    static final InterpretedGroup PLACEHOLDER_INTERPRETED_CLUSTER = new InterpretedGroup(
+    static final InterpretedGroup PLACEHOLDER_INTERPRETED_CLUSTER = new InterpretedGroup(TARGET_ID,
             CLUSTER_DTO, Optional.of(PLACEHOLDER_CLUSTER.getDefinition().toBuilder()));
 
     // create a DATACENTER to test the cluster name prefix addition
@@ -206,10 +206,10 @@ class DiscoveredGroupConstants {
 
     // in those interpreted clusters, I don't really care that the STATIC_MEMBER_DTO is not 100%
     // matching, because in the tests I am going to use the clusterInfo directly.
-    static final InterpretedGroup COMPUTE_INTERPRETED_CLUSTER = new InterpretedGroup(
+    static final InterpretedGroup COMPUTE_INTERPRETED_CLUSTER = new InterpretedGroup(TARGET_ID,
             STATIC_MEMBER_DTO, Optional.of(COMPUTE_CLUSTER_DEF.toBuilder()));
 
-    static final InterpretedGroup STORAGE_INTERPRETED_CLUSTER = new InterpretedGroup(
+    static final InterpretedGroup STORAGE_INTERPRETED_CLUSTER = new InterpretedGroup(TARGET_ID,
             STATIC_MEMBER_DTO, Optional.of(STORAGE_CLUSTER_DEF.toBuilder()));
 
     private DiscoveredGroupConstants() {}
