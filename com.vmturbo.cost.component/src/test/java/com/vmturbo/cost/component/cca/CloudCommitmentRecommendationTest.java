@@ -19,7 +19,6 @@ import com.vmturbo.cloud.commitment.analysis.runtime.stages.recommendation.calcu
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.recommendation.calculator.SavingsCalculationContext.AggregateDemand;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.recommendation.calculator.SavingsCalculationContext.CloudTierDemandInfo;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.recommendation.calculator.SavingsCalculationContext.DemandSegment;
-import com.vmturbo.cloud.commitment.analysis.spec.ImmutableReservedInstanceSpecData;
 import com.vmturbo.cloud.commitment.analysis.spec.ReservedInstanceSpecData;
 import com.vmturbo.cloud.common.data.TimeInterval;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
@@ -60,7 +59,7 @@ public class CloudCommitmentRecommendationTest {
     /**
      * RI spec data.
      */
-    public static final ReservedInstanceSpecData RESERVED_INSTANCE_SPEC_DATA = ImmutableReservedInstanceSpecData.builder()
+    public static final ReservedInstanceSpecData RESERVED_INSTANCE_SPEC_DATA = ReservedInstanceSpecData.builder()
             .spec(ReservedInstanceSpec.newBuilder()
                     .setId(3L)
                     .setReservedInstanceSpecInfo(RESERVED_INSTANCE_SPEC_INFO)
