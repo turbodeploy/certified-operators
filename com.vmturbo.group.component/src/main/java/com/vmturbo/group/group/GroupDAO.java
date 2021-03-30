@@ -341,8 +341,8 @@ public class GroupDAO implements IGroupStore {
                             + " because an object with the same name and type (id: "
                             + sameNameGroups + ") already exists.");
         }
-        context.newRecord(GROUPING, groupPojo).store();
         final Collection<Query> inserts = new ArrayList<>();
+        inserts.add(context.insertInto(GROUPING).set(context.newRecord(GROUPING, groupPojo)));
         inserts.addAll(
                 insertGroupDefinitionDependencies(context, groupPojo.getId(), groupDefinition));
         inserts.addAll(
