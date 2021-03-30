@@ -37,17 +37,17 @@ public class SdkServerConfig {
     @Value("${websocket.atomic.send.timeout.sec:30}")
     private long websocketAtomicSendTimeout;
 
-    @Value("${maxConcurrentTargetDiscoveriesPerContainerCount:10}")
-    private int maxConcurrentTargetDiscoveriesPerContainerCount;
-
-    @Value("${maxConcurrentTargetIncrementalDiscoveriesPerContainerCount:10}")
-    private int maxConcurrentTargetIncrementalDiscoveriesPerContainerCount;
-
-    @Value("${applyPermitsToContainers:false}")
+    @Value("${applyPermitsToContainers:true}")
     private boolean applyPermitsToContainers;
 
     @Value("${discoveryWorkerPollingTimeoutSecs:10}")
     private long discoveryWorkerPollingTimeoutSecs;
+
+    @Value("${maxConcurrentTargetDiscoveriesPerProbeCount:10}")
+    private int maxConcurrentTargetDiscoveriesPerProbeCount;
+
+    @Value("${maxConcurrentTargetIncrementalDiscoveriesPerProbeCount:10}")
+    private int maxConcurrentTargetIncrementalDiscoveriesPerProbeCount;
 
     @Autowired
     private ProbeConfig probeConfig;
@@ -76,8 +76,8 @@ public class SdkServerConfig {
         return applyPermitsToContainers ? new RemoteMediationServerWithDiscoveryWorkers(
                 probeConfig.probeStore(), targetConfig.probePropertyStore(),
                 probeConfig.probeContainerChooser(), discoveryQueue(),
-                maxConcurrentTargetDiscoveriesPerContainerCount,
-                maxConcurrentTargetIncrementalDiscoveriesPerContainerCount,
+                maxConcurrentTargetDiscoveriesPerProbeCount,
+                maxConcurrentTargetIncrementalDiscoveriesPerProbeCount,
                 discoveryWorkerPollingTimeoutSecs)
                 : new RemoteMediationServer(probeConfig.probeStore(),
                         targetConfig.probePropertyStore(),
@@ -137,5 +137,23 @@ public class SdkServerConfig {
      */
     public boolean getApplyPermitsToContainers() {
         return applyPermitsToContainers;
+    }
+
+    /**
+     * Get the value of maxConcurrentTargetDiscoveriesPerProbeCount.
+     *
+     * @return maxConcurrentTargetDiscoveriesPerProbeCount value
+     */
+    public int getMaxConcurrentTargetDiscoveriesPerProbeCount() {
+        return maxConcurrentTargetDiscoveriesPerProbeCount;
+    }
+
+    /**
+     * Get the value of maxConcurrentTargetIncrementalDiscoveriesPerProbeCount.
+     *
+     * @return maxConcurrentTargetIncrementalDiscoveriesPerProbeCount value.
+     */
+    public int getMaxConcurrentTargetIncrementalDiscoveriesPerProbeCount() {
+        return maxConcurrentTargetIncrementalDiscoveriesPerProbeCount;
     }
 }
