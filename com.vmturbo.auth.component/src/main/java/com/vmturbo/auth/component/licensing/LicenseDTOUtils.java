@@ -1,36 +1,21 @@
 package com.vmturbo.auth.component.licensing;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.EnumSet;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import net.jpountz.xxhash.StreamingXXHash64;
-import net.jpountz.xxhash.XXHashFactory;
 
 import com.vmturbo.api.dto.license.ILicense;
 import com.vmturbo.api.dto.license.ILicense.CountedEntity;
 import com.vmturbo.api.dto.license.ILicense.ErrorReason;
-import com.vmturbo.api.utils.DateTimeUtil;
-import com.vmturbo.auth.component.licensing.LicensedEntitiesCountCalculator.LicensedEntitiesCount;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO.ExternalLicense;
-import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO.ExternalLicense.Type;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO.TurboLicense;
-import com.vmturbo.common.protobuf.licensing.Licensing.LicenseSummary;
-import com.vmturbo.common.protobuf.licensing.Licensing.LicenseSummary.ExternalLicenseSummary;
 import com.vmturbo.licensing.License;
 import com.vmturbo.licensing.utils.LicenseUtil;
 
@@ -63,6 +48,21 @@ public class LicenseDTOUtils {
             validationErrors.add(ErrorReason.INVALID_FEATURE_SET);
         }
         return validationErrors;
+    }
+
+    /**
+     * Validates external license.
+     *
+     * @param license license DTO
+     * @return a set of {@link ErrorReason} objects representing any validation issues discovered.
+     */
+    public static Set<ErrorReason> validateExternalLicense(@Nonnull LicenseDTO license) {
+        final Set<ErrorReason> errorReasons = EnumSet.noneOf(ErrorReason.class);
+        final ExternalLicense externalLicense = license.getExternal();
+        if (externalLicense.hasExpirationDate() && LicenseUtil.isExpired(license)) {
+            errorReasons.add(ErrorReason.EXPIRED);
+        }
+        return errorReasons;
     }
 
     /**
@@ -156,104 +156,5 @@ public class LicenseDTOUtils {
                     .collect(Collectors.toList()));
         }
         return retBldr.build();
-    }
-
-    /**
-     * Convert a {@link License } to a {@link LicenseSummary} object.
-     *
-     * @param licenses The licenses to include in the summary.
-     * @param licensedEntitiesCount The {@link LicensedEntitiesCount}, if any.
-     * @return A shiny new LicenseSummary.
-     */
-    public static LicenseSummary createLicenseSummary(Collection<LicenseDTO> licenses,
-            Optional<LicensedEntitiesCount> licensedEntitiesCount) {
-        LicenseSummary.Builder summaryBuilder = LicenseSummary.newBuilder();
-
-        // Calculate the expiration dates from ALL licenses.
-        getLatestExpirationDate(licenses.stream()
-            .filter(LicenseDTO::hasTurbo)
-            .map(LicenseDTO::getTurbo)
-            .map(TurboLicense::getExpirationDate))
-            .ifPresent(latestExpiration -> {
-                summaryBuilder.setExpirationDate(latestExpiration);
-                summaryBuilder.setIsExpired(ILicense.isExpired(latestExpiration));
-            });
-
-        final Collection<TurboLicense> nonExpiredTurboLicenses = new ArrayList<>();
-        final Map<Type, List<ExternalLicense>> externalLicensesByType = new HashMap<>();
-        // track if any of the non-expired licenses are not valid
-        boolean areAllNonExpiredLicensesValid = true; // until proven guilty
-        for (LicenseDTO license : licenses) {
-            if (license.hasTurbo()) {
-                if (!LicenseUtil.isExpired(license)) {
-                    nonExpiredTurboLicenses.add(license.getTurbo());
-                    // we'll check the validity here too
-                    boolean isThisLicenseValid = LicenseUtil.toModel(license)
-                            .map(License::isValid)
-                            .orElse(false);
-                    // if not valid, log for posterity. Debug, since this is a recurring operation.
-                    if (!isThisLicenseValid) {
-                        // maybe get the errors at some point too.
-                        logger.debug("License {} is detected as invalid.", license.getUuid());
-                    }
-                    areAllNonExpiredLicensesValid = areAllNonExpiredLicensesValid && isThisLicenseValid;
-                }
-            } else if (license.hasExternal()) {
-                externalLicensesByType.computeIfAbsent(license.getExternal().getType(), k -> new ArrayList<>())
-                        .add(license.getExternal());
-            }
-        }
-
-        licensedEntitiesCount.ifPresent(licensedEntities -> {
-            summaryBuilder.setCountedEntity(licensedEntities.getCountedEntity().name());
-            summaryBuilder.setNumLicensedEntities(licensedEntities.getNumLicensed());
-            licensedEntities.getNumInUse().ifPresent(summaryBuilder::setNumInUseEntities);
-            summaryBuilder.setIsOverEntityLimit(licensedEntities.isOverLimit());
-        });
-
-        // the aggregate feature set available across all of the stored licenses
-        // Only consider non-expired licenses.
-        nonExpiredTurboLicenses.stream()
-            .filter(l -> !ILicense.isExpired(l.getExpirationDate()))
-            .map(TurboLicense::getFeaturesList)
-            .flatMap(List::stream)
-            .forEach(summaryBuilder::addFeature);
-
-        nonExpiredTurboLicenses.stream()
-                .map(TurboLicense::getErrorReasonList)
-                .flatMap(List::stream)
-                .forEach(summaryBuilder::addErrorReason);
-
-        summaryBuilder.setIsValid(areAllNonExpiredLicensesValid);
-
-        externalLicensesByType.forEach((type, externalLicenses) -> {
-            final ExternalLicenseSummary.Builder externalTypeSummaryBldr = ExternalLicenseSummary.newBuilder()
-                    .setType(type);
-            getLatestExpirationDate(externalLicenses.stream()
-                .map(ExternalLicense::getExpirationDate))
-                .ifPresent(latestExpiration -> {
-                    externalTypeSummaryBldr.setExpirationDate(latestExpiration);
-                    externalTypeSummaryBldr.setIsExpired(ILicense.isExpired(latestExpiration));
-                });
-
-            final int seed = 0xC0FFEE;
-            final StreamingXXHash64 hash = XXHashFactory.fastestJavaInstance().newStreamingHash64(seed);
-            externalLicenses.forEach(license -> {
-                hash.update(license.getPayloadBytes().toByteArray(), 0, license.getPayloadBytes().size());
-            });
-            externalTypeSummaryBldr.setChecksum(hash.getValue());
-            summaryBuilder.addExternalLicensesByType(externalTypeSummaryBldr);
-        });
-
-        // set generation date to now.
-        summaryBuilder.setGenerationDate(DateTimeUtil.getNow());
-
-        return summaryBuilder.build();
-    }
-
-    @Nonnull
-    private static Optional<String> getLatestExpirationDate(Stream<String> dates) {
-        return dates.filter(StringUtils::isNotBlank)
-                .max(Comparator.naturalOrder());
     }
 }

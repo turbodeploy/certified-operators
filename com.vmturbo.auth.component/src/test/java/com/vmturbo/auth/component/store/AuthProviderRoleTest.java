@@ -45,6 +45,7 @@ import org.springframework.test.context.web.WebAppConfiguration;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
 import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
+import com.vmturbo.auth.component.licensing.LicenseCheckService;
 import com.vmturbo.auth.component.policy.ReportPolicy;
 import com.vmturbo.auth.component.policy.UserPolicy;
 import com.vmturbo.auth.component.policy.UserPolicy.LoginPolicy;
@@ -69,6 +70,7 @@ public class AuthProviderRoleTest {
     private static final String SITE_ADMIN = "siteadmin";
 
     private KeyValueStore mockKeystore;
+    private LicenseCheckService licenseCheckService;
 
     AuthProvider authProviderUnderTest;
 
@@ -80,9 +82,10 @@ public class AuthProviderRoleTest {
     @Before
     public void setup() {
         mockKeystore = mock(KeyValueStore.class);
+        licenseCheckService = mock(LicenseCheckService.class);
         Supplier<String> keyValueDir = () -> "/";
         authProviderUnderTest = new AuthProvider(mockKeystore, null, keyValueDir, null, new UserPolicy(LoginPolicy.ALL,
-                new ReportPolicy(1)),
+                new ReportPolicy(licenseCheckService)),
                 new SsoUtil(), false, false, null);
     }
 

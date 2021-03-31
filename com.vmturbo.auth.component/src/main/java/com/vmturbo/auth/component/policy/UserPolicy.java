@@ -37,16 +37,16 @@ public class UserPolicy {
         this.loginPolicy = Objects.requireNonNull(loginPolicy);
         this.reportPolicy = Objects.requireNonNull(reportPolicy);
         logger.info("System is using {} login policy.", loginPolicy);
-        logger.info("System has maximum allowed report editor {}.", reportPolicy.getAllowedMaximumEditor());
+        logger.info("System has maximum allowed report editor {}.", reportPolicy.getAllowedMaximumEditors());
     }
 
     /**
      * Get allowed maximum number of editors.
      *
-     * @return true if it's allowed.
+     * @return the number of maximum allowed editors.
      */
     public int getAllowedMaximumEditor() {
-        return reportPolicy.getAllowedMaximumEditor();
+        return reportPolicy.getAllowedMaximumEditors();
     }
 
     /**
