@@ -57,6 +57,7 @@ import com.vmturbo.api.serviceinterfaces.IUsersService;
 import com.vmturbo.auth.api.auditing.AuditAction;
 import com.vmturbo.auth.api.auditing.AuditLog;
 import com.vmturbo.auth.api.authentication.credentials.SAMLUserUtils;
+import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
 import com.vmturbo.auth.api.usermgmt.ActiveDirectoryDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
@@ -452,6 +453,9 @@ public class UsersService implements IUsersService {
                 dto = setLocalUserPassword(userApiDTO);
             }
         }
+
+        reportingUserCalculator.onUserModified(userApiDTO);
+
         return dto;
     }
 
@@ -522,6 +526,7 @@ public class UsersService implements IUsersService {
             }
             widgetsetsService.transferWidgetsets(uuid, userName);
             expireActiveSessions(uuid);
+            reportingUserCalculator.onUserDeleted(uuid);
 
             return Boolean.TRUE;
         } catch (RuntimeException e) {

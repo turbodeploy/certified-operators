@@ -244,8 +244,10 @@ http {
 
             # Verify that the user is authenticated.
             auth_request /iam/auth;
-            # Extract the reporting (grafana) username from the authentication request.
-            auth_request_set $webauth_user $upstream_http_x_report_username;
+            # Extract the reporting (grafana) username and display name from the authentication
+            # request.
+            auth_request_set $webauth_user $upstream_http_x_report_user_name;
+            auth_request_set $webauth_name $upstream_http_x_report_user_display_name;
 
             # If the request is not authorized, (e.g. if a user goes to the /reports
             # endpoint directly) re-route to the main app login screen.
@@ -257,6 +259,7 @@ http {
             proxy_set_header   X-Real-IP $remote_addr;
             proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header   X-WEBAUTH-USER $webauth_user;
+            proxy_set_header   X-WEBAUTH-NAME $webauth_name;
             rewrite       ^/reports/?(.*) /$1 break;
             proxy_connect_timeout 10s;
             proxy_read_timeout 6000s;

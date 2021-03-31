@@ -8,6 +8,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 
 import java.io.IOException;
@@ -34,6 +35,7 @@ import org.junit.runners.Parameterized.Parameters;
 import com.vmturbo.auth.api.authentication.AuthenticationException;
 import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationToken;
 import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
+import com.vmturbo.auth.component.licensing.LicenseCheckService;
 import com.vmturbo.auth.component.policy.ReportPolicy;
 import com.vmturbo.auth.component.policy.UserPolicy;
 import com.vmturbo.auth.component.policy.UserPolicy.LoginPolicy;
@@ -77,6 +79,7 @@ public class SsoUtilIntegrationTest {
     public TemporaryFolder tempFolder = new TemporaryFolder();
     private Supplier<String> kvSupplier = () -> System.getProperty("com.vmturbo.kvdir");
     private GroupServiceMole groupService = spy(new GroupServiceMole());
+    private LicenseCheckService licenseCheckService = mock(LicenseCheckService.class);
     /**
      * grpc rule.
      */
@@ -230,7 +233,8 @@ public class SsoUtilIntegrationTest {
         ssoUtil.putSecurityGroup(GROUP_NAME, securityGroup);
         ssoUtil.putSecurityGroup(GROUP_NAME_ADDITION, securityGroup1);
         AuthProvider store = new AuthProvider(keyValueStore, groupServiceClient, kvSupplier, null,
-                new UserPolicy(LoginPolicy.AD_ONLY, new ReportPolicy(1)), ssoUtil, true, false, () -> false);
+                new UserPolicy(LoginPolicy.AD_ONLY, new ReportPolicy(licenseCheckService)), ssoUtil,
+                true, false, () -> false);
 
         final JWTAuthorizationToken authenticate =
                         store.authenticate(username, PASSWORD, "10.10.10.1");
