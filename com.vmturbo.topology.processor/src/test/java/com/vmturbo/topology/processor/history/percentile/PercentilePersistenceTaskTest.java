@@ -3,16 +3,23 @@ package com.vmturbo.topology.processor.history.percentile;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.sql.SQLException;
 import java.time.Clock;
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import com.google.protobuf.ByteString;
 
 import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 import io.grpc.stub.CallStreamObserver;
 import io.grpc.stub.StreamObserver;
 
+import org.hamcrest.CoreMatchers;
+import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -26,6 +33,7 @@ import org.mockito.stubbing.Answer;
 
 import com.vmturbo.common.protobuf.stats.Stats.GetPercentileCountsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.PercentileChunk;
+import com.vmturbo.common.protobuf.stats.Stats.SetPercentileCountsResponse;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceStub;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
@@ -229,6 +237,50 @@ public class PercentilePersistenceTaskTest {
     }
 
     /**
+     * Checks that in case error from history came after we've sent all the chunks to history we
+     * should fail the request. We should wait for successful completion of the blob.
+     *
+     * @throws HistoryCalculationException when failed
+     * @throws InterruptedException when interrupted
+     */
+    @Test
+    public void testSaveWithPostponedError() throws InterruptedException, HistoryCalculationException {
+        final ExecutorService threadPool = Executors.newCachedThreadPool();
+        final CountDownLatch latch = new CountDownLatch(1);
+        final TestWriter writer = Mockito.spy(new TestWriter());
+        Mockito.doAnswer(invocation -> {
+            latch.countDown();
+            return null;
+        }).when(writer).onCompleted();
+        Mockito.doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            final StreamObserver<SetPercentileCountsResponse> writerObserver =
+                            invocation.getArgumentAt(0, StreamObserver.class);
+            threadPool.submit(() -> {
+                latch.await();
+                writerObserver.onError(
+                                Status.INTERNAL.withCause(new SQLException("Something went wrong"))
+                                                .asException());
+                return null;
+            });
+            return writer;
+        }).when(history).setPercentileCounts(Mockito.any(StreamObserver.class));
+
+        final PercentilePersistenceTask task = new PercentilePersistenceTask(
+                        StatsHistoryServiceGrpc.newStub(grpcServer.getChannel()), DEFAULT_RANGE);
+        final PercentileCounts counts = PercentileCounts.newBuilder().build();
+        expectedException.expect(HistoryCalculationException.class);
+        expectedException.expectMessage("Failed to persist percentile data for");
+        expectedException.expectCause(CoreMatchers
+                        .allOf(CoreMatchers.instanceOf(StatusRuntimeException.class),
+                                        Matchers.hasProperty("message",
+                                                        Matchers.is("INTERNAL"))));
+        task.save(counts, 0, config);
+        Assert.assertThat(task, CoreMatchers.notNullValue());
+
+    }
+
+    /**
      * Test if {@link PercentilePersistenceTask#save} actual write
      * the data when it gets empty counts.
      *
@@ -237,8 +289,18 @@ public class PercentilePersistenceTaskTest {
      */
     @Test
     public void testSaveWithEmptyInput() throws InterruptedException, HistoryCalculationException {
-        TestWriter writer = Mockito.spy(new TestWriter());
-        Mockito.doReturn(writer).when(history).setPercentileCounts(Mockito.any(StreamObserver.class));
+        final TestWriter writer = Mockito.spy(new TestWriter());
+        Mockito.doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            final StreamObserver<SetPercentileCountsResponse> observer =
+                            invocation.getArgumentAt(0, StreamObserver.class);
+            Mockito.doAnswer(invocationInternal -> {
+                observer.onNext(SetPercentileCountsResponse.newBuilder().build());
+                observer.onCompleted();
+                return invocationInternal.callRealMethod();
+            }).when(writer).onNext(Mockito.any());
+            return writer;
+        }).when(history).setPercentileCounts(Mockito.any(StreamObserver.class));
 
         PercentilePersistenceTask task = new PercentilePersistenceTask(
                 StatsHistoryServiceGrpc.newStub(grpcServer.getChannel()), DEFAULT_RANGE);

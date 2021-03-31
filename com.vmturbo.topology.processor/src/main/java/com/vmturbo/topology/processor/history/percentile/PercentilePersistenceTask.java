@@ -53,6 +53,9 @@ public class PercentilePersistenceTask extends
     private static final Logger logger = LogManager.getLogger();
     private static final long waitForChannelReadinessIntervalMs = 1;
     private static final long TOTAL_START_TIMESTAMP = 0L;
+    private static final String FAILED_TO_PERCENTILE_DATA =
+                    "Failed to %s percentile data for %s start timestamp";
+    private static final String PERSIST = "persist";
     private final StatsHistoryServiceStub statsHistoryClient;
     private final long startTimestamp;
     private long lastCheckpointMs;
@@ -102,10 +105,7 @@ public class PercentilePersistenceTask extends
                                 .setChunkSize((int)(config.getBlobReadWriteChunkSizeKb() * Units.KBYTE))
                                 .build(), observer);
         final ByteArrayOutputStream baos = observer.getResult();
-        if (observer.getError() != null) {
-            throw new HistoryCalculationException("Failed to load percentile data for " + startTimestamp,
-                            observer.getError());
-        }
+        checkRemoteError(observer, "load", startTimestamp);
         try (ByteArrayInputStream source = new ByteArrayInputStream(baos.toByteArray())) {
             final Map<EntityCommodityFieldReference, PercentileRecord> result =
                             parse(startTimestamp, source, PercentileCounts::parseFrom);
@@ -176,7 +176,7 @@ public class PercentilePersistenceTask extends
                      long periodMs,
                      @Nonnull PercentileHistoricalEditorConfig config)
                     throws HistoryCalculationException, InterruptedException {
-        Stopwatch sw = Stopwatch.createStarted();
+        final Stopwatch sw = Stopwatch.createStarted();
         WriterObserver observer = new WriterObserver(config.getGrpcStreamTimeoutSec());
         StreamObserver<PercentileChunk> writer = statsHistoryClient.setPercentileCounts(observer);
 
@@ -189,17 +189,24 @@ public class PercentilePersistenceTask extends
             observer.checkIoAvailability((CallStreamObserver<PercentileChunk>)writer);
             writer.onNext(PercentileChunk.newBuilder().setStartTimestamp(startTimestamp)
                           .setPeriod(periodMs).setContent(payload).build());
-            if (observer.getError() != null) {
-                throw new HistoryCalculationException("Failed to persist percentile data",
-                                                      observer.getError());
-            }
+            checkRemoteError(observer, PERSIST, startTimestamp);
         }
         writer.onCompleted();
+        observer.waitForCompletion();
+        checkRemoteError(observer, PERSIST, startTimestamp);
 
         logger.debug("Saved {} percentile commodity entries for timestamp {} in {}",
                      counts::getPercentileRecordsCount, () -> startTimestamp, sw::toString);
     }
 
+    private static void checkRemoteError(ErrorObserver<?> observer, String type,
+                    long startTimestamp) throws HistoryCalculationException, InterruptedException {
+        final Throwable error = observer.getError();
+        if (error != null) {
+            throw new HistoryCalculationException(
+                            String.format(FAILED_TO_PERCENTILE_DATA, type, startTimestamp), error);
+        }
+    }
 
     /**
      * Grpc stream observer that retains last occurred exception.
@@ -207,6 +214,7 @@ public class PercentilePersistenceTask extends
      * @param <T> stream data type
      */
     private abstract class ErrorObserver<T> implements StreamObserver<T> {
+        private final CountDownLatch cond = new CountDownLatch(1);
         protected final long timeoutSec;
         protected final long startMs;
         protected Throwable error;
@@ -225,15 +233,35 @@ public class PercentilePersistenceTask extends
         @Override
         public void onError(Throwable throwable) {
             this.error = throwable;
+            cond.countDown();
+        }
+
+        @Override
+        public void onCompleted() {
+            cond.countDown();
         }
 
         /**
          * Get the error that occurred during sending or receiving data, if any.
          *
          * @return null if no error
+         * @throws InterruptedException when interrupted
+         * @throws HistoryCalculationException when timed out
          */
-        public Throwable getError() {
+        public Throwable getError() throws HistoryCalculationException, InterruptedException {
             return error;
+        }
+
+        /**
+         * Awaits for command completion.
+         *
+         * @throws InterruptedException when interrupted
+         * @throws HistoryCalculationException when timed out
+         */
+        public void waitForCompletion() throws InterruptedException, HistoryCalculationException {
+            if (!cond.await(timeoutSec, TimeUnit.SECONDS)) {
+                throw new HistoryCalculationException("Timed out reading percentile data");
+            }
         }
 
         /**
@@ -279,6 +307,7 @@ public class PercentilePersistenceTask extends
             super(timeoutSec);
         }
 
+
         @Override
         public void onNext(SetPercentileCountsResponse value) {
             if (logger.isTraceEnabled()) {
@@ -286,9 +315,6 @@ public class PercentilePersistenceTask extends
                              startTimestamp);
             }
         }
-
-        @Override
-        public void onCompleted() {}
     }
 
     /**
@@ -297,7 +323,6 @@ public class PercentilePersistenceTask extends
     @VisibleForTesting
     class ReaderObserver extends ErrorObserver<PercentileChunk> {
         private final ByteArrayOutputStream result = new ByteArrayOutputStream();
-        private final CountDownLatch cond = new CountDownLatch(1);
 
         /**
          * Construct the observer instance.
@@ -306,6 +331,19 @@ public class PercentilePersistenceTask extends
          */
         ReaderObserver(long timeoutSec) {
             super(timeoutSec);
+        }
+
+        /**
+         * Get the received data.
+         *
+         * @return received byte array
+         * @throws InterruptedException when interrupted
+         * @throws HistoryCalculationException when timed out
+         */
+        @Nonnull
+        public ByteArrayOutputStream getResult() throws InterruptedException, HistoryCalculationException {
+            waitForCompletion();
+            return result;
         }
 
         @Override
@@ -320,33 +358,6 @@ public class PercentilePersistenceTask extends
                 }
             } catch (IOException | HistoryCalculationException | InterruptedException e) {
                 error = e;
-            }
-        }
-
-        @Override
-        public void onError(Throwable throwable) {
-            super.onError(throwable);
-            cond.countDown();
-        }
-
-        @Override
-        public void onCompleted() {
-            cond.countDown();
-        }
-
-        /**
-         * Get the received data.
-         *
-         * @return received byte array
-         * @throws InterruptedException when interrupted
-         * @throws HistoryCalculationException when timed out
-         */
-        @Nonnull
-        public ByteArrayOutputStream getResult() throws InterruptedException, HistoryCalculationException {
-            if (cond.await(timeoutSec, TimeUnit.SECONDS)) {
-                return result;
-            } else {
-                throw new HistoryCalculationException("Timed out reading percentile data");
             }
         }
     }
