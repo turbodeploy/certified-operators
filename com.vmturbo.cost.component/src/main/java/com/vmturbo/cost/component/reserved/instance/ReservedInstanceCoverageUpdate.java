@@ -175,6 +175,7 @@ public class ReservedInstanceCoverageUpdate {
                     createServiceEntityReservedInstanceCoverageRecords(entityRICoverageUploads,
                             cloudTopology);
 
+            final Instant topologyCreationTime = Instant.ofEpochMilli(topologyInfo.getCreationTime());
             dsl.transaction(configuration -> {
                 final DSLContext transactionContext = DSL.using(configuration);
                 // need to update entity reserved instance mapping first, because reserved instance
@@ -183,8 +184,12 @@ public class ReservedInstanceCoverageUpdate {
                         entityRICoverageUploads);
                 entityReservedInstanceMappingStore.updateHistEntityRICoverageMappings(transactionContext,
                         entityRICoverageUploads);
-                reservedInstanceUtilizationStore.updateReservedInstanceUtilization(transactionContext);
-                reservedInstanceCoverageStore.updateReservedInstanceCoverageStore(transactionContext,
+                reservedInstanceUtilizationStore.updateReservedInstanceUtilization(
+                        transactionContext,
+                        topologyCreationTime);
+                reservedInstanceCoverageStore.updateReservedInstanceCoverageStore(
+                        transactionContext,
+                        topologyCreationTime,
                         seRICoverageRecord);
             });
 

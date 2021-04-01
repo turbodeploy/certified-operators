@@ -1,6 +1,11 @@
 package com.vmturbo.cost.component.entity.cost;
 
 import java.time.Clock;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
+
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -8,6 +13,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.cloud.commitment.analysis.util.LogContextExecutorService;
 import com.vmturbo.cost.component.CostDBConfig;
 import com.vmturbo.cost.component.MarketListenerConfig;
 import com.vmturbo.cost.component.SupplyChainServiceConfig;
@@ -46,9 +52,32 @@ public class EntityCostConfig {
     @Autowired
     private SupplyChainServiceConfig supplyChainServiceConfig;
 
+    @Value("${entityCost.concurrentPersistenceThreads:5}")
+    private int concurrentEntityCostThreads;
+
+    @Bean
+    protected ThreadFactory workerThreadFactory() {
+        return new ThreadFactoryBuilder()
+                .setNameFormat("entity-cost-batch-worker-%d")
+                .build();
+    }
+
+    @Bean
+    protected ExecutorService bulkEntityCostExecutorService() {
+        int numThreads = concurrentEntityCostThreads > 0
+                ? concurrentEntityCostThreads
+                : Runtime.getRuntime().availableProcessors();
+        return LogContextExecutorService.newExecutorService(
+                Executors.newFixedThreadPool(numThreads, workerThreadFactory()));
+    }
+
     @Bean
     public EntityCostStore entityCostStore() {
-        return new SqlEntityCostStore(databaseConfig.dsl(), Clock.systemUTC(), persistEntityCostChunkSize);
+        return new SqlEntityCostStore(
+                databaseConfig.dsl(),
+                Clock.systemUTC(),
+                bulkEntityCostExecutorService(),
+                persistEntityCostChunkSize);
     }
 
     @Bean

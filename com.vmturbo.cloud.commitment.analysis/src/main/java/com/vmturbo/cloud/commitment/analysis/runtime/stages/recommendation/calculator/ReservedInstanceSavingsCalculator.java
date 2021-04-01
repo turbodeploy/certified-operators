@@ -32,9 +32,9 @@ import com.vmturbo.cloud.common.data.ImmutableTimeSeries;
 import com.vmturbo.cloud.common.data.TimeSeries;
 import com.vmturbo.cloud.common.data.TimeSeriesData;
 import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
-import com.vmturbo.cloud.common.util.FuzzyDouble;
-import com.vmturbo.cloud.common.util.MutableFuzzyDouble;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CommitmentPurchaseProfile.RecommendationSettings;
+import com.vmturbo.components.common.utils.FuzzyDouble;
+import com.vmturbo.components.common.utils.MutableFuzzyDouble;
 
 /**
  * A {@link CloudCommitmentSavingsCalculator} implementation for reserved instances.

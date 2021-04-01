@@ -3,6 +3,7 @@ package com.vmturbo.cost.component.reserved.instance;
 import static com.vmturbo.cost.component.reserved.instance.ReservedInstanceUtil.SNAPSHOT_TIME;
 import static com.vmturbo.cost.component.reserved.instance.ReservedInstanceUtil.createSelectFieldsForRIUtilizationCoverage;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Collections;
@@ -89,8 +90,9 @@ public class ReservedInstanceUtilizationStore implements MultiStoreDiagnosable {
      * and combine data together and store into database.
      * @param context {@link DSLContext} transactional context.
      */
-    public void updateReservedInstanceUtilization(@Nonnull final DSLContext context) {
-        final LocalDateTime currentTime = LocalDateTime.now(ZoneOffset.UTC);
+    public void updateReservedInstanceUtilization(@Nonnull final DSLContext context,
+                                                  @Nonnull Instant topologyCreationTime) {
+        final LocalDateTime currentTime = topologyCreationTime.atOffset(ZoneOffset.UTC).toLocalDateTime();
         final List<ReservedInstanceBought> allReservedInstancesBought =
                 reservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(
                         ReservedInstanceBoughtFilter.newBuilder().build());
