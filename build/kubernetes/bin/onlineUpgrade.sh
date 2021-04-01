@@ -33,6 +33,7 @@ if [[ "${updateTag}" < "${currentTag}" ]] || [[ "${updateTag}" = "${currentTag}"
 then
   echo "Exiting....."
   echo "Ensure that the OpsManager is upgraded to a newer version than the current version"
+  exit 1
 fi
 
 # Check for mount image on /mnt/iso
