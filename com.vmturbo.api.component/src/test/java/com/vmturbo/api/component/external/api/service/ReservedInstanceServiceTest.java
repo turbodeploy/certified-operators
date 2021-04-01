@@ -198,6 +198,10 @@ public class ReservedInstanceServiceTest {
      */
     @Test
     public void testScopedUserGetReservedInstances() throws Exception {
+        // Since the SecurityContextHolder is global in the JVM, we need to save the existing
+        // auth and restore it after the test.
+        final Authentication existingScopedUser =
+                SecurityContextHolder.getContext().getAuthentication();
         final Authentication scopedUser = new UsernamePasswordAuthenticationToken(
             new AuthUserDTO(null, "user", "password", "10.10.10.10", "11111", "token",
                 ImmutableList.of("ADVISOR"), Collections.singletonList(12345L)),
@@ -208,6 +212,8 @@ public class ReservedInstanceServiceTest {
 
         Assert.assertTrue(reservedInstancesService.getReservedInstances("12345", null, null).isEmpty());
         Mockito.verifyZeroInteractions(uuidMapper, repositoryApi);
+        // Restore existing auth
+        SecurityContextHolder.getContext().setAuthentication(existingScopedUser);
     }
 
     /**
