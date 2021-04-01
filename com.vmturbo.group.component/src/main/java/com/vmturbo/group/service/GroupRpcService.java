@@ -475,18 +475,22 @@ public class GroupRpcService extends GroupServiceImplBase {
         // Real (non-temporary groups)
         final Set<Long> realGroupIds = new HashSet<>(request.getIdList());
         realGroupIds.removeAll(Collections2.transform(tmpGroups, Grouping::getId));
-        validateIfNotAllGroupsPresentThrowError(groupStore, request.getExpectPresent(), realGroupIds);
 
-        for (Long groupId: realGroupIds) {
-            try {
-                GetMembersResponse getMembersResponse = getMembersResponseForGroup(groupStore, request, groupId);
-                getMembersResponseConsumer.accept(getMembersResponse);
-            } catch (StoreOperationException | RuntimeException e) {
-                // We don't want a failure to retrieve the members of one group to result in a failure
-                // to retrieve members of all groups.
-                // In the future it might be worth it to try to detect database connection issues
-                // here, and NOT retry in that case.
-                logger.error("Failed to retrieve members for group " + groupId, e);
+        // we only need to go here if there is also some ids for non-temporary groups
+        if (!realGroupIds.isEmpty()) {
+            validateIfNotAllGroupsPresentThrowError(groupStore, request.getExpectPresent(), realGroupIds);
+
+            for (Long groupId : realGroupIds) {
+                try {
+                    GetMembersResponse getMembersResponse = getMembersResponseForGroup(groupStore, request, groupId);
+                    getMembersResponseConsumer.accept(getMembersResponse);
+                } catch (StoreOperationException | RuntimeException e) {
+                    // We don't want a failure to retrieve the members of one group to result in a failure
+                    // to retrieve members of all groups.
+                    // In the future it might be worth it to try to detect database connection issues
+                    // here, and NOT retry in that case.
+                    logger.error("Failed to retrieve members for group " + groupId, e);
+                }
             }
         }
     }
@@ -1513,6 +1517,9 @@ public class GroupRpcService extends GroupServiceImplBase {
             logger.info("Got {} new groups, {} for update, {} unchanged and {} to delete",
                     groupsToAdd.size(), groupsToUpdate.size(), unchangedGroups.size(),
                     stitchingResult.getGroupsToDelete().size());
+            if (!stitchingResult.getGroupsToDelete().isEmpty()) {
+                logger.info("Following groups are getting deleted: ", stitchingResult.getGroupsToDelete());
+            }
             logger.debug("The following {} groups will not be updated as they are not changed: {}",
                     unchangedGroups::size, unchangedGroups::toString);
             // First, we need to remove setting policies and placement policies for the groups
