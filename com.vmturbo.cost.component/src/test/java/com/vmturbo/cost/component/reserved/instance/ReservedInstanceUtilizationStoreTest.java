@@ -3,6 +3,7 @@ package com.vmturbo.cost.component.reserved.instance;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.Period;
 import java.time.ZoneOffset;
@@ -215,7 +216,7 @@ public class ReservedInstanceUtilizationStoreTest {
                                 .setUsageStartTimestamp(System.currentTimeMillis())
                                 .setUsageEndTimestamp(System.currentTimeMillis()))
                         .build()));
-        reservedInstanceUtilizationStore.updateReservedInstanceUtilization(dsl);
+        reservedInstanceUtilizationStore.updateReservedInstanceUtilization(dsl, Instant.now());
         List<ReservedInstanceUtilizationLatestRecord> records =
                 dsl.selectFrom(Tables.RESERVED_INSTANCE_UTILIZATION_LATEST).fetch();
         assertEquals(3L, records.size());
@@ -251,7 +252,7 @@ public class ReservedInstanceUtilizationStoreTest {
         reservedInstanceBoughtStore.updateReservedInstanceBought(dsl, reservedInstancesBoughtInfo);
         entityReservedInstanceMappingStore.updateEntityReservedInstanceMapping(dsl,
                 stichRIOidToCoverageUploads(entityCoverageLists));
-        reservedInstanceUtilizationStore.updateReservedInstanceUtilization(dsl);
+        reservedInstanceUtilizationStore.updateReservedInstanceUtilization(dsl, Instant.now());
         // get all ri utilization records
         final ReservedInstanceUtilizationFilter filter = ReservedInstanceUtilizationFilter.newBuilder()
                 .build();

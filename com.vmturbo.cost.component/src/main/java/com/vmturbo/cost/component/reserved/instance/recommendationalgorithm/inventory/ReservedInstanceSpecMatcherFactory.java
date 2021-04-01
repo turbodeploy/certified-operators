@@ -11,7 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver;
-import com.vmturbo.cloud.common.util.FuzzyDouble;
+import com.vmturbo.components.common.utils.FuzzyDouble;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecStore;
