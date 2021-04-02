@@ -50,7 +50,6 @@ import com.google.protobuf.util.JsonFormat;
 
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 
-import org.apache.commons.lang3.mutable.Mutable;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -103,6 +102,7 @@ import com.vmturbo.market.runner.reservedcapacity.ReservedCapacityResults;
 import com.vmturbo.market.runner.wastedfiles.WastedFilesResults;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.OnDemandMarketTier;
+import com.vmturbo.market.topology.TopologyConversionConstants;
 import com.vmturbo.market.topology.conversions.CommodityIndex.CommodityIndexFactory;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
@@ -2101,7 +2101,7 @@ public class TopologyConverterFromMarketTest {
         TopologyEntityDTO serviceProvider = TopologyEntityDTO.newBuilder().setOid(5678974832L).setEntityType(EntityType.SERVICE_PROVIDER_VALUE).build();
         when(mockCCD.getAccountPricingData(businessAccount.getOid())).thenReturn(Optional.of(accountPricingData));
         when(cloudTopology.getServiceProvider(businessAccount.getOid())).thenReturn(Optional.of(serviceProvider));
-        when(cloudTopology.getRegionFromServiceProvider(serviceProvider.getOid())).thenReturn(new HashSet(Collections.singleton(region)));
+        when(cloudTopology.getRegionsFromServiceProvider(serviceProvider.getOid())).thenReturn(new HashSet(Collections.singleton(region)));
         final long vmOid = 1L;
         final long volume1Oid = 2L;
         final long volume2Oid = 3L;
@@ -2152,7 +2152,7 @@ public class TopologyConverterFromMarketTest {
                 volume1Oid, originalVolume1,
                 volume2Oid, originalVolume2,
                 businessAccount.getOid(), businessAccount);
-        when(cloudTopology.getAggregated(region.getOid())).thenReturn(Collections.singleton(storageTier));
+        when(cloudTopology.getAggregated(region.getOid(), TopologyConversionConstants.cloudTierTypes)).thenReturn(Collections.singleton(storageTier));
         final CommoditySpecificationTO commoditySpecificationTO =
             CommoditySpecificationTO.newBuilder()
             .setBaseType(1111)
@@ -2217,7 +2217,7 @@ public class TopologyConverterFromMarketTest {
         TopologyEntityDTO serviceProvider = TopologyEntityDTO.newBuilder().setOid(5678974832L).setEntityType(EntityType.SERVICE_PROVIDER_VALUE).build();
         when(mockCCD.getAccountPricingData(businessAccount.getOid())).thenReturn(Optional.of(accountPricingData));
         when(cloudTopology.getServiceProvider(businessAccount.getOid())).thenReturn(Optional.of(serviceProvider));
-        when(cloudTopology.getRegionFromServiceProvider(serviceProvider.getOid())).thenReturn(new HashSet(Collections.singleton(region)));
+        when(cloudTopology.getRegionsFromServiceProvider(serviceProvider.getOid())).thenReturn(new HashSet(Collections.singleton(region)));
         constructTopologyConverter(CommodityIndex.newFactory(), PLAN_TOPOLOGY_INFO);
         final long vmOid = 1L;
         final long volume1Oid = 2L;
@@ -2265,7 +2265,7 @@ public class TopologyConverterFromMarketTest {
                 volume1Oid, originalVolume1,
                 ephemeralVolumeOid, originalEphemeralVolume,
                 businessAccount.getOid(), businessAccount);
-        when(cloudTopology.getAggregated(region.getOid())).thenReturn(Collections.singleton(storageTier));
+        when(cloudTopology.getAggregated(region.getOid(), TopologyConversionConstants.cloudTierTypes)).thenReturn(Collections.singleton(storageTier));
         final CommoditySpecificationTO commoditySpecificationTO =
             CommoditySpecificationTO.newBuilder()
             .setBaseType(1111)

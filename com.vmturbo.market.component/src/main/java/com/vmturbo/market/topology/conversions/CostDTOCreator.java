@@ -16,6 +16,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Multimap;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -53,6 +54,8 @@ import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDT
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceRangeDependency;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceRatioDependency;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageTierPriceData;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ComputeTierData;
@@ -131,7 +134,7 @@ public class CostDTOCreator {
 
                 Map<OSType, ComputePrice> pricesForBa = computePrices.get(accountPricingData.getAccountPricingDataOid());
                 if (pricesForBa == null) {
-                    logger.warn("Cost not found for compute tier {} - region {} - AccountPricingDataOid {}",
+                    logger.debug("Cost not found for compute tier {} - region {} - AccountPricingDataOid {}",
                             tier.getDisplayName(), region.getDisplayName(), accountPricingData.getAccountPricingDataOid());
                 }
                 final Set<CommodityType> licenseCommoditySet = getLicenseCommodities(tier);
@@ -249,7 +252,7 @@ public class CostDTOCreator {
 
                 Map<String, DatabasePrice> pricesForBa = databasePriceMap.get(accountPricingData.getAccountPricingDataOid());
                 if (pricesForBa == null) {
-                    logger.warn("Cost not found for tier {} - region {} - AccountPricingDataOid {}",
+                    logger.debug("Cost not found for tier {} - region {} - AccountPricingDataOid {}",
                             tier.getDisplayName(), region.getDisplayName(), accountPricingData.getAccountPricingDataOid());
                     continue;
                 }
@@ -339,7 +342,7 @@ public class CostDTOCreator {
 
                 Map<String, DatabaseServerPrice> pricesForBa = dbsPriceMap.get(accountPricingData.getAccountPricingDataOid());
                 if (pricesForBa == null) {
-                    logger.warn("Cost not found for dbs tier {}::{} - region {} - AccountPricingDataOid {}",
+                    logger.debug("Cost not found for dbs tier {}::{} - region {} - AccountPricingDataOid {}",
                             tier.getDisplayName(), tier.getTypeSpecificInfo().getDatabaseServerTier().getStorageTier(),
                             region.getDisplayName(), accountPricingData.getAccountPricingDataOid());
                     continue;
@@ -407,7 +410,7 @@ public class CostDTOCreator {
      * Create the CBTP cost dto.
      *
      * @param reservedInstanceKey reservedInstanceKey of the RI for which the CostDTO is created.
-     * @param accountPricingDataByBusinessAccountOid The accountPricing to use for the specific business account.
+     * @param businessAccountIdByAccountPricingData The accountPricing to use for the specific business account.
      * @param region The region the RIDiscountedMarketTier is being created for.
      * @param computeTiersInScope The compute tier in scope of the RI.
      * @param applicableBusinessAccounts account scope of the cbtp.
@@ -415,13 +418,18 @@ public class CostDTOCreator {
      * @return The CBTP cost dto.
      */
     CostDTO createCbtpCostDTO(final ReservedInstanceKey reservedInstanceKey,
-                              Map<Long, AccountPricingData<TopologyEntityDTO>> accountPricingDataByBusinessAccountOid,
+                              Multimap<AccountPricingData<TopologyEntityDTO>, Long> businessAccountIdByAccountPricingData,
                               TopologyEntityDTO region,
                               Set<TopologyEntityDTO> computeTiersInScope,
                               final Set<Long> applicableBusinessAccounts) {
         Set<CostTuple> costTupleList = new HashSet<>();
-        for (final AccountPricingData accountPricingData: accountPricingDataByBusinessAccountOid.values()) {
-
+        Set<AccountPricingData<TopologyEntityDTO>> accountPricingDatasInScope = new HashSet<>();
+        for (Map.Entry<AccountPricingData<TopologyEntityDTO>, Long> entry: businessAccountIdByAccountPricingData.entries()) {
+            if (applicableBusinessAccounts.contains(entry.getValue())) {
+                accountPricingDatasInScope.add(entry.getKey());
+            }
+        }
+        for (final AccountPricingData accountPricingData: accountPricingDatasInScope) {
             if (accountPricingData != null) {
                 Set<CostTuple> cbtpCostTuples = createCbtpCostTuples(
                         reservedInstanceKey,

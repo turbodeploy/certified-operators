@@ -3,6 +3,7 @@ package com.vmturbo.market.topology.conversions;
 import static com.google.common.base.Preconditions.checkNotNull;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -22,9 +23,9 @@ import javax.annotation.Nullable;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
-import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
+import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 
 import org.apache.logging.log4j.LogManager;
@@ -46,6 +47,7 @@ import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.OnDemandMarketTier;
 import com.vmturbo.market.topology.RiDiscountedMarketTier;
+import com.vmturbo.market.topology.TopologyConversionConstants;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.Context;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
@@ -82,7 +84,7 @@ public class CloudTopologyConverter {
     private final Map<TopologyEntityDTO, TopologyEntityDTO> azToRegionMap;
     private final Set<TopologyEntityDTO> businessAccounts;
     private final CloudCostData<TopologyEntityDTO> cloudCostData;
-    private Map<Long, AccountPricingData<TopologyEntityDTO>> accountPricingDataByBusinessAccountOid = new HashMap<>();
+    private Multimap<AccountPricingData<TopologyEntityDTO>, Long> businessAccountOidByAccountPricingData = HashMultimap.create();
     private final CloudTopology<TopologyEntityDTO> cloudTopology;
 
     /**
@@ -142,22 +144,33 @@ public class CloudTopologyConverter {
         List<TraderTO.Builder> traderTOBuilders = new ArrayList<>();
         List<TraderTO.Builder> computeMarketTierBuilders = new ArrayList<>();
         logger.info("Beginning creation of market tier trader TOs");
-        Set<AccountPricingData<TopologyEntityDTO>> uniqueAccountPricingData = ImmutableSet.copyOf(accountPricingDataByBusinessAccountOid.values());
-        for (Entry<Long, TopologyEntityDTO> entry : checkNotNull(topology.entrySet())) {
-            TopologyEntityDTO entity = entry.getValue();
+
+        Map<TopologyEntityDTO, Set<AccountPricingData<TopologyEntityDTO>>> accountPricingDataByTier = new HashMap<>();
+        for (Entry<AccountPricingData<TopologyEntityDTO>, Collection<Long>> entry: businessAccountOidByAccountPricingData
+                .asMap().entrySet()) {
+            Collection<Long> businessAccountOids = entry.getValue();
+            AccountPricingData accountPricingData = entry.getKey();
+            Set<TopologyEntityDTO> tiersAttachedToBusinessAccount = getTiersScopedToAccounts(
+                    businessAccountOids);
+            tiersAttachedToBusinessAccount.forEach(
+                    s -> accountPricingDataByTier.computeIfAbsent(s, t -> new HashSet<>()).add(accountPricingData));
+        }
+        for (Map.Entry<TopologyEntityDTO, Set<AccountPricingData<TopologyEntityDTO>>> entry : accountPricingDataByTier.entrySet()) {
+            TopologyEntityDTO entity = entry.getKey();
+            Set<AccountPricingData<TopologyEntityDTO>> scopedAccountPricingData = entry.getValue();
             TierConverter converter = converterMap.get(entity.getEntityType());
             if (converter != null) {
-                Map<TraderTO.Builder, MarketTier> traderTOBuildersForEntity =
-                        converter.createMarketTierTraderTOs(entity, topology, businessAccounts, uniqueAccountPricingData);
+                Map<TraderTO.Builder, MarketTier> traderTOBuildersForEntity = converter.createMarketTierTraderTOs(entity, topology, businessAccounts,
+                        scopedAccountPricingData);
                 traderTOBuilders.addAll(traderTOBuildersForEntity.keySet());
-                // Only add compute tiers.
-                if (entity.getEntityType() == EntityType.COMPUTE_TIER_VALUE) {
+                if (EntityType.COMPUTE_TIER_VALUE == entity.getEntityType()) {
                     computeMarketTierBuilders.addAll(traderTOBuildersForEntity.keySet());
                 }
                 // Add all the traderTO oids to MarketTier mappings to
                 // traderTOOidToMarketTier
-                traderTOBuildersForEntity.forEach((traderTO, marketTier) ->
-                        traderTOOidToMarketTier.put(traderTO.getOid(), marketTier));
+                traderTOBuildersForEntity.forEach(
+                        (traderTO, marketTier) -> traderTOOidToMarketTier.put(traderTO.getOid(),
+                                marketTier));
             }
         }
 
@@ -165,7 +178,7 @@ public class CloudTopologyConverter {
         // since riData does not come along with the topologyEntityDTOs, RiDiscountedMarketTier creation
         // happens outside the for loop processing topologyEntityDTOs
         Map<TraderTO.Builder, MarketTier> traderTOBuildersForRis =
-                riConverter.createMarketTierTraderTOs(cloudCostData, topology, accountPricingDataByBusinessAccountOid);
+                riConverter.createMarketTierTraderTOs(cloudCostData, topology, businessAccountOidByAccountPricingData);
         traderTOBuilders.addAll(traderTOBuildersForRis.keySet());
         computeMarketTierBuilders.addAll(traderTOBuildersForRis.keySet());
         // Add all the traderTO oids to MarketTier mappings to
@@ -745,7 +758,7 @@ public class CloudTopologyConverter {
      */
     public void insertIntoAccountPricingDataByBusinessAccountOidMap(Long businessAccountOid,
                                                                     AccountPricingData accountPricingData) {
-        accountPricingDataByBusinessAccountOid.put(businessAccountOid, accountPricingData);
+        businessAccountOidByAccountPricingData.put(accountPricingData, businessAccountOid);
     }
 
     /**
@@ -758,10 +771,45 @@ public class CloudTopologyConverter {
      * @return a map of balanceAccountOid -> businessAccount {@link TopologyEntityDTO}
      */
     public Map<Long, TopologyEntityDTO> getBalanceAccountIdToBusinessAccount(Map<Long, TopologyEntityDTO> businessAccountIdToTopologyEntityDTO) {
-        return accountPricingDataByBusinessAccountOid.entrySet().stream()
+        return businessAccountOidByAccountPricingData.entries().stream()
                 .collect(Collectors.toMap(
-                        entry -> entry.getValue().getAccountPricingDataOid(),
-                        entry -> businessAccountIdToTopologyEntityDTO.get(entry.getKey()),
+                        entry -> entry.getKey().getAccountPricingDataOid(),
+                        entry -> businessAccountIdToTopologyEntityDTO.get(entry.getValue()),
                         BinaryOperator.minBy(Comparator.comparingLong(TopologyEntityDTO::getOid))));
+    }
+
+    /**
+     * Given a set of business account oids, gets the tiers associated with the business accounts. The
+     * tiers are fetched from each region aggregating them.
+     *
+     * @param businessAccountOids The business account oids to fetch the tiers for.
+     *
+     * @return The tiers.
+     */
+    public Set<TopologyEntityDTO> getTiersScopedToAccounts(Collection<Long> businessAccountOids) {
+        Set<TopologyEntityDTO> tierSet = new HashSet<>();
+        Set<TopologyEntityDTO> serviceProviderSet = new HashSet<>();
+        // Can be null in unit tests.
+        if (cloudTopology != null) {
+            for (Long businessAccountOid : businessAccountOids) {
+                Optional<TopologyEntityDTO> serviceProviderOpt = cloudTopology.getServiceProvider(
+                        businessAccountOid);
+                if (serviceProviderOpt.isPresent()) {
+                    serviceProviderSet.add(serviceProviderOpt.get());
+                } else {
+                    logger.error("Service Provider not found for account with oid {}", businessAccountOid);
+                }
+            }
+            for (TopologyEntityDTO serviceProvider: serviceProviderSet) {
+                Set<TopologyEntityDTO> regions = cloudTopology.getRegionsFromServiceProvider(
+                        serviceProvider.getOid());
+                for (TopologyEntityDTO region : regions) {
+                    Set<TopologyEntityDTO> cloudTiers = cloudTopology.getAggregated(region.getOid(),
+                            TopologyConversionConstants.cloudTierTypes);
+                    tierSet.addAll(cloudTiers);
+                }
+            }
+        }
+        return tierSet;
     }
 }

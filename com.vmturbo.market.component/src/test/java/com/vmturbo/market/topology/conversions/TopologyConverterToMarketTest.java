@@ -84,6 +84,7 @@ import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.pricing.CloudRateExtractor;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.market.topology.MarketTier;
+import com.vmturbo.market.topology.TopologyConversionConstants;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.market.topology.conversions.TopologyConverter.UsedAndPeak;
@@ -2147,8 +2148,8 @@ public class TopologyConverterToMarketTest {
         when(ccd.getAccountPricingData(businessAccount.getOid())).thenReturn(Optional.of(accountPricingData));
         CloudTopology cloudTopology = mock(CloudTopology.class);
         when(cloudTopology.getServiceProvider(businessAccount.getOid())).thenReturn(Optional.of(serviceProvider));
-        when(cloudTopology.getRegionFromServiceProvider(serviceProvider.getOid())).thenReturn(new HashSet(Collections.singleton(region)));
-        when(cloudTopology.getAggregated(region.getOid())).thenReturn(Collections.singleton(computeTier));
+        when(cloudTopology.getRegionsFromServiceProvider(serviceProvider.getOid())).thenReturn(new HashSet(Collections.singleton(region)));
+        when(cloudTopology.getAggregated(region.getOid(), TopologyConversionConstants.cloudTierTypes)).thenReturn(Collections.singleton(computeTier));
 
         Collection<TraderTO> traderTOs = new TopologyConverter(REALTIME_TOPOLOGY_INFO, false,
             MarketAnalysisUtils.QUOTE_FACTOR,
@@ -2283,8 +2284,8 @@ public class TopologyConverterToMarketTest {
         TopologyEntityDTO serviceProvider = TopologyEntityDTO.newBuilder().setOid(5678974832L).setEntityType(EntityType.SERVICE_PROVIDER_VALUE).build();
         when(ccd.getAccountPricingData(businessAccount.getOid())).thenReturn(Optional.of(accountPricingData));
         when(cloudTopology.getServiceProvider(businessAccount.getOid())).thenReturn(Optional.of(serviceProvider));
-        when(cloudTopology.getRegionFromServiceProvider(serviceProvider.getOid())).thenReturn(new HashSet(Collections.singleton(region)));
-        when(cloudTopology.getAggregated(region.getOid())).thenReturn(topologyDTOs.values().stream()
+        when(cloudTopology.getRegionsFromServiceProvider(serviceProvider.getOid())).thenReturn(new HashSet(Collections.singleton(region)));
+        when(cloudTopology.getAggregated(region.getOid(), TopologyConversionConstants.cloudTierTypes)).thenReturn(topologyDTOs.values().stream()
                 .filter(s -> s.getEntityType() == EntityType.STORAGE_TIER_VALUE || s.getEntityType() == EntityType.COMPUTE_TIER_VALUE || s.getEntityType() == EntityType.DATABASE_TIER_VALUE)
                 .collect(Collectors.toSet()));
         topologyDTOs.put(computeTierOid, computeTier);
@@ -2368,8 +2369,8 @@ public class TopologyConverterToMarketTest {
         when(ccd.getAccountPricingData(businessAccount.getOid())).thenReturn(Optional.of(accountPricingData));
         CloudTopology cloudTopology = mock(CloudTopology.class);
         when(cloudTopology.getServiceProvider(businessAccount.getOid())).thenReturn(Optional.of(serviceProvider));
-        when(cloudTopology.getRegionFromServiceProvider(serviceProvider.getOid())).thenReturn(new HashSet(Collections.singleton(region)));
-        when(cloudTopology.getAggregated(region.getOid())).thenReturn(topologyDTOs.values().stream()
+        when(cloudTopology.getRegionsFromServiceProvider(serviceProvider.getOid())).thenReturn(new HashSet(Collections.singleton(region)));
+        when(cloudTopology.getAggregated(region.getOid(), TopologyConversionConstants.cloudTierTypes)).thenReturn(topologyDTOs.values().stream()
                 .filter(s -> s.getEntityType() == EntityType.STORAGE_TIER_VALUE).collect(Collectors.toSet()));
         final TopologyConverter topologyConverter = new TopologyConverter(
                 REALTIME_TOPOLOGY_INFO,

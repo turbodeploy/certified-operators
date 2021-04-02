@@ -168,9 +168,24 @@ public interface CloudTopology<ENTITY_CLASS> {
     @Nonnull
     Optional<ENTITY_CLASS> getOwner(final long entityId);
 
-    Set<ENTITY_CLASS> getAggregated(final long entityId);
+    /**
+     * Returns aggregated entities for entity ID of types contained in entity types. If entity types
+     * is empty, and empty set will be returned.
+     *
+     * @param entityId The entity id to get aggregated entities for.
+     * @param entityTypes The entity types to filter the aggregated by.
+     *
+     * @return A set containing aggregated entities conforming to entity types.
+     */
+    Set<ENTITY_CLASS> getAggregated(final long entityId, Set<Integer> entityTypes);
 
-    Set<ENTITY_CLASS> getRegionFromServiceProvider(final long entityId);
+    /**
+     * Given a service provider, gets the regions
+     * @param entityId The entity ID of the SP to get regions for.
+     *
+     * @return The set of regions owned by the service provider.
+     */
+    Set<ENTITY_CLASS> getRegionsFromServiceProvider(final long entityId);
 
     /**
      * Get the service a particular entity belongs to. If called with the ID of a service, this is
