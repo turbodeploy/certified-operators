@@ -10,6 +10,7 @@ import org.flywaydb.core.api.callback.FlywayCallback;
 import org.jooq.SQLDialect;
 
 import com.vmturbo.sql.utils.DbEndpoint.DbEndpointAccess;
+import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
 /**
  * Class that maintains properties that define a {@link DbEndpoint}.
@@ -235,5 +236,22 @@ public class DbEndpointConfig {
 
     public void setShouldProvisionUser(final Boolean shouldProvisionUser) {
         this.shouldProvisionUser = shouldProvisionUser;
+    }
+
+    @Override
+    public String toString() {
+        String protocol;
+        try {
+            protocol = DbAdapter.getJdbcProtocol(this);
+        } catch (UnsupportedDialectException e) {
+            protocol = "?";
+        }
+        String url = String.format("jdbc:%s://%s:%s/%s", protocol,
+                getHost() != null ? getHost() : "?",
+                getPort() != null ? getPort() : "?",
+                getDatabaseName() != null ? getDatabaseName() : "?");
+        return String.format("DbEndpoint[%s; url=%s; user=%s]",
+                getName() != null ? getName() : "(unnamed)", url,
+                getUserName() != null ? getUserName() : "?");
     }
 }

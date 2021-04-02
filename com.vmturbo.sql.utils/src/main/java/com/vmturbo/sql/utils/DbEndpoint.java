@@ -36,7 +36,6 @@ import org.springframework.jdbc.datasource.TransactionAwareDataSourceProxy;
 import org.springframework.web.context.ConfigurableWebApplicationContext;
 
 import com.vmturbo.auth.api.db.DBPasswordUtil;
-import com.vmturbo.components.api.FormattedString;
 import com.vmturbo.components.api.RetriableOperation;
 import com.vmturbo.components.api.RetriableOperation.Operation;
 import com.vmturbo.components.api.RetriableOperation.RetriableOperationFailedException;
@@ -243,8 +242,9 @@ public class DbEndpoint {
 
     public boolean isReady() {
         return future != null
-                ? future.isDone() && !future.isCompletedExceptionally() && !future.isCancelled()
-                : false;
+                && future.isDone()
+                && !future.isCompletedExceptionally()
+                && !future.isCancelled();
     }
 
     /**
@@ -362,20 +362,7 @@ public class DbEndpoint {
 
     @Override
     public String toString() {
-        String protocol;
-        try {
-            protocol = DbAdapter.getJdbcProtocol(config);
-        } catch (UnsupportedDialectException e) {
-            protocol = "?";
-        }
-        String url = String.format("jdbc:%s://%s:%s/%s", protocol,
-                config.getHost() != null ? config.getHost() : "?",
-                config.getPort() != null ? config.getPort() : "?",
-                config.getDatabaseName() != null ? config.getDatabaseName() : "?");
-        return String.format("DbEndpoint[%s; url=%s; user=%s (%s)]",
-                config.getName() != null ? config.getName() : "(unnamed)", url,
-                config.getUserName() != null ? config.getUserName() : "?",
-                isReady() ? "ready" : "not ready");
+        return config.toString() + (isReady() ? "(ready)" : "(not ready)");
     }
 
     /**

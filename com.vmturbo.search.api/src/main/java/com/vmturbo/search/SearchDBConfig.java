@@ -41,7 +41,6 @@ public class SearchDBConfig {
                 extractorDbBaseConfig.extractorQueryDbEndpointBase())
                 // extractor component is responsible for provisioning
                 .withShouldProvision(false)
-                .withNoMigrations()
                 .build();
     }
 
