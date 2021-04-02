@@ -29,10 +29,10 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.stitching.EntitySettingsCollection;
-import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.TopologicalChangelog;
 import com.vmturbo.stitching.TopologicalChangelog.EntityChangesBuilder;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.UnitTestResultBuilder;
 
 @RunWith(Parameterized.class)
@@ -41,10 +41,7 @@ public class StorageLatencyPostStitchingOpTest {
     @Parameters
     public static Collection<Object[]> data() {
         return Arrays.asList(new Object[][] {
-                {new StorageLatencyPostStitchingOperation.DiskArrayLatencyPostStitchingOperation()},
-                {new StorageLatencyPostStitchingOperation.LogicalPoolLatencyPostStitchingOperation()},
-                {new StorageLatencyPostStitchingOperation.StorageControllerLatencyPostStitchingOperation()},
-                {new StorageLatencyPostStitchingOperation.StorageEntityLatencyPostStitchingOperation()}
+                {new StorageLatencyPostStitchingOperation()}
         });
     }
 

@@ -92,9 +92,11 @@ public class PercentileEditor extends
     private static final Logger logger = LogManager.getLogger();
     // certain sold commodities should have percentile calculated from real-time points
     // even if dedicated percentile utilizations are absent in the mediation
-    private static final Set<CommodityType> REQUIRED_SOLD_COMMODITY_TYPES = Sets.immutableEnumSet(
-                    CommodityDTO.CommodityType.VCPU,
-                    CommodityDTO.CommodityType.VMEM);
+    // map of commodity type that should have percentile to entity types that sell (add unknown for any)
+    private static final Map<CommodityType, Set<EntityType>> REQUIRED_SOLD_COMMODITY_TYPES =
+                    ImmutableMap.of(CommodityType.VCPU, Collections.singleton(EntityType.UNKNOWN),
+                                    CommodityType.VMEM, Collections.singleton(EntityType.UNKNOWN),
+                                    CommodityType.STORAGE_ACCESS, Collections.singleton(EntityType.VIRTUAL_VOLUME));
     // percentile on a bought commodity will not add up unless there is no more than one
     // consumer per provider, so only certain commodity types are applicable
     private static final Set<CommodityType> ENABLED_BOUGHT_COMMODITY_TYPES =
@@ -213,8 +215,16 @@ public class PercentileEditor extends
     @Override
     public boolean isCommodityApplicable(TopologyEntity entity,
                                          TopologyDTO.CommoditySoldDTO.Builder commSold) {
-        return commSold.hasUtilizationData() || REQUIRED_SOLD_COMMODITY_TYPES
-                        .contains(CommodityType.forNumber(commSold.getCommodityType().getType()));
+        if (commSold.hasUtilizationData()) {
+            return true;
+        }
+        Set<EntityType> allowedTypes = REQUIRED_SOLD_COMMODITY_TYPES
+                        .get(CommodityType.forNumber(commSold.getCommodityType().getType()));
+        if (allowedTypes == null) {
+            return false;
+        }
+        return allowedTypes.contains(EntityType.UNKNOWN)
+                        || allowedTypes.contains(EntityType.forNumber(entity.getEntityType()));
     }
 
     @Override
