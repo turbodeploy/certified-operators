@@ -40,6 +40,9 @@ import com.vmturbo.topology.event.library.TopologyEventProvider.TopologyEventFil
 import com.vmturbo.topology.event.library.TopologyEvents;
 import com.vmturbo.topology.event.library.TopologyEvents.TopologyEventLedger;
 
+/**
+ * Tests for the topology events poller.
+ */
 public class TopologyEventsPollerTest {
     private EntityEventsJournal store;
     private TopologyEventsPoller tep;
@@ -54,10 +57,15 @@ public class TopologyEventsPollerTest {
 
     private final Long realTimeTopologyContextId = 777777L;
 
+    /**
+     * Pre-test setup.
+     *
+     * @throws IOException when something goes wrong.
+     */
     @Before
     public void setup() throws IOException {
         store = new InMemoryEntityEventsJournal();
-        tep = new TopologyEventsPoller(topologyEventProvider, topologyInfoTracker, store);
+        tep = new TopologyEventsPoller(topologyEventProvider, topologyInfoTracker, store, 0L, 0L);
     }
 
     /**
