@@ -4,6 +4,7 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
@@ -14,6 +15,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -1047,6 +1049,38 @@ public class TopologyEditorTest {
         Assert.assertEquals(USED, storageSoldCommodities.get(1).getUsed(), 0);
     }
 
+    /**
+     * Test remove VMs which exist in a group but not in the system.
+     * */
+    @Test
+    public void testRemoveNonExistentVMFromVMGroup() throws Exception {
+        final long groupId = 1L;
+        final long existVmId = 2L;
+        final Grouping group = Grouping.newBuilder()
+                .setDefinition(GroupDefinition.getDefaultInstance())
+                .setId(groupId)
+                .build();
+        final TopologyEntity.Builder existEntity = TopologyEntityUtils
+                .topologyEntity(existVmId, 0, 0, "ExistVM", EntityType.VIRTUAL_MACHINE);
+        final Map<Long, TopologyEntity.Builder> topology = new HashMap<>();
+        topology.put(existVmId, existEntity);
+
+        final List<ScenarioChange> changes = Collections.singletonList(ScenarioChange.newBuilder()
+                .setTopologyRemoval(TopologyRemoval.newBuilder().setGroupId(groupId)
+                        .setTargetEntityType(10))
+                .build());
+        final long nonExistVmId = 3L;
+        when(groupServiceSpy.getGroups(any())).thenReturn(Collections.singletonList(group));
+        ResolvedGroup resolvedGrp = new ResolvedGroup(group, Collections.singletonMap(
+                ApiEntityType.VIRTUAL_MACHINE, new HashSet(Arrays.asList(existVmId, nonExistVmId))));
+        when(groupResolver.resolve(eq(group), isA(TopologyGraph.class))).thenReturn(resolvedGrp);
+        topologyEditor.editTopology(topology, changes, context, groupResolver, sourceEntities, destinationEntities);
+
+        TopologyEntity.Builder vmToRemove = topology.get(existVmId);
+        assertTrue(vmToRemove.getEntityBuilder().hasEdit()
+                && vmToRemove.getEntityBuilder().getEdit().hasRemoved());
+        assertNull(topology.get(nonExistVmId));
+    }
 
     @Test
     public void testTopologyReplace() throws Exception {
