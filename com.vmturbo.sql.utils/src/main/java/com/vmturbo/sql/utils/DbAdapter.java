@@ -54,7 +54,7 @@ public abstract class DbAdapter {
             performProvisioning();
         }
         if (!Strings.isNullOrEmpty(config.getMigrationLocations())) {
-            if (config.getShouldProvisionDatabase() && config.getAccess().isWriteAccess()) {
+            if (config.getAccess().isWriteAccess()) {
                 // perform migrations if we have provisioning responsibilities
                 performMigrations();
             } else {
@@ -108,6 +108,7 @@ public abstract class DbAdapter {
                     getDataSource(),
                     config.getFlywayCallbacks()
             ).migrate();
+            logger.info("Completed migrations for endpoint {}", config);
         }
     }
 
@@ -120,6 +121,7 @@ public abstract class DbAdapter {
                     getRootDataSource(),
                     config.getFlywayCallbacks()
             ).validate();
+            logger.info("Validated migrations for endpoint {}", config);
         }
     }
 
