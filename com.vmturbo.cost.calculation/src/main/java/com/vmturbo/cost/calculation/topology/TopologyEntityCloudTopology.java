@@ -313,13 +313,13 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
     }
 
     @Override
-    public Set<TopologyEntityDTO> getAggregated(long entityId) {
+    public Set<TopologyEntityDTO> getAggregated(long entityId, Set<Integer> entityTypes) {
         return aggregatedBy.getOrDefault(entityId, Collections.emptySet()).stream().map(this::getEntity)
-                .flatMap(e -> e.isPresent() ? Stream.of(e.get()) : Stream.empty()).collect(Collectors.toSet());
+                .flatMap(e -> e.isPresent() ? Stream.of(e.get()) : Stream.empty()).filter(s -> entityTypes.contains(s.getEntityType())).collect(Collectors.toSet());
     }
 
     @Override
-    public Set<TopologyEntityDTO> getRegionFromServiceProvider(long entityId) {
+    public Set<TopologyEntityDTO> getRegionsFromServiceProvider(long entityId) {
         Optional<TopologyEntityDTO> serviceProvider = getEntity(entityId);
         return serviceProvider.map(TopologyEntityDTO::getConnectedEntityListList).orElse(Collections.emptyList())
                 .stream().filter(connectedEntity -> connectedEntity.getConnectedEntityType() == EntityType.REGION_VALUE)

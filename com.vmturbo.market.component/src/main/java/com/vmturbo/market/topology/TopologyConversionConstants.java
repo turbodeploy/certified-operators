@@ -91,6 +91,11 @@ public class TopologyConversionConstants {
     public static final float FLOAT_COMPARISON_DELTA = 0.0001f;
 
     /**
+     * A set of cloud tier types.
+     */
+    public static final Set<Integer> cloudTierTypes = ImmutableSet.of(EntityType.COMPUTE_TIER_VALUE, EntityType.STORAGE_TIER_VALUE, EntityType.DATABASE_TIER_VALUE, EntityType.DATABASE_SERVER_TIER_VALUE);
+
+    /**
      * These are the commodities for which utlizations are analysed at multiple time slots.
      */
     public static final Set<Integer> TIMESLOT_COMMODITIES =
