@@ -17,6 +17,7 @@ import com.google.common.collect.ImmutableSet;
 import com.vmturbo.api.conversion.entity.CommodityTypeMapping;
 import com.vmturbo.api.dto.searchquery.AggregateCommodityFieldApiDTO.Aggregation;
 import com.vmturbo.api.dto.searchquery.CommodityFieldApiDTO.CommodityAttribute;
+import com.vmturbo.api.dto.searchquery.FieldApiDTO;
 import com.vmturbo.api.dto.searchquery.FieldValueApiDTO.Type;
 import com.vmturbo.api.dto.searchquery.MemberFieldApiDTO;
 import com.vmturbo.api.dto.searchquery.MemberFieldApiDTO.Property;
