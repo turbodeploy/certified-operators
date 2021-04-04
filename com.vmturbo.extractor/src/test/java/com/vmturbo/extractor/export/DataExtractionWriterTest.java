@@ -36,6 +36,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -49,6 +50,13 @@ import org.junit.Test;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
+import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
+import com.vmturbo.common.protobuf.group.GroupDTO.Origin.Discovered;
+import com.vmturbo.common.protobuf.group.GroupDTO.Origin.Type;
+import com.vmturbo.common.protobuf.group.GroupDTO.Origin.User;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -58,6 +66,7 @@ import com.vmturbo.extractor.schema.enums.EntityType;
 import com.vmturbo.extractor.schema.enums.MetricType;
 import com.vmturbo.extractor.schema.json.export.Entity;
 import com.vmturbo.extractor.schema.json.export.ExportedObject;
+import com.vmturbo.extractor.schema.json.export.Group;
 import com.vmturbo.extractor.schema.json.export.RelatedEntity;
 import com.vmturbo.extractor.search.EnumUtils.EntityStateUtils;
 import com.vmturbo.extractor.search.EnumUtils.EnvironmentTypeUtils;
@@ -67,6 +76,7 @@ import com.vmturbo.extractor.topology.fetcher.GroupFetcher.GroupData;
 import com.vmturbo.extractor.topology.fetcher.SupplyChainFetcher.SupplyChain;
 import com.vmturbo.extractor.util.ExtractorTestUtil;
 import com.vmturbo.extractor.util.TopologyTestUtil;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.topology.graph.TopologyGraph;
@@ -98,7 +108,7 @@ public class DataExtractionWriterTest {
     private final ExtractorKafkaSender extractorKafkaSender = mock(ExtractorKafkaSender.class);
     private final DataExtractionFactory dataExtractionFactory = new DataExtractionFactory();
     private DataExtractionWriter writer;
-    private List<Entity> entitiesCapture;
+    private List<ExportedObject> exportedObjectsCapture;
 
     /**
      * Setup before each test.
@@ -111,14 +121,12 @@ public class DataExtractionWriterTest {
         when(dataProvider.getSupplyChain()).thenReturn(supplyChain);
         when(dataProvider.getGroupData()).thenReturn(groupData);
         when(dataProvider.getTopologyGraph()).thenReturn(topologyGraph);
-        // capture entities sent to kafka
-        this.entitiesCapture = new ArrayList<>();
+        // capture objects sent to kafka
+        this.exportedObjectsCapture = new ArrayList<>();
         doAnswer(inv -> {
             Collection<ExportedObject> exportedObjects = inv.getArgumentAt(0, Collection.class);
             if (exportedObjects != null) {
-                entitiesCapture.addAll(exportedObjects.stream()
-                        .map(ExportedObject::getEntity)
-                        .collect(Collectors.toList()));
+                exportedObjectsCapture.addAll(exportedObjects);
             }
             return null;
         }).when(extractorKafkaSender).send(any());
@@ -189,19 +197,23 @@ public class DataExtractionWriterTest {
 
         // mock supply chain
         doReturn(ImmutableMap.of(
+                VIRTUAL_MACHINE.getNumber(), ImmutableSet.of(vm.getOid()),
                 STORAGE.getNumber(), ImmutableSet.of(st1.getOid(), st2.getOid()),
                 PHYSICAL_MACHINE.getNumber(), ImmutableSet.of(pm.getOid()))
         ).when(supplyChain).getRelatedEntities(vm.getOid());
         doReturn(ImmutableMap.of(
                 STORAGE.getNumber(), ImmutableSet.of(st1.getOid()),
-                VIRTUAL_MACHINE.getNumber(), ImmutableSet.of(vm.getOid()))
+                VIRTUAL_MACHINE.getNumber(), ImmutableSet.of(vm.getOid()),
+                PHYSICAL_MACHINE.getNumber(), ImmutableSet.of(pm.getOid()))
         ).when(supplyChain).getRelatedEntities(pm.getOid());
         doReturn(ImmutableMap.of(
                 VIRTUAL_MACHINE.getNumber(), ImmutableSet.of(vm.getOid()),
-                PHYSICAL_MACHINE.getNumber(), ImmutableSet.of(pm.getOid()))
+                PHYSICAL_MACHINE.getNumber(), ImmutableSet.of(pm.getOid()),
+                STORAGE.getNumber(), ImmutableSet.of(st1.getOid()))
         ).when(supplyChain).getRelatedEntities(st1.getOid());
         doReturn(ImmutableMap.of(
-                VIRTUAL_MACHINE.getNumber(), ImmutableSet.of(vm.getOid()))
+                VIRTUAL_MACHINE.getNumber(), ImmutableSet.of(vm.getOid()),
+                STORAGE.getNumber(), ImmutableSet.of(st2.getOid()))
         ).when(supplyChain).getRelatedEntities(st2.getOid());
         // mock graph
         doReturn(Optional.of(new SupplyChainEntity(vm))).when(topologyGraph).getEntity(vm.getOid());
@@ -209,10 +221,10 @@ public class DataExtractionWriterTest {
         doReturn(Optional.of(new SupplyChainEntity(st1))).when(topologyGraph).getEntity(st1.getOid());
         doReturn(Optional.of(new SupplyChainEntity(st2))).when(topologyGraph).getEntity(st2.getOid());
         // mock group
-        doReturn(ImmutableList.of(CLUSTER1)).when(groupData).getGroupsForEntity(vm.getOid());
         doReturn(ImmutableList.of(CLUSTER1)).when(groupData).getGroupsForEntity(pm.getOid());
         doReturn(ImmutableList.of(STORAGE_CLUSTER1)).when(groupData).getGroupsForEntity(st1.getOid());
         doReturn(ImmutableList.of(STORAGE_CLUSTER1)).when(groupData).getGroupsForEntity(st2.getOid());
+        doReturn(Stream.empty()).when(dataProvider).getAllGroups();
 
         // write all entities
         writer.writeEntity(vm);
@@ -222,9 +234,10 @@ public class DataExtractionWriterTest {
         writer.finish(dataProvider);
 
         // verify 4 entities are sent to kafka
-        assertThat(entitiesCapture.size(), is(4));
+        assertThat(exportedObjectsCapture.size(), is(4));
 
-        final Map<Long, Entity> entityMap = entitiesCapture.stream()
+        final Map<Long, Entity> entityMap = exportedObjectsCapture.stream()
+                .map(ExportedObject::getEntity)
                 .collect(Collectors.toMap(Entity::getOid, e -> e));
         final Entity vmEntity = entityMap.get(vm.getOid());
         final Entity pmEntity = entityMap.get(pm.getOid());
@@ -342,6 +355,85 @@ public class DataExtractionWriterTest {
     }
 
     /**
+     * Test that groups data are extracted correctly.
+     */
+    @Test
+    public void testGroupExtraction() {
+        final long clusterId = 12341;
+        final long userGroupId = 12342;
+        final long billingFamilyId = 12343;
+
+        final Grouping cluster = Grouping.newBuilder()
+                .setId(clusterId)
+                .setDefinition(GroupDefinition.newBuilder()
+                        .setType(GroupType.COMPUTE_HOST_CLUSTER)
+                        .setDisplayName(String.valueOf(clusterId))
+                        .setStaticGroupMembers(StaticMembers.newBuilder()
+                                .addMembersByType(StaticMembersByType.newBuilder().setType(
+                                        MemberType.newBuilder().setEntity(EntityDTO.EntityType.PHYSICAL_MACHINE_VALUE)))))
+                .setOrigin(Origin.newBuilder().setDiscovered(Discovered.getDefaultInstance()))
+                .build();
+        final Grouping userGroup = Grouping.newBuilder()
+                .setId(userGroupId)
+                .setDefinition(GroupDefinition.newBuilder()
+                        .setType(GroupType.REGULAR)
+                        .setDisplayName(String.valueOf(userGroupId))
+                        .setStaticGroupMembers(StaticMembers.newBuilder()
+                                .addMembersByType(StaticMembersByType.newBuilder().setType(
+                                        MemberType.newBuilder().setEntity(EntityDTO.EntityType.VIRTUAL_MACHINE_VALUE)))))
+                .setOrigin(Origin.newBuilder().setUser(User.getDefaultInstance()))
+                .build();
+        final Grouping billingFamily = Grouping.newBuilder()
+                .setId(billingFamilyId)
+                .setDefinition(GroupDefinition.newBuilder()
+                        .setType(GroupType.BILLING_FAMILY)
+                        .setDisplayName(String.valueOf(billingFamilyId))
+                        .setStaticGroupMembers(StaticMembers.newBuilder()
+                                .addMembersByType(StaticMembersByType.newBuilder().setType(
+                                        MemberType.newBuilder().setEntity(EntityDTO.EntityType.BUSINESS_ACCOUNT_VALUE)))))
+                .setOrigin(Origin.newBuilder().setDiscovered(Discovered.getDefaultInstance()))
+                .build();
+        when(dataProvider.getAllGroups()).thenReturn(Stream.of(cluster, userGroup, billingFamily));
+
+        // write
+        writer.finish(dataProvider);
+
+        // verify
+        assertThat(exportedObjectsCapture.size(), is(3));
+
+        final Map<Long, Group> groupMap = exportedObjectsCapture.stream()
+                .map(ExportedObject::getGroup)
+                .collect(Collectors.toMap(Group::getOid, e -> e));
+        final Group clusterExport = groupMap.get(clusterId);
+        final Group userGroupExport = groupMap.get(userGroupId);
+        final Group billingFamilyExport = groupMap.get(billingFamilyId);
+
+        assertThat(clusterExport.getName(), is(String.valueOf(clusterId)));
+        assertThat(clusterExport.getType(), is(EntityType.COMPUTE_CLUSTER.getLiteral()));
+        Map<String, Object> attrs = clusterExport.getAttrs();
+        assertThat(attrs.size(), is(3));
+        assertThat(attrs.get("origin"), is(Type.DISCOVERED.name()));
+        assertThat(attrs.get("dynamic"), is(false));
+        assertThat(attrs.get("member_types"), is(Lists.newArrayList(EntityType.PHYSICAL_MACHINE.getLiteral())));
+
+        assertThat(userGroupExport.getName(), is(String.valueOf(userGroupId)));
+        assertThat(userGroupExport.getType(), is(EntityType.GROUP.getLiteral()));
+        attrs = userGroupExport.getAttrs();
+        assertThat(attrs.size(), is(3));
+        assertThat(attrs.get("origin"), is(Type.USER.name()));
+        assertThat(attrs.get("dynamic"), is(false));
+        assertThat(attrs.get("member_types"), is(Lists.newArrayList(EntityType.VIRTUAL_MACHINE.getLiteral())));
+
+        assertThat(billingFamilyExport.getName(), is(String.valueOf(billingFamilyId)));
+        assertThat(billingFamilyExport.getType(), is(EntityType.BILLING_FAMILY.getLiteral()));
+        attrs = billingFamilyExport.getAttrs();
+        assertThat(attrs.size(), is(3));
+        assertThat(attrs.get("origin"), is(Type.DISCOVERED.name()));
+        assertThat(attrs.get("dynamic"), is(false));
+        assertThat(attrs.get("member_types"), is(Lists.newArrayList(EntityType.BUSINESS_ACCOUNT.getLiteral())));
+    }
+
+    /**
      * Verify that power/cooling commodities are exported.
      */
     @Test
@@ -360,6 +452,7 @@ public class DataExtractionWriterTest {
         // mock graph
         doReturn(Optional.of(new SupplyChainEntity(chassis))).when(topologyGraph).getEntity(chassis.getOid());
         doReturn(Optional.of(new SupplyChainEntity(pm))).when(topologyGraph).getEntity(pm.getOid());
+        doReturn(Stream.empty()).when(dataProvider).getAllGroups();
 
         // write all entities
         writer.writeEntity(chassis);
@@ -367,9 +460,10 @@ public class DataExtractionWriterTest {
         writer.finish(dataProvider);
 
         // verify 2 entities are sent to kafka
-        assertThat(entitiesCapture.size(), is(2));
+        assertThat(exportedObjectsCapture.size(), is(2));
 
-        final Map<Long, Entity> entityMap = entitiesCapture.stream()
+        final Map<Long, Entity> entityMap = exportedObjectsCapture.stream()
+                .map(ExportedObject::getEntity)
                 .collect(Collectors.toMap(Entity::getOid, e -> e));
         final Entity chassisEntity = entityMap.get(chassis.getOid());
         final Entity pmEntity = entityMap.get(pm.getOid());
