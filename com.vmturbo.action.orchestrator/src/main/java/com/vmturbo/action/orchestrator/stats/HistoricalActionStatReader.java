@@ -304,19 +304,13 @@ public class HistoricalActionStatReader {
                         });
                         break;
                     case ACTION_RELATED_RISK:
-                        final Map<String, List<Collection<RolledUpActionGroupStat>>> statsByRelatedRisk = new HashMap<>();
-                        statsByGroupAndMu.entrySet().stream()
-                            // do not include those with empty risk, since they are old
-                            // stats before risk column is added
-                            .filter(entry -> !entry.getKey().key().getActionRelatedRisk().isEmpty())
-                            .forEach(e -> {
-                                final ActionGroup ag = e.getKey();
-                                final Collection<RolledUpActionGroupStat> rolledUpStats = e.getValue().values();
-                                ag.key().getActionRelatedRisk().forEach(risk -> {
-                                    statsByRelatedRisk.computeIfAbsent(risk, k -> new ArrayList<>())
-                                        .add(rolledUpStats);
-                                });
-                            });
+                        final Map<String, List<Collection<RolledUpActionGroupStat>>> statsByRelatedRisk =
+                                statsByGroupAndMu.entrySet().stream()
+                                        // do not include those with empty risk, since they are old
+                                        // stats before risk column is added
+                                        .filter(entry -> StringUtils.isNotEmpty(entry.getKey().key().getActionRelatedRisk()))
+                                        .collect(Collectors.groupingBy(ag -> ag.getKey().key().getActionRelatedRisk(),
+                                                Collectors.mapping(e -> e.getValue().values(), Collectors.toList())));
                         statsByRelatedRisk.forEach((distinctRisk, statsForAllMu) -> {
                             final GroupByBucketKey bucketKey = ImmutableGroupByBucketKey.builder()
                                     .relatedRisk(distinctRisk)

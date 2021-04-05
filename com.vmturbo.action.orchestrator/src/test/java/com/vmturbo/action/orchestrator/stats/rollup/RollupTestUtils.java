@@ -11,7 +11,6 @@ import java.time.temporal.ChronoUnit;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.codec.digest.DigestUtils;
 import org.jooq.DSLContext;
 import org.jooq.Record;
 import org.jooq.UpdatableRecord;
@@ -22,7 +21,6 @@ import com.vmturbo.action.orchestrator.db.tables.records.ActionSnapshotHourRecor
 import com.vmturbo.action.orchestrator.db.tables.records.ActionSnapshotLatestRecord;
 import com.vmturbo.action.orchestrator.db.tables.records.ActionStatsLatestRecord;
 import com.vmturbo.action.orchestrator.db.tables.records.MgmtUnitSubgroupRecord;
-import com.vmturbo.action.orchestrator.db.tables.records.RelatedRiskDescriptionRecord;
 import com.vmturbo.action.orchestrator.db.tables.records.RelatedRiskForActionRecord;
 import com.vmturbo.action.orchestrator.stats.rollup.BaseActionStatTableReader.StatWithSnapshotCnt;
 
@@ -77,16 +75,9 @@ public class RollupTestUtils {
     public void insertActionGroup(final int actionGroupId) {
         final RelatedRiskForActionRecord relatedRiskForActionRecord = new RelatedRiskForActionRecord();
         relatedRiskForActionRecord.setId(1);
-        relatedRiskForActionRecord.setChecksum(DigestUtils.md5Hex("Mem congestion"));
+        relatedRiskForActionRecord.setRiskDescription("Mem congestion");
         dsl.insertInto(Tables.RELATED_RISK_FOR_ACTION)
                 .set(relatedRiskForActionRecord)
-                .onDuplicateKeyIgnore()
-                .execute();
-        final RelatedRiskDescriptionRecord relatedRiskDescriptionsRecord = new RelatedRiskDescriptionRecord();
-        relatedRiskDescriptionsRecord.setId(1);
-        relatedRiskDescriptionsRecord.setRiskDescription("Mem congestion");
-        dsl.insertInto(Tables.RELATED_RISK_DESCRIPTION)
-                .set(relatedRiskDescriptionsRecord)
                 .onDuplicateKeyIgnore()
                 .execute();
         final ActionGroupRecord actionGroupRecord = new ActionGroupRecord();

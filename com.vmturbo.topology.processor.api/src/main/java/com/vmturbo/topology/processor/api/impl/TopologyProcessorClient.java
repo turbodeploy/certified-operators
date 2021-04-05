@@ -169,12 +169,6 @@ public class TopologyProcessorClient extends
 
     @Override
     @Nonnull
-    public Set<ITargetHealthInfo> getAllTargetsHealth() throws CommunicationException {
-        return Collections.unmodifiableSet(restClient.getAllTargetsHealth());
-    }
-
-    @Override
-    @Nonnull
     public ValidationStatus validateTarget(final long targetId) throws CommunicationException,
                     TopologyProcessorException, InterruptedException {
         return restClient.validateTarget(targetId);

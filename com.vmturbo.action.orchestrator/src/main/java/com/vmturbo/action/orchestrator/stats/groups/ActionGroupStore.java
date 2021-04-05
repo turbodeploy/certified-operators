@@ -5,32 +5,30 @@ import static com.vmturbo.action.orchestrator.db.tables.RelatedRiskForAction.REL
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.codec.digest.DigestUtils;
+import com.google.common.collect.Maps;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.immutables.value.Value;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
-import org.jooq.Insert;
-import org.jooq.Record7;
+import org.jooq.Record2;
+import org.jooq.Record6;
 import org.jooq.impl.DSL;
 
-import com.vmturbo.action.orchestrator.db.Tables;
 import com.vmturbo.action.orchestrator.db.tables.records.ActionGroupRecord;
-import com.vmturbo.action.orchestrator.db.tables.records.RelatedRiskDescriptionRecord;
+import com.vmturbo.action.orchestrator.db.tables.records.RelatedRiskForActionRecord;
 import com.vmturbo.action.orchestrator.stats.groups.ActionGroup.ActionGroupKey;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
@@ -49,11 +47,6 @@ public class ActionGroupStore {
 
     private final DSLContext dsl;
 
-    /**
-     * Public constructor.
-     *
-     * @param dsl The {@link DSLContext}.
-     */
     public ActionGroupStore(@Nonnull final DSLContext dsl) {
         this.dsl = Objects.requireNonNull(dsl);
     }
@@ -82,7 +75,9 @@ public class ActionGroupStore {
         return dsl.transactionResult(transactionContext -> {
             final DSLContext transactionDsl = DSL.using(transactionContext);
             // ensure all related risks exist and get the mapping from risk string to id
-            final Map<ActionGroupKey, Integer> riskToId = ensureRelatedRisksExist(keys, transactionDsl);
+            final Map<String, Integer> riskToId = ensureRelatedRisksExist(keys.stream()
+                    .map(ActionGroupKey::getActionRelatedRisk)
+                    .collect(Collectors.toSet()), transactionDsl);
 
             final int[] inserted = transactionDsl.batch(keys.stream()
                     .map(key -> transactionDsl.insertInto(ACTION_GROUP)
@@ -95,103 +90,62 @@ public class ActionGroupStore {
                 logger.info("Inserted {} action groups.", insertedSum);
             }
 
-            final Map<Integer, ActionGroup> allActionGroups = getActionGroups(transactionDsl, Collections.emptyList());
+            // join with risk table and get string value of risk
+            final Map<ActionGroupKey, ActionGroup> allExistingActionGroups = transactionDsl.select(
+                    ACTION_GROUP.ID, ACTION_GROUP.ACTION_TYPE, ACTION_GROUP.ACTION_CATEGORY,
+                    ACTION_GROUP.ACTION_MODE, ACTION_GROUP.ACTION_STATE,
+                    RELATED_RISK_FOR_ACTION.RISK_DESCRIPTION)
+                    .from(ACTION_GROUP)
+                    .innerJoin(RELATED_RISK_FOR_ACTION)
+                    .on(ACTION_GROUP.ACTION_RELATED_RISK.eq(RELATED_RISK_FOR_ACTION.ID))
+                    .fetch()
+                    .stream()
+                    .map(this::recordToGroup)
+                    .filter(Optional::isPresent)
+                    .map(Optional::get)
+                    .collect(Collectors.toMap(ActionGroup::key, Function.identity()));
 
-            logger.debug("A total of {} action groups now exist.", allActionGroups);
+            logger.debug("A total of {} action groups now exist.", allExistingActionGroups);
 
-            final Map<ActionGroupKey, ActionGroup> result = new HashMap<>(keys.size());
-            allActionGroups.forEach((id, group) -> {
-                if (keys.contains(group.key())) {
-                    result.put(group.key(), group);
-                }
-            });
-
-            return result;
+            return Maps.filterKeys(allExistingActionGroups, keys::contains);
         });
     }
 
     /**
      * Ensures that the related risk description provided exists in the related_risk_for_action
-     * and related_risk_description tables.
+     * table in the database, and returns the id of the corresponding record. If there is no such
+     * string in the table, it creates a new record.
      *
-     * @param keys The {@link ActionGroupKey}s.
+     * <p>The records are in the form <id, String>. We store the risk descriptions in a different
+     * table since they might be repeated many times in the action_group table, so we save space by
+     * moving them to a separate table and storing just integers in action_group records.
+     *
+     * @param relatedRisks a set of strings representing the risk description
      * @param transactionDsl the transactional dsl to use for inserting
-     * @return map from {@link ActionGroupKey} to the id automatically assigned by db.
+     * @return map from risk string to the id automatically assigned by db
      */
-    private Map<ActionGroupKey, Integer> ensureRelatedRisksExist(@Nonnull Set<ActionGroupKey> keys,
+    private Map<String, Integer> ensureRelatedRisksExist(@Nonnull Set<String> relatedRisks,
             @Nonnull DSLContext transactionDsl) {
-        final Map<String, Set<ActionGroupKey>> keysByCombinedRiskHash = new HashMap<>();
-        final Map<String, Set<String>> risksByHash = new HashMap<>();
-        keys.forEach(key -> {
-            // Do not change the combination of risks into a single string without an associated
-            // database migration!
-            final String combinedRisks = key.getActionRelatedRisk().stream()
-                // Important, because the subsequent hash is order-dependent.
-                .sorted()
-                .collect(Collectors.joining(","));
-            final String combinedRiskHash = DigestUtils.md5Hex(combinedRisks);
-            keysByCombinedRiskHash.computeIfAbsent(combinedRiskHash, r -> new HashSet<>())
-                    .add(key);
-            risksByHash.put(combinedRiskHash, key.getActionRelatedRisk());
-        });
-
-        // The list of hashes should be in the same order that the subsequent array of
-        // modified row counts.
-        final List<String> insertedHashes = new ArrayList<>(keysByCombinedRiskHash.size());
-        int[] inserted = transactionDsl.batch(keysByCombinedRiskHash.keySet().stream()
-            .peek(insertedHashes::add)
-            .map(combinedRisksHash -> {
-                return transactionDsl.insertInto(RELATED_RISK_FOR_ACTION)
-                    .set(RELATED_RISK_FOR_ACTION.CHECKSUM, combinedRisksHash)
-                    .onDuplicateKeyIgnore();
-            }).collect(Collectors.toList())).execute();
-
-        // To figure out which risks are newly added we look at which insertions caused a row
-        // to be modified.
-        final Set<String> newRisks = new HashSet<>();
-        for (int i = 0; i < inserted.length && i < insertedHashes.size(); ++i) {
-            if (inserted[i] > 0) {
-                newRisks.add(insertedHashes.get(i));
-            }
+        int[] inserted = transactionDsl.batch(relatedRisks.stream()
+                .map(risk -> {
+                    RelatedRiskForActionRecord record = new RelatedRiskForActionRecord();
+                    record.setRiskDescription(risk);
+                    return record;
+                })
+                .map(riskRecord -> transactionDsl.insertInto(RELATED_RISK_FOR_ACTION)
+                        .set(riskRecord)
+                        .onDuplicateKeyIgnore())
+                .collect(Collectors.toList()))
+                .execute();
+        if (inserted.length > 0) {
+            logger.info("Inserted {} action risks", inserted.length);
         }
-
-        final Map<ActionGroupKey, Integer> riskIdsByActionGroup = new HashMap<>(keys.size());
-        final List<Insert<RelatedRiskDescriptionRecord>> descriptionInserts = new ArrayList<>();
-        transactionDsl.select(RELATED_RISK_FOR_ACTION.ID, RELATED_RISK_FOR_ACTION.CHECKSUM)
-            .from(RELATED_RISK_FOR_ACTION)
-            .where(RELATED_RISK_FOR_ACTION.CHECKSUM.in(keysByCombinedRiskHash.keySet()))
-            .fetch()
-            .forEach(r -> {
-                Integer riskId = r.value1();
-                String checksum = r.value2();
-                keysByCombinedRiskHash.getOrDefault(checksum, Collections.emptySet())
-                    .forEach(actionGroup -> {
-                        riskIdsByActionGroup.put(actionGroup, riskId);
-                    });
-
-                // If a particular risk is new, we take its ID and make the appropriate inserts into
-                // the related_risk_description table. We make the inserts in this roundabout way
-                // because the "insert" into related_risk_for_action above doesn't return the ID.
-                if (newRisks.contains(checksum)) {
-                    risksByHash.getOrDefault(checksum, Collections.emptySet()).forEach(riskInSet -> {
-                        descriptionInserts.add(transactionDsl.insertInto(Tables.RELATED_RISK_DESCRIPTION)
-                                .set(Tables.RELATED_RISK_DESCRIPTION.ID, riskId)
-                                .set(Tables.RELATED_RISK_DESCRIPTION.RISK_DESCRIPTION, riskInSet));
-                    });
-                }
-            });
-
-        if (!descriptionInserts.isEmpty()) {
-            // Insert the descriptions for any new risk sets.
-            transactionDsl.batch(descriptionInserts).execute();
-        }
-
-        if (keys.size() != riskIdsByActionGroup.size()) {
-            logger.error("Some action group keys do not have assigned risk ids: {}", keys.stream()
-                .filter(k -> !riskIdsByActionGroup.containsKey(k))
-                .collect(Collectors.toList()));
-        }
-        return riskIdsByActionGroup;
+        return transactionDsl.select(RELATED_RISK_FOR_ACTION.ID, RELATED_RISK_FOR_ACTION.RISK_DESCRIPTION)
+                .from(RELATED_RISK_FOR_ACTION)
+                .where(RELATED_RISK_FOR_ACTION.RISK_DESCRIPTION.in(relatedRisks))
+                .fetch()
+                .stream()
+                .collect(Collectors.toMap(Record2::value2, Record2::value1));
     }
 
     /**
@@ -202,10 +156,9 @@ public class ActionGroupStore {
      * @return optional {@link ActionGroup}
      */
     @Nonnull
-    private ImmutableActionGroupKey.Builder getKeyBuilder(
-            @Nonnull final Record7<Integer, Short, Short, Short, Short, Integer, String> record) {
+    private Optional<ActionGroup> recordToGroup(
+            @Nonnull final Record6<Integer, Short, Short, Short, Short, String> record) {
         final ImmutableActionGroupKey.Builder keyBuilder = ImmutableActionGroupKey.builder();
-
         final ActionCategory actionCategory = ActionCategory.forNumber(record.value3());
         if (actionCategory != null) {
             keyBuilder.category(actionCategory);
@@ -234,12 +187,30 @@ public class ActionGroupStore {
             logger.error("Invalid action state {} in database record.", record.value5());
         }
 
-        return keyBuilder;
+        // if risk is null, it means it's an action group record that existed before the
+        // action_risk column is added. It's only used for historical action stats before the
+        // action_risk column is added; all new actions stats will use new ActionGroupKey.
+        keyBuilder.actionRelatedRisk(record.value6() != null
+                ? record.value6()
+                // Use a default related risk string for action group records that existed before
+                // the action_risk column was added to the database.
+                : "N/A for actions executed with version 7.22.5 or earlier");
+
+        try {
+            return Optional.of(ImmutableActionGroup.builder()
+                .id(record.value1())
+                .key(keyBuilder.build())
+                .build());
+        } catch (IllegalStateException e) {
+            logger.error("Failed to build group out of database record. Error: {}",
+                    e.getLocalizedMessage());
+            return Optional.empty();
+        }
     }
 
     @Nonnull
     private ActionGroupRecord keyToRecord(@Nonnull final ActionGroupKey key,
-                                          @Nonnull Map<ActionGroupKey, Integer> riskToId) {
+                                          @Nonnull Map<String, Integer> riskToId) {
         ActionGroupRecord record = new ActionGroupRecord();
         // Leave record ID unset - database auto-increment takes care of ID assignment.
 
@@ -247,56 +218,8 @@ public class ActionGroupStore {
         record.setActionMode((short)key.getActionMode().getNumber());
         record.setActionCategory((short)key.getCategory().getNumber());
         record.setActionState((short)key.getActionState().getNumber());
-        record.setActionRelatedRisk(riskToId.get(key));
+        record.setActionRelatedRisk(riskToId.get(key.getActionRelatedRisk()));
         return record;
-    }
-
-    private Map<Integer, ActionGroup> getActionGroups(final DSLContext transactionDsl, final List<Condition> conditions) {
-        // Risk descriptions can come in in multiple rows for actions with more than one risk.
-        final Map<Integer, ImmutableActionGroupKey.Builder> keyBuildersById = new HashMap<>();
-        // The immutable builder has no way to check if the list of risks is empty at the
-        // end.
-        final Map<Integer, Set<String>> risksByRiskId = new HashMap<>();
-        final Map<Integer, Integer> riskIdsByActionGroupId = new HashMap<>();
-        transactionDsl.select(ACTION_GROUP.ID, ACTION_GROUP.ACTION_TYPE, ACTION_GROUP.ACTION_CATEGORY,
-                ACTION_GROUP.ACTION_MODE, ACTION_GROUP.ACTION_STATE,
-                Tables.RELATED_RISK_DESCRIPTION.ID,
-                Tables.RELATED_RISK_DESCRIPTION.RISK_DESCRIPTION)
-                .from(ACTION_GROUP)
-                // left join since groups with null risk are also valid for those stats before
-                // adding risk column
-                .leftJoin(Tables.RELATED_RISK_DESCRIPTION)
-                .on(ACTION_GROUP.ACTION_RELATED_RISK.eq(Tables.RELATED_RISK_DESCRIPTION.ID))
-                .where(conditions).fetch()
-                .forEach(record -> {
-                    Integer actionGroupId = record.value1();
-                    Integer riskId = record.value6();
-                    String riskDescription = record.value7();
-                    riskIdsByActionGroupId.put(actionGroupId, riskId);
-                    risksByRiskId.computeIfAbsent(riskId, k -> new HashSet<>())
-                            .add(riskDescription);
-                    keyBuildersById.computeIfAbsent(actionGroupId, k -> getKeyBuilder(record));
-                });
-
-        final Map<Integer, ActionGroup> matchedActionGroups = new HashMap<>(keyBuildersById.size());
-        keyBuildersById.forEach((actionGroupId, keyBldr) -> {
-            // -1 will never be a value returned from the database.
-            final Integer riskId = riskIdsByActionGroupId.getOrDefault(actionGroupId, -1);
-            Set<String> risks = risksByRiskId.getOrDefault(riskId, Collections.singleton(
-                    // Use a default related risk string for action group records that existed before
-                    // the action_risk column was added to the database.
-                    "N/A for actions executed with version 7.22.5 or earlier"));
-            keyBldr.addAllActionRelatedRisk(risks);
-            try {
-                matchedActionGroups.put(actionGroupId, ImmutableActionGroup.builder()
-                        .id(actionGroupId)
-                        .key(keyBldr.build())
-                        .build());
-            } catch (IllegalStateException e) {
-                logger.error("Failed to build group out of database records", e);
-            }
-        });
-        return matchedActionGroups;
     }
 
     /**
@@ -313,39 +236,52 @@ public class ActionGroupStore {
         if (actionGroupFilter.getActionCategoryCount() > 0) {
             conditions.add(ACTION_GROUP.ACTION_CATEGORY.in(
                 actionGroupFilter.getActionCategoryList().stream()
-                    .map(category -> (short)category.getNumber())
+                    .map(category -> (short) category.getNumber())
                     .toArray(Short[]::new)));
         }
 
         if (actionGroupFilter.getActionModeCount() > 0) {
             conditions.add(ACTION_GROUP.ACTION_MODE.in(
                 actionGroupFilter.getActionModeList().stream()
-                    .map(mode -> (short)mode.getNumber())
+                    .map(mode -> (short) mode.getNumber())
                     .toArray(Short[]::new)));
         }
 
         if (actionGroupFilter.getActionStateCount() > 0) {
             conditions.add(ACTION_GROUP.ACTION_STATE.in(
                 actionGroupFilter.getActionStateList().stream()
-                    .map(state -> (short)state.getNumber())
+                    .map(state -> (short) state.getNumber())
                     .toArray(Short[]::new)));
         }
 
         if (actionGroupFilter.getActionTypeCount() > 0) {
             conditions.add(ACTION_GROUP.ACTION_TYPE.in(
                 actionGroupFilter.getActionTypeList().stream()
-                    .map(type -> (short)type.getNumber())
+                    .map(type -> (short) type.getNumber())
                     .toArray(Short[]::new)));
         }
 
         if (actionGroupFilter.getActionRelatedRiskCount() > 0) {
-            conditions.add(Tables.RELATED_RISK_DESCRIPTION.RISK_DESCRIPTION.in(
+            conditions.add(RELATED_RISK_FOR_ACTION.RISK_DESCRIPTION.in(
                     actionGroupFilter.getActionRelatedRiskList().toArray(new String[0]))
             );
         }
 
         try (DataMetricTimer timer = Metrics.QUERY_HISTOGRAM.startTimer()) {
-            final Map<Integer, ActionGroup> matchedActionGroups = getActionGroups(dsl, conditions);
+            final Map<Integer, ActionGroup> matchedActionGroups = dsl.select(
+                    ACTION_GROUP.ID, ACTION_GROUP.ACTION_TYPE, ACTION_GROUP.ACTION_CATEGORY,
+                    ACTION_GROUP.ACTION_MODE, ACTION_GROUP.ACTION_STATE,
+                    RELATED_RISK_FOR_ACTION.RISK_DESCRIPTION)
+                    .from(ACTION_GROUP)
+                    // left join since groups with null risk are also valid for those stats before
+                    // adding risk column
+                    .leftJoin(RELATED_RISK_FOR_ACTION)
+                    .on(ACTION_GROUP.ACTION_RELATED_RISK.eq(RELATED_RISK_FOR_ACTION.ID))
+                    .where(conditions).fetch().stream()
+                    .map(this::recordToGroup)
+                    .filter(Optional::isPresent)
+                    .map(Optional::get)
+                    .collect(Collectors.toMap(ActionGroup::id, Function.identity()));
             if (matchedActionGroups.isEmpty()) {
                 // There are specific action groups requested, but no such groups are found.
                 return Optional.empty();
@@ -367,23 +303,16 @@ public class ActionGroupStore {
 
         /**
          * If true, indicate that all action groups matched the query.
-         *
-         * @return Whether all action groups matched the query.
          */
         boolean allActionGroups();
 
         /**
          * The action groups that matched the query, arranged by ID.
          * Should not be empty.
-         *
-         * @return (id) -> ({@link ActionGroup})
          */
         Map<Integer, ActionGroup> specificActionGroupsById();
     }
 
-    /**
-     * Metrics for store.
-     */
     static class Metrics {
 
         static final DataMetricHistogram QUERY_HISTOGRAM = DataMetricHistogram.builder()

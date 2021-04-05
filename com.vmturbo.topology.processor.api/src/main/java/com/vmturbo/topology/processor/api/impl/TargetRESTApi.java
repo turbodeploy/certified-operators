@@ -273,25 +273,6 @@ public class TargetRESTApi {
         }
     }
 
-    /**
-     * Response for the request for all targets health.
-     */
-    public static class AllTargetsHealthResponse    {
-        private final List<TargetHealthInfo> targetsHealth;
-
-        public AllTargetsHealthResponse(final List<TargetHealthInfo> targetsHealth)    {
-            this.targetsHealth = targetsHealth;
-        }
-
-        /**
-         * Get the contents of the response.
-         * @return a list of individual targets health objects.
-         */
-        public List<ITargetHealthInfo> getAllTargetsHealth()   {
-            return ImmutableList.copyOf(targetsHealth);
-        }
-    }
-
     public static class TargetHealthInfo implements ITargetHealthInfo {
         private final Long targetId;
         private final String displayName;

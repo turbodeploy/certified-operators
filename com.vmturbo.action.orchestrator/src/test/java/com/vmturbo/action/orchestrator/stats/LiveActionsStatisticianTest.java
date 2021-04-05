@@ -36,7 +36,6 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableMap;
 
-import org.apache.commons.codec.digest.DigestUtils;
 import org.jooq.DSLContext;
 import org.junit.ClassRule;
 import org.junit.Rule;
@@ -51,7 +50,6 @@ import com.vmturbo.action.orchestrator.db.tables.records.ActionGroupRecord;
 import com.vmturbo.action.orchestrator.db.tables.records.ActionSnapshotLatestRecord;
 import com.vmturbo.action.orchestrator.db.tables.records.ActionStatsLatestRecord;
 import com.vmturbo.action.orchestrator.db.tables.records.MgmtUnitSubgroupRecord;
-import com.vmturbo.action.orchestrator.db.tables.records.RelatedRiskDescriptionRecord;
 import com.vmturbo.action.orchestrator.db.tables.records.RelatedRiskForActionRecord;
 import com.vmturbo.action.orchestrator.stats.LiveActionsStatistician.PreviousBroadcastActions;
 import com.vmturbo.action.orchestrator.stats.StatsActionViewFactory.StatsActionView;
@@ -129,9 +127,9 @@ public class LiveActionsStatisticianTest {
         final StatsActionView snapshot1 = statsActionView(actionId1, ActionState.READY);
         final StatsActionView snapshot2 = statsActionView(actionId2, ActionState.READY);
         final StatsActionView snapshot3 = statsActionView(actionId3, ActionState.READY);
-        when(snapshotFactory.newStatsActionView(eq(action1))).thenReturn(snapshot1);
-        when(snapshotFactory.newStatsActionView(eq(action2))).thenReturn(snapshot2);
-        when(snapshotFactory.newStatsActionView(eq(action3))).thenReturn(snapshot3);
+        when(snapshotFactory.newStatsActionView(eq(action1))).thenAnswer(invocation -> Stream.of(snapshot1));
+        when(snapshotFactory.newStatsActionView(eq(action2))).thenAnswer(invocation -> Stream.of(snapshot2));
+        when(snapshotFactory.newStatsActionView(eq(action3))).thenAnswer(invocation -> Stream.of(snapshot3));
 
         final ActionAggregator aggregator = spy(new ActionAggregator(LocalDateTime.now(clock)) {
             @Override
@@ -239,7 +237,7 @@ public class LiveActionsStatisticianTest {
         // action1 and action2 are still the same. ActionState of action3 is changed to SUCCEED.
         // action3 will be considered as a new action.
         final StatsActionView snapshot4 = statsActionView(12, ActionState.SUCCEEDED);
-        when(snapshotFactory.newStatsActionView(eq(action3))).thenReturn(snapshot4);
+        when(snapshotFactory.newStatsActionView(eq(action3))).thenReturn(Stream.of(snapshot4));
 
         assertFalse(aggregator.actionIsNew(snapshot1, statistician.getPreviousBroadcastActions()));
         assertFalse(aggregator.actionIsNew(snapshot2, statistician.getPreviousBroadcastActions()));
@@ -266,7 +264,7 @@ public class LiveActionsStatisticianTest {
     public void testActionAggregatorStartFail() throws UnsupportedActionException {
         final ActionView action1 = mock(ActionView.class);
         when(snapshotFactory.newStatsActionView(eq(action1)))
-                .thenReturn(statsActionView(10, ActionState.READY));
+                .thenReturn(Stream.of(statsActionView(10, ActionState.READY)));
 
         final ActionAggregator aggregator = mock(ActionAggregator.class);
         when(aggregatorFactory.newAggregator(LocalDateTime.now(clock))).thenReturn(aggregator);
@@ -305,7 +303,7 @@ public class LiveActionsStatisticianTest {
     public void testActionAggregatorProcessFail() throws UnsupportedActionException {
         final ActionView action1 = mock(ActionView.class);
         when(snapshotFactory.newStatsActionView(eq(action1)))
-                .thenReturn(statsActionView(10, ActionState.READY));
+                .thenReturn(Stream.of(statsActionView(10, ActionState.READY)));
 
         final ActionAggregator aggregator = mock(ActionAggregator.class);
         when(aggregatorFactory.newAggregator(LocalDateTime.now(clock))).thenReturn(aggregator);
@@ -374,16 +372,9 @@ public class LiveActionsStatisticianTest {
     private void insertFakeActionGroup(final int actionGroupId) {
         final RelatedRiskForActionRecord relatedRiskForActionRecord = new RelatedRiskForActionRecord();
         relatedRiskForActionRecord.setId(1);
-        relatedRiskForActionRecord.setChecksum(DigestUtils.md5Hex("Mem congestion"));
+        relatedRiskForActionRecord.setRiskDescription("Mem congestion");
         dsl.insertInto(Tables.RELATED_RISK_FOR_ACTION)
                 .set(relatedRiskForActionRecord)
-                .onDuplicateKeyIgnore()
-                .execute();
-        final RelatedRiskDescriptionRecord relatedRiskDescriptionsRecord = new RelatedRiskDescriptionRecord();
-        relatedRiskDescriptionsRecord.setId(1);
-        relatedRiskDescriptionsRecord.setRiskDescription("Mem congestion");
-        dsl.insertInto(Tables.RELATED_RISK_DESCRIPTION)
-                .set(relatedRiskDescriptionsRecord)
                 .onDuplicateKeyIgnore()
                 .execute();
         final ActionGroupRecord actionGroupRecord = new ActionGroupRecord();
@@ -417,7 +408,7 @@ public class LiveActionsStatisticianTest {
                 .actionMode(ActionMode.RECOMMEND)
                 .category(ActionCategory.PERFORMANCE_ASSURANCE)
                 .actionState(actionState)
-                .addActionRelatedRisk("Mem congestion").build())
+                .actionRelatedRisk("Mem congestion").build())
             .recommendation(ActionDTO.Action.newBuilder()
                 .setId(actionId)
                 .setInfo(ActionInfo.newBuilder())

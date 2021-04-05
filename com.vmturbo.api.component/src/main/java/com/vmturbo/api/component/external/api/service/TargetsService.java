@@ -6,7 +6,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -54,6 +53,7 @@ import com.vmturbo.api.dto.target.TargetHealthApiDTO;
 import com.vmturbo.api.dto.workflow.WorkflowApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.HealthState;
+import com.vmturbo.api.enums.InputValueType;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
@@ -73,9 +73,9 @@ import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo.CreationMode;
 import com.vmturbo.platform.sdk.common.util.ProbeLicense;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.AccountValue;
-import com.vmturbo.topology.processor.api.ITargetHealthInfo;
 import com.vmturbo.topology.processor.api.ProbeInfo;
 import com.vmturbo.topology.processor.api.TargetData;
+import com.vmturbo.topology.processor.api.ITargetHealthInfo;
 import com.vmturbo.topology.processor.api.TargetInfo;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.TopologyProcessorException;
@@ -967,28 +967,11 @@ public class TargetsService implements ITargetsService {
                 .getOids();
     }
 
-    private boolean healthStateFilter(@Nonnull TargetHealthApiDTO healthDTO,
-                    @Nullable HealthState state) {
-        if (state == null)  {
-            //If the health state is not specified then the default is to take all health states.
-            return true;
-        }
-        return healthDTO.getHealthState() == state;
-    }
-
     @Override
     @Nonnull
     public List<TargetHealthApiDTO> getTargetsHealth(@Nullable HealthState state) {
-        try {
-            Set<ITargetHealthInfo> healthOfTargets = topologyProcessor.getAllTargetsHealth();
-            List<TargetHealthApiDTO> healthDTOs = healthOfTargets.stream().map(targetMapper::mapTargetHealthInfoToDTO)
-                .filter(healthDTO -> healthStateFilter(healthDTO, state))
-                .collect(Collectors.toList());
-            healthDTOs.sort(new HealthResponseComparator(state == null));
-            return healthDTOs;
-        } catch (CommunicationException e) {
-            throw new CommunicationError(e);
-        }
+        //FIXME implement
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -1000,25 +983,6 @@ public class TargetsService implements ITargetsService {
             return targetMapper.mapTargetHealthInfoToDTO(healthInfo);
         } catch (CommunicationException | TopologyProcessorException e) {
             throw new RuntimeException("Error getting target health info", e);
-        }
-    }
-
-    /**
-     * Class to compare the health states (if relevant) and check subcategories of health response.
-     */
-    public class HealthResponseComparator implements Comparator<TargetHealthApiDTO> {
-        private boolean sortByState;
-
-        public HealthResponseComparator(boolean sortByState)   {
-            this.sortByState = sortByState;
-        }
-
-        @Override
-        public int compare(TargetHealthApiDTO o1, TargetHealthApiDTO o2) {
-            if (!sortByState || o1.getHealthState() == o2.getHealthState()) {
-                return o1.getCheckSubcategory().compareTo(o2.getCheckSubcategory());
-            }
-            return o1.getHealthState().compareTo(o2.getHealthState());
         }
     }
 

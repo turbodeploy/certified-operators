@@ -480,17 +480,17 @@ public class HistoricalActionStatReaderTest {
 
         final ActionGroup readyAg1 = mock(ActionGroup.class);
         final ActionGroupKey key1 = mock(ActionGroupKey.class);
-        when(key1.getActionRelatedRisk()).thenReturn(Collections.singleton("Mem congestion"));
+        when(key1.getActionRelatedRisk()).thenReturn("Mem congestion");
         when(readyAg1.key()).thenReturn(key1);
 
         final ActionGroup readyAg2 = mock(ActionGroup.class);
         final ActionGroupKey key2 = mock(ActionGroupKey.class);
-        when(key2.getActionRelatedRisk()).thenReturn(Collections.singleton("Mem congestion"));
+        when(key2.getActionRelatedRisk()).thenReturn("Mem congestion");
         when(readyAg2.key()).thenReturn(key2);
 
         final ActionGroup queuedAg = mock(ActionGroup.class);
         final ActionGroupKey key3 = mock(ActionGroupKey.class);
-        when(key3.getActionRelatedRisk()).thenReturn(Collections.singleton("CPU congestion"));
+        when(key3.getActionRelatedRisk()).thenReturn("CPU congestion");
         when(queuedAg.key()).thenReturn(key3);
 
         final Map<ActionGroup, Map<Integer, RolledUpActionGroupStat>> statsByGroup = ImmutableMap.of(
