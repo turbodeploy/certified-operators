@@ -55,6 +55,7 @@ public interface QualifiedJournalEntry<ENTITY_CLASS> extends Comparable {
     default int compareTo(Object o) {
         // Order is not important between for other journal entries - just make sure 0 is only
         // returned in the case where "this" is the same instance as "o".
-        return System.identityHashCode(this) - System.identityHashCode(o);
+        return this.hashCode() - o.hashCode();
     }
+
 }

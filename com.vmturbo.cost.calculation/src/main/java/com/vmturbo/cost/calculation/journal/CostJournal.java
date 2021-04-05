@@ -706,8 +706,8 @@ public class CostJournal<ENTITY_CLASS> {
                             .put(OnDemandJournalEntry.class.getName(), 0)
                             .put(RIJournalEntry.class.getName(), 1)
                             .put(ReservedLicenseJournalEntry.class.getName(), 2)
-                            .put(RIDiscountJournalEntry.class.getName(), 3)
-                            .put(EntityUptimeDiscountJournalEntry.class.getName(), 4)
+                            .put(EntityUptimeDiscountJournalEntry.class.getName(), 3)
+                            .put(RIDiscountJournalEntry.class.getName(), 4)
                             .build();
 
             @Override
