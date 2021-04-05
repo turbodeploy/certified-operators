@@ -1,9 +1,12 @@
 package com.vmturbo.cost.calculation.journal.entry;
 
+import java.util.Objects;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
+
+import org.apache.commons.lang3.builder.EqualsBuilder;
 
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.CostSource;
@@ -84,5 +87,29 @@ public class ReservedLicenseJournalEntry<E> implements QualifiedJournalEntry<E> 
     @Nonnull
     public TraxNumber getRiBoughtPercentage() {
         return riBoughtPercentage;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(targetCostCategory, costSource, riData, riBoughtPercentage, price);
+    }
+
+    @Override
+    public boolean equals(final Object obj) {
+
+        if (obj == null || !(obj instanceof ReservedLicenseJournalEntry)) {
+            return false;
+        } else if (obj == this) {
+            return true;
+        } else {
+            final ReservedLicenseJournalEntry other = (ReservedLicenseJournalEntry)obj;
+            return new EqualsBuilder()
+                    .append(targetCostCategory, other.targetCostCategory)
+                    .append(costSource, other.costSource)
+                    .append(riData, other.riData)
+                    .append(riBoughtPercentage, other.riBoughtPercentage)
+                    .append(price, other.price)
+                    .build();
+        }
     }
 }

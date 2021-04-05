@@ -1,10 +1,13 @@
 package com.vmturbo.cost.calculation.journal.entry;
 
+import java.util.Objects;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
+
+import org.apache.commons.lang3.builder.EqualsBuilder;
 
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.CostSource;
@@ -109,5 +112,29 @@ public class RIJournalEntry<E> implements QualifiedJournalEntry<E> {
 
     public TraxNumber getHourlyCost() {
         return hourlyCost;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(costCategory, costSource, riData, couponsCovered, hourlyCost);
+    }
+
+    @Override
+    public boolean equals(final Object obj) {
+
+        if (obj == null || !(obj instanceof RIJournalEntry)) {
+            return false;
+        } else if (obj == this) {
+            return true;
+        } else {
+            final RIJournalEntry other = (RIJournalEntry)obj;
+            return new EqualsBuilder()
+                    .append(costCategory, other.costCategory)
+                    .append(costSource, other.costSource)
+                    .append(riData, other.riData)
+                    .append(couponsCovered, other.couponsCovered)
+                    .append(hourlyCost, other.hourlyCost)
+                    .build();
+        }
     }
 }

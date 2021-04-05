@@ -1,12 +1,14 @@
 package com.vmturbo.cost.calculation.journal;
 
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.closeTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 
 import java.util.Optional;
 
-import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
+import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -47,6 +49,22 @@ public class CostJournalTest {
     private static final double HOURS_IN_DAY = 24;
     private static final double PRICE_AMOUNT_PER_DAYS_NO_DISCOUNT = TOTAL_PRICE / HOURS_IN_DAY;
 
+    private final DiscountApplicator<TestEntityClass> discountApplicator =
+            Mockito.mock(DiscountApplicator.class);
+    private final RateExtractor rateExtractor = Mockito.mock(RateExtractor.class);
+
+
+    /**
+     * Setup for {@link CostJournalTest}.
+     */
+    @Before
+    public void setup() {
+        Mockito.when(discountApplicator.getDiscountPercentage(
+                any(TestEntityClass.class))).thenReturn(Trax.trax(0));
+        Mockito.when(discountApplicator.getDiscountPercentage(org.mockito.Matchers.anyLong()))
+                .thenReturn(Trax.trax(0));
+    }
+
     /**
      * Testing cost calculation for an entry with price unit of days and no discount.
      */
@@ -57,14 +75,11 @@ public class CostJournalTest {
         final QualifiedJournalEntry<TestEntityClass> entry =
                 new OnDemandJournalEntry<>(entity, price, Trax.trax(1),
                         CostCategory.ON_DEMAND_COMPUTE, Optional.of(CostSource.ON_DEMAND_RATE));
-        final DiscountApplicator<TestEntityClass> discountApplicator =
-                Mockito.mock(DiscountApplicator.class);
-        Mockito.when(discountApplicator.getDiscountPercentage(entity)).thenReturn(Trax.trax(0.0));
         final RateExtractor rateExtractor = Mockito.mock(RateExtractor.class);
         final TraxNumber cost =
                 entry.calculateHourlyCost(infoExtractor, discountApplicator, rateExtractor);
-        MatcherAssert.assertThat(cost.getValue(),
-                Matchers.closeTo(PRICE_AMOUNT_PER_DAYS_NO_DISCOUNT, VALID_DELTA));
+        assertThat(cost.getValue(),
+                closeTo(PRICE_AMOUNT_PER_DAYS_NO_DISCOUNT, VALID_DELTA));
     }
 
     /**
@@ -77,14 +92,11 @@ public class CostJournalTest {
         final QualifiedJournalEntry<TestEntityClass> entry =
                 new OnDemandJournalEntry<>(entity, price, Trax.trax(1),
                         CostCategory.ON_DEMAND_COMPUTE, Optional.of(CostSource.ON_DEMAND_RATE));
-        final DiscountApplicator<TestEntityClass> discountApplicator =
-                Mockito.mock(DiscountApplicator.class);
         Mockito.when(discountApplicator.getDiscountPercentage(entity)).thenReturn(Trax.trax(0.5));
         //TODO fix this
-        final RateExtractor rateExtractor = Mockito.mock(RateExtractor.class);
         final TraxNumber cost =
                 entry.calculateHourlyCost(infoExtractor, discountApplicator, rateExtractor);
-        MatcherAssert.assertThat(cost.getValue(), Matchers.closeTo(50, VALID_DELTA));
+        assertThat(cost.getValue(), closeTo(50, VALID_DELTA));
     }
 
     /**
@@ -97,13 +109,10 @@ public class CostJournalTest {
         final QualifiedJournalEntry<TestEntityClass> entry =
                 new OnDemandJournalEntry<>(entity, price, Trax.trax(1),
                         CostCategory.ON_DEMAND_COMPUTE, Optional.of(CostSource.ON_DEMAND_RATE));
-        final DiscountApplicator<TestEntityClass> discountApplicator =
-                Mockito.mock(DiscountApplicator.class);
         Mockito.when(discountApplicator.getDiscountPercentage(entity)).thenReturn(Trax.trax(0.5));
-        final RateExtractor rateExtractor = Mockito.mock(RateExtractor.class);
         final TraxNumber cost =
                 entry.calculateHourlyCost(infoExtractor, discountApplicator, rateExtractor);
-        MatcherAssert.assertThat(cost.getValue(), Matchers.closeTo(50, VALID_DELTA));
+        assertThat(cost.getValue(), closeTo(50, VALID_DELTA));
     }
 
     /**
@@ -116,13 +125,10 @@ public class CostJournalTest {
         final QualifiedJournalEntry<TestEntityClass> entry =
                 new OnDemandJournalEntry<>(entity, price, Trax.trax(1),
                         CostCategory.ON_DEMAND_COMPUTE, Optional.of(CostSource.ON_DEMAND_RATE));
-        final DiscountApplicator<TestEntityClass> discountApplicator =
-                Mockito.mock(DiscountApplicator.class);
         Mockito.when(discountApplicator.getDiscountPercentage(entity)).thenReturn(Trax.trax(0.5));
-        final RateExtractor rateExtractor = Mockito.mock(RateExtractor.class);
         final TraxNumber cost =
                 entry.calculateHourlyCost(infoExtractor, discountApplicator, rateExtractor);
-        MatcherAssert.assertThat(cost.getValue(), Matchers.closeTo(50, VALID_DELTA));
+        assertThat(cost.getValue(), closeTo(50, VALID_DELTA));
     }
 
     /**
@@ -136,13 +142,10 @@ public class CostJournalTest {
         final QualifiedJournalEntry<TestEntityClass> entry =
                 new OnDemandJournalEntry<>(entity, price, Trax.trax(1),
                         CostCategory.ON_DEMAND_COMPUTE, Optional.of(CostSource.ON_DEMAND_RATE));
-        final DiscountApplicator<TestEntityClass> discountApplicator =
-                Mockito.mock(DiscountApplicator.class);
         Mockito.when(discountApplicator.getDiscountPercentage(entity)).thenReturn(Trax.trax(0.5));
-        final RateExtractor rateExtractor = Mockito.mock(RateExtractor.class);
         final TraxNumber cost =
                 entry.calculateHourlyCost(infoExtractor, discountApplicator, rateExtractor);
-        MatcherAssert.assertThat(cost.getValue(), Matchers.closeTo(50, VALID_DELTA));
+        assertThat(cost.getValue(), closeTo(50, VALID_DELTA));
     }
 
     /**
@@ -155,13 +158,9 @@ public class CostJournalTest {
         final QualifiedJournalEntry<TestEntityClass> entry =
                 new OnDemandJournalEntry<>(entity, price, Trax.trax(1),
                         CostCategory.ON_DEMAND_COMPUTE, Optional.of(CostSource.ON_DEMAND_RATE));
-        final DiscountApplicator<TestEntityClass> discountApplicator =
-                Mockito.mock(DiscountApplicator.class);
-        Mockito.when(discountApplicator.getDiscountPercentage(entity)).thenReturn(Trax.trax(0.0));
-        final RateExtractor rateExtractor = Mockito.mock(RateExtractor.class);
         final TraxNumber cost =
                 entry.calculateHourlyCost(infoExtractor, discountApplicator, rateExtractor);
-        MatcherAssert.assertThat(cost.getValue(), Matchers.closeTo(TOTAL_PRICE, VALID_DELTA));
+        assertThat(cost.getValue(), closeTo(TOTAL_PRICE, VALID_DELTA));
     }
 
     /**
@@ -180,13 +179,10 @@ public class CostJournalTest {
         final QualifiedJournalEntry<TestEntityClass> entry =
                 new RIJournalEntry<>(riData, Trax.trax(1), Trax.trax(hourlyCost),
                         CostCategory.RI_COMPUTE, null);
-        final DiscountApplicator<TestEntityClass> discountApplicator =
-                Mockito.mock(DiscountApplicator.class);
         Mockito.when(discountApplicator.getDiscountPercentage(tierId)).thenReturn(Trax.trax(0.1));
-        final RateExtractor rateExtractor = Mockito.mock(RateExtractor.class);
         final TraxNumber finalCost =
                 entry.calculateHourlyCost(infoExtractor, discountApplicator, rateExtractor);
-        MatcherAssert.assertThat(finalCost.getValue(), Matchers.closeTo(9, VALID_DELTA));
+        assertThat(finalCost.getValue(), closeTo(9, VALID_DELTA));
     }
 
     /**
@@ -205,13 +201,9 @@ public class CostJournalTest {
         final QualifiedJournalEntry<TestEntityClass> entry =
                 new RIJournalEntry<>(riData, Trax.trax(1), Trax.trax(hourlyCost),
                         CostCategory.RI_COMPUTE, null);
-        final DiscountApplicator<TestEntityClass> discountApplicator =
-                Mockito.mock(DiscountApplicator.class);
-        Mockito.when(discountApplicator.getDiscountPercentage(tierId)).thenReturn(Trax.trax(0.0));
-        final RateExtractor rateExtractor = Mockito.mock(RateExtractor.class);
         final TraxNumber finalCost =
                 entry.calculateHourlyCost(infoExtractor, discountApplicator, rateExtractor);
-        MatcherAssert.assertThat(finalCost.getValue(), Matchers.is(hourlyCost));
+        assertThat(finalCost.getValue(), Matchers.is(hourlyCost));
     }
 
     /**
@@ -231,12 +223,6 @@ public class CostJournalTest {
                                 .setReservedInstanceSpecInfo(ReservedInstanceSpecInfo.newBuilder()
                                         .setTierId(payee.getId()))
                                 .build());
-        final DiscountApplicator<TestEntityClass> discountApplicator =
-                Mockito.mock(DiscountApplicator.class);
-        Mockito.when(discountApplicator.getDiscountPercentage(
-                any(TestEntityClass.class))).thenReturn(Trax.trax(0));
-        Mockito.when(discountApplicator.getDiscountPercentage(org.mockito.Matchers.anyLong()))
-                .thenReturn(Trax.trax(0));
         final CostJournal<TestEntityClass> journal =
                 CostJournal.newBuilder(entity, infoExtractor, region, discountApplicator, e -> null)
                         .recordOnDemandCost(CostCategory.ON_DEMAND_COMPUTE, payee, computePrice,
@@ -246,15 +232,15 @@ public class CostJournalTest {
                         .recordRiCost(riData, Trax.trax(1), Trax.trax(25))
                         .build();
 
-        MatcherAssert.assertThat(journal.getTotalHourlyCost().getValue(), Matchers.is(135.0));
-        MatcherAssert.assertThat(journal.getEntity(), Matchers.is(entity));
-        MatcherAssert.assertThat(
+        assertThat(journal.getTotalHourlyCost().getValue(), Matchers.is(135.0));
+        assertThat(journal.getEntity(), Matchers.is(entity));
+        assertThat(
                 journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_COMPUTE).getValue(),
                 Matchers.is(100.0));
-        MatcherAssert.assertThat(
+        assertThat(
                 journal.getHourlyCostForCategory(CostCategory.RI_COMPUTE).getValue(),
                 Matchers.is(25.0));
-        MatcherAssert.assertThat(
+        assertThat(
                 journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_LICENSE).getValue(),
                 Matchers.is(10.0));
     }
@@ -279,12 +265,6 @@ public class CostJournalTest {
                                 .setReservedInstanceSpecInfo(ReservedInstanceSpecInfo.newBuilder()
                                         .setTierId(payee.getId()))
                                 .build());
-        final DiscountApplicator<TestEntityClass> discountApplicator =
-                Mockito.mock(DiscountApplicator.class);
-        Mockito.when(discountApplicator.getDiscountPercentage(
-                any(TestEntityClass.class))).thenReturn(Trax.trax(0));
-        Mockito.when(discountApplicator.getDiscountPercentage(org.mockito.Matchers.anyLong()))
-                .thenReturn(Trax.trax(0));
         final CostJournal<TestEntityClass> journal =
                 CostJournal.newBuilder(entity, infoExtractor, region, discountApplicator, e -> null)
                         .recordOnDemandCost(CostCategory.ON_DEMAND_COMPUTE, payee, computePrice,
@@ -298,8 +278,8 @@ public class CostJournalTest {
                 (costSource -> costSource.equals(CostSource.ON_DEMAND_RATE));
         final TraxNumber ans =
                 journal.getHourlyCostFilterEntries(CostCategory.ON_DEMAND_COMPUTE, filter);
-        MatcherAssert.assertThat(ans.getValue(), Matchers.is(100.0));
-        MatcherAssert.assertThat(
+        assertThat(ans.getValue(), Matchers.is(100.0));
+        assertThat(
                 journal.getHourlyCostBySourceAndCategory(CostCategory.ON_DEMAND_COMPUTE,
                         CostSource.RI_INVENTORY_DISCOUNT).getValue(), Matchers.is(-25.0));
         System.out.println(journal.toString());
@@ -315,10 +295,6 @@ public class CostJournalTest {
         final TestEntityClass region = TestEntityClass.newBuilder(77).build(infoExtractor);
         final Price price = createPrice(Unit.HOURS, TOTAL_PRICE);
         final TestEntityClass payee = TestEntityClass.newBuilder(123).build(infoExtractor);
-        final DiscountApplicator<TestEntityClass> discountApplicator =
-                Mockito.mock(DiscountApplicator.class);
-        Mockito.when(discountApplicator.getDiscountPercentage(
-                any(TestEntityClass.class))).thenReturn(Trax.trax(0));
 
         final TestEntityClass childCostProvider =
                 TestEntityClass.newBuilder(123).build(infoExtractor);
@@ -331,7 +307,7 @@ public class CostJournalTest {
                         .recordOnDemandCost(CostCategory.STORAGE, payee, price, Trax.trax(1))
                         .build();
         final DependentCostLookup<TestEntityClass> dependentCostLookup = e -> {
-            MatcherAssert.assertThat(e, Matchers.is(childCostProvider));
+            assertThat(e, Matchers.is(childCostProvider));
             return childCostJournal;
         };
 
@@ -343,12 +319,12 @@ public class CostJournalTest {
                         .inheritCost(childCostProvider)
                         .build();
 
-        MatcherAssert.assertThat(journal.getTotalHourlyCost().getValue(), Matchers.is(300.0));
-        MatcherAssert.assertThat(journal.getEntity(), Matchers.is(entity));
-        MatcherAssert.assertThat(
+        assertThat(journal.getTotalHourlyCost().getValue(), Matchers.is(300.0));
+        assertThat(journal.getEntity(), Matchers.is(entity));
+        assertThat(
                 journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_COMPUTE).getValue(),
                 Matchers.is(200.0));
-        MatcherAssert.assertThat(journal.getHourlyCostForCategory(CostCategory.STORAGE).getValue(),
+        assertThat(journal.getHourlyCostForCategory(CostCategory.STORAGE).getValue(),
                 Matchers.is(100.0));
         System.out.println(journal.toString());
     }
@@ -369,12 +345,6 @@ public class CostJournalTest {
                                 .setReservedInstanceSpecInfo(ReservedInstanceSpecInfo.newBuilder()
                                         .setTierId(payee.getId()))
                                 .build());
-        final DiscountApplicator<TestEntityClass> discountApplicator =
-                Mockito.mock(DiscountApplicator.class);
-        Mockito.when(discountApplicator.getDiscountPercentage(
-                any(TestEntityClass.class))).thenReturn(Trax.trax(0));
-        Mockito.when(discountApplicator.getDiscountPercentage(org.mockito.Matchers.anyLong()))
-                .thenReturn(Trax.trax(0));
         final CostJournal<TestEntityClass> journal =
                 CostJournal.newBuilder(entity, infoExtractor, region, discountApplicator, e -> null)
                         .recordOnDemandCost(CostCategory.ON_DEMAND_COMPUTE, payee, computePrice,
@@ -388,8 +358,8 @@ public class CostJournalTest {
                 (costSource -> costSource.equals(CostSource.ON_DEMAND_RATE));
         final TraxNumber ans =
                 journal.getHourlyCostFilterEntries(CostCategory.ON_DEMAND_COMPUTE, filter);
-        MatcherAssert.assertThat(ans.getValue(), Matchers.is(100.0));
-        MatcherAssert.assertThat(
+        assertThat(ans.getValue(), Matchers.is(100.0));
+        assertThat(
                 journal.getHourlyCostBySourceAndCategory(CostCategory.ON_DEMAND_COMPUTE,
                         CostSource.BUY_RI_DISCOUNT).getValue(), Matchers.is(-25.0));
         System.out.println(journal.toString());
@@ -412,26 +382,19 @@ public class CostJournalTest {
                                 .setReservedInstanceSpecInfo(
                                         ReservedInstanceSpecInfo.newBuilder().setTierId(tierId))
                                 .build());
-        final RateExtractor rateExtractor = Mockito.mock(RateExtractor.class);
-        final DiscountApplicator<TestEntityClass> discountApplicator =
-                Mockito.mock(DiscountApplicator.class);
-        Mockito.when(discountApplicator.getDiscountPercentage(
-                any(TestEntityClass.class))).thenReturn(Trax.trax(0));
-        Mockito.when(discountApplicator.getDiscountPercentage(org.mockito.Matchers.anyLong()))
-                .thenReturn(Trax.trax(0));
         final QualifiedJournalEntry<TestEntityClass> reservedLicenseEntry =
                 new ReservedLicenseJournalEntry<>(price, riData, riBoughtPercentage,
                         CostCategory.RESERVED_LICENSE, Optional.of(CostSource.BUY_RI_DISCOUNT));
         final TraxNumber reservedLicensePrice =
                 reservedLicenseEntry.calculateHourlyCost(infoExtractor, discountApplicator,
                         rateExtractor);
-        MatcherAssert.assertThat(reservedLicensePrice.getValue(), Matchers.is(0.125));
+        assertThat(reservedLicensePrice.getValue(), Matchers.is(0.125));
         final CostJournal<TestEntityClass> journal =
                 CostJournal.newBuilder(entity, infoExtractor, region, discountApplicator, e -> null)
                         .recordReservedLicenseCost(CostCategory.RESERVED_LICENSE, riData,
                                 riBoughtPercentage, price, true)
                         .build();
-        MatcherAssert.assertThat(
+        assertThat(
                 journal.getHourlyCostBySourceAndCategory(CostCategory.RESERVED_LICENSE,
                         CostSource.BUY_RI_DISCOUNT).getValue(), Matchers.is(0.125));
         System.out.println(journal);
@@ -456,19 +419,55 @@ public class CostJournalTest {
         final QualifiedJournalEntry<TestEntityClass> entry =
                 new RIDiscountJournalEntry<>(riData, riBoughtPercentage,
                         CostCategory.ON_DEMAND_COMPUTE, CostSource.ON_DEMAND_RATE, false);
-        final DiscountApplicator<TestEntityClass> discountApplicator =
-                Mockito.mock(DiscountApplicator.class);
         Mockito.when(discountApplicator.getDiscountPercentage(entity))
                 .thenReturn(Trax.trax(discountPercent));
         Mockito.when(discountApplicator.getDiscountPercentage(org.mockito.Matchers.anyLong()))
                 .thenReturn(Trax.trax(discountPercent));
-        final RateExtractor rateExtractor = Mockito.mock(RateExtractor.class);
         Mockito.when(rateExtractor.lookupCostWithFilter(eq(CostCategory.ON_DEMAND_COMPUTE), any()))
                 .thenReturn(Trax.trax(TOTAL_PRICE));
         final double discountedCost = -TOTAL_PRICE;
         final TraxNumber cost =
                 entry.calculateHourlyCost(infoExtractor, discountApplicator, rateExtractor);
-        MatcherAssert.assertThat(cost.getValue(), Matchers.closeTo(discountedCost, VALID_DELTA));
+        assertThat(cost.getValue(), closeTo(discountedCost, VALID_DELTA));
+    }
+
+    /**
+     * Test the cost calculation when an entity has both an uptime discount and buy RI discount.
+     */
+    @Test
+    public void testBuyRIDiscountAndUptime() {
+
+        final Price computePrice = createPrice(Unit.HOURS, TOTAL_PRICE);
+        final TestEntityClass entity = TestEntityClass.newBuilder(7L).build(infoExtractor);
+        final TestEntityClass region = TestEntityClass.newBuilder(77).build(infoExtractor);
+        final TestEntityClass payee = TestEntityClass.newBuilder(123).build(infoExtractor);
+        final ReservedInstanceData riData =
+                new ReservedInstanceData(ReservedInstanceBought.getDefaultInstance(),
+                        ReservedInstanceSpec.newBuilder()
+                                .setReservedInstanceSpecInfo(ReservedInstanceSpecInfo.newBuilder()
+                                        .setTierId(payee.getId()))
+                                .build());
+        final CostJournal<TestEntityClass> journal =
+                CostJournal.newBuilder(entity, infoExtractor, region, discountApplicator, e -> null)
+                        .recordOnDemandCost(CostCategory.ON_DEMAND_COMPUTE, payee, computePrice,
+                                Trax.trax(1))
+                        .recordBuyRIDiscount(CostCategory.ON_DEMAND_COMPUTE, riData,
+                                Trax.trax(.50))
+                        // Uptime = 75% so 25% discount
+                        .addUptimeDiscountToAllCategories(Trax.trax(.25))
+                        .build();
+
+        final TraxNumber computeCostMinusBuyRIDiscount =
+                journal.getHourlyCostFilterEntries(
+                        CostCategory.ON_DEMAND_COMPUTE,
+                        CostSourceFilter.EXCLUDE_BUY_RI_DISCOUNT_FILTER);
+        final TraxNumber buyRIDiscount =
+                journal.getHourlyCostFilterEntries(
+                        CostCategory.ON_DEMAND_COMPUTE,
+                        cs -> cs == CostSource.BUY_RI_DISCOUNT);
+
+        assertThat(computeCostMinusBuyRIDiscount.getValue(), closeTo(TOTAL_PRICE * .75, VALID_DELTA));
+        assertThat(buyRIDiscount.getValue(), closeTo(TOTAL_PRICE * .75 * -.5, VALID_DELTA));
     }
 
     private Price createPrice(final Unit timeUnit, final double amount) {
@@ -477,4 +476,7 @@ public class CostJournalTest {
                 .setPriceAmount(CurrencyAmount.newBuilder().setAmount(amount))
                 .build();
     }
+
+
+
 }
