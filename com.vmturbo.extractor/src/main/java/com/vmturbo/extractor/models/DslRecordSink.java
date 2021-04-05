@@ -122,7 +122,7 @@ public class DslRecordSink implements Consumer<Record> {
                 }
                 recordWriter.write(record);
             } catch (IOException e) {
-                logger.error("Failed to write record to table {}", getWriteTableName(), e);
+                logger.error("Failed to create record writer for table: {}", getWriteTableName(), e);
             }
         }
     }
@@ -141,6 +141,7 @@ public class DslRecordSink implements Consumer<Record> {
         private final Collection<Column<?>> columns;
         private final Future<InsertResults> future;
         private int recordSentCount = 0;
+        private int recordWriteFailureCount = 0;
         private boolean closed = false;
 
         RecordWriter(Collection<Column<?>> columns, ExecutorService pool) throws IOException {
@@ -217,14 +218,19 @@ public class DslRecordSink implements Consumer<Record> {
          * Attempt to write the given record to db.
          *
          * @param record the record to write
-         * @throws IOException if there is any issue with db
          */
-        public void write(final Record record) throws IOException {
-            final String csv = record.toCSVRow(columns);
-            outputStream.write(csv.getBytes(UTF_8));
-            outputStream.write(System.lineSeparator().getBytes(UTF_8));
+        public void write(final Record record) {
             if (++recordSentCount % 1000 == 0) {
                 logger.debug("Tried to write {} records to {}", recordSentCount, getWriteTableName());
+            }
+            try {
+                final String csv = record.toCSVRow(columns);
+                outputStream.write(csv.getBytes(UTF_8));
+                outputStream.write(System.lineSeparator().getBytes(UTF_8));
+            } catch (IOException e) {
+                // failed to write record
+                // report write failure when table detaches
+                recordWriteFailureCount++;
             }
         }
 
@@ -260,6 +266,11 @@ public class DslRecordSink implements Consumer<Record> {
             } catch (TimeoutException | InterruptedException | ExecutionException | IOException e) {
                 logger.error("Failed to complete writing to table {}", getWriteTableName(), e);
             }
+
+            if (recordWriteFailureCount > 0) {
+                logger.error("Failed to write {} records to table {}", recordWriteFailureCount, getWriteTableName());
+            }
+
             this.closed = true;
         }
 
