@@ -19,16 +19,16 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
 import com.google.common.collect.Iterators;
 
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectMaps;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.immutables.value.Value;
 import org.jooq.Batch;
 import org.jooq.DSLContext;
 import org.jooq.impl.DSL;
-
-import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
-import it.unimi.dsi.fastutil.longs.Long2ObjectMaps;
-import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.db.tables.ActionSnapshotLatest;
@@ -150,15 +150,17 @@ public class LiveActionsStatistician {
         // user always sees translated actions, so if any changes occur during translation - for
         // example, dropping invalid actions - the counts should reflect them.
         try (DataMetricTimer timer = Metrics.ACTION_STAT_RECORD_SNAPSHOT_TIME.startTimer()) {
-            actionStream.flatMap(actionView -> {
+            actionStream.map(actionView -> {
                 try {
                     return snapshotFactory.newStatsActionView(actionView);
                 } catch (UnsupportedActionException e) {
-                    logger.error("Attempting to record stats for unsupported action: " +
-                            e.getLocalizedMessage());
-                    return Stream.empty();
+                    logger.error("Attempting to record stats for unsupported action: "
+                        + e.getLocalizedMessage());
+                    return null;
                 }
-            }).forEach(snapshotBuilder::addActions);
+            })
+            .filter(Objects::nonNull)
+            .forEach(snapshotBuilder::addActions);
         }
 
         // We build the snapshot before running the aggregators because the aggregators can take
