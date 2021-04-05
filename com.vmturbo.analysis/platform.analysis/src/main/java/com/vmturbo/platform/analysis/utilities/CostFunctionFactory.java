@@ -1,6 +1,7 @@
 package com.vmturbo.platform.analysis.utilities;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -14,6 +15,7 @@ import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
@@ -47,6 +49,7 @@ import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
 import com.vmturbo.platform.analysis.utilities.CostFunctionFactoryHelper.CapacityLimitation;
 import com.vmturbo.platform.analysis.utilities.CostFunctionFactoryHelper.RangeBasedResourceDependency;
 import com.vmturbo.platform.analysis.utilities.CostFunctionFactoryHelper.RatioBasedResourceDependency;
+import com.vmturbo.platform.analysis.utilities.CostFunctionFactoryHelper.SelectedStorageAndCost;
 import com.vmturbo.platform.analysis.utilities.Quote.CommodityCloudQuote;
 import com.vmturbo.platform.analysis.utilities.Quote.CommodityContext;
 import com.vmturbo.platform.analysis.utilities.Quote.CommodityQuote;
@@ -534,8 +537,11 @@ public class CostFunctionFactory {
      * @return A quote for the cost given by {@link CostFunction}
      */
     @VisibleForTesting
-    protected static MutableQuote calculateComputeAndDatabaseCostQuote(Trader seller, ShoppingList sl,
-                                                                       CostTable costTable, final int licenseBaseType) {
+    protected static MutableQuote calculateComputeAndDatabaseCostQuote(
+            Trader seller,
+            ShoppingList sl,
+            CostTable costTable,
+            final int licenseBaseType) {
         final int licenseCommBoughtIndex = sl.getBasket().indexOfBaseType(licenseBaseType);
         final long groupFactor = sl.getGroupFactor();
         final Optional<Context> optionalContext = sl.getBuyer().getSettings().getContext();
@@ -586,7 +592,8 @@ public class CostFunctionFactory {
         double totalCost = costTuple.getPrice();
         final List<CommodityContext> commodityContexts = new ArrayList<>();
 
-        final double dependentCost = costTuple.getDependentCostTuplesCount () > 0 ? getDependentCost(seller, costTuple, sl, commodityContexts) : 0;
+        final double dependentCost = costTuple.getDependentCostTuplesCount() > 0 ?
+                getDependentCost(seller, costTuple, sl, commodityContexts) : 0;
         if (Double.isFinite(dependentCost)) {
             totalCost += dependentCost;
             // NOTE: CostTable.NO_VALUE (-1) is the no license commodity type
@@ -612,7 +619,6 @@ public class CostFunctionFactory {
     private static double getDependentCost(Trader seller, CostTuple costTuple, ShoppingList sl, List<CommodityContext> commodityContexts) {
 
         double cost = 0;
-
         List<DependentCostTuple> dependentCostTuplesList = costTuple.getDependentCostTuplesList();
         if (!dependentCostTuplesList.isEmpty()) {
             for (DependentCostTuple dependentCostTuple : dependentCostTuplesList) {
@@ -626,44 +632,35 @@ public class CostFunctionFactory {
                         continue;
                     }
                     double dependentResourceQuantity = sl.getQuantities()[dependentResourceIndex];
-                    long prevEndRange = 0;
-                    long endRange = 0;
-                    long increment = 0;
-                    double price = 0;
-                    // Find the right dependent option.
-                    for (DependentResourceOption dependentResourceOption : dependentResourceOptions) {
-                        prevEndRange = endRange;
-                        endRange = dependentResourceOption.getEndRange();
-                        increment = dependentResourceOption.getAbsoluteIncrement();
-                        price = dependentResourceOption.getPrice();
-                        if (increment <= 0) {
-                            logger.debug("Seller ID: {}, increment range for dependentResourceOption can never" +
-                                    "be less than equal to 0. {}", seller.getDebugInfoNeverUseInCode(), sl.getDebugInfoNeverUseInCode());
-                            return Double.POSITIVE_INFINITY;
-                        }
-                        if (dependentResourceQuantity <= endRange) {
-                            break;
-                        } else {
-                            cost += (endRange - prevEndRange) * price;
-                        }
-                    }
+                    int baseType = sl.getBasket().get(dependentResourceIndex).getBaseType();
+                    Double currentCapacity = sl.getAssignedCapacity(baseType);
+
                     /*
-                    The bought quantity is less than the maximum endRange because
-                    insufficientCommodityWithinSellerCapacityQuote takes care of checking
-                    for bought quantity less than the sold commodity max.
+                     * 1. if isNewSupplier or isCongested, then get max free storage scaling.
+                     * 2. If new selection has lower cost then consider new selected Amount. (savings, scale down).
+                     * 3. If isNewSupplier and congestion does not exists, then do no change currentSelection to avoid free scaling.
                      */
-                    long selectedAmount = prevEndRange;
-                    if (dependentResourceQuantity > endRange) {
-                        logger.debug("Dependent resources quantity was not met by seller {}. Returning infinite"
-                                + " cost for this template.", seller.getDebugInfoNeverUseInCode());
-                        return Double.POSITIVE_INFINITY;
+                    boolean isCongested = dependentResourceQuantity >= (currentCapacity != null ? currentCapacity : Double.MIN_VALUE);
+                    double selectedAmount;
+                    final boolean isNewSupplier = seller != sl.getSupplier();
+                    final SelectedStorageAndCost newSelection = generateDependentSizeAndDependentCost(
+                            dependentResourceOptions, dependentResourceQuantity, seller, sl);
+                    if (isNewSupplier || isCongested) {
+                        selectedAmount = newSelection.getSelectedAmount();
+                        cost = newSelection.getCost();
+                    } else {
+                        final SelectedStorageAndCost currentSelection = generateDependentSizeAndDependentCost(
+                                dependentResourceOptions, currentCapacity, seller, sl);
+                        if (newSelection.getCost() < currentSelection.getCost()) {
+                            selectedAmount = newSelection.getSelectedAmount();
+                            cost = newSelection.getCost();
+                        } else {
+                            selectedAmount = currentCapacity == null ?
+                                    currentSelection.getSelectedAmount() : currentCapacity;
+                            cost = currentSelection.getCost();
+                        }
                     }
-                    // Add the increment in the current option to satisfy the demand.
-                    while (selectedAmount < dependentResourceQuantity) {
-                        selectedAmount += increment;
-                        cost += increment * price;
-                    }
-                    // Update the shopping list and keep the selected value
+                    // Update the shopping list and keep the selected value.
                     commodityContexts.add(
                             new CommodityContext(sl.getBasket().get(dependentResourceIndex),
                                     selectedAmount, true));
@@ -673,6 +670,63 @@ public class CostFunctionFactory {
 
         return cost;
     }
+
+    @Nonnull
+    private static SelectedStorageAndCost generateDependentSizeAndDependentCost(
+            @Nonnull Collection<DependentResourceOption> dependentResourceOptions,
+            @Nullable Double dependentResourceQuantity,
+            @Nonnull  Trader seller,
+            @Nonnull  ShoppingList sl) {
+        double cost = 0;
+        long prevEndRange = 0;
+        long endRange = 0;
+        long increment = 0;
+        double price = 0;
+        if (dependentResourceQuantity == null) {
+            logger.debug("No assigned capacity found on shopping list : {}. " +
+                    "Can not calculate current dependent cost. returning infinite cost.",
+                    sl.getDebugInfoNeverUseInCode());
+            return new SelectedStorageAndCost(endRange, Double.POSITIVE_INFINITY);
+        }
+        // Find the right dependent option.
+        for (DependentResourceOption dependentResourceOption : dependentResourceOptions) {
+            prevEndRange = endRange;
+            endRange = dependentResourceOption.getEndRange();
+            increment = dependentResourceOption.getAbsoluteIncrement();
+            price = dependentResourceOption.getPrice();
+            if (increment <= 0) {
+                logger.debug("Seller ID: {}, increment range for dependentResourceOption can never" +
+                        "be less than equal to 0. {}", seller.getDebugInfoNeverUseInCode(), sl.getDebugInfoNeverUseInCode());
+                return new SelectedStorageAndCost(endRange, Double.POSITIVE_INFINITY);
+            }
+            if (dependentResourceQuantity <= endRange) {
+                break;
+            } else {
+                cost += (endRange - prevEndRange) * price;
+            }
+        }
+        /*
+        The bought quantity is less than the maximum endRange because
+        insufficientCommodityWithinSellerCapacityQuote takes care of checking
+        for bought quantity less than the sold commodity max.
+         */
+        long selectedAmount = prevEndRange;
+        if (dependentResourceQuantity > endRange) {
+            logger.debug("dependentResourceQuantity : {} for buyer: {}  was not met by seller {}. Returning infinite"
+                            + " cost for this seller.",
+                    dependentResourceQuantity, sl.getDebugInfoNeverUseInCode(), seller.getDebugInfoNeverUseInCode());
+            return new SelectedStorageAndCost(selectedAmount, Double.POSITIVE_INFINITY);
+        }
+        // Add the increment in the current option to satisfy the demand.
+        while (selectedAmount < dependentResourceQuantity) {
+            selectedAmount += increment;
+            cost += increment * price;
+        }
+
+        return new SelectedStorageAndCost(selectedAmount, cost);
+    }
+
+
 
     /**
      * Creates {@link CostFunction} for a given seller.

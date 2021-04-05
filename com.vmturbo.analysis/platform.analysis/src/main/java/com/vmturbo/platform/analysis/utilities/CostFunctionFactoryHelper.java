@@ -841,4 +841,27 @@ public class CostFunctionFactoryHelper {
                     priceId);
         }
     }
+
+
+    /**
+     * Helper class for capturing selectedStorage amount and cost.
+     * used while calculating dependentPricing.
+     */
+    static class SelectedStorageAndCost {
+        private final long selectedAmount;
+        private final Double cost;
+
+        SelectedStorageAndCost(long selectedAmount, Double cost) {
+            this.selectedAmount = selectedAmount;
+            this.cost = cost;
+        }
+
+        long getSelectedAmount() {
+            return selectedAmount;
+        }
+
+        Double getCost() {
+            return cost;
+        }
+    }
 }

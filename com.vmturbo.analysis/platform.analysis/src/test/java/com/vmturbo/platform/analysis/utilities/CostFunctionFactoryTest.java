@@ -15,6 +15,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import javax.annotation.Nonnull;
+
 import com.google.common.collect.ImmutableMap;
 
 import org.junit.Assert;
@@ -74,6 +76,8 @@ public class CostFunctionFactoryTest {
     public static final int DB_STORAGE_AMOUNT_TYPE = 3;
     public static final double DB_S3_DTU_PRICE = 150.0;
     public static final double DELTA = 0.01;
+    private static final double STORAGE_COST_PER_GB = 0.2;
+    private static CommoditySpecification dbLicense;
     private static Trader databaseTier;
     private static ShoppingList databaseSL1;
     private static ShoppingList databaseSL2;
@@ -98,8 +102,7 @@ public class CostFunctionFactoryTest {
                 new double[]{90, 1}, computeTier);
         windowsComputeSL.setGroupFactor(1);
         // DB test setup
-        CommoditySpecification dbLicense =
-                new CommoditySpecification(TestUtils.WINDOWS_COMM_TYPE, licenseAccessCommBaseType);
+        dbLicense = new CommoditySpecification(TestUtils.WINDOWS_COMM_TYPE, licenseAccessCommBaseType);
         List<CommoditySpecification> dbCommList =
                 Arrays.asList(TestUtils.DTU, TestUtils.ST_AMT, dbLicense);
         Trader testVM = TestUtils.createVM(economy);
@@ -584,6 +587,170 @@ public class CostFunctionFactoryTest {
         Assert.assertEquals(POSITIVE_INFINITY, mutableQuote.quoteValues[0], DELTA);
     }
 
+    /**
+     * Scenario where seller can support scale up and chooses until the price is 0. ie: 250GB.
+     * DB assigned capacity = 10
+     * DB Resized capacity = 200
+     * DB recommended size = 250
+     * DB Storage cost = 0;
+     */
+    @Test
+    public void testCalculateComputeAndDatabaseWithScaleUpToFreeStorage() {
+        BalanceAccount balanceAccount = Mockito.mock(BalanceAccount.class);
+        Context context = Mockito.mock(Context.class);
+        CostTable costTable = getDBCostTable(balanceAccount, context);
+        ShoppingList shoppingList = TestUtils.createAndPlaceShoppingList(economy,
+                Arrays.asList(TestUtils.ST_AMT, dbLicense), TestUtils.createVM(economy),
+                new double[]{200, 0}, new double[]{200, 0}, databaseTier);
+        shoppingList.getBuyer().getSettings().setContext(context);
+        shoppingList.addAssignedCapacity(DB_STORAGE_AMOUNT_TYPE, 10D);
+        MutableQuote mutableQuote =
+                CostFunctionFactory.calculateComputeAndDatabaseCostQuote(databaseTier, shoppingList,
+                        costTable, licenseAccessCommBaseType);
+        // because no extra cost till 250 GB.
+        Assert.assertEquals(250.0, mutableQuote.getCommodityContexts().get(0).getNewCapacityOnSeller(), DELTA);
+        Assert.assertEquals(DB_S3_DTU_PRICE, mutableQuote.quoteValues[0], DELTA);
+    }
+
+    /**
+     * Scenario where seller can support scale up and chooses something which meets resized capacity of 300GB.
+     * DB assigned capacity = 10
+     * DB Resized capacity = 280
+     * DB recommended size = 300
+     * DB Storage cost = 10;
+     */
+    @Test
+    public void testCalculateComputeAndDatabaseWithScaleUp() {
+        BalanceAccount balanceAccount = Mockito.mock(BalanceAccount.class);
+        Context context = Mockito.mock(Context.class);
+        CostTable costTable = getDBCostTable(balanceAccount, context);
+        ShoppingList shoppingList = TestUtils.createAndPlaceShoppingList(economy,
+                Arrays.asList(TestUtils.ST_AMT, dbLicense), TestUtils.createVM(economy),
+                new double[] {280, 0}, new double[] {280, 0}, databaseTier);
+        shoppingList.getBuyer().getSettings().setContext(context);
+        shoppingList.addAssignedCapacity(DB_STORAGE_AMOUNT_TYPE, 10D);
+        MutableQuote mutableQuote =
+                CostFunctionFactory.calculateComputeAndDatabaseCostQuote(databaseTier, shoppingList,
+                        costTable, licenseAccessCommBaseType);
+        // because no extra cost till 250 GB.
+        Assert.assertEquals(300, mutableQuote.getCommodityContexts().get(0).getNewCapacityOnSeller(), DELTA);
+        Assert.assertEquals(DB_S3_DTU_PRICE + 50 * STORAGE_COST_PER_GB, mutableQuote.quoteValues[0], DELTA);
+    }
+
+    /**
+     * Scenario where DB scale down can be supported by current seller.
+     * DB assigned capacity = 1024
+     * DB Resized capacity = 10
+     * DB recommended size = 250
+     * DB Storage cost = 0;
+     */
+    @Test
+    public void testCalculateComputeAndDatabaseSupporteSellerScaleDown() {
+        BalanceAccount balanceAccount = Mockito.mock(BalanceAccount.class);
+        Context context = Mockito.mock(Context.class);
+        CostTable costTable = getDBCostTable(balanceAccount, context);
+        ShoppingList shoppingList = TestUtils.createAndPlaceShoppingList(economy,
+                Arrays.asList(TestUtils.ST_AMT, dbLicense), TestUtils.createVM(economy),
+                new double[] {10, 0}, new double[] {10, 0}, databaseTier);
+        shoppingList.getBuyer().getSettings().setContext(context);
+        shoppingList.addAssignedCapacity(DB_STORAGE_AMOUNT_TYPE, 1024);
+        MutableQuote mutableQuote =
+                CostFunctionFactory.calculateComputeAndDatabaseCostQuote(databaseTier, shoppingList,
+                        costTable, licenseAccessCommBaseType);
+        // because no extra cost till 250 GB.
+        Assert.assertEquals(250, mutableQuote.getCommodityContexts().get(0).getNewCapacityOnSeller(), DELTA);
+        Assert.assertEquals(DB_S3_DTU_PRICE, mutableQuote.quoteValues[0], DELTA);
+    }
+
+    /**
+     * Scenario where the shoppingList can not support assignedCapacity.
+     * DB assigned capacity = 4096
+     * DB Resized capacity = 10
+     * DB recommended size = 250
+     * DB Storage cost = 0;
+     */
+    @Test
+    public void testCalculateComputeAndDatabaseUnsupportedSLScaleUp() {
+        BalanceAccount balanceAccount = Mockito.mock(BalanceAccount.class);
+        Context context = Mockito.mock(Context.class);
+        CostTable costTable = getDBCostTable(balanceAccount, context);
+        ShoppingList shoppingList = TestUtils.createAndPlaceShoppingList(economy,
+                Arrays.asList(TestUtils.ST_AMT, dbLicense), TestUtils.createVM(economy),
+                new double[] {10, 0}, new double[] {10, 0}, databaseTier);
+        shoppingList.getBuyer().getSettings().setContext(context);
+        shoppingList.addAssignedCapacity(DB_STORAGE_AMOUNT_TYPE, 4096);
+        MutableQuote mutableQuote =
+                CostFunctionFactory.calculateComputeAndDatabaseCostQuote(databaseTier, shoppingList,
+                        costTable, licenseAccessCommBaseType);
+        // because no extra cost till 250 GB.
+        Assert.assertEquals(250, mutableQuote.getCommodityContexts().get(0).getNewCapacityOnSeller(), DELTA);
+        Assert.assertEquals(DB_S3_DTU_PRICE, mutableQuote.quoteValues[0], DELTA);
+    }
+
+
+    /**
+     * Scenario where the seller and SL is not on same supplier; so DB goes to 250GB storage.
+     * DB assigned capacity = 30
+     * DB Resized capacity = 10
+     * DB recommended size = 250
+     * DB Storage cost = 0;
+     */
+    @Test
+    public void testCalculateComputeAndDatabaseDifferentSLAndSeller() {
+        Context context = Mockito.mock(Context.class);
+        ShoppingList shoppingList = TestUtils.createAndPlaceShoppingList(economy,
+                Arrays.asList(TestUtils.ST_AMT, dbLicense), TestUtils.createVM(economy),
+                new double[] {10, 0}, new double[] {10, 0}, databaseTier);
+        shoppingList.getBuyer().getSettings().setContext(context);
+        final Trader buyerDB = TestUtils.createDB(economy);
+        shoppingList.move(buyerDB);
+        BalanceAccount balanceAccount = Mockito.mock(BalanceAccount.class);
+        shoppingList.addAssignedCapacity(DB_STORAGE_AMOUNT_TYPE, 30);
+        CostTable costTable = getDBCostTable(balanceAccount, context);
+        MutableQuote mutableQuote =
+                CostFunctionFactory.calculateComputeAndDatabaseCostQuote(databaseTier, shoppingList,
+                        costTable, licenseAccessCommBaseType);
+        // because no extra cost till 250 GB.
+        Assert.assertEquals(250, mutableQuote.getCommodityContexts().get(0).getNewCapacityOnSeller(), DELTA);
+        Assert.assertEquals(DB_S3_DTU_PRICE, mutableQuote.quoteValues[0], DELTA);
+    }
+
+    /**
+     * Scenario where seller can not support Resized capacity. Leads to positive infinity cost.
+     * DB assigned capacity = 10
+     * DB Resized capacity = 4096
+     * DB recommended size = ~
+     * DB Storage cost = POSITIVE.INFINITY;
+     */
+    @Test
+    public void testCalculateComputeAndDatabaseInfiniteCost() {
+        BalanceAccount balanceAccount = Mockito.mock(BalanceAccount.class);
+        Context context = Mockito.mock(Context.class);
+        CostTable costTable = getDBCostTable(balanceAccount, context);
+        ShoppingList shoppingList = TestUtils.createAndPlaceShoppingList(economy,
+                Arrays.asList(TestUtils.ST_AMT, dbLicense), TestUtils.createVM(economy),
+                new double[] {4096, 0}, new double[] {4096, 0}, databaseTier);
+        shoppingList.getBuyer().getSettings().setContext(context);
+        shoppingList.addAssignedCapacity(DB_STORAGE_AMOUNT_TYPE, 10);
+        MutableQuote mutableQuote =
+                CostFunctionFactory.calculateComputeAndDatabaseCostQuote(databaseTier, shoppingList,
+                        costTable, licenseAccessCommBaseType);
+        Assert.assertEquals(POSITIVE_INFINITY, mutableQuote.quoteValues[0], DELTA);
+    }
+
+    @Nonnull
+    private CostTable getDBCostTable(final BalanceAccount balanceAccount, final Context context) {
+        when(context.getRegionId()).thenReturn(DB_REGION_ID);
+        when(context.getBalanceAccount()).thenReturn(balanceAccount);
+        when(balanceAccount.getPriceId()).thenReturn(DB_BUSINESS_ACCOUNT_ID);
+        DatabaseTierCostDTO dbCostDTO = createDBCostDTO();
+        CostTable costTable = Mockito.mock(CostTable.class);
+        when(costTable.hasAccountId(DB_BUSINESS_ACCOUNT_ID)).thenReturn(true);
+        when(costTable.getTuple(DB_REGION_ID, DB_BUSINESS_ACCOUNT_ID,
+                DB_LICENSE_COMMODITY_TYPE)).thenReturn(dbCostDTO.getCostTupleList(0));
+        return costTable;
+    }
+
     private DatabaseTierCostDTO createDBCostDTO() {
         DependentCostTuple dependentCostTuple = DependentCostTuple.newBuilder()
                 .setDependentResourceType(DB_STORAGE_AMOUNT_TYPE)
@@ -595,22 +762,22 @@ public class CostFunctionFactoryTest {
                 .addDependentResourceOptions(DependentCostTuple.DependentResourceOption.newBuilder()
                         .setAbsoluteIncrement(50)
                         .setEndRange(300)
-                        .setPrice(0.2)
+                        .setPrice(STORAGE_COST_PER_GB)
                         .build())
                 .addDependentResourceOptions(DependentCostTuple.DependentResourceOption.newBuilder()
                         .setAbsoluteIncrement(100)
                         .setEndRange(500)
-                        .setPrice(0.2)
+                        .setPrice(STORAGE_COST_PER_GB)
                         .build())
                 .addDependentResourceOptions(DependentCostTuple.DependentResourceOption.newBuilder()
                         .setAbsoluteIncrement(250)
                         .setEndRange(750)
-                        .setPrice(0.2)
+                        .setPrice(STORAGE_COST_PER_GB)
                         .build())
                 .addDependentResourceOptions(DependentCostTuple.DependentResourceOption.newBuilder()
                         .setAbsoluteIncrement(274)
                         .setEndRange(1024)
-                        .setPrice(0.2)
+                        .setPrice(STORAGE_COST_PER_GB)
                         .build())
                 .build();
         return createDatabaseTierCostDTO(dependentCostTuple);
