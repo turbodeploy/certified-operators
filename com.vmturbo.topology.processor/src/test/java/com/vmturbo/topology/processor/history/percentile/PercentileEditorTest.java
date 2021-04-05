@@ -39,6 +39,7 @@ import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges;
@@ -380,6 +381,66 @@ public class PercentileEditorTest extends PercentileBaseTest {
                 .setCommodityType(TopologyDTO.CommodityType.newBuilder()
                     .setType(CommodityType.IO_THROUGHPUT_VALUE)),
             EntityType.COMPUTE_TIER_VALUE));
+    }
+
+    /**
+     * Test that Cloud VMem commodity sold without utilizationData is not processed for
+     * percentile calculation.
+     */
+    @Test
+    public void testIsSoldCloudVMemCommodityApplicableNoUtilizationData() {
+        Assert.assertFalse(percentileEditor.isCommodityApplicable(
+            TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
+                .setEnvironmentType(EnvironmentType.CLOUD))
+                .build(),
+            TopologyDTO.CommoditySoldDTO.newBuilder()
+                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                .setType(CommodityType.VMEM_VALUE))));
+    }
+
+    /**
+     * Test that Cloud VMem commodity sold with utilizationData is processed for percentile
+     * calculation.
+     */
+    @Test
+    public void testIsSoldCloudVMemCommodityApplicableWithUtilizationData() {
+        Assert.assertTrue(percentileEditor.isCommodityApplicable(
+            TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
+                .setEnvironmentType(EnvironmentType.CLOUD))
+                .build(),
+            TopologyDTO.CommoditySoldDTO.newBuilder()
+                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                    .setType(CommodityType.VMEM_VALUE))
+                .setUtilizationData(UtilizationData.getDefaultInstance())));
+    }
+
+    /**
+     * Test that non-Cloud VMem commodity with no utilizationData is processed for percentile
+     * calculation.
+     */
+    @Test
+    public void testIsSoldNonCloudVMemCommodityApplicableNoUtilizationData() {
+        Assert.assertTrue(percentileEditor.isCommodityApplicable(
+            TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder())
+                .build(),
+            TopologyDTO.CommoditySoldDTO.newBuilder()
+                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                    .setType(CommodityType.VMEM_VALUE))));
+    }
+
+    /**
+     * Test that non-Cloud VMem commodity with utilizationData is processed for percentile
+     * calculation.
+     */
+    @Test
+    public void testIsSoldNonCloudVMemCommodityApplicableWithUtilizationData() {
+        Assert.assertTrue(percentileEditor.isCommodityApplicable(
+            TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder())
+                .build(),
+            TopologyDTO.CommoditySoldDTO.newBuilder()
+                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                    .setType(CommodityType.VMEM_VALUE))
+                .setUtilizationData(UtilizationData.getDefaultInstance())));
     }
 
     /**
