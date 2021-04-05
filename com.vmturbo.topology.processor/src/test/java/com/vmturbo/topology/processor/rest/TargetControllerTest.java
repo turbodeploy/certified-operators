@@ -1204,12 +1204,14 @@ public class TargetControllerTest {
         final Target target = createTarget(probeId, "43");
         final long targetId = target.getId();
 
-        final Discovery discovery = new Discovery(probeId, targetId, identityProvider);
         final Validation validation = new Validation(probeId,  targetId, identityProvider);
-        when(operationManager.getLastDiscoveryForTarget(targetId, DiscoveryType.FULL))
-            .thenReturn(Optional.of(discovery));
+        final Discovery discovery = new Discovery(probeId, targetId, identityProvider);
+        validation.success();
+        discovery.success();
         when(operationManager.getLastValidationForTarget(targetId))
             .thenReturn(Optional.of(validation));
+        when(operationManager.getLastDiscoveryForTarget(targetId, DiscoveryType.FULL))
+            .thenReturn(Optional.of(discovery));
 
         ITargetHealthInfo healthInfo = getTargetHealth(targetId);
         Assert.assertEquals(Long.valueOf(targetId), healthInfo.getTargetId());
@@ -1277,9 +1279,11 @@ public class TargetControllerTest {
         final long targetId = target.getId();
 
         final Validation validation = new Validation(probeId,  targetId, identityProvider);
+        validation.success();
         when(operationManager.getLastValidationForTarget(targetId))
             .thenReturn(Optional.of(validation));
         final Discovery discovery = new Discovery(probeId, targetId, identityProvider);
+        discovery.fail();
         when(operationManager.getLastDiscoveryForTarget(targetId, DiscoveryType.FULL))
             .thenReturn(Optional.of(discovery));
 
@@ -1316,6 +1320,7 @@ public class TargetControllerTest {
         final long targetId = target.getId();
 
         final Discovery discovery = new Discovery(probeId, targetId, identityProvider);
+        discovery.success();
         when(operationManager.getLastDiscoveryForTarget(targetId, DiscoveryType.FULL))
             .thenReturn(Optional.of(discovery));
 
