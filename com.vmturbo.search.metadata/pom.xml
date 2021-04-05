@@ -46,6 +46,14 @@
             <groupId>com.vmturbo</groupId>
             <artifactId>extractor-schema</artifactId>
         </dependency>
+        <dependency>
+            <groupId>org.hamcrest</groupId>
+            <artifactId>hamcrest-all</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.hamcrest</groupId>
+            <artifactId>hamcrest-core</artifactId>
+        </dependency>
     </dependencies>
 
 </project>

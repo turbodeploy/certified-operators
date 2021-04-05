@@ -175,7 +175,7 @@
         does not suffer from a vulnerability. See bug OM-59181 -->
         <commons-beanutils.version>1.9.4</commons-beanutils.version>
 
-        <!-- timescaledb image tag pulled by builds of extractor and extractor-scheam -->
+        <!-- timescaledb image tag pulled by builds of extractor and extractor-schema -->
         <timescaledb-image-tag>2.0.1-pg12</timescaledb-image-tag>
     </properties>
 
@@ -3177,6 +3177,11 @@
                 <groupId>org.reflections</groupId>
                 <artifactId>reflections</artifactId>
                 <version>0.9.12</version>
+            </dependency>
+            <dependency>
+                <groupId>net.sf.jopt-simple</groupId>
+                <artifactId>jopt-simple</artifactId>
+                <version>6.0-alpha-3</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
