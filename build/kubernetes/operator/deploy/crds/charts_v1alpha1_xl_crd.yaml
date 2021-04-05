@@ -813,6 +813,12 @@ spec:
                   description: Enable WebSphere mediation
                   type: boolean
               type: object
+            jboss:
+              properties:
+                enabled:
+                  description: Enable JBoss mediation
+                  type: boolean
+              type: object
             nutanix:
               properties:
                 enabled:
