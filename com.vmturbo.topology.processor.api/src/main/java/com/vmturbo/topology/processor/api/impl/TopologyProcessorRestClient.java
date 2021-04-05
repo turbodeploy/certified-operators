@@ -30,6 +30,7 @@ import com.vmturbo.topology.processor.api.impl.OperationRESTApi.OperationRespons
 import com.vmturbo.topology.processor.api.impl.OperationRESTApi.ValidateAllResponse;
 import com.vmturbo.topology.processor.api.impl.ProbeRESTApi.GetAllProbes;
 import com.vmturbo.topology.processor.api.impl.ProbeRESTApi.ProbeDescription;
+import com.vmturbo.topology.processor.api.impl.TargetRESTApi.AllTargetsHealthResponse;
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi.GetAllTargetsResponse;
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi.TargetHealthInfo;
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi.TargetInfo;
@@ -60,6 +61,7 @@ public class TopologyProcessorRestClient extends ComponentRestClient {
     private final TargetRestClient remoteTargetsClient;
 
     private final TargetHealthRestClient targetHealthClient;
+    private final NoExceptionsRestClient<AllTargetsHealthResponse> allTargetsHealthClient;
 
     private final OperationResultRestClient targetOperationClient;
 
@@ -86,6 +88,7 @@ public class TopologyProcessorRestClient extends ComponentRestClient {
                 new TargetRestClient(HttpStatus.NOT_FOUND, HttpStatus.SERVICE_UNAVAILABLE,
                         HttpStatus.FORBIDDEN);
         targetHealthClient = new TargetHealthRestClient(HttpStatus.NOT_FOUND);
+        allTargetsHealthClient = new NoExceptionsRestClient<>(AllTargetsHealthResponse.class);
         targetOperationClient = new OperationResultRestClient();
         validateAllClient = new NoExceptionsRestClient<>(ValidateAllResponse.class);
         discoverAllClient = new NoExceptionsRestClient<>(DiscoverAllResponse.class);
@@ -167,6 +170,18 @@ public class TopologyProcessorRestClient extends ComponentRestClient {
                         .get(URI.create(targetUri + Long.toString(id) + "/health"))
                         .build();
         return targetHealthClient.execute(request);
+    }
+
+    /**
+     * Forms the request and gets info from topology-processor about the health of all targets.
+     * @return a set of {@link ITargetHealthInfo} objects for all targets.
+     * @throws CommunicationException
+     */
+    @Nonnull
+    public Set<ITargetHealthInfo> getAllTargetsHealth() throws CommunicationException {
+        final RequestEntity<?> request = RequestEntity.get(URI.create(targetUri + "/health")).build();
+        final AllTargetsHealthResponse result = allTargetsHealthClient.execute(request);
+        return ImmutableSet.copyOf(result.getAllTargetsHealth());
     }
 
     @Nonnull
