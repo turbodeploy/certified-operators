@@ -853,6 +853,17 @@ services:
       instance_id: mediation-weblogic-1
     restart: always
 
+  mediation-jboss-prod:
+    extends:
+      file: common-services.yml
+      service: prod-mediation-component
+    image: turbonomic/com.vmturbo.mediation.jboss.component
+    environment:
+      consul_host: consul
+      component_type: mediation-jboss
+      instance_id: mediation-jboss-1
+    restart: always
+
   mediation-udt-prod:
     extends:
       file: common-services.yml

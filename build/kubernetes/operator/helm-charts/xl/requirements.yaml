@@ -313,6 +313,10 @@ dependencies:
     repository: file://../probes/mediation-websphere
     version: 0.1.0
     condition: websphere.enabled
+  - name: mediation-jboss
+    repository: file://../probes/mediation-jboss
+    version: 0.1.0
+    condition: jboss.enabled
   - name: mediation-nutanix
     repository: file://../probes/mediation-nutanix
     version: 0.1.0
