@@ -423,6 +423,15 @@ public class TestUtils {
     }
 
     /**
+     * @param economy - Economy where you want to add a DB.
+     * @return Trader i.e. DB
+     */
+    public static Trader createDB(Economy economy) {
+        Trader db = economy.addTrader(DB_TYPE, TraderState.ACTIVE, new Basket());
+        return db;
+    }
+
+    /**
      * @param economy - Economy where you want to create and place shopping list.
      * @param basketCommodities - Basket's commodities bought in this shopping list.
      * @param buyer - The buyer buying this shopping list.
