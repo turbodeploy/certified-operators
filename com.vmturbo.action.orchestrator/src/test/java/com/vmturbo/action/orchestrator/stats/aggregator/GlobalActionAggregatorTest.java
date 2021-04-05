@@ -10,9 +10,9 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import org.junit.Test;
-
 import com.google.common.collect.ImmutableMap;
+
+import org.junit.Test;
 
 import com.vmturbo.action.orchestrator.db.tables.records.ActionStatsLatestRecord;
 import com.vmturbo.action.orchestrator.stats.ImmutableStatsActionView;
@@ -52,7 +52,7 @@ public class GlobalActionAggregatorTest {
         .actionMode(ActionMode.RECOMMEND)
         .category(ActionCategory.PERFORMANCE_ASSURANCE)
         .actionState(ActionState.READY)
-        .actionRelatedRisk("Mem congestion")
+        .addActionRelatedRisk("Mem congestion")
         .build();
 
     @Test

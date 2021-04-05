@@ -2,7 +2,6 @@ package com.vmturbo.action.orchestrator.stats;
 
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -29,37 +28,36 @@ public class StatsActionViewFactory {
      * multiple risks.
      *
      * @param action The input {@link ActionView}.
-     * @return A stream of {@link StatsActionView} representing the state of the {@link ActionView}
+     * @return A {@link StatsActionView} representing the state of the {@link ActionView}
      *         at the time the factory method was called. Further modifications to the underlying
      *         action (e.g. accepting a READY action) won't be reflected in the snapshot.
      * @throws UnsupportedActionException If the recommendation of the {@link ActionView} is not
      *         supported. This shouldn't happen, unless there is some coding error.
      */
     @Nonnull
-    public Stream<StatsActionView> newStatsActionView(@Nonnull final ActionView action)
+    public StatsActionView newStatsActionView(@Nonnull final ActionView action)
             throws UnsupportedActionException {
         final Action translationResultOrOriginal = action.getTranslationResultOrOriginal();
         final ActionType actionType = ActionDTOUtil.getActionInfoActionType(translationResultOrOriginal);
-        // only include the target entity in the numEntities for action stats, because that is the
+        // Only include the target entity in the numEntities for action stats, because that is the
         // entity impacted by this action, which also aligns with classic.
         // for example: a move vm action may involve target entity (vm), current entity (current
         // host), new entity (new host), we should only count the vm in "numEntities" stats.
         final ActionEntity primaryEntity = ActionDTOUtil.getPrimaryEntity(translationResultOrOriginal);
-        return ExplanationComposer.composeRelatedRisks(translationResultOrOriginal).stream().map(relatedRisk -> {
-            final ImmutableStatsActionView.Builder snapshotBuilder = ImmutableStatsActionView.builder()
-                    .recommendation(translationResultOrOriginal)
-                    .actionGroupKey(ImmutableActionGroupKey.builder()
-                            .actionType(actionType)
-                            .actionState(action.getState())
-                            .actionMode(action.getMode())
-                            .category(action.getActionCategory())
-                            .actionRelatedRisk(relatedRisk)
-                            .build())
-                    .resourceGroupId(action.getAssociatedResourceGroupId())
-                    .businessAccountId(action.getAssociatedAccount());
-            snapshotBuilder.addInvolvedEntities(primaryEntity);
-            return snapshotBuilder.build();
-        });
+        final Set<String> relatedRisks = ExplanationComposer.composeRelatedRisks(translationResultOrOriginal);
+        final ImmutableStatsActionView.Builder snapshotBuilder = ImmutableStatsActionView.builder()
+                .recommendation(translationResultOrOriginal)
+                .actionGroupKey(ImmutableActionGroupKey.builder()
+                        .actionType(actionType)
+                        .actionState(action.getState())
+                        .actionMode(action.getMode())
+                        .category(action.getActionCategory())
+                        .actionRelatedRisk(relatedRisks)
+                        .build())
+                .resourceGroupId(action.getAssociatedResourceGroupId())
+                .businessAccountId(action.getAssociatedAccount());
+        snapshotBuilder.addInvolvedEntities(primaryEntity);
+        return snapshotBuilder.build();
     }
 
     /**
