@@ -164,6 +164,24 @@
           ]
         }
       },
+      "percentileAggressivenessDatabaseServer": {
+        "range": {
+          "step": 1,
+          "labels": [
+            "Less Aggressive",
+            "Recommended",
+            "More Aggressive",
+            "99th Percentile",
+            "95th Percentile",
+            "90th Percentile"
+          ],
+          "customStepValues": [
+            99,
+            95,
+            90
+          ]
+        }
+      },
       "minObservationPeriodVirtualMachine": {
         "range": {
           "step": 1,
@@ -297,6 +315,27 @@
         }
       },
       "maxObservationPeriodDatabase": {
+        "range": {
+          "step": 1,
+          "labels": [
+            "Less Elastic",
+            "Recommended",
+            "More Elastic",
+            "Most Elastic",
+            "Last 30 Days",
+            "Last 14 Days",
+            "Last 7 Days",
+            "Last 3 Days"
+          ],
+          "customStepValues": [
+            30,
+            14,
+            7,
+            3
+          ]
+        }
+      },
+      "maxObservationPeriodDatabaseServer": {
         "range": {
           "step": 1,
           "labels": [
