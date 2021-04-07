@@ -469,7 +469,8 @@ public class ServiceConfig {
             communicationConfig.repositoryApi(),
             communicationConfig.groupExpander(),
             statsQueryExecutor(),
-            mapperConfig.uuidMapper());
+            mapperConfig.uuidMapper(),
+            communicationConfig.groupRpcService());
     }
 
     @Bean
