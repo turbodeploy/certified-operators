@@ -105,6 +105,14 @@ public interface TopologyProcessor {
     ITargetHealthInfo getTargetHealth(long id) throws CommunicationException, TopologyProcessorException;
 
     /**
+     * Returns health of all targets.
+     * @return a set of {@link ITargetHealthInfo} objects for all targets.
+     * @throws CommunicationException if persistent communication exception occurred
+     */
+    @Nonnull
+    Set<ITargetHealthInfo> getAllTargetsHealth() throws CommunicationException;
+
+    /**
      * Triggers target validation. Method is blocked until validation has been started.
      *
      * @param targetId target to validate
