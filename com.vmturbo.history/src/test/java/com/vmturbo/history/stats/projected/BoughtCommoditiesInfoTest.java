@@ -14,6 +14,7 @@ import static org.mockito.Mockito.when;
 import java.util.Collections;
 import java.util.Optional;
 
+import com.google.common.collect.ImmutableSet;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -690,5 +691,32 @@ public class BoughtCommoditiesInfoTest {
                         .build())
                 .build();
         assertEquals(expectedStatRecord, record);
+    }
+
+    /**
+     * Should not throw an index out of bounds exception when the oid is not found in the oid pack.
+     * Before the bug was fixed, this test would have failed due to a ArrayIndexOutOfBoundsException.
+     */
+    @Test
+    public void testNoIndexOutOfBounds() {
+        DataPack<Long> oidDataPack = new DataPack<>();
+        DataPack<String> keyDataPack = new DataPack<>();
+        SoldCommoditiesInfo soldCommoditiesInfo = SoldCommoditiesInfo
+            .newBuilder(Collections.emptySet(), oidDataPack, keyDataPack)
+            .build();
+        DataPack<String> commodityNameDataPack = new DataPack<>();
+        BoughtCommoditiesInfo boughtCommoditiesInfo = BoughtCommoditiesInfo
+            .newBuilder(Collections.emptySet(), commodityNameDataPack, oidDataPack)
+            .addEntity(VM_2)
+            .build(soldCommoditiesInfo);
+
+        oidDataPack.freeze(false);
+        keyDataPack.freeze(false);
+        commodityNameDataPack.freeze(false);
+
+        boughtCommoditiesInfo.getAccumulatedRecord(
+            "Mem",
+            ImmutableSet.of(-1L),
+            ImmutableSet.of(-1L));
     }
 }
