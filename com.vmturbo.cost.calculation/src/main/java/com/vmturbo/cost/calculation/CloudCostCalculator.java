@@ -882,7 +882,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
         final Optional<Float> dbStorageCapacity = entityInfoExtractor.getRDBStorageCapacity(entity);
         final Price defaultPrice = Price.getDefaultInstance();
         if (!dbStorageCapacity.isPresent()) {
-            logger.warn("No {} storage capacity found for {}.", entityTypeName, entityInfoExtractor.getName(entity));
+            logger.debug("No {} storage capacity found for {}.", entityTypeName, entityInfoExtractor.getName(entity));
             return defaultPrice;
         } else if (dependentPricesList.isEmpty()) {
             logger.warn("No storage prices found for {} of type {}.", entityInfoExtractor.getName(entity), entityTypeName);
