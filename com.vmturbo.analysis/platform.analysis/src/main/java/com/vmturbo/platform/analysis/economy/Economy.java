@@ -943,6 +943,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
      */
     private void simulationCloneTrader(Trader trader) {
         Trader cloneTrader = getTraders().get(trader.getEconomyIndex());
+        cloneTrader.setOid(trader.getOid());
         cloneTrader.setDebugInfoNeverUseInCode(
                 trader.getDebugInfoNeverUseInCode() + SIM_CLONE_SUFFIX);
         cloneTrader.getSettings().setQuoteFunction(trader.getSettings().getQuoteFunction());

@@ -12,10 +12,10 @@ import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 
 public class EconomyCloneTest {
 
-    Economy economy;
-    Economy clone;
-    int TOTAL_SELLERS = 20;
-    int INACTIVE_SELLER = 17; // an arbitrary number
+    private Economy economy;
+    private Economy clone;
+    private static final int TOTAL_SELLERS = 20;
+    private static final int INACTIVE_SELLER = 17; // an arbitrary number
 
     @Before
     public void setupEconomy() {
@@ -23,18 +23,21 @@ public class EconomyCloneTest {
         int sellerNumber = 0;
         Basket basket = new Basket(new CommoditySpecification(1));
         Basket empty = new Basket();
-        Trader seller = economy.addTrader(1, TraderState.ACTIVE, basket);
-        seller.setDebugInfoNeverUseInCode(String.valueOf(sellerNumber++));
+        Trader seller = economy.addTrader(1, TraderState.ACTIVE, basket)
+                .setDebugInfoNeverUseInCode(String.valueOf(sellerNumber++))
+                .setOid(sellerNumber);
         economy.addTrader(1, TraderState.ACTIVE, basket)
-            .setDebugInfoNeverUseInCode(String.valueOf(sellerNumber++));
+                .setDebugInfoNeverUseInCode(String.valueOf(sellerNumber++))
+                .setOid(sellerNumber);
         CommoditySold commSold = seller.getCommoditiesSold().get(0);
         commSold.setCapacity(100);
         commSold.setQuantity(20);
         commSold.setPeakQuantity(30);
         commSold.getSettings().setPriceFunction(PriceFunctionFactory.createStandardWeightedPriceFunction(7.0));
 
-        Trader buyer = economy.addTrader(2, TraderState.ACTIVE, empty);
-        buyer.setDebugInfoNeverUseInCode(String.valueOf(sellerNumber++));
+        Trader buyer = economy.addTrader(2, TraderState.ACTIVE, empty)
+                .setDebugInfoNeverUseInCode(String.valueOf(sellerNumber++))
+                .setOid(sellerNumber);
         ShoppingList shoppingList = economy.addBasketBought(buyer, basket);
         shoppingList.setQuantity(0, 11);
         shoppingList.setPeakQuantity(0, 15);
@@ -47,7 +50,8 @@ public class EconomyCloneTest {
                             ? TraderState.INACTIVE
                             : TraderState.ACTIVE;
             economy.addTrader(1, state, basket)
-                .setDebugInfoNeverUseInCode(String.valueOf(sellerNumber++));
+                    .setDebugInfoNeverUseInCode(String.valueOf(sellerNumber++))
+                    .setOid(sellerNumber);
         }
 
         clone = economy.simulationClone();
@@ -69,6 +73,8 @@ public class EconomyCloneTest {
             .getQuoteValue();
         assertTrue(quote > 0); // Just to be sure
         assertEquals(quote, cloneQuote, TestUtils.FLOATING_POINT_DELTA);
+        assertTrue(cloneSeller.isOidSet());
+        assertEquals(seller.getOid(), cloneSeller.getOid());
     }
 
     /**
@@ -79,7 +85,7 @@ public class EconomyCloneTest {
     @Test
     public void testCloneSellerOrder() {
         assertEquals(TraderState.INACTIVE, clone.getTraders().get(INACTIVE_SELLER).getState());
-        clone.getTraders().stream()
+        clone.getTraders()
             .forEach(t -> assertEquals(t.getDebugInfoNeverUseInCode(),
                     t.getEconomyIndex() + Economy.SIM_CLONE_SUFFIX));
     }
