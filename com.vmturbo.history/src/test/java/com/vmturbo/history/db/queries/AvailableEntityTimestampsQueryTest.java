@@ -9,6 +9,7 @@ import org.jooq.ResultQuery;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.QueryTestBase;
@@ -70,6 +71,35 @@ public class AvailableEntityTimestampsQueryTest extends QueryTestBase {
                 .withSelectFields("pm_stats_latest.snapshot_time")
                 .withSortFields("pm_stats_latest.snapshot_time")
                 .check(query);
+    }
+
+    /**
+     * Test the query builder with a cluster entity type specified.
+     */
+    @Test
+    public void testWithClusterEntityType() {
+        Query query = new AvailableEntityTimestampsQuery(TimeFrame.LATEST,
+            EntityType.named(StringConstants.CLUSTER).get(), null, 0,
+            null, null, false).getQuery();
+        queryChecker.withTables("cluster_stats_latest")
+            .withSelectFields("cluster_stats_latest.recorded_on")
+            .withSortFields("cluster_stats_latest.recorded_on")
+            .check(query);
+    }
+
+    /**
+     * Test the query builder with a cluster entity type and cluster oid specified.
+     */
+    @Test
+    public void testWithClusterEntityOid() {
+        Query query = new AvailableEntityTimestampsQuery(TimeFrame.LATEST,
+            EntityType.named(StringConstants.CLUSTER).get(), "123", 0,
+            null, null, false).getQuery();
+        queryChecker.withTables("cluster_stats_latest")
+            .withSelectFields("cluster_stats_latest.recorded_on")
+            .withSortFields("cluster_stats_latest.recorded_on")
+            .withConditions("cluster_stats_latest.internal_name = '123'")
+            .check(query);
     }
 
     /**

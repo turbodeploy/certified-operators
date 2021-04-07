@@ -20,10 +20,12 @@ import org.jooq.Table;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.history.db.EntityType;
+import com.vmturbo.history.db.EntityTypeDefinitions;
 import com.vmturbo.history.db.QueryBase;
 
 /**
- * This class defines a query to retrieve snapshot_time values of available entity_stats data.
+ * This class defines a query to retrieve snapshot_time values of available entity_stats data
+ * or recorded_on values of cluster_stats data.
  *
  * <p>The query can be constrained by a variety of factors:</p>
  * <ul>
@@ -56,12 +58,18 @@ public class AvailableEntityTimestampsQuery extends QueryBase {
             @Nullable Timestamp toInclusive,
             boolean excludeProperties,
             String... propertyTypes) {
+        // This special casing is needed due to the difference in schema of clusters and the other entity types stats.
+        // TODO: this special casing can be removed after changing the schema of the cluster stats table
+        //  to be the same as the other entities table.
+        final boolean isClusterStats = entityType != null && StringConstants.CLUSTER.equals(entityType.getName());
+
         Table<? extends Record> entityTable = entityType != null
                 ? entityType.getTimeFrameTable(timeFrame).get()
                 // This is a little goofy because market stats tables are not entity tables.
                 // It's like this now to support existing usage, but this deserves some later redesign
                 : getMarketStatsTimeFrameTable(timeFrame);
-        Field<Timestamp> snapshotTimeField = getTimestampField(entityTable, StringConstants.SNAPSHOT_TIME);
+        Field<Timestamp> snapshotTimeField = getTimestampField(entityTable,
+            isClusterStats ? StringConstants.RECORDED_ON : StringConstants.SNAPSHOT_TIME);
         if (limit != 1) {
             // if we're getting more than one snapshot, filter out duplicates
             setDistinct();
@@ -76,7 +84,8 @@ public class AvailableEntityTimestampsQuery extends QueryBase {
                     : propertyTypeField.in(propertyTypes));
         }
         if (entityType != null && entityOid != null) {
-            Field<String> uuidField = getStringField(entityTable, StringConstants.UUID);
+            Field<String> uuidField = getStringField(entityTable,
+                isClusterStats ? StringConstants.INTERNAL_NAME : StringConstants.UUID);
             addConditions(uuidField.eq(entityOid));
             // make sure we use the uuid index when we're given an oid; a bad index choice
             // here can kill this query!
