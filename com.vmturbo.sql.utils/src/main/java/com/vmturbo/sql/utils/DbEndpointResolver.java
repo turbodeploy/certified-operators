@@ -132,26 +132,24 @@ public class DbEndpointResolver {
     }
 
     void resolve() throws UnsupportedDialectException {
-        if (!config.isAbstract()) {
-            resolveProvisioningSuffix();
-            resolveHost();
-            resolvePort();
-            resolveDatabaseName();
-            resolveSchemaName();
-            resolveUserName();
-            resolvePassword();
-            resolveAccess();
-            resolveRootUserName();
-            resolveRootPassword();
-            resolveDriverProperties();
-            resolveSecure();
-            resolveMigrationLocations();
-            resolveFlywayCallbacks();
-            resolveDestructiveProvisioningEnabled();
-            resolveEndpointEnabled();
-            resolveShouldProvisionDatabase();
-            resolveShouldProvisionUser();
-        }
+        resolveProvisioningSuffix();
+        resolveHost();
+        resolvePort();
+        resolveDatabaseName();
+        resolveSchemaName();
+        resolveUserName();
+        resolvePassword();
+        resolveAccess();
+        resolveRootUserName();
+        resolveRootPassword();
+        resolveDriverProperties();
+        resolveSecure();
+        resolveMigrationLocations();
+        resolveFlywayCallbacks();
+        resolveDestructiveProvisioningEnabled();
+        resolveEndpointEnabled();
+        resolveShouldProvisionDatabase();
+        resolveShouldProvisionUser();
     }
 
     /**

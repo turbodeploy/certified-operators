@@ -353,6 +353,15 @@ public enum EntitySettingSpecs {
             numeric(90.0f, 99.0f, 95.0f), true),
 
     /**
+     * Aggressiveness for Database Servers.
+     */
+    PercentileAggressivenessDatabaseServer("percentileAggressivenessDatabaseServer",
+        SettingConstants.AGGRESSIVENESS,
+        Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+        SettingTiebreaker.BIGGER, EnumSet.of(EntityType.DATABASE_SERVER),
+        numeric(90.0f, 99.0f, 95.0f), true),
+
+    /**
      * Min observation period for virtual machine.
      */
     MinObservationPeriodVirtualMachine("minObservationPeriodVirtualMachine",
@@ -360,7 +369,6 @@ public enum EntitySettingSpecs {
             Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
             SettingTiebreaker.BIGGER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
             numeric(0.0f, 90.0f, 0.0f), true),
-
     /**
      * Min observation period for virtual volume.
      */
@@ -423,6 +431,15 @@ public enum EntitySettingSpecs {
             Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
             SettingTiebreaker.BIGGER, EnumSet.of(EntityType.DATABASE),
             numeric(3.0f, 30.0f, 14.0f), true),
+
+    /**
+     *  Max observation period for Database Servers.
+     */
+    MaxObservationPeriodDatabaseServer("maxObservationPeriodDatabaseServer",
+        SettingConstants.MAX_OBSERVATION_PERIOD,
+        Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+        SettingTiebreaker.BIGGER, EnumSet.of(EntityType.DATABASE_SERVER),
+        numeric(3.0f, 30.0f, 14.0f), true),
 
     /**
      * Resize target Utilization for Image CPU.

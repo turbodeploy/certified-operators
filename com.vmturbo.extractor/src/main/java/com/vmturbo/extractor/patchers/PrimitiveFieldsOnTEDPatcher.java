@@ -4,6 +4,7 @@ import static com.vmturbo.extractor.export.ExportUtils.TAGS_JSON_KEY_NAME;
 import static com.vmturbo.extractor.models.ModelDefinitions.SEARCH_ENTITY_TABLE;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -73,6 +74,10 @@ public class PrimitiveFieldsOnTEDPatcher implements EntityRecordPatcher<Topology
                 return new Pair<>(entityType.getNumber(), metadata);
             }).filter(pair -> !pair.second.isEmpty())
                     .collect(Collectors.toMap(p -> p.first, p -> p.second));
+
+    public static Map<Integer, List<SearchMetadataMapping>> getJsonbColumnMetadataByEntityType() {
+        return Collections.unmodifiableMap(JSONB_COLUMN_METADATA_BY_ENTITY_TYPE);
+    }
 
 
     private static final List<SearchMetadataMapping> COMMON_PRIMITIVE_ON_TED_METADATA =

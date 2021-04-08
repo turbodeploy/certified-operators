@@ -1,27 +1,31 @@
 package com.vmturbo.action.orchestrator.stats.groups;
 
 import static com.vmturbo.action.orchestrator.db.Tables.ACTION_GROUP;
+import static com.vmturbo.action.orchestrator.db.Tables.RELATED_RISK_DESCRIPTION;
 import static com.vmturbo.action.orchestrator.db.Tables.RELATED_RISK_FOR_ACTION;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import com.google.common.collect.Sets;
 
+import org.apache.commons.codec.digest.DigestUtils;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.tuple.Pair;
 import org.jooq.DSLContext;
-import org.jooq.Record1;
-import org.jooq.Record2;
+import org.jooq.Record4;
 import org.jooq.Result;
 import org.junit.ClassRule;
 import org.junit.Rule;
@@ -55,6 +59,14 @@ public class ActionGroupStoreTest {
 
     private ActionGroupStore actionGroupStore = new ActionGroupStore(dsl);
 
+    private static final String MEM_CONGESTION = "Mem congestion";
+    private static final String MEM_CONGESTION_CHK = DigestUtils.md5Hex(MEM_CONGESTION);
+    private static final String CPU_CONGESTION = "CPU congestion";
+    private static final String CPU_CONGESTION_CHK = DigestUtils.md5Hex(CPU_CONGESTION);
+    private static final String COMBINED_CHK = DigestUtils.md5Hex(
+            Stream.of(MEM_CONGESTION, CPU_CONGESTION).sorted()
+                .collect(Collectors.joining(",")));
+
     @Test
     public void testUpsert() {
         final ActionGroupKey groupKey = ImmutableActionGroupKey.builder()
@@ -62,26 +74,36 @@ public class ActionGroupStoreTest {
                 .actionState(ActionState.CLEARED)
                 .actionType(ActionType.ACTIVATE)
                 .category(ActionCategory.EFFICIENCY_IMPROVEMENT)
-                .actionRelatedRisk("Mem congestion")
+                .addActionRelatedRisk(MEM_CONGESTION)
+                .addActionRelatedRisk(CPU_CONGESTION)
                 .build();
 
         final Map<ActionGroupKey, ActionGroup> actionGroups =
                 actionGroupStore.ensureExist(Collections.singleton(groupKey));
         assertThat(actionGroups.get(groupKey).key(), is(groupKey));
 
-        // verify that the related_risks table gets updated
-        final Result<Record2<Integer, String>> relatedRisks = dsl.select(RELATED_RISK_FOR_ACTION.ID,
-                        RELATED_RISK_FOR_ACTION.RISK_DESCRIPTION)
-                .from(RELATED_RISK_FOR_ACTION)
-                .fetch();
-        assertEquals(1, relatedRisks.size());
-        assertEquals("Mem congestion", relatedRisks.get(0).value2());
-        // verify that the id in related_risks table matches the action_related_risk value in
-        // action_group table
-        final Set<Integer> actionRelatedRisks = dsl.select(ACTION_GROUP.ACTION_RELATED_RISK)
-                .from(ACTION_GROUP).fetchSet(ACTION_GROUP.ACTION_RELATED_RISK);
-        assertEquals(1, actionRelatedRisks.size());
-        assertEquals(relatedRisks.get(0).value1(), actionRelatedRisks.toArray(new Integer[0])[0]);
+        validateRiskSets(actionGroups.values());
+    }
+
+    @Test
+    public void testUpsertRiskSet() {
+        final ActionGroupKey group1Key = ImmutableActionGroupKey.builder()
+                .actionMode(ActionMode.AUTOMATIC)
+                .actionState(ActionState.CLEARED)
+                .actionType(ActionType.ACTIVATE)
+                .category(ActionCategory.EFFICIENCY_IMPROVEMENT)
+                .addActionRelatedRisk(MEM_CONGESTION)
+                .build();
+
+        final ActionGroupKey group2Key = ImmutableActionGroupKey.builder().from(group1Key)
+                .addActionRelatedRisk(CPU_CONGESTION)
+                .build();
+
+        final Map<ActionGroupKey, ActionGroup> actionGroups =
+                actionGroupStore.ensureExist(Sets.newHashSet(group1Key, group2Key));
+        assertThat(actionGroups.keySet(), containsInAnyOrder(group1Key, group2Key));
+
+        validateRiskSets(actionGroups.values());
     }
 
     @Test
@@ -91,17 +113,17 @@ public class ActionGroupStoreTest {
                 .actionState(ActionState.CLEARED)
                 .actionType(ActionType.ACTIVATE)
                 .category(ActionCategory.EFFICIENCY_IMPROVEMENT)
-                .actionRelatedRisk("Mem congestion")
+                .addActionRelatedRisk(MEM_CONGESTION)
                 .build();
 
-        actionGroupStore.ensureExist(Collections.singleton(group1Key));
+        Map<ActionGroupKey, ActionGroup> g1 = actionGroupStore.ensureExist(Collections.singleton(group1Key));
 
         final ActionGroupKey group2Key = ImmutableActionGroupKey.builder()
                 .actionMode(ActionMode.MANUAL)
                 .actionState(ActionState.QUEUED)
                 .actionType(ActionType.MOVE)
                 .category(ActionCategory.PERFORMANCE_ASSURANCE)
-                .actionRelatedRisk("CPU congestion")
+                .addActionRelatedRisk(CPU_CONGESTION)
                 .build();
 
         final Map<ActionGroupKey, ActionGroup> actionGroups =
@@ -113,27 +135,19 @@ public class ActionGroupStoreTest {
                 dsl.select(ACTION_GROUP.ID).from(ACTION_GROUP).fetchSet(ACTION_GROUP.ID);
         assertThat(ids, containsInAnyOrder(1, 2));
 
-        // verify that the related_risks table gets updated
-        final Result<Record1<Integer>> relatedRiskIDs = dsl.select(RELATED_RISK_FOR_ACTION.ID)
-                .from(RELATED_RISK_FOR_ACTION)
-                .fetch();
-        assertEquals(2, relatedRiskIDs.size());
-        final Result<Record1<Integer>> actionRelatedRisks = dsl.select(ACTION_GROUP.ACTION_RELATED_RISK)
-                .from(ACTION_GROUP)
-                .fetch();
-        assertEquals(2, actionRelatedRisks.size());
-        assertTrue(relatedRiskIDs.stream().map(Record1::value1).collect(Collectors.toList()).containsAll(
-                actionRelatedRisks.stream().map(Record1::value1).collect(Collectors.toList())));
+        validateRiskSets(CollectionUtils.union(g1.values(), actionGroups.values()));
+    }
 
-        final Result<Record1<String>> riskDescriptions = dsl.select(RELATED_RISK_FOR_ACTION.RISK_DESCRIPTION)
-                .from(RELATED_RISK_FOR_ACTION)
-                .fetch();
-        List<String> expectedRiskDescriptions = new ArrayList<>();
-        expectedRiskDescriptions.add("Mem congestion");
-        expectedRiskDescriptions.add("CPU congestion");
-        assertEquals(2, riskDescriptions.size());
-        assert(riskDescriptions.intoSet(RELATED_RISK_FOR_ACTION.RISK_DESCRIPTION)
-                .containsAll(expectedRiskDescriptions));
+    private void validateRiskSets(Collection<ActionGroup> actionGroups) {
+        Map<Integer, Pair<Set<String>, String>> riskSetsByActionGroup = getRiskSetsByAGId();
+        assertThat(riskSetsByActionGroup.size(), is(actionGroups.size()));
+        actionGroups.forEach(ag -> {
+            Pair<Set<String>, String> risksAndChecksum = riskSetsByActionGroup.get(ag.id());
+            assertThat(risksAndChecksum.getKey(), is(ag.key().getActionRelatedRisk()));
+            assertThat(risksAndChecksum.getValue(), is(DigestUtils.md5Hex(risksAndChecksum.getKey().stream()
+                .sorted()
+                .collect(Collectors.joining(",")))));
+        });
     }
 
     @Test
@@ -143,7 +157,7 @@ public class ActionGroupStoreTest {
                 .actionState(ActionState.CLEARED)
                 .actionType(ActionType.ACTIVATE)
                 .category(ActionCategory.EFFICIENCY_IMPROVEMENT)
-                .actionRelatedRisk("Mem congestion")
+                .addActionRelatedRisk(MEM_CONGESTION)
                 .build();
 
         final Map<ActionGroupKey, ActionGroup> initialGroups =
@@ -156,13 +170,10 @@ public class ActionGroupStoreTest {
         assertThat(actionGroups.get(groupKey).key(), is(groupKey));
         // Retain the initial ID.
         assertThat(actionGroups.get(groupKey).id(), is(id));
-        // verify that no duplicates get inserted into related_risks table
-        Result<Record1<String>> relatedRisks = dsl.select(RELATED_RISK_FOR_ACTION.RISK_DESCRIPTION)
-                .from(RELATED_RISK_FOR_ACTION)
-                .fetch();
-        assertEquals(1, relatedRisks.size());
-        assertEquals("Mem congestion", relatedRisks.get(0).value1());
+
+        validateRiskSets(actionGroups.values());
     }
+
 
     @Test
     public void testQueryActionModeFilter() {
@@ -171,7 +182,7 @@ public class ActionGroupStoreTest {
             .actionState(ActionState.CLEARED)
             .actionType(ActionType.ACTIVATE)
             .category(ActionCategory.EFFICIENCY_IMPROVEMENT)
-            .actionRelatedRisk("Mem congestion")
+            .addActionRelatedRisk(MEM_CONGESTION)
             .build();
         final ActionGroupKey otherMatching = ImmutableActionGroupKey.copyOf(matching)
             // Mode is the same, state different.
@@ -204,7 +215,7 @@ public class ActionGroupStoreTest {
             .actionState(ActionState.CLEARED)
             .actionType(ActionType.ACTIVATE)
             .category(ActionCategory.EFFICIENCY_IMPROVEMENT)
-            .actionRelatedRisk("Mem congestion")
+            .addActionRelatedRisk(MEM_CONGESTION)
             .build();
         final ActionGroupKey otherMatching = ImmutableActionGroupKey.copyOf(matching)
             // Category is the same, state different.
@@ -238,7 +249,7 @@ public class ActionGroupStoreTest {
             .actionState(ActionState.CLEARED)
             .actionType(ActionType.ACTIVATE)
             .category(ActionCategory.EFFICIENCY_IMPROVEMENT)
-            .actionRelatedRisk("Mem congestion")
+            .addActionRelatedRisk(MEM_CONGESTION)
             .build();
         final ActionGroupKey otherMatching = ImmutableActionGroupKey.copyOf(matching)
             // State is the same, category different.
@@ -272,7 +283,7 @@ public class ActionGroupStoreTest {
             .actionState(ActionState.CLEARED)
             .actionType(ActionType.ACTIVATE)
             .category(ActionCategory.EFFICIENCY_IMPROVEMENT)
-            .actionRelatedRisk("Mem congestion")
+            .addActionRelatedRisk(MEM_CONGESTION)
             .build();
         final ActionGroupKey otherMatching = ImmutableActionGroupKey.copyOf(matching)
             // Type is the same, state different.
@@ -305,38 +316,49 @@ public class ActionGroupStoreTest {
     @Test
     public void testQueryActionRelatedRiskFilter() {
         // GIVEN
-        final ActionGroupKey matching = ImmutableActionGroupKey.builder()
+        final ActionGroupKey matching1 = ImmutableActionGroupKey.builder()
                 .actionMode(ActionMode.AUTOMATIC)
                 .actionState(ActionState.CLEARED)
                 .actionType(ActionType.ACTIVATE)
                 .category(ActionCategory.EFFICIENCY_IMPROVEMENT)
-                .actionRelatedRisk("Mem congestion")
+                .addActionRelatedRisk(MEM_CONGESTION)
                 .build();
-        final ActionGroupKey otherMatching = ImmutableActionGroupKey.copyOf(matching)
-                // Related risk is the same, state different.
+        final ActionGroupKey partialRiskMatchKey = ImmutableActionGroupKey.copyOf(matching1)
+                .withActionState(ActionState.READY)
+                .withActionRelatedRisk(CPU_CONGESTION, MEM_CONGESTION);
+
+        final ActionGroupKey matching2 = ImmutableActionGroupKey.copyOf(matching1)
                 .withActionState(ActionState.READY);
-        final ActionGroupKey nonMatching = ImmutableActionGroupKey.copyOf(matching)
-                .withActionRelatedRisk("CPU congestion");
+
+        final ActionGroupKey nonMatching = ImmutableActionGroupKey.copyOf(matching1)
+                .withActionRelatedRisk(CPU_CONGESTION);
+
         final Map<ActionGroupKey, ActionGroup> groupByKey =
-                actionGroupStore.ensureExist(Sets.newHashSet(matching, otherMatching, nonMatching));
+                actionGroupStore.ensureExist(Sets.newHashSet(matching1, matching2, partialRiskMatchKey, nonMatching));
 
         // WHEN
         final MatchedActionGroups matchedActionGroups =
                 // Should find a result.
                 actionGroupStore.query(ActionGroupFilter.newBuilder()
-                        .addActionRelatedRisk("Mem congestion")
+                        .addActionRelatedRisk(MEM_CONGESTION)
                         .build()).get();
 
         // THEN
         assertFalse(matchedActionGroups.allActionGroups());
-        final ActionGroup matchingActionGroup = groupByKey.get(matching);
-        final ActionGroup otherMatchingActionGroup = groupByKey.get(otherMatching);
+        final ActionGroup matchingActionGroup = groupByKey.get(matching1);
+        final ActionGroup matchingActionGroup2 = groupByKey.get(matching2);
+        final ActionGroup partialRiskMatchGroup = groupByKey.get(partialRiskMatchKey);
         assertThat(matchedActionGroups.specificActionGroupsById().keySet(),
-                containsInAnyOrder(matchingActionGroup.id(), otherMatchingActionGroup.id()));
+                containsInAnyOrder(matchingActionGroup.id(), matchingActionGroup2.id(), partialRiskMatchGroup.id()));
         assertThat(matchedActionGroups.specificActionGroupsById().get(matchingActionGroup.id()),
                 is(matchingActionGroup));
-        assertThat(matchedActionGroups.specificActionGroupsById().get(otherMatchingActionGroup.id()),
-                is(otherMatchingActionGroup));
+        assertThat(matchedActionGroups.specificActionGroupsById().get(matchingActionGroup2.id()),
+                is(matchingActionGroup2));
+
+        // The partial match group gets returned only with the matched risk.
+        assertThat(matchedActionGroups.specificActionGroupsById().get(partialRiskMatchGroup.id()).key().getActionRelatedRisk(),
+                // Does not include the CPU_CONGESTION.
+                is(Collections.singleton(MEM_CONGESTION)));
     }
 
     @Test
@@ -346,7 +368,7 @@ public class ActionGroupStoreTest {
             .actionState(ActionState.CLEARED)
             .actionType(ActionType.ACTIVATE)
             .category(ActionCategory.EFFICIENCY_IMPROVEMENT)
-            .actionRelatedRisk("Mem congestion")
+            .addActionRelatedRisk(MEM_CONGESTION)
             .build();
         // Every field is different.
         final ActionGroupKey otherMatching = ImmutableActionGroupKey.builder()
@@ -354,7 +376,7 @@ public class ActionGroupStoreTest {
             .actionState(ActionState.READY)
             .actionType(ActionType.DEACTIVATE)
             .category(ActionCategory.PREVENTION)
-            .actionRelatedRisk("CPU congestion")
+            .addActionRelatedRisk(CPU_CONGESTION)
             .build();
         final Map<ActionGroupKey, ActionGroup> groupByKey =
             actionGroupStore.ensureExist(Sets.newHashSet(matching, otherMatching));
@@ -381,5 +403,28 @@ public class ActionGroupStoreTest {
             actionGroupStore.query(ActionGroupFilter.newBuilder()
                 .build());
         assertFalse(matchedActionGroups.isPresent());
+    }
+
+    private Map<Integer, Pair<Set<String>, String>> getRiskSetsByAGId() {
+        final Result<Record4<Integer, Integer, String, String>> relatedRisks = dsl.select(ACTION_GROUP.ID,
+                RELATED_RISK_FOR_ACTION.ID, RELATED_RISK_FOR_ACTION.CHECKSUM,
+                RELATED_RISK_DESCRIPTION.RISK_DESCRIPTION)
+                .from(ACTION_GROUP.join(RELATED_RISK_FOR_ACTION)
+                        .on(ACTION_GROUP.ACTION_RELATED_RISK.eq(RELATED_RISK_FOR_ACTION.ID))
+                        .join(RELATED_RISK_DESCRIPTION)
+                        .on(RELATED_RISK_FOR_ACTION.ID.eq(RELATED_RISK_DESCRIPTION.ID)))
+                .fetch();
+        final Map<Integer, Pair<Set<String>, String>> ret = new HashMap<>();
+        final Map<Integer, Set<String>> riskSetsById = new HashMap<>();
+        relatedRisks.forEach(record -> {
+            final Integer riskId = record.value2();
+            final Set<String> riskSet = riskSetsById.computeIfAbsent(riskId, k -> new HashSet<>());
+            riskSet.add(record.value4());
+            final Pair<Set<String>, String> p = ret.computeIfAbsent(record.value1(),
+                    k -> Pair.of(riskSet, record.value3()));
+            // Checksum should always be the same.
+            assertThat(record.value3(), is(p.getRight()));
+        });
+        return ret;
     }
 }

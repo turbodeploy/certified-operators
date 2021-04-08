@@ -104,8 +104,7 @@ public class TopologyEntityInfoExtractor implements EntityInfoExtractor<Topology
         switch (entity.getEntityType()) {
             case EntityType.DATABASE_VALUE:
             case EntityType.DATABASE_SERVER_VALUE:
-                return Optional.of(
-                        getCommodityCapacity(entity, CommodityType.STORAGE_AMOUNT));
+                return getRawCommodityCapacity(entity, CommodityType.STORAGE_AMOUNT);
             default:
                 return Optional.empty();
         }
@@ -145,7 +144,7 @@ public class TopologyEntityInfoExtractor implements EntityInfoExtractor<Topology
         return Optional.empty();
     }
 
-    private static float getCommodityCapacity(
+    private static Optional<Float> getRawCommodityCapacity(
             @Nonnull final TopologyEntityDTO topologyEntityDTO,
             @Nonnull final CommodityType commodityType) {
         final Optional<Double> capacity = topologyEntityDTO.getCommoditySoldListList().stream()
@@ -153,14 +152,22 @@ public class TopologyEntityInfoExtractor implements EntityInfoExtractor<Topology
                         == commodityType.getNumber())
                 .map(CommoditySoldDTO::getCapacity)
                 .findAny();
+        return capacity.map(Double::floatValue);
+    }
+
+    private static float getCommodityCapacity(
+            @Nonnull final TopologyEntityDTO topologyEntityDTO,
+            @Nonnull final CommodityType commodityType) {
+        final Optional<Float> capacity = getRawCommodityCapacity(topologyEntityDTO, commodityType);
         if (!capacity.isPresent() && !isEphemeralVolume(topologyEntityDTO)) {
             // This is not an error for AWS ephemeral (instance store) volumes because they have no
             // Storage Access and IO Throughput commodities.
             logger.warn("Missing commodity {} for topologyEntityDTO {} (OID: {})", commodityType,
                     topologyEntityDTO.getDisplayName(), topologyEntityDTO.getOid());
         }
-        return capacity.orElse(0D).floatValue();
+        return capacity.orElse(0f);
     }
+
 
     private static boolean isEphemeralVolume(@Nonnull final TopologyEntityDTO volume) {
         if (!volume.hasTypeSpecificInfo()) {

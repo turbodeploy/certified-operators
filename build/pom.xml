@@ -25,7 +25,7 @@
         <ux.mt.branch.version>8.1.5-SNAPSHOT</ux.mt.branch.version>
 
         <!-- API Repository version, determines what version of the API definition to pull in -->
-        <com.vmturbo.api.version>3.1.115-SNAPSHOT</com.vmturbo.api.version>
+        <com.vmturbo.api.version>3.1.116-SNAPSHOT</com.vmturbo.api.version>
 
         <!--CPU Capacity Library Version-->
         <cpu.capacity.version>1.4.0</cpu.capacity.version>
@@ -175,7 +175,7 @@
         does not suffer from a vulnerability. See bug OM-59181 -->
         <commons-beanutils.version>1.9.4</commons-beanutils.version>
 
-        <!-- timescaledb image tag pulled by builds of extractor and extractor-scheam -->
+        <!-- timescaledb image tag pulled by builds of extractor and extractor-schema -->
         <timescaledb-image-tag>2.0.1-pg12</timescaledb-image-tag>
     </properties>
 
@@ -427,6 +427,7 @@
                 <module>../com.vmturbo.mediation.tomcat.component</module>
                 <module>../com.vmturbo.mediation.websphere.component</module>
                 <module>../com.vmturbo.mediation.weblogic.component</module>
+                <module>../com.vmturbo.mediation.jboss.component</module>
                 <module>../com.vmturbo.mediation.instana.component</module>
                 <module>../com.vmturbo.mediation.jvm.component</module>
                 <module>../com.vmturbo.mediation.datadog.component</module>
@@ -818,6 +819,13 @@
             <id>mediation-weblogic</id>
             <modules>
                 <module>../com.vmturbo.mediation.weblogic.component</module>
+            </modules>
+        </profile>
+
+        <profile>
+            <id>mediation-jboss</id>
+            <modules>
+                <module>../com.vmturbo.mediation.jboss.component</module>
             </modules>
         </profile>
 
@@ -1287,6 +1295,7 @@
                 <module>../com.vmturbo.mediation.tomcat.component</module>
                 <module>../com.vmturbo.mediation.websphere.component</module>
                 <module>../com.vmturbo.mediation.weblogic.component</module>
+                <module>../com.vmturbo.mediation.jboss.component</module>
                 <module>../com.vmturbo.mediation.instana.component</module>
                 <module>../com.vmturbo.mediation.jvm.component</module>
                 <module>../com.vmturbo.mediation.datadog.component</module>
@@ -3168,6 +3177,11 @@
                 <groupId>org.reflections</groupId>
                 <artifactId>reflections</artifactId>
                 <version>0.9.12</version>
+            </dependency>
+            <dependency>
+                <groupId>net.sf.jopt-simple</groupId>
+                <artifactId>jopt-simple</artifactId>
+                <version>6.0-alpha-3</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

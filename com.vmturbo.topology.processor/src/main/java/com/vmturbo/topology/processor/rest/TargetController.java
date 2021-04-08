@@ -60,6 +60,7 @@ import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus;
 import com.vmturbo.topology.processor.api.TopologyProcessorException;
 import com.vmturbo.topology.processor.api.dto.InputField;
 import com.vmturbo.topology.processor.api.dto.TargetInputFields;
+import com.vmturbo.topology.processor.api.impl.TargetRESTApi.AllTargetsHealthResponse;
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi.GetAllTargetsResponse;
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi.TargetHealthInfo;
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi.TargetInfo;
@@ -467,7 +468,19 @@ public class TargetController {
         return response;
     }
 
-    private ITargetHealthInfo targetToTargetHealthInfo(@Nonnull final Target target) {
+    @RequestMapping(value = "/health",
+                    method = RequestMethod.GET,
+                    produces = {MediaType.APPLICATION_JSON_UTF8_VALUE})
+    @ApiOperation(value = "Get information about all targets health.")
+    public ResponseEntity<AllTargetsHealthResponse> getAllTargetsHealth()   {
+        final List<TargetHealthInfo> allHealth = targetStore.getAll().stream ()
+                        .map(this::targetToTargetHealthInfo)
+                        .collect(Collectors.toList());
+        final AllTargetsHealthResponse response = new AllTargetsHealthResponse(allHealth);
+        return new ResponseEntity<>(response, HttpStatus.OK);
+    }
+
+    private TargetHealthInfo targetToTargetHealthInfo(@Nonnull final Target target) {
         long targetId = target.getId();
         String targetName = target.getDisplayName();
 
@@ -516,7 +529,7 @@ public class TargetController {
                         validation.getCompletionTime());
     }
 
-    private ITargetHealthInfo verifyDiscovery(long targetId, String targetName)  {
+    private TargetHealthInfo verifyDiscovery(long targetId, String targetName)  {
         Map<Long, DiscoveryFailure> targetToFailedDiscoveries = failedDiscoveriesTracker.getFailedDiscoveries();
         DiscoveryFailure discoveryFailure = targetToFailedDiscoveries.get(targetId);
         if (discoveryFailure != null)   {

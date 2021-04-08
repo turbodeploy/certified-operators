@@ -41,6 +41,7 @@ import com.vmturbo.common.protobuf.cost.Pricing.SpotInstancePriceTable.SpotPrice
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.components.common.utils.FuzzyDouble;
 import com.vmturbo.cost.calculation.ReservedInstanceApplicator.ReservedInstanceApplicatorFactory;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.LicensePriceTuple;
@@ -550,13 +551,17 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                     recordVMIpCost(entity, computeTier, onDemandPriceTable.get(), journal);
                 }
                 // Add entity uptime discounts to all categories
-                Double entityUptimePercentage = cloudCostData.getEntityUptimePercentage(entityId);
-                TraxNumber entityUptimeDiscountValue = trax((entityUptimePercentage),
+                final FuzzyDouble entityUptimePercentage = FuzzyDouble.newFuzzy(cloudCostData.getEntityUptimePercentage(entityId));
+                if (entityUptimePercentage.isLessThan(100.0)) {
+                    TraxNumber entityUptimeDiscountValue = trax((entityUptimePercentage.value()),
                             "EntityUptimeDiscountMultiplier");
-                entityUptimeDiscountValue = entityUptimeDiscountValue.times(-1).compute()
+                    entityUptimeDiscountValue = entityUptimeDiscountValue.times(-1).compute()
                             .plus(100F).compute()
                             .dividedBy(100f).compute();
-                journal.addUptimeDiscountToAllCategories( entityUptimeDiscountValue);
+                    journal.addUptimeDiscountToAllCategories(entityUptimeDiscountValue);
+                } else {
+                    logger.trace("Skipping entity uptime discount for {}", entityId);
+                }
 
             });
         });
@@ -877,7 +882,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
         final Optional<Float> dbStorageCapacity = entityInfoExtractor.getRDBStorageCapacity(entity);
         final Price defaultPrice = Price.getDefaultInstance();
         if (!dbStorageCapacity.isPresent()) {
-            logger.warn("No {} storage capacity found for {}.", entityTypeName, entityInfoExtractor.getName(entity));
+            logger.debug("No {} storage capacity found for {}.", entityTypeName, entityInfoExtractor.getName(entity));
             return defaultPrice;
         } else if (dependentPricesList.isEmpty()) {
             logger.warn("No storage prices found for {} of type {}.", entityInfoExtractor.getName(entity), entityTypeName);

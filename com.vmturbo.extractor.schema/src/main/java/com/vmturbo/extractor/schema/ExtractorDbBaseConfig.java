@@ -61,7 +61,6 @@ public class ExtractorDbBaseConfig {
                 .like(extractorDbEndpointBase())
                 .withUserName(queryUserName)
                 .withAccess(DbEndpointAccess.READ_ONLY)
-                .withNoMigrations()
                 .build();
     }
 }

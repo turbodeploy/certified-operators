@@ -72,17 +72,26 @@ public class EntitySavingsConfig {
     @Value("${persistEntityCostChunkSize:1000}")
     private int persistEntityCostChunkSize;
 
-    /*
+    /**
      * Enable cloud savings tracking.
      */
     @Value("${enableEntitySavings:false}")
     private boolean enableEntitySavings;
 
-    /*
+    /**
      * The amount of time to retain state in the internal savings event log.
      */
     @Value("${entitySavingsEventLogRetentionHours:2400}")
     private Long entitySavingsEventLogRetentionHours;
+
+    /**
+     * Action expiration durations in hours.  These must be integral values.
+     */
+    @Value("${deleteVolumeActionLifetimeHours:8760}") // Default is 365 days (approximately 1 year)
+    private Long deleteVolumeActionLifetimeHours;
+
+    @Value("${defaultActionLifetimeHours:17520}")     // Default is 730 days (approximately 2 years)
+    private Long defaultActionLifetimeHours;
 
     /**
      * Real-Time Context Id.
@@ -138,6 +147,27 @@ public class EntitySavingsConfig {
     }
 
     /**
+     * Get the configured action lifetime in milliseconds. All active actions except for volume
+     * delete actions will remain active until it is reversed by a subsequent action or the
+     * configured interval passes, whichever comes first.
+     *
+     * @return maximum number of milliseconds that an action can stay active.
+     */
+    public Long getDefaultActionLifetimeMs() {
+        return TimeUnit.HOURS.toMillis(this.defaultActionLifetimeHours);
+    }
+
+    /**
+     * Get the configured volume delete action lifetime in milliseconds.  The volume delete action
+     * will remain active until the configured interval passes.
+     *
+     * @return maximum number of milliseconds that delete volume action can stay active.
+     */
+    public Long getDeleteVolumeActionLifetimeMs() {
+        return TimeUnit.HOURS.toMillis(this.deleteVolumeActionLifetimeHours);
+    }
+
+    /**
      * Gets a reference to entity state cache.
      *
      * @return EntityState cache to keep track of per entity state in memory.
@@ -185,7 +215,7 @@ public class EntitySavingsConfig {
     @Bean
     public TopologyEventsPoller topologyEventsPoller() {
         return new TopologyEventsPoller(topologyEventProvider, liveTopologyInfoTracker,
-                                        entityEventsJournal());
+                entityEventsJournal(), getDefaultActionLifetimeMs(), getDeleteVolumeActionLifetimeMs());
     }
 
     /**

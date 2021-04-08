@@ -35,10 +35,8 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
-
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -96,6 +94,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.CloudType;
 import com.vmturbo.common.protobuf.search.Search;
+import com.vmturbo.common.protobuf.search.Search.LogicalOperator;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
@@ -926,6 +925,13 @@ public class SearchService implements ISearchService {
                 // Convert any cluster membership filters to property filters.
                 .map(filterResolver::resolveExternalFilters)
                 .collect(Collectors.toList());
+        // operator is AND by default
+        LogicalOperator logicaloperator = LogicalOperator.AND;
+        if (inputDTO.getLogicalOperator().equalsIgnoreCase(LogicalOperator.OR.name())) {
+            logicaloperator = LogicalOperator.OR;
+        } else if (inputDTO.getLogicalOperator().equalsIgnoreCase(LogicalOperator.XOR.name())) {
+            logicaloperator = LogicalOperator.XOR;
+        }
 
         // match only the entity uuids which are part of the group or cluster
         // defined in the scope
@@ -967,12 +973,16 @@ public class SearchService implements ISearchService {
             allEntityOids = expandedIds;
         }
 
+        SearchQuery searchQuery = SearchQuery.newBuilder()
+                .addAllSearchParameters(searchParameters)
+                .setLogicalOperator(logicaloperator)
+                .build();
+
         try {
             //Repository does not support sorting on utilization
             if (paginationRequest.getOrderBy().equals(SearchOrderBy.UTILIZATION)) {
                 final SearchEntityOidsRequest searchOidsRequest = SearchEntityOidsRequest.newBuilder()
-                    .setSearch(SearchQuery.newBuilder()
-                        .addAllSearchParameters(searchParameters))
+                    .setSearch(searchQuery)
                     .addAllEntityOid(allEntityOids)
                     .build();
                 return getServiceEntityPaginatedWithUtilization(inputDTO, updatedQuery, paginationRequest,
@@ -991,7 +1001,7 @@ public class SearchService implements ISearchService {
         }
         //Paginated calls to repository, supports order_by Name and Severity
         final RepositoryApi.PaginatedSearchRequest paginatedSearchRequest =
-                        repositoryApi.newPaginatedSearch(SearchQuery.newBuilder().addAllSearchParameters(searchParameters).build(), allEntityOids, paginationRequest);
+                        repositoryApi.newPaginatedSearch(searchQuery, allEntityOids, paginationRequest);
         if (aspectNames != null && !aspectNames.isEmpty()) {
             paginatedSearchRequest.requestAspects(entityAspectMapper, aspectNames);
         }

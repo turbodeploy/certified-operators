@@ -1,5 +1,6 @@
 package com.vmturbo.stitching.poststitching;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -60,7 +61,8 @@ public abstract class StorageProvisionedPostStitchingOperation extends Overprovi
         @Override
         public StitchingScope<TopologyEntity> getScope(
             @Nonnull final StitchingScopeFactory<TopologyEntity> stitchingScopeFactory) {
-            return stitchingScopeFactory.entityTypeScope(EntityType.STORAGE);
+            return stitchingScopeFactory.multiEntityTypesScope(
+                            Arrays.asList(EntityType.STORAGE, EntityType.VIRTUAL_VOLUME));
         }
 
         @Nonnull

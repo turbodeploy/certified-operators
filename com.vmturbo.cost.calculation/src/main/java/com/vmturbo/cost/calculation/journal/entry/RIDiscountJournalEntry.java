@@ -1,14 +1,18 @@
 package com.vmturbo.cost.calculation.journal.entry;
 
+import java.util.Objects;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
+
+import org.apache.commons.lang3.builder.EqualsBuilder;
 
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.CostSource;
 import com.vmturbo.cost.calculation.DiscountApplicator;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
+import com.vmturbo.cost.calculation.journal.CostJournal.CostSourceFilter;
 import com.vmturbo.cost.calculation.journal.CostJournal.RateExtractor;
 import com.vmturbo.trax.Trax;
 import com.vmturbo.trax.TraxNumber;
@@ -19,6 +23,11 @@ import com.vmturbo.trax.TraxNumber;
  * @param <E> see {@link QualifiedJournalEntry}
  */
 public class RIDiscountJournalEntry<E> implements QualifiedJournalEntry<E> {
+
+    private static final CostSourceFilter EXCLUDE_RI_DISCOUNTS_FILTER = (costSource) ->
+            costSource != CostSource.RI_INVENTORY_DISCOUNT
+                    && costSource != CostSource.BUY_RI_DISCOUNT;
+
     /**
      * The data about the reserved instance.
      */
@@ -63,8 +72,7 @@ public class RIDiscountJournalEntry<E> implements QualifiedJournalEntry<E> {
             @Nonnull final DiscountApplicator<E> discountApplicator,
             @Nonnull final RateExtractor rateExtractor) {
         // OnDemand rate is already price-adjusted (discounted), so don't discount again.
-        TraxNumber onDemandRate = rateExtractor.lookupCostWithFilter(targetCostCategory,
-                cs -> cs == CostSource.ON_DEMAND_RATE);
+        TraxNumber onDemandRate = rateExtractor.lookupCostWithFilter(targetCostCategory, EXCLUDE_RI_DISCOUNTS_FILTER);
         return Trax.trax(riBoughtPercentage.dividedBy(1).compute().times(-1).getValue())
                 .times(onDemandRate)
                 .compute(String.format("RI discounted %s cost (BuyRI=%s)",
@@ -98,14 +106,26 @@ public class RIDiscountJournalEntry<E> implements QualifiedJournalEntry<E> {
     }
 
     @Override
-    public int compareTo(final Object o) {
-        // Make sure RIDiscountJournalEntries always come after OnDemandJournalEntries in order
-        // to properly calculate the RI discount based on the on-demand cost recorded in the cost
-        // journal
-        if (o instanceof OnDemandJournalEntry) {
-            return Integer.MAX_VALUE;
+    public int hashCode() {
+        return Objects.hash(costSource, costSource, riData, isBuyRI, riBoughtPercentage);
+    }
+
+    @Override
+    public boolean equals(final Object obj) {
+
+        if (obj == null || !(obj instanceof RIDiscountJournalEntry)) {
+            return false;
+        } else if (obj == this) {
+            return true;
         } else {
-            return QualifiedJournalEntry.super.compareTo(o);
+            final RIDiscountJournalEntry other = (RIDiscountJournalEntry)obj;
+            return new EqualsBuilder()
+                    .append(targetCostCategory, other.targetCostCategory)
+                    .append(costSource, other.costSource)
+                    .append(riData, other.riData)
+                    .append(riBoughtPercentage, other.riBoughtPercentage)
+                    .append(isBuyRI, other.isBuyRI)
+                    .build();
         }
     }
 }

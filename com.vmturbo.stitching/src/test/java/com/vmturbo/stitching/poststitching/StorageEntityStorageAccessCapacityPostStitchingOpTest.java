@@ -216,8 +216,6 @@ public class StorageEntityStorageAccessCapacityPostStitchingOpTest {
         op.performOperation(Stream.of(te), settingsMock, resultBuilder);
         resultBuilder.getChanges().forEach(change -> change.applyChange(stitchingJournal));
 
-        assertEquals(1, resultBuilder.getChanges().size());
-        assertEquals(11,
-                te.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getCapacity(), 0);
+        assertEquals(0, resultBuilder.getChanges().size());
     }
 }

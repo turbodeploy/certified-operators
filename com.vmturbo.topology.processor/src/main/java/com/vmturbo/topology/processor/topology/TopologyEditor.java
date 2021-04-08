@@ -216,10 +216,14 @@ public class TopologyEditor {
                     : groupResolver.resolve(
                         groupIdToGroupMap.get(removal.getGroupId()),
                         topologyGraph).getAllEntities();
-                entities.forEach(id -> {
+                int nonExistentEntitiesCount = 0;
+                for (Long id : entities) {
                     TopologyEntity.Builder entity = topology.get(id);
                     if (entity == null) {
-                        throwEntityNotFoundException(id);
+                        // When there are entities exist in a group but not in the system, removal
+                        // group in plan should still proceed.
+                        nonExistentEntitiesCount++;
+                        continue;
                     }
                     // user can choose a group whose member may not directly match with the removal type,
                     // in such cases, we need to traverse up/down supply chain to find the real entities they
@@ -231,7 +235,11 @@ public class TopologyEditor {
                         entitiesToRemove.add(entity.getOid());
                     }
 
-                });
+                }
+                if (nonExistentEntitiesCount != 0) {
+                    logger.warn("{} entities to be removed no longer exist in topology",
+                            nonExistentEntitiesCount);
+                }
             } else if (change.hasTopologyReplace()) {
                 final TopologyReplace replace = change.getTopologyReplace();
                 int targetType = replace.getTargetEntityType();

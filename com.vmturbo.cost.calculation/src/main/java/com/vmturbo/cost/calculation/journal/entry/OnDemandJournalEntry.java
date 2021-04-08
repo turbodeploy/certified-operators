@@ -1,5 +1,6 @@
 package com.vmturbo.cost.calculation.journal.entry;
 
+import java.util.Objects;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
@@ -7,6 +8,7 @@ import javax.annotation.concurrent.Immutable;
 
 import com.google.common.base.Preconditions;
 
+import org.apache.commons.lang3.builder.EqualsBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -131,18 +133,6 @@ public class OnDemandJournalEntry<E> implements QualifiedJournalEntry<E> {
         return costCategory;
     }
 
-    @Override
-    public int compareTo(final Object o) {
-        // Make sure OnDemandJournalEntries are processed first. Within a set of OnDemandJournalEntries
-        // the order does not affect the cost calculations (QualifiedJournalEntry will used the identity
-        // hash to order entries).
-        if (o instanceof OnDemandJournalEntry) {
-            return QualifiedJournalEntry.super.compareTo(o);
-        } else {
-            return Integer.MIN_VALUE;
-        }
-    }
-
     public E getPayee() {
         return payee;
     }
@@ -154,4 +144,30 @@ public class OnDemandJournalEntry<E> implements QualifiedJournalEntry<E> {
     public TraxNumber getUnitsBought() {
         return unitsBought;
     }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(costCategory, costSource, payee, unitsBought, price);
+    }
+
+    @Override
+    public boolean equals(final Object obj) {
+
+        if (obj == null || !(obj instanceof OnDemandJournalEntry)) {
+            return false;
+        } else if (obj == this) {
+            return true;
+        } else {
+            final OnDemandJournalEntry other = (OnDemandJournalEntry)obj;
+            return new EqualsBuilder()
+                    .append(costCategory, other.costCategory)
+                    .append(costSource, other.costSource)
+                    .append(payee, other.payee)
+                    .append(unitsBought, other.unitsBought)
+                    .append(price, other.price)
+                    .build();
+        }
+    }
+
+
 }

@@ -43,16 +43,14 @@ import com.vmturbo.stitching.poststitching.SetResizeDownAnalysisSettingPostStitc
 import com.vmturbo.stitching.poststitching.SetTransactionsCapacityPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.StorageAccessCapacityPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.StorageEntityAccessCapacityPostStitchingOperation;
-import com.vmturbo.stitching.poststitching.StorageLatencyPostStitchingOperation.DiskArrayLatencyPostStitchingOperation;
-import com.vmturbo.stitching.poststitching.StorageLatencyPostStitchingOperation.LogicalPoolLatencyPostStitchingOperation;
-import com.vmturbo.stitching.poststitching.StorageLatencyPostStitchingOperation.StorageControllerLatencyPostStitchingOperation;
-import com.vmturbo.stitching.poststitching.StorageLatencyPostStitchingOperation.StorageEntityLatencyPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.StorageLatencyPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.StorageProvisionedPostStitchingOperation.DiskArrayStorageProvisionedPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.StorageProvisionedPostStitchingOperation.LogicalPoolStorageProvisionedPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.StorageProvisionedPostStitchingOperation.StorageEntityStorageProvisionedPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.UseHypervisorVmemForResizingPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.VMemUsedVMPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.VirtualDatacenterCpuAllocationPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.VolumeEntityAccessCapacityPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.WastedFilesPostStitchingOperation;
 
 /**
@@ -108,10 +106,7 @@ public class PostStitchingOperationLibrary {
                 EntityType.PHYSICAL_MACHINE, CommodityType.CPU_PROVISIONED),
             new PmCpuAllocationPostStitchingOperation(),
             new VirtualDatacenterCpuAllocationPostStitchingOperation(),
-            new StorageControllerLatencyPostStitchingOperation(),
-            new StorageEntityLatencyPostStitchingOperation(),
-            new LogicalPoolLatencyPostStitchingOperation(),
-            new DiskArrayLatencyPostStitchingOperation(),
+            new StorageLatencyPostStitchingOperation(),
             new DiskArrayStorageProvisionedPostStitchingOperation(),
             new StorageEntityStorageProvisionedPostStitchingOperation(),
             new LogicalPoolStorageProvisionedPostStitchingOperation(),
@@ -121,6 +116,7 @@ public class PostStitchingOperationLibrary {
             new StorageAccessCapacityPostStitchingOperation(EntityType.LOGICAL_POOL, diskCapacityCalculator),
             new StorageAccessCapacityPostStitchingOperation(EntityType.STORAGE_CONTROLLER, diskCapacityCalculator),
             new StorageEntityAccessCapacityPostStitchingOperation(),
+            new VolumeEntityAccessCapacityPostStitchingOperation(),
             new PropagatedUpUsedPostStitchingOperation(EntityType.STORAGE, CommodityType.STORAGE_LATENCY),
             new PropagatedUpUsedPostStitchingOperation(EntityType.STORAGE, CommodityType.STORAGE_ACCESS),
             new SetCommodityMaxQuantityPostStitchingOperation(commodityPostStitchingOperationConfig),

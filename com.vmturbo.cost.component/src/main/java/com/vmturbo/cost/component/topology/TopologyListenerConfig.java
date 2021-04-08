@@ -1,6 +1,10 @@
 package com.vmturbo.cost.component.topology;
 
+import java.time.Duration;
 import java.util.Arrays;
+import java.util.concurrent.ThreadFactory;
+
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -9,6 +13,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
 import com.vmturbo.common.protobuf.cost.RIAndExpenseUploadServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
@@ -128,6 +133,9 @@ public class TopologyListenerConfig {
     @Value("${maxTrackedLiveTopologies:10}")
     private int maxTrackedLiveTopologies;
 
+    @Value("${liveTopology.cleanupInterval:PT1H}")
+    private String liveTopologyCleanupInterval;
+
     @Bean
     public LiveTopologyEntitiesListener liveTopologyEntitiesListener() {
         final LiveTopologyEntitiesListener entitiesListener =
@@ -136,11 +144,34 @@ public class TopologyListenerConfig {
                         reservedInstanceConfig.reservedInstanceCoverageUpload(),
                         costConfig.businessAccountHelper(),
                         topologyProcessorListenerConfig.liveTopologyInfoTracker(),
+                        ingestedTopologyStore(),
                         Arrays.asList(entityCostWriter(), riBuyRunner(), ccaDemandCollector()));
 
         topologyProcessorListenerConfig.topologyProcessor()
                 .addLiveTopologyListener(entitiesListener);
         return entitiesListener;
+    }
+
+    @Bean(destroyMethod = "shutdown")
+    protected ThreadPoolTaskScheduler liveTopologyCleanupScheduler() {
+        ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
+        scheduler.setPoolSize(1);
+        scheduler.setThreadFactory(threadFactory());
+        scheduler.setWaitForTasksToCompleteOnShutdown(false);
+        scheduler.initialize();
+        return scheduler;
+    }
+
+    private ThreadFactory threadFactory() {
+        return new ThreadFactoryBuilder().setNameFormat("LiveTopology-cleanup-%d").build();
+    }
+
+    @Bean
+    public IngestedTopologyStore ingestedTopologyStore() {
+        return new IngestedTopologyStore(
+                liveTopologyCleanupScheduler(),
+                Duration.parse(liveTopologyCleanupInterval),
+                databaseConfig.dsl());
     }
 
     @Bean

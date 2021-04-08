@@ -766,8 +766,8 @@ public class TopologyEntitiesHandlerTest {
         TopologyEntityDTO serviceProvider = TopologyEntityDTO.newBuilder().setOid(5678974832L).setEntityType(EntityType.SERVICE_PROVIDER_VALUE).build();
         when(cloudTopology.getServiceProvider(ba.getOid())).thenReturn(Optional.of(serviceProvider));
         when(ccd.getAccountPricingData(ba.getOid())).thenReturn(Optional.of(accountPricingData));
-        when(cloudTopology.getRegionFromServiceProvider(serviceProvider.getOid())).thenReturn(new HashSet(Collections.singleton(region)));
-        when(cloudTopology.getAggregated(region.getOid())).thenReturn(dtosToProcess.stream().filter(s -> s.getEntityType() == EntityType.COMPUTE_TIER_VALUE
+        when(cloudTopology.getRegionsFromServiceProvider(serviceProvider.getOid())).thenReturn(new HashSet(Collections.singleton(region)));
+        when(cloudTopology.getAggregated(region.getOid(), TopologyConversionConstants.cloudTierTypes)).thenReturn(dtosToProcess.stream().filter(s -> s.getEntityType() == EntityType.COMPUTE_TIER_VALUE
                 || s.getEntityType() == EntityType.STORAGE_TIER_VALUE || s.getEntityType() == EntityType.DATABASE_TIER_VALUE).collect(
                 Collectors.toSet()));
         when(cloudTopology.getBillingFamilyForEntity(ba.getOid())).thenReturn(Optional.empty());

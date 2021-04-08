@@ -247,6 +247,17 @@ public class RepositoryApi {
     }
 
     /**
+     * Create a new request to fetch the business account which owns some of the entities (such as a VM).
+     *
+     * @param oids Collection of oids which are owned by a Business Account.
+     * @return Search Request for the Business Account.
+     */
+    public SearchRequest getOwningBusinessAccount(@Nonnull Collection<Long> oids) {
+        return requestForTypeBasedTraversal(oids, TraversalDirection.OWNED_BY,
+                        EntityType.BUSINESS_ACCOUNT);
+    }
+
+    /**
      * Create a new request to traverse a specific direction and search
      * for entities of a specific type.
      *

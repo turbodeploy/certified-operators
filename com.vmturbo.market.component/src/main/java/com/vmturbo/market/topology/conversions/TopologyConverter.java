@@ -272,6 +272,8 @@ public class TopologyConverter {
                                 CommodityDTO.CommodityType.IO_THROUGHPUT_VALUE));
                 put(EntityType.DATABASE_VALUE,
                         ImmutableSet.of(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE));
+                put(EntityType.DATABASE_SERVER_VALUE,
+                        ImmutableSet.of(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE));
             }};
 
     /**
