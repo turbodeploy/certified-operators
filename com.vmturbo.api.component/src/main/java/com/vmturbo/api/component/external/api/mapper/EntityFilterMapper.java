@@ -33,6 +33,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters.
 import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
 import com.vmturbo.common.protobuf.search.Search.GroupFilter;
 import com.vmturbo.common.protobuf.search.Search.GroupFilter.EntityToGroupType;
+import com.vmturbo.common.protobuf.search.Search.LogicalOperator;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.ListFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.MapFilter;
@@ -1142,6 +1143,16 @@ public class EntityFilterMapper {
     }
 
     /**
+     * @param logicalOperator: the key that we want to seee if exists in map
+     * @return true if it's a valid logical operator
+     */
+    public static boolean checkIfValidLogicalOperator(String logicalOperator) {
+        return logicalOperator.equalsIgnoreCase(LogicalOperator.AND.name())
+                || logicalOperator.equalsIgnoreCase(LogicalOperator.OR.name())
+                || logicalOperator.equalsIgnoreCase(LogicalOperator.XOR.name());
+    }
+
+    /**
      * @return a set of the keys of COMPARISON_STRING_TO_COMPARISON_OPERATOR map
      */
     public static Set<String> getComparisonOperators() {
@@ -1160,6 +1171,10 @@ public class EntityFilterMapper {
                         throw new IllegalArgumentException("Filter type does not match existing types");
                     }
                 });
+        if (StringUtils.isNotEmpty(inputDTO.getLogicalOperator())
+                && !checkIfValidLogicalOperator(inputDTO.getLogicalOperator())) {
+            throw new IllegalArgumentException("Logical Operator does not match existing types: 'AND', 'OR', 'XOR'");
+        }
     }
 
 }
