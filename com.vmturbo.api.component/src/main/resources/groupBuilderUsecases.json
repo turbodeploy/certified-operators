@@ -31,7 +31,8 @@
             {"inputType": "*", "elements": "Region:displayName:AGGREGATES:VirtualMachine", "filterCategory": "entity", "filterType": "vmsByRegionName"},
             {"inputType": "s", "elements": "discoveredBy:cloudProvider", "filterCategory": "property", "filterType": "vmsByCloudProvider", "loadOptions": true},
             {"inputType": "*", "elements": "ContainerPlatformCluster:displayName:AGGREGATES", "filterCategory": "entity", "filterType": "vmsByContainerPlatformCluster"},
-            {"inputType": "s", "elements": "activeSessions", "filterCategory": "property", "filterType": "vmsByActiveSessions"}
+            {"inputType": "s", "elements": "activeSessions", "filterCategory": "property", "filterType": "vmsByActiveSessions"},
+            {"inputType": "*", "elements": "vendorId", "filterCategory": "property", "filterType": "vmsByVendorId"}
         ]
     },
 

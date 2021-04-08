@@ -1120,6 +1120,26 @@ public class SearchServiceTest {
     }
 
     /**
+     * Test that GetMembersBasedOnFilter raises an exception if there is a logical operator type
+     * that is not contained in LogicalOperator class.
+     *
+     * @throws IllegalArgumentException
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testGetMembersBasedOnFilterForNotExitingOperatorTypes() throws Exception {
+        GroupApiDTO request = new GroupApiDTO();
+        request.setLogicalOperator("INVALID");
+        List<ServiceEntityApiDTO> serviceEntities = Collections.singletonList(
+                supplyChainTestUtils.createServiceEntityApiDTO(1L, targetId1));
+        final SearchPaginationRequest paginationRequest =
+                new SearchPaginationRequest("0", 10, true, SearchOrderBy.SEVERITY.name());
+        RepositoryApi.PaginatedSearchRequest searchReq = ApiTestUtils.mockPaginatedSearchRequest(paginationRequest, serviceEntities);
+        when(repositoryApi.newPaginatedSearch(any(), any(), any())).thenReturn(searchReq);
+        SearchPaginationResponse response = searchService.getMembersBasedOnFilter("", request,
+                paginationRequest, null, null);
+    }
+
+    /**
      * Test that GetMembersBasedOnFilter is not raising an exception if there is a filter type based on REGEX.
      */
     @Test
