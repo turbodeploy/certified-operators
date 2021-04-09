@@ -233,7 +233,7 @@ public class SsoUtilIntegrationTest {
         ssoUtil.putSecurityGroup(GROUP_NAME, securityGroup);
         ssoUtil.putSecurityGroup(GROUP_NAME_ADDITION, securityGroup1);
         AuthProvider store = new AuthProvider(keyValueStore, groupServiceClient, kvSupplier, null,
-                new UserPolicy(LoginPolicy.AD_ONLY, new ReportPolicy(licenseCheckService)), ssoUtil,
+                new UserPolicy(LoginPolicy.AD_ONLY, new ReportPolicy(licenseCheckService, false)), ssoUtil,
                 true, false, () -> false);
 
         final JWTAuthorizationToken authenticate =

@@ -2,7 +2,7 @@ package com.vmturbo.auth.component.store;
 
 import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.ADMINISTRATOR;
 import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.OPERATIONAL_OBSERVER;
-import static com.vmturbo.auth.component.store.AuthProviderBase.PREFIX;
+import static com.vmturbo.auth.component.store.AuthProviderBase.PREFIX_EXTERNAL_USERS;
 import static com.vmturbo.auth.component.store.AuthProviderHelper.changePasswordAllowed;
 import static com.vmturbo.auth.component.store.AuthProviderHelper.mayAlterUserWithRoles;
 import static org.hamcrest.CoreMatchers.containsString;
@@ -85,7 +85,7 @@ public class AuthProviderRoleTest {
         licenseCheckService = mock(LicenseCheckService.class);
         Supplier<String> keyValueDir = () -> "/";
         authProviderUnderTest = new AuthProvider(mockKeystore, null, keyValueDir, null, new UserPolicy(LoginPolicy.ALL,
-                new ReportPolicy(licenseCheckService)),
+                new ReportPolicy(licenseCheckService, false)),
                 new SsoUtil(), false, false, null);
     }
 
@@ -140,7 +140,7 @@ public class AuthProviderRoleTest {
         // act
         authProviderUnderTest.list();
         // assert
-        verify(mockKeystore).getByPrefix(PREFIX);
+        verify(mockKeystore).getByPrefix(PREFIX_EXTERNAL_USERS);
     }
 
     /**

@@ -15,14 +15,17 @@ public class ReportPolicy {
 
     private final Logger logger = LogManager.getLogger(getClass());
     private final LicenseCheckService licenseCheckService;
+    private boolean reportingEnabled;
 
     /**
      * Constructor.
      *
      * @param licenseCheckService the license check service.
+     * @param reportingEnabled is reporting component enabled?
      */
-    public ReportPolicy(@Nonnull final LicenseCheckService licenseCheckService) {
+    public ReportPolicy(@Nonnull final LicenseCheckService licenseCheckService, final boolean reportingEnabled) {
         this.licenseCheckService = licenseCheckService;
+        this.reportingEnabled = reportingEnabled;
     }
 
     /**
@@ -44,5 +47,9 @@ public class ReportPolicy {
                     + "editor count {}", defaultEditorCount);
             return defaultEditorCount;
         }
+    }
+
+    public boolean isReportingEnabled() {
+        return reportingEnabled;
     }
 }
