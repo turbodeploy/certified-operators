@@ -13,16 +13,13 @@ import java.util.Set;
 
 import com.google.common.collect.Lists;
 
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
-
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.Resize;
 import com.vmturbo.platform.analysis.economy.Basket;
-import com.vmturbo.platform.analysis.economy.ByProducts;
 import com.vmturbo.platform.analysis.economy.CommodityResizeSpecification;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
@@ -35,7 +32,6 @@ import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ledger.IncomeStatement;
 import com.vmturbo.platform.analysis.ledger.Ledger;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
-import com.vmturbo.platform.analysis.updatingfunction.ProjectionFunction;
 import com.vmturbo.platform.analysis.utilities.Bisection;
 import com.vmturbo.platform.analysis.utilities.DoubleTernaryOperator;
 import com.vmturbo.platform.analysis.utilities.ResizeActionStateTracker;
@@ -104,7 +100,7 @@ public class Resizer {
                         try {
                             boolean consistentResizing = seller.isInScalingGroup(economy);
                             boolean engage = evaluateEngageCriteria(economy, seller, commoditySold,
-                                    incomeStatement, resizedCommodity);
+                                    incomeStatement);
                             Map<CommoditySold, Trader> rawMaterialMapping = null;
                             Set<CommoditySold> rawMaterials = null;
                             Optional<RawMaterials> rawMaterialDescriptor = null;
@@ -144,7 +140,7 @@ public class Resizer {
                                                 : expenses);
                                         double currentRevenue = incomeStatement.getRevenues();
                                         double desiredCapacity =
-                                                calculateDesiredCapacity(resizedCommodity, commoditySold, newRevenue, seller, economy);
+                                                calculateDesiredCapacity(commoditySold, newRevenue, seller, economy);
                                         float rateOfResize = seller.getSettings().getRateOfResize();
                                         double newEffectiveCapacity = calculateEffectiveCapacity(economy, seller,
                                                 resizedCommodity, desiredCapacity, commoditySold, rawMaterials, rateOfResize);
@@ -627,21 +623,15 @@ public class Resizer {
      * @param economy The {@link Economy}.
      * @param resizeCommodity The {@link CommoditySold commodity} that is to be resized.
      * @param commodityIS The {@link IncomeStatement income statement} of the commodity sold.
-     * @param commSpec is the {@link CommoditySpecification} of the resizing commodity.
      * @return Whether the commodity meets the resize engagement criterion.
      */
     public static boolean evaluateEngageCriteria(Economy economy, Trader seller,
                                                  CommoditySold resizeCommodity,
-                                                 IncomeStatement commodityIS,
-                                                 CommoditySpecification commSpec) {
+                                                 IncomeStatement commodityIS) {
         boolean eligibleForResizeDown = seller.getSettings().isEligibleForResizeDown();
         double currentCapacity = resizeCommodity.getEffectiveCapacity();
         double currentUtilization = resizeCommodity.getHistoricalOrElseCurrentQuantity()
                         / currentCapacity;
-        // Resizing commodity might be low on utilization and we might want to scale Up because of byProduct.
-        // Ignore rightSizeBounds when there are byProducts to allow this.
-        boolean ignoreRightSizeBounds = economy.getByProducts(commSpec.getBaseType()).isPresent();
-
         // do not resize if utilization is in acceptable range
         // or if resizeDown warm up interval not finish
         EconomySettings settings = economy.getSettings();
@@ -649,7 +639,7 @@ public class Resizer {
         boolean isDebugTrader = seller.isDebugEnabled();
         String sellerDebugInfo = seller.getDebugInfoNeverUseInCode();
 
-        if (!ignoreRightSizeBounds && currentUtilization > settings.getRightSizeLower() &&
+        if (currentUtilization > settings.getRightSizeLower() &&
             currentUtilization < settings.getRightSizeUpper()) {
             if (logger.isTraceEnabled() || isDebugTrader) {
                 logger.info("{" + sellerDebugInfo + "} will not be resized because the"
@@ -661,10 +651,10 @@ public class Resizer {
             return false;
         }
         if ((commodityIS.getROI() > commodityIS.getMaxDesiredROI() &&
-                (ignoreRightSizeBounds || currentUtilization > settings.getRightSizeUpper())) ||
+                currentUtilization > settings.getRightSizeUpper()) ||
                (commodityIS.getROI() < commodityIS.getMinDesiredROI() &&
-                       (ignoreRightSizeBounds || currentUtilization < settings.getRightSizeLower()) &&
-                       eligibleForResizeDown)) {
+                currentUtilization < settings.getRightSizeLower() &&
+               eligibleForResizeDown)) {
             return true;
         } else {
             if (logger.isTraceEnabled() || isDebugTrader) {
@@ -710,36 +700,24 @@ public class Resizer {
     /**
      * Finds the new commodity capacity needed for the target revenue.
      *
-     * @param resizingCommoditySpec is the spec of the commodity resizing.
-     * @param resizingCommodity Commodity to be resized.
+     * @param resizeCommodity Commodity to be resized.
      * @param newRevenue The target revenue for the commodity after resize.
      * @param seller The seller that we are finding the desired capacity for.
      * @param economy The economy that this seller operates in.
      * @return The new capacity
      */
-    private static double calculateDesiredCapacity(CommoditySpecification resizingCommoditySpec,
-                                                   CommoditySold resizingCommodity, double newRevenue,
+    private static double calculateDesiredCapacity(CommoditySold resizeCommodity, double newRevenue,
                                                    Trader seller, Economy economy) {
-        double currentQuantity = resizingCommodity.getHistoricalOrElseCurrentQuantity();
-        PriceFunction priceFunction = resizingCommodity.getSettings().getPriceFunction();
+        double currentQuantity = resizeCommodity.getHistoricalOrElseCurrentQuantity();
+        PriceFunction priceFunction = resizeCommodity.getSettings().getPriceFunction();
 
         // interval which is almost (0,1) to avoid divide by zero
         double intervalMin = Math.nextAfter(0.0, 1.0);
         double intervalMax = Math.nextAfter(1.0, 0.0);
 
-        Optional<ByProducts> byProducts = economy.getByProducts(resizingCommoditySpec.getBaseType());
+        // solve revenueFunction(u) = newRevenue for u in (intervalMin,intervalMax)
         DoubleUnaryOperator revenueFunction = u -> u * priceFunction.unitPrice(u, null,
-                seller, resizingCommodity, economy) - newRevenue;
-        // sum up the component of the revenue function due to the byProducts.
-        if (byProducts.isPresent()) {
-            DoubleUnaryOperator tempRevenueFunction = revenueFunction;
-            revenueFunction = u -> tempRevenueFunction.applyAsDouble(u)
-                    + byProducts.get().getByProductMap().entrySet().stream()
-                                .mapToDouble(byProduct -> ByProducts.computeRevenueOfByProduct(seller, byProduct,
-                                                                resizingCommodity, u, economy))
-                                .sum();
-        }
-
+                                                     seller, resizeCommodity, economy) - newRevenue;
         return currentQuantity / Bisection.solve(revenueFunction, intervalMin, intervalMax);
     }
 
@@ -954,36 +932,6 @@ public class Resizer {
             commSoldBySupplier.setPeakQuantity(Math.max(0, newPeakQuantityBought));
             shoppingList.getQuantities()[boughtIndex] = oldQuantityBought;
             shoppingList.getPeakQuantities()[boughtIndex] = oldPeakQuantityBought;
-        }
-    }
-
-    /**
-     * For resize, update the quantity of the by-product commodity.
-     *
-     * @param economy The {@link Economy}.
-     * @param seller The {@link Trader} selling the {@link CommoditySold commodity}.
-     * @param resizingCommodity The {@link CommoditySold commodity} sold that was resized
-     *                      and may trigger resize of other commodities.
-     * @param commoditySoldIndex The index of {@link CommoditySold commodity} sold in basket.
-     * @param newCapacity The new capacity.
-     *
-     **/
-    public static void updateByProducts(Economy economy, Trader seller, CommoditySold resizingCommodity, int commoditySoldIndex,
-                                double newCapacity) {
-        Optional<ByProducts> byProducts = economy
-                .getByProducts(seller.getBasketSold().get(commoditySoldIndex).getBaseType());
-        if (byProducts.isPresent()) {
-            for (Map.Entry<Integer, ProjectionFunction> baseTypeEntry : byProducts.get().getByProductMap().entrySet()) {
-                int soldIndex = seller.getBasketSold().indexOfBaseType(baseTypeEntry.getKey());
-                if (soldIndex != -1) {
-                    CommoditySold byProduct = seller.getCommoditiesSold().get(soldIndex);
-                    double resizingCommNewUtil = (resizingCommodity.getUtilization() * resizingCommodity.getCapacity())
-                                                        / newCapacity;
-                    DoubleUnaryOperator updateFunction = baseTypeEntry.getValue().project(seller, resizingCommodity, byProduct);
-                    double byProdNewUtil = updateFunction.applyAsDouble(resizingCommNewUtil);
-                    byProduct.setQuantity(byProdNewUtil * byProduct.getCapacity());
-                }
-            }
         }
     }
 }

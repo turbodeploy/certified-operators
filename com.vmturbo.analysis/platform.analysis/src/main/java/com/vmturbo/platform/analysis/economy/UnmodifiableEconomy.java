@@ -7,8 +7,6 @@ import java.util.Optional;
 import java.util.Set;
 import javax.annotation.Nullable;
 
-import com.vmturbo.commons.Pair;
-import com.vmturbo.platform.analysis.updatingfunction.ProjectionFunction;
 import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -183,14 +181,6 @@ public interface UnmodifiableEconomy {
      */
     @ReadOnly
     @NonNull Optional<RawMaterials> getRawMaterials(int processedCommodityType);
-
-    /**
-     * Returns an unmodifiable array of commodityType that are byProducts of a particular processed type.
-     *
-     * @param processedCommodityType is the commodity to get the byProducts for.
-     * @return optional List of by product commodity baseTypes.
-     */
-    @ReadOnly @NonNull Optional<ByProducts> getByProducts(int processedCommodityType);
 
     /**
      * Returns rawMaterials of a particular processed type.

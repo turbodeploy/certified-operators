@@ -2,12 +2,11 @@ package com.vmturbo.platform.analysis.ledger;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
-import java.util.Arrays;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -25,7 +24,6 @@ import org.checkerframework.dataflow.qual.Pure;
 
 import com.vmturbo.commons.Pair;
 import com.vmturbo.platform.analysis.economy.Basket;
-import com.vmturbo.platform.analysis.economy.ByProducts;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
@@ -36,7 +34,6 @@ import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ede.EdeCommon;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
-import com.vmturbo.platform.analysis.updatingfunction.ProjectionFunction;
 import com.vmturbo.platform.analysis.updatingfunction.UpdatingFunction;
 
 /**
@@ -449,8 +446,6 @@ public class Ledger {
         String buyerDebugInfo = buyer.getDebugInfoNeverUseInCode();
         resetTraderIncomeStatement(buyer);
         List<CommoditySold> commSoldList = buyer.getCommoditiesSold();
-        double maxDesUtil = buyer.getSettings().getMaxDesiredUtil();
-        double minDesUtil = buyer.getSettings().getMinDesiredUtil();
         for (int commSoldIndex = 0; commSoldIndex < commSoldList.size(); commSoldIndex++) {
             // cs is the CommoditySold by the buyer
             CommoditySold cs = commSoldList.get(commSoldIndex);
@@ -465,20 +460,38 @@ public class Ledger {
                     buyer.getEconomyIndex()).get(commSoldIndex);
             // rev of consumer is utilOfCommSold*priceFn(utilOfCommSold)
             // expense of this consumer is utilOfCommBought*priceFn(utilOfCommBought)
-            boolean validRevenue = calculateRevenueAndUpdateIncomeStatement(commSoldIndex, minDesUtil,
-                    maxDesUtil, buyer, economy, commSoldIS, true);
-            if (!validRevenue) {
+            double maxDesUtil = buyer.getSettings().getMaxDesiredUtil();
+            double minDesUtil = buyer.getSettings().getMinDesiredUtil();
+            double commSoldUtil = cs.getHistoricalOrElseCurrentUtilization()
+                            / cs.getSettings().getUtilizationUpperBound();
+            PriceFunction pf = cs.getSettings().getPriceFunction();
+
+            if (Double.isNaN(commSoldUtil)) {
                 continue;
             }
 
-            int commSoldBaseType = buyer.getBasketSold().get(commSoldIndex).getBaseType();
-            Optional<ByProducts> optionalByProducts = economy.getByProducts(commSoldBaseType);
-            if (optionalByProducts.isPresent()) {
-                for (Map.Entry<Integer, ProjectionFunction> baseTypeEntry : optionalByProducts.get().getByProductMap().entrySet()) {
-                    calculateRevenueAndUpdateIncomeStatement(buyer.getBasketSold().indexOfBaseType(baseTypeEntry.getKey()),
-                            minDesUtil, maxDesUtil, buyer, economy, commSoldIS, false);
-                }
+            double revenues = pf.unitPrice(commSoldUtil, null, buyer, cs,
+                    economy) * commSoldUtil;
+            double maxDesiredRevenues = pf.unitPrice(maxDesUtil, null,
+                    buyer, cs, economy) * maxDesUtil;
+            double minDesiredRevenues = pf.unitPrice(minDesUtil, null,
+                    buyer, cs, economy) * minDesUtil;
+            double desiredRevenues = pf.unitPrice((minDesUtil + maxDesUtil)
+                    / 2, null, buyer, cs, economy)
+                    * (maxDesUtil + minDesUtil) / 2;
+            commSoldIS.setRevenues(revenues);
+            commSoldIS.setMaxDesiredRevenues(maxDesiredRevenues);
+            commSoldIS.setMinDesiredRevenues(minDesiredRevenues);
+            commSoldIS.setDesiredRevenues(desiredRevenues);
+
+            if (logger.isTraceEnabled() || isDebugTrader) {
+                logger.info("For the trader " + buyerDebugInfo + " and the commodity"
+                        + " sold " + commSoldInformationForLogs + " the revenues are "
+                        + revenues + ", the max desired revenues are " + maxDesiredRevenues
+                        + ", the min desired revenues are " + minDesiredRevenues + " and"
+                        + " the desired revenues are " + desiredRevenues + ".");
             }
+
             Optional<RawMaterials> rawMaterials = economy.getRawMaterials(buyer.getBasketSold()
                     .get(commSoldIndex).getBaseType());
 
@@ -660,65 +673,6 @@ public class Ledger {
         }
 
         return this;
-    }
-
-    /**
-     * Compute the revenue of the sold commodity and update the {@link IncomeStatement}.
-     *
-     * @param commSoldIndex is the index of the sold commodity whose revenue is to be computed.
-     * @param minDesUtil is the minimum desired utilization.
-     * @param maxDesUtil is the maximum desired utilization.
-     * @param buyer   the {@link Trader} whose income statement needs to be updated.
-     * @param economy the {@link Economy} which contains all the commodities whose income
-     *                statements are to be calculated
-     * @param commSoldIS is the {@link IncomeStatement} of the sold commodity.
-     * @param updateDesiredRevenues is true when the desired revenue is to be updated.
-     * @return The ledger containing the updated list of commodityIncomeStatements
-     */
-    private boolean calculateRevenueAndUpdateIncomeStatement(int commSoldIndex, double minDesUtil,
-                                                          double maxDesUtil, Trader buyer, Economy economy,
-                                                          IncomeStatement commSoldIS, boolean updateDesiredRevenues) {
-        if (commSoldIndex == -1) {
-            // invalid commodity to calculate revenue for.
-            return false;
-        }
-        CommoditySold cs = buyer.getCommoditiesSold().get(commSoldIndex);
-        double commSoldUtil = cs.getHistoricalOrElseCurrentUtilization()
-                / cs.getSettings().getUtilizationUpperBound();
-
-        if (Double.isNaN(commSoldUtil)) {
-            // invalid utilization
-            return false;
-        }
-
-        PriceFunction pf = cs.getSettings().getPriceFunction();
-        double revenues = pf.unitPrice(commSoldUtil, null, buyer, cs,
-                economy) * commSoldUtil;
-        commSoldIS.addRevenue(revenues);
-
-        if (updateDesiredRevenues) {
-            double maxDesiredRevenues = pf.unitPrice(maxDesUtil, null,
-                    buyer, cs, economy) * maxDesUtil;
-            commSoldIS.addMaxDesiredRevenue(maxDesiredRevenues);
-            double minDesiredRevenues = pf.unitPrice(minDesUtil, null,
-                    buyer, cs, economy) * minDesUtil;
-            commSoldIS.addMinDesiredRevenue(minDesiredRevenues);
-            double desiredRevenues = pf.unitPrice((minDesUtil + maxDesUtil)
-                    / 2, null, buyer, cs, economy)
-                    * (maxDesUtil + minDesUtil) / 2;
-            commSoldIS.addDesiredRevenue(desiredRevenues);
-            if (logger.isTraceEnabled() || buyer.isDebugEnabled()) {
-                String commSoldInformationForLogs = buyer.getBasketSold()
-                        .get(commSoldIndex).getDebugInfoNeverUseInCode();
-                logger.info("For the trader " + buyer.getDebugInfoNeverUseInCode() + " and the commodity"
-                        + " sold " + commSoldInformationForLogs + " the revenues are "
-                        + revenues + ", the max desired revenues are " + maxDesiredRevenues
-                        + ", the min desired revenues are " + minDesiredRevenues + " and"
-                        + " the desired revenues are " + desiredRevenues + ".");
-            }
-        }
-
-        return true;
     }
 
     /**
