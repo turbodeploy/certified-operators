@@ -11,6 +11,8 @@ import com.vmturbo.api.pagination.ActionPaginationRequest;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.api.pagination.PaginationRequest;
 import com.vmturbo.api.pagination.SearchPaginationRequest;
+import com.vmturbo.api.pagination.TargetOrderBy;
+import com.vmturbo.api.pagination.TargetPaginationRequest;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy.ActionOrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy.EntityStatsOrderBy;
@@ -22,6 +24,8 @@ import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
  */
 public class PaginationMapper {
     private static final Logger logger = LogManager.getLogger();
+
+
 
     /**
      * Convert a {@link PaginationRequest} to a {@link PaginationParameters} protobuf message.
@@ -99,7 +103,26 @@ public class PaginationMapper {
                         .setEntityStats(EntityStatsOrderBy.newBuilder()
                             .setStatName(stat))
                         .build());
+        } else if (request instanceof TargetPaginationRequest) {
+            final TargetOrderBy orderBy =
+                ((TargetPaginationRequest)request).getOrderBy();
+            if (orderBy == null) {
+                return Optional.empty();
+            }
+
+            switch (orderBy) {
+                case DISPLAY_NAME:
+                    return Optional.of(OrderBy.newBuilder()
+                        .setTarget(OrderBy.TargetOrderBy.TARGET_DISPLAY_NAME).build());
+                case VALIDATION_STATUS:
+                    return Optional.of(OrderBy.newBuilder()
+                        .setTarget(OrderBy.TargetOrderBy.TARGET_VALIDATION_STATUS).build());
+                default:
+                    logger.error("Cannot order targets by: {}", orderBy);
+            }
         }
         return Optional.empty();
     }
+
+
 }

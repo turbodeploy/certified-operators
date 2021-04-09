@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.api.impl;
 
 import java.net.URI;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -40,6 +41,7 @@ import com.vmturbo.topology.processor.api.impl.TargetRESTApi.TargetSpec;
  * REST-specific part of topology processor client implementation.
  */
 public class TopologyProcessorRestClient extends ComponentRestClient {
+    private static final String FIND_POST_FIX = "find/";
 
     private final String targetUri;
     private final String probeUri;
@@ -124,6 +126,24 @@ public class TopologyProcessorRestClient extends ComponentRestClient {
         final RequestEntity<?> request =
                         RequestEntity.get(URI.create(targetUri + Long.toString(id))).build();
         return getTargetClient.execute(request);
+    }
+
+    /**
+     * Gets the target information for a list of target ids.
+     *
+     * @param ids the list of target ids.
+     * @return the the list of target information.
+     * @throws CommunicationException if something goes wrong connecting to topology processor.
+     */
+    @Nonnull
+    public List<TargetInfo> getTargets(final List<Long> ids)
+        throws CommunicationException {
+        TargetRESTApi.GetTargetsRequest requestData = new TargetRESTApi.GetTargetsRequest(ids);
+        final RequestEntity<?> request =
+            RequestEntity.post(URI.create(targetUri + FIND_POST_FIX))
+                .body(requestData);
+        final GetAllTargetsResponse result = getAllTargetsClient.execute(request);
+        return result.getTargets();
     }
 
     @Nonnull

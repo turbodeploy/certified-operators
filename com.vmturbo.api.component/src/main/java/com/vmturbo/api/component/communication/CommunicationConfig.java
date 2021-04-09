@@ -93,14 +93,14 @@ import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChain
 import com.vmturbo.common.protobuf.schedule.ScheduleServiceGrpc;
 import com.vmturbo.common.protobuf.schedule.ScheduleServiceGrpc.ScheduleServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
-import com.vmturbo.common.protobuf.search.TargetSearchServiceGrpc;
-import com.vmturbo.common.protobuf.search.TargetSearchServiceGrpc.TargetSearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.target.TargetsServiceGrpc;
+import com.vmturbo.common.protobuf.target.TargetsServiceGrpc.TargetsServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyServiceGrpc.TopologyServiceBlockingStub;
 import com.vmturbo.common.protobuf.widgets.WidgetsetsServiceGrpc;
@@ -236,13 +236,13 @@ public class CommunicationConfig {
     }
 
     /**
-     * gRPC service to perform target-related searches.
+     * Target gRPC service.
      *
-     * @return target search service
+     * @return instance of target gRPC service
      */
     @Bean
-    public TargetSearchServiceBlockingStub targetSearchService() {
-        return TargetSearchServiceGrpc.newBlockingStub(tpClientConfig.topologyProcessorChannel());
+    public TargetsServiceBlockingStub targetsService() {
+        return TargetsServiceGrpc.newBlockingStub(tpClientConfig.topologyProcessorChannel());
     }
 
     @Bean

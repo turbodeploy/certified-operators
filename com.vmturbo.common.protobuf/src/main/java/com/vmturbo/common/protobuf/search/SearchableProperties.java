@@ -136,10 +136,22 @@ public class SearchableProperties {
      * Support hot-remove cpu filter property.
      */
     public static final String HOT_REMOVE_CPU = "hotRemoveCPU";
+
     /**
      * Status of a target.
      */
     public static final String TARGET_VALIDATION_STATUS = "validationStatus";
+
+    /**
+     * Type of the probe (e.g., VCENTER).
+     */
+    public static final String PROBE_TYPE = "probeType";
+
+    /**
+     * If the target is hidden.
+     */
+    public static final String IS_TARGET_HIDDEN = "isTargetHidden";
+
     /**
      * Marker of a filter that should to though TargetSearchRpc service.
      */

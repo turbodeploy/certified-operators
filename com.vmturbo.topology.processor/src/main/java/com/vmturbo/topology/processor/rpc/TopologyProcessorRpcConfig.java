@@ -96,15 +96,20 @@ public class TopologyProcessorRpcConfig {
     }
 
     @Bean
-    public TargetSearchRpcService targetSearchRpcService() {
-        return new TargetSearchRpcService(targetConfig.targetStore(), probeConfig.probeStore(),
-                operationConfig.operationManager());
-    }
-
-    @Bean
     public GroupResolverSearchFilterResolver groupResolverSearchFilterResolver() {
         return new GroupResolverSearchFilterResolver(groupConfig.groupServiceBlockingStub(),
-                targetSearchRpcService());
+                targetRpcService());
+    }
+
+    /**
+     * Target gRPC service.
+     *
+     * @return instance of target gRPC service
+     */
+    @Bean
+    public TargetsRpcService targetRpcService() {
+        return new TargetsRpcService(targetConfig.targetStore(), probeConfig.probeStore(),
+                operationConfig.operationManager());
     }
 
     /**

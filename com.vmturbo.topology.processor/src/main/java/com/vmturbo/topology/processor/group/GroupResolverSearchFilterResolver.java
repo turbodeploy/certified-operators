@@ -16,7 +16,8 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.SearchFilterResolver;
-import com.vmturbo.common.protobuf.search.TargetSearchServiceGrpc.TargetSearchServiceImplBase;
+import com.vmturbo.common.protobuf.target.TargetDTO.SearchTargetsRequest;
+import com.vmturbo.common.protobuf.target.TargetsServiceGrpc.TargetsServiceImplBase;
 import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
@@ -35,7 +36,7 @@ public class GroupResolverSearchFilterResolver extends SearchFilterResolver {
 
     private final GroupServiceBlockingStub groupServiceClient;
     private final GroupMemberRetriever groupMemberRetriever;
-    private final TargetSearchServiceImplBase targetSearchService;
+    private final TargetsServiceImplBase targetSearchService;
 
     /**
      * Constructs the resolver using the specified group store.
@@ -45,7 +46,7 @@ public class GroupResolverSearchFilterResolver extends SearchFilterResolver {
      */
     public GroupResolverSearchFilterResolver(
             @Nonnull GroupServiceBlockingStub groupServiceClient,
-            @Nonnull TargetSearchServiceImplBase targetSearchService) {
+            @Nonnull TargetsServiceImplBase targetSearchService) {
         super();
         this.groupServiceClient = groupServiceClient;
         this.groupMemberRetriever = new GroupMemberRetriever(groupServiceClient);
@@ -77,8 +78,10 @@ public class GroupResolverSearchFilterResolver extends SearchFilterResolver {
     @Nonnull
     @Override
     protected Collection<Long> getTargetIdsFromFilter(@Nonnull PropertyFilter filter) {
+        SearchTargetsRequest request = SearchTargetsRequest.newBuilder()
+            .addPropertyFilter(filter).build();
         SearchTargetsStreamObserver streamObserver = new SearchTargetsStreamObserver();
-        targetSearchService.searchTargets(filter, streamObserver);
+        targetSearchService.searchTargets(request, streamObserver);
         return streamObserver.getTargetIds();
     }
 }

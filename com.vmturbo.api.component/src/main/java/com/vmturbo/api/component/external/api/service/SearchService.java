@@ -522,7 +522,7 @@ public class SearchService implements ISearchService {
                 final Collection<MarketApiDTO> markets = marketsService.getMarkets(scopes);
                 return paginationRequest.allResultsResponse(Lists.newArrayList(markets));
             } else if (typesHashSet.contains(TargetsService.TARGET)) {
-                final Collection<TargetApiDTO> targets = targetsService.getTargets(null);
+                final Collection<TargetApiDTO> targets = targetsService.getTargets();
                 return paginationRequest.allResultsResponse(Lists.newArrayList(targets));
             } else if (typesHashSet.contains(ApiEntityType.BUSINESS_ACCOUNT.apiStr())) {
                 final Collection<BusinessUnitApiDTO> businessAccounts =

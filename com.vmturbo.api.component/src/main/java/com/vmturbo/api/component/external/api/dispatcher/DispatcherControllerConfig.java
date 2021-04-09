@@ -4,6 +4,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.format.FormatterRegistry;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.web.bind.WebDataBinder;
 import org.springframework.web.bind.annotation.InitBinder;
@@ -44,6 +45,7 @@ import com.vmturbo.api.controller.TopologyDefinitionsController;
 import com.vmturbo.api.controller.UsersController;
 import com.vmturbo.api.controller.WidgetSetsController;
 import com.vmturbo.api.controller.WorkflowsController;
+import com.vmturbo.api.converter.CaseInsensitiveEnumConverterFactory;
 import com.vmturbo.api.external.controller.ProbesController;
 import com.vmturbo.api.internal.controller.ClusterController;
 import com.vmturbo.api.validators.TemplatesValidator;
@@ -84,6 +86,12 @@ public class DispatcherControllerConfig extends WebMvcConfigurerAdapter {
 
     @Autowired
     private DispatcherValidatorConfig dispatcherValidatorConfig;
+
+    @Override
+    public void addFormatters(FormatterRegistry registry) {
+        // Convert strings to associated enum values in a case-insensitive fashion.
+        registry.addConverterFactory(new CaseInsensitiveEnumConverterFactory());
+    }
 
     @Bean
     public ActionsController actionsController() {

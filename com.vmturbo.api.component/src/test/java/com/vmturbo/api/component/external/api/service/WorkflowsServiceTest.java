@@ -107,7 +107,7 @@ public class WorkflowsServiceTest {
         TargetApiDTO targetApiDTO = new TargetApiDTO();
         targetApiDTO.setUuid("1");
         targetApiDTO.setType(SDKProbeType.ACTIONSCRIPT.name());
-        doReturn(Collections.singletonList(targetApiDTO)).when(targetsService).getTargets(null);
+        doReturn(Collections.singletonList(targetApiDTO)).when(targetsService).getTargets();
 
         // Act
         final List<WorkflowApiDTO> workflows = workflowsService.getWorkflows(null);
@@ -148,7 +148,7 @@ public class WorkflowsServiceTest {
         TargetApiDTO targetApiDTO = new TargetApiDTO();
         targetApiDTO.setUuid("1");
         targetApiDTO.setType(SDKProbeType.ACTIONSCRIPT.name());
-        doReturn(Collections.singletonList(targetApiDTO)).when(targetsService).getTargets(null);
+        doReturn(Collections.singletonList(targetApiDTO)).when(targetsService).getTargets();
 
         // Act
         final List<WorkflowApiDTO> workflows = workflowsService.getWorkflows(null);

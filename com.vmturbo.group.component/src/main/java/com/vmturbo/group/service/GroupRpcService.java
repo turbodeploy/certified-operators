@@ -81,9 +81,9 @@ import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
-import com.vmturbo.common.protobuf.search.TargetSearchServiceGrpc.TargetSearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
+import com.vmturbo.common.protobuf.target.TargetsServiceGrpc.TargetsServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.group.common.Truncator;
@@ -133,7 +133,7 @@ public class GroupRpcService extends GroupServiceImplBase {
     private final GroupStitchingManager groupStitchingManager;
     private final IdentityProvider identityProvider;
 
-    private final TargetSearchServiceBlockingStub targetSearchService;
+    private final TargetsServiceBlockingStub targetSearchService;
     private final DiscoveredSettingPoliciesUpdater settingPolicyUpdater;
     private final DiscoveredPlacementPolicyUpdater placementPolicyUpdater;
     private final GrpcTransactionUtil grpcTransactionUtil;
@@ -173,7 +173,7 @@ public class GroupRpcService extends GroupServiceImplBase {
             @Nonnull final GroupStitchingManager groupStitchingManager,
             @Nonnull TransactionProvider transactionProvider,
             @Nonnull IdentityProvider identityProvider,
-            @Nonnull TargetSearchServiceBlockingStub targetSearchService,
+            @Nonnull TargetsServiceBlockingStub targetSearchService,
             @Nonnull DiscoveredSettingPoliciesUpdater settingPolicyUpdater,
             @Nonnull DiscoveredPlacementPolicyUpdater placementPolicyUpdater,
             GroupMemberCalculator memberCalculator,

@@ -17,8 +17,9 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetOwnersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.SearchFilterResolver;
-import com.vmturbo.common.protobuf.search.TargetSearchServiceGrpc;
-import com.vmturbo.common.protobuf.search.TargetSearchServiceGrpc.TargetSearchServiceBlockingStub;
+import com.vmturbo.common.protobuf.target.TargetDTO.SearchTargetsRequest;
+import com.vmturbo.common.protobuf.target.TargetsServiceGrpc;
+import com.vmturbo.common.protobuf.target.TargetsServiceGrpc.TargetsServiceBlockingStub;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
 /**
@@ -34,7 +35,7 @@ public class UdtSearchFilterResolver extends SearchFilterResolver {
 
     private final RequestExecutor requestExecutor;
     private final DataRequests requests;
-    private final TargetSearchServiceBlockingStub targetSearchService;
+    private final TargetsServiceBlockingStub targetService;
 
     /**
      * Constructor.
@@ -45,8 +46,8 @@ public class UdtSearchFilterResolver extends SearchFilterResolver {
      */
     @ParametersAreNonnullByDefault
     public UdtSearchFilterResolver(Connection connection, RequestExecutor requestExecutor, DataRequests requests) {
-        this.targetSearchService = Objects.requireNonNull(TargetSearchServiceGrpc
-                .newBlockingStub(connection.getTopologyProcessorChannel()));
+        this.targetService = TargetsServiceGrpc.newBlockingStub(
+                Objects.requireNonNull(connection.getTopologyProcessorChannel()));
         this.requestExecutor = requestExecutor;
         this.requests = requests;
     }
@@ -76,6 +77,8 @@ public class UdtSearchFilterResolver extends SearchFilterResolver {
     @Nonnull
     @Override
     protected Collection<Long> getTargetIdsFromFilter(@Nonnull PropertyFilter filter) {
-        return targetSearchService.searchTargets(filter).getTargetsList();
+        SearchTargetsRequest request = SearchTargetsRequest.newBuilder()
+            .addPropertyFilter(filter).build();
+        return targetService.searchTargets(request).getTargetsList();
     }
 }

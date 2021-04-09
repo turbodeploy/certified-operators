@@ -17,10 +17,10 @@ import com.vmturbo.common.protobuf.group.GroupDTOREST.GroupServiceController;
 import com.vmturbo.common.protobuf.group.PolicyDTOREST.PolicyServiceController;
 import com.vmturbo.common.protobuf.group.TopologyDataDefinitionREST.TopologyDataDefinitionServiceController;
 import com.vmturbo.common.protobuf.schedule.ScheduleProtoREST.ScheduleServiceController;
-import com.vmturbo.common.protobuf.search.TargetSearchServiceGrpc;
-import com.vmturbo.common.protobuf.search.TargetSearchServiceGrpc.TargetSearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProtoREST.SettingPolicyServiceController;
 import com.vmturbo.common.protobuf.setting.SettingProtoREST.SettingServiceController;
+import com.vmturbo.common.protobuf.target.TargetsServiceGrpc;
+import com.vmturbo.common.protobuf.target.TargetsServiceGrpc.TargetsServiceBlockingStub;
 import com.vmturbo.group.GroupComponentDBConfig;
 import com.vmturbo.group.IdentityProviderConfig;
 import com.vmturbo.group.group.GroupConfig;
@@ -140,7 +140,7 @@ public class RpcConfig {
     public CachingMemberCalculator cachingMemberCalculator() {
         final CachingMemberCalculator cachingCalc = new CachingMemberCalculator(
                 groupConfig.groupStore(),
-                new GroupMemberCalculatorImpl(targetSearchService(),
+                new GroupMemberCalculatorImpl(targetService(),
                         repositoryClientConfig.searchServiceClient()),
                 CachedGroupMembers.Type.fromString(memberCacheType), cacheEntityParentGroups);
         groupConfig.groupStore().addUpdateListener(cachingCalc);
@@ -159,7 +159,7 @@ public class RpcConfig {
                 repositoryClientConfig.searchServiceClient(),
                 userSessionConfig.userSessionContext(), groupStitchingManager(),
                 transactionProvider(), identityProviderConfig.identityProvider(),
-                targetSearchService(), settingsPoliciesUpdater(), placementPolicyUpdater(),
+                targetService(), settingsPoliciesUpdater(), placementPolicyUpdater(),
                 cachingMemberCalculator(), groupRetrievePermitsSize, groupLoadTimeoutSec,
                 groupConfig.groupEnvironmentTypeResolver(), groupConfig.groupSeverityCalculator());
     }
@@ -190,8 +190,8 @@ public class RpcConfig {
      * @return target search service
      */
     @Bean
-    public TargetSearchServiceBlockingStub targetSearchService() {
-        return TargetSearchServiceGrpc.newBlockingStub(
+    public TargetsServiceBlockingStub targetService() {
+        return TargetsServiceGrpc.newBlockingStub(
                 topologyProcessorClientConfig.topologyProcessorChannel());
     }
     /**

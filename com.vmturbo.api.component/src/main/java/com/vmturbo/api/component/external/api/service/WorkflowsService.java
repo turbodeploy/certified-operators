@@ -60,7 +60,7 @@ public class WorkflowsService implements IWorkflowsService {
         WorkflowDTO.FetchWorkflowsResponse workflowsResponse = workflowServiceRpc
                 .fetchWorkflows(fetchWorkflowsBuilder.build());
         // set up a map to cache the OID -> TargetApiDTO to reduce the Target lookups
-        final Map<Long, TargetApiDTO> targetMap = targetsService.getTargets(null).stream()
+        final Map<Long, TargetApiDTO> targetMap = targetsService.getTargets().stream()
             .collect(Collectors.toMap(
                 targetApiDTO -> Long.valueOf(targetApiDTO.getUuid()),
                 Function.identity()));
