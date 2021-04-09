@@ -171,11 +171,11 @@ public class CloudTopologyConverter {
             entityDTOs = topology.values();
         }
         for (TopologyEntityDTO entity : entityDTOs) {
-            Set<AccountPricingData<TopologyEntityDTO>> accountPricingData = accountPricingDataByTier.get(entity.getOid());
-            Set<AccountPricingData<TopologyEntityDTO>> scopedAccountPricingData =
-                accountPricingData != null ? accountPricingData : new HashSet<>();
             TierConverter converter = converterMap.get(entity.getEntityType());
             if (converter != null) {
+                Set<AccountPricingData<TopologyEntityDTO>> accountPricingData = accountPricingDataByTier.get(entity.getOid());
+                Set<AccountPricingData<TopologyEntityDTO>> scopedAccountPricingData =
+                    accountPricingData != null ? accountPricingData : new HashSet<>();
                 Map<TraderTO.Builder, MarketTier> traderTOBuildersForEntity = converter.createMarketTierTraderTOs(entity, topology, businessAccounts,
                         scopedAccountPricingData);
                 traderTOBuilders.addAll(traderTOBuildersForEntity.keySet());
