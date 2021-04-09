@@ -74,6 +74,9 @@ defaultProperties:
         # Should be long enough to accommodate any long-running actions (e.g. storage move of a huge disk).
         # 6 hrs by default.
         actionExecution.timeoutMins: 360
+        # ConditionalSubmitter prevents executing the actions with the same condition at the same time.
+        # true, if to use ConditionalSubmitter, else use ThreadPoolExecutor
+        actionExecution.isConditionalSubmitter: false
     api:
         identityGeneratorPrefix: 5
         multipartConfigMaxFileSizeKb: 50

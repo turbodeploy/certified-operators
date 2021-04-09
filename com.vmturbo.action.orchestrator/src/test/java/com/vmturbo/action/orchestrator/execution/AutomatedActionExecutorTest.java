@@ -17,10 +17,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.FutureTask;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
@@ -28,7 +25,6 @@ import javax.annotation.Nonnull;
 
 import io.grpc.Channel;
 
-import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -49,7 +45,9 @@ import com.vmturbo.action.orchestrator.action.ActionSchedule;
 import com.vmturbo.action.orchestrator.action.ActionTranslation;
 import com.vmturbo.action.orchestrator.action.TestActionBuilder;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTargetInfo;
-import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor.ActionExecutionTask;
+import com.vmturbo.action.orchestrator.execution.ConditionalSubmitter.ConditionalFuture;
+import com.vmturbo.action.orchestrator.execution.ConditionalSubmitter.ConditionalTask;
+import com.vmturbo.action.orchestrator.execution.ConditionalSubmitterTest.CountDownSubmitter;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
@@ -84,11 +82,9 @@ public class AutomatedActionExecutorTest {
     private final EntitiesAndSettingsSnapshotFactory entitySettingsCache =
         Mockito.mock(EntitiesAndSettingsSnapshotFactory.class);
     private final ActionStore actionStore = Mockito.mock(ActionStore.class);
-    private final ExecutorService executorService = Executors.newSingleThreadExecutor();
 
     private WorkflowStore workflowStore = Mockito.mock(WorkflowStore.class);
 
-    private AutomatedActionExecutor automatedActionExecutor;
     private ActionTranslator actionTranslator = Mockito.mock(ActionTranslator.class);
 
     private final ScheduleServiceMole testScheduleService = spy(new ScheduleServiceMole());
@@ -98,9 +94,6 @@ public class AutomatedActionExecutorTest {
      */
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(testScheduleService);
-
-    private final long timeout = 30L;
-    private final TimeUnit unit = TimeUnit.SECONDS;
 
     private final long targetId1 = 49L;
     private final long targetId2 = 51L;
@@ -118,9 +111,6 @@ public class AutomatedActionExecutorTest {
 
     @Before
     public void setup() throws Exception {
-        automatedActionExecutor =
-                new AutomatedActionExecutor(actionExecutor, executorService, workflowStore,
-                        actionTargetSelector, entitySettingsCache, actionTranslator);
         when(actionStore.getActions()).thenReturn(actionMap);
         when(actionTranslator.translateToSpec(any()))
             .thenReturn(ActionDTO.ActionSpec.getDefaultInstance());
@@ -129,21 +119,34 @@ public class AutomatedActionExecutorTest {
         when(actionStore.allowsExecution()).thenReturn(true);
     }
 
-    @After
-    public void teardown() {
-        executorService.shutdownNow();
+    private List<ConditionalFuture> executeAndWaitForCompletion(int taskCount)
+            throws InterruptedException {
+        CountDownLatch countDownLatch = new CountDownLatch(taskCount);
+
+        CountDownSubmitter countDownSubmitter = new CountDownSubmitter(5, countDownLatch);
+        AutomatedActionExecutor executor = new AutomatedActionExecutor(actionExecutor,
+                countDownSubmitter, workflowStore,
+                actionTargetSelector, entitySettingsCache, actionTranslator);
+
+        List<ConditionalFuture> result = executor.executeAutomatedFromStore(actionStore);
+
+        // Wait for the tasks to be executed
+        countDownLatch.await();
+
+        return result;
     }
 
     @Test
-    public void testOnlyExecuteIfAllowed() {
+    public void testOnlyExecuteIfAllowed() throws InterruptedException {
         when(actionStore.allowsExecution()).thenReturn(false);
 
-        automatedActionExecutor.executeAutomatedFromStore(actionStore);
+        List<ConditionalFuture> result = executeAndWaitForCompletion(0);
+        Assert.assertTrue(result.isEmpty());
     }
 
     @Test
-    public void testAutomatedExecuteNoActions() {
-        automatedActionExecutor.executeAutomatedFromStore(actionStore);
+    public void testAutomatedExecuteNoActions() throws InterruptedException {
+        executeAndWaitForCompletion(0);
 
         Mockito.verify(actionStore).getActions();
         Mockito.verify(actionStore).allowsExecution();
@@ -158,7 +161,7 @@ public class AutomatedActionExecutorTest {
         when(nonAutoAction.getMode()).thenReturn(ActionMode.MANUAL);
         when(nonAutoAction.getSchedule()).thenReturn(Optional.empty());
 
-        automatedActionExecutor.executeAutomatedFromStore(actionStore);
+        executeAndWaitForCompletion(0);
 
         Mockito.verify(nonAutoAction, never()).receive(any(ActionEvent.class));
         Mockito.verify(actionStore).getActions();
@@ -174,7 +177,7 @@ public class AutomatedActionExecutorTest {
         setUpMocksForAutomaticAction(unsupportedAction, 99L, unsupportedRec);
         when(unsupportedAction.getWorkflowExecutionTarget(workflowStore)).thenReturn(Optional.empty());
 
-        automatedActionExecutor.executeAutomatedFromStore(actionStore);
+        executeAndWaitForCompletion(0);
 
         final ArgumentCaptor<FailureEvent> captor = ArgumentCaptor.forClass(FailureEvent.class);
         Mockito.verify(unsupportedAction).receive(captor.capture());
@@ -215,10 +218,7 @@ public class AutomatedActionExecutorTest {
             actionSpec
         );
 
-        automatedActionExecutor.executeAutomatedFromStore(actionStore);
-
-        executorService.shutdown();
-        executorService.awaitTermination(timeout, unit);
+        executeAndWaitForCompletion(1);
 
         InOrder order = Mockito.inOrder(crossTargetAction);
         order.verify(crossTargetAction).receive(isA(AutomaticAcceptanceEvent.class));
@@ -257,9 +257,7 @@ public class AutomatedActionExecutorTest {
         when(failedTranslationAction.getActionTranslation()).thenReturn(translation);
         when(failedTranslationAction.getWorkflowExecutionTarget(workflowStore)).thenReturn(Optional.empty());
 
-        automatedActionExecutor.executeAutomatedFromStore(actionStore);
-        executorService.shutdown();
-        executorService.awaitTermination(timeout, unit);
+        executeAndWaitForCompletion(1);
 
         InOrder inOrder = Mockito.inOrder(failedTranslationAction);
         inOrder.verify(failedTranslationAction).receive(isA(AutomaticAcceptanceEvent.class));
@@ -328,16 +326,10 @@ public class AutomatedActionExecutorTest {
         when(scheduleAction1.getWorkflowExecutionTarget(workflowStore)).thenReturn(Optional.empty());
         when(actionWithoutSchedule.getWorkflowExecutionTarget(workflowStore)).thenReturn(Optional.empty());
 
-        final MockExecutorService mockExecutorService = new MockExecutorService();
-        final AutomatedActionExecutor automatedActionExecutor =
-                new AutomatedActionExecutor(actionExecutor, mockExecutorService, workflowStore,
-                        actionTargetSelector, entitySettingsCache, actionTranslator);
-
-        automatedActionExecutor.executeAutomatedFromStore(actionStore);
-
         Mockito.when(actionSchedule1.isActiveScheduleNow()).thenReturn(true);
         Mockito.when(actionSchedule2.isActiveScheduleNow()).thenReturn(false);
-        mockExecutorService.executeTasks();
+
+        executeAndWaitForCompletion(3);
 
         // checks that action with active execution window and action without schedule
         // start executing and action with non active schedule doesn't start executing
@@ -379,10 +371,7 @@ public class AutomatedActionExecutorTest {
         );
         Mockito.doThrow(new ExecutionStartException("EPIC FAIL!!!"))
                 .when(actionExecutor).executeSynchronously(targetId1, actionSpec, workflowOpt);
-        automatedActionExecutor.executeAutomatedFromStore(actionStore);
-
-        executorService.shutdown();
-        executorService.awaitTermination(timeout, unit);
+        executeAndWaitForCompletion(1);
 
         InOrder inOrder = Mockito.inOrder(failedExecuteAction);
 
@@ -426,10 +415,7 @@ public class AutomatedActionExecutorTest {
         when(actionTranslator.translateToSpec(goodAction)).thenReturn(
             actionSpec
         );
-        automatedActionExecutor.executeAutomatedFromStore(actionStore);
-
-        executorService.shutdown();
-        executorService.awaitTermination(timeout, unit);
+        executeAndWaitForCompletion(1);
 
         InOrder order = Mockito.inOrder(goodAction);
         order.verify(goodAction).receive(isA(AutomaticAcceptanceEvent.class));
@@ -526,10 +512,7 @@ public class AutomatedActionExecutorTest {
         actionToTargetMap.put(goodAction.getId(), actionTargetInfo(targetId1));
         when(actionTargetSelector.getTargetsForActions(any(), any(), any())).thenReturn(actionToTargetMap);
 
-        automatedActionExecutor.executeAutomatedFromStore(actionStore);
-
-        executorService.shutdown();
-        executorService.awaitTermination(timeout, unit);
+        executeAndWaitForCompletion(4);
 
         final ArgumentCaptor<FailureEvent> failureCaptor =
                 ArgumentCaptor.forClass(FailureEvent.class);
@@ -578,29 +561,31 @@ public class AutomatedActionExecutorTest {
     // Verify that only actions which are in READY state and which
     // have the executable flag set are submitted for execution.
     public void testexecuteAutomatedFromStoreExecutableActions() throws Exception {
-        ExecutorService testExecutor = mock(ExecutorService.class);
+        ConditionalSubmitter submitter = mock(ConditionalSubmitter.class);
         ActionExecutor testActionExecutor = mock(ActionExecutor.class);
         final AutomatedActionExecutor automatedActionExecutor =
-                new AutomatedActionExecutor(testActionExecutor, testExecutor,
+                new AutomatedActionExecutor(testActionExecutor, submitter,
                         workflowStore, actionTargetSelector, entitySettingsCache, actionTranslator);
         long actionId = 1L;
-        Callable<Action> mockCallable = new Callable<Action>() {
+        ConditionalTask mockCallable = new ConditionalTask() {
             @Override
-            public Action call() throws Exception {
+            public ConditionalTask call() throws Exception {
+                return null;
+            }
+
+            @Override
+            public int compareTo(ConditionalTask o) {
+                return 0;
+            }
+
+            @Override
+            public Action getAction() {
                 return null;
             }
         };
         ActionDTO.Action testRecommendation = makeRec(
                 TestActionBuilder.makeMoveInfo(targetId1, entityId1, pmType, entityId2, pmType),
                 1, true, SupportLevel.SUPPORTED).build();
-
-        when(testExecutor.submit(mockCallable)).thenReturn(
-                new FutureTask<Action>(new Callable<Action>() {
-                    @Override
-                    public Action call() throws Exception {
-                        return null;
-                    }
-                }));
 
         Map<Long, Action> testActionMap = new HashMap<>();
         Action testAction  = mock(Action.class);
@@ -626,7 +611,7 @@ public class AutomatedActionExecutorTest {
         when(testAction.getSchedule()).thenReturn(Optional.empty());
         when(testAction.getRecommendation()).thenReturn(testRecommendation);
         when(testAction.determineExecutability()).thenReturn(true);
-        List<ActionExecutionTask> actionFutures =
+        List<ConditionalFuture> actionFutures =
                 automatedActionExecutor.executeAutomatedFromStore(actionStore);
         assertThat(actionFutures.size(), is(1));
 
@@ -636,7 +621,7 @@ public class AutomatedActionExecutorTest {
         actionFutures =
                 automatedActionExecutor.executeAutomatedFromStore(actionStore);
         assertThat(actionFutures.size(), is(0));
-        Mockito.verify(testExecutor, never()).submit(mockCallable);
+        Mockito.verify(submitter, never()).execute(new ConditionalFuture(mockCallable));
     }
 
     /**
@@ -672,10 +657,7 @@ public class AutomatedActionExecutorTest {
             actionSpec
         );
 
-        automatedActionExecutor.executeAutomatedFromStore(actionStore);
-
-        executorService.shutdown();
-        executorService.awaitTermination(timeout, unit);
+        executeAndWaitForCompletion(1);
 
         InOrder order = Mockito.inOrder(manualAcceptedAction);
         order.verify(manualAcceptedAction).receive(isA(QueuedEvent.class));
@@ -709,10 +691,7 @@ public class AutomatedActionExecutorTest {
         setUpMocksForManuallyAcceptedAction(manualAcceptedAction, actionId, recommendation,
                 actionSchedule, false);
 
-        automatedActionExecutor.executeAutomatedFromStore(actionStore);
-
-        executorService.shutdown();
-        executorService.awaitTermination(timeout, unit);
+        executeAndWaitForCompletion(0);
 
         Mockito.verify(manualAcceptedAction, Mockito.never()).receive(isA(ManualAcceptanceEvent.class));
     }
