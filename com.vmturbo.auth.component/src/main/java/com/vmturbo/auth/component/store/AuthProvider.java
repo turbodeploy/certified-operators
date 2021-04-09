@@ -230,7 +230,7 @@ public class AuthProvider extends AuthProviderBase {
      */
     private String composeUserInfoKey(final @Nonnull AuthUserDTO.PROVIDER provider,
                                       final @Nonnull String userName) {
-        return PREFIX + provider.name() + "/" + userName.toUpperCase();
+        return PREFIX_EXTERNAL_USERS + provider.name() + "/" + userName.toUpperCase();
     }
 
     /**
@@ -379,8 +379,9 @@ public class AuthProvider extends AuthProviderBase {
                     // persist user in external group if it's not added before
                     final SecurityGroupDTO securityGroupDTO = userGroups.get(0);
                     final String uuid = addExternalGroupUser(securityGroupDTO.getDisplayName(), userName);
-                    return generateToken(userName, uuid, ImmutableList.of(securityGroupDTO.getRoleName()),
-                            combineScopes(userGroups), ipAddress, AuthUserDTO.PROVIDER.LDAP);
+                    final List<Long> scopeGroups = combineScopes(userGroups);
+                    final List<String> roles = assignRoles(userName, securityGroupDTO);
+                    return generateToken(userName, uuid, roles, scopeGroups, ipAddress, AuthUserDTO.PROVIDER.LDAP);
                 }
             }
             throw new AuthenticationException("Unable to authenticate the user " + userName);
@@ -388,6 +389,16 @@ public class AuthProvider extends AuthProviderBase {
             // removed the exception stack to limit system information leakage
             throw new AuthenticationException("Unable to authenticate the user " + userName);
         }
+    }
+
+    // Assign additional roles based on {@link UserPolicy}.
+    private List<String> assignRoles(@Nonnull final String userName,
+            @Nonnull final SecurityGroupDTO securityGroupDTO) {
+        return userPolicy.applyReportPolicy(new AuthUserDTO(PROVIDER.LDAP, userName, null,
+                ImmutableList.of(securityGroupDTO.getRoleName())), () -> getKVValue(
+                composeUserInfoKey(PROVIDER.LDAP, userName)).map(
+                jsonData -> GSON.fromJson(jsonData, UserInfo.class))
+                .map(this::convertUserInfoToDTO));
     }
 
     /**
@@ -431,7 +442,8 @@ public class AuthProvider extends AuthProviderBase {
                 logger_.info(AUDIT_SUCCESS_SUCCESS_AUTHENTICATING_USER + userName);
                 // persist user in external group if it's not added before
                 final String uuid = addExternalGroupUser(externalGroupName, userName);
-                return generateToken(userName, uuid, ImmutableList.of(externalGroup.getRoleName()),
+                final List<String> roles = assignRoles(userName, externalGroup);
+                return generateToken(userName, uuid, roles,
                     externalGroup.getScopeGroups(), ipAddress, AuthUserDTO.PROVIDER.LDAP);
             }
         ).orElseThrow(() -> new AuthorizationException(UNABLE_TO_AUTHORIZE_THE_USER
@@ -457,7 +469,8 @@ public class AuthProvider extends AuthProviderBase {
                 logger_.info(AUDIT_SUCCESS_SUCCESS_AUTHENTICATING_USER + userName);
                 // persist user in external group if it's not added before
                 final String uuid = addExternalGroupUser(externalGroup.getDisplayName(), userName);
-                return generateToken(userName, uuid, ImmutableList.of(externalGroup.getRoleName()),
+                final List<String> roles = assignRoles(userName, externalGroup);
+                return generateToken(userName, uuid, roles,
                     externalGroup.getScopeGroups(), ipAddress, AuthUserDTO.PROVIDER.LDAP);
             }
         ).orElseThrow(() -> new AuthorizationException(UNABLE_TO_AUTHORIZE_THE_USER
@@ -514,7 +527,8 @@ public class AuthProvider extends AuthProviderBase {
                     logger_.info("AUDIT::SUCCESS: Success authenticating user: " + userName);
                     return generateToken(info.userName, info.uuid, info.roles, info.scopeGroups,
                             ipAddress, info.provider);
-                } else {
+                } else if (PROVIDER.LDAP.equals(info.provider)
+                        && userPolicy.isStandAloneExternalUser(convertUserInfoToDTO(info))) {
                     return authenticateADUser(info, password, ipAddress);
                 }
             } catch (AuthenticationException e) {
@@ -618,6 +632,10 @@ public class AuthProvider extends AuthProviderBase {
                     logger_.warn("AUDIT::FAILURE:AUTH: Account is locked: " + userName);
                     throw new AuthorizationException("AUDIT::NEGATIVE: Account is locked");
                 }
+                if (!userPolicy.isStandAloneExternalUser(convertUserInfoToDTO(info))) {
+                    logger_.warn("AUDIT::FAILURE:AUTH: Account is not a standalone external user: " + userName);
+                    throw new AuthorizationException("AUDIT::NEGATIVE: Account is not a standalone external user");
+                }
                 return authorizeSAMLUser(info, ipAddress);
             } catch (AuthorizationException e) {
                 // this is to prevent next catch clause from grabbing this one
@@ -717,10 +735,7 @@ public class AuthProvider extends AuthProviderBase {
 
         if (roleMatched(authUserDTO.getRoles(), REPORT_EDITOR)) {
             // Don't allow modifying role for the last local admin user
-            Map<String, String> allUsers;
-            synchronized (storeLock_) {
-                allUsers = keyValueStore_.getByPrefix(PREFIX);
-            }
+            Map<String, String> allUsers = getKVByPrefix(PREFIX_EXTERNAL_USERS);
             // Check if the Reporting policy allow assigning more Report Editor role to user.
             try {
                 userPolicy.isAddingReportEditorRoleAllowed(authUserDTO, getAllUsers(allUsers).stream()
@@ -777,10 +792,7 @@ public class AuthProvider extends AuthProviderBase {
      */
     @PreAuthorize("hasAnyRole('ADMINISTRATOR', 'SITE_ADMIN')")
     public @Nonnull List<AuthUserDTO> list() throws SecurityException {
-        Map<String, String> users;
-        synchronized (storeLock_) {
-            users = keyValueStore_.getByPrefix(PREFIX);
-        }
+        Map<String, String> users = getKVByPrefix(PREFIX_EXTERNAL_USERS);
         // ensure role are upper case for any I/O operations, here is retrieving from Consul.
         return users.values().stream()
             .map(jsonData -> {
@@ -802,7 +814,7 @@ public class AuthProvider extends AuthProviderBase {
     public Optional<String> findUsername(long userOid) {
         final String userUuid = Long.toString(userOid);
         // try to find from local/ldap/saml users
-        Optional<String> username = findUsername(userUuid, PREFIX);
+        Optional<String> username = findUsername(userUuid, PREFIX_EXTERNAL_USERS);
         if (username.isPresent()) {
             return username;
         }
@@ -819,10 +831,7 @@ public class AuthProvider extends AuthProviderBase {
      */
     private Optional<String> findUsername(@Nonnull String userUuid,
                                           @Nonnull String kvPrefix) {
-        Map<String, String> users;
-        synchronized (storeLock_) {
-            users = keyValueStore_.getByPrefix(kvPrefix);
-        }
+        Map<String, String> users = getKVByPrefix(kvPrefix);
         return users.values().stream()
                 .map(jsonData -> GSON.fromJson(jsonData, UserInfo.class))
                 .filter(userInfo -> StringUtils.equals(userInfo.uuid, userUuid))
@@ -838,10 +847,7 @@ public class AuthProvider extends AuthProviderBase {
      */
     @Nonnull
     private List<Long> getUserIdsInExternalGroup(@Nonnull String externalGroupName) {
-        final Map<String, String> users;
-        synchronized (storeLock_) {
-            users = keyValueStore_.getByPrefix(composeExternalGroupUsersInfoKey(externalGroupName));
-        }
+        final Map<String, String> users = getKVByPrefix(composeExternalGroupUsersInfoKey(externalGroupName));
         return users.values().stream()
                 .map(jsonData -> GSON.fromJson(jsonData, UserInfo.class))
                 .map(userInfo -> Long.valueOf(userInfo.uuid))
@@ -971,10 +977,7 @@ public class AuthProvider extends AuthProviderBase {
 
         final UserInfo info = GSON.fromJson(json.get(), UserInfo.class);
         // Don't allow modifying role for the last local admin user
-        Map<String, String> allUsers;
-        synchronized (storeLock_) {
-            allUsers = keyValueStore_.getByPrefix(PREFIX);
-        }
+        Map<String, String> allUsers = getKVByPrefix(PREFIX_EXTERNAL_USERS);
         // don't allow change administrator role, if it's the last local admin user
         if (isLastLocalAdminUser(info, allUsers) && !roleMatched(roleNames, ADMINISTRATOR)) {
             logger_.error("AUDIT::Don't allow modifying role for last local admin user: " +
@@ -1035,10 +1038,7 @@ public class AuthProvider extends AuthProviderBase {
     @PreAuthorize("hasAnyRole('ADMINISTRATOR', 'SITE_ADMIN')")
     public Optional<AuthUserDTO> remove(final @Nonnull String uuid) throws SecurityException {
         // Look for the correct user.
-        Map<String, String> users;
-        synchronized (storeLock_) {
-            users = keyValueStore_.getByPrefix(PREFIX);
-        }
+        Map<String, String> users = getKVByPrefix(PREFIX_EXTERNAL_USERS);
 
         UserInfo infoFound = null;
         for (String jsonData : users.values()) {
@@ -1290,10 +1290,7 @@ public class AuthProvider extends AuthProviderBase {
      */
     @PreAuthorize("hasAnyRole('ADMINISTRATOR', 'SITE_ADMIN')")
     public @Nonnull List<SecurityGroupDTO> getSecurityGroups() {
-        Map<String, String> ssoGroups;
-        synchronized (storeLock_) {
-            ssoGroups = keyValueStore_.getByPrefix(PREFIX_GROUP);
-        }
+        Map<String, String> ssoGroups = getKVByPrefix(PREFIX_GROUP);
 
         List<SecurityGroupDTO> list = new ArrayList<>();
         for (String jsonData : ssoGroups.values()) {

@@ -62,6 +62,12 @@ public class AuthRESTSecurityConfig extends WebSecurityConfigurerAdapter {
     private boolean enableMultiADGroupSupport;
 
     /**
+     * Feature flag to enable assign Report Editor role to external group user.
+     */
+    @Value("${isReportingEnabled:false}")
+    private boolean isReportingEnabled;
+
+    /**
      * If true, use Kubernetes secrets to read in the sensitive Auth data (like encryption keys and
      * private/public key pairs). If false, this data will be read from (legacy) persistent volumes.
      */
@@ -221,7 +227,7 @@ public class AuthRESTSecurityConfig extends WebSecurityConfigurerAdapter {
     public UserPolicy userPolicy() {
         final LoginPolicy policy = LoginPolicy.valueOf(loginPolicy);
         final ReportPolicy reportPolicy =
-                new ReportPolicy(licensingConfig.licenseCheckService());
+                new ReportPolicy(licensingConfig.licenseCheckService(), isReportingEnabled);
         final UserPolicy userPolicy = new UserPolicy(policy, reportPolicy);
         AuditLog.newEntry(userPolicy.getAuditAction(),
                 "User login policy is set to " + loginPolicy, true)
