@@ -209,6 +209,6 @@ public class RESTConfig extends WebMvcConfigurerAdapter {
      */
     @Bean
     public FailedDiscoveryTracker failedDiscoveryTracker() {
-        return new FailedDiscoveryTracker();
+        return new FailedDiscoveryTracker(probeConfig.probeStore());
     }
 }

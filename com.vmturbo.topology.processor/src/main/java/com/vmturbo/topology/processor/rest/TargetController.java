@@ -57,6 +57,7 @@ import com.vmturbo.topology.processor.api.ITargetHealthInfo;
 import com.vmturbo.topology.processor.api.ITargetHealthInfo.TargetHealthSubcategory;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus;
+import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus.Status;
 import com.vmturbo.topology.processor.api.TopologyProcessorException;
 import com.vmturbo.topology.processor.api.dto.InputField;
 import com.vmturbo.topology.processor.api.dto.TargetInputFields;
@@ -494,18 +495,17 @@ public class TargetController {
                 return new TargetHealthInfo(TargetHealthSubcategory.VALIDATION, targetId,
                                 targetName, "No finished validation.");
             } else {
-                return verifyDiscovery(targetId, targetName);
+                return verifyDiscovery(targetId, targetName, lastDiscovery.get());
             }
         }
 
         Validation validation = lastValidation.get();
-        List<ErrorType> validationErrorTypes = validation.getErrorTypes();
         //Check if the validation has passed fine.
-        if (validationErrorTypes.isEmpty())    {
+        if (validation.getStatus() == Status.SUCCESS)    {
             if (!lastDiscovery.isPresent())  {
                 return new TargetHealthInfo(TargetHealthSubcategory.VALIDATION, targetId, targetName);
             } else {
-                return verifyDiscovery(targetId, targetName);
+                return verifyDiscovery(targetId, targetName, lastDiscovery.get());
             }
         }
 
@@ -513,11 +513,9 @@ public class TargetController {
         if (lastDiscovery.isPresent())  {
             LocalDateTime validationCompletionTime = validation.getCompletionTime();
             LocalDateTime discoveryCompletionTime = lastDiscovery.get().getCompletionTime();
-            Map<Long, DiscoveryFailure> targetToFailedDiscoveries = failedDiscoveriesTracker.getFailedDiscoveries();
-            DiscoveryFailure discoveryFailure = targetToFailedDiscoveries.get(targetId);
             //Check if there's a discovery that has happened later and passed fine.
             if (discoveryCompletionTime.compareTo(validationCompletionTime) >= 0 &&
-                            discoveryFailure == null) {
+                            lastDiscovery.get().getStatus() == Status.SUCCESS) {
                 //All is good!
                 return new TargetHealthInfo(TargetHealthSubcategory.DISCOVERY, targetId, targetName);
             }
@@ -525,11 +523,15 @@ public class TargetController {
 
         //Report the failed validation.
         return new TargetHealthInfo(TargetHealthSubcategory.VALIDATION, targetId, targetName,
-                        validationErrorTypes.get(0), validation.getErrors().get(0),
+                        validation.getErrorTypes().get(0), validation.getErrors().get(0),
                         validation.getCompletionTime());
     }
 
-    private TargetHealthInfo verifyDiscovery(long targetId, String targetName)  {
+    private TargetHealthInfo verifyDiscovery(long targetId, String targetName, Discovery lastDiscovery)  {
+        if (lastDiscovery.getStatus() == Status.SUCCESS)  {
+            //The discovery was ok.
+            return new TargetHealthInfo(TargetHealthSubcategory.DISCOVERY, targetId, targetName);
+        }
         Map<Long, DiscoveryFailure> targetToFailedDiscoveries = failedDiscoveriesTracker.getFailedDiscoveries();
         DiscoveryFailure discoveryFailure = targetToFailedDiscoveries.get(targetId);
         if (discoveryFailure != null)   {
@@ -538,8 +540,10 @@ public class TargetController {
                             discoveryFailure.getErrorType(), discoveryFailure.getErrorText(),
                             discoveryFailure.getFailTime(), discoveryFailure.getFailsCount());
         } else {
-            //The discovery was ok.
-            return new TargetHealthInfo(TargetHealthSubcategory.DISCOVERY, targetId, targetName);
+            //The last discovery was probably attempted while there was no probe registered for it
+            //(e.g. after the topology-processor restart).
+            return new TargetHealthInfo(TargetHealthSubcategory.DISCOVERY, targetId, targetName,
+                    "No finished discovery. May be because of the unregistered probe during the last attempt.");
         }
     }
 }
