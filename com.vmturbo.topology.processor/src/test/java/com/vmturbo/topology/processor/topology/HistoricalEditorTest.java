@@ -512,6 +512,8 @@ public class HistoricalEditorTest {
                 new ArrayList<>(), TopologyInfo.newBuilder().setTopologyContextId(777777).build());
         // Pm with oid 1L failed to be discovered 6 times, it should be deleted from historicalEditor cache
         Assert.assertFalse(historicalEditor.historicalInfo.getOidToHistoricalSEInfo().containsKey(1L));
+        Assert.assertFalse(historicalEditor.historicalInfo.getOidToMissingConsecutiveCycleCounts()
+                .containsKey(1L));
         // Vm with oid 2L failed to be discovered 4 times, it should still exists in historicalEditor cache
         Assert.assertTrue(historicalEditor.historicalInfo.getOidToHistoricalSEInfo().containsKey(2L));
         Assert.assertTrue(historicalEditor.historicalInfo.getOidToMissingConsecutiveCycleCounts().get(2L) == 4);
