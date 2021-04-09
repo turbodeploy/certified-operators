@@ -51,7 +51,7 @@ message UnderlayStruct {
     required int64 dc = 2;
 
     // The DPoD. Could be empty.
-    // The DPoD is a Dynamic Pod. 
+    // The DPoD is a Dynamic Pod.
     repeated int64 dpod = 3;
 
     // The list of capacities.
