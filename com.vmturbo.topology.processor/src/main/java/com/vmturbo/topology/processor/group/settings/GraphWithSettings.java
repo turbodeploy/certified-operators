@@ -110,4 +110,14 @@ public class GraphWithSettings {
 
         return settingsByName;
     }
+
+    /**
+     * Returns entity oid to settings map.
+     *
+     * @return entity oid to settings map
+     */
+    @Nonnull
+    public Map<Long, EntitySettings> getSettingsByEntity() {
+        return settingsByEntity;
+    }
 }
