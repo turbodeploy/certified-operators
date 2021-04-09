@@ -153,7 +153,7 @@ public class V_01_01_08__AWS_Add_AccountType extends AbstractProbeTargetMigratio
 
         final JsonObject probeField = new JsonObject();
         probeField.add("customDefinition", customDef);
-        probeField.addProperty("mandatory", true);
+        probeField.addProperty("mandatory", false);
         probeField.addProperty("isTargetDisplayName", false);
         probeField.add("allowedValues", allowedVals);
         return probeField;
