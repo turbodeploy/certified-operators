@@ -107,6 +107,14 @@ public class PriceFunctionFactoryTest {
 
         PriceFunction stepForCloud = PriceFunctionFactory.createStepPriceFunctionForCloud();
         assertEquals(11.11, stepForCloud.getParams()[0], 0.00001);
+
+        PriceFunction overProvision =
+            PriceFunctionFactory.createOverProvisionedPriceFunction(1.0, 1.0, 1.0, 2.0);
+        assertTrue(overProvision.getParams().length == 4);
+        assertEquals(1.0, overProvision.getParams()[0], 0.00001);
+        assertEquals(1.0, overProvision.getParams()[1], 0.00001);
+        assertEquals(1.0, overProvision.getParams()[2], 0.00001);
+        assertEquals(2.0, overProvision.getParams()[3], 0.00001);
     }
 
     /**

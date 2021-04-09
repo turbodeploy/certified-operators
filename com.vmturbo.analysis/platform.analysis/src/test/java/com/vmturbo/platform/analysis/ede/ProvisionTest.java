@@ -21,6 +21,8 @@ import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.ledger.Ledger;
+import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
+import com.vmturbo.platform.analysis.pricefunction.PriceFunctionFactory;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 
 /**
@@ -29,6 +31,9 @@ import com.vmturbo.platform.analysis.testUtilities.TestUtils;
  */
 @RunWith(JUnitParamsRunner.class)
 public class ProvisionTest {
+
+    private static final PriceFunction OP_PF =
+        PriceFunctionFactory.createOverProvisionedPriceFunction(1.0, 1.0, 1.0, 2.0);
 
     // Methods
 
@@ -79,10 +84,14 @@ public class ProvisionTest {
     @Parameters
     @TestCaseName("Test #{index}: ProvisionTest({0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}, {10}, {11})")
     public final void testProvisionDecisions(int pm1Cpu, int pm1Mem, int st1Sto, int vm1Cpu, int vm1Mem, int vm1Sto,
-                    int vm2Cpu, int vm2Mem, int vm2Sto, int allActions, int provisionBySupplyActions, int moveActions, int baseTypeOfReasonCommodity) {
+        int vm2Cpu, int vm2Mem, int vm2Sto, int allActions, int provisionBySupplyActions, int moveActions,
+        int baseTypeOfReasonCommodity, PriceFunction modifyPriceFunction) {
         Economy economy = new Economy();
         economy.getSettings().setEstimatesEnabled(false);
         Trader pm1 = TestUtils.createPM(economy, Arrays.asList(0l), pm1Cpu, pm1Mem, true);
+        if (modifyPriceFunction != null) {
+            pm1.getCommoditiesSold().get(0).getSettings().setPriceFunction(modifyPriceFunction);
+        }
         pm1.getSettings().setMaxDesiredUtil(0.9);
         pm1.setDebugInfoNeverUseInCode("PM1");
         Trader st1 = TestUtils.createStorage(economy, Arrays.asList(0l), st1Sto, true);
@@ -125,17 +134,22 @@ public class ProvisionTest {
     @SuppressWarnings("unused") // it is used reflectively
     private static Object[] parametersForTestProvisionDecisions() {
         return new Object[][] {
-           {100, 100, 300, 30, 30, 100, 30, 30, 100, 0, 0, 0, -1},
-           {100, 100, 300, 46, 46, 140, 46, 46, 140, 4, 2, 2, -1},
-           {100, 100, 300, 46, 46, 100, 46, 46, 100, 2, 1, 1, TestUtils.CPU.getBaseType()},
-           {100, 100, 300, 49, 44, 140, 49, 44, 140, 4, 2, 2, -1},
-           {100, 100, 300, 46, 30, 140, 46, 30, 140, 2, 1, 1, TestUtils.ST_AMT.getBaseType()},
-           {100, 100, 300, 49, 44, 100, 49, 44, 100, 2, 1, 1, TestUtils.CPU.getBaseType()},
-           {100, 100, 300, 44, 49, 100, 44, 49, 100, 2, 1, 1, TestUtils.MEM.getBaseType()},
-           {100, 100, 300, 46, 30, 100, 46, 30, 100, 0, 0, 0, -1},
-           {100, 100, 300, 30, 30, 140, 30, 30, 140, 2, 1, 1, TestUtils.ST_AMT.getBaseType()},
-           {100, 100, 300, 30, 30, 140, 30, 30, 140, 2, 1, 1, TestUtils.ST_AMT.getBaseType()},
-           {100, 100, 300, 30, 50, 100, 30, 50, 100, 2, 1, 1, TestUtils.MEM.getBaseType()}
+           {100, 100, 300, 30, 30, 100, 30, 30, 100, 0, 0, 0, -1, null},
+           {100, 100, 300, 46, 46, 140, 46, 46, 140, 4, 2, 2, -1, null},
+           {100, 100, 300, 46, 46, 100, 46, 46, 100, 2, 1, 1, TestUtils.CPU.getBaseType(), null},
+           {100, 100, 300, 49, 44, 140, 49, 44, 140, 4, 2, 2, -1, null},
+           {100, 100, 300, 46, 30, 140, 46, 30, 140, 2, 1, 1, TestUtils.ST_AMT.getBaseType(), null},
+           {100, 100, 300, 49, 44, 100, 49, 44, 100, 2, 1, 1, TestUtils.CPU.getBaseType(), null},
+           {100, 100, 300, 44, 49, 100, 44, 49, 100, 2, 1, 1, TestUtils.MEM.getBaseType(), null},
+           {100, 100, 300, 46, 30, 100, 46, 30, 100, 0, 0, 0, -1, null},
+           {100, 100, 300, 30, 30, 140, 30, 30, 140, 2, 1, 1, TestUtils.ST_AMT.getBaseType(), null},
+           {100, 100, 300, 30, 30, 140, 30, 30, 140, 2, 1, 1, TestUtils.ST_AMT.getBaseType(), null},
+           {100, 100, 300, 30, 50, 100, 30, 50, 100, 2, 1, 1, TestUtils.MEM.getBaseType(), null},
+
+           //OP related tests
+           {100, 100, 1000, 20, 20, 100, 20, 20, 100, 0, 0, 0, -1, OP_PF},
+           {100, 100, 1000, 51, 40, 100, 51, 40, 100, 2, 1, 1, TestUtils.CPU.getBaseType(), OP_PF},
+           {100, 100, 1000, 70, 20, 100, 70, 20, 100, 2, 1, 1, TestUtils.CPU.getBaseType(), OP_PF},
         };
      }
 
