@@ -212,4 +212,28 @@ public class PriceFunctionFactory {
         }
         return pf;
     }
+
+    /**
+     * OverProvisionedPriceFunction used to account for risk related over-provisioning commodities
+     * behavior.
+     *
+     * @param weight weight associated with the commodity.
+     * @param constant returned for valid utilization.
+     * @param stepOne first utilization point where price function switches from using some
+     *        pricing behavior to another.
+     * @param stepTwo second utilization point where price function switches from using some pricing
+     *        behavior to another.
+     * @return the price function.
+     */
+    public static synchronized PriceFunction createOverProvisionedPriceFunction(double weight,
+        double constant, double stepOne, double stepTwo) {
+        String key = String.format("OPPF-%.10f,%.10f,%.10f,%.10f", weight, constant, stepOne,
+                        stepTwo);
+        PriceFunction pf = pfMap.get(key);
+        if (pf == null) {
+            pf = new OverProvisionedPriceFunction(weight, constant, stepOne, stepTwo);
+            pfMap.put(key, pf);
+        }
+        return pf;
+    }
 }

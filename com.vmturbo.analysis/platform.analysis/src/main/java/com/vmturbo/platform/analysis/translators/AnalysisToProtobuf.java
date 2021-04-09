@@ -56,8 +56,8 @@ import com.vmturbo.platform.analysis.pricefunction.ConstantPriceFunction;
 import com.vmturbo.platform.analysis.pricefunction.ExternalPriceFunction;
 import com.vmturbo.platform.analysis.pricefunction.FiniteStandardWeightedPriceFunction;
 import com.vmturbo.platform.analysis.pricefunction.IgnoreUtilizationPriceFunction;
+import com.vmturbo.platform.analysis.pricefunction.OverProvisionedPriceFunction;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
-import com.vmturbo.platform.analysis.pricefunction.PriceFunctionFactory;
 import com.vmturbo.platform.analysis.pricefunction.QuoteFunction;
 import com.vmturbo.platform.analysis.pricefunction.QuoteFunctionFactory;
 import com.vmturbo.platform.analysis.pricefunction.ScaledCapacityStandardWeightedPriceFunction;
@@ -104,6 +104,7 @@ import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.Constant;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.FiniteStandardWeighted;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.IgnoreUtilization;
+import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.OverProvision;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.ScaledCapacityStandardWeighted;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.StandardWeighted;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.SquaredReciprocalBought;
@@ -181,6 +182,12 @@ public final class AnalysisToProtobuf {
         } else if (input instanceof SquaredReciprocalBoughtUtilizationPriceFunction) {
             builder.setSquaredReciprocalBought(SquaredReciprocalBought.newBuilder()
                     .setWeight((float)input.getParams()[0]));
+        } else if (input instanceof OverProvisionedPriceFunction) {
+            builder.setOverProvision(OverProvision.newBuilder()
+                    .setWeight((float)input.getParams()[0])
+                    .setConstant((float)input.getParams()[1])
+                    .setStepOne((float)input.getParams()[2])
+                    .setStepTwo((float)input.getParams()[3]));
         }
 
         return builder.build();

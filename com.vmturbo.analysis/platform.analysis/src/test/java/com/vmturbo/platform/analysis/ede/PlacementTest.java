@@ -1,7 +1,6 @@
 package com.vmturbo.platform.analysis.ede;
 
 import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
@@ -9,13 +8,11 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -33,13 +30,13 @@ import com.vmturbo.platform.analysis.actions.ReconfigureConsumer;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
-import com.vmturbo.platform.analysis.economy.Context;
-import com.vmturbo.platform.analysis.economy.Context.BalanceAccount;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderSettings;
 import com.vmturbo.platform.analysis.economy.TraderState;
+import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
+import com.vmturbo.platform.analysis.pricefunction.PriceFunctionFactory;
 import com.vmturbo.platform.analysis.utilities.PlacementResults;
 
 /**
@@ -59,8 +56,8 @@ public class PlacementTest {
     private static final CommoditySpecification MEM = new CommoditySpecification(1);
     private static final CommoditySpecification STA = new CommoditySpecification(2);
     private static final CommoditySpecification LAT = new CommoditySpecification(3);
-
     private static final CommoditySpecification SEGMENT_0 = new CommoditySpecification(4,1004);
+    private static final CommoditySpecification MEMPROV = new CommoditySpecification(5);
 
     // Baskets to use in tests
     private static final Basket EMPTY = new Basket();
@@ -69,6 +66,7 @@ public class PlacementTest {
     private static final Basket ST_SMALL = new Basket(STA,LAT);
     private static final Basket ST_LARGE = new Basket(STA,LAT,SEGMENT_0);
     private static final Basket STORAGE = new Basket(STA);
+    private static final Basket PM_OP = new Basket(MEM, MEMPROV);
 
     // Frequently used parameter combinations for tests.
     // ('PM' for Physical Machine | 'ST' for STorage)_('S' for Small | 'L' for Large)
@@ -108,6 +106,9 @@ public class PlacementTest {
     public static final Set<Integer> testsExpectingReconfigure =
             new HashSet<>(Arrays.asList(1, 14, 15, 16, 17, 28, 29, 30, 42, 43, 44, 45, 56, 57, 58,
                     110, 111, 160, 161));
+
+    private static final PriceFunction OP_PF = PriceFunctionFactory.createOverProvisionedPriceFunction(1.0, 1.0, 1.0, 2.0);
+    private static final PriceFunction SW_PF = PriceFunctionFactory.createStandardWeightedPriceFunction(1.0);
 
     @RunWith(Parameterized.class)
     public static class ShopTogetherPlacementDecisions {
@@ -536,6 +537,9 @@ public class PlacementTest {
             final Object[] utilUpperBounds = sellerConfiguration[2];
             final Long[] bicliques = Arrays.copyOf(sellerConfiguration[3],
                 sellerConfiguration[3].length, Long[].class);
+            final Object[] priceFunctions = sellerConfiguration.length > 4
+                    ? sellerConfiguration[4]
+                    : new Object[0];
 
             // Add trader to economy
             Trader seller = e.addTrader((int)parameters[1], TraderState.ACTIVE, (Basket)parameters[0], Arrays.asList(bicliques));
@@ -548,6 +552,10 @@ public class PlacementTest {
             // Populate quantities sold
             for (int i = 0 ; i < quantities.length ; ++i) {
                 seller.getCommoditiesSold().get(i).setQuantity((double)quantities[i]);
+                if (priceFunctions.length != 0) {
+                    seller.getCommoditiesSold().get(i).getSettings()
+                        .setPriceFunction((PriceFunction)priceFunctions[i]);
+                }
             }
 
             // Override utilization upper bounds where an explicit value is given
@@ -608,11 +616,12 @@ public class PlacementTest {
              *           followed by the quantity bought (size >= 3)
              *
              * level 3b: all sellers (size may vary)
-             * level 4b: one seller (size should be 4)
+             * level 4b: one seller (size should be 4 or 5)
              * level 5b.1: the basket sold and trader type in that order (size should be 2)
              * level 5b.2: the quantities sold index to index (size may vary)
              * level 5b.3: the utilization upper bounds index to index. (size may vary)
              * level 5b.4: the bicliques sold by this trader (size may vary)
+             * level 5b.5: optional specification for the price function for sold commodities. (size may vary)
              *
              * level 3c: all actions (size may vary)
              * level 4c: one action (size == 1)
@@ -783,6 +792,50 @@ public class PlacementTest {
                 // 2nd seller doesn't have enough effective capacity
                 {{{{STORAGE, true,-1, 50.0}}},{{{STORAGE, ST_TYPE},{20.0},{0.4},{0L}},{{STORAGE, ST_TYPE},{0.0},{0.4},{0L}}},{}}, // same biclique
                 {{{{STORAGE, true,-1, 50.0}}},{{{STORAGE, ST_TYPE},{20.0},{0.4},{0L}},{{STORAGE, ST_TYPE},{0.0},{0.4},{1L}}},{}}, // different biclique
+
+                //OP scenarios - VM placed
+                {{{{PM_OP, true, 1, 5.0, 10.0}}},{{{PM_OP, PM_TYPE},{10.0, 60.0},{},{0L},{SW_PF, OP_PF}},
+                    {{PM_OP, PM_TYPE},{10.0, 30.0},{},{0L},{SW_PF, OP_PF}}},{}}, //Test 112
+                {{{{PM_OP, true, 1, 5.0, 10.0}}},{{{PM_OP, PM_TYPE},{10.0, 140.0},{},{0L},{SW_PF, OP_PF}},
+                    {{PM_OP, PM_TYPE},{10.0, 30.0},{},{0L},{SW_PF, OP_PF}}},{{{0,0},{2}}}},
+                {{{{PM_OP, true, 1, 5.0, 10.0}}},{{{PM_OP, PM_TYPE},{70.0, 140.0},{},{0L},{SW_PF, OP_PF}},
+                    {{PM_OP, PM_TYPE},{70.0, 30.0},{},{0L},{SW_PF, OP_PF}}},{}},
+                {{{{PM_OP, true, 1, 5.0, 10.0}}},{{{PM_OP, PM_TYPE},{70.0, 190.0},{},{0L},{SW_PF, OP_PF}},
+                    {{PM_OP, PM_TYPE},{70.0, 30.0},{},{0L},{SW_PF, OP_PF}}},{{{0,0},{2}}}},
+                {{{{PM_OP, true, 1, 5.0, 10.0}}},{{{PM_OP, PM_TYPE},{80.0, 205.0},{},{0L},{SW_PF, OP_PF}},
+                    {{PM_OP, PM_TYPE},{80.0, 15.0},{},{0L},{SW_PF, OP_PF}}},{{{0,0},{2}}}},
+                {{{{PM_OP, true, 2, 5.0, 10.0}}},{{{PM_OP, PM_TYPE},{40.0, 140.0},{},{0L},{SW_PF, OP_PF}},
+                    {{PM_OP, PM_TYPE},{80.0, 30.0},{},{0L},{SW_PF, OP_PF}}},{{{0,0},{1}}}},
+                {{{{PM_OP, true, 1, 5.0, 10.0}}},{{{PM_OP, PM_TYPE},{70.0, 100.0},{},{0L},{SW_PF, OP_PF}},
+                    {{PM_OP, PM_TYPE},{70.0, 100.0},{},{0L},{SW_PF, OP_PF}}},{}},
+                {{{{PM_OP, true, 1, 5.0, 10.0}}},{{{PM_OP, PM_TYPE},{70.0, 500.0},{},{0L},{SW_PF, OP_PF}},
+                    {{PM_OP, PM_TYPE},{80.0, 30.0},{},{0L},{SW_PF, OP_PF}}},{{{0,0},{2}}}},
+                {{{{PM_OP, true, 1, 5.0, 10.0}}},{{{PM_OP, PM_TYPE},{10.0, 100.0},{},{0L},{SW_PF, OP_PF}},
+                    {{PM_OP, PM_TYPE},{10.0, 100.0},{},{0L},{SW_PF, OP_PF}}},{}},
+                {{{{PM_OP, true, 1, 5.0, 10.0}}},{{{PM_OP, PM_TYPE},{80.0, 90.0},{},{0L},{SW_PF, OP_PF}},
+                    {{PM_OP, PM_TYPE},{80.0, 90.0},{},{0L},{SW_PF, OP_PF}}},{}},
+
+                //OP - VM unplaced (no reseller setup)
+                {{{{PM_OP, true, -1, 5.0, 10.0}}},{{{PM_OP, PM_TYPE},{10.0, 60.0},{},{0L},{SW_PF, OP_PF}},
+                    {{PM_OP, PM_TYPE},{10.0, 30.0},{},{0L},{SW_PF, OP_PF}}},{{{0,0},{1}}}}, //Test 122
+                {{{{PM_OP, true, -1, 5.0, 10.0}}},{{{PM_OP, PM_TYPE},{10.0, 140.0},{},{0L},{SW_PF, OP_PF}},
+                    {{PM_OP, PM_TYPE},{10.0, 30.0},{},{0L},{SW_PF, OP_PF}}},{{{0,0},{2}}}},
+                {{{{PM_OP, true, -1, 5.0, 10.0}}},{{{PM_OP, PM_TYPE},{70.0, 140.0},{},{0L},{SW_PF, OP_PF}},
+                    {{PM_OP, PM_TYPE},{70.0, 30.0},{},{0L},{SW_PF, OP_PF}}},{{{0,0},{2}}}},
+                {{{{PM_OP, true, -1, 5.0, 10.0}}},{{{PM_OP, PM_TYPE},{70.0, 190.0},{},{0L},{SW_PF, OP_PF}},
+                    {{PM_OP, PM_TYPE},{70.0, 30.0},{},{0L},{SW_PF, OP_PF}}},{{{0,0},{2}}}},
+                {{{{PM_OP, true, -1, 5.0, 10.0}}},{{{PM_OP, PM_TYPE},{80.0, 205.0},{},{0L},{SW_PF, OP_PF}},
+                    {{PM_OP, PM_TYPE},{80.0, 15.0},{},{0L},{SW_PF, OP_PF}}},{{{0,0},{2}}}},
+                {{{{PM_OP, true, -1, 5.0, 10.0}}},{{{PM_OP, PM_TYPE},{40.0, 140.0},{},{0L},{SW_PF, OP_PF}},
+                    {{PM_OP, PM_TYPE},{80.0, 30.0},{},{0L},{SW_PF, OP_PF}}},{{{0,0},{2}}}},
+                {{{{PM_OP, true, -1, 5.0, 10.0}}},{{{PM_OP, PM_TYPE},{70.0, 100.0},{},{0L},{SW_PF, OP_PF}},
+                    {{PM_OP, PM_TYPE},{70.0, 100.0},{},{0L},{SW_PF, OP_PF}}},{}},
+                {{{{PM_OP, true, -1, 5.0, 10.0}}},{{{PM_OP, PM_TYPE},{70.0, 500.0},{},{0L},{SW_PF, OP_PF}},
+                    {{PM_OP, PM_TYPE},{80.0, 30.0},{},{0L},{SW_PF, OP_PF}}},{{{0,0},{2}}}},
+                {{{{PM_OP, true, -1, 5.0, 10.0}}},{{{PM_OP, PM_TYPE},{10.0, 100.0},{},{0L},{SW_PF, OP_PF}},
+                    {{PM_OP, PM_TYPE},{10.0, 100.0},{},{0L},{SW_PF, OP_PF}}},{}},
+                {{{{PM_OP, true, -1, 5.0, 10.0}}},{{{PM_OP, PM_TYPE},{80.0, 90.0},{},{0L},{SW_PF, OP_PF}},
+                    {{PM_OP, PM_TYPE},{80.0, 90.0},{},{0L},{SW_PF, OP_PF}}},{}},
             };
 
             // Convert the multidimensional array to a list of test cases.

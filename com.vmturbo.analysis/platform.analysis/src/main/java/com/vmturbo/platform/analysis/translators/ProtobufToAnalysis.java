@@ -113,6 +113,12 @@ public final class ProtobufToAnalysis {
                 return PriceFunctionFactory.createScaledCapacityStandardWeightedPriceFunction(
                         input.getScaledCapacityStandardWeighted().getWeight(),
                                 input.getScaledCapacityStandardWeighted().getScale());
+            case OVER_PROVISION:
+                return PriceFunctionFactory.createOverProvisionedPriceFunction(
+                    input.getOverProvision().getWeight(),
+                    input.getOverProvision().getConstant(),
+                    input.getOverProvision().getStepOne(),
+                    input.getOverProvision().getStepTwo());
             case PRICEFUNCTIONTYPE_NOT_SET:
             default:
                 throw new IllegalArgumentException("input = " + input);
