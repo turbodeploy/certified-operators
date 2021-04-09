@@ -10,8 +10,7 @@ import static org.mockito.Mockito.when;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.Callable;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -21,7 +20,9 @@ import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionEvent.RollBackToAcceptedEvent;
 import com.vmturbo.action.orchestrator.action.ActionSchedule;
 import com.vmturbo.action.orchestrator.approval.ActionApprovalSender;
-import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor.ActionExecutionTask;
+import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor.AutomatedActionTask;
+import com.vmturbo.action.orchestrator.execution.ConditionalSubmitter.ConditionalFuture;
+import com.vmturbo.action.orchestrator.execution.ConditionalSubmitter.ConditionalTask;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 
@@ -53,9 +54,10 @@ public class ActionAutomationManagerTest {
     @Test
     public void testCancelQueuedActions() throws InterruptedException {
         Action action = mock(Action.class);
-        List<ActionExecutionTask> actionExecutionTaskList = new ArrayList<>();
-        actionExecutionTaskList.add(new AutomatedActionExecutor.ActionExecutionTask(action,
-            new FutureMock<>(action)));
+        AutomatedActionTask actionTask = mock(AutomatedActionTask.class);
+        when(actionTask.getAction()).thenReturn(action);
+        List<ConditionalFuture> actionExecutionTaskList = new ArrayList<>();
+        actionExecutionTaskList.add(new FutureMock(actionTask));
         when(action.getState()).thenReturn(ActionState.QUEUED);
         when(executor.executeAutomatedFromStore(any()))
             .thenReturn(actionExecutionTaskList);
@@ -83,11 +85,11 @@ public class ActionAutomationManagerTest {
     @Test
     public void testCancelActionsWithNonActiveExecutionWindows() throws Exception {
         final ActionSchedule nonActiveSchedule = Mockito.mock(ActionSchedule.class);
-        final com.vmturbo.action.orchestrator.action.Action action =
-            mock(com.vmturbo.action.orchestrator.action.Action.class);
-        final List<ActionExecutionTask> actionExecutionTaskList = new ArrayList<>();
-        actionExecutionTaskList.add(
-            new AutomatedActionExecutor.ActionExecutionTask(action, new FutureMock<>(action)));
+        final Action action = mock(Action.class);
+        AutomatedActionTask actionTask = mock(AutomatedActionTask.class);
+        when(actionTask.getAction()).thenReturn(action);
+        final List<ConditionalFuture> actionExecutionTaskList = new ArrayList<>();
+        actionExecutionTaskList.add(new FutureMock(actionTask));
         Mockito.when(action.getState()).thenReturn(ActionState.QUEUED);
         Mockito.when(executor.executeAutomatedFromStore(any())).thenReturn(actionExecutionTaskList);
         automationManager.updateAutomation(actionStore);
@@ -102,20 +104,11 @@ public class ActionAutomationManagerTest {
 
     /**
      * FutureMock.
-     *
-     * @param <V> result type.
      */
-    private class FutureMock<V> implements Future<V> {
+    private class FutureMock extends ConditionalFuture {
 
-        V result;
-
-        /**
-         * Create new FutureMock.
-         *
-         * @param result the result.
-         */
-        private FutureMock(V result) {
-            this.result = result;
+        FutureMock(Callable<ConditionalTask> task) {
+            super(task);
         }
 
         @Override
@@ -131,16 +124,6 @@ public class ActionAutomationManagerTest {
         @Override
         public boolean cancel(boolean mayInterruptIfRunning) {
             return true;
-        }
-
-        @Override
-        public V get() {
-            return result;
-        }
-
-        @Override
-        public V get(long timeout, TimeUnit unit) {
-            return result;
         }
     }
 }

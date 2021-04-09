@@ -18,7 +18,7 @@ import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionEvent.NotRecommendedEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.RollBackToAcceptedEvent;
 import com.vmturbo.action.orchestrator.approval.ActionApprovalSender;
-import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor.ActionExecutionTask;
+import com.vmturbo.action.orchestrator.execution.ConditionalSubmitter.ConditionalFuture;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 
@@ -30,7 +30,7 @@ public class ActionAutomationManager {
 
     private final AutomatedActionExecutor automatedExecutor;
     // Stores the task futures/promises of the actions which have been submitted for execution.
-    private final List<ActionExecutionTask> actionExecutionFutures = new ArrayList<>();
+    private final List<ConditionalFuture> actionExecutionFutures = new ArrayList<>();
     private final Object actionExecutionFuturesLock = new Object();
 
     private final ActionApprovalSender approvalRequester;
@@ -58,11 +58,14 @@ public class ActionAutomationManager {
         try {
             synchronized (actionExecutionFuturesLock) {
                 cancelActionsWithoutActiveExecutionWindow();
-                actionExecutionFutures.removeIf(actionExecutionTask ->
-                    actionExecutionTask.getFuture().isDone()
-                        || actionExecutionTask.getAction().getState() == ActionState.CLEARED
-                        || actionExecutionTask.getAction().getState() == ActionState.FAILED
-                        || actionExecutionTask.getAction().getState() == ActionState.SUCCEEDED);
+                actionExecutionFutures.removeIf(future -> {
+                    Action action = future.getOriginalTask().getAction();
+                    ActionState state = action.getState();
+                    return future.isDone()
+                            || state == ActionState.CLEARED
+                            || state == ActionState.FAILED
+                            || state == ActionState.SUCCEEDED;
+                });
                 actionExecutionFutures.addAll(automatedExecutor.executeAutomatedFromStore(store));
             }
             approvalRequester.sendApprovalRequests(store);
@@ -81,12 +84,13 @@ public class ActionAutomationManager {
         logger.info("Cancelling all pending automated actions which are waiting to be executed");
         synchronized (actionExecutionFuturesLock) {
             int cancelledCount = actionExecutionFutures.stream()
-                .filter(actionTask -> actionTask.getAction().getState() == ActionState.QUEUED)
-                .map(actionTask -> {
-                    Action action = actionTask.getAction();
-                    actionTask.getFuture().cancel(false);
-                    action.receive(new NotRecommendedEvent(action.getId()));
-                    return 1;
+                    .filter(future -> future.getOriginalTask().getAction()
+                            .getState() == ActionState.QUEUED)
+                    .map(future -> {
+                        Action action = future.getOriginalTask().getAction();
+                        future.cancel(false);
+                        action.receive(new NotRecommendedEvent(action.getId()));
+                        return 1;
                 })
                 .reduce(Integer::sum)
                 .orElse(0);
@@ -101,7 +105,7 @@ public class ActionAutomationManager {
     /**
      * Cancel actions with associated execution window, but this window is
      * not active right now.
-     * NOTE: call this method from synchronised block guarded by
+     * NOTE: call this method from synchronized block guarded by
      * {@link #actionExecutionFuturesLock}.
      */
     @GuardedBy("actionExecutionFuturesLock")
@@ -110,9 +114,9 @@ public class ActionAutomationManager {
         final Set<Long> cancelledRecommendationIds = new HashSet<>();
         actionExecutionFutures.stream()
             .filter(actionTask -> !isActiveExecutionWindow(actionTask))
-            .forEach(actionTask -> {
-                final Action action = actionTask.getAction();
-                final boolean isCanceled = actionTask.getFuture().cancel(false);
+            .forEach(future -> {
+                    final Action action = future.getOriginalTask().getAction();
+                    final boolean isCanceled = future.cancel(false);
                 if (isCanceled) {
                     action.receive(new RollBackToAcceptedEvent());
                     cancelledCount.getAndIncrement();
@@ -133,11 +137,11 @@ public class ActionAutomationManager {
     /**
      * Check that submitted action has active execution window.
      *
-     * @param actionTask execution task contains future for executed action
+     * @param future future for executed action
      * @return if execution window is active, otherwise false
      */
-    private boolean isActiveExecutionWindow(@Nonnull ActionExecutionTask actionTask) {
-        final Action action = actionTask.getAction();
+    private boolean isActiveExecutionWindow(@Nonnull ConditionalFuture future) {
+        final Action action = future.getOriginalTask().getAction();
         if (action.getState() == ActionState.QUEUED && action.getSchedule().isPresent()) {
             return action.getSchedule().get().isActiveScheduleNow();
         }
