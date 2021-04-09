@@ -3,12 +3,10 @@ package com.vmturbo.extractor.export;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -22,12 +20,8 @@ import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.extractor.schema.json.export.ExportedObject;
 
 /**
- * Class for sending {@link ExportedObject}s to a Kafka topic. We sent objects in chunks. The chunk
- * is created by {@link ExportedObjectChunkCollector} based on provided kafka message size limit.
- * To create the chunk, we need to serialize each individual object to get byte array size.
- * Unfortunately these serialized byte arrays can not be reused when we serialize the whole chunk,
- * since serializing a chunk (list of ExportedObject) can not be achieved by merging serialized
- * byte arrays of individual ExportedObject.
+ * Class for sending {@link ExportedObject}s to a Kafka topic. We sent objects to Kafka
+ * asynchronously for better performance.
  *
  * <p>The format of the object we send to Kafka is limited by the available plugins. Currently
  * customers are using a logstash plugin which reads kafka topic and write to elasticsearch, it
@@ -93,34 +87,5 @@ public class ExtractorKafkaSender {
                     successCounter.intValue(), futures.size(), e);
         }
         return successCounter.intValue();
-    }
-
-    /**
-     * Calculate serialized size (in bytes) in parallel for all objects in advance. If the
-     * serialized size of an object can not be determined, it will not be included in response.
-     *
-     * @param exportedObjects collection of {@link ExportedObject}
-     * @return list of {@link ExportedObject} with serialized size in bytes to be sent
-     */
-    private List<ExportedObject> calculateSerializedSize(@Nonnull Collection<ExportedObject> exportedObjects) {
-        final List<String> objectsWithSerializedErrors = new ArrayList<>();
-        final List<ExportedObject> objectsToSend = exportedObjects.parallelStream()
-                .map(exportedObject -> {
-                    try {
-                        exportedObject.setSerializedSize(ExportUtils.toBytes(exportedObject).length);
-                    } catch (JsonProcessingException e) {
-                        // track objects which can not be serialized
-                        objectsWithSerializedErrors.add(exportedObject.toString());
-                        // do not send them to Kafka
-                        return null;
-                    }
-                    return exportedObject;
-                }).filter(Objects::nonNull)
-                .collect(Collectors.toList());
-        if (!objectsWithSerializedErrors.isEmpty()) {
-            logger.error("{} of {} objects can not be serialized: {}",
-                    objectsWithSerializedErrors.size(), exportedObjects.size(), objectsWithSerializedErrors);
-        }
-        return objectsToSend;
     }
 }

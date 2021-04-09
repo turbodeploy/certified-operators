@@ -317,10 +317,10 @@ public class ActionConverter {
             action.setOid(recommendation.getId());
             action.setCreationTime(ExportUtils.getFormattedDate(actionSpec.getRecommendationTime()));
             action.setState(actionSpec.getActionState().name());
-            action.setCategory(actionSpec.getCategory().name());
+            action.setCategory(extractCategory(actionSpec).getLiteral());
             action.setMode(actionSpec.getActionMode().name());
             action.setDescription(actionSpec.getDescription());
-            action.setSeverity(actionSpec.getSeverity().name());
+            action.setSeverity(extractSeverity(actionSpec).getLiteral());
 
             // set risk description
             try {
@@ -349,8 +349,8 @@ public class ActionConverter {
                 action.setSavings(CostAmount.newAmount(recommendation.getSavingsPerHour()));
             }
 
-            final ActionDTO.ActionType actionType = ActionDTOUtil.getActionInfoActionType(actionSpec.getRecommendation());
-            action.setType(actionType.name());
+            action.setType(extractType(actionSpec).getLiteral());
+
             retActions.put(actionSpec.getRecommendation().getId(), action);
         });
 

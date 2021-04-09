@@ -16,9 +16,11 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.common.utils.MultiStageTimer;
+import com.vmturbo.extractor.patchers.GroupPrimitiveFieldsOnGroupingPatcher;
 import com.vmturbo.extractor.patchers.PrimitiveFieldsOnTEDPatcher;
 import com.vmturbo.extractor.schema.json.export.Entity;
 import com.vmturbo.extractor.schema.json.export.ExportedObject;
+import com.vmturbo.extractor.schema.json.export.Group;
 import com.vmturbo.extractor.search.EnumUtils.EntityStateUtils;
 import com.vmturbo.extractor.search.EnumUtils.EntityTypeUtils;
 import com.vmturbo.extractor.search.EnumUtils.EnvironmentTypeUtils;
@@ -39,6 +41,7 @@ public class DataExtractionWriter extends TopologyWriterBase {
     private final DataExtractionFactory dataExtractionFactory;
     private final MetricsExtractor metricsExtractor;
     private final PrimitiveFieldsOnTEDPatcher attrsExtractor;
+    private final GroupPrimitiveFieldsOnGroupingPatcher groupAttrsExtractor;
     private String formattedTopologyCreationTime;
 
     /**
@@ -54,6 +57,7 @@ public class DataExtractionWriter extends TopologyWriterBase {
         this.dataExtractionFactory = dataExtractionFactory;
         this.metricsExtractor = dataExtractionFactory.newMetricsExtractor();
         this.attrsExtractor = dataExtractionFactory.newAttrsExtractor();
+        this.groupAttrsExtractor = dataExtractionFactory.newGroupAttrsExtractor();
     }
 
     @Override
@@ -96,6 +100,21 @@ public class DataExtractionWriter extends TopologyWriterBase {
 
     @Override
     public int finish(final DataProvider dataProvider) {
+        // extract all groups
+        final List<ExportedObject> exportedGroups = dataProvider.getAllGroups()
+                .map(grouping -> {
+                    final Group group = new Group();
+                    group.setOid(grouping.getId());
+                    group.setName(grouping.getDefinition().getDisplayName());
+                    group.setType(ExportUtils.getGroupTypeJsonKey(grouping.getDefinition().getType()));
+                    group.setAttrs(groupAttrsExtractor.extractAttrs(grouping));
+
+                    ExportedObject exportedObject = new ExportedObject();
+                    exportedObject.setTimestamp(formattedTopologyCreationTime);
+                    exportedObject.setGroup(group);
+                    return exportedObject;
+                }).collect(Collectors.toList());
+
         final Optional<RelatedEntitiesExtractor> relatedEntitiesExtractor =
                 dataExtractionFactory.newRelatedEntitiesExtractor(dataProvider);
         final Optional<TopDownCostExtractor> topDownCostExtractor =
@@ -118,8 +137,11 @@ public class DataExtractionWriter extends TopologyWriterBase {
                 }).collect(Collectors.toList());
         timer.stop();
 
-        // send entities to kafka in chunks
-        final String kafkaStageLabel = "Send entities to Kafka";
+        // add groups together with entities
+        exportedObjects.addAll(exportedGroups);
+
+        // send entities and groups to kafka
+        final String kafkaStageLabel = "Send entities and groups to Kafka";
         logger.info("Starting stage: {}", kafkaStageLabel);
         timer.start(kafkaStageLabel);
         final int successCount = extractorKafkaSender.send(exportedObjects);

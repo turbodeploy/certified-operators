@@ -2,6 +2,7 @@ package com.vmturbo.extractor.export;
 
 import java.util.Optional;
 
+import com.vmturbo.extractor.patchers.GroupPrimitiveFieldsOnGroupingPatcher;
 import com.vmturbo.extractor.patchers.PrimitiveFieldsOnTEDPatcher;
 import com.vmturbo.extractor.topology.DataProvider;
 import com.vmturbo.extractor.topology.SupplyChainEntity;
@@ -63,5 +64,15 @@ public class DataExtractionFactory {
         } else {
             return Optional.empty();
         }
+    }
+
+    /**
+     * Create an instance of {@link GroupPrimitiveFieldsOnGroupingPatcher} which is capable of extracting
+     * attrs from a group.
+     *
+     * @return an instance of {@link GroupPrimitiveFieldsOnGroupingPatcher}
+     */
+    public GroupPrimitiveFieldsOnGroupingPatcher newGroupAttrsExtractor() {
+        return new GroupPrimitiveFieldsOnGroupingPatcher(true, true);
     }
 }
