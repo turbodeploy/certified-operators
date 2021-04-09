@@ -151,6 +151,10 @@ public class Provision {
                 if (!canMarketProvisionSellers(market)) {
                     continue;
                 }
+                // run placement on the current buyers
+                allActions.addAll(Placement.prefPlacementDecisions(economy,
+                    new ArrayList<>(market.getBuyers())).getActions());
+
                 for(;;) {
                     if (economy.getForceStop()) {
                         return allActions;
@@ -329,12 +333,8 @@ public class Provision {
         List<@NonNull Action> actions = new ArrayList<>();
         actions.addAll(Placement.prefPlacementDecisions(economy,
             new ArrayList<>(mostProfitableTrader.getCustomers())).getActions());
-        // Allow all buyers in markets where mostProfitableTrader is a seller place again so they
-        // can re-balance with the added resources in case these buyers are not part of the
-        // current market.
-        for (Market m : economy.getMarketsAsSeller(mostProfitableTrader)) {
-            actions.addAll(Placement.prefPlacementDecisions(economy, m.getBuyers()).getActions());
-        }
+        actions.addAll(Placement.prefPlacementDecisions(economy,
+            new ArrayList<>(market.getBuyers())).getActions());
         return actions;
     }
 
