@@ -78,6 +78,8 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
         historyBasedResizeDependencySkipMap_ = new HashMap<>();
     // Map from raw processedCommodity -> rawCommodity
     private final @NonNull Map<@NonNull Integer, @NonNull RawMaterials> rawMaterialMap_ = new HashMap<>();
+    // Map from processedCommodity -> byProductCommodity
+    private final @NonNull Map<@NonNull Integer, ByProducts> byProductMap_ = new HashMap<>();
     // a flag to indicate if analysis should stop immediately or not
     private volatile boolean forceStop = false;
     // The list of all Markets with at least one buyer that can move
@@ -200,6 +202,12 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     public @NonNull Map<@NonNull Integer, RawMaterials>
                                               getModifiableRawCommodityMap() {
         return rawMaterialMap_;
+    }
+
+    @Pure
+    public @NonNull Map<@NonNull Integer, ByProducts>
+                                            getModifiableByProductMap() {
+        return byProductMap_;
     }
 
     @Override
@@ -349,6 +357,13 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     public @ReadOnly @NonNull Optional<RawMaterials> getRawMaterials(@ReadOnly Economy this,
                                                                      int processedCommodityType) {
         return Optional.ofNullable(rawMaterialMap_.get(processedCommodityType));
+    }
+
+    @Override
+    @Pure
+    public @ReadOnly @NonNull Optional<ByProducts> getByProducts(@ReadOnly Economy this,
+                                                                 int processedCommodityType) {
+        return Optional.ofNullable(byProductMap_.get(processedCommodityType));
     }
 
     @Override
@@ -784,6 +799,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
         commodityProducesDependency_.clear();
         historyBasedResizeDependencySkipMap_.clear();
         rawMaterialMap_.clear();
+        byProductMap_.clear();
         marketsForPlacement_.clear();
         preferentialSls_.clear();
         shopTogetherTraders_.clear();

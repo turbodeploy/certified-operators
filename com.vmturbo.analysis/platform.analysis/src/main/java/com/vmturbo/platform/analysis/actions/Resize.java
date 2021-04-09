@@ -221,6 +221,8 @@ public class Resize extends ActionImpl {
         super.take();
         Resizer.resizeDependentCommodities(getEconomy(), getSellingTrader(), getResizedCommodity(),
                                    getSoldIndex(), getNewCapacity(), basedOnHistorical, false);
+        Resizer.updateByProducts(getEconomy(), getSellingTrader(), getResizedCommodity(),
+                getSoldIndex(), getNewCapacity());
         getSellingTrader().getCommoditySold(getResizedCommoditySpec()).setCapacity(getNewCapacity());
         return this;
     }
