@@ -1,5 +1,6 @@
 package com.vmturbo.platform.analysis.ede;
 
+import static com.vmturbo.platform.analysis.testUtilities.TestUtils.PM_TYPE;
 import static org.junit.Assert.assertTrue;
 
 import java.util.Arrays;
@@ -752,6 +753,61 @@ public class ProvisionTest {
         assertAllCount(actions, 4);
         assertProvisionBySupplyCount(actions, 1);
         assertActivateCount(actions, 1);
+        assertMoveCount(actions, 2);
+    }
+
+    /**
+     * Setup economy with 2 PMs selling CPU and memory and 4 VMs buying from PMs.
+     * PM1 sells 100 CPU, 100 Mem.
+     * PM2 sells 100 CPU, 100 Mem.
+     * VM1 buys 80 CPU, 80 Mem and is placed on PM1.
+     * VM2 buys 20 CPU, 20 Mem and is placed on PM1.
+     * VM3 and VM4 each buy 46 CPU, 46 Mem and are placed on PM2.
+     *
+     * <p>Expected result: A total of 3 hosts can satisfy this demand. So only one
+     * PROVISION_BY_SUPPLY (of PM1) action, not two.
+     * VM1 is moved from PM1 to the new clone.
+     * One of VM3 of VM4 is moved to PM1.
+     * So 2 moves are expected.
+     */
+    @Test
+    public void testProvisionDecisionsPlacementAfterProvision() {
+        Economy economy = new Economy();
+        economy.getSettings().setEstimatesEnabled(false);
+        Trader pm1 = TestUtils.createTrader(economy, PM_TYPE, Arrays.asList(0L),
+            Arrays.asList(TestUtils.CPU, TestUtils.MEM),
+            new double[]{100, 100, 100}, true, false);
+        pm1.getSettings().setMaxDesiredUtil(0.9);
+        pm1.setDebugInfoNeverUseInCode("PM1");
+        Trader pm2 = TestUtils.createTrader(economy, PM_TYPE, Arrays.asList(0L),
+            Arrays.asList(TestUtils.CPU, TestUtils.MEM),
+            new double[]{100, 100, 100}, true, false);
+        pm2.getSettings().setMaxDesiredUtil(0.9);
+        pm2.setDebugInfoNeverUseInCode("PM2");
+        // Place vm1 and vm2 on pm1.
+        Trader vm1 = TestUtils.createVM(economy);
+        TestUtils.createAndPlaceShoppingList(economy,
+            Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm1, new double[]{80, 80}, pm1);
+        vm1.setDebugInfoNeverUseInCode("VM1");
+        Trader vm2 = TestUtils.createVM(economy);
+        TestUtils.createAndPlaceShoppingList(economy,
+            Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm2, new double[]{20, 20}, pm1);
+        vm2.setDebugInfoNeverUseInCode("VM2");
+        // Place vm3 and vm4 on pm2.
+        Trader vm3 = TestUtils.createVM(economy);
+        TestUtils.createAndPlaceShoppingList(economy,
+            Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm3, new double[]{46, 46}, pm2);
+        vm3.setDebugInfoNeverUseInCode("VM3");
+        Trader vm4 = TestUtils.createVM(economy);
+        TestUtils.createAndPlaceShoppingList(economy,
+            Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm4, new double[]{46, 46}, pm2);
+        vm2.setDebugInfoNeverUseInCode("VM4");
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
+
+        List<Action> actions = Provision.provisionDecisions(economy, new Ledger(economy));
+
+        assertAllCount(actions, 3);
+        assertProvisionBySupplyCount(actions, 1);
         assertMoveCount(actions, 2);
     }
 
