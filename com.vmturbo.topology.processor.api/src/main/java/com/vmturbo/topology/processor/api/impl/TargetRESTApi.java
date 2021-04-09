@@ -65,6 +65,33 @@ public class TargetRESTApi {
         }
     }
 
+
+    /**
+     * POST request body to the target/find route.
+     */
+    public static class GetTargetsRequest {
+        private final List<Long> targetIds;
+
+        /**
+         * Create an instance of this type.
+         *
+         * @param targetIds the list of target ids.
+         */
+        public GetTargetsRequest(final List<Long> targetIds) {
+            this.targetIds = targetIds;
+        }
+
+        /**
+         * Returns the list of target ids.
+         *
+         * @return the list of target ids.
+         */
+        @ApiModelProperty(value = "The list of target ids.")
+        public List<Long> getTargetIds() {
+            return targetIds;
+        }
+    }
+
     /**
      * Java representation of the JSON object to
      * send when retrieving target info.

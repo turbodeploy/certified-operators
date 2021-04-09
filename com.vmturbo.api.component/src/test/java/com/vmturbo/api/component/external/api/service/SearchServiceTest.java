@@ -320,7 +320,7 @@ public class SearchServiceTest {
         verify(marketsService).getMarkets(Mockito.anyListOf(String.class));
 
         getSearchResults(searchService, null, Lists.newArrayList("Target"), null, null, null, EnvironmentType.ONPREM, null, null);
-        verify(targetsService).getTargets(null);
+        verify(targetsService).getTargets();
 
         getSearchResults(searchService, null, Lists.newArrayList("BusinessAccount"), null, null, null, EnvironmentType.CLOUD, null, null);
         verify(businessAccountRetriever).getBusinessAccountsInScope(null, Collections.emptyList());
@@ -400,7 +400,7 @@ public class SearchServiceTest {
         verify(marketsService).getMarkets(Mockito.anyListOf(String.class));
 
         getSearchResults(searchService, null, Lists.newArrayList("Target"), null, null, null, EnvironmentType.ONPREM, null, null);
-        verify(targetsService).getTargets(null);
+        verify(targetsService).getTargets();
 
         getSearchResults(searchService, null, Lists.newArrayList("BusinessAccount"), null, null, null, EnvironmentType.CLOUD, null, null);
         verify(businessAccountRetriever).getBusinessAccountsInScope(null, Collections.emptyList());
@@ -702,7 +702,7 @@ public class SearchServiceTest {
                 true,
                 null,
                 null));
-        verify(targetsService, Mockito.never()).getTargets(null);
+        verify(targetsService, Mockito.never()).getTargets();
         verify(marketsService, Mockito.never()).getMarkets(Mockito.anyListOf(String.class));
         verify(groupsService).getPaginatedGroupApiDTOs(any(), any(), any(), eq(EnvironmentType.ONPREM), any(), eq(true), eq(null));
         verify(searchService).addNameMatcher(any(), any(), any(), any());
@@ -825,7 +825,7 @@ public class SearchServiceTest {
                    containsInAnyOrder("1", "2", "3", "4"));
 
         verify(groupsService, Mockito.never()).getGroups();
-        verify(targetsService, Mockito.never()).getTargets(null);
+        verify(targetsService, Mockito.never()).getTargets();
         verify(marketsService, Mockito.never()).getMarkets(Mockito.anyListOf(String.class));
 
         ArgumentCaptor<SearchParameters> paramsCaptor = ArgumentCaptor.forClass(SearchParameters.class);

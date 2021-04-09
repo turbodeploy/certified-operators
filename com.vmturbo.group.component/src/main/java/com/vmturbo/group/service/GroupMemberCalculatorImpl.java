@@ -28,7 +28,7 @@ import com.vmturbo.common.protobuf.search.Search.SearchQuery;
 import com.vmturbo.common.protobuf.search.SearchFilterResolver;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
-import com.vmturbo.common.protobuf.search.TargetSearchServiceGrpc.TargetSearchServiceBlockingStub;
+import com.vmturbo.common.protobuf.target.TargetsServiceGrpc.TargetsServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.group.group.GroupMembersPlain;
 import com.vmturbo.group.group.IGroupStore;
@@ -41,7 +41,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 public class GroupMemberCalculatorImpl implements GroupMemberCalculator {
     private static final Logger logger = LogManager.getLogger();
 
-    private final TargetSearchServiceBlockingStub targetSearchService;
+    private final TargetsServiceBlockingStub targetSearchService;
 
     private final SearchServiceBlockingStub searchServiceRpc;
 
@@ -51,7 +51,7 @@ public class GroupMemberCalculatorImpl implements GroupMemberCalculator {
      * @param targetSearchService Stub to search targets.
      * @param searchServiceRpc Stub to perform searches for dynamic groups.
      */
-    public GroupMemberCalculatorImpl(final TargetSearchServiceBlockingStub targetSearchService,
+    public GroupMemberCalculatorImpl(final TargetsServiceBlockingStub targetSearchService,
                                      final SearchServiceBlockingStub searchServiceRpc) {
         this.targetSearchService = targetSearchService;
         this.searchServiceRpc = searchServiceRpc;

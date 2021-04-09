@@ -7,7 +7,7 @@ import io.grpc.stub.StreamObserver;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.search.Search.SearchTargetsResponse;
+import com.vmturbo.common.protobuf.target.TargetDTO.SearchTargetsResponse;
 
 /**
  * An implementation of StreamObserver to use when calling TargetSearchRpcService locally.

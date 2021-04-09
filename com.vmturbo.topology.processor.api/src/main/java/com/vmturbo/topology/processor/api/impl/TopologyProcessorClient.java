@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.api.impl;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 
@@ -142,6 +143,12 @@ public class TopologyProcessorClient extends
     public TargetInfo getTarget(final long id) throws CommunicationException, TopologyProcessorException {
         return restClient.getTarget(id);
     }
+
+    @Override
+    public List<TargetInfo> getTargets(List<Long> ids) throws CommunicationException {
+        return Collections.unmodifiableList(restClient.getTargets(ids));
+    }
+
 
     @Override
     public long addTarget(final long probeId, @Nonnull final TargetData targetData)

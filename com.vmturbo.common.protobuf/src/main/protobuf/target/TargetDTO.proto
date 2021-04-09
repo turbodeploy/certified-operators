@@ -1,0 +1,68 @@
+syntax = "proto2";
+package target;
+
+option java_package = "com.vmturbo.common.protobuf.target";
+
+import "common/Pagination.proto";
+import "search/Search.proto";
+
+// Request to get targets stats.
+message GetTargetsStatsRequest {
+
+  // Grouping criteria for the targets stats.
+  // If not set then return all matching targets stats into a single target group stat.
+  repeated GroupBy group_by = 1;
+
+  // Group and aggregate/combine targets stats according to this property.
+  enum GroupBy {
+    TARGET_CATEGORY = 0;
+  }
+}
+
+// Targets stats response.
+message GetTargetsStatsResponse {
+  // Stats for groups of targets aggregated according to "group_by" value in GetTargetsStatsRequest.
+  repeated TargetsGroupStat targets_group_stat = 1;
+
+  // Stats for particular group of targets.
+  message TargetsGroupStat {
+    // Contains the values of grouping criteria. Only present if GetTargetsStatsRequest#group_by
+    // was non-empty.
+    optional StatGroup stat_group = 1;
+    // Count of targets in targets group.
+    optional int32 targets_count = 2;
+
+    // If the GetTargetsStatsRequest#group_by was non-empty, then this message contains the
+    // values of the grouping criteria that a particular "TargetGroupStat" aggregated across.
+    message StatGroup {
+      // The category of targets, only present if group_by in GetTargetsStatsRequest contained "TARGET_CATEGORY"
+      optional string target_category = 1;
+    }
+  }
+}
+
+message SearchTargetsResponse {
+  repeated int64 targets = 1;
+
+  optional common.PaginationResponse pagination_response = 2;
+}
+
+message SearchTargetsRequest {
+  // the list of filters to filter targets based on
+  repeated search.PropertyFilter property_filter = 1;
+
+  // if pagination_params is not set, then the backend
+  // will return all results.
+  optional common.PaginationParameters pagination_params = 2;
+}
+
+// A service responsible for getting information about targets.
+service TargetsService {
+
+  // Get targets stats.
+  rpc GetTargetsStats (GetTargetsStatsRequest) returns
+      (GetTargetsStatsResponse);
+
+  // Search targets for a list filter and pagination info
+  rpc SearchTargets(SearchTargetsRequest) returns (SearchTargetsResponse);
+}

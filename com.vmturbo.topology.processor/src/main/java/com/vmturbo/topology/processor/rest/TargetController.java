@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -61,6 +62,7 @@ import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus.S
 import com.vmturbo.topology.processor.api.TopologyProcessorException;
 import com.vmturbo.topology.processor.api.dto.InputField;
 import com.vmturbo.topology.processor.api.dto.TargetInputFields;
+import com.vmturbo.topology.processor.api.impl.TargetRESTApi;
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi.AllTargetsHealthResponse;
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi.GetAllTargetsResponse;
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi.TargetHealthInfo;
@@ -237,6 +239,24 @@ public class TargetController {
                 .orElse(error(targetId, "Target not found."));
         return new ResponseEntity<>(resp,
                 resp.getErrors() == null ? HttpStatus.OK : HttpStatus.NOT_FOUND);
+    }
+
+    @RequestMapping(value = "/find", method = RequestMethod.POST,
+        consumes = {MediaType.APPLICATION_JSON_UTF8_VALUE},
+        produces = {MediaType.APPLICATION_JSON_UTF8_VALUE})
+    @ApiOperation(value = "Get a list of target information by id.")
+    public ResponseEntity<GetAllTargetsResponse> getTargets(
+        @ApiParam(value = "The list of targets to retrieve.", required = true)
+        @RequestBody final TargetRESTApi.GetTargetsRequest request) {
+        Set<Long> requestedIds = new HashSet<>(request.getTargetIds());
+        final List<TargetInfo> allTargets =
+            requestedIds.stream().map(targetStore::getTarget)
+            .filter(Optional::isPresent)
+            .map(Optional::get)
+            .map(this::targetToTargetInfo)
+            .collect(Collectors.toList());
+        final GetAllTargetsResponse resp = new GetAllTargetsResponse(allTargets);
+        return new ResponseEntity<>(resp, HttpStatus.OK);
     }
 
     @RequestMapping(method = RequestMethod.GET,

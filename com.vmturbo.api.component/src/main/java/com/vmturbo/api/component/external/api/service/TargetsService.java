@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.service;
 import static com.vmturbo.common.protobuf.utils.StringConstants.COMMUNICATION_BINDING_CHANNEL;
 
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -14,6 +15,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -38,6 +40,7 @@ import com.vmturbo.api.component.communication.ApiComponentTargetListener;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
+import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.SearchOrderByMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
@@ -46,27 +49,43 @@ import com.vmturbo.api.component.external.api.websocket.ApiWebsocketHandler;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.api.dto.statistic.StatApiDTO;
+import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
+import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.dto.target.InputFieldApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.dto.target.TargetHealthApiDTO;
 import com.vmturbo.api.dto.workflow.WorkflowApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.HealthState;
+import com.vmturbo.api.enums.TargetStatsGroupBy;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.PaginationUtil;
+import com.vmturbo.api.pagination.TargetPaginationRequest;
 import com.vmturbo.api.serviceinterfaces.ITargetsService;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.auth.api.licensing.LicenseFeaturesRequiredException;
+import com.vmturbo.common.protobuf.PaginationProtoUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.common.Pagination;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy.SearchOrderBy;
 import com.vmturbo.common.protobuf.search.Search;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
+import com.vmturbo.common.protobuf.search.SearchableProperties;
+import com.vmturbo.common.protobuf.target.TargetDTO.GetTargetsStatsRequest;
+import com.vmturbo.common.protobuf.target.TargetDTO.GetTargetsStatsRequest.GroupBy;
+import com.vmturbo.common.protobuf.target.TargetDTO.GetTargetsStatsResponse;
+import com.vmturbo.common.protobuf.target.TargetDTO.GetTargetsStatsResponse.TargetsGroupStat;
+import com.vmturbo.common.protobuf.target.TargetDTO.GetTargetsStatsResponse.TargetsGroupStat.StatGroup;
+import com.vmturbo.common.protobuf.target.TargetDTO.SearchTargetsRequest;
+import com.vmturbo.common.protobuf.target.TargetDTO.SearchTargetsResponse;
+import com.vmturbo.common.protobuf.target.TargetsServiceGrpc.TargetsServiceBlockingStub;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo.CreationMode;
@@ -88,6 +107,7 @@ import com.vmturbo.topology.processor.api.dto.TargetInputFields;
 public class TargetsService implements ITargetsService {
 
     static final String TARGET = "Target";
+    private static final String TARGET_CATEGORY = "targetCategory";
 
     /**
      * Target status set that contains non-failed validation status from topology processor, including
@@ -122,6 +142,8 @@ public class TargetsService implements ITargetsService {
 
     private final RepositoryApi repositoryApi;
 
+    private final TargetsServiceBlockingStub targetsService;
+    private final PaginationMapper paginationMapper;
     private final boolean allowTargetManagement;
 
     private final int apiPaginationDefaultLimit;
@@ -142,6 +164,8 @@ public class TargetsService implements ITargetsService {
                           @Nonnull final ActionSpecMapper actionSpecMapper,
                           @Nonnull final ActionSearchUtil actionSearchUtil,
                           @Nonnull final ApiWebsocketHandler apiWebsocketHandler,
+                          @Nonnull TargetsServiceBlockingStub targetsService,
+                          @Nonnull final PaginationMapper paginationMapper,
                           final boolean allowTargetManagement,
                           final int apiPaginationDefaultLimit) {
         this.topologyProcessor = Objects.requireNonNull(topologyProcessor);
@@ -155,6 +179,8 @@ public class TargetsService implements ITargetsService {
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.actionSearchUtil = Objects.requireNonNull(actionSearchUtil);
         this.apiWebsocketHandler = Objects.requireNonNull(apiWebsocketHandler);
+        this.targetsService = Objects.requireNonNull(targetsService);
+        this.paginationMapper = Objects.requireNonNull(paginationMapper);
         this.allowTargetManagement = allowTargetManagement;
         this.apiPaginationDefaultLimit = apiPaginationDefaultLimit;
         logger.debug("Created TargetsService with topology processor instance {}",
@@ -166,68 +192,223 @@ public class TargetsService implements ITargetsService {
      * associated probe for each target. This is a blocking call that makes network requests of the
      * Topology-Processor.
      *
-     * @param environmentType optional filter according to an environment type:
-     *                        <ul>
-     *                        <li>if this parameter is {@code null} or {@link EnvironmentType#HYBRID},
-     *                            no filtering happens (all targets are returned).</li>
-     *                        <li>if this parameter is {@link EnvironmentType#UNKNOWN},
-     *                            no target is returned.</li>
-     *                        <li>if this parameter is {@link EnvironmentType#CLOUD},
-     *                            only targets coming from public cloud probes are returned</li>
-     *                        <li>if this parameter is {@link EnvironmentType#ONPREM},
-     *                            only targets <i>not</i> coming from public cloud probes are returned</li>
-     *                        </ul>
      * @return a List of {@link TargetApiDTO} containing the uuid of the target, plus the info from
      *         the related probe.
      */
-    @Override
-    @Nonnull
-    public List<TargetApiDTO> getTargets(@Nullable final EnvironmentType environmentType) {
+    public List<TargetApiDTO> getTargets() {
         try {
-            final Set<TargetInfo> targets = topologyProcessor.getAllTargets();
-            final Map<Long, ProbeInfo> probeMap = getProbeIdToProbeInfoMap();
-            return targets.stream()
-                    .filter(target -> environmentTypeFilter(target, environmentType, probeMap))
-                    .filter(target -> !target.isHidden())
-                    .map(targetInfo -> createTargetDtoWithRelationships(targetInfo, targets, probeMap))
-                    .collect(Collectors.toList());
+            // create the request for getting the targets
+            SearchTargetsRequest request = createSearchTargetRequest(null, null, null, null);
+            final SearchTargetsResponse searchResponse = targetsService.searchTargets(request);
+
+            return getTargetApiDto(searchResponse.getTargetsList(), getProbeIdToProbeInfoMap());
         } catch (CommunicationException e) {
             throw new RuntimeException("Error getting targets list", e);
         }
     }
 
-    /**
-     * Check if a target matches an environmentType.
-     *
-     * @param target target to check
-     * @param envType environment type
-     * @param probeMap map of probeInfo objects indexed by probeId
-     * @return true if target matches environmentType, false otherwise
-     */
-    private boolean environmentTypeFilter(final TargetInfo target, EnvironmentType envType, @Nonnull final Map<Long, ProbeInfo> probeMap) {
+    @Override
+    @Nonnull
+    public TargetPaginationRequest.TargetPaginationResponse getTargets(
+         @Nullable final EnvironmentType environmentType,
+         @Nullable final String query,
+         @Nullable final String targetCategory,
+         @Nonnull final TargetPaginationRequest paginationRequest) {
         try {
-            if (envType == EnvironmentType.CLOUD || envType == EnvironmentType.ONPREM) {
-                // gather the other info for this target, based on the related probe
-                final long probeId = target.getProbeId();
-                final ProbeInfo probeInfo = probeMap.get(probeId);
-                if (probeInfo == null) {
-                    return false;
-                }
-                boolean isPublicCloud = GroupMapper.CLOUD_ENVIRONMENT_PROBE_TYPES.contains(probeInfo.getType());
+            final Map<Long, ProbeInfo> probeMap = getProbeIdToProbeInfoMap();
 
-                // return true if and only if isPublicCloud agrees with the parameter
-                // this means:
-                // if envType is CLOUD then return all targets coming from public cloud probes
-                // if envType is ONPREM then return all other targets
-                return isPublicCloud == (envType == EnvironmentType.CLOUD);
+            final Set<String> probeTypes;
+
+            // convert category to types
+            if (targetCategory != null) {
+                probeTypes = probeMap.values().stream()
+                    .filter(p -> targetCategory.equals(p.getCategory()))
+                    .map(ProbeInfo::getType)
+                    .collect(Collectors.toSet());
+                if (probeTypes.isEmpty()) {
+                    // if the category does not have a probe type just return empty results
+                    return paginationRequest.allResultsResponse(Collections.emptyList());
+                }
             } else {
-                // if the parameter is not there, or if it is HYBRID, no filtering should happen
-                // if the parameter is UNKNOWN, all targets should be filtered out
-                return envType == null || envType == EnvironmentType.HYBRID;
+                probeTypes = null;
             }
-        } catch (Exception e) {
-            throw new RuntimeException("Error setting environment filters", e);
+
+            // create the request for getting the targets
+            SearchTargetsRequest request = createSearchTargetRequest(environmentType,
+                query, paginationRequest, probeTypes);
+
+            final SearchTargetsResponse searchResponse = targetsService.searchTargets(request);
+
+            List<TargetApiDTO> targetList = getTargetApiDto(searchResponse.getTargetsList(), probeMap);
+
+            if (searchResponse.hasPaginationResponse()) {
+                final int totalRecords = searchResponse.getPaginationResponse().getTotalRecordCount();
+                return PaginationProtoUtil.getNextCursor(searchResponse.getPaginationResponse())
+                        .map(nextCursor -> paginationRequest.nextPageResponse(targetList, nextCursor, totalRecords))
+                        .orElseGet(() -> paginationRequest.finalPageResponse(targetList, totalRecords));
+            } else {
+                return paginationRequest.allResultsResponse(targetList);
+            }
+        } catch (CommunicationException e) {
+            throw new RuntimeException("Error getting targets list", e);
         }
+    }
+
+    private List<TargetApiDTO> getTargetApiDto(List<Long> targetIds, Map<Long, ProbeInfo> probeMap)
+          throws CommunicationException {
+
+        // get the information for the targets
+        Map<Long, TargetInfo> targetInfos = targetIds.isEmpty() ? Collections.emptyMap()
+            : topologyProcessor.getTargets(targetIds)
+            .stream()
+            .collect(Collectors.toMap(TargetInfo::getId, Function.identity()));
+
+        // get the information for the targets derived from these targets
+        Map<Long, TargetInfo> derivedTargetMap = getDerivedTargetsMap(targetInfos.values());
+
+        List<TargetApiDTO> targetList = new ArrayList<>(targetIds.size());
+
+        for (long targetId : targetIds) {
+            final TargetInfo targetInfo = targetInfos.get(targetId);
+            if (targetInfo != null) {
+                targetList.add(createTargetDtoWithRelationships(targetInfo, derivedTargetMap,
+                    probeMap));
+            } else {
+                logger.error("Target with id {} cannot be retrieved.", targetId);
+            }
+        }
+
+        return targetList;
+    }
+
+    /**
+     * Gets the derived targets as map from their ids to their objects.
+     *
+     * @param targetInfos the info for the targets we are getting derived targets for.
+     * @return the map from id to target info.
+     * @throws CommunicationException if something goes wrong connecting to topology processor.
+     */
+    private Map<Long, TargetInfo> getDerivedTargetsMap(Collection<TargetInfo> targetInfos)
+          throws CommunicationException {
+        // gets the id of derived targets
+        Set<Long> derivedTargetsIds = targetInfos.stream()
+            .map(TargetInfo::getDerivedTargetIds)
+            .flatMap(List::stream)
+            .collect(Collectors.toSet());
+
+        if (derivedTargetsIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        // get the info for derived targets
+        return topologyProcessor.getTargets(new ArrayList<>(derivedTargetsIds))
+            .stream().collect(Collectors.toMap(TargetInfo::getId, Function.identity()));
+    }
+
+    @Nonnull
+    private SearchTargetsRequest createSearchTargetRequest(
+        @Nullable EnvironmentType environmentType,
+        @Nullable String query,
+        @Nullable TargetPaginationRequest paginationRequest,
+        @Nullable Set<String> probeTypes) {
+        final SearchTargetsRequest.Builder builder = SearchTargetsRequest.newBuilder();
+
+        // create the list of filter to filter targets based on
+        List<Search.PropertyFilter> propertyFilterList = new ArrayList<>();
+
+        // only show hidden information
+        propertyFilterList.add(PropertyFilter.newBuilder()
+            .setPropertyName(SearchableProperties.IS_TARGET_HIDDEN)
+            .setStringFilter(PropertyFilter.StringFilter.newBuilder()
+                .addOptions(Boolean.FALSE.toString())
+                .build())
+            .build());
+
+        // set environment if set
+        if (environmentType == EnvironmentType.CLOUD || environmentType == EnvironmentType.ONPREM) {
+            propertyFilterList.add(PropertyFilter.newBuilder()
+                .setPropertyName(SearchableProperties.PROBE_TYPE)
+                .setStringFilter(PropertyFilter.StringFilter.newBuilder()
+                    .addAllOptions(GroupMapper.CLOUD_ENVIRONMENT_PROBE_TYPES)
+                    .setPositiveMatch(environmentType == EnvironmentType.CLOUD))
+                .build());
+        }
+
+        // set the query based on display name
+        if (query != null) {
+            propertyFilterList.add(SearchProtoUtil.stringPropertyFilterRegex(
+                SearchableProperties.DISPLAY_NAME, query));
+        }
+
+        // set the target type
+        if (probeTypes != null) {
+            propertyFilterList.add(PropertyFilter.newBuilder()
+                .setPropertyName(SearchableProperties.PROBE_TYPE)
+                .setStringFilter(PropertyFilter.StringFilter.newBuilder()
+                    .addAllOptions(probeTypes)
+                    .build())
+                .build());
+        }
+
+        builder.addAllPropertyFilter(propertyFilterList);
+
+        if (paginationRequest != null) {
+            // set the pagination info
+            builder.setPaginationParams(paginationMapper.toProtoParams(paginationRequest));
+        }
+
+        return builder.build();
+    }
+
+    @Override
+    public List<StatSnapshotApiDTO> getTargetStats(List<TargetStatsGroupBy> groupBy)
+            throws UnauthorizedObjectException {
+        final GetTargetsStatsResponse targetsStatsResponse = targetsService.getTargetsStats(
+                GetTargetsStatsRequest.newBuilder()
+                        .addAllGroupBy(convertApiGroupByToProto(groupBy))
+                        .build());
+        return convertTargetStatInfoToStatApiDTO(targetsStatsResponse);
+    }
+
+    private List<GroupBy> convertApiGroupByToProto(List<TargetStatsGroupBy> groupBy) {
+        final List<GroupBy> groupByProto = new ArrayList<>(groupBy.size());
+        for (TargetStatsGroupBy groupByValue : groupBy) {
+            if (groupByValue == TargetStatsGroupBy.CATEGORY) {
+                groupByProto.add(GroupBy.TARGET_CATEGORY);
+            } else {
+                throw new IllegalArgumentException(
+                        groupByValue.toString() + " is not supported grouping criteria for target"
+                                + " stats.");
+            }
+        }
+        return groupByProto;
+    }
+
+    private List<StatSnapshotApiDTO> convertTargetStatInfoToStatApiDTO(
+            @Nonnull GetTargetsStatsResponse targetsStats) {
+        final List<TargetsGroupStat> targetGroupStatList = targetsStats.getTargetsGroupStatList();
+        final List<StatApiDTO> targetsStatsDTO = new ArrayList<>();
+
+        for (TargetsGroupStat targetGroupStat : targetGroupStatList) {
+            final StatApiDTO statApiDTO = new StatApiDTO();
+            statApiDTO.setName("targets");
+            final StatValueApiDTO statValueApiDTO = new StatValueApiDTO();
+            statValueApiDTO.setTotal((float)targetGroupStat.getTargetsCount());
+            statApiDTO.setValues(statValueApiDTO);
+            final StatGroup statGroup = targetGroupStat.getStatGroup();
+            if (statGroup.hasTargetCategory()) {
+                final StatFilterApiDTO statFilterApiDTO = new StatFilterApiDTO();
+                statFilterApiDTO.setType(TARGET_CATEGORY);
+                statFilterApiDTO.setValue(statGroup.getTargetCategory());
+                statApiDTO.setFilters(Collections.singletonList(statFilterApiDTO));
+            }
+            targetsStatsDTO.add(statApiDTO);
+        }
+
+        final StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
+        statSnapshotApiDTO.setDate(LocalDateTime.now().toString());
+        statSnapshotApiDTO.setStatistics(targetsStatsDTO);
+        return Collections.singletonList(statSnapshotApiDTO);
     }
 
     /**
@@ -246,8 +427,11 @@ public class TargetsService implements ITargetsService {
         // assumes target uuid's are long's in XL
         long targetId = Long.valueOf(uuid);
         try {
-            return createTargetDtoWithRelationships(
-                    topologyProcessor.getTarget(targetId), Collections.emptySet(), getProbeIdToProbeInfoMap());
+            TargetInfo targetInfo = topologyProcessor.getTarget(targetId);
+            Map<Long, TargetInfo> derivedTargetMap =
+                getDerivedTargetsMap(Collections.singletonList(targetInfo));
+            return createTargetDtoWithRelationships(targetInfo,
+                derivedTargetMap, getProbeIdToProbeInfoMap());
         } catch (TopologyProcessorException e) {
             throw new UnknownObjectException(e);
         } catch (CommunicationException e) {
@@ -449,8 +633,10 @@ public class TargetsService implements ITargetsService {
                         targetSizeBeforeValidation == 0) {
                     apiComponentTargetListener.triggerBroadcastAfterNextDiscovery();
                 }
+                Map<Long, TargetInfo> derivedTargetMap =
+                    getDerivedTargetsMap(Collections.singletonList(validatedTargetInfo));
                 return createTargetDtoWithRelationships(
-                        validatedTargetInfo, Collections.emptySet(), getProbeIdToProbeInfoMap());
+                        validatedTargetInfo, derivedTargetMap, getProbeIdToProbeInfoMap());
             } catch (TopologyProcessorException e) {
                 throw new OperationFailedException(e);
             }
@@ -521,10 +707,15 @@ public class TargetsService implements ITargetsService {
             }
 
             if (result.isPresent()) {
-                return createTargetDtoWithRelationships(result.get(), Collections.emptySet(), getProbeIdToProbeInfoMap());
+                Map<Long, TargetInfo> derivedTargetMap =
+                    getDerivedTargetsMap(Collections.singletonList(result.get()));
+                return createTargetDtoWithRelationships(result.get(), derivedTargetMap, getProbeIdToProbeInfoMap());
             } else {
+                final TargetInfo targetInfo = topologyProcessor.getTarget(targetId);
+                Map<Long, TargetInfo> derivedTargetMap =
+                    getDerivedTargetsMap(Collections.singletonList(targetInfo));
                 return createTargetDtoWithRelationships(
-                        topologyProcessor.getTarget(targetId), Collections.emptySet(), getProbeIdToProbeInfoMap());
+                    targetInfo, derivedTargetMap, getProbeIdToProbeInfoMap());
             }
         } catch (CommunicationException e) {
             throw new CommunicationError(e);
@@ -568,7 +759,9 @@ public class TargetsService implements ITargetsService {
             topologyProcessor.modifyTarget(targetId,
                     new TargetInputFields(updatedTargetData.inputFieldsList, updatedTargetData.getCommunicationBindingChannel()));
             TargetInfo updatedTargetInfo = topologyProcessor.getTarget(targetId);
-            return createTargetDtoWithRelationships(updatedTargetInfo, Collections.emptySet(), getProbeIdToProbeInfoMap());
+            Map<Long, TargetInfo> derivedTargetMap =
+                getDerivedTargetsMap(Collections.singletonList(updatedTargetInfo));
+            return createTargetDtoWithRelationships(updatedTargetInfo, derivedTargetMap, getProbeIdToProbeInfoMap());
         } catch (CommunicationException e) {
             throw new CommunicationError(e);
         } catch (TopologyProcessorException e) {
@@ -620,24 +813,6 @@ public class TargetsService implements ITargetsService {
     private Map<Long, ProbeInfo> getProbeIdToProbeInfoMap() throws CommunicationException {
         // create a map of ID -> probeInfo
         return Maps.uniqueIndex(topologyProcessor.getAllProbes(), probeInfo -> probeInfo.getId());
-    }
-
-    /**
-     * Populate a Map from target id to target info for all known targets in order to facilitate lookup
-     * by target id.
-     *
-     * @param allTargetInfos All targets in scope that returned from Topology-Processor in case we
-     * made an API call, otherwise an empty set.
-     * @return a Map from target Id to targetInfo for all known targets.
-     * @throws CommunicationException if there is a problem making the REST API call
-     */
-    private Map<String, TargetInfo> getTargetIdToTargetInfoMap(
-            @Nonnull final Set<TargetInfo> allTargetInfos)
-            throws CommunicationException {
-        Set<TargetInfo> scopedTargetInfos = allTargetInfos.isEmpty() ?
-                topologyProcessor.getAllTargets() : allTargetInfos;
-        return Maps.uniqueIndex(
-                scopedTargetInfos, targetInfo -> String.valueOf(targetInfo.getId()));
     }
 
     /**
@@ -870,21 +1045,20 @@ public class TargetsService implements ITargetsService {
      * by mapProbeInfoToDTO() and sets the "derived targets" attribute of the target.
      *
      * @param targetInfo the {@link TargetInfo} structure returned from the Topology-Processor.
-     * @param allTargetInfos All targets in scope that returned from Topology-Processor in case we
-     * made an API call, otherwise an empty set.
+     * @param derivedTargetMap the map from derived target ids to their info.
      * @param probeMap A map of probeInfo indexed by probeId.
      * @return a {@link TargetApiDTO} containing the target information and its derived targets
      * relationships.
      */
     private TargetApiDTO createTargetDtoWithRelationships(@Nonnull final TargetInfo targetInfo,
-                                                          @Nonnull final Set<TargetInfo> allTargetInfos,
+                                                          @Nonnull final Map<Long, TargetInfo> derivedTargetMap,
                                                           @Nonnull final Map<Long, ProbeInfo> probeMap) {
 
         try {
             TargetApiDTO targetApiDTO = targetMapper.mapTargetInfoToDTO(targetInfo, probeMap);
             targetApiDTO.setDerivedTargets(
                     convertDerivedTargetInfosToDtos(targetInfo.getDerivedTargetIds().stream()
-                            .map(String::valueOf).collect(Collectors.toList()), allTargetInfos, probeMap));
+                            .map(String::valueOf).collect(Collectors.toList()), derivedTargetMap, probeMap));
             return targetApiDTO;
         } catch (CommunicationException e) {
             throw new CommunicationError(e);
@@ -896,28 +1070,22 @@ public class TargetsService implements ITargetsService {
      * their parent target.
      *
      * @param derivedTargetIds a List of derived target's ids that associated with a parent target.
-     * @param allTargetInfos All targets in scope that returned from Topology-Processor in case we
-     * made an API call, otherwise an empty set.
+     * @param derivedTargetMap The map from the id of derived target its info.
      * @param probeMap A map of probeInfo objects indexed by probeId.
      * @return List of {@link TargetApiDTO}s containing the target information from their
      * {@link TargetInfo}s.
      */
     private List<TargetApiDTO> convertDerivedTargetInfosToDtos(
             @Nonnull final List<String> derivedTargetIds,
-            @Nonnull final Set<TargetInfo> allTargetInfos,
+            @Nonnull final Map<Long, TargetInfo> derivedTargetMap,
             @Nonnull final Map<Long, ProbeInfo> probeMap) {
         if (derivedTargetIds.isEmpty()) {
             return Collections.emptyList();
         }
-        final Map<String, TargetInfo> targetInfosByTargetId;
-        try {
-            targetInfosByTargetId = getTargetIdToTargetInfoMap(allTargetInfos);
-        } catch (CommunicationException e) {
-            throw new CommunicationError(e);
-        }
+
         List<TargetApiDTO> derivedTargetsDtos = Lists.newArrayList();
         derivedTargetIds.forEach(targetId -> {
-            TargetInfo targetInfo = targetInfosByTargetId.get(targetId);
+            TargetInfo targetInfo = derivedTargetMap.get(Long.parseLong(targetId));
             if (targetInfo != null) {
                 if (targetInfo.isHidden()) {
                     logger.debug("Skip the conversion of a hidden derived target: {}", targetId);

@@ -34,7 +34,7 @@ public class ConditionalSubmitter implements Executor, Closeable {
 
     private static final Logger logger = LogManager.getLogger();
 
-    private final int MAX_QUEUE_SIZE = 1000;
+    private static final int MAX_QUEUE_SIZE = 1000;
 
     private final ThreadPoolExecutor executor;
 
