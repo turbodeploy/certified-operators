@@ -110,6 +110,20 @@ public class IncomeStatement {
     }
 
     /**
+     * Updates the value of the <b>revenues_</b> field by adding the new revenue.
+     *
+     * @param revenue the new value for the field. Must be non-negative.
+     * @return {@code this}
+     *
+     * @see #getRevenues()
+     */
+    protected @NonNull IncomeStatement addRevenue(double revenue) {
+        checkArgument(revenue >= 0, "revenue = %s", revenue);
+        revenues_ += revenue;
+        return this;
+    }
+
+    /**
      *
      * <p>
      *  For a trader T: the min desired expenses of T, while all the commodities it buys from its suppliers are within the Desired utilization range.
@@ -217,6 +231,19 @@ public class IncomeStatement {
         return this;
     }
 
+    /**
+     * Updates the value of the <b>minDesiredRevenues_</b> field by adding the new minDesiredRevenue.
+     *
+     * @param minDesiredRevenue the new value for the field. Must be non-negative.
+     * @return {@code this}
+     *
+     * @see #getMinDesiredRevenues()
+     */
+    protected @NonNull IncomeStatement  addMinDesiredRevenue(double minDesiredRevenue) {
+        checkArgument(minDesiredRevenue >= 0, "minDesiredRevenue = %s", minDesiredRevenue);
+        minDesiredRevenues_ += minDesiredRevenue;
+        return this;
+    }
 
     /**
      *
@@ -249,6 +276,20 @@ public class IncomeStatement {
     protected @NonNull IncomeStatement setMaxDesiredRevenues(double maxDesiredRevenues) {
         checkArgument(maxDesiredRevenues >= 0, "maxDesiredRevenues = %s", maxDesiredRevenues);
         maxDesiredRevenues_ = maxDesiredRevenues;
+        return this;
+    }
+
+    /**
+     * Updates the value of the <b>maxDesiredRevenue_</b> field by adding the new maxDesiredRevenue.
+     *
+     * @param maxDesiredRevenue the new value for the field. Must be non-negative.
+     * @return {@code this}
+     *
+     * @see #getMaxDesiredRevenues()
+     */
+    protected @NonNull IncomeStatement addMaxDesiredRevenue(double maxDesiredRevenue) {
+        checkArgument(maxDesiredRevenue >= 0, "maxDesiredRevenue = %s", maxDesiredRevenue);
+        maxDesiredRevenues_ += maxDesiredRevenue;
         return this;
     }
 
@@ -297,6 +338,20 @@ public class IncomeStatement {
      */
     protected @NonNull IncomeStatement setDesiredExpenses(final double desiredExpenses) {
         this.desiredExpenses_ = desiredExpenses;
+        return this;
+    }
+
+    /**
+     * Updates the value of the <b>desiredRevenues_</b> field by adding the new desiredRevenue.
+     *
+     * @param desiredRevenue the new value for the field. Must be non-negative.
+     * @return {@code this}
+     *
+     * @see #getRevenues()
+     */
+    protected @NonNull IncomeStatement  addDesiredRevenue(double desiredRevenue) {
+        checkArgument(desiredRevenue >= 0, "desiredRevenue = %s", desiredRevenue);
+        desiredRevenues_ += desiredRevenue;
         return this;
     }
 
