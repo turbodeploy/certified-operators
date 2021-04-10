@@ -43,7 +43,6 @@ import com.google.protobuf.AbstractMessage;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 
-import com.vmturbo.commons.analysis.ByProductMap;
 import com.vmturbo.cost.calculation.pricing.DatabasePriceBundle;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
@@ -1325,17 +1324,6 @@ public class TopologyEntitiesHandlerTest {
         assertEquals(e.getRawMaterials(CommonDTO.CommodityDTO.CommodityType.VMEM_VALUE).get().getMaterials().length,
                  RawMaterialsMap.rawMaterialsMap.get(CommonDTO.CommodityDTO.CommodityType.VMEM_VALUE).getRawMaterials().size());
 
-    }
-
-    @Test
-    public void testPopulateByProductMap() {
-        Topology topology = new Topology();
-        TopologyEntitiesHandler.populateByProductsMap(topology);
-        Economy e = (Economy)topology.getEconomy();
-        assertEquals(e.getModifiableByProductMap().size(), ByProductMap.byProductMap.size());
-        // check if the VCPU's rawMaterials are correctly stored
-        assertEquals(e.getByProducts(CommodityType.VCPU_VALUE).get().size(), 1);
-        assertEquals(e.getByProducts(CommodityType.VCPU_VALUE).get().get(0).first.intValue(), CommodityType.VCPU_THROTTLING_VALUE);
     }
 
     /**
