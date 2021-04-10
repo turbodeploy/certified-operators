@@ -39,6 +39,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
@@ -213,10 +214,15 @@ public class PercentileEditor extends
     }
 
     @Override
-    public boolean isCommodityApplicable(TopologyEntity entity,
-                                         TopologyDTO.CommoditySoldDTO.Builder commSold) {
+    public boolean isCommodityApplicable(@Nonnull TopologyEntity entity,
+                                         @Nonnull TopologyDTO.CommoditySoldDTO.Builder commSold) {
         if (commSold.hasUtilizationData()) {
             return true;
+        }
+        // sold commodities from cloud environments that need percentile calculation have
+        // utilizationData set and don't rely on REQUIRED_SOLD_COMMODITY_TYPES map
+        if (entity.getEnvironmentType() == EnvironmentType.CLOUD) {
+            return false;
         }
         Set<EntityType> allowedTypes = REQUIRED_SOLD_COMMODITY_TYPES
                         .get(CommodityType.forNumber(commSold.getCommodityType().getType()));
