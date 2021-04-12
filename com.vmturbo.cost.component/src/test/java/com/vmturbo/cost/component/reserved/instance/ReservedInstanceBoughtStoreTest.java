@@ -31,8 +31,8 @@ import org.junit.Test;
 import org.mockito.Mockito;
 
 import com.vmturbo.cloud.common.identity.IdentityProvider.DefaultIdentityProvider;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.AccountFilter;
 import com.vmturbo.common.protobuf.cost.Cost;
+import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
 import com.vmturbo.common.protobuf.cost.Cost.AvailabilityZoneFilter;
 import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;

@@ -16,7 +16,7 @@ import org.immutables.value.Value.Derived;
 import org.immutables.value.Value.Immutable;
 
 import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentType;
+import com.vmturbo.common.protobuf.cloud.CloudCommitment.CloudCommitmentType;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceScopeInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;

@@ -9,7 +9,7 @@ import org.immutables.value.Value.Immutable;
 
 import com.vmturbo.cloud.common.commitment.ReservedInstanceData;
 import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentType;
+import com.vmturbo.common.protobuf.cloud.CloudCommitment.CloudCommitmentType;
 
 /**
  * A {@link CloudCommitmentAggregate} for reserved instances.

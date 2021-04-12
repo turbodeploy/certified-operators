@@ -28,7 +28,7 @@ import com.vmturbo.cloud.common.topology.BillingFamilyRetriever;
 import com.vmturbo.cloud.common.topology.BillingFamilyRetrieverFactory;
 import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver;
 import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver.ComputeTierFamilyResolverFactory;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentType;
+import com.vmturbo.common.protobuf.cloud.CloudCommitment.CloudCommitmentType;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceScopeInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;

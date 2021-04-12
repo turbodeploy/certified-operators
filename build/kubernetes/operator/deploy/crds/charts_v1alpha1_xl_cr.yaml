@@ -23,7 +23,6 @@ spec:
     externalDbIP: 10.0.2.15
     externalTimescaleDBIP: 10.0.2.15
     externalArangoDBName: arango.turbo.svc.cluster.local
-    enableExternalSecrets: true
 
   grafana:
     # Grafana is disabled by default. To enable it, uncomment:

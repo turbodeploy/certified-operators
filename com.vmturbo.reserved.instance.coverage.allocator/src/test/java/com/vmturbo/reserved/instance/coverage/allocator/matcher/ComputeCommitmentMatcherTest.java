@@ -17,7 +17,7 @@ import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregate;
 import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregateInfo;
 import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregateInfo.PlatformInfo;
 import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregateInfo.TierInfo;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentScope;
+import com.vmturbo.common.protobuf.cloud.CloudCommitment.CloudCommitmentScope;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceScopeInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.reserved.instance.coverage.allocator.matcher.ComputeCommitmentMatcher.ComputeCommitmentMatcherFactory;

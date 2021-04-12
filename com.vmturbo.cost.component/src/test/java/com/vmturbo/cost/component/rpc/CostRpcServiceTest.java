@@ -41,7 +41,6 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.AccountFilter;
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo;
@@ -724,7 +723,7 @@ public class CostRpcServiceTest {
 
         final GetCloudCostStatsRequest request = GetCloudCostStatsRequest.newBuilder()
                 .addCloudCostStatsQuery(CloudCostStatsQuery.newBuilder()
-            .setAccountFilter(AccountFilter.newBuilder().addAccountId(55L))
+            .setAccountFilter(Cost.AccountFilter.newBuilder().addAccountId(55L))
             .setRegionFilter(Cost.RegionFilter.newBuilder().addRegionId(66L))
             .setAvailabilityZoneFilter(Cost.AvailabilityZoneFilter.newBuilder()
                 .addAvailabilityZoneId(77L))

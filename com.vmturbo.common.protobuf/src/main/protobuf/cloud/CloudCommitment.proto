@@ -1,0 +1,20 @@
+syntax = "proto2";
+package cloud_commitment;
+
+option java_package = "com.vmturbo.common.protobuf.cloud";
+option java_outer_classname = "CloudCommitment";
+
+enum CloudCommitmentType {
+    RESERVED_INSTANCE = 1;
+}
+
+enum CloudCommitmentScope {
+    BILLING_FAMILY = 1;
+    ACCOUNT = 2;
+}
+
+enum CloudCommitmentLocation {
+    AVAILABILITY_ZONE = 1;
+    REGION = 2;
+    GLOBAL = 3;
+}

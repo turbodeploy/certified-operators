@@ -8,8 +8,8 @@ import org.immutables.value.Value.Default;
 import org.immutables.value.Value.Immutable;
 
 import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.AccountFilter;
 import com.vmturbo.common.protobuf.cost.Cost;
+import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
 import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
 import com.vmturbo.reserved.instance.coverage.allocator.metrics.RICoverageAllocationMetricsProvider;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopology;
@@ -46,7 +46,7 @@ public interface CoverageAllocationConfig {
      * @return An optional {@link AccountFilter} or null if no filter is configured.
      */
     @Nullable
-    AccountFilter accountFilter();
+    Cost.AccountFilter accountFilter();
 
     /**
      * An optional {@link EntityFilter}, used to scope the analysis to a subset of the

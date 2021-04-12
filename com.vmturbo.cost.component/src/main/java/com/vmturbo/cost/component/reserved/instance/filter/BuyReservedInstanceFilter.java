@@ -4,7 +4,7 @@ import java.util.List;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.AccountFilter;
+import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
 import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
 import com.vmturbo.cost.component.db.tables.pojos.BuyReservedInstance;
 import com.vmturbo.cost.component.reserved.instance.BuyReservedInstanceStore;

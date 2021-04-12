@@ -2,7 +2,7 @@ package com.vmturbo.cloud.common.commitment.aggregator;
 
 import java.util.OptionalLong;
 
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentType;
+import com.vmturbo.common.protobuf.cloud.CloudCommitment.CloudCommitmentType;
 
 /**
  * Represents the base information required for the aggregation of cloud commitments .

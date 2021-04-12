@@ -7,7 +7,7 @@ import javax.annotation.Nonnull;
 import com.vmturbo.cloud.commitment.analysis.pricing.CloudTierPricingData;
 import com.vmturbo.cloud.commitment.analysis.pricing.ComputeTierPricingData;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CommitmentPurchaseProfile.RecommendationSettings;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentType;
+import com.vmturbo.common.protobuf.cloud.CloudCommitment.CloudCommitmentType;
 
 /**
  * The savings pricing resolver is responsible for converting cloud tier pricing to the rates

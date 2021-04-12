@@ -11,7 +11,7 @@ import org.immutables.value.Value.Immutable;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.recommendation.calculator.ReservedInstanceSavingsCalculator.ReservedInstanceSavingsCalculatorFactory;
 import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CommitmentPurchaseProfile.RecommendationSettings;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentType;
+import com.vmturbo.common.protobuf.cloud.CloudCommitment.CloudCommitmentType;
 
 /**
  * The savings calculator is responsible for taking in demand and an associated on demand rate,

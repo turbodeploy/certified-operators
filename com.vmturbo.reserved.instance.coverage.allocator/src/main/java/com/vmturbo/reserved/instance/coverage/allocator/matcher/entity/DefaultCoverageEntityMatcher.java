@@ -17,8 +17,8 @@ import org.apache.logging.log4j.Logger;
 import org.immutables.value.Value.Immutable;
 
 import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentLocation;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentScope;
+import com.vmturbo.common.protobuf.cloud.CloudCommitment.CloudCommitmentLocation;
+import com.vmturbo.common.protobuf.cloud.CloudCommitment.CloudCommitmentScope;
 import com.vmturbo.reserved.instance.coverage.allocator.matcher.ComputeCoverageKey;
 import com.vmturbo.reserved.instance.coverage.allocator.matcher.ComputeCoverageKey.Builder;
 import com.vmturbo.reserved.instance.coverage.allocator.matcher.CoverageKey;

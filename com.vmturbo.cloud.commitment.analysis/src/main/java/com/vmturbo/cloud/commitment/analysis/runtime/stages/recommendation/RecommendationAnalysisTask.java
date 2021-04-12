@@ -41,7 +41,7 @@ import com.vmturbo.cloud.common.data.TimeSeries;
 import com.vmturbo.cloud.common.identity.IdentityProvider;
 import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CommitmentPurchaseProfile;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentType;
+import com.vmturbo.common.protobuf.cloud.CloudCommitment.CloudCommitmentType;
 
 /**
  * A single recommendation analysis (corresponding to a single potential buy action).

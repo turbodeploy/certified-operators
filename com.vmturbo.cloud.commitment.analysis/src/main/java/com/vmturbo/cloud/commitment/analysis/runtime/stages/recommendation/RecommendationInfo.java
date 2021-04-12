@@ -6,7 +6,7 @@ import org.immutables.value.Value.Derived;
 
 import com.vmturbo.cloud.commitment.analysis.pricing.CloudCommitmentPricingData;
 import com.vmturbo.cloud.commitment.analysis.spec.CloudCommitmentSpecData;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentType;
+import com.vmturbo.common.protobuf.cloud.CloudCommitment.CloudCommitmentType;
 
 /**
  * Recommendation info containing purchasing information (e.g. purchasing account, type, etc).

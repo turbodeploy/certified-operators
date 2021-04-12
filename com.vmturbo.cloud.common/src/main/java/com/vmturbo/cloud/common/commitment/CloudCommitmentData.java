@@ -4,7 +4,7 @@ import javax.annotation.Nonnull;
 
 import org.immutables.value.Value.Auxiliary;
 
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentType;
+import com.vmturbo.common.protobuf.cloud.CloudCommitment.CloudCommitmentType;
 
 /**
  * A wrapper class for pairing a commitment with its specification.

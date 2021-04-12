@@ -10,7 +10,7 @@ import javax.annotation.Nullable;
 
 import org.jooq.Condition;
 
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.AccountFilter;
+import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
 import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
 import com.vmturbo.cost.component.db.Tables;
 

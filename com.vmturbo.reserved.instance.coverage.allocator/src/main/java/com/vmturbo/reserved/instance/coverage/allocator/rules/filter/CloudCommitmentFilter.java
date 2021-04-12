@@ -5,9 +5,9 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregate;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentLocation;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentScope;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentType;
+import com.vmturbo.common.protobuf.cloud.CloudCommitment.CloudCommitmentLocation;
+import com.vmturbo.common.protobuf.cloud.CloudCommitment.CloudCommitmentScope;
+import com.vmturbo.common.protobuf.cloud.CloudCommitment.CloudCommitmentType;
 
 /**
  * A filter of cloud commitments, based on the commitment attributes.

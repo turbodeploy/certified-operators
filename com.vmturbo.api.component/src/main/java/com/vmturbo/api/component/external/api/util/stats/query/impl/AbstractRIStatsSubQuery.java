@@ -29,7 +29,7 @@ import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.enums.Epoch;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.AccountFilter;
+import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
 import com.vmturbo.common.protobuf.cost.Cost.AvailabilityZoneFilter;
 import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCoverageStatsRequest;

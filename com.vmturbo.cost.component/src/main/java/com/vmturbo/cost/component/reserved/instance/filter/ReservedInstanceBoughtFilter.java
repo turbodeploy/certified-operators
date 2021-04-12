@@ -13,8 +13,8 @@ import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.TableField;
 
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.AccountFilter;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentReferenceFilterType;
+import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
+import com.vmturbo.common.protobuf.cost.Cost.AccountFilter.AccountFilterType;
 import com.vmturbo.common.protobuf.cost.Cost.AvailabilityZoneFilter;
 import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
@@ -60,7 +60,7 @@ public class ReservedInstanceBoughtFilter extends ReservedInstanceBoughtTableFil
         final List<Condition> allConditions = new ArrayList<>();
         allConditions.addAll(Arrays.asList(conditions));
         if (accountFilter.getAccountIdCount() > 0) {
-            CloudCommitmentReferenceFilterType filterType = accountFilter.getAccountFilterType();
+            AccountFilterType filterType = accountFilter.getAccountFilterType();
             switch (filterType) {
                 case USED_AND_PURCHASED_BY:
                     Condition purchasedByCondition = Tables.RESERVED_INSTANCE_BOUGHT.BUSINESS_ACCOUNT_ID.in(
@@ -171,7 +171,7 @@ public class ReservedInstanceBoughtFilter extends ReservedInstanceBoughtTableFil
         @Nonnull
         public Builder cloudScopeTuples(@Nonnull Map<EntityType,
                                         Set<Long>> cloudScopesTuples,
-                                        CloudCommitmentReferenceFilterType filterType) {
+                                        AccountFilterType filterType) {
             cloudScopesTuples.forEach((entityType, entityOids) -> {
                 switch (entityType) {
                     case REGION:
@@ -211,7 +211,7 @@ public class ReservedInstanceBoughtFilter extends ReservedInstanceBoughtTableFil
          */
         @Nonnull
         public Builder cloudScopeTuples(@Nonnull Map<EntityType, Set<Long>> cloudScopesTuples) {
-            return cloudScopeTuples(cloudScopesTuples, CloudCommitmentReferenceFilterType.PURCHASED_BY);
+            return cloudScopeTuples(cloudScopesTuples, AccountFilterType.PURCHASED_BY);
         }
 
 

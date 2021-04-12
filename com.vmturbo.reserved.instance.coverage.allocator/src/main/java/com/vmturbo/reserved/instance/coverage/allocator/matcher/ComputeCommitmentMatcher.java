@@ -14,7 +14,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregate;
 import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregate;
 import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregateInfo;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentScope;
+import com.vmturbo.common.protobuf.cloud.CloudCommitment.CloudCommitmentScope;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceScopeInfo;
 
 /**

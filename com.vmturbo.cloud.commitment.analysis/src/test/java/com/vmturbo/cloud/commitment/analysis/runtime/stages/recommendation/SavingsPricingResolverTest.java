@@ -10,7 +10,7 @@ import com.vmturbo.cloud.commitment.analysis.pricing.ComputeTierPricingData;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.recommendation.SavingsPricingResolver.SavingsPricingResolverFactory;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CommitmentPurchaseProfile.RecommendationSettings;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CommitmentPurchaseProfile.RecommendationSettings.ReservedInstanceRecommendationSettings;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentType;
+import com.vmturbo.common.protobuf.cloud.CloudCommitment.CloudCommitmentType;
 
 public class SavingsPricingResolverTest {
 

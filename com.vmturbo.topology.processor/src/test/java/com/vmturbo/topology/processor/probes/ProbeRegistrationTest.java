@@ -32,7 +32,6 @@ import com.vmturbo.topology.processor.communication.queues.AggregatingDiscoveryQ
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityProviderException;
 import com.vmturbo.topology.processor.identity.IdentityProviderImpl;
-import com.vmturbo.topology.processor.identity.StaleOidManagerImpl;
 import com.vmturbo.topology.processor.identity.storage.IdentityDatabaseStore;
 import com.vmturbo.topology.processor.probeproperties.ProbePropertyStore;
 import com.vmturbo.topology.processor.probes.FakeTransport.TransportPair;
@@ -67,7 +66,7 @@ public class ProbeRegistrationTest {
 
         identityProvider = new IdentityProviderImpl(new MapKeyValueStore(),
             new ProbeInfoCompatibilityChecker(), 0L,
-            mock(IdentityDatabaseStore.class), 0, 0, false, mock(StaleOidManagerImpl.class));
+            mock(IdentityDatabaseStore.class), 0, 0, false);
         ProbeStore probeStore = new RemoteProbeStore(keyValueStore,
             identityProvider, stitchingOperationStore,  new ActionMergeSpecsRepository());
         remoteMediation = new RemoteMediationServer(probeStore,

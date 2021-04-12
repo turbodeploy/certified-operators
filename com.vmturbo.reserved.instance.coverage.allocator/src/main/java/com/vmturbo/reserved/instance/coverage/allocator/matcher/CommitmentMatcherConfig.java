@@ -5,7 +5,7 @@ import javax.annotation.Nonnull;
 import org.immutables.value.Value.Immutable;
 
 import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentScope;
+import com.vmturbo.common.protobuf.cloud.CloudCommitment.CloudCommitmentScope;
 
 /**
  * A base configuration specifying how to generate a coverage key for cloud commitments.

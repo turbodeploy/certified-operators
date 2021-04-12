@@ -136,10 +136,6 @@
                                     <name>java.time.LocalDateTime</name>
                                     <expression>.*\..*_time</expression>
                                 </forcedType>>
-                                <forcedType>
-                                    <name>BOOLEAN</name>
-                                    <includeTypes>(?i:TINYINT\(1\))</includeTypes>
-                                </forcedType>
                             </forcedTypes>
                         </database>
                         <generate>

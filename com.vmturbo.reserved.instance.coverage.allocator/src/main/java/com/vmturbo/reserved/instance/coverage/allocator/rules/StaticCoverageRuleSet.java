@@ -5,8 +5,8 @@ import com.google.common.collect.ImmutableSetMultimap;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.SetMultimap;
 
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentLocation;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentScope;
+import com.vmturbo.common.protobuf.cloud.CloudCommitment.CloudCommitmentLocation;
+import com.vmturbo.common.protobuf.cloud.CloudCommitment.CloudCommitmentScope;
 import com.vmturbo.reserved.instance.coverage.allocator.context.CloudProviderCoverageContext.CloudServiceProvider;
 import com.vmturbo.reserved.instance.coverage.allocator.matcher.CommitmentMatcherConfig;
 import com.vmturbo.reserved.instance.coverage.allocator.matcher.entity.EntityMatcherConfig;

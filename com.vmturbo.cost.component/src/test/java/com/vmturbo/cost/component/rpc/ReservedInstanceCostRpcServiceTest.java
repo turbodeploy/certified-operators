@@ -19,7 +19,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.springframework.util.CollectionUtils;
 
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.AccountFilter;
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceCostServiceGrpc;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -81,7 +80,7 @@ public class ReservedInstanceCostRpcServiceTest {
 
         final Cost.GetReservedInstanceCostStatsRequest getReservedInstanceCostStatsRequest = Cost.GetReservedInstanceCostStatsRequest.newBuilder().setTimeWindow(
                         Cost.StatsRequestTimeWindow.newBuilder().setQueryLatest(true).build()).setIncludeProjected(true).setIncludeBuyRi(true).setAccountFilter(
-                        AccountFilter.newBuilder().addAccountId(123L).build()).setGroupBy(
+                        Cost.AccountFilter.newBuilder().addAccountId(123L).build()).setGroupBy(
                         Cost.GetReservedInstanceCostStatsRequest.GroupBy.SNAPSHOT_TIME).build();
 
         final Cost.GetReservedInstanceCostStatsResponse reservedInstanceCostStats = client.getReservedInstanceCostStats(getReservedInstanceCostStatsRequest);
@@ -112,7 +111,7 @@ public class ReservedInstanceCostRpcServiceTest {
 
         final Cost.GetReservedInstanceCostStatsRequest getReservedInstanceCostStatsRequest = Cost.GetReservedInstanceCostStatsRequest.newBuilder().setTimeWindow(
                         Cost.StatsRequestTimeWindow.newBuilder().setQueryLatest(true).build()).setIncludeProjected(true).setIncludeBuyRi(false).setAccountFilter(
-                        AccountFilter.newBuilder().addAccountId(123L).build()).setGroupBy(
+                        Cost.AccountFilter.newBuilder().addAccountId(123L).build()).setGroupBy(
                         Cost.GetReservedInstanceCostStatsRequest.GroupBy.SNAPSHOT_TIME).build();
 
         final Cost.GetReservedInstanceCostStatsResponse reservedInstanceCostStats = client.getReservedInstanceCostStats(getReservedInstanceCostStatsRequest);
@@ -141,7 +140,7 @@ public class ReservedInstanceCostRpcServiceTest {
     public void testGetReservedInstanceCostStatsWithLatestAndNoProjectedGroupBySnapshotTime() {
         final Cost.GetReservedInstanceCostStatsRequest getReservedInstanceCostStatsRequest = Cost.GetReservedInstanceCostStatsRequest.newBuilder().setTimeWindow(
                         Cost.StatsRequestTimeWindow.newBuilder().setQueryLatest(true).build()).setIncludeProjected(false).setIncludeBuyRi(true).setAccountFilter(
-                        AccountFilter.newBuilder().addAccountId(123L).build()).setGroupBy(
+                        Cost.AccountFilter.newBuilder().addAccountId(123L).build()).setGroupBy(
                         Cost.GetReservedInstanceCostStatsRequest.GroupBy.SNAPSHOT_TIME).build();
 
         final Cost.GetReservedInstanceCostStatsResponse reservedInstanceCostStats = client.getReservedInstanceCostStats(getReservedInstanceCostStatsRequest);
@@ -164,7 +163,7 @@ public class ReservedInstanceCostRpcServiceTest {
 
         final Cost.GetReservedInstanceCostStatsRequest getReservedInstanceCostStatsRequest = Cost.GetReservedInstanceCostStatsRequest.newBuilder().setTimeWindow(
                         Cost.StatsRequestTimeWindow.newBuilder().setQueryLatest(false).build()).setIncludeProjected(true).setIncludeBuyRi(true).setAccountFilter(
-                        AccountFilter.newBuilder().addAccountId(123L).build()).setGroupBy(
+                        Cost.AccountFilter.newBuilder().addAccountId(123L).build()).setGroupBy(
                         Cost.GetReservedInstanceCostStatsRequest.GroupBy.SNAPSHOT_TIME).build();
 
         final Cost.GetReservedInstanceCostStatsResponse reservedInstanceCostStats = client.getReservedInstanceCostStats(getReservedInstanceCostStatsRequest);
@@ -192,7 +191,7 @@ public class ReservedInstanceCostRpcServiceTest {
     public void testGetReservedInstanceCostStatsWithNoLatestAndNoProjectedGroupBySnapshotTime() {
         final Cost.GetReservedInstanceCostStatsRequest getReservedInstanceCostStatsRequest = Cost.GetReservedInstanceCostStatsRequest.newBuilder().setTimeWindow(
                         Cost.StatsRequestTimeWindow.newBuilder().setQueryLatest(false).build()).setIncludeProjected(false).setIncludeBuyRi(true).setAccountFilter(
-                        AccountFilter.newBuilder().addAccountId(123L).build()).setGroupBy(
+                        Cost.AccountFilter.newBuilder().addAccountId(123L).build()).setGroupBy(
                         Cost.GetReservedInstanceCostStatsRequest.GroupBy.SNAPSHOT_TIME).build();
 
         final Cost.GetReservedInstanceCostStatsResponse reservedInstanceCostStats = client.getReservedInstanceCostStats(getReservedInstanceCostStatsRequest);
@@ -208,7 +207,7 @@ public class ReservedInstanceCostRpcServiceTest {
     public void testGetReservedInstanceCostStatsWithLatestAndNoBuyRIGroupByNone() {
         final Cost.GetReservedInstanceCostStatsRequest getReservedInstanceCostStatsRequest = Cost.GetReservedInstanceCostStatsRequest.newBuilder().setTimeWindow(
                         Cost.StatsRequestTimeWindow.newBuilder().setQueryLatest(true).build()).setIncludeProjected(true).setIncludeBuyRi(true).setAccountFilter(
-                        AccountFilter.newBuilder().addAccountId(123L).build()).setGroupBy(
+                        Cost.AccountFilter.newBuilder().addAccountId(123L).build()).setGroupBy(
                         Cost.GetReservedInstanceCostStatsRequest.GroupBy.NONE).build();
 
         final Cost.GetReservedInstanceCostStatsResponse reservedInstanceCostStats = client.getReservedInstanceCostStats(getReservedInstanceCostStatsRequest);

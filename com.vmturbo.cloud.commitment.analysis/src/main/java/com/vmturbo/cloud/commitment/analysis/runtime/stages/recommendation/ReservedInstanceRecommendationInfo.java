@@ -9,7 +9,7 @@ import org.immutables.value.Value.Redacted;
 import com.vmturbo.cloud.commitment.analysis.pricing.RIPricingData;
 import com.vmturbo.cloud.commitment.analysis.spec.ReservedInstanceSpecData;
 import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
-import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentType;
+import com.vmturbo.common.protobuf.cloud.CloudCommitment.CloudCommitmentType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 
 /**

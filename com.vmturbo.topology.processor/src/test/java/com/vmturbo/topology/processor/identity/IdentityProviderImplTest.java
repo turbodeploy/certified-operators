@@ -77,7 +77,7 @@ public class IdentityProviderImplTest {
             compatibilityChecker, 0L, mock(IdentityDatabaseStore.class),
             10,
             assignedIdReloadReattemptIntervalSeconds,
-            false, mock(StaleOidManagerImpl.class));
+            false);
         identityProvider.getStore().initialize();
         baseProbeInfo = Probes.defaultProbe;
     }
@@ -90,7 +90,7 @@ public class IdentityProviderImplTest {
         final long idGenPrefix = IdentityGenerator.MAXPREFIX - 1;
         identityProvider = new IdentityProviderImpl(keyValueStore, compatibilityChecker,
             idGenPrefix, mock(IdentityDatabaseStore.class), 10,
-            assignedIdReloadReattemptIntervalSeconds, false, mock(StaleOidManagerImpl.class));
+            assignedIdReloadReattemptIntervalSeconds, false);
 
         assertEquals(idGenPrefix, IdentityGenerator.getPrefix());
     }
@@ -261,7 +261,7 @@ public class IdentityProviderImplTest {
 
         final IdentityProvider newInstance = new IdentityProviderImpl( mockKvStore,
             compatibilityChecker, 0L, mock(IdentityDatabaseStore.class), 10,
-            assignedIdReloadReattemptIntervalSeconds, false, mock(StaleOidManagerImpl.class));
+            assignedIdReloadReattemptIntervalSeconds, false);
 
         final long probeId = newInstance.getProbeId(baseProbeInfo);
         // Verify that the call to save the probeId happened.
@@ -292,7 +292,7 @@ public class IdentityProviderImplTest {
         final IdentityProvider newInstance =
             new IdentityProviderImpl(keyValueStore, compatibilityChecker, 0L,
                 mock(IdentityDatabaseStore.class), 10, assignedIdReloadReattemptIntervalSeconds,
-                false, mock(StaleOidManagerImpl.class));
+                false);
         assertEquals(probeId, newInstance.getProbeId(baseProbeInfo));
     }
 
@@ -319,7 +319,7 @@ public class IdentityProviderImplTest {
                 .thenThrow(e);
         IdentityProvider provider = new IdentityProviderImpl(new MapKeyValueStore(),
             compatibilityChecker, 0L, mock(IdentityDatabaseStore.class), 10,
-            assignedIdReloadReattemptIntervalSeconds, false, mock(StaleOidManagerImpl.class));
+            assignedIdReloadReattemptIntervalSeconds, false);
 
         ProbeInfo probeInfo = ProbeInfo.newBuilder(baseProbeInfo)
                 .addEntityMetadata(
@@ -345,7 +345,7 @@ public class IdentityProviderImplTest {
     public void testBadJsonRestore1() {
         final IdentityProviderImpl providerImpl = new IdentityProviderImpl(new MapKeyValueStore(),
             compatibilityChecker, 0, mock(IdentityDatabaseStore.class), 10,
-            assignedIdReloadReattemptIntervalSeconds, false, mock(StaleOidManagerImpl.class));
+            assignedIdReloadReattemptIntervalSeconds, false);
         providerImpl.restoreDiags(ImmutableList.of("blah", "", ""), null);
     }
 
@@ -356,7 +356,7 @@ public class IdentityProviderImplTest {
     public void testBadJsonRestore2() {
         final IdentityProviderImpl providerImpl = new IdentityProviderImpl(new MapKeyValueStore(),
             compatibilityChecker, 0, mock(IdentityDatabaseStore.class), 10,
-            assignedIdReloadReattemptIntervalSeconds, false, mock(StaleOidManagerImpl.class));
+            assignedIdReloadReattemptIntervalSeconds, false);
         providerImpl.restoreDiags(ImmutableList.of("{}", "blah", ""), null);
     }
 
@@ -367,7 +367,7 @@ public class IdentityProviderImplTest {
     public void testWrongLinesRestore() {
         final IdentityProviderImpl providerImpl = new IdentityProviderImpl(new MapKeyValueStore(),
             compatibilityChecker, 0, mock(IdentityDatabaseStore.class), 10,
-            assignedIdReloadReattemptIntervalSeconds, false, mock(StaleOidManagerImpl.class));
+            assignedIdReloadReattemptIntervalSeconds, false);
         providerImpl.restoreDiags(Collections.emptyList(), null);
     }
 
@@ -380,7 +380,7 @@ public class IdentityProviderImplTest {
     public void testBackupRestore() throws Exception {
         final IdentityService identityService = mock(IdentityService.class);
         final IdentityProviderImpl providerImpl = new IdentityProviderImpl(identityService,
-            new MapKeyValueStore(), compatibilityChecker, 0, mock(StaleOidManagerImpl.class));
+            new MapKeyValueStore(), compatibilityChecker, 0);
 
         final ProbeInfo probeInfo = ProbeInfo.newBuilder(baseProbeInfo)
             .addEntityMetadata(
@@ -412,7 +412,7 @@ public class IdentityProviderImplTest {
         // Create a new provider, restore the diags, and make sure
         // the new providers behaves just like the old one.
         final IdentityProviderImpl newProvider = new IdentityProviderImpl(identityService,
-            new MapKeyValueStore(), compatibilityChecker, 0, mock(StaleOidManagerImpl.class));
+            new MapKeyValueStore(), compatibilityChecker, 0);
         newProvider.restoreDiags(diagsCaptor.getAllValues(), null);
         verify(identityService).restore(any(), any());
         // It should assign the same ID for the same probe type.
