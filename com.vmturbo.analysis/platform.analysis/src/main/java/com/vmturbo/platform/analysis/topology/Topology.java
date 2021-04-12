@@ -18,6 +18,7 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.economy.Basket;
+import com.vmturbo.platform.analysis.economy.ByProducts;
 import com.vmturbo.platform.analysis.economy.CommodityResizeSpecification;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
@@ -224,6 +225,15 @@ public final class Topology implements Serializable {
     public @NonNull Map<@NonNull Integer, @NonNull RawMaterials>
                                             getModifiableRawCommodityMap() {
         return economy_.getModifiableRawCommodityMap();
+    }
+
+    /**
+     *
+     * @return A modifiable map from processed commodity to the by-products used by it.
+     */
+    public @NonNull Map<@NonNull Integer, ByProducts>
+                                            getModifiableByProductsMap() {
+        return economy_.getModifiableByProductMap();
     }
 
     /**
