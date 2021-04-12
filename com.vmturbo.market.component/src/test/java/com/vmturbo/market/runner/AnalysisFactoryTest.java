@@ -40,7 +40,7 @@ public class AnalysisFactoryTest {
         public final void testGetSetUseQuoteCacheDuringSNM(boolean useQuoteCacheDuringSNM) {
             Builder builder = AnalysisConfig.newBuilder(0, 0,
                 SuspensionsThrottlingConfig.DEFAULT, new HashMap<>(), false, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-                false);
+                false, false);
             assertSame(builder, builder.setUseQuoteCacheDuringSNM(useQuoteCacheDuringSNM));
             assertEquals(useQuoteCacheDuringSNM, builder.build().getUseQuoteCacheDuringSNM());
         }
@@ -56,7 +56,7 @@ public class AnalysisFactoryTest {
                         testGetSetReplayProvisionsForRealTime(boolean replayProvisionsForRealTime) {
             Builder builder = AnalysisConfig.newBuilder(0, 0,
                 SuspensionsThrottlingConfig.DEFAULT, new HashMap<>(), false, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-                false);
+                false, false);
             assertSame(builder,
                 builder.setReplayProvisionsForRealTime(replayProvisionsForRealTime));
             assertEquals(replayProvisionsForRealTime,

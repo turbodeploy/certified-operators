@@ -267,7 +267,8 @@ public class AnalysisDebuggingTest {
         AnalysisConfig.Builder analysisConfig = AnalysisConfig.newBuilder(analysisInput.getQuoteFactor(),
             MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
             analysisInput.getSuspensionThrottlingPerCluster() ? SuspensionsThrottlingConfig.CLUSTER : SuspensionsThrottlingConfig.DEFAULT,
-                    analysisInput.getSettingsMap(), false, MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false)
+                    analysisInput.getSettingsMap(), false, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
+                   false, false)
                 .setIncludeVDC(analysisInput.getIncludeVdc())
                 .setUseQuoteCacheDuringSNM(analysisInput.getUseQuoteCacheDuringSnm())
                 .setReplayProvisionsForRealTime(analysisInput.getReplayProvisionsForRealTime())
