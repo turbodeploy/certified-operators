@@ -233,6 +233,8 @@ weblogic:
   enabled: false
 websphere:
   enabled: false
+jboss:
+  enabled: false
 nutanix:
   enabled: false
 oneview:
