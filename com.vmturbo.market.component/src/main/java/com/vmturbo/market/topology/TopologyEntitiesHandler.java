@@ -200,7 +200,9 @@ public class TopologyEntitiesHandler {
                 }
                 populateProducesDependencyMap(topology);
                 populateRawMaterialsMap(topology);
-                populateByProductsMap(topology);
+                if (analysisConfig.shouldPopulateByProducts()) {
+                    populateByProductsMap(topology);
+                }
                 commsToAdjustOverheadInClone.forEach(topology::addCommsToAdjustOverhead);
                 logger.info("Created economy with " + topology.getEconomy().getMarkets().size() + " markets");
             } catch (Exception e) {

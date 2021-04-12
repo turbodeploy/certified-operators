@@ -64,7 +64,7 @@ public class CommodityIdUpdaterTest {
         analysis = new Analysis(TopologyInfo.getDefaultInstance(), Collections.emptySet(), mock(GroupMemberRetriever.class),
             Clock.systemUTC(), AnalysisConfig.newBuilder(MarketAnalysisUtils.QUOTE_FACTOR,
             MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR, SuspensionsThrottlingConfig.DEFAULT, Collections.emptyMap(), false,
-            MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false).build(),
+            MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false, false).build(),
             mock(TopologyEntityCloudTopologyFactory.class), mock(TopologyCostCalculatorFactory.class),
             mock(MarketPriceTableFactory.class), mock(WastedFilesAnalysisEngine.class),
             mock(BuyRIImpactAnalysisFactory.class), mock(TierExcluderFactory.class),

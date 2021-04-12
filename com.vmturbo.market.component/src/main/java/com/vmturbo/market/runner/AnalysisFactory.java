@@ -7,7 +7,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.ExecutorService;
 
 import javax.annotation.Nonnull;
 
@@ -135,6 +134,8 @@ public interface AnalysisFactory {
 
         private final boolean enableOP;
 
+        private final boolean shouldPopulateByProducts;
+
         public DefaultAnalysisFactory(@Nonnull final GroupMemberRetriever groupMemberRetriever,
                                       @Nonnull final SettingServiceBlockingStub settingServiceClient,
                                       @Nonnull final MarketPriceTableFactory marketPriceTableFactory,
@@ -157,7 +158,8 @@ public interface AnalysisFactory {
                                       final boolean fullPriceForQuote,
                                       @Nonnull final CommodityIdUpdater commodityIdUpdater,
                                       final int licensePriceWeightScale,
-                                      final boolean enableOP) {
+                                      final boolean enableOP,
+                                      final boolean shouldPopulateByProducts) {
             Preconditions.checkArgument(alleviatePressureQuoteFactor >= 0f);
             Preconditions.checkArgument(alleviatePressureQuoteFactor <= 1.0f);
             Preconditions.checkArgument(standardQuoteFactor >= 0f);
@@ -187,6 +189,7 @@ public interface AnalysisFactory {
             this.commodityIdUpdater = Objects.requireNonNull(commodityIdUpdater);
             this.licensePriceWeightScale = licensePriceWeightScale;
             this.enableOP = enableOP;
+            this.shouldPopulateByProducts = shouldPopulateByProducts;
         }
 
         /**
@@ -203,7 +206,7 @@ public interface AnalysisFactory {
                     alleviatePressureQuoteFactor : standardQuoteFactor;
             final AnalysisConfig.Builder configBuilder = AnalysisConfig.newBuilderWithSMA(marketMode, quoteFactor,
                 liveMarketMoveCostFactor, this.suspensionsThrottlingConfig, globalSettings, fullPriceForQuote,
-                licensePriceWeightScale, enableOP);
+                licensePriceWeightScale, enableOP, shouldPopulateByProducts);
             configCustomizer.customize(configBuilder);
             return new Analysis(topologyInfo, topologyEntities,
                 groupMemberRetriever, clock,
@@ -350,6 +353,12 @@ public interface AnalysisFactory {
         private final boolean enableOP;
 
         /**
+         * Whether we should populate the by-product map in analysis. Setting to false disables by-product
+         * analysis (ie disables analysis of CPU throttling commodities during vCPU resize action generation).
+         */
+        private final boolean shouldPopulateByProducts;
+
+        /**
          * Use {@link AnalysisConfig#newBuilder(float, float, SuspensionsThrottlingConfig, Map)}.
          *
          * @param marketMode              the run mode of the market?
@@ -368,6 +377,7 @@ public interface AnalysisFactory {
          * @param licensePriceWeightScale value to scale the price weight of commodities for every
          *                                softwareLicenseCommodity sold by a provider.
          * @param enableOP enables the changes for OverProvisioning.
+         * @param shouldPopulateByProducts Whether to populate the byProducts map which permits analysis of commodity byProducts.
          */
         private AnalysisConfig(final MarketMode marketMode,
                               final float quoteFactor,
@@ -383,7 +393,8 @@ public interface AnalysisFactory {
                               final float discountedComputeCostFactor,
                               final boolean fullPriceForQuote,
                               final int licensePriceWeightScale,
-                              final boolean enableOP) {
+                              final boolean enableOP,
+                              final boolean shouldPopulateByProducts) {
             this.quoteFactor = quoteFactor;
             this.liveMarketMoveCostFactor = liveMarketMoveCostFactor;
             this.suspensionsThrottlingConfig = suspensionsThrottlingConfig;
@@ -399,6 +410,7 @@ public interface AnalysisFactory {
             this.fullPriceForQuote = fullPriceForQuote;
             this.licensePriceWeightScale = licensePriceWeightScale;
             this.enableOP = enableOP;
+            this.shouldPopulateByProducts = shouldPopulateByProducts;
         }
 
         public float getQuoteFactor() {
@@ -431,6 +443,14 @@ public interface AnalysisFactory {
 
         public boolean isEnableOP() {
             return enableOP;
+        }
+
+        /**
+         * Whether we should populate the by-product map in analysis. Setting to false disables by-product
+         * analysis (ie disables analysis of CPU throttling commodities during vCPU resize action generation).
+         */
+        public boolean shouldPopulateByProducts() {
+            return shouldPopulateByProducts;
         }
 
         public MarketMode getMarketMode() {
@@ -530,15 +550,16 @@ public interface AnalysisFactory {
          * @param licensePriceWeightScale value to scale the price weight of commodities for every
          *            softwareLicenseCommodity sold by a provider.
          * @param enableOP is OverProvisioning changes enabled.
+         * @param shouldPopulateByProducts Whether we should populate the byproducts map.
          * @return The builder, which can be further customized.
          */
         public static Builder newBuilder(final float quoteFactor, final float liveMarketMoveCostFactor,
                                          @Nonnull final SuspensionsThrottlingConfig suspensionsThrottlingConfig,
                  @Nonnull final Map<String, Setting> globalSettings, final boolean fullPriceForQuote,
-                 final int licensePriceWeightScale, final boolean enableOP) {
+                 final int licensePriceWeightScale, final boolean enableOP, final boolean shouldPopulateByProducts) {
             return newBuilderWithSMA(MarketMode.M2Only, quoteFactor, liveMarketMoveCostFactor,
                 suspensionsThrottlingConfig, globalSettings, fullPriceForQuote, licensePriceWeightScale,
-                enableOP);
+                enableOP, shouldPopulateByProducts);
         }
 
         /**
@@ -557,6 +578,7 @@ public interface AnalysisFactory {
          * @param licensePriceWeightScale value to scale the price weight of commodities for every
          *            softwareLicenseCommodity sold by a provider.
          * @param enableOP is OverProvisioning changes enabled.
+         * @param shouldPopulateByProducts Whether we should populate the byproducts map.
          * @return The builder, which can be further customized.
          */
         public static Builder newBuilderWithSMA(final MarketMode marketMode, final float quoteFactor, final float liveMarketMoveCostFactor,
@@ -564,10 +586,11 @@ public interface AnalysisFactory {
                                                 @Nonnull final Map<String, Setting> globalSettings,
                                                 final boolean fullPriceForQuote,
                                                 final int licensePriceWeightScale,
-                                                final boolean enableOP) {
+                                                final boolean enableOP,
+                                                final boolean shouldPopulateByProducts) {
             return new Builder(marketMode, quoteFactor, liveMarketMoveCostFactor,
                     suspensionsThrottlingConfig, globalSettings, fullPriceForQuote, licensePriceWeightScale,
-                    enableOP);
+                    enableOP, shouldPopulateByProducts);
         }
 
         public static class Builder {
@@ -601,6 +624,8 @@ public interface AnalysisFactory {
 
             private final boolean enableOP;
 
+            private final boolean shouldPopulateByProducts;
+
             private Builder(final MarketMode marketMode,
                             final float quoteFactor,
                             final float liveMarketMoveCostFactor,
@@ -608,7 +633,8 @@ public interface AnalysisFactory {
                             @Nonnull final Map<String, Setting> globalSettings,
                             final boolean fullPriceForQuote,
                             final int licensePriceWeightScale,
-                            final boolean enableOP) {
+                            final boolean enableOP,
+                            final boolean shouldPopulateByProducts) {
                 this.quoteFactor = quoteFactor;
                 this.liveMarketMoveCostFactor = liveMarketMoveCostFactor;
                 this.suspensionsThrottlingConfig = suspensionsThrottlingConfig;
@@ -617,6 +643,7 @@ public interface AnalysisFactory {
                 this.fullPriceForQuote = fullPriceForQuote;
                 this.licensePriceWeightScale = licensePriceWeightScale;
                 this.enableOP = enableOP;
+                this.shouldPopulateByProducts = shouldPopulateByProducts;
             }
 
             /**
@@ -727,7 +754,7 @@ public interface AnalysisFactory {
                     suspensionsThrottlingConfig, globalSettings, includeVDC, maxPlacementsOverride,
                     useQuoteCacheDuringSNM, replayProvisionsForRealTime, rightsizeLowerWatermark,
                     rightsizeUpperWatermark, discountedComputeCostFactor, fullPriceForQuote,
-                    licensePriceWeightScale, enableOP);
+                    licensePriceWeightScale, enableOP, shouldPopulateByProducts);
             }
         }
     }
