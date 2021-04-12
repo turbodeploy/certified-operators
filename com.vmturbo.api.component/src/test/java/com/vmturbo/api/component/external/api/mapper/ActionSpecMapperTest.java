@@ -372,6 +372,9 @@ public class ActionSpecMapperTest {
                     .build())
                 .build())
             .build();
+        final MultiEntityRequest dbReq = ApiTestUtils.mockMultiFullEntityReq(Lists.newArrayList());
+        when(repositoryApi.entitiesRequest(Collections.emptySet()))
+                .thenReturn(dbReq);
         ActionApiDTO actionApiDTO =
             mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveInfo, compliance), REAL_TIME_TOPOLOGY_CONTEXT_ID);
         assertEquals(TARGET, actionApiDTO.getTarget().getDisplayName());
@@ -460,6 +463,9 @@ public class ActionSpecMapperTest {
             .putEntityGroup(pm1Id, GroupDTO.Groupings.newBuilder().addGroupId(cluster1Id).build())
             .putEntityGroup(pm2Id, GroupDTO.Groupings.newBuilder().addGroupId(cluster2Id).build())
             .build());
+        final MultiEntityRequest dbReq = ApiTestUtils.mockMultiFullEntityReq(Lists.newArrayList());
+        when(repositoryApi.entitiesRequest(Collections.emptySet()))
+                .thenReturn(dbReq);
 
         // ACT
         ActionApiDTO actionApiDTO =
@@ -526,6 +532,9 @@ public class ActionSpecMapperTest {
                                 .build())
                         .build())
                 .build();
+        final MultiEntityRequest dbReq = ApiTestUtils.mockMultiFullEntityReq(Lists.newArrayList());
+        when(repositoryApi.entitiesRequest(Collections.emptySet()))
+                .thenReturn(dbReq);
         ActionApiDTO actionApiDTO =
                 mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveInfo, compliance),
                         REAL_TIME_TOPOLOGY_CONTEXT_ID);
@@ -558,6 +567,9 @@ public class ActionSpecMapperTest {
                         .addUnderUtilizedCommodities(CPU)))
                 .build())
             .build();
+        final MultiEntityRequest dbReq = ApiTestUtils.mockMultiFullEntityReq(Lists.newArrayList());
+        when(repositoryApi.entitiesRequest(Collections.emptySet()))
+                .thenReturn(dbReq);
 
         final ActionApiDTO actionApiDTO = mapper.mapActionSpecToActionApiDTO(
             buildActionSpec(scaleInfo, explanation), REAL_TIME_TOPOLOGY_CONTEXT_ID);
@@ -620,6 +632,9 @@ public class ActionSpecMapperTest {
             Optional.empty(), schedule,
             EXTERNAL_NAME,
             EXTERNAL_URL);
+        final MultiEntityRequest dbReq = ApiTestUtils.mockMultiFullEntityReq(Lists.newArrayList());
+        when(repositoryApi.entitiesRequest(Collections.emptySet()))
+                .thenReturn(dbReq);
 
         final ActionApiDTO actionApiDTO = mapper.mapActionSpecToActionApiDTO(
             actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID);
@@ -671,6 +686,9 @@ public class ActionSpecMapperTest {
 
         ActionSpec actionSpec = buildActionSpec(scaleInfo, explanation, Optional.empty(),
             Optional.empty(), schedule);
+        final MultiEntityRequest dbReq = ApiTestUtils.mockMultiFullEntityReq(Lists.newArrayList());
+        when(repositoryApi.entitiesRequest(Collections.emptySet()))
+                .thenReturn(dbReq);
 
         final ActionApiDTO actionApiDTO = mapper.mapActionSpecToActionApiDTO(
             actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID);
@@ -715,6 +733,9 @@ public class ActionSpecMapperTest {
 
         ActionSpec actionSpec = buildActionSpec(scaleInfo, explanation, Optional.empty(),
             Optional.empty(), schedule);
+        final MultiEntityRequest dbReq = ApiTestUtils.mockMultiFullEntityReq(Lists.newArrayList());
+        when(repositoryApi.entitiesRequest(Collections.emptySet()))
+                .thenReturn(dbReq);
 
         final ActionApiDTO actionApiDTO = mapper.mapActionSpecToActionApiDTO(
             actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID);
@@ -742,6 +763,10 @@ public class ActionSpecMapperTest {
                 .setAllocate(AllocateExplanation.getDefaultInstance())
                 .build();
 
+        final MultiEntityRequest dbReq = ApiTestUtils.mockMultiFullEntityReq(Lists.newArrayList());
+        when(repositoryApi.entitiesRequest(Collections.emptySet()))
+                .thenReturn(dbReq);
+
         final ActionApiDTO actionApiDTO = mapper.mapActionSpecToActionApiDTO(
                 buildActionSpec(allocateInfo, explanation), REAL_TIME_TOPOLOGY_CONTEXT_ID);
 
@@ -764,6 +789,9 @@ public class ActionSpecMapperTest {
                                 .build())
                             .build())
                         .build();
+        final MultiEntityRequest dbReq = ApiTestUtils.mockMultiFullEntityReq(Lists.newArrayList());
+        when(repositoryApi.entitiesRequest(Collections.emptySet()))
+                .thenReturn(dbReq);
         ActionApiDTO actionApiDTO =
             mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveInfo, placement), REAL_TIME_TOPOLOGY_CONTEXT_ID);
         assertEquals(TARGET, actionApiDTO.getTarget().getDisplayName());
@@ -795,6 +823,9 @@ public class ActionSpecMapperTest {
                         .build())
                     .build())
                 .build();
+        final MultiEntityRequest dbReq = ApiTestUtils.mockMultiFullEntityReq(Lists.newArrayList());
+        when(repositoryApi.entitiesRequest(Collections.emptySet()))
+                .thenReturn(dbReq);
         ActionApiDTO actionApiDTO =
             mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveInfo, compliance), REAL_TIME_TOPOLOGY_CONTEXT_ID);
         assertEquals(TARGET, actionApiDTO.getTarget().getDisplayName());
@@ -830,6 +861,9 @@ public class ActionSpecMapperTest {
                                 .build())
                         .build())
                 .build();
+        final MultiEntityRequest dbReq = ApiTestUtils.mockMultiFullEntityReq(Lists.newArrayList());
+        when(repositoryApi.entitiesRequest(Collections.emptySet()))
+                .thenReturn(dbReq);
         ActionApiDTO actionApiDTO =
                 mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveInfo, compliance), REAL_TIME_TOPOLOGY_CONTEXT_ID);
 
@@ -864,6 +898,9 @@ public class ActionSpecMapperTest {
                                 .build())
                         .build())
                 .build();
+        final MultiEntityRequest dbReq = ApiTestUtils.mockMultiFullEntityReq(Lists.newArrayList());
+        when(repositoryApi.entitiesRequest(Collections.emptySet()))
+                .thenReturn(dbReq);
         ActionApiDTO actionApiDTO =
                 mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveInfo, compliance), REAL_TIME_TOPOLOGY_CONTEXT_ID);
 
@@ -924,6 +961,9 @@ public class ActionSpecMapperTest {
         Action reconf = Action.newBuilder().setInfo(info).setId(2222L).setExplanation(reconfigure)
                 .setDeprecatedImportance(1).build();
         ActionApiDTO output = new ActionApiDTO();
+        final MultiEntityRequest dbReq = ApiTestUtils.mockMultiFullEntityReq(Lists.newArrayList());
+        when(repositoryApi.entitiesRequest(Collections.emptySet()))
+                .thenReturn(dbReq);
         mapper.populatePolicyForActionApiDto(reconf, output, context);
 
         assertEquals(policyName, output.getPolicy().getDisplayName());
@@ -960,6 +1000,9 @@ public class ActionSpecMapperTest {
                 new TestEntity(DC2_NAME, DATACENTER2_ID, EntityType.DATACENTER_VALUE))));
         when(repositoryApi.entitiesRequest(Sets.newHashSet(3L, 1L)))
             .thenReturn(req);
+        final MultiEntityRequest dbReq = ApiTestUtils.mockMultiFullEntityReq(Lists.newArrayList());
+        when(repositoryApi.entitiesRequest(Collections.emptySet()))
+                .thenReturn(dbReq);
 
         final ActionApiDTO actionApiDTO =
             mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveInfo, reconfigure), CONTEXT_ID);
@@ -1901,6 +1944,9 @@ public class ActionSpecMapperTest {
                 .build();
         final ActionSpec actionSpec = buildActionSpec(moveInfo, placement,
                 Optional.of(decision), Optional.empty(), null);
+        final MultiEntityRequest dbReq = ApiTestUtils.mockMultiFullEntityReq(Lists.newArrayList());
+        when(repositoryApi.entitiesRequest(Collections.emptySet()))
+                .thenReturn(dbReq);
 
         // Act
         ActionApiDTO actionApiDTO = mapper.mapActionSpecToActionApiDTO(actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID);
@@ -2055,6 +2101,9 @@ public class ActionSpecMapperTest {
                 .setActionState(ActionDTO.ActionState.READY)
             .setActionMode(ActionMode.RECOMMEND)
             .build();
+        final MultiEntityRequest dbReq = ApiTestUtils.mockMultiFullEntityReq(Lists.newArrayList());
+        when(repositoryApi.entitiesRequest(Collections.emptySet()))
+                .thenReturn(dbReq);
         final ActionApiDTO actionApiDTO =
             mapper.mapActionSpecToActionApiDTO(actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID);
         assertThat(actionApiDTO.getActionState(), is(com.vmturbo.api.enums.ActionState.READY));
@@ -2072,6 +2121,9 @@ public class ActionSpecMapperTest {
             .setActionMode(ActionMode.RECOMMEND)
             .setIsExecutable(false)
             .build();
+        final MultiEntityRequest dbReq = ApiTestUtils.mockMultiFullEntityReq(Lists.newArrayList());
+        when(repositoryApi.entitiesRequest(Collections.emptySet()))
+                .thenReturn(dbReq);
         final ActionApiDTO actionApiDTO =
             mapper.mapActionSpecToActionApiDTO(actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID);
         assertThat(actionApiDTO.getActionState(), is(com.vmturbo.api.enums.ActionState.READY));
@@ -2089,6 +2141,9 @@ public class ActionSpecMapperTest {
                 .setActionState(ActionDTO.ActionState.READY)
             .setActionMode(ActionMode.MANUAL)
             .build();
+        final MultiEntityRequest dbReq = ApiTestUtils.mockMultiFullEntityReq(Lists.newArrayList());
+        when(repositoryApi.entitiesRequest(Collections.emptySet()))
+                .thenReturn(dbReq);
         final ActionApiDTO actionApiDTO =
             mapper.mapActionSpecToActionApiDTO(actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID);
         assertThat(actionApiDTO.getActionState(), is(com.vmturbo.api.enums.ActionState.READY));
@@ -2106,6 +2161,9 @@ public class ActionSpecMapperTest {
             .setActionMode(ActionMode.MANUAL)
             .setIsExecutable(false)
             .build();
+        final MultiEntityRequest dbReq = ApiTestUtils.mockMultiFullEntityReq(Lists.newArrayList());
+        when(repositoryApi.entitiesRequest(Collections.emptySet()))
+                .thenReturn(dbReq);
         final ActionApiDTO actionApiDTO =
             mapper.mapActionSpecToActionApiDTO(actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID);
         assertThat(actionApiDTO.getActionState(), is(com.vmturbo.api.enums.ActionState.READY));
@@ -2122,6 +2180,9 @@ public class ActionSpecMapperTest {
                 .setActionState(ActionDTO.ActionState.QUEUED)
             .setActionMode(ActionMode.RECOMMEND)
             .build();
+        final MultiEntityRequest dbReq = ApiTestUtils.mockMultiFullEntityReq(Lists.newArrayList());
+        when(repositoryApi.entitiesRequest(Collections.emptySet()))
+                .thenReturn(dbReq);
         final ActionApiDTO actionApiDTO =
             mapper.mapActionSpecToActionApiDTO(actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID);
         assertThat(actionApiDTO.getActionState(), is(com.vmturbo.api.enums.ActionState.QUEUED));
@@ -2482,6 +2543,9 @@ public class ActionSpecMapperTest {
                 .setActionState(ActionDTO.ActionState.READY)
                 .setRecommendation(buildAction(actionInfo, placement))
                 .build();
+        final MultiEntityRequest dbReq = ApiTestUtils.mockMultiFullEntityReq(Lists.newArrayList());
+        when(repositoryApi.entitiesRequest(Collections.emptySet()))
+                .thenReturn(dbReq);
         final ActionExecutionAuditApiDTO executionDto = mapper
                 .mapActionSpecToActionApiDTO(actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID, ActionDetailLevel.EXECUTION)
                 .getExecutionStatus();
@@ -2514,6 +2578,9 @@ public class ActionSpecMapperTest {
                 .setActionState(ActionDTO.ActionState.IN_PROGRESS)
                 .setRecommendation(buildAction(actionInfoWithPrimaryProvider, scaleExplanation))
                 .build();
+        final MultiEntityRequest dbReq = ApiTestUtils.mockMultiFullEntityReq(Lists.newArrayList());
+        when(repositoryApi.entitiesRequest(Collections.emptySet()))
+                .thenReturn(dbReq);
         ActionApiDTO scaleWithinTierActionApiDTO = mapper
                 .mapActionSpecToActionApiDTO(scaleWithinTierWithPrimaryProviderActionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID, ActionDetailLevel.EXECUTION);
         assertTrue(scaleWithinTierActionApiDTO.getCurrentEntity() != null);
@@ -2530,6 +2597,8 @@ public class ActionSpecMapperTest {
                 .setActionState(ActionDTO.ActionState.IN_PROGRESS)
                 .setRecommendation(buildAction(actionInfoWithoutPrimaryProvider, anoterScaleExplanation))
                 .build();
+        when(repositoryApi.entitiesRequest(Collections.emptySet()))
+                .thenReturn(dbReq);
         ActionApiDTO scaleWithinTierWithoutPrimaryProvider = mapper
                 .mapActionSpecToActionApiDTO(scaleWithinTierWithoutPrimaryProviderActionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID, ActionDetailLevel.EXECUTION);
         assertTrue(scaleWithinTierWithoutPrimaryProvider.getCurrentEntity() != null);
@@ -2561,6 +2630,9 @@ public class ActionSpecMapperTest {
                 .setActionState(ActionDTO.ActionState.IN_PROGRESS)
                 .setRecommendation(buildAction(actionInfo, placement))
                 .build();
+        final MultiEntityRequest dbReq = ApiTestUtils.mockMultiFullEntityReq(Lists.newArrayList());
+        when(repositoryApi.entitiesRequest(Collections.emptySet()))
+                .thenReturn(dbReq);
         ActionExecutionAuditApiDTO executionDto = mapper
                 .mapActionSpecToActionApiDTO(actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID, ActionDetailLevel.EXECUTION)
                 .getExecutionStatus();
@@ -2629,6 +2701,9 @@ public class ActionSpecMapperTest {
                 .setActionState(ActionDTO.ActionState.SUCCEEDED)
                 .setRecommendation(buildAction(actionInfo, placement))
                 .build();
+        final MultiEntityRequest dbReq = ApiTestUtils.mockMultiFullEntityReq(Lists.newArrayList());
+        when(repositoryApi.entitiesRequest(Collections.emptySet()))
+                .thenReturn(dbReq);
         final ActionExecutionAuditApiDTO executionDto = mapper
                 .mapActionSpecToActionApiDTO(actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID, ActionDetailLevel.EXECUTION)
                 .getExecutionStatus();
@@ -2668,6 +2743,9 @@ public class ActionSpecMapperTest {
                 .setActionState(ActionDTO.ActionState.FAILED)
                 .setRecommendation(buildAction(actionInfo, placement))
                 .build();
+        final MultiEntityRequest dbReq = ApiTestUtils.mockMultiFullEntityReq(Lists.newArrayList());
+        when(repositoryApi.entitiesRequest(Collections.emptySet()))
+                .thenReturn(dbReq);
         final ActionExecutionAuditApiDTO executionDto = mapper
                 .mapActionSpecToActionApiDTO(actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID, ActionDetailLevel.EXECUTION)
                 .getExecutionStatus();
@@ -2700,6 +2778,9 @@ public class ActionSpecMapperTest {
                 .setActionState(ActionDTO.ActionState.QUEUED)
                 .setRecommendation(buildAction(actionInfo, placement))
                 .build();
+        final MultiEntityRequest dbReq = ApiTestUtils.mockMultiFullEntityReq(Lists.newArrayList());
+        when(repositoryApi.entitiesRequest(Collections.emptySet()))
+                .thenReturn(dbReq);
         final ActionExecutionAuditApiDTO executionDto = mapper
                 .mapActionSpecToActionApiDTO(actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID, ActionDetailLevel.EXECUTION)
                 .getExecutionStatus();
@@ -2767,6 +2848,9 @@ public class ActionSpecMapperTest {
                     .build())
                 .build())
             .build();
+        final MultiEntityRequest dbReq = ApiTestUtils.mockMultiFullEntityReq(Lists.newArrayList());
+        when(repositoryApi.entitiesRequest(Collections.emptySet()))
+                .thenReturn(dbReq);
 
         ActionSpec templateAction = buildActionSpec(moveInfo, compliance);
         assertActionState(templateAction, ActionDTO.ActionState.READY, ActionState.READY);
