@@ -1,0 +1,38 @@
+syntax = "proto2";
+package cloud_commitment_dto;
+
+option java_package = "com.vmturbo.common.protobuf.cloud";
+option java_outer_classname = "CloudCommitmentDTO";
+
+enum CloudCommitmentType {
+    RESERVED_INSTANCE = 1;
+}
+
+enum CloudCommitmentScope {
+    BILLING_FAMILY = 1;
+    ACCOUNT = 2;
+}
+
+enum CloudCommitmentLocation {
+    AVAILABILITY_ZONE = 1;
+    REGION = 2;
+    GLOBAL = 3;
+}
+
+enum CloudCommitmentReferenceFilterType {
+    // Filter for cloud commitments purchased by/in the reference in the filter.
+    PURCHASED_BY = 0;
+
+    // Filter for CCs that are covering entities in the reference (e.g. account/region) of the filter.
+    USED_BY = 1;
+
+    // Union of the previous two types.
+    USED_AND_PURCHASED_BY = 2;
+}
+
+message AccountFilter {
+    // A list of account ids need to filter by.
+    repeated int64 account_id = 1;
+    // describes the semantics of the passed account Ids.
+    optional CloudCommitmentReferenceFilterType account_filter_type = 2 [default = PURCHASED_BY];
+}

@@ -6,7 +6,7 @@ import java.util.Optional;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.AccountFilter;
 import com.vmturbo.common.protobuf.cost.Cost.AvailabilityZoneFilter;
 import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
 

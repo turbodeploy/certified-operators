@@ -6,7 +6,7 @@ import org.immutables.value.Value.Auxiliary;
 import org.immutables.value.Value.Derived;
 
 import com.vmturbo.cloud.common.commitment.CloudCommitmentData;
-import com.vmturbo.common.protobuf.cloud.CloudCommitment.CloudCommitmentType;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentType;
 
 /**
  * A container for the aggregation of a set of cloud commitments, based on some aggregation logic. The

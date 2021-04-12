@@ -42,8 +42,8 @@ import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest.EntityStatsPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IReservedInstancesService;
 import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
-import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
-import com.vmturbo.common.protobuf.cost.Cost.AccountFilter.AccountFilterType;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.AccountFilter;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentReferenceFilterType;
 import com.vmturbo.common.protobuf.cost.Cost.AvailabilityZoneFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetPlanReservedInstanceBoughtRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByFilterRequest;
@@ -128,7 +128,8 @@ public class ReservedInstancesService implements IReservedInstancesService {
             .orElse(UuidMapper.UI_REAL_TIME_MARKET_STR);
 
         final ApiId scope = uuidMapper.fromUuid(scopeUuid);
-        final AccountFilterType accountFilterType = filterType == null ? AccountFilterType.PURCHASED_BY
+        final CloudCommitmentReferenceFilterType accountFilterType = filterType == null
+                ? CloudCommitmentReferenceFilterType.PURCHASED_BY
                 : ReservedInstanceMapper.mapApiAccountFilterTypeToXl(filterType.name());
         final Collection<ReservedInstanceBought> reservedInstancesBought = getReservedInstancesBought(
                 scope, Objects.isNull(includeAllUsable) ? false : includeAllUsable, accountFilterType);
@@ -167,7 +168,7 @@ public class ReservedInstancesService implements IReservedInstancesService {
      */
     private Collection<ReservedInstanceBought> getReservedInstancesBought(
             @Nonnull ApiId scope, @Nonnull Boolean includeAllUsable,
-            final AccountFilterType accountFilterType)
+            final CloudCommitmentReferenceFilterType accountFilterType)
             throws UnknownObjectException {
         String scopeUuid = String.valueOf(scope.oid());
         final Optional<Grouping> groupOptional = groupExpander.getGroup(scopeUuid);
@@ -205,7 +206,7 @@ public class ReservedInstancesService implements IReservedInstancesService {
                  This should be cleaned by by a follow up story where
                  the account filter type sent in by the UI should be moved outside
                  as a generic RI filter type. */
-                if (accountFilterType == AccountFilterType.USED_AND_PURCHASED_BY) {
+                if (accountFilterType == CloudCommitmentReferenceFilterType.USED_AND_PURCHASED_BY) {
                     requestBuilder.setExcludeUndiscoveredUnused(true);
                 }
 

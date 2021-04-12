@@ -25,9 +25,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.exception.DataAccessException;
 
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentReferenceFilterType;
 import com.vmturbo.common.protobuf.cost.BuyReservedInstanceServiceGrpc.BuyReservedInstanceServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.Cost;
-import com.vmturbo.common.protobuf.cost.Cost.AccountFilter.AccountFilterType;
 import com.vmturbo.common.protobuf.cost.Cost.GetBuyReservedInstancesByFilterRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetBuyReservedInstancesByFilterResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByFilterRequest;
@@ -264,7 +264,7 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
 
         final ReservedInstanceBoughtFilter riBoughtFilter =
                 ReservedInstanceBoughtFilter.newBuilder()
-                        .cloudScopeTuples(cloudScopeTuples, AccountFilterType.USED_AND_PURCHASED_BY)
+                        .cloudScopeTuples(cloudScopeTuples, CloudCommitmentReferenceFilterType.USED_AND_PURCHASED_BY)
                         .build();
 
 

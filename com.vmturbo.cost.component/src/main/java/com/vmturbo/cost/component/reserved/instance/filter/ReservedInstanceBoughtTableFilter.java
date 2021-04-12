@@ -14,8 +14,8 @@ import javax.annotation.Nullable;
 
 import org.jooq.Condition;
 
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentReferenceFilterType;
 import com.vmturbo.common.protobuf.cost.Cost;
-import com.vmturbo.common.protobuf.cost.Cost.AccountFilter.AccountFilterType;
 import com.vmturbo.cost.component.db.Tables;
 
 /**
@@ -96,7 +96,7 @@ public abstract class ReservedInstanceBoughtTableFilter extends ReservedInstance
         }
 
         if (accountFilter.getAccountIdCount() > 0) {
-            AccountFilterType filterType = accountFilter.getAccountFilterType();
+            CloudCommitmentReferenceFilterType filterType = accountFilter.getAccountFilterType();
             switch (filterType) {
                     case PURCHASED_BY:
                         conditions.add(Tables.RESERVED_INSTANCE_BOUGHT.BUSINESS_ACCOUNT_ID.in(

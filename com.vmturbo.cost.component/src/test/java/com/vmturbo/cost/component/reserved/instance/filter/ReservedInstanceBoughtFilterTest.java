@@ -21,8 +21,8 @@ import org.jooq.impl.DefaultDSLContext;
 import org.junit.Assert;
 import org.junit.Test;
 
-import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
-import com.vmturbo.common.protobuf.cost.Cost.AccountFilter.AccountFilterType;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.AccountFilter;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentReferenceFilterType;
 import com.vmturbo.common.protobuf.cost.Cost.AvailabilityZoneFilter;
 import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -111,7 +111,7 @@ public class ReservedInstanceBoughtFilterTest {
         ReservedInstanceBoughtFilter testFilter =
                 ReservedInstanceBoughtFilter.newBuilder()
                         .accountFilter(AccountFilter.newBuilder()
-                                .setAccountFilterType(AccountFilterType.USED_BY)
+                                .setAccountFilterType(CloudCommitmentReferenceFilterType.USED_BY)
                                 .addAccountId(10).build())
                         .build();
         final List<Condition> conditions =
@@ -137,7 +137,7 @@ public class ReservedInstanceBoughtFilterTest {
         ReservedInstanceBoughtFilter testFilter =
                 ReservedInstanceBoughtFilter.newBuilder()
                         .accountFilter(AccountFilter.newBuilder()
-                                .setAccountFilterType(AccountFilterType.USED_AND_PURCHASED_BY)
+                                .setAccountFilterType(CloudCommitmentReferenceFilterType.USED_AND_PURCHASED_BY)
                                 .addAccountId(10).build())
                         .build();
         final List<Condition> conditions =
