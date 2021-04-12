@@ -16,7 +16,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.external.api.mapper.ExceptionMapper;
 import com.vmturbo.api.component.external.api.mapper.ProbeMapper;
-import com.vmturbo.api.component.external.api.serviceinterfaces.IProbesService;
+import com.vmturbo.api.serviceinterfaces.IProbesService;
 import com.vmturbo.api.component.external.api.util.target.TargetMapper;
 import com.vmturbo.api.dto.probe.ProbeApiDTO;
 import com.vmturbo.api.dto.probe.ProbePropertyApiDTO;

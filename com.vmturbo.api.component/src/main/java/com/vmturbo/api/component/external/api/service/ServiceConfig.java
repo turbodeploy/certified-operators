@@ -23,7 +23,7 @@ import com.vmturbo.api.component.external.api.listener.HttpSessionListener;
 import com.vmturbo.api.component.external.api.mapper.CloudTypeMapper;
 import com.vmturbo.api.component.external.api.mapper.CpuInfoMapper;
 import com.vmturbo.api.component.external.api.mapper.MapperConfig;
-import com.vmturbo.api.component.external.api.serviceinterfaces.IProbesService;
+import com.vmturbo.api.serviceinterfaces.IProbesService;
 import com.vmturbo.api.component.external.api.util.BusinessAccountRetriever;
 import com.vmturbo.api.component.external.api.util.ReportingUserCalculator;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
