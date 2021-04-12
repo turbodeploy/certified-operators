@@ -149,7 +149,9 @@ public class CloudTopologyConverter {
         logger.info("Beginning creation of market tier trader TOs");
 
         final Map<Long, Set<AccountPricingData<TopologyEntityDTO>>> accountPricingDataByTier = new HashMap<>();
-        Collection<TopologyEntityDTO> entityDTOs = new ArrayList<>();
+        // Use HashSet to deduplicate market tier entityDTOs to create traderTOs because there could
+        // be same market tiers discovered from different BusinessAccounts.
+        Collection<TopologyEntityDTO> entityDTOs = new HashSet<>();
         for (Entry<AccountPricingData<TopologyEntityDTO>, Collection<Long>> entry: businessAccountOidByAccountPricingData
                 .asMap().entrySet()) {
             Collection<Long> businessAccountOids = entry.getValue();
