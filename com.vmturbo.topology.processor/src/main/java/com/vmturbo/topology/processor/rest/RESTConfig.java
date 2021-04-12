@@ -127,6 +127,11 @@ public class RESTConfig extends WebMvcConfigurerAdapter {
     }
 
     @Bean
+    public IdentityController identityController() {
+        return new IdentityController(entityConfig.entityStore());
+    }
+
+    @Bean
     public TargetController targetController() {
         return new TargetController(
                 schedulerConfig.scheduler(),

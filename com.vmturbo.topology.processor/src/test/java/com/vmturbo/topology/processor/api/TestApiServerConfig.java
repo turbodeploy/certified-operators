@@ -73,6 +73,7 @@ import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityProviderImpl;
 import com.vmturbo.topology.processor.identity.IdentityService;
+import com.vmturbo.topology.processor.identity.StaleOidManagerImpl;
 import com.vmturbo.topology.processor.identity.services.HeuristicsMatcher;
 import com.vmturbo.topology.processor.identity.storage.IdentityDatabaseStore;
 import com.vmturbo.topology.processor.identity.storage.IdentityServiceInMemoryUnderlyingStore;
@@ -208,7 +209,7 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
     @Bean
     public IdentityProvider identityProvider() {
             return Mockito.spy(new IdentityProviderImpl(keyValueStore(), compatibilityChecker(),
-                0L, mock(IdentityDatabaseStore.class), 10, 0, false));
+                0L, mock(IdentityDatabaseStore.class), 10, 0, false,  mock(StaleOidManagerImpl.class)));
     }
 
     @Bean

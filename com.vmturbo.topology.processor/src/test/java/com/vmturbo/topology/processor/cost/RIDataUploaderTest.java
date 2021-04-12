@@ -60,6 +60,7 @@ import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader.TargetCos
 import com.vmturbo.topology.processor.cost.RICostDataUploader.RICostComponentData;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityProviderImpl;
+import com.vmturbo.topology.processor.identity.StaleOidManagerImpl;
 import com.vmturbo.topology.processor.identity.storage.IdentityDatabaseStore;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.probes.ProbeInfoCompatibilityChecker;
@@ -90,7 +91,7 @@ public class RIDataUploaderTest {
     private IdentityProvider identityProvider = new IdentityProviderImpl(
             keyValueStore,
             new ProbeInfoCompatibilityChecker(), 0L, mock(IdentityDatabaseStore.class), 10,  0,
-        false);
+        false, mock(StaleOidManagerImpl.class));
 
     private StitchingContext mockStitchingContext = Mockito.mock(StitchingContext.class);
 
