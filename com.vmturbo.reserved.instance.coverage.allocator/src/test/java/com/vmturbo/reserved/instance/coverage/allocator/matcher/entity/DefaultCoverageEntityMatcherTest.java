@@ -19,8 +19,8 @@ import com.google.common.collect.Iterables;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.vmturbo.common.protobuf.cloud.CloudCommitment.CloudCommitmentLocation;
-import com.vmturbo.common.protobuf.cloud.CloudCommitment.CloudCommitmentScope;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentLocation;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentScope;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;

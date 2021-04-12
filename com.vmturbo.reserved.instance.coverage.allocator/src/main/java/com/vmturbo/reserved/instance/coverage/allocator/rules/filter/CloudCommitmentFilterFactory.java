@@ -4,7 +4,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.base.Preconditions;
 
-import com.vmturbo.common.protobuf.cloud.CloudCommitment.CloudCommitmentType;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentType;
 import com.vmturbo.reserved.instance.coverage.allocator.rules.filter.CloudCommitmentFilter.CloudCommitmentFilterConfig;
 import com.vmturbo.reserved.instance.coverage.allocator.rules.filter.ReservedInstanceFilter.ReservedInstanceFilterConfig;
 

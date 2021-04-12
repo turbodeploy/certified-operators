@@ -4,6 +4,7 @@ package cloud_commitment;
 option java_package = "com.vmturbo.common.protobuf.cloud";
 option java_outer_classname = "CloudCommitmentServices";
 
+import "cloud/CloudCommitmentDTO.proto";
 import "cost/Cost.proto";
 import "CommonCost.proto";
 
@@ -75,7 +76,7 @@ message GetCommitmentStatRecordRequest {
 
     // filters become necessary when scopes other than global are supported
     optional cost.RegionFilter region_filter = 4;
-    optional cost.AccountFilter account_filter = 5;
+    optional cloud_commitment_dto.AccountFilter account_filter = 5;
     // for utilization requests, entity filter is ignored
     optional cost.EntityFilter entity_filter = 6;
 

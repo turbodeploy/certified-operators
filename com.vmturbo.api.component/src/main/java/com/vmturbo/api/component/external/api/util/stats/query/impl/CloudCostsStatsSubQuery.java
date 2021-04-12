@@ -63,6 +63,7 @@ import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.AccountFilter;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenseQueryScope;
@@ -876,7 +877,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
                         context.getInputScope().getScopeTypes().get().iterator().next();
                 switch (scopeType) {
                     case BUSINESS_ACCOUNT:
-                        cloudCostStatsQuery.setAccountFilter(Cost.AccountFilter.newBuilder()
+                        cloudCostStatsQuery.setAccountFilter(AccountFilter.newBuilder()
                                 .addAllAccountId(entityStatOids));
                         break;
                     case REGION:

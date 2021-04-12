@@ -14,7 +14,7 @@ import com.google.common.base.Predicates;
 import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregate;
-import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.AccountFilter;
 import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
@@ -22,7 +22,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.reserved.instance.coverage.allocator.ReservedInstanceCoverageJournal;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopology;
-import com.vmturbo.reserved.instance.coverage.allocator.utils.ReservedInstanceHelper;
 
 /**
  * Provides an initial filter of a {@link CoverageTopology}, based on topology filters and current
