@@ -261,6 +261,9 @@ public class CompoundMoveTest {
      */
     @Test
     public void testSimpleAction() throws Exception {
+        final MultiEntityRequest dbReq = ApiTestUtils.mockMultiFullEntityReq(Lists.newArrayList());
+        when(repositoryApi.entitiesRequest(Collections.emptySet()))
+                .thenReturn(dbReq);
         ActionDTO.Action moveStorage = makeAction(TARGET_ENTITY_ID, VM, ST1_ID, ST, ST2_ID, ST, null);
         ActionApiDTO apiDto = mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveStorage), REAL_TIME_TOPOLOGY_CONTEXT_ID);
         assertSame(ActionType.MOVE, apiDto.getActionType());
@@ -279,6 +282,9 @@ public class CompoundMoveTest {
      */
     @Test
     public void testSimpleActionWithResource() throws Exception {
+        final MultiEntityRequest dbReq = ApiTestUtils.mockMultiFullEntityReq(Lists.newArrayList());
+        when(repositoryApi.entitiesRequest(Collections.emptySet()))
+                .thenReturn(dbReq);
         ActionDTO.Action moveVolume = makeAction(TARGET_ENTITY_ID, VM, ST1_ID, ST, ST2_ID, ST, VOL1_ID);
         ActionApiDTO apiDto = mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveVolume), REAL_TIME_TOPOLOGY_CONTEXT_ID);
         assertSame(ActionType.MOVE, apiDto.getActionType());
@@ -295,6 +301,9 @@ public class CompoundMoveTest {
      */
     @Test
     public void testCompoundAction1() throws Exception {
+        final MultiEntityRequest dbReq = ApiTestUtils.mockMultiFullEntityReq(Lists.newArrayList());
+        when(repositoryApi.entitiesRequest(Collections.emptySet()))
+                .thenReturn(dbReq);
         ActionDTO.Action moveBoth1 = makeAction(TARGET_ENTITY_ID, VM, ST1_ID, ST, ST2_ID, ST, PM1_ID, PM, PM2_ID, PM);
         ActionApiDTO apiDto = mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveBoth1), REAL_TIME_TOPOLOGY_CONTEXT_ID);
         assertSame(ActionType.MOVE, apiDto.getActionType());
@@ -311,6 +320,9 @@ public class CompoundMoveTest {
      */
     @Test
     public void testCompoundAction2() throws Exception {
+        final MultiEntityRequest dbReq = ApiTestUtils.mockMultiFullEntityReq(Lists.newArrayList());
+        when(repositoryApi.entitiesRequest(Collections.emptySet()))
+                .thenReturn(dbReq);
         ActionDTO.Action moveBoth2 = makeAction(TARGET_ENTITY_ID, VM,
             PM1_ID, PM, PM2_ID, PM, ST1_ID, ST, ST2_ID, ST); // different order
         ActionApiDTO apiDto = mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveBoth2), REAL_TIME_TOPOLOGY_CONTEXT_ID);

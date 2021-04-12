@@ -4,7 +4,7 @@ import static org.junit.Assert.assertEquals;
 
 import org.junit.Test;
 
-import com.vmturbo.api.dto.entityaspect.DBEntityAspectApiDTO;
+import com.vmturbo.api.dto.entityaspect.DatabaseServerEntityAspectApiDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DatabaseInfo;
@@ -14,7 +14,10 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DeploymentType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.LicenseModel;
 
-public class DatabaseAspectMapperTest extends BaseAspectMapperTest {
+/**
+ * Tests to ensure {@link DatabaseServerAspectMapper} behaves as intended.
+ */
+public class DatabaseServerAspectMapperTest extends BaseAspectMapperTest {
 
     private static final DatabaseEdition TEST_DATABASE_EDITION = DatabaseEdition.ENTERPRISE;
     private static final String RAW_DATABASE_EDITION = "Enterprise Edition";
@@ -28,42 +31,41 @@ public class DatabaseAspectMapperTest extends BaseAspectMapperTest {
     private static final String STORAGE_AMOUNT = "2";
     private static final String DB_SERVER_NAME = "dbServer1";
 
-    private static final long TEST_OID = 123L;
-
+    /**
+     * Tests the mapping of a DatabaseServer entity to it's corresponding aspect.
+     */
     @Test
     public void testMapEntityToAspect() {
         // arrange
         final TopologyEntityDTO.Builder topologyEntityDTO = topologyEntityDTOBuilder(
-            EntityType.DATABASE,
-            TypeSpecificInfo.newBuilder()
-                .setDatabase(DatabaseInfo.newBuilder()
-                    .setEdition(TEST_DATABASE_EDITION)
-                    .setRawEdition(RAW_DATABASE_EDITION)
-                    .setEngine(TEST_DATABASE_ENGINE)
-                    .setVersion(TEST_DATABASE_VERSION)
-                    .setDeploymentType(TEST_DEPLOYMENT_TYPE)
-                    .setLicenseModel(TEST_LICENSE_MODEL))
-                .build())
+                EntityType.DATABASE_SERVER,
+                TypeSpecificInfo.newBuilder()
+                        .setDatabase(DatabaseInfo.newBuilder()
+                                .setEdition(TEST_DATABASE_EDITION)
+                                .setRawEdition(RAW_DATABASE_EDITION)
+                                .setEngine(TEST_DATABASE_ENGINE)
+                                .setVersion(TEST_DATABASE_VERSION)
+                                .setDeploymentType(TEST_DEPLOYMENT_TYPE)
+                                .setLicenseModel(TEST_LICENSE_MODEL))
+                        .build())
                 .putEntityPropertyMap("max_concurrent_session", "400")
                 .putEntityPropertyMap("max_concurrent_worker", "10")
                 .putEntityPropertyMap("pricing_model", PRICING_MODEL)
                 .putEntityPropertyMap("storage_amount", STORAGE_AMOUNT)
                 .putEntityPropertyMap("DB_SERVER_NAME", DB_SERVER_NAME);
 
-        final DatabaseAspectMapper mapper = new DatabaseAspectMapper();
+        final DatabaseServerAspectMapper mapper = new DatabaseServerAspectMapper();
         // act
-        final DBEntityAspectApiDTO dbAspect = mapper.mapEntityToAspect(topologyEntityDTO.build());
+        final DatabaseServerEntityAspectApiDTO databaseServerAspect = mapper.mapEntityToAspect(topologyEntityDTO.build());
         // assert
-        assertEquals(RAW_DATABASE_EDITION, dbAspect.getDbEdition());
-        assertEquals(TEST_DATABASE_ENGINE.name(), dbAspect.getDbEngine());
-        assertEquals(TEST_DATABASE_VERSION, dbAspect.getDbVersion());
-        assertEquals(TEST_LICENSE_MODEL.name(), dbAspect.getLicenseModel());
-        assertEquals(TEST_DEPLOYMENT_TYPE.name(), dbAspect.getDeploymentType());
-        assertEquals(TEST_DEPLOYMENT_TYPE.name(), dbAspect.getDeploymentType());
-        assertEquals(MAX_CONCURRENT_SESSION, dbAspect.getMaxConcurrentSessions());
-        assertEquals(MAX_CONCURRENT_WORKER, dbAspect.getMaxConcurrentWorkers());
-        assertEquals(PRICING_MODEL, dbAspect.getPricingModel());
-        assertEquals(DB_SERVER_NAME, dbAspect.getDbServerName());
-
+        assertEquals(RAW_DATABASE_EDITION, databaseServerAspect.getDbEdition());
+        assertEquals(TEST_DATABASE_ENGINE.name(), databaseServerAspect.getDbEngine());
+        assertEquals(TEST_DATABASE_VERSION, databaseServerAspect.getDbVersion());
+        assertEquals(TEST_LICENSE_MODEL.name(), databaseServerAspect.getLicenseModel());
+        assertEquals(TEST_DEPLOYMENT_TYPE.name(), databaseServerAspect.getDeploymentType());
+        assertEquals(TEST_DEPLOYMENT_TYPE.name(), databaseServerAspect.getDeploymentType());
+        assertEquals(MAX_CONCURRENT_SESSION, databaseServerAspect.getMaxConcurrentSessions());
+        assertEquals(MAX_CONCURRENT_WORKER, databaseServerAspect.getMaxConcurrentWorkers());
+        assertEquals(PRICING_MODEL, databaseServerAspect.getPricingModel());
     }
 }
