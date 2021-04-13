@@ -19,7 +19,7 @@ roleBindingFile="/opt/turbonomic/kubernetes/operator/deploy/cluster_role_binding
 crdsFile="/opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_crd.yaml"
 operatorFile="/opt/turbonomic/kubernetes/operator/deploy/operator.yaml"
 chartsFile="/opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml"
-localStorageDataDirectory="/opt/local/data"
+localStorageDataDirectory="/data/turbonomic/"
 
 # Set the ip address for a single node setup.  Multinode should have the
 # ip values set manually in /opt/local/etc/turbo.conf
