@@ -52,7 +52,6 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEnti
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
-import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyRequest;
@@ -354,8 +353,7 @@ public class FailedCloudResizeTierExcluder {
                                 .addPropertyFilters(PropertyFilter.newBuilder()
                                         .setPropertyName(SearchableProperties.DISPLAY_NAME)
                                         .setStringFilter(StringFilter.newBuilder()
-                                            .setStringPropertyRegex(SearchProtoUtil
-                                                            .escapeSpecialCharactersInLiteral(groupName)))))
+                                                .setStringPropertyRegex(Pattern.quote(groupName)))))
                         .build());
 
         while (groupResponse.hasNext()) {

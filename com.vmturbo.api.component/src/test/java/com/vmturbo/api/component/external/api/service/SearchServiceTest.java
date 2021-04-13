@@ -39,6 +39,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -204,24 +205,24 @@ public class SearchServiceTest {
     private ImmutableMap<String, ImmutableMap<QueryType, String>> nameQueryMap =
             ImmutableMap.<String, ImmutableMap<QueryType, String>>builder()
                     .put(".*win.*", ImmutableMap.<QueryType, String>builder()
-                            .put(QueryType.CONTAINS, "^.*win.*$")
-                            .put(QueryType.EXACT, "^\\.\\*win\\.\\*$")
+                            .put(QueryType.CONTAINS, "^.*\\Qwin\\E.*$")
+                            .put(QueryType.EXACT, "^\\Q.*win.*\\E$")
                             .put(QueryType.REGEX, "^.*win.*$")
                             .build())
 
                     .put(".*win (.*", ImmutableMap.<QueryType, String>builder()
-                            .put(QueryType.CONTAINS, "^.*win \\(.*$")
-                            .put(QueryType.EXACT, "^\\.\\*win \\(\\.\\*$")
+                            .put(QueryType.CONTAINS, "^.*\\Qwin (\\E.*$")
+                            .put(QueryType.EXACT, "^\\Q.*win (.*\\E$")
                             .put(QueryType.REGEX, "^.*win (.*$")
                             .build())
                     .put("win (", ImmutableMap.<QueryType, String>builder()
-                            .put(QueryType.CONTAINS, "^.*win \\(.*$")
-                            .put(QueryType.EXACT, "^win \\($")
+                            .put(QueryType.CONTAINS, "^.*\\Qwin (\\E.*$")
+                            .put(QueryType.EXACT, "^\\Qwin (\\E$")
                             .put(QueryType.REGEX, "^win ($")
                             .build())
                     .put("win (=| .*", ImmutableMap.<QueryType, String>builder()
-                            .put(QueryType.CONTAINS, "^.*win \\(=\\| .*$")
-                            .put(QueryType.EXACT, "^win \\(=\\| \\.\\*$")
+                            .put(QueryType.CONTAINS, "^.*\\Qwin (=| \\E.*$")
+                            .put(QueryType.EXACT, "^\\Qwin (=| .*\\E$")
                             .put(QueryType.REGEX, "^win (=| .*$")
                             .build())
                     .build();
@@ -1356,7 +1357,7 @@ public class SearchServiceTest {
         assertEquals(1, searchParameters.getSearchFilterCount());
         SearchFilter nameFilter = searchParameters.getSearchFilter(0);
         String value = nameFilter.getPropertyFilter().getStringFilter().getStringPropertyRegex();
-        assertEquals("^.*\\[b.*$", value);
+        assertEquals("^.*\\Q[b\\E.*$", value);
 
         verify(paginatedSearchRequestMock, times(1)).getResponse();
         assertTrue(scopeIds.getValue().isEmpty());
@@ -1505,7 +1506,7 @@ public class SearchServiceTest {
         verify(businessAccountRetriever).getBusinessAccountsInScope(eq(null), resultCaptor.capture());
         FilterApiDTO filterApiDTOCaptured = resultCaptor.getValue().get(0);
         assertEquals(filterApiDTOCaptured.getExpType(), EntityFilterMapper.REGEX_MATCH);
-        assertEquals(filterApiDTOCaptured.getExpVal(), ".*" + "test" + ".*" );
+        assertEquals(filterApiDTOCaptured.getExpVal(), ".*" + Pattern.quote("test") + ".*" );
         assertEquals(filterApiDTOCaptured.getFilterType(), "businessAccountByName");
     }
 
@@ -1572,7 +1573,7 @@ public class SearchServiceTest {
         Collection<SearchFilter> searchFilters = searchQuery.getSearchParameters(0).getSearchFilterList();
 
         SearchFilter queryFilter = SearchProtoUtil.searchFilterProperty(
-                        SearchProtoUtil.nameFilterRegex("^.*foo.*$"));
+                        SearchProtoUtil.nameFilterRegex("^.*\\Qfoo\\E.*$"));
 
         assertTrue(searchFilters.contains(queryFilter));
 

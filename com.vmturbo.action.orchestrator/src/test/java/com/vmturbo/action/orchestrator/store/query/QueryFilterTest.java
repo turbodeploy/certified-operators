@@ -7,8 +7,11 @@ import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.regex.Pattern;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -594,7 +597,7 @@ public class QueryFilterTest {
 
         // match 4
         filter = ActionQueryFilter.newBuilder()
-                .setDescriptionQuery("^.*" + "t2\\.nano" + ".*$")
+                .setDescriptionQuery("^.*" + Pattern.quote("t2.nano") + ".*$")
                 .build();
         when(actionView.getDescription()).thenReturn("Scale vm from template1 to t2.nano");
         assertTrue(new QueryFilter(filter, PlanActionStore.VISIBILITY_PREDICATE)

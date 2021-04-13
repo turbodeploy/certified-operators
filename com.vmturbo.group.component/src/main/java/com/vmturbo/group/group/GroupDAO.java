@@ -162,14 +162,14 @@ public class GroupDAO implements IGroupStore {
     private static final Logger logger = LogManager.getLogger();
 
     private static final Map<String, Function<PropertyFilter, Optional<Condition>>>
-            PROPERTY_FILTER_CONDITION_CREATORS;
+            PROPETY_FILTER_CONDITION_CREATORS;
 
     private final DSLContext dslContext;
 
     private final Set<GroupUpdateListener> groupUpdateListeners = Collections.synchronizedSet(new HashSet<>());
 
     static {
-        PROPERTY_FILTER_CONDITION_CREATORS =
+        PROPETY_FILTER_CONDITION_CREATORS =
                 ImmutableMap.<String, Function<PropertyFilter, Optional<Condition>>>builder().put(
                         SearchableProperties.DISPLAY_NAME,
                         GroupDAO::createDisplayNameSearchCondition)
@@ -313,12 +313,10 @@ public class GroupDAO implements IGroupStore {
             groupUpdateListeners.forEach(l -> l.onUserGroupCreated(oid, groupDefinition));
         } catch (DataAccessException e) {
             GROUP_STORE_ERROR_COUNT.labels(CREATE_LABEL).increment();
-            Status status = Status.ABORTED;
             if (e.getCause() instanceof DuplicateNameException) {
                 GROUP_STORE_DUPLICATE_NAME_COUNT.increment();
-                status = Status.ALREADY_EXISTS;
             }
-            throw new StoreOperationException(status, "Failed to store new group", e);
+            throw e;
         }
     }
 
@@ -353,17 +351,17 @@ public class GroupDAO implements IGroupStore {
         context.batch(inserts).execute();
     }
 
-    private void validatePropertyFilters(@Nullable GroupFilters groupFilters) throws StoreOperationException {
+    private void validatePropertyFilters(@Nullable GroupFilters groupFilters) {
         for (GroupFilter filter : groupFilters.getGroupFilterList()) {
             for (PropertyFilter propertyFilter : filter.getPropertyFiltersList()) {
-                if (!PROPERTY_FILTER_CONDITION_CREATORS.containsKey(
+                if (!PROPETY_FILTER_CONDITION_CREATORS.containsKey(
                         propertyFilter.getPropertyName())) {
-                    throw new StoreOperationException(Status.INVALID_ARGUMENT,
+                    throw new IllegalArgumentException(
                             "Property filter " + propertyFilter.getPropertyName()
                                     + " is not supported");
                 }
                 final Function<PropertyFilter, Optional<Condition>> conditionCreator =
-                    PROPERTY_FILTER_CONDITION_CREATORS.get(propertyFilter.getPropertyName());
+                    PROPETY_FILTER_CONDITION_CREATORS.get(propertyFilter.getPropertyName());
                 // try to apply the filter and check if it can be translated into real
                 // conditions, if not it throws an exception
                 conditionCreator.apply(propertyFilter);
@@ -1486,7 +1484,7 @@ public class GroupDAO implements IGroupStore {
         final Collection<Condition> allConditions = new ArrayList<>();
         for (PropertyFilter propertyFilter: propertyFilters) {
             final Function<PropertyFilter, Optional<Condition>> conditionCreator =
-                    PROPERTY_FILTER_CONDITION_CREATORS.get(propertyFilter.getPropertyName());
+                    PROPETY_FILTER_CONDITION_CREATORS.get(propertyFilter.getPropertyName());
             if (conditionCreator == null) {
                 throw new IllegalArgumentException(
                         "Unsupported property filter found: " + propertyFilter.getPropertyName());

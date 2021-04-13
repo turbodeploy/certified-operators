@@ -128,6 +128,13 @@ public class EntityFilterMapper {
     public static final String ELEMENTS_DELIMITER = ":";
     public static final String NESTED_FIELD_DELIMITER = "\\.";
 
+    /**
+     * We prepend  and append \Q and \E to string when we want to
+     * match something literally in regex if we have string with only those that is an empty
+     * string as well.
+     */
+    public static final String EMPTY_QUERY_STRING = "\\Q\\E";
+
     private static final String MEMBER_OF = "MemberOf";
 
     private static final String OWNER_OF = "OwnerOf";
@@ -556,8 +563,7 @@ public class EntityFilterMapper {
     public static List<String> splitWithEscapes(@Nonnull String string, char breakingChar) {
         // create a regex that describes the breaking character
         // even if that character is a Java regex metacharacter
-        final String breakingCharacterPattern = SearchProtoUtil
-                        .escapeSpecialCharactersInLiteral(Character.toString(breakingChar));
+        final String breakingCharacterPattern = Pattern.quote(Character.toString(breakingChar));
 
         // create a pattern that describes the pieces of the string
         // when broken at the unescaped breaking character
@@ -588,7 +594,7 @@ public class EntityFilterMapper {
         PropertyFilter byType = SearchProtoUtil.entityTypeFilter(entityType);
         final SearchParameters.Builder searchParameters = SearchParameters.newBuilder()
                         .setStartingFilter(byType);
-        if (!StringUtils.isEmpty(nameQuery)) {
+        if (!StringUtils.isEmpty(nameQuery) && !EMPTY_QUERY_STRING.equals(nameQuery)) {
             searchParameters.addSearchFilter(SearchProtoUtil.searchFilterProperty(
                             SearchProtoUtil.nameFilterRegex(nameQuery )));
         }
@@ -783,7 +789,7 @@ public class EntityFilterMapper {
                 case "#":
                     // numeric comparison
                     listFilter.setNumericFilter(SearchProtoUtil.numericFilter(
-                        Long.parseLong(filter.getExpVal()),
+                        Long.valueOf(filter.getExpVal()),
                             COMPARISON_STRING_TO_COMPARISON_OPERATOR.get(filter.getExpType())));
                     break;
                 default:
@@ -826,7 +832,7 @@ public class EntityFilterMapper {
                             .setPropertyName(key)
                             .setNumericFilter(NumericFilter.newBuilder()
                                     .setComparisonOperator(co)
-                                    .setValue(Integer.parseInt(value))
+                                    .setValue(Integer.valueOf(value))
                                     .build())
                             .build());
                 } else if (criteria.contains("=")) {
@@ -910,7 +916,7 @@ public class EntityFilterMapper {
             case "#":
                 // numeric comparison
                 currentFieldPropertyFilter = SearchProtoUtil.numericPropertyFilter(lastField,
-                        Long.parseLong(filter.getExpVal()),
+                        Long.valueOf(filter.getExpVal()),
                         COMPARISON_STRING_TO_COMPARISON_OPERATOR.get(filter.getExpType()));
                 break;
             default:
@@ -1018,7 +1024,7 @@ public class EntityFilterMapper {
                 // entity type. And note that hops number can not contains '+' or '-'.
                 if (StringUtils.isNumeric(currentToken)) {
                     // For example: Produces:1:VirtualMachine
-                    final int hops = Integer.parseInt(currentToken);
+                    final int hops = Integer.valueOf(currentToken);
                     if (hops <= 0) {
                         throw new IllegalArgumentException("Illegal hops number " + hops
                                         + "; should be positive.");
@@ -1074,7 +1080,7 @@ public class EntityFilterMapper {
             int vertexEntityType = ApiEntityType.fromString(stoppingEntityType).typeNumber();
             stopperBuilder.setVerticesCondition(VerticesCondition.newBuilder()
                     .setNumConnectedVertices(NumericFilter.newBuilder()
-                            .setValue(Long.parseLong(context.getFilter().getExpVal()))
+                            .setValue(Long.valueOf(context.getFilter().getExpVal()))
                             .setComparisonOperator(COMPARISON_STRING_TO_COMPARISON_OPERATOR.get(
                                     context.getFilter().getExpType())))
                     .setEntityType(vertexEntityType)

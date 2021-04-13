@@ -23,6 +23,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -147,11 +148,17 @@ public class SearchService implements ISearchService {
 
     private final PriceIndexPopulator priceIndexPopulator;
 
+    private final EntitySeverityServiceBlockingStub entitySeverityRpc;
+
+    private final SeverityPopulator severityPopulator;
+
     private final StatsHistoryServiceBlockingStub statsHistoryServiceRpc;
 
     private final PaginationMapper paginationMapper;
 
     private final GroupUseCaseParser groupUseCaseParser;
+
+    private final long realtimeContextId;
 
     private final TagsService tagsService;
 
@@ -160,6 +167,8 @@ public class SearchService implements ISearchService {
     private final UserSessionContext userSessionContext;
 
     private final GroupServiceBlockingStub groupServiceRpc;
+
+    private final ServiceEntityMapper serviceEntityMapper;
 
     private final EntityFilterMapper entityFilterMapper;
     private final SearchFilterResolver filterResolver;
@@ -195,14 +204,18 @@ public class SearchService implements ISearchService {
         this.groupsService = Objects.requireNonNull(groupsService);
         this.targetsService = Objects.requireNonNull(targetsService);
         this.searchServiceRpc = Objects.requireNonNull(searchServiceRpc);
+        this.entitySeverityRpc = Objects.requireNonNull(entitySeverityRpc);
+        this.severityPopulator = Objects.requireNonNull(severityPopulator);
         this.statsHistoryServiceRpc = Objects.requireNonNull(statsHistoryServiceRpc);
         this.groupExpander = Objects.requireNonNull(groupExpander);
         this.paginationMapper = Objects.requireNonNull(paginationMapper);
         this.groupUseCaseParser = groupUseCaseParser;
         this.tagsService = tagsService;
         this.businessAccountRetriever = businessAccountRetriever;
+        this.realtimeContextId = realtimeTopologyContextId;
         this.userSessionContext = userSessionContext;
         this.groupServiceRpc = Objects.requireNonNull(groupServiceRpc);
+        this.serviceEntityMapper = Objects.requireNonNull(serviceEntityMapper);
         this.entityFilterMapper = Objects.requireNonNull(entityFilterMapper);
         this.entityAspectMapper = Objects.requireNonNull(entityAspectMapper);
         this.priceIndexPopulator = Objects.requireNonNull(priceIndexPopulator);
@@ -289,7 +302,7 @@ public class SearchService implements ISearchService {
 
         nameRegexBuilder.replace(0,
                 nameRegexBuilder.length(),
-                SearchProtoUtil.escapeSpecialCharactersInLiteral(nameRegexBuilder.toString()));
+                escapeSpecialCharactersInSearchQueryPattern( nameRegexBuilder.toString()));
 
         nameRegexBuilder.insert(0, ".*");
         nameRegexBuilder.append(".*");
@@ -301,7 +314,7 @@ public class SearchService implements ISearchService {
             case CONTAINS:
                return escapeAndEncloseInDotAsterisk(nameQuery);
             case EXACT:
-                return SearchProtoUtil.escapeSpecialCharactersInLiteral(nameQuery);
+                return escapeSpecialCharactersInSearchQueryPattern(nameQuery);
             case REGEX:
             default:
                 return nameQuery;
@@ -667,7 +680,7 @@ public class SearchService implements ISearchService {
         }
         return entity -> {
             final ApiEntityType entityType = ApiEntityType.fromString(entity.getClassName());
-            final long oid = Long.parseLong(entity.getUuid());
+            final long oid = Long.valueOf(entity.getUuid());
             return userSessionContext.isEntityTypeAllowedForUser(entityType) &&
                 userSessionContext.getUserAccessScope().contains(oid);
         };
@@ -793,7 +806,7 @@ public class SearchService implements ISearchService {
             String scopeId = inputDTO.getScope().get(0);
             long businessAccountId;
             try {
-                businessAccountId = Long.parseLong(scopeId);
+                businessAccountId = Long.valueOf(scopeId);
             } catch (NumberFormatException ex) {
                 throw new UnsupportedOperationException("Invalid workload scope ID: " + scopeId);
             }
@@ -864,7 +877,7 @@ public class SearchService implements ISearchService {
                 nameFilter.setExpType(EntityFilterMapper.REGEX_MATCH);
                 break;
             case EXACT:
-                nameFilter.setExpVal(SearchProtoUtil.escapeSpecialCharactersInLiteral(stringToMatch));
+                nameFilter.setExpVal(escapeSpecialCharactersInSearchQueryPattern(stringToMatch));
                 nameFilter.setExpType(EntityFilterMapper.EQUAL);
             default:
                 break;
@@ -1427,6 +1440,21 @@ public class SearchService implements ISearchService {
         } else {
             return optionsProvider.getOptions(scopes, entityType, envType);
         }
+    }
+
+    /**
+     * Returns a String whose special characters have been escaped (if any)
+     *
+     * @param queryPattern the query string whose special characters will be escaped
+     * @return a String whose special characters have been escaped.
+     */
+    @Nullable
+    private String escapeSpecialCharactersInSearchQueryPattern(@Nullable String queryPattern) {
+        if (StringUtils.isEmpty(queryPattern)) {
+            return queryPattern;
+        }
+        // mark the pattern as a literal
+        return Pattern.quote(queryPattern);
     }
 
     /**
