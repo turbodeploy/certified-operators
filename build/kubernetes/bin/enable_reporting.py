@@ -96,17 +96,20 @@ class CustomResource:
 
 
 class EmbeddedReporting:
+    grafana_admin_password_path = 'spec grafana adminPassword'
+    grafana_db_password_path = 'spec grafana grafana.ini database password'
+
     def __init__(self, custom_resource):
         self.custom_resource = custom_resource
 
-    def enable(self, grafanaAdminPassword, dbPassword):
+    def enable(self, grafana_admin_password, grafana_db_password):
         self.custom_resource.set_value('spec grafana enabled', True)
         self.custom_resource.set_value('spec reporting enabled', True)
         self.custom_resource.set_value('spec timescaledb enabled', True)
         self.custom_resource.set_value('spec extractor enabled', True)
 
-        self.custom_resource.set_value('spec grafana adminPassword', grafanaAdminPassword)
-        self.custom_resource.set_value('spec grafana grafana.ini database password', dbPassword)
+        self.custom_resource.set_value(EmbeddedReporting.grafana_admin_password_path, grafana_admin_password)
+        self.custom_resource.set_value(EmbeddedReporting.grafana_db_password_path, grafana_db_password)
 
     def is_enabled(self):
         # This is the primary flag that determines whether reporting is enabled or not.
@@ -120,6 +123,8 @@ class EmbeddedReporting:
             self.check_property_enabled("reporting", warnings)
             self.check_property_enabled("extractor", warnings)
             self.check_property_enabled("timescaledb", warnings)
+            self.check_password(EmbeddedReporting.grafana_admin_password_path, warnings)
+            self.check_password(EmbeddedReporting.grafana_db_password_path, warnings)
 
         try:
             self.custom_resource.validate()
@@ -131,6 +136,11 @@ class EmbeddedReporting:
     def check_property_enabled(self, component, warnings_list):
         if not self.custom_resource.get_value('spec {} enabled'.format(component), False):
             warnings_list.append("spec.{}.enabled should be true".format(component))
+
+    def check_password(self, path, warnings):
+        pass_warn = validate_password(self.custom_resource.get_value(path))
+        if pass_warn is not None:
+            warnings.append("Problematic {} password: {}".format(path, pass_warn))
 
 
 # Restarts API pod to apply new configuration changes when grafana and extractor pods finished creation/deletion
@@ -168,6 +178,31 @@ def apply_and_wait(custom_resource_file, timeout, polling_interval_s):
     else:
         print("Grafana/Extractor pods are not created after timeout - Exiting")
         sys.exit(1)
+
+
+def collect_input(prompt, validation_fn):
+    collected_input = ""
+    while True:
+        collected_input = input(prompt)
+        warning = validation_fn(collected_input)
+        if warning is None:
+            break
+        else:
+            print(warning)
+    return collected_input
+
+
+# Run a password input through some validation rules.
+def validate_password(password_input):
+    if len(password_input) == 0:
+        return "Password must be non-empty."
+    if len(password_input) >= 100:
+        return "Password must be shorter than 100 characters"
+    if len(password_input) < 5:
+        return "Password must be longer than 5 characters."
+    if "#" in password_input or ";" in password_input:
+        return "Password should not contain # or ;"
+    return None
 
 
 def main():
@@ -208,9 +243,9 @@ def main():
         print("Embedded reporting is already enabled. Please contact support if it is not working.")
         return
 
-    grafana_admin_password = input("Enter Grafana Administrator password: ")
-    db_password = input("Enter Grafana database password: ")
-    embedded_reporting.enable(grafana_admin_password, db_password)
+    grafana_admin_password = collect_input("Set initial Grafana Administrator password: ", validate_password)
+    grafana_db_password = collect_input("Set Grafana database password: ", validate_password)
+    embedded_reporting.enable(grafana_admin_password, grafana_db_password)
 
     # write out custom resource component
     custom_resource.write()
