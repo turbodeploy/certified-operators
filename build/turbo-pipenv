@@ -1,0 +1,42 @@
+#!/bin/bash
+
+# This is a script that's used as an alternative to a local "pipenv" installation to allow
+# running python virtual environments from the maven build and on Jenkins.
+# The usage is identical to "pipenv".
+# The only caveat is that the working directory must be the one that has the Pipfile.
+
+# Arguments to "docker run".
+# --rm to remove container after it finishes running.
+# --user to run the command as the current user, to avoid file permission issues.
+# -v to mount the current directory as a volume, which allows pipenv to create a persistent virtual
+#    environment in the current working directory. This saves us from having to create and initialize
+#    a new virtual environment every time.
+COMMON_CMD="--rm --user $(id -u):$(id -g) -v $(pwd):/mounted_dir/ turbonomic/python-runner:latest"
+
+# Run the docker command, allocating a pseudo-TTY for pretty output.
+run_docker_pretty() {
+    docker run -t $COMMON_CMD $@
+}
+
+# Run the docker command without allocating a pseudo-TTY for pretty output.
+# Useful if the result of the command is being saved to a file.
+run_docker() {
+    docker run $COMMON_CMD $@
+}
+
+build_pex_binary() {
+    # Export the Pipfile requirements to a pip-compatible requirements.txt
+    run_docker lock -r > requirements.txt
+    # Create a .pex binary binary.
+    run_docker run pex -r requirements.txt -r extra_pex_reqs.txt -o target/output.pex -D $@ -e custom_resource_loader
+}
+
+case $1 in
+build)
+   build_pex_binary ${@:2};;
+*)
+   run_docker_pretty $@;;
+esac
+
+
+    
