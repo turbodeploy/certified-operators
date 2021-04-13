@@ -177,6 +177,11 @@
 
         <!-- timescaledb image tag pulled by builds of extractor and extractor-schema -->
         <timescaledb-image-tag>2.0.1-pg12</timescaledb-image-tag>
+
+        <!-- For modules with python code, this is the most likely relative location of the
+             turbo-pipenv script (since we almost never use nested modules).
+             Any nested modules should override this appropriately. -->
+        <pipenvScript>../build/turbo-pipenv</pipenvScript>
     </properties>
 
     <prerequisites>
@@ -1149,6 +1154,14 @@
             </modules>
         </profile>
 
+        <profile>
+            <id>scripts</id>
+            <modules>
+                <!-- Here there be some scripts -->
+                <module>kubernetes</module>
+            </modules>
+        </profile>
+
         <!-- Release profile. Builds all the active components. -->
         <profile>
             <id>release</id>
@@ -1186,6 +1199,10 @@
                 <!-- Generate XL python bindings. -->
                 <module>../xl-python</module>
                 <module>../grafana</module>
+
+                <!-- Include tests of kubernetes-related scripts. -->
+                <!-- TODO: Uncomment when DEVOPS-1416 is resolved and we have the python-runner image. -->
+                <!-- <module>kubernetes</module> -->
 
                 <!-- The meat of the XL code, and the platform components. -->
                 <module>../com.vmturbo.api.conversion</module>
@@ -1436,6 +1453,84 @@
                 </plugins>
             </build>
         </profile>
+
+        <!-- This profile is intended to "build" python code - mainly to run any existing tests.
+             We are using pipenv for our python dependency management, and any module with a
+             "Pipfile" has this profile activated on it.
+
+             The module needs to set the pipenvScript property to the location of the
+             turbo-pipenv script under build/. -->
+        <profile>
+            <id>python-build</id>
+            <activation>
+                <!-- The presence of a Pipfile in a module indicates that it's a python module -->
+                <file>
+                    <exists>${basedir}/Pipfile</exists>
+                </file>
+                <!-- The turbo-pipenv script does not work on Windows. -->
+                <os>
+                    <family>unix</family>
+                </os>
+            </activation>
+
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <configuration>
+                            <executable>bash</executable>
+                            <workingDirectory>${project.basedir}</workingDirectory>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <id>pythonbuild clean</id>
+                                <phase>clean</phase>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
+                                <configuration>
+                                    <arguments>
+                                        <argument>${pipenvScript}</argument>
+                                        <argument>clean</argument>
+                                    </arguments>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>pythonbuild install</id>
+                                <phase>compile</phase>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
+                                <configuration>
+                                    <arguments>
+                                        <argument>${pipenvScript}</argument>
+                                        <!-- The "dev" is important because that's where
+                                             test-only dependencies are specified -->
+                                        <argument>install --dev</argument>
+                                    </arguments>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>pythonbuild test</id>
+                                <phase>test</phase>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
+                                <configuration>
+                                    <skip>${maven.test.skip}</skip>
+                                    <arguments>
+                                        <argument>${pipenvScript}</argument>
+                                        <argument>run pytest</argument>
+                                    </arguments>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
     </profiles>
     <build>
         <extensions>
