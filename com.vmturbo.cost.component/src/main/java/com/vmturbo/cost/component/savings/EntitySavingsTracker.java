@@ -131,7 +131,7 @@ public class EntitySavingsTracker {
                         .map(SavingsEvent::getEntityId)
                         .collect(Collectors.toSet());
 
-                logger.info("Process {} events for {} entities between {} ({}) & {} ({}).",
+                logger.info("Process {} events for {} entities between {} ({}) and {} ({}).",
                         events.size(), entityIds.size(), startTimeMillis, periodStartTime,
                         endTimeMillis, periodEndTime);
 
