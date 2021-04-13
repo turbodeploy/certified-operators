@@ -169,7 +169,7 @@ public class CloudTopologyConverter {
         // TODO Remove the logic of this if block after we update the scoping logic to include
         //  BusinessAccount and other related cloud entities in the scope for OptimizeContainerCluster
         //  plan for cost analysis.
-        if (isOptimizeContainerClusterPlan(topologyInfo)) {
+        if (isOptimizeContainerClusterPlan(topologyInfo) || businessAccountOidByAccountPricingData.isEmpty()) {
             entityDTOs = topology.values();
         }
         for (TopologyEntityDTO entity : entityDTOs) {
