@@ -21,6 +21,7 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.jooq.Table;
 
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.history.db.EntityType.UseCase;
 import com.vmturbo.history.schema.abstraction.Vmtdb;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
@@ -50,6 +51,7 @@ public class EntityTypeDefinitions {
     private static final EntityType DATA_CENTER_ENTITY_TYPE = create(ApiEntityType.DATACENTER, PHYSICAL_MACHINE_ENTITY_TYPE, NON_ROLLUP_STATS);
     private static final EntityType VIRTUAL_DATACENTER_ENTITY_TYPE = create(ApiEntityType.VIRTUAL_DATACENTER, "vdc_stats", STANDARD_STATS);
     private static final EntityType VIRTUAL_MACHINE_SPEND_ENTITY_TYPE = create(VIRTUAL_MACHINE_SPEND, "vm_spend", Spend);
+    private static final EntityType CLUSTER_ENTITY_TYPE = create(StringConstants.CLUSTER, "cluster_stats");
 
     // this is where all the rest of the entity types are defined
     static final List<EntityType> ENTITY_TYPE_DEFINITIONS = ImmutableList.of(
@@ -64,6 +66,7 @@ public class EntityTypeDefinitions {
             create(ApiEntityType.BUSINESS_TRANSACTION, "business_transaction_stats", STANDARD_STATS),
             create(ApiEntityType.CHASSIS, "ch_stats", STANDARD_STATS),
             create(ApiEntityType.CLOUD_SERVICE, "service_spend", Spend, PersistEntity),
+            CLUSTER_ENTITY_TYPE,
             create(ApiEntityType.COMPUTE_TIER, PersistEntity),
             create(ApiEntityType.CONTAINER, "cnt_stats", STANDARD_STATS),
             CONTAINER_POD_ENTITY_TYPE,
