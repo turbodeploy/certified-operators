@@ -107,7 +107,6 @@ import com.vmturbo.topology.processor.api.dto.TargetInputFields;
 public class TargetsService implements ITargetsService {
 
     static final String TARGET = "Target";
-    private static final String TARGET_CATEGORY = "targetCategory";
 
     /**
      * Target status set that contains non-failed validation status from topology processor, including
@@ -370,7 +369,10 @@ public class TargetsService implements ITargetsService {
         return convertTargetStatInfoToStatApiDTO(targetsStatsResponse);
     }
 
-    private List<GroupBy> convertApiGroupByToProto(List<TargetStatsGroupBy> groupBy) {
+    private List<GroupBy> convertApiGroupByToProto(@Nullable List<TargetStatsGroupBy> groupBy) {
+        if (groupBy == null) {
+            return Collections.emptyList();
+        }
         final List<GroupBy> groupByProto = new ArrayList<>(groupBy.size());
         for (TargetStatsGroupBy groupByValue : groupBy) {
             if (groupByValue == TargetStatsGroupBy.CATEGORY) {
@@ -398,7 +400,7 @@ public class TargetsService implements ITargetsService {
             final StatGroup statGroup = targetGroupStat.getStatGroup();
             if (statGroup.hasTargetCategory()) {
                 final StatFilterApiDTO statFilterApiDTO = new StatFilterApiDTO();
-                statFilterApiDTO.setType(TARGET_CATEGORY);
+                statFilterApiDTO.setType(TargetStatsGroupBy.CATEGORY.name());
                 statFilterApiDTO.setValue(statGroup.getTargetCategory());
                 statApiDTO.setFilters(Collections.singletonList(statFilterApiDTO));
             }

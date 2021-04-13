@@ -74,7 +74,11 @@ public class TargetsRpcService extends TargetsServiceImplBase {
     @Override
     public void getTargetsStats(GetTargetsStatsRequest request,
             StreamObserver<GetTargetsStatsResponse> responseObserver) {
-        final List<Target> targets = targetStore.getAll();
+        // only calculate stats on non-hidden targets
+        final List<Target> targets = targetStore.getAll()
+            .stream()
+            .filter(t -> !t.getSpec().getIsHidden())
+            .collect(Collectors.toList());
         final TargetsStatsBuckets targetsStatsBuckets = new TargetsStatsBuckets(request.getGroupByList());
         targetsStatsBuckets.addTargets(targets);
         responseObserver.onNext(GetTargetsStatsResponse.newBuilder()

@@ -118,6 +118,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTOMoles.PlanServiceMole;
 import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
+import com.vmturbo.common.protobuf.target.TargetDTO;
 import com.vmturbo.common.protobuf.target.TargetDTO.SearchTargetsRequest;
 import com.vmturbo.common.protobuf.target.TargetDTO.SearchTargetsResponse;
 import com.vmturbo.common.protobuf.target.TargetDTOMoles.TargetsServiceMole;
@@ -1603,6 +1604,30 @@ public class TargetsServiceTest {
         }
         // Delete is NOT allowed
         targetsService.deleteTarget(String.valueOf(uuid));
+    }
+
+    /**
+     * Test the case where target stats endpoint has been called with no parameter.
+     *
+     * @throws Exception if something goes wrong.
+     */
+    @Test
+    public void testTargetStatsNoParameters() throws Exception {
+        // ARRANGE
+
+        final ArgumentCaptor<TargetDTO.GetTargetsStatsRequest> captor =
+            ArgumentCaptor.forClass(TargetDTO.GetTargetsStatsRequest.class);
+        when(targetsServiceMole.getTargetsStats(captor.capture())).thenReturn(
+            TargetDTO.GetTargetsStatsResponse.newBuilder()
+                .build());
+
+        // ACT
+        mockMvc
+            .perform(get("/targets/stats").accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
+            .andExpect(MockMvcResultMatchers.status().isOk()).andReturn();
+
+        // ASSERT
+        assertThat(captor.getValue().getGroupByCount(), is(0));
     }
 
     private TargetApiDTO postAndReturn(String query) throws Exception {
