@@ -34,8 +34,6 @@ if [ -z "${storageClass}" ]; then
     # Set local storage as the default storage class
     kubectl patch storageclass turbo-local-storage -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
     echo "The local storage class has been created and set as the default."
-    # Create the directories necessary for the local storage volumes
-    /opt/local/bin/setup_local_volumes.sh
     # Create the local storage persistent volumes
     kubectl create -f ${yamlBasePath}/persistent-volumes/local-storage-pv.yaml
     echo "The local storage persistent volumes have been created."

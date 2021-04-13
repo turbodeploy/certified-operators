@@ -15,7 +15,7 @@ spec:
     name: api-certs
     namespace: turbonomic
   local:
-    path: /opt/local/data/api-certs
+    path: /data/turbonomic/api-certs
   nodeAffinity:
     required:
       nodeSelectorTerms:
@@ -42,7 +42,7 @@ spec:
     name: api
     namespace: turbonomic
   local:
-    path: /opt/local/data/api
+    path: /data/turbonomic/api
   nodeAffinity:
     required:
       nodeSelectorTerms:
@@ -69,7 +69,7 @@ spec:
     name: auth
     namespace: turbonomic
   local:
-    path: /opt/local/data/auth
+    path: /data/turbonomic/auth
   nodeAffinity:
     required:
       nodeSelectorTerms:
@@ -96,7 +96,7 @@ spec:
     name: consul-data
     namespace: turbonomic
   local:
-    path: /opt/local/data/consul-data
+    path: /data/turbonomic/consul-data
   nodeAffinity:
     required:
       nodeSelectorTerms:
@@ -123,7 +123,7 @@ spec:
     name: kafka-log
     namespace: turbonomic
   local:
-    path: /opt/local/data/kafka-log
+    path: /data/turbonomic/kafka-log
   nodeAffinity:
     required:
       nodeSelectorTerms:
@@ -150,7 +150,7 @@ spec:
     name: zookeeper-data
     namespace: turbonomic
   local:
-    path: /opt/local/data/zookeeper-data
+    path: /data/turbonomic/zookeeper-data
   nodeAffinity:
     required:
       nodeSelectorTerms:
@@ -177,7 +177,7 @@ spec:
     name: rsyslog-syslogdata
     namespace: turbonomic
   local:
-    path: /opt/local/data/rsyslog-syslogdata
+    path: /data/turbonomic/rsyslog-syslogdata
   nodeAffinity:
     required:
       nodeSelectorTerms:
@@ -204,7 +204,7 @@ spec:
     name: rsyslog-auditlogdata
     namespace: turbonomic
   local:
-    path: /opt/local/data/rsyslog-auditlogdata
+    path: /data/turbonomic/rsyslog-auditlogdata
   nodeAffinity:
     required:
       nodeSelectorTerms:
@@ -231,7 +231,7 @@ spec:
     name: topology-processor
     namespace: turbonomic
   local:
-    path: /opt/local/data/topology-processor
+    path: /data/turbonomic/topology-processor
   nodeAffinity:
     required:
       nodeSelectorTerms:
@@ -258,7 +258,7 @@ spec:
     name: prometheus-alertmanager
     namespace: turbonomic
   local:
-    path: /opt/local/data/prometheus-alertmanager
+    path: /data/turbonomic/prometheus-alertmanager
   nodeAffinity:
     required:
       nodeSelectorTerms:
@@ -285,7 +285,7 @@ spec:
     name: prometheus-server
     namespace: turbonomic
   local:
-    path: /opt/local/data/prometheus-server
+    path: /data/turbonomic/prometheus-server
   nodeAffinity:
     required:
       nodeSelectorTerms:
@@ -312,7 +312,7 @@ spec:
     name: graphstate-datacloud-graph-0
     namespace: turbonomic
   local:
-    path: /opt/local/data/graphstate-datacloud-graph
+    path: /data/turbonomic/graphstate-datacloud-graph
   nodeAffinity:
     required:
       nodeSelectorTerms:
