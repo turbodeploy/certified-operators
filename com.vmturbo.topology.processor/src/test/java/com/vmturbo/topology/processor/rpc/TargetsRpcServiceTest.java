@@ -748,14 +748,49 @@ public class TargetsRpcServiceTest {
                         .build())
                 .build();
         final TargetsGroupStat orchestratorExpectedStat = TargetsGroupStat.newBuilder()
-                .setTargetsCount(2)
+                .setTargetsCount(1)
                 .setStatGroup(StatGroup.newBuilder()
-                        .setTargetCategory(ProbeCategory.HYPERVISOR.getCategory())
+                        .setTargetCategory(ProbeCategory.ORCHESTRATOR.getCategory())
                         .build())
                 .build();
         Assert.assertEquals(2, targetGroupStatList.size());
         Assert.assertTrue(targetGroupStatList.containsAll(Arrays.asList(hypervisorExpectedStat,
                 orchestratorExpectedStat)));
+    }
+
+    /**
+     * Tests targets stats group by target category when some of the targets are hidden and should
+     * not be returned in the results.
+     *
+     * @throws InvalidTargetException shouldn't happen
+     */
+    @Test
+    public void testTargetsStatsGroupedByTargetCategoryWithHiddenTargets() throws InvalidTargetException {
+        // ARRANGE
+        final long vcenterProbeId = createProbe(SDKProbeType.VCENTER.getProbeType(),
+            ProbeCategory.HYPERVISOR.getCategory());
+        final long serviceNowProbeId = createProbe(SDKProbeType.SERVICENOW.getProbeType(),
+            ProbeCategory.ORCHESTRATOR.getCategory());
+        // created 2 hypervisor and 1 orchestrator targets
+        createTargetSpy(vcenterProbeId);
+        createTargetSpy(vcenterProbeId);
+        createCustomizedTargetSpy(serviceNowProbeId, spec -> spec.setIsHidden(true));
+
+        // ACT
+        final GetTargetsStatsResponse targetsStatsResponse = clientStub.getTargetsStats(
+            GetTargetsStatsRequest.newBuilder().addGroupBy(GroupBy.TARGET_CATEGORY).build());
+
+        // ASSERT
+        final List<TargetsGroupStat> targetGroupStatList =
+            targetsStatsResponse.getTargetsGroupStatList();
+        final TargetsGroupStat hypervisorExpectedStat = TargetsGroupStat.newBuilder()
+            .setTargetsCount(2)
+            .setStatGroup(StatGroup.newBuilder()
+                .setTargetCategory(ProbeCategory.HYPERVISOR.getCategory())
+                .build())
+            .build();
+        Assert.assertEquals(1, targetGroupStatList.size());
+        Assert.assertTrue(targetGroupStatList.containsAll(Arrays.asList(hypervisorExpectedStat)));
     }
 
     /**
