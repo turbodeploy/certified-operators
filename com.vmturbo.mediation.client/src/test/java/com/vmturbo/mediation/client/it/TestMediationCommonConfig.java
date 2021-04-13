@@ -30,6 +30,7 @@ import com.vmturbo.topology.processor.communication.RemoteMediationServer;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityProviderImpl;
 import com.vmturbo.topology.processor.identity.IdentityService;
+import com.vmturbo.topology.processor.identity.StaleOidManager;
 import com.vmturbo.topology.processor.identity.services.HeuristicsMatcher;
 import com.vmturbo.topology.processor.identity.storage.IdentityDatabaseStore;
 import com.vmturbo.topology.processor.identity.storage.IdentityServiceInMemoryUnderlyingStore;
@@ -79,7 +80,7 @@ public class TestMediationCommonConfig {
                         new IdentityServiceInMemoryUnderlyingStore(
                             Mockito.mock(IdentityDatabaseStore.class), 1, new ConcurrentHashMap<>()),
                     new HeuristicsMatcher()),
-                keyValueStore(), compatibilityChecker(), 0L);
+                keyValueStore(), compatibilityChecker(), 0L, Mockito.mock(StaleOidManager.class));
     }
 
     @Bean
