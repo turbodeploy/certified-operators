@@ -11,6 +11,7 @@ from ruamel.yaml import YAML
 customResourceFile = "custom-resource.temp.test"
 # name of back up file created
 customResourceFileBak = "{}.bak".format(customResourceFile)
+good_password = "12345"
 
 # yaml string to perform tests on
 # (flushed out as yaml file first)
@@ -101,7 +102,7 @@ def run_main(input_set, yaml_str=reportingDisabledYaml, validate=False):
     old_sys_argv = sys.argv
     old_stdin = sys.stdin
     try:
-        sys.argv = ["enable_reporting_test.py", "--file", customResourceFile]
+        sys.argv = ["enable_reporting_test.py", "--no-apply", "--file", customResourceFile]
         if validate:
             sys.argv.append("--validate")
         sys.stdin = io.StringIO('\n'.join(input_set))
@@ -114,7 +115,7 @@ def run_main(input_set, yaml_str=reportingDisabledYaml, validate=False):
 class TestCustomResourceLoader:
     def test_back_up_created_on_successful_changes(self):
         # enable/disable, grafana admin pass, grafana database pass
-        input_set = ['123', '123']
+        input_set = [good_password, good_password]
         run_main(input_set)
         assert os.path.isfile(customResourceFileBak)
     
@@ -122,7 +123,7 @@ class TestCustomResourceLoader:
         original_copy = "{}.copy.test".format(customResourceFile)
         dumpStrToYaml(reportingDisabledYaml, original_copy)
         # enable/disable, grafana admin pass, grafana database pass
-        input_set = ['123', '123']
+        input_set = [good_password, good_password]
 
         run_main(input_set, reportingDisabledYaml)
 
@@ -131,6 +132,36 @@ class TestCustomResourceLoader:
 
 
 class TestEmbeddedReporting:
+    def test_validate(self):
+        # All flags other than reporting.enabled are set to false, which means reporting won't work.
+        # Both passwords are invalid.
+        very_invalid_yaml = """
+            spec:
+              grafana:
+                enabled: false
+                adminPassword: a;
+                grafana.ini:
+                  database:
+                    type: postgres
+                    password: a
+              extractor:
+                enabled: false
+              reporting:
+                enabled: true
+              timescaledb:
+                enabled: false
+            """
+        # The fixture will delete this file after the test.
+        dumpStrToYaml(very_invalid_yaml, customResourceFile)
+
+        custom_resource = enable_reporting.CustomResource(customResourceFile)
+
+        # The embedded reporting component.
+        embedded_reporting = enable_reporting.EmbeddedReporting(custom_resource)
+        warnings = embedded_reporting.validate()
+        # Ensure we generated one warning for each thing wrong with the config.
+        assert len(warnings) == 5
+
     def test_reporting_already_enabled(self):
         original_copy = "{}.copy.test".format(customResourceFile)
         dumpStrToYaml(reportingEnabledYaml, original_copy)
@@ -156,7 +187,7 @@ class TestEmbeddedReporting:
 
     def test_enabled_embedded_reporting(self):
         # enable/disable, grafana admin pass, grafana database pass
-        input_set = ['123', '123']
+        input_set = [good_password, good_password]
         run_main(input_set)
 
         data = loadYaml(customResourceFile)
@@ -164,10 +195,27 @@ class TestEmbeddedReporting:
         assert getValue(data, 'spec reporting enabled')
         assert getValue(data, 'spec timescaledb enabled')
         assert getValue(data, 'spec extractor enabled')
-    
+
+    def test_invalid_passwords_rejected(self):
+        empty_pass = ""
+        invalid_1 = "#mypass"
+        invalid_2 = "my;pass"
+        too_long_pass = "a" * 100
+        too_short_pass = 'foo'
+        grafana_password = 'valid'
+        grafana_database_password = 'veryvalid'
+        # Attempt to put in an empty string for both.
+        input_set = [empty_pass, invalid_1, invalid_2, too_long_pass, too_short_pass, grafana_password,
+                     empty_pass, invalid_1, invalid_2, too_long_pass, too_short_pass, grafana_database_password]
+        run_main(input_set)
+
+        data = loadYaml(customResourceFile)
+        assert getValue(data, 'spec grafana adminPassword') == grafana_password
+        assert getValue(data, 'spec grafana grafana.ini database password') == grafana_database_password
+
     def test_userinput_is_correct(self):
-        grafana_password = 'foo'
-        grafana_database_password = 'bar'
+        grafana_password = 'foofoo'
+        grafana_database_password = 'barbar'
         # enable/disable, grafana admin pass, grafana database pass
         input_set = [grafana_password, grafana_database_password]
         run_main(input_set)
