@@ -15,7 +15,7 @@ roleBindingFile="/opt/turbonomic/kubernetes/operator/deploy/cluster_role_binding
 crdsFile="/opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_crd.yaml"
 operatorFile="/opt/turbonomic/kubernetes/operator/deploy/operator.yaml"
 chartsFile="/opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml"
-localStorageDataDirectory="/opt/local/data"
+localStorageDataDirectory="/data/turbonomic/"
 
 # Set the ip address for a single node setup.  Multinode should have the
 # ip values set manually in /opt/local/etc/turbo.conf
@@ -253,6 +253,22 @@ then
   localStatus=$?
   if [ "X${localStatus}" == "X0" ]
   then
+    # Create the subdirectories for each PV and fix the ownership/permissions
+    # These directories are needed to enable local storage class in Kubernetes.
+    sudo mkdir -p ${localStorageDataDirectory}api-certs
+    sudo mkdir -p ${localStorageDataDirectory}api
+    sudo mkdir -p ${localStorageDataDirectory}auth
+    sudo mkdir -p ${localStorageDataDirectory}consul-data
+    sudo mkdir -p ${localStorageDataDirectory}kafka-log
+    sudo mkdir -p ${localStorageDataDirectory}zookeeper-data
+    sudo mkdir -p ${localStorageDataDirectory}rsyslog-syslogdata
+    sudo mkdir -p ${localStorageDataDirectory}rsyslog-auditlogdata
+    sudo mkdir -p ${localStorageDataDirectory}rsyslog-auditlogdata
+    sudo mkdir -p ${localStorageDataDirectory}topology-processor
+    sudo mkdir -p ${localStorageDataDirectory}prometheus-alertmanager
+    sudo mkdir -p ${localStorageDataDirectory}prometheus-server
+    sudo mkdir -p ${localStorageDataDirectory}graphstate-datacloud-graph
+    sudo chown -R turbo.turbo $localStorageDataDirectory
     sudo chmod -R 777 $localStorageDataDirectory
     echo ""
     echo ""
@@ -380,10 +396,10 @@ EOF
       exit 0
     fi
   fi
+  popd > /dev/null
 else
   echo "Could not detect the desired storage setting. Please set the 'storage' property in turbo.conf to either 'shared' or 'local'."
 fi
-popd > /dev/null
 
 # Start Turbonomic installation
 if [ "x${node[0]}" != "x10.0.2.15" ]
