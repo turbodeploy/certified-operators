@@ -5,12 +5,16 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
+
+import org.apache.commons.lang3.StringUtils;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
@@ -35,6 +39,10 @@ import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class SearchProtoUtil {
+    // note - closing ] and } may not be special depending on flavor and context
+    // but it is safer to treat them as such
+    private static final Set<Character> REGEX_SPECIAL_CHARS = ImmutableSet.of('\\', '^', '$', '.',
+                    '|', '?', '*', '+', '(', ')', '{', '}', '[', ']');
 
     private static final ImmutableList<ApiEntityType> EXCLUDE_FROM_SEARCH_ALL =
                     ImmutableList.of(ApiEntityType.INTERNET,
@@ -49,6 +57,9 @@ public class SearchProtoUtil {
                     .filter(e -> !EXCLUDE_FROM_SEARCH_ALL.contains(e))
                     .map(ApiEntityType::apiStr)
                     .collect(Collectors.toList());
+
+    private SearchProtoUtil() {
+    }
 
     /**
      * Create a filter for environment type.
@@ -587,6 +598,32 @@ public class SearchProtoUtil {
         return response.getOidMapMap().entrySet().stream()
                 .filter(e -> e.getValue().getOidsCount() > 0)
                 .collect(Collectors.toMap(e -> e.getKey(), e -> entityMap.get(e.getValue().getOids(0)).getMinimal()));
+    }
+
+    /**
+     * Convert the literal string to a 'somewhat portable' regular expression.
+     * We feed regular expressions to database queries. Database engines tend to use
+     * different regex flavors (MariaDB - PCRE, MySQL - POSIX, Arango - Boost, etc).
+     * JRE's Pattern.quote() produces \Q...\E which is not portable.
+     * TODO consider running all regex filtering in Java, instead of db backends
+     * TODO consider removing building regex's in API altogether, and passing direct/exact queries as is
+     *
+     * @param input literal input
+     * @return regular expression that should treat input as literal
+     */
+    public static String escapeSpecialCharactersInLiteral(String input) {
+        if (StringUtils.isEmpty(input)) {
+            return input;
+        }
+        StringBuilder sb = new StringBuilder(input.length() * 2);
+        for (int i = 0; i < input.length(); ++i) {
+            char c = input.charAt(i);
+            if (REGEX_SPECIAL_CHARS.contains(c)) {
+                sb.append('\\');
+            }
+            sb.append(c);
+        }
+        return sb.toString();
     }
 
 }
