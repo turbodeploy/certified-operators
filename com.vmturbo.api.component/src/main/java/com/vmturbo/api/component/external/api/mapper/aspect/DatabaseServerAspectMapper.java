@@ -3,8 +3,15 @@ package com.vmturbo.api.component.external.api.mapper.aspect;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
+
+import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.api.dto.entityaspect.DatabaseServerEntityAspectApiDTO;
 import com.vmturbo.api.enums.AspectName;
+import com.vmturbo.api.enums.ClusterRole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DatabaseInfo;
 
@@ -13,10 +20,14 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Databas
  **/
 public class DatabaseServerAspectMapper extends AbstractAspectMapper {
 
+    private static final Logger logger = LogManager.getLogger();
+
     private static final String MAX_CONCURRENT_SESSION = "max_concurrent_session";
     private static final String MAX_CONCURRENT_WORKER = "max_concurrent_worker";
     private static final String PRICING_MODEL = "pricing_model";
     private static final String STORAGE_TIER = "storage_tier";
+    @VisibleForTesting
+    static final String CLUSTER_ROLE = "cluster_role";
 
 
     @Nullable
@@ -60,6 +71,16 @@ public class DatabaseServerAspectMapper extends AbstractAspectMapper {
         String storageTier = entity.getEntityPropertyMapOrDefault(STORAGE_TIER, null);
         if (storageTier != null) {
             aspect.setStorageTier(storageTier);
+        }
+
+        final String clusterRoleStr = entity.getEntityPropertyMapOrDefault(CLUSTER_ROLE, null);
+        if (StringUtils.isNoneBlank(clusterRoleStr)) {
+            try {
+                final ClusterRole clusterRole = ClusterRole.valueOf(clusterRoleStr);
+                aspect.setClusterRole(clusterRole);
+            } catch (IllegalArgumentException ex) {
+                logger.error("Cannot find ClusterRole for {}", clusterRoleStr);
+            }
         }
 
         return aspect;
