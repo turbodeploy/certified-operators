@@ -5,6 +5,7 @@ import static org.junit.Assert.assertEquals;
 import org.junit.Test;
 
 import com.vmturbo.api.dto.entityaspect.DatabaseServerEntityAspectApiDTO;
+import com.vmturbo.api.enums.ClusterRole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DatabaseInfo;
@@ -30,6 +31,7 @@ public class DatabaseServerAspectMapperTest extends BaseAspectMapperTest {
     private static final String PRICING_MODEL = "DTU";
     private static final String STORAGE_AMOUNT = "2";
     private static final String DB_SERVER_NAME = "dbServer1";
+    private static final String CLUSTER_WRITER = "Writer";
 
     /**
      * Tests the mapping of a DatabaseServer entity to it's corresponding aspect.
@@ -52,7 +54,8 @@ public class DatabaseServerAspectMapperTest extends BaseAspectMapperTest {
                 .putEntityPropertyMap("max_concurrent_worker", "10")
                 .putEntityPropertyMap("pricing_model", PRICING_MODEL)
                 .putEntityPropertyMap("storage_amount", STORAGE_AMOUNT)
-                .putEntityPropertyMap("DB_SERVER_NAME", DB_SERVER_NAME);
+                .putEntityPropertyMap("DB_SERVER_NAME", DB_SERVER_NAME)
+                .putEntityPropertyMap(DatabaseServerAspectMapper.CLUSTER_ROLE, CLUSTER_WRITER);
 
         final DatabaseServerAspectMapper mapper = new DatabaseServerAspectMapper();
         // act
@@ -67,5 +70,6 @@ public class DatabaseServerAspectMapperTest extends BaseAspectMapperTest {
         assertEquals(MAX_CONCURRENT_SESSION, databaseServerAspect.getMaxConcurrentSessions());
         assertEquals(MAX_CONCURRENT_WORKER, databaseServerAspect.getMaxConcurrentWorkers());
         assertEquals(PRICING_MODEL, databaseServerAspect.getPricingModel());
+        assertEquals(ClusterRole.Writer, databaseServerAspect.getClusterRole());
     }
 }
