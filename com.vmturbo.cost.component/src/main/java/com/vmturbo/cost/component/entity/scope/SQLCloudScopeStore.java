@@ -111,7 +111,7 @@ public class SQLCloudScopeStore implements CloudScopeStore,
             for (Table foreignKeyTable : resolveForeignKeyTables()) {
 
                 logger.debug("Adding foreign key join on cloud scope cleanup to {}", foreignKeyTable.getName());
-                selectJoinStep = selectJoinStep.leftAntiJoin(foreignKeyTable).onKey();
+                selectJoinStep = selectJoinStep.leftAntiJoin(foreignKeyTable).using(Tables.ENTITY_CLOUD_SCOPE.ENTITY_OID);
             }
 
             final Iterator<Long> entityOidIterator = selectJoinStep.stream()

@@ -45,7 +45,7 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
 
     private static final Logger logger = LogManager.getLogger();
     private static final int MAX_SP_LOCATOR_DEPTH = 1000;
-    private static final Set<Integer> SERVICE_PROVIDE =
+    private static final Set<Integer> SERVICE_PROVIDER =
             ImmutableSet.of(EntityType.SERVICE_PROVIDER_VALUE);
     private static final Set<Integer> REGION_AND_AVZONE =
             ImmutableSet.of(EntityType.REGION_VALUE, EntityType.AVAILABILITY_ZONE_VALUE);
@@ -62,6 +62,9 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
             = new SetOnce<>();
 
     private final GroupMemberRetriever groupMemberRetriever;
+
+    private final SetOnce<Map<Long, GroupAndMembers>> entityOidToResourceGroupOid
+            = new SetOnce<>();
 
     private final Map<Integer, Function<TopologyEntityDTO, Optional<TopologyEntityDTO>>> spLocator =
             ImmutableMap.<Integer, Function<TopologyEntityDTO, Optional<TopologyEntityDTO>>>builder()
@@ -81,7 +84,7 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
                             v -> getProviderByType(v, EntityType.VIRTUAL_MACHINE_VALUE))
                     .put(EntityType.CLOUD_SERVICE_VALUE, this::getOwner)
                     .put(EntityType.REGION_VALUE, this::getOwner)
-                    .put(EntityType.BUSINESS_ACCOUNT_VALUE, v -> getAggregator(v, SERVICE_PROVIDE))
+                    .put(EntityType.BUSINESS_ACCOUNT_VALUE, v -> getAggregator(v, SERVICE_PROVIDER))
                     .put(EntityType.SERVICE_VALUE, this::getOwner)
                     .put(EntityType.LOAD_BALANCER_VALUE,
                             v -> getProviderByType(v, EntityType.SERVICE_VALUE))
@@ -557,6 +560,39 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
                 .getGroupsWithMembers(GetGroupsRequest.newBuilder()
                         .setGroupFilter(GroupFilter.newBuilder()
                                 .setGroupType(GroupType.BILLING_FAMILY)
+                                .build())
+                        .build());
+    }
+
+    @Override
+    @Nonnull
+    public Optional<GroupAndMembers> getResourceGroup(long entityId) {
+        entityOidToResourceGroupOid.ensureSet(this::createEntityIdToResourceGroupMap);
+        return entityOidToResourceGroupOid.getValue().map(map -> map.get(entityId));
+    }
+
+    private Map<Long, GroupAndMembers> createEntityIdToResourceGroupMap() {
+        // Retrieve resource groups from GroupMemberRetriever
+        final Collection<GroupAndMembers> resourceGroups = retrieveResourceGroups();
+
+        if (resourceGroups.isEmpty()) {
+            logger.warn("Received no resource groups from the group member retriever.");
+        }
+
+        // Create map from entity id to resource group
+        final Map<Long, GroupAndMembers> ResourceGroupByEntityId = new HashMap<>();
+        resourceGroups.forEach(group -> group.members()
+                .forEach(id -> ResourceGroupByEntityId.put(id, group)));
+
+        logger.debug("Created resource group reference map: {}", ResourceGroupByEntityId);
+        return ResourceGroupByEntityId;
+    }
+
+    private Collection<GroupAndMembers> retrieveResourceGroups() {
+        return groupMemberRetriever
+                .getGroupsWithMembers(GetGroupsRequest.newBuilder()
+                        .setGroupFilter(GroupFilter.newBuilder()
+                                .setGroupType(GroupType.RESOURCE)
                                 .build())
                         .build());
     }

@@ -246,8 +246,7 @@ public class TopologyListenerConfig {
     @Bean
     public TopologyEntityCloudTopologyFactory cloudTopologyFactory() {
         return new DefaultTopologyEntityCloudTopologyFactory(
-                new GroupMemberRetriever(GroupServiceGrpc
-                        .newBlockingStub(groupClientConfig.groupChannel())));
+                groupClientConfig.groupMemberRetriever());
     }
 
     @Bean

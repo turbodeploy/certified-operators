@@ -69,6 +69,7 @@ public class SQLComputeTierAllocationStoreTest {
 
     private final ComputeTierAllocationDatapoint baselineDatapointA = ImmutableComputeTierAllocationDatapoint.builder()
             .entityOid(1)
+            .entityType(10)
             .accountOid(2)
             .regionOid(3)
             .availabilityZoneOid(4)
@@ -80,6 +81,7 @@ public class SQLComputeTierAllocationStoreTest {
             .build();
     final ComputeTierAllocationDatapoint baselineDatapointB = ImmutableComputeTierAllocationDatapoint.builder()
             .entityOid(7)
+            .entityType(10)
             .accountOid(8)
             .regionOid(9)
             .serviceProviderOid(10)
@@ -91,6 +93,7 @@ public class SQLComputeTierAllocationStoreTest {
 
     final ComputeTierAllocationDatapoint baselineDatapointC = ImmutableComputeTierAllocationDatapoint.builder()
             .entityOid(11)
+            .entityType(10)
             .accountOid(8)
             .regionOid(9)
             .serviceProviderOid(10)

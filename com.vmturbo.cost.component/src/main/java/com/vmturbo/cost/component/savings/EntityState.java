@@ -87,7 +87,12 @@ public class EntityState {
      */
     private transient boolean updated;
 
-    EntityState(long entityId) {
+    /**
+     * Constructor.
+     *
+     * @param entityId entity ID
+     */
+    public EntityState(long entityId) {
         this.entityId = entityId;
         this.deletePending = false;
         this.powerFactor = 1L;

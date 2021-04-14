@@ -106,11 +106,12 @@ public class CloudCommitmentDemandWriterImpl implements CloudCommitmentDemandWri
      * @return The ComputeTierAllocationDatapoint.
      */
     public Optional<ComputeTierAllocationDatapoint> buildComputeTierAllocationDatapoint(TopologyEntityDTO entityDTO,
-                                                                              CloudTopology cloudTopology) {
+                                                                                        CloudTopology<TopologyEntityDTO> cloudTopology) {
         try {
             final Builder datapointBuilder = ImmutableComputeTierAllocationDatapoint.builder();
             long entityOid = entityDTO.getOid();
             datapointBuilder.entityOid(entityOid);
+            datapointBuilder.entityType(entityDTO.getEntityType());
 
             // Set the service provider oid
             Optional<TopologyEntityDTO> serviceProvider = cloudTopology.getServiceProvider(entityOid);
@@ -127,6 +128,9 @@ public class CloudCommitmentDemandWriterImpl implements CloudCommitmentDemandWri
             // Set the account oid
             Optional<TopologyEntityDTO> businessAccount = cloudTopology.getOwner(entityOid);
             businessAccount.map(ba -> datapointBuilder.accountOid(ba.getOid()));
+
+            // Set the resource group oid
+            cloudTopology.getResourceGroup(entityOid).ifPresent(rg -> datapointBuilder.resourceGroupOid(rg.group().getId()));
 
             ComputeTierDemand.Builder computeTierAllocationDemandBuilder = ComputeTierDemand.builder();
 

@@ -57,6 +57,7 @@ import com.vmturbo.cost.component.db.tables.records.EntityCloudScopeRecord;
 import com.vmturbo.cost.component.db.tables.records.EntityComputeTierAllocationRecord;
 import com.vmturbo.cost.component.entity.scope.SQLCloudScopedStore;
 import com.vmturbo.cost.component.topology.TopologyInfoTracker;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 import com.vmturbo.proactivesupport.DataMetricSummary;
@@ -367,10 +368,12 @@ public class SQLComputeTierAllocationStore extends SQLCloudScopedStore implement
         Set<EntityCloudScopeRecord> cloudScopeRecords = allocationDatapoints.stream()
                 .map(allocation -> createCloudScopeRecord(
                         allocation.entityOid(),
+                        EntityType.VIRTUAL_MACHINE_VALUE,
                         allocation.accountOid(),
                         allocation.regionOid(),
                         allocation.availabilityZoneOid(),
                         allocation.serviceProviderOid(),
+                        allocation.resourceGroupOid(),
                         recordTimestamp))
                 .collect(ImmutableSet.toImmutableSet());
 

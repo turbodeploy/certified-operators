@@ -9,23 +9,35 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 import org.jooq.Record2;
 import org.jooq.Result;
 import org.jooq.exception.DataAccessException;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
+import com.vmturbo.cost.component.db.tables.records.EntityCloudScopeRecord;
 import com.vmturbo.cost.component.db.tables.records.EntitySavingsStateRecord;
+import com.vmturbo.cost.component.entity.scope.SQLCloudScopedStore;
+import com.vmturbo.group.api.GroupAndMembers;
 
 /**
  * Implementation of EntityStateStore that persists data in entity_savings_state table.
  */
-public class SqlEntityStateStore implements EntityStateStore {
+public class SqlEntityStateStore extends SQLCloudScopedStore implements EntityStateStore {
+
+    private final Logger logger = LogManager.getLogger();
+
     /**
      * Used for batch operations.
      */
@@ -43,6 +55,7 @@ public class SqlEntityStateStore implements EntityStateStore {
      * @param chunkSize chunk size for batch operations
      */
     public SqlEntityStateStore(@Nonnull final DSLContext dsl, final int chunkSize) {
+        super(dsl, chunkSize);
         this.dsl = dsl;
         this.chunkSize = chunkSize;
     }
@@ -113,7 +126,9 @@ public class SqlEntityStateStore implements EntityStateStore {
     }
 
     @Override
-    public void updateEntityStates(@Nonnull final Map<Long, EntityState> entityStateMap) throws EntitySavingsException {
+    public void updateEntityStates(@Nonnull final Map<Long, EntityState> entityStateMap,
+                                   @Nonnull final TopologyEntityCloudTopology cloudTopology)
+            throws EntitySavingsException {
         List<EntitySavingsStateRecord> records = new ArrayList<>();
         entityStateMap.values().forEach(entityState -> {
             EntitySavingsStateRecord record = ENTITY_SAVINGS_STATE.newRecord();
@@ -124,6 +139,16 @@ public class SqlEntityStateStore implements EntityStateStore {
             record.setEntityState(entityState.toJson());
             records.add(record);
         });
+
+        List<EntityCloudScopeRecord> scopeRecords = entityStateMap.keySet().stream()
+                .map(entityOid -> createCloudScopeRecord(entityOid, cloudTopology))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+        try {
+            insertCloudScopeRecords(scopeRecords);
+        } catch (IOException e) {
+            throw new EntitySavingsException("Error occurred when writing to entity_cloud_scope table.", e);
+        }
 
         try {
             dsl.loadInto(ENTITY_SAVINGS_STATE)
@@ -149,5 +174,40 @@ public class SqlEntityStateStore implements EntityStateStore {
                 .fetchSize(chunkSize)
                 .fetchStream()
                 .map(record -> EntityState.fromJson(record.getEntityState()));
+    }
+
+    private EntityCloudScopeRecord createCloudScopeRecord(Long entityOid, TopologyEntityCloudTopology cloudTopology) {
+
+        final Integer entityType = cloudTopology.getEntity(entityOid).map(TopologyEntityDTO::getEntityType).orElse(null);
+
+        // Get the service provider OID.
+        Optional<TopologyEntityDTO> serviceProvider = cloudTopology.getServiceProvider(entityOid);
+        final Long serviceProviderOid = serviceProvider.map(TopologyEntityDTO::getOid).orElse(null);
+
+        // Get the region OID.
+        Optional<TopologyEntityDTO> region = cloudTopology.getConnectedRegion(entityOid);
+        final Long regionOid = region.map(TopologyEntityDTO::getOid).orElse(null);
+
+        // Get the availability zone OID.
+        Optional<TopologyEntityDTO> availabilityZone = cloudTopology.getConnectedAvailabilityZone(entityOid);
+        final Optional<Long> availabilityZoneOid = availabilityZone.map(TopologyEntityDTO::getOid);
+
+        // Get the account OID.
+        Optional<TopologyEntityDTO> businessAccount = cloudTopology.getOwner(entityOid);
+        final Long accountOid = businessAccount.map(TopologyEntityDTO::getOid).orElse(null);
+
+        // Get the resource group OID.
+        Optional<GroupAndMembers> resourceGroup = cloudTopology.getResourceGroup(entityOid);
+        final Optional<Long> resourceGroupOid = resourceGroup.map(groupAndMembers -> groupAndMembers.group().getId());
+
+        if (entityType != null && serviceProviderOid != null && regionOid != null && accountOid != null) {
+            return createCloudScopeRecord(entityOid, entityType, accountOid, regionOid,
+                    availabilityZoneOid, serviceProviderOid, resourceGroupOid, LocalDateTime.now());
+        }
+
+        logger.error("Cannot create entity cloud scope record because required information is missing."
+                        + " EntityType={}, serviceProviderOid={}, regionOid={}, accountOid={}",
+                entityType, serviceProviderOid, regionOid, accountOid);
+        return null;
     }
 }

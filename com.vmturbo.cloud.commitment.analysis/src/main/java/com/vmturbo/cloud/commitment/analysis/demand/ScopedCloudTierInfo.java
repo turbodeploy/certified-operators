@@ -52,6 +52,14 @@ public interface ScopedCloudTierInfo {
     long serviceProviderOid();
 
     /**
+     * The OID of the resource group tied to the associated demand. or {@link Optional#empty()},
+     * if the demand is not within a resource group.
+     * @return The OID of the resource group tied to the associated demand or {@link Optional#empty()},
+     * if the demand is not within a resource group.
+     */
+    Optional<Long> resourceGroupOid();
+
+    /**
      * The cloud tier demand of the mapping. The demand type will be specific to the type of the cloud
      * tier.
      *
