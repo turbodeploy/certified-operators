@@ -43,7 +43,7 @@
         <grpc.prometheus.version>0.3.0</grpc.prometheus.version>
 
         <protobuf.version>3.11.0</protobuf.version>
-        <protobuf.maven.plugin.version>0.5.1</protobuf.maven.plugin.version>
+        <protobuf.maven.plugin.version>0.6.1</protobuf.maven.plugin.version>
         <os.maven.plugin.version>1.4.1.Final</os.maven.plugin.version>
         <owasp.version>5.3.2</owasp.version>
         <prometheus.java.client.version>0.4.0</prometheus.java.client.version>
@@ -1201,8 +1201,7 @@
                 <module>../grafana</module>
 
                 <!-- Include tests of kubernetes-related scripts. -->
-                <!-- TODO: Uncomment when DEVOPS-1416 is resolved and we have the python-runner image. -->
-                <!-- <module>kubernetes</module> -->
+                <module>kubernetes</module>
 
                 <!-- The meat of the XL code, and the platform components. -->
                 <module>../com.vmturbo.api.conversion</module>
@@ -1586,6 +1585,7 @@
                     <artifactId>protobuf-maven-plugin</artifactId>
                     <version>${protobuf.maven.plugin.version}</version>
                     <configuration>
+                        <useArgumentFile>true</useArgumentFile>
                         <protoSourceRoot>src/main/protobuf</protoSourceRoot>
                         <protoTestSourceRoot>src/test/protobuf</protoTestSourceRoot>
                         <!-- os.detected.classifier provided by os-maven-plugin -->

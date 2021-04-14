@@ -125,7 +125,7 @@ public class ReportingUserCalculatorTest {
         UserApiDTO secondUser = makeUser("secondUser", SecurityConstant.REPORT_EDITOR);
         assertThat(calculator.getMe(firstUser).getReportingUserName().get(), is(
                 LicenseProtoUtil.formatReportEditorUsername(editorUser, 0)));
-        calculator.onUserDeleted(firstUser.getUuid());
+        calculator.onUserDeleted(firstUser);
         // The "onUserChanged" should have freed up the first "editorUser" name for use by the
         // second user.
         assertThat(calculator.getMe(secondUser).getReportingUserName().get(), is(

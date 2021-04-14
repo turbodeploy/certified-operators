@@ -38,7 +38,7 @@ public class PersistentVolumeKeyProvider extends AbstractKeyProvider {
                                        @Nonnull final String keyDir) {
         super(publicKeyStore);
         this.keyDir = Paths.get(keyDir);
-        this.encryptionFilePath = Paths.get(keyDir + "/" + VMT_PRIVATE_KEY_FILE);
+        this.encryptionFilePath = Paths.get(keyDir, VMT_PRIVATE_KEY_FILE);
     }
 
     @Override
