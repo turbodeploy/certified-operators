@@ -93,6 +93,15 @@ public interface IdentityServiceUnderlyingStore extends RequiresDataInitializati
     boolean removeEntry(long oid) throws IdentityServiceStoreOperationException, IdentityUninitializedException;
 
     /**
+     * Delete an OID from the in memory cache but leave it in the database. This is used
+     * for expiring OIDs (see {@link com.vmturbo.topology.processor.identity.StaleOidManager}).
+     *
+     * @param oid the oid to remove.
+     * @return true if the oid was found in the cache; false if not.
+     */
+    boolean shallowRemove(long oid);
+
+    /**
      * Performs the search using the set of properties.
      * The optional metadata descriptor will be used to narrow the search.
      *

@@ -4,6 +4,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import javax.annotation.Nonnull;
@@ -16,9 +17,11 @@ public interface StaleOidManager {
     /**
      * Initializes the manager.
      * @param getCurrentOids supplier of oids to expire.
+     * @param listener to notify when oids are marked stale.
      * @return the scheduled future for the oid expiration
      */
-    ScheduledFuture<?> initialize(@Nonnull Supplier<Set<Long>> getCurrentOids);
+    ScheduledFuture<?> initialize(@Nonnull Supplier<Set<Long>> getCurrentOids,
+            @Nonnull Consumer<Set<Long>> listener);
 
     /**
      * Expire oids asynchronously.
