@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 
@@ -57,6 +58,8 @@ public class TopologyEventsPollerTest {
 
     private final Long realTimeTopologyContextId = 777777L;
 
+    private static final long ACTION_EXPIRATION_TIME = TimeUnit.HOURS.toMillis(1L);
+
     /**
      * Pre-test setup.
      *
@@ -65,7 +68,8 @@ public class TopologyEventsPollerTest {
     @Before
     public void setup() throws IOException {
         store = new InMemoryEntityEventsJournal();
-        tep = new TopologyEventsPoller(topologyEventProvider, topologyInfoTracker, store, 0L, 0L);
+        tep = new TopologyEventsPoller(topologyEventProvider, topologyInfoTracker, store,
+                ACTION_EXPIRATION_TIME, 1L);
     }
 
     /**
@@ -149,7 +153,8 @@ public class TopologyEventsPollerTest {
         // Appropriate savings events should be created for each topology event added
         // to the events journal.
         entityEvents.forEach(entityEvent -> {
-            assert (savingsEvents.contains(createSavingsEvent(1L, entityEvent)));
+            SavingsEvent event = createSavingsEvent(1L, entityEvent);
+            assert (savingsEvents.contains(event));
         });
     }
 

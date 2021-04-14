@@ -10,6 +10,9 @@ import org.mockito.Mockito;
 import com.vmturbo.components.api.TimeUtil;
 import com.vmturbo.cost.component.savings.EntitySavingsStore.LastRollupTimes;
 
+/**
+ * Test the entity savings processor.
+ */
 public class EntitySavingsProcessorTest {
 
     private TopologyEventsPoller topologyEventsPoller = Mockito.mock(TopologyEventsPoller.class);

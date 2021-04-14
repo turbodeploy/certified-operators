@@ -83,7 +83,7 @@ interface EntityEventsJournal {
     Long getOldestEventTime();
 
     /**
-     * Returns the event current in the journal with the newset available time. Can return null
+     * Returns the event current in the journal with the newest available time. Can return null
      * if journal is empty.
      *
      * @return Timestamp of newest event, or null if no events present currently.
@@ -214,9 +214,24 @@ interface EntityEventsJournal {
         }
 
         /**
-         * Creates a new builder.
+         * Compares this SavingsEvent to another using the sorting priority and timestamp.
+         * Descending sort.
+         * @param other the SavingsEvent to compare to
+         * @return positive if other sorts higher, lower if other sorts lower, zero if equal.
          */
-        class Builder extends ImmutableSavingsEvent.Builder {}
+        default int compareConsideringTimestamp(SavingsEvent other) {
+            // Compare timestamps.  If equal, use the normal sorting priority.
+            int result = Long.compare(getTimestamp(), other.getTimestamp());
+            if (result != 0) {
+                return result;
+            }
+            return compare(other);
+       }
+
+       /**
+        * Creates a new builder.
+        */
+       class Builder extends ImmutableSavingsEvent.Builder {}
     }
 
     /**
@@ -262,7 +277,12 @@ interface EntityEventsJournal {
             /**
              * Action executed successfully, trigger for realized savings.
              */
-            EXECUTION_SUCCESS(3, 12);
+            EXECUTION_SUCCESS(3, 12),
+
+            /**
+             * One or more actions expired.
+             */
+            ACTION_EXPIRED(100, 13);
 
             private final int sortingPriority;
 
@@ -272,8 +292,8 @@ interface EntityEventsJournal {
             private final int typeCode;
 
             /**
-             * Get the sorting priority for the event. Higher priority events sort before lower
-             * priority events. This is used when two events have the same timestamp.
+             * Get the sorting priority for the event. Numerically higher priority events sort
+             * before lower priority events. This is used when two events have the same timestamp.
              *
              * @param sortingPriority ordering for the event.
              * @param typeCode Code to make the event unique across all events (including TEP).

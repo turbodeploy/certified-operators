@@ -10,8 +10,18 @@ public interface Algorithm {
      * Add an action delta (price change) to the active action list.
      *
      * @param delta amount of the price change.
+     * @param expirationTimestamp time when the action will expire.
      */
-    void addAction(double delta);
+    void addAction(double delta, long expirationTimestamp);
+
+    /**
+     * Remove an action delta (price change) from the active action list. This must be the first
+     * action in the action list.  If the timestamp does match, the removal will be ignored.
+     *
+     * @param expirationTimestamp time when the action will expire.
+     * @return true if the action was removed.
+     */
+    boolean removeAction(long expirationTimestamp);
 
     /**
      * Close out the current interval.  This resets periodic values and prepares for the next interval.
@@ -31,9 +41,10 @@ public interface Algorithm {
     /**
      * Read entity state that is needed to run the algorithm into local state.
      *
+     * @param timestamp period timestamp
      * @param entityState entity state being tracked
      */
-    void initState(EntityState entityState);
+    void initState(long timestamp, EntityState entityState);
 
     /**
      * Return the entity ID associated with this algorithm state.
@@ -107,6 +118,21 @@ public interface Algorithm {
      * @return the action list
      */
     List<Double> getActionList();
+
+    /**
+     * Return the expiration times list.
+     *
+     * @return the expiration times list
+     */
+    List<Long> getExpirationList();
+
+    /**
+     * Get the next action expiration time.
+     *
+     * @return the expiration time of the next action, if present.  If there are no active actions,
+     *          the expiration time of 12-31-9999 23:59:59 will be returned instead.
+     */
+    long getNextExpirationTime();
 
     /**
      * Group of savings and investments together.

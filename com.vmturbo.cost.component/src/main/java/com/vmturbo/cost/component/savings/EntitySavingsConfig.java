@@ -91,7 +91,7 @@ public class EntitySavingsConfig {
     private Long deleteVolumeActionLifetimeHours;
 
     @Value("${defaultActionLifetimeHours:17520}")     // Default is 730 days (approximately 2 years)
-    private Long defaultActionLifetimeHours;
+    private Long actionLifetimeHours;
 
     /**
      * Real-Time Context Id.
@@ -153,8 +153,8 @@ public class EntitySavingsConfig {
      *
      * @return maximum number of milliseconds that an action can stay active.
      */
-    public Long getDefaultActionLifetimeMs() {
-        return TimeUnit.HOURS.toMillis(this.defaultActionLifetimeHours);
+    public Long getActionLifetimeMs() {
+        return TimeUnit.HOURS.toMillis(this.actionLifetimeHours);
     }
 
     /**
@@ -196,7 +196,8 @@ public class EntitySavingsConfig {
     public ActionListener actionListener() {
         ActionListener actionListener = new ActionListener(entityEventsJournal(), actionsService(),
                 costService(), realtimeTopologyContextId,
-                supportedEntityTypes, supportedActionTypes);
+                supportedEntityTypes, supportedActionTypes,
+                getActionLifetimeMs(), getDeleteVolumeActionLifetimeMs());
         if (isEnabled()) {
             logger.info("Registering action listener with AO to receive action events.");
             // Register listener with the action orchestrator to receive action events.
@@ -215,7 +216,7 @@ public class EntitySavingsConfig {
     @Bean
     public TopologyEventsPoller topologyEventsPoller() {
         return new TopologyEventsPoller(topologyEventProvider, liveTopologyInfoTracker,
-                entityEventsJournal(), getDefaultActionLifetimeMs(), getDeleteVolumeActionLifetimeMs());
+                entityEventsJournal(), getActionLifetimeMs(), getDeleteVolumeActionLifetimeMs());
     }
 
     /**
@@ -317,7 +318,8 @@ public class EntitySavingsConfig {
      */
     @Bean
     public EventInjector eventInjector() {
-        EventInjector injector = new EventInjector(entitySavingsTracker(), entityEventsJournal());
+        EventInjector injector = new EventInjector(entitySavingsTracker(), entityEventsJournal(),
+                getActionLifetimeMs(), getDeleteVolumeActionLifetimeMs());
         injector.start();
         return injector;
     }

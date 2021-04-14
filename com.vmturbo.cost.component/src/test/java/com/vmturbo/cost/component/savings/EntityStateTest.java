@@ -6,6 +6,9 @@ import java.util.List;
 import org.junit.Assert;
 import org.junit.Test;
 
+/**
+ * Entity state tests.
+ */
 public class EntityStateTest {
 
     @Test

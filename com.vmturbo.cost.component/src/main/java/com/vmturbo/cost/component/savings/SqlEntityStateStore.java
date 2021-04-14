@@ -3,6 +3,9 @@ package com.vmturbo.cost.component.savings;
 import static com.vmturbo.cost.component.db.Tables.ENTITY_SAVINGS_STATE;
 
 import java.io.IOException;
+import java.sql.Timestamp;
+import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -60,13 +63,24 @@ public class SqlEntityStateStore implements EntityStateStore {
         }
     }
 
+    /**
+     * Get a map of entity states that need to be processed even without driving events.  This
+     * includes all entity states that were updated in the previous calculation pass and entity
+     * states that contain an expired action.
+     *
+     * @param timestamp timestamp of the end of the period being processed
+     * @return a map of entity_oid -> EntityState that must be processed.
+     * @throws EntitySavingsException when an error occurs
+     */
     @Override
-    public Map<Long, EntityState> getUpdatedEntityStates() throws EntitySavingsException {
+    public Map<Long, EntityState> getForcedUpdateEntityStates(LocalDateTime timestamp)
+            throws EntitySavingsException {
         final Result<Record2<Long, String>> records;
         try {
             records = dsl.select(ENTITY_SAVINGS_STATE.ENTITY_OID, ENTITY_SAVINGS_STATE.ENTITY_STATE)
                     .from(ENTITY_SAVINGS_STATE)
-                    .where(ENTITY_SAVINGS_STATE.UPDATED.eq((byte)1))
+                    .where(ENTITY_SAVINGS_STATE.UPDATED.eq((byte)1)
+                            .or(ENTITY_SAVINGS_STATE.NEXT_EXPIRATION_TIME.le(timestamp)))
                     .fetch();
             return records.stream().collect(Collectors.toMap(Record2::value1,
                     record -> EntityState.fromJson(record.value2())));
@@ -105,6 +119,8 @@ public class SqlEntityStateStore implements EntityStateStore {
             EntitySavingsStateRecord record = ENTITY_SAVINGS_STATE.newRecord();
             record.setEntityOid(entityState.getEntityId());
             record.setUpdated(entityState.isUpdated() ? (byte)1 : (byte)0);
+            record.setNextExpirationTime(Timestamp.from(Instant.ofEpochMilli(entityState
+                    .getNextExpirationTime())).toLocalDateTime());
             record.setEntityState(entityState.toJson());
             records.add(record);
         });
@@ -116,7 +132,8 @@ public class SqlEntityStateStore implements EntityStateStore {
                     .loadRecords(records)
                     .fields(ENTITY_SAVINGS_STATE.ENTITY_OID,
                             ENTITY_SAVINGS_STATE.UPDATED,
-                            ENTITY_SAVINGS_STATE.ENTITY_STATE)
+                            ENTITY_SAVINGS_STATE.ENTITY_STATE,
+                            ENTITY_SAVINGS_STATE.NEXT_EXPIRATION_TIME)
                     .execute();
         } catch (IOException e) {
             throw new EntitySavingsException("Error occurred when updating entity states.", e);
