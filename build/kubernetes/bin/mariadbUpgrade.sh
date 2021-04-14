@@ -8,15 +8,20 @@ serverIp=$(ifconfig eth0 | grep 'inet' |egrep -v 'inet6' | cut -d: -f2 | awk '{ 
 databaseIp=$(grep externalDbIP /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml | egrep -v '#' | awk '{print $2}')
 databaseName=$(grep externalDBName /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml | egrep -v '#' | awk '{print $2}')
 
-if [ X${serverIp} != X${databaseIp} ]
+# Check to see if the database is remote from the server
+if [ -z "${databaseIp+x}" ]
 then
-  echo "Exiting, the database server does not appear to be hosted on this kubernetes node"
-  exit 1
-fi
-if [ ! -z ${databaseName+x} ]
-then
-  echo "Exiting, the database server does not appear to be hosted on this kubernetes node"
-  exit 1
+  if [ -z "${databaseName}" ]
+  then
+    echo "Exiting, the database server does not appear to be hosted on this kubernetes node"
+    exit 1
+  fi
+else
+  if [ X${serverIp} != X${databaseIp} ]
+  then
+    echo "Exiting, the database server does not appear to be hosted on this kubernetes node"
+    exit 1
+  fi
 fi
 
 # Check the version installed
