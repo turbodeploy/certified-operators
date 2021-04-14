@@ -18,6 +18,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import javax.annotation.Nonnull;
@@ -58,6 +59,7 @@ public class StaleOidManagerImpl implements StaleOidManager {
     private boolean expireOids;
     private final ScheduledExecutorService executorService;
     private final Map<Integer, Long> expirationDaysPerEntity;
+    private Consumer<Set<Long>> listener;
 
     /**
      * Creates an instance of a {@link StaleOidManagerImpl}.
@@ -95,10 +97,13 @@ public class StaleOidManagerImpl implements StaleOidManager {
      * the difference between the current time, and the time of the latest operation.
      *
      * @param getCurrentOids function to get the oids present in the entity store.
+     * @param listener to notify when oids are marked stale.
      * @return a ScheduledFuture with the task currently running
      */
-    public ScheduledFuture<?> initialize(@Nonnull final Supplier<Set<Long>> getCurrentOids) {
+    public ScheduledFuture<?> initialize(@Nonnull final Supplier<Set<Long>> getCurrentOids,
+            @Nonnull Consumer<Set<Long>> listener) {
         this.getCurrentOids = getCurrentOids;
+        this.listener = listener;
         long currentTimeMs = clock.millis();
         Optional<LocalDateTime> optionalLastValidationTime = getLatestOidExpirationExecutionTime();
         long latestValidationTime = optionalLastValidationTime
@@ -111,9 +116,18 @@ public class StaleOidManagerImpl implements StaleOidManager {
             this.expirationDaysPerEntity, TimeUnit.MILLISECONDS.toHours(timeToNextExpirationTask),
             TimeUnit.MILLISECONDS.toHours(validationFrequency));
         return this.executorService.scheduleWithFixedDelay(new OidExpirationTask(getCurrentOids,
-                entityExpirationTime, context, expireOids, clock, this.expirationDaysPerEntity),
-            timeToNextExpirationTask, validationFrequency,
-            TimeUnit.MILLISECONDS);
+                        this::notifyListener, entityExpirationTime, context, expireOids, clock,
+                        this.expirationDaysPerEntity), timeToNextExpirationTask,
+                validationFrequency, TimeUnit.MILLISECONDS);
+    }
+
+    private void notifyListener(@Nonnull Set<Long> removedOids) {
+        logger.debug("Notifying listener of {} oids removed", removedOids.size());
+        if (listener != null) {
+            listener.accept(removedOids);
+        } else {
+            logger.error("No listener provided. Stale OIDs will not be cleared from cache.");
+        }
     }
 
     /**
@@ -129,8 +143,8 @@ public class StaleOidManagerImpl implements StaleOidManager {
      */
     public int expireOidsImmediatly() throws InterruptedException, ExecutionException, TimeoutException {
         logger.info("Running the OidExpirationTask asynchronously");
-        OidExpirationTask task = new OidExpirationTask(this.getCurrentOids, entityExpirationTime,
-            context, expireOids, clock, this.expirationDaysPerEntity);
+        OidExpirationTask task = new OidExpirationTask(this.getCurrentOids, this::notifyListener,
+                entityExpirationTime, context, expireOids, clock, this.expirationDaysPerEntity);
         Future<?> future = this.executorService.submit(task);
         future.get(5, TimeUnit.MINUTES);
         return task.getNumberOfExpiredOids();
@@ -175,6 +189,7 @@ public class StaleOidManagerImpl implements StaleOidManager {
         private final DSLContext context;
         private final long entityExpirationTime;
         private final Supplier<Set<Long>> getCurrentOids;
+        private final Consumer<Set<Long>> notifyExpiredOids;
         private long currentTimeMs;
         private int numberOfExpiredOids;
         private final boolean expireOids;
@@ -182,10 +197,12 @@ public class StaleOidManagerImpl implements StaleOidManager {
         private final Map<Integer, Long> expirationDaysPerEntity;
 
         OidExpirationTask(@Nonnull final Supplier<Set<Long>> getCurrentOids,
+                          @Nonnull final Consumer<Set<Long>> notifyExpiredOids,
                           final long entityExpirationTime,
                           final DSLContext context, final boolean expireOids, final Clock clock,
                           final Map<Integer, Long> expirationTimePerEntity) {
             this.getCurrentOids = getCurrentOids;
+            this.notifyExpiredOids = notifyExpiredOids;
             this.entityExpirationTime = entityExpirationTime;
             this.context = context;
             this.expireOids = expireOids;
@@ -205,6 +222,7 @@ public class StaleOidManagerImpl implements StaleOidManager {
                     Set<Long> expiredOids = getExpiredRecords(entityExpirationTime, expirationDaysPerEntity);
                     sendExpiredOids(expiredOids);
                     setExpiredRecords(expirationDaysPerEntity);
+                    notifyExpiredOids.accept(expiredOids);
                     setSuccesfulOidExpirationTask(expiredOids.size());
                     numberOfExpiredOids = expiredOids.size();
                     logger.info("OidExpirationTask finished in {} seconds. Number of expired oids: {}",

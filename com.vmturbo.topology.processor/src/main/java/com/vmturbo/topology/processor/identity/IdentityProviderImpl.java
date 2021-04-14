@@ -276,7 +276,7 @@ public class IdentityProviderImpl implements IdentityProvider {
 
     @Override
     public void initializeStaleOidManager(@Nonnull final Supplier<Set<Long>> getCurrentOids) {
-        this.staleOidManager.initialize(getCurrentOids);
+        this.staleOidManager.initialize(getCurrentOids, this::removeStaleOidsFromCache);
     }
 
     @Override
@@ -451,5 +451,18 @@ public class IdentityProviderImpl implements IdentityProvider {
     @Override
     public void initialize() throws InitializationException {
         identityServiceInMemoryUnderlyingStore.initialize();
+    }
+
+    private void removeStaleOidsFromCache(@Nonnull Set<Long> staleOids) {
+        synchronized (identityServiceLock) {
+            final long startTime = System.currentTimeMillis();
+            final long removedOids = staleOids.stream().filter(
+                    identityServiceInMemoryUnderlyingStore::shallowRemove).count();
+            if (staleOids.size() > 0) {
+                logger.info("Removed {} oids from in memory cache in {} milliseconds. "
+                                + "{} oids were not found in cache.", removedOids,
+                        System.currentTimeMillis() - startTime, staleOids.size() - removedOids);
+            }
+        }
     }
 }

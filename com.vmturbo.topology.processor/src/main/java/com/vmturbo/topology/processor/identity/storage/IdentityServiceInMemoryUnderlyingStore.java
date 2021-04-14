@@ -428,6 +428,18 @@ import com.vmturbo.topology.processor.identity.storage.IdentityCaches.IdentityRe
     }
 
     /**
+     * Delete an OID from the in memory cache but leave it in the database. This is used
+     * for expiring OIDs (see {@link com.vmturbo.topology.processor.identity.StaleOidManager}).
+     *
+     * @param oid the oid to remove.
+     * @return true if the oid was found in the cache; false if not.
+     */
+    @Override
+    public boolean shallowRemove(long oid) {
+        return identityCache.remove(oid) != null;
+    }
+
+    /**
      * {@inheritDoc}
      * @return
      */
