@@ -106,18 +106,20 @@ public class TopologyEventsPoller {
         final Instant endTime = end.toInstant(ZoneOffset.UTC);
         final Optional<TopologyInfo> latestTopologyInfo = topologyInfoTracker
                                                         .getLatestTopologyInfo();
-        final long topologyCreationTime = latestTopologyInfo.get().getCreationTime();
-        LocalDateTime localCreationDateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(topologyCreationTime),
-                                                                      ZoneId.of("UTC"));
-        LocalDateTime localEndDateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(endTime.toEpochMilli()),
-                                                                      ZoneId.of("UTC"));
-
-        if (latestTopologyInfo.isPresent()
-            && latestTopologyInfo.get().getCreationTime() > endTime.toEpochMilli()) {
-            logger.info("Topology created at {} is ready for processing of topology related savings"
-                            + " events in event window with end time {}.",
-                    localCreationDateTime, localEndDateTime);
-            return true;
+        final LocalDateTime localEndDateTime =
+                LocalDateTime.ofInstant(Instant.ofEpochMilli(endTime.toEpochMilli()),
+                        ZoneId.of("UTC"));
+        if (latestTopologyInfo.isPresent()) {
+            final long topologyCreationTime = latestTopologyInfo.get().getCreationTime();
+            if (topologyCreationTime > endTime.toEpochMilli()) {
+                final LocalDateTime localCreationDateTime =
+                        LocalDateTime.ofInstant(Instant.ofEpochMilli(topologyCreationTime),
+                                ZoneId.of("UTC"));
+                logger.info("Topology created at {} is ready for processing of topology related"
+                                + " savings events in event window with end time {}.",
+                        localCreationDateTime, localEndDateTime);
+                return true;
+            }
         }
         logger.info("Topology not yet ready for processing of topology related savings events in"
                         + " event window with end time {}.", localEndDateTime);

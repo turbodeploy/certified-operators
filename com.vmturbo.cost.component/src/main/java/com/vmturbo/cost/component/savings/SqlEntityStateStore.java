@@ -206,8 +206,8 @@ public class SqlEntityStateStore extends SQLCloudScopedStore implements EntitySt
         }
 
         logger.error("Cannot create entity cloud scope record because required information is missing."
-                        + " EntityType={}, serviceProviderOid={}, regionOid={}, accountOid={}",
-                entityType, serviceProviderOid, regionOid, accountOid);
+                        + " EntityOid={}, EntityType={}, serviceProviderOid={}, regionOid={}, accountOid={}",
+                entityOid, entityType, serviceProviderOid, regionOid, accountOid);
         return null;
     }
 }
