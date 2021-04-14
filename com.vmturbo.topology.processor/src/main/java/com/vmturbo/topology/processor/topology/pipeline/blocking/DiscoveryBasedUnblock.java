@@ -254,7 +254,7 @@ public class DiscoveryBasedUnblock implements PipelineUnblock {
                                         logger.error(
                                                 "Error in notifying the discovery result for target "
                                                         + "id:{} and probe id: {}", targetId,
-                                                probeId);
+                                                probeId, e);
                                     }
 
                                     TargetDiscoveryInfo info =
