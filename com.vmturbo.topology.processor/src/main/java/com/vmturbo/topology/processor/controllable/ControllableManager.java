@@ -37,11 +37,15 @@ public class ControllableManager {
 
     private final boolean accountForVendorAutomation;
 
+    private final EntityMaintenanceTimeDao entityMaintenanceTimeDao;
+
     private static final Logger logger = LogManager.getLogger();
 
     public ControllableManager(@Nonnull final EntityActionDao entityActionDao,
+                               @Nonnull final EntityMaintenanceTimeDao entityMaintenanceTimeDao,
                                final boolean accountForVendorAutomation) {
         this.entityActionDao = Objects.requireNonNull(entityActionDao);
+        this.entityMaintenanceTimeDao = Objects.requireNonNull(entityMaintenanceTimeDao);
         this.accountForVendorAutomation = accountForVendorAutomation;
     }
 
@@ -59,6 +63,7 @@ public class ControllableManager {
         oidModified.addAll(markSuspendedEntitiesAsNotControllable(topology));
         if (accountForVendorAutomation) {
             oidModified.addAll(applyControllableAutomationLevel(topology));
+            oidModified.addAll(keepControllableFalseAfterExitingMaintenanceMode(topology));
         }
         return oidModified.size();
     }
@@ -123,7 +128,7 @@ public class ControllableManager {
             .filter(entity -> entity.getEntityType() == EntityDTO.EntityType.VIRTUAL_MACHINE_VALUE)
             .map(entity -> {
                 entity.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder().setControllable(false);
-                logger.trace("Mark VM {}({}) as not controllable", entity.getDisplayName(), entity.getOid());
+                logger.trace("Mark VM {} as not controllable", entity);
                 return entity.getOid();
             })
             .collect(Collectors.toSet());
@@ -161,7 +166,27 @@ public class ControllableManager {
             .filter(entity -> entity.getTypeSpecificInfoOrBuilder().getPhysicalMachineOrBuilder().getAutomationLevel() == AutomationLevel.FULLY_AUTOMATED)
             .map(entity -> {
                 entity.getAnalysisSettingsBuilder().setControllable(false);
-                logger.trace("Set controllable to false for host {}({})", entity.getDisplayName(), entity.getOid());
+                logger.trace("Mark suspended entity {} as not controllable", entity);
+                return entity.getOid();
+            })
+            .collect(Collectors.toSet());
+    }
+
+    /**
+     * Keep controllable false for hosts exit maintenance mode for some time.
+     *
+     * @param topology topology a topology graph.
+     * @return a set of modified entity oids.
+     */
+    private Set<Long> keepControllableFalseAfterExitingMaintenanceMode(final TopologyGraph<TopologyEntity> topology) {
+        return entityMaintenanceTimeDao.getControllableFalseHost().stream()
+            .map(topology::getEntity)
+            .filter(Optional::isPresent)
+            .map(Optional::get)
+            .map(TopologyEntity::getTopologyEntityDtoBuilder)
+            .map(entity -> {
+                entity.getAnalysisSettingsBuilder().setControllable(false);
+                logger.trace("Set controllable to false for host {}", entity);
                 return entity.getOid();
             })
             .collect(Collectors.toSet());
@@ -274,7 +299,7 @@ public class ControllableManager {
             .map(entity -> {
                 entity.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList()
                     .forEach(commSold -> commSold.setIsResizeable(false));
-                logger.trace("Mark VM {}({}) as not resizable", entity.getDisplayName(), entity.getOid());
+                logger.trace("Mark VM {} as not resizable", entity);
                 return entity.getOid();
             })
             .collect(Collectors.toSet());
