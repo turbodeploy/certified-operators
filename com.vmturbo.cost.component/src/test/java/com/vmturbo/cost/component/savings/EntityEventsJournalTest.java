@@ -8,6 +8,7 @@ import static org.junit.Assert.assertTrue;
 
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 
@@ -37,6 +38,8 @@ public class EntityEventsJournalTest {
     private static final long vm3Id = 301L;
     private static final long action1Id = 1001L;
     private static final long action2Id = 1002L;
+
+    private static final long ACTION_EXPIRATION_TIME = TimeUnit.HOURS.toMillis(1L);
 
     /**
      * Initializing store.

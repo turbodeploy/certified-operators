@@ -16,6 +16,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
@@ -68,6 +69,8 @@ public class EntitySavingsTrackerTest {
     private static final Map<LocalDateTime, List<SavingsEvent>> eventsByPeriod = new HashMap<>();
 
     private static Clock clock = Clock.systemUTC();
+
+    private static final long ACTION_EXPIRATION_TIME = TimeUnit.HOURS.toMillis(1L);
 
     @Captor
     private ArgumentCaptor<Set<EntitySavingsStats>> statsCaptor;

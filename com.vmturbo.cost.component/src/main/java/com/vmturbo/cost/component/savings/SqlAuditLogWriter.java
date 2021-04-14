@@ -227,8 +227,8 @@ public class SqlAuditLogWriter implements AuditLogWriter {
             if (this.eventId == null) {
                 this.eventId = String.format("NA-%d", System.currentTimeMillis());
             }
-            if (this.eventInfo == null) {
-                this.eventInfo = StringUtils.EMPTY;
+            if (this.eventInfo == null || this.eventInfo.isEmpty()) {
+                this.eventInfo = "{}";
             }
         }
 
@@ -276,7 +276,7 @@ public class SqlAuditLogWriter implements AuditLogWriter {
                     .append("entityOid", entityOid)
                     .append("eventType", eventType)
                     .append("eventId", eventId)
-                    .append("eventTime", eventType)
+                    .append("eventTime", eventTime)
                     .append("eventInfo", eventInfo)
                     .toString();
         }

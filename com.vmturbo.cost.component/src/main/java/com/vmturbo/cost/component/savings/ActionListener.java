@@ -4,6 +4,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
@@ -146,6 +147,12 @@ public class ActionListener implements ActionsListener {
             .build();
 
     /**
+     * Action lifetimes.
+     */
+    private final Long actionLifetimeMs;
+    private final Long deleteVolumeActionLifetimeMs;
+
+    /**
      * Constructor.
      *
      * @param entityEventsInMemoryJournal Entity Events Journal to maintain Savings events including those related to actions.
@@ -154,13 +161,17 @@ public class ActionListener implements ActionsListener {
      * @param realTimeContextId The real-time topology context id.
      * @param supportedEntityTypes Set of entity types supported.
      * @param supportedActionTypes Set of action types supported.
+     * @param actionLifetimeMs lifetime in ms for all actions other than delete volume
+     * @param deleteVolumeActionLifetimeMs lifetime in ms for delete volume actions
      */
     ActionListener(@Nonnull final EntityEventsJournal entityEventsInMemoryJournal,
                     @Nonnull final ActionsServiceBlockingStub actionsServiceBlockingStub,
                     @Nonnull CostServiceBlockingStub costServiceBlockingStub,
                     @Nonnull final Long realTimeContextId,
                     @Nonnull Set<EntityType> supportedEntityTypes,
-                    @Nonnull Set<ActionType> supportedActionTypes) {
+                    @Nonnull Set<ActionType> supportedActionTypes,
+                    @Nonnull final Long actionLifetimeMs,
+                    @Nonnull final Long deleteVolumeActionLifetimeMs) {
         entityEventsJournal = Objects.requireNonNull(entityEventsInMemoryJournal);
         actionsService = Objects.requireNonNull(actionsServiceBlockingStub);
         costService = Objects.requireNonNull(costServiceBlockingStub);
@@ -169,6 +180,8 @@ public class ActionListener implements ActionsListener {
                 .map(EntityType::getNumber)
                 .collect(Collectors.toSet());
         pendingActionTypes = supportedActionTypes;
+        this.actionLifetimeMs = Objects.requireNonNull(actionLifetimeMs);
+        this.deleteVolumeActionLifetimeMs = Objects.requireNonNull(deleteVolumeActionLifetimeMs);
     }
 
     /**
@@ -211,12 +224,16 @@ public class ActionListener implements ActionsListener {
                             entityIdToActionInfoMap);
                     final EntityPriceChange actionPriceChange = entityPriceChangeMap.get(actionId);
                     if (actionPriceChange != null) {
-                        final SavingsEvent successEvent =
-                                                    createActionEvent(entity.getId(),
-                                                      completionTime,
-                                                      ActionEventType.EXECUTION_SUCCESS,
-                                                      actionId,
-                                                      actionPriceChange);
+                        EntityPriceChange actionPriceChangeWithExpiration =
+                                new EntityPriceChange.Builder()
+                                        .from(actionPriceChange)
+                                        .expirationTime(Optional.of(completionTime + actionLifetimeMs))
+                                        .build();
+                        final SavingsEvent successEvent = createActionEvent(entity.getId(),
+                                completionTime,
+                                ActionEventType.EXECUTION_SUCCESS,
+                                actionId,
+                                actionPriceChangeWithExpiration);
                         entityEventsJournal.addEvent(successEvent);
                         entityActionStateMap.put(actionId, ActionState.SUCCEEDED);
                         logger.debug("Added action {} for entity {}, completion time {}, recommendation time {}, journal size {}",
@@ -409,7 +426,8 @@ public class ActionListener implements ActionsListener {
      * Create a Savings Event on receiving an Action Event.
      *
      * @param entityId The target entity ID.
-     * @param timestamp The time-stamp of the action event (execution completion time, reccommendation tie etc).
+     * @param timestamp The time-stamp of the action event (execution completion time,
+     *                  recommendation tie etc).
      * @param actionType The action type.
      * @param actionId the action ID.
      * @param priceChange the price change associated with the action.

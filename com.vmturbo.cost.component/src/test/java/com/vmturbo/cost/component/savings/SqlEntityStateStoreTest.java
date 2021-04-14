@@ -4,6 +4,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -26,7 +27,7 @@ import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
 
 /**
- * Test operations of SqlEntityStateStore
+ * Test operations of SqlEntityStateStore.
  */
 public class SqlEntityStateStoreTest {
 
@@ -106,14 +107,14 @@ public class SqlEntityStateStoreTest {
         assertEquals(9, stateList.size());
 
         // Get all states with the updated flag = 1.
-        Map<Long, EntityState> updated = store.getUpdatedEntityStates();
+        Map<Long, EntityState> updated = store.getForcedUpdateEntityStates(LocalDateTime.MIN);
         assertEquals(0, updated.size());
         EntityState updatedState = createState(12L);
         updatedState.setUpdated(true);
         stateSetToUpdate = new HashSet<>();
         stateSetToUpdate.add(updatedState);
         store.updateEntityStates(stateSetToUpdate.stream().collect(Collectors.toMap(EntityState::getEntityId, Function.identity())));
-        updated = store.getUpdatedEntityStates();
+        updated = store.getForcedUpdateEntityStates(LocalDateTime.MIN);
         assertEquals(1, updated.size());
         // the updated flag should not be serialized with the state object, so state is false
         // when deserializing the state.
@@ -121,7 +122,7 @@ public class SqlEntityStateStoreTest {
 
         // Clear the updated flags
         store.clearUpdatedFlags();
-        updated = store.getUpdatedEntityStates();
+        updated = store.getForcedUpdateEntityStates(LocalDateTime.MIN);
         assertEquals(0, updated.size());
     }
 

@@ -63,6 +63,9 @@ import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 
+/**
+ * Tests for the action listener.
+ */
 public class ActionListenerTest {
     private static final Long succeededActionId1 = 1234L;
     private static final Long succeededActionId2 = 4321L;
@@ -85,6 +88,11 @@ public class ActionListenerTest {
     @Rule
     public GrpcTestServer grpcTestServer = GrpcTestServer.newServer(actionsServiceRpc);
 
+    /**
+     * Setup before each test.
+     *
+     * @throws IOException on error
+     */
     @Before
     public void setup() throws IOException {
         MockitoAnnotations.initMocks(this);
@@ -94,10 +102,11 @@ public class ActionListenerTest {
         GrpcTestServer costGrpcServer = GrpcTestServer.newServer(costServiceRpc);
         costGrpcServer.start();
         costService = CostServiceGrpc.newBlockingStub(costGrpcServer.getChannel());
+        // Initialize ActionListener with a one hour action lifetime.
         actionListener = new ActionListener(store, actionsService, costService,
                                             realTimeTopologyContextId,
                 EntitySavingsConfig.getSupportedEntityTypes(),
-                EntitySavingsConfig.getSupportedActionTypes());
+                EntitySavingsConfig.getSupportedActionTypes(), 3600000L, 0L);
 
         Map<Long, CurrencyAmount> beforeOnDemandComputeCostByEntityOidMap = new HashMap<>();
         beforeOnDemandComputeCostByEntityOidMap.put(1L, CurrencyAmount.newBuilder()

@@ -34,6 +34,13 @@ public class EntityState {
     private transient boolean deletePending;
 
     /**
+     * The time that the next active action this entity state will expire.  Entities with expired
+     * actions must run at the next available time regardless of whether the entity has pending
+     * events to process, in order to process the expired actions.
+     */
+    private transient long nextExpirationTime;
+
+    /**
      * Power state of the entity. 1 is powered on; 0 is powered off.
      */
     private long powerFactor;
@@ -69,6 +76,11 @@ public class EntityState {
     private Double missedInvestments;
 
     /**
+     * List of expiration times for the actions in the action list.
+     */
+    private List<Long> expirationList;
+
+    /**
      * Boolean flag to indicate this state was updated as a result of an event.
      * The flag is used to indicate that this state will need to be processed again in the next
      * period even if there will be no events detected for this entity in the next period.
@@ -80,8 +92,10 @@ public class EntityState {
         this.deletePending = false;
         this.powerFactor = 1L;
 
-        // The current realized and missed values. Not scaled by period length.
+        // Initialize the current action list and their expiration times. Not scaled by
+        // period length.
         this.actionList = new ArrayList<>();
+        this.expirationList = new ArrayList<>();
     }
 
     public long getEntityId() {
@@ -160,6 +174,23 @@ public class EntityState {
 
     public void setUpdated(final boolean updated) {
         this.updated = updated;
+    }
+
+    @Nullable
+    public List<Long> getExpirationList() {
+        return expirationList;
+    }
+
+    public void setExpirationList(@Nonnull final List<Long> expirationList) {
+        this.expirationList = expirationList;
+    }
+
+    public void setNextExpirationTime(long expirationTime) {
+        this.nextExpirationTime = expirationTime;
+    }
+
+    public long getNextExpirationTime() {
+        return nextExpirationTime;
     }
 
     private static Gson createGson() {

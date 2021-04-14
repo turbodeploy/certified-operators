@@ -116,13 +116,16 @@ public class EntitySavingsTracker {
                 // Get states for entities that have events or had state changes in the last period
                 // and put the states in the state map.
                 Map<Long, EntityState> entityStates = entityStateStore.getEntityStates(entityIds);
-                entityStates.putAll(entityStateStore.getUpdatedEntityStates());
+                Map<Long, EntityState> forcedEntityStates = entityStateStore
+                        .getForcedUpdateEntityStates(periodEndTime);
+                entityStates.putAll(forcedEntityStates);
 
                 // Clear the updated_by_event flags
                 entityStateStore.clearUpdatedFlags();
 
                 // Invoke calculator
-                savingsCalculator.calculate(entityStates, events, startTimeMillis, endTimeMillis);
+                savingsCalculator.calculate(entityStates, forcedEntityStates.values(), events,
+                        startTimeMillis, endTimeMillis);
 
                 // Update entity states. Also insert new states to track new entities.
                 entityStateStore.updateEntityStates(entityStates);
