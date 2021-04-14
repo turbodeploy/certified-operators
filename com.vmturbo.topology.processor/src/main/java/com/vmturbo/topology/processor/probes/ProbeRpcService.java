@@ -77,9 +77,19 @@ public class ProbeRpcService extends ProbeRpcServiceImplBase implements Settings
     public void getProbeInfo(
             @Nonnull GetProbeInfoRequest request,
             @Nonnull StreamObserver<GetProbeInfoResponse> response) {
-        // TODO: implement and remove the corresponding implementation from the /probes REST endpoint (part of OM-40987)
-        response.onNext(GetProbeInfoResponse.newBuilder().build());
-        response.onCompleted();
+        final Optional<ProbeInfo> info = probeStore.getProbe(request.getOid());
+        if (info.isPresent()) {
+            final ProbeInfo probe = info.get();
+            final GetProbeInfoResponse probeInfo = GetProbeInfoResponse.newBuilder()
+                .setOid(request.getOid())
+                .setCategory(probe.getProbeCategory())
+                .setType(probe.getProbeType())
+                .build();
+            response.onNext(probeInfo);
+            response.onCompleted();
+        } else {
+            response.onError(Status.NOT_FOUND.asException());
+        }
     }
 
     @Override

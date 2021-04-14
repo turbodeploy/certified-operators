@@ -1,9 +1,12 @@
 package com.vmturbo.topology.processor.probes;
 
+import static org.junit.Assert.assertEquals;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -18,6 +21,8 @@ import io.grpc.stub.StreamObserver;
 import com.vmturbo.common.protobuf.probe.ProbeDTO.DeleteProbePropertyRequest;
 import com.vmturbo.common.protobuf.probe.ProbeDTO.GetAllProbePropertiesRequest;
 import com.vmturbo.common.protobuf.probe.ProbeDTO.GetAllProbePropertiesResponse;
+import com.vmturbo.common.protobuf.probe.ProbeDTO.GetProbeInfoRequest;
+import com.vmturbo.common.protobuf.probe.ProbeDTO.GetProbeInfoResponse;
 import com.vmturbo.common.protobuf.probe.ProbeDTO.GetProbePropertyValueRequest;
 import com.vmturbo.common.protobuf.probe.ProbeDTO.GetProbePropertyValueResponse;
 import com.vmturbo.common.protobuf.probe.ProbeDTO.GetTableOfProbePropertiesRequest;
@@ -28,6 +33,7 @@ import com.vmturbo.common.protobuf.probe.ProbeDTO.ProbePropertyNameValuePair;
 import com.vmturbo.common.protobuf.probe.ProbeDTO.UpdateOneProbePropertyRequest;
 import com.vmturbo.common.protobuf.probe.ProbeDTO.UpdateProbePropertyTableRequest;
 import com.vmturbo.group.api.SettingsUpdatesReceiver;
+import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.SetProperties;
 import com.vmturbo.topology.processor.probeproperties.ProbePropertiesTestBase;
 
@@ -46,6 +52,34 @@ public class ProbeRpcServiceProbePropertiesTest extends ProbePropertiesTestBase 
     @Before
     public void setUp() {
         super.setUp();
+    }
+
+    /**
+     * Ensure that getting a non-existent probe returns not found.
+     */
+    @Test
+    public void testGetProbeInfoNotPresent() {
+        Mockito.when(probeStore.getProbe(1234L)).thenReturn(Optional.empty());
+
+        service.getProbeInfo(GetProbeInfoRequest.newBuilder().setOid(1234L).build(),
+            new StreamObserverForFailure<>(Status.NOT_FOUND));
+    }
+
+    /**
+     * Ensure that getting probe that exists returns that probe.
+     */
+    @Test
+    public void testGetProbeInfoWhenPresent() {
+        Mockito.when(probeStore.getProbe(1234L)).thenReturn(Optional.of(ProbeInfo.newBuilder()
+            .setProbeCategory("foo")
+            .setProbeType("bar")
+            .build()));
+
+        final StreamObserverForSuccess<GetProbeInfoResponse> observer = new StreamObserverForSuccess<>();
+        service.getProbeInfo(GetProbeInfoRequest.newBuilder().setOid(1234L).build(), observer);
+        assertEquals("foo", observer.getResponse().getCategory());
+        assertEquals("bar", observer.getResponse().getType());
+        assertEquals(1234L, observer.getResponse().getOid());
     }
 
     /**
@@ -323,9 +357,9 @@ public class ProbeRpcServiceProbePropertiesTest extends ProbePropertiesTestBase 
         final Map<String, String> messageMap = captureMessage.getValue().getPropertiesMap();
 
         // compare the sent map to the expected map
-        Assert.assertEquals(expectedMap.size(), messageMap.size());
+        assertEquals(expectedMap.size(), messageMap.size());
         for (Entry<String, String> e : expectedMap.entrySet()) {
-            Assert.assertEquals(
+            assertEquals(
                 e.getValue(),
                 messageMap.get("target." + TARGET_ADD_11 + "." + e.getKey()));
         }
@@ -357,9 +391,9 @@ public class ProbeRpcServiceProbePropertiesTest extends ProbePropertiesTestBase 
             response1);
         final List<ProbePropertyNameValuePair>
             properties1 = response1.getResponse().getProbePropertiesList();
-        Assert.assertEquals(propertiesExpected.size(), properties1.size());
+        assertEquals(propertiesExpected.size(), properties1.size());
         for (ProbePropertyNameValuePair nameValuePair : properties1) {
-            Assert.assertEquals(
+            assertEquals(
                 propertiesExpected.get(nameValuePair.getName()),
                 nameValuePair.getValue());
         }
@@ -378,7 +412,7 @@ public class ProbeRpcServiceProbePropertiesTest extends ProbePropertiesTestBase 
                     .setName(e.getKey())
                     .build(),
                 response2);
-            Assert.assertEquals(e.getValue(), response2.getResponse().getValue());
+            assertEquals(e.getValue(), response2.getResponse().getValue());
         }
 
         // if a property name is not in the map, then inquiring for that property
@@ -395,7 +429,7 @@ public class ProbeRpcServiceProbePropertiesTest extends ProbePropertiesTestBase 
                 .setName(notInMap)
                 .build(),
             response3);
-        Assert.assertEquals("", response3.getResponse().getValue());
+        assertEquals("", response3.getResponse().getValue());
 
         // other probe property tables should be empty
         final StreamObserverForSuccess<GetTableOfProbePropertiesResponse>
@@ -409,7 +443,7 @@ public class ProbeRpcServiceProbePropertiesTest extends ProbePropertiesTestBase 
                         .build())
                 .build(),
             response4);
-        Assert.assertEquals(0, response4.getResponse().getProbePropertiesCount());
+        assertEquals(0, response4.getResponse().getProbePropertiesCount());
         final StreamObserverForSuccess<GetTableOfProbePropertiesResponse>
             response5 = new StreamObserverForSuccess<>();
         service.getTableOfProbeProperties(
@@ -421,7 +455,7 @@ public class ProbeRpcServiceProbePropertiesTest extends ProbePropertiesTestBase 
                         .build())
                 .build(),
             response5);
-        Assert.assertEquals(0, response5.getResponse().getProbePropertiesCount());
+        assertEquals(0, response5.getResponse().getProbePropertiesCount());
         final StreamObserverForSuccess<GetTableOfProbePropertiesResponse>
             response6 = new StreamObserverForSuccess<>();
         service.getTableOfProbeProperties(
@@ -429,7 +463,7 @@ public class ProbeRpcServiceProbePropertiesTest extends ProbePropertiesTestBase 
                 .setProbePropertyTable(ProbeOrTarget.newBuilder().setProbeId(PROBE_ID_1).build())
                 .build(),
             response6);
-        Assert.assertEquals(0, response6.getResponse().getProbePropertiesCount());
+        assertEquals(0, response6.getResponse().getProbePropertiesCount());
         final StreamObserverForSuccess<GetTableOfProbePropertiesResponse>
             response7 = new StreamObserverForSuccess<>();
         service.getTableOfProbeProperties(
@@ -437,7 +471,7 @@ public class ProbeRpcServiceProbePropertiesTest extends ProbePropertiesTestBase 
                 .setProbePropertyTable(ProbeOrTarget.newBuilder().setProbeId(PROBE_ID_2).build())
                 .build(),
             response7);
-        Assert.assertEquals(0, response7.getResponse().getProbePropertiesCount());
+        assertEquals(0, response7.getResponse().getProbePropertiesCount());
         final StreamObserverForSuccess<GetProbePropertyValueResponse>
             response8 = new StreamObserverForSuccess<>();
         service.getProbePropertyValue(
@@ -450,20 +484,20 @@ public class ProbeRpcServiceProbePropertiesTest extends ProbePropertiesTestBase 
                     .setName("A")
                     .build(),
             response8);
-        Assert.assertEquals("", response8.getResponse().getValue());
+        assertEquals("", response8.getResponse().getValue());
 
         // fetching all properties at once reflects the same situation
         final StreamObserverForSuccess<GetAllProbePropertiesResponse>
             response9 = new StreamObserverForSuccess<>();
         service.getAllProbeProperties(GetAllProbePropertiesRequest.newBuilder().build(), response9);
         final List<ProbePropertyInfo> properties9 = response9.getResponse().getProbePropertiesList();
-        Assert.assertEquals(propertiesExpected.size(), properties9.size());
+        assertEquals(propertiesExpected.size(), properties9.size());
         for (ProbePropertyInfo info : properties9) {
-            Assert.assertEquals(
+            assertEquals(
                 propertiesExpected.get(info.getProbePropertyNameAndValue().getName()),
                 info.getProbePropertyNameAndValue().getValue());
-            Assert.assertEquals(PROBE_ID_1, info.getProbePropertyTable().getProbeId());
-            Assert.assertEquals(TARGET_ID_11, info.getProbePropertyTable().getTargetId());
+            assertEquals(PROBE_ID_1, info.getProbePropertyTable().getProbeId());
+            assertEquals(TARGET_ID_11, info.getProbePropertyTable().getTargetId());
         }
     }
 
@@ -491,7 +525,7 @@ public class ProbeRpcServiceProbePropertiesTest extends ProbePropertiesTestBase 
 
         @Override
         public void onError(Throwable throwable) {
-            Assert.assertEquals(
+            assertEquals(
                 expectedFailureStatus.getCode(),
                 ((StatusException)throwable).getStatus().getCode());
         }

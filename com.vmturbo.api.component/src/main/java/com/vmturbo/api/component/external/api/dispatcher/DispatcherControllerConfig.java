@@ -28,6 +28,7 @@ import com.vmturbo.api.controller.LicensesController;
 import com.vmturbo.api.controller.MarketsController;
 import com.vmturbo.api.controller.NotificationsController;
 import com.vmturbo.api.controller.PoliciesController;
+import com.vmturbo.api.controller.ProbesController;
 import com.vmturbo.api.controller.ReservationsController;
 import com.vmturbo.api.controller.ReservedInstancesController;
 import com.vmturbo.api.controller.RolesController;
@@ -46,7 +47,6 @@ import com.vmturbo.api.controller.UsersController;
 import com.vmturbo.api.controller.WidgetSetsController;
 import com.vmturbo.api.controller.WorkflowsController;
 import com.vmturbo.api.converter.CaseInsensitiveEnumConverterFactory;
-import com.vmturbo.api.external.controller.ProbesController;
 import com.vmturbo.api.internal.controller.ClusterController;
 import com.vmturbo.api.validators.TemplatesValidator;
 
