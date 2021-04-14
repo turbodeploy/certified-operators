@@ -7,6 +7,8 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
+
 /**
  * Interface for read/write of entity states.
  */
@@ -53,9 +55,12 @@ public interface EntityStateStore {
      * Update entity states. If the state of the entity is not already in the store, create it.
      *
      * @param entityStateMap entity ID mapped to entity state
+     * @param cloudTopology cloud topology
      * @throws EntitySavingsException error during operation
      */
-    void updateEntityStates(@Nonnull Map<Long, EntityState> entityStateMap) throws EntitySavingsException;
+    void updateEntityStates(@Nonnull Map<Long, EntityState> entityStateMap,
+                            @Nonnull TopologyEntityCloudTopology cloudTopology)
+            throws EntitySavingsException;
 
     /**
      * Get all entity states.

@@ -8,6 +8,7 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.group.api.GroupAndMembers;
 
@@ -254,5 +255,15 @@ public interface CloudTopology<ENTITY_CLASS> {
      */
     @Nonnull
     Optional<ENTITY_CLASS> getServiceProvider(long entityId);
+
+    /**
+     * Gets the resource group of the entity, if applicable.
+     *
+     * @param entityId entity Oid
+     * @return An Optional containing the resource group of the entity if applicable,
+     * an empty Optional otherwise.
+     */
+    @Nonnull
+    Optional<GroupAndMembers> getResourceGroup(long entityId);
 
 }

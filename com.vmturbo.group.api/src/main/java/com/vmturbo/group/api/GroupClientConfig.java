@@ -16,6 +16,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Lazy;
 
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.components.api.client.BaseKafkaConsumerConfig;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.grpc.ComponentGrpcServer;
@@ -77,5 +78,10 @@ public class GroupClientConfig {
     public SettingsUpdatesReceiver settingsClient() {
         return new SettingsUpdatesReceiver(settingsUpdatesMessageReceiver(),
                 settingsUpdatesThreadPool());
+    }
+
+    @Bean
+    public GroupMemberRetriever groupMemberRetriever() {
+        return new GroupMemberRetriever(GroupServiceGrpc.newBlockingStub(groupChannel()));
     }
 }

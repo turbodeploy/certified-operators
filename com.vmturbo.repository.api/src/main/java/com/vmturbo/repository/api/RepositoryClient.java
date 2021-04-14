@@ -543,4 +543,28 @@ public class RepositoryClient {
             return Collections.emptyMap();
         }
     }
+
+    /**
+     * Get entities of the given entity types.
+     *
+     * @param realtimeTopologyContextId realtime topology ID
+     * @param entityTypes list of entity types
+     * @return stream of entities
+     */
+    public Stream<TopologyEntityDTO> getEntitiesByType(final long realtimeTopologyContextId,
+                                                       final List<EntityType> entityTypes) {
+        final List<Integer> entityTypeNumbers = entityTypes.stream()
+                .map(EntityType::getNumber)
+                .collect(Collectors.toList());
+        final RetrieveTopologyEntitiesRequest request = RetrieveTopologyEntitiesRequest
+                .newBuilder()
+                .setTopologyContextId(realtimeTopologyContextId)
+                .setReturnType(Type.FULL)
+                .setTopologyType(TopologyType.SOURCE)
+                .addAllEntityType(entityTypeNumbers)
+                .build();
+        return RepositoryDTOUtil.topologyEntityStream(
+                repositoryService.retrieveTopologyEntities(request))
+                .map(PartialEntity::getFullEntity);
+    }
 }
