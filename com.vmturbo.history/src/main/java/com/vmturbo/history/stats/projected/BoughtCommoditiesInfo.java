@@ -22,6 +22,7 @@ import com.google.protobuf.TextFormat;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongArrayList;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -149,6 +150,10 @@ class BoughtCommoditiesInfo implements MemReporter {
             Collection<Integer> providerIndexes = providerOids.isEmpty() ? Collections.emptyList()
                     : getEntityIndexes(providerOids);
             for (final Integer targetIndex : targetIndexes) {
+                if (targetIndex == DataPack.MISSING) {
+                    logger.debug("Entity had MISSING targetIndex for of one the targetEntities: ", () -> StringUtils.join(targetEntities, ','));
+                    continue;
+                }
                 final List<Long> boughtByEntity = boughtByEntities.get(targetIndex);
                 if (boughtByEntity == null) {
                     logger.debug("Entity {} not buying {}", oidPack.fromIndex(targetIndex), commodityName);

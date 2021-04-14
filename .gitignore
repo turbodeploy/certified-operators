@@ -29,3 +29,9 @@ build/packer.io/turbonomic_xl
 # .tfstate files
 *.tfstate
 *.tfstate.*
+
+# Python bytecode
+__pycache__
+*.pyc
+
+.cache

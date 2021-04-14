@@ -43,19 +43,23 @@ public abstract class SQLCloudScopedStore implements CloudScopedStore {
 
 
     protected EntityCloudScopeRecord createCloudScopeRecord(long entityOid,
+                                                            int entityType,
                                                             long accountOid,
                                                             long regionOid,
                                                             Optional<Long> availabilityZoneOid,
                                                             long serviceProviderOid,
+                                                            Optional<Long> resourceGroupOid,
                                                             @Nonnull LocalDateTime recordCreationTime) {
 
         final EntityCloudScopeRecord cloudScopeRecord = new EntityCloudScopeRecord();
 
         cloudScopeRecord.setEntityOid(entityOid);
+        cloudScopeRecord.setEntityType(entityType);
         cloudScopeRecord.setAccountOid(accountOid);
         cloudScopeRecord.setRegionOid(regionOid);
         availabilityZoneOid.ifPresent(cloudScopeRecord::setAvailabilityZoneOid);
         cloudScopeRecord.setServiceProviderOid(serviceProviderOid);
+        resourceGroupOid.ifPresent(cloudScopeRecord::setResourceGroupOid);
         cloudScopeRecord.setCreationTime(recordCreationTime);
 
         return cloudScopeRecord;
@@ -72,10 +76,12 @@ public abstract class SQLCloudScopedStore implements CloudScopedStore {
                     .map(record -> dslContext.insertInto(Tables.ENTITY_CLOUD_SCOPE)
                             .set(record)
                             .onDuplicateKeyUpdate()
+                            .set(Tables.ENTITY_CLOUD_SCOPE.ENTITY_TYPE, record.getEntityType())
                             .set(Tables.ENTITY_CLOUD_SCOPE.ACCOUNT_OID, record.getAccountOid())
                             .set(Tables.ENTITY_CLOUD_SCOPE.REGION_OID, record.getRegionOid())
                             .set(Tables.ENTITY_CLOUD_SCOPE.AVAILABILITY_ZONE_OID, record.getAvailabilityZoneOid())
-                            .set(Tables.ENTITY_CLOUD_SCOPE.SERVICE_PROVIDER_OID, record.getServiceProviderOid()))
+                            .set(Tables.ENTITY_CLOUD_SCOPE.SERVICE_PROVIDER_OID, record.getServiceProviderOid())
+                            .set(Tables.ENTITY_CLOUD_SCOPE.RESOURCE_GROUP_OID, record.getResourceGroupOid()))
                     .collect(ImmutableSet.toImmutableSet())).execute());
 
         logger.info("Stored {} entity cloud scope records in {}", cloudScopeRecords::size, recordInsertionTimer::elapsed);

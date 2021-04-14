@@ -12,12 +12,12 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
+import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -33,6 +33,8 @@ import com.vmturbo.action.orchestrator.action.ActionEvent.RollBackToAcceptedEven
 import com.vmturbo.action.orchestrator.action.ActionSchedule;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor.SynchronousExecutionException;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTargetInfo;
+import com.vmturbo.action.orchestrator.execution.ConditionalSubmitter.ConditionalFuture;
+import com.vmturbo.action.orchestrator.execution.ConditionalSubmitter.ConditionalTask;
 import com.vmturbo.action.orchestrator.state.machine.UnexpectedEventException;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory;
@@ -40,7 +42,9 @@ import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.auth.api.auditing.AuditLogUtils;
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 
 /**
@@ -66,7 +70,7 @@ public class AutomatedActionExecutor {
     /**
      * To schedule actions for asynchronous execution.
      */
-    private final ExecutorService executionService;
+    private final Executor submitter;
 
     /**
      * For selecting which target/probe to execute each action against.
@@ -85,20 +89,20 @@ public class AutomatedActionExecutor {
      * Creates a AutomatedActionExecutor that talks will all the provided services.
      *
      * @param actionExecutor to execute actions (by sending them to Topology Processor)
-     * @param executorService to schedule actions for asynchronous execution
+     * @param submitter to schedule actions for asynchronous execution
      * @param workflowStore to determine if any workflows should be used to execute actions
      * @param actionTargetSelector to select which target/probe to execute each action against
      * @param entitySettingsCache an entity snapshot factory used for creating entity snapshot.
      * @param actionTranslator the action translator.
      */
     public AutomatedActionExecutor(@Nonnull final ActionExecutor actionExecutor,
-            @Nonnull final ExecutorService executorService,
+            @Nonnull final Executor submitter,
             @Nonnull final WorkflowStore workflowStore,
             @Nonnull final ActionTargetSelector actionTargetSelector,
             @Nonnull final EntitiesAndSettingsSnapshotFactory entitySettingsCache,
             @Nonnull final ActionTranslator actionTranslator) {
         this.actionExecutor = Objects.requireNonNull(actionExecutor);
-        this.executionService = Objects.requireNonNull(executorService);
+        this.submitter = Objects.requireNonNull(submitter);
         this.workflowStore = Objects.requireNonNull(workflowStore);
         this.actionTargetSelector = Objects.requireNonNull(actionTargetSelector);
         this.entitySettingsCache = Objects.requireNonNull(entitySettingsCache);
@@ -150,14 +154,16 @@ public class AutomatedActionExecutor {
     }
 
     /**
-     * Execute all actions in store that are in Automatic mode or manually accepted (MANUAL mode)
-     * with activated execution schedule.
-     * Subject to queueing and/or throttling.
+     * Execute all actions in store that are in Automatic mode or manually
+     * accepted (MANUAL mode) with activated execution schedule. Subject to
+     * queueing and/or throttling.
      *
      * @param store ActionStore containing all actions
-     * @return list of actions sent for execution
+     * @return list of futures sent for execution
      */
-    public List<ActionExecutionTask> executeAutomatedFromStore(ActionStore store) {
+    public List<ConditionalFuture> executeAutomatedFromStore(ActionStore store) {
+        printSubmitterState();
+
         if (!store.allowsExecution()) {
             return Collections.emptyList();
         }
@@ -183,7 +189,7 @@ public class AutomatedActionExecutor {
                 });
         toRemove.forEach(autoActions::remove);
 
-        List<ActionExecutionTask> actionsToBeExecuted = new ArrayList<>();
+        List<ConditionalFuture> futures = new ArrayList<>();
         final String userNameAndUuid = AuditLogUtils.getUserNameAndUuidFromGrpcSecurityContext();
 
 
@@ -229,6 +235,7 @@ public class AutomatedActionExecutor {
                     logger.error("Illegal state transition for action {}", action, ex);
                     continue;
                 }
+
                 // We don't need to refresh severity cache because we will refresh it
                 // in the ActionStorehouse after calling this method.
                 //
@@ -236,53 +243,10 @@ public class AutomatedActionExecutor {
                 // the threadpool, and use a different mechanism than the size of the threadpool
                 // to limit concurrent actions.
                 try {
-                    Future<Action> actionFuture = executionService.submit(() -> {
-                        if (isActionValidForExecution(action)) {
-                            // A prepare event prepares the action for execution, and initiates a PRE
-                            // workflow if one is associated with this action.
-                            action.receive(new BeginExecutionEvent());
-                            Optional<ActionDTO.Action> translated =
-                                    action.getActionTranslation().getTranslatedRecommendation();
-                            if (translated.isPresent()) {
-                                try {
-                                    logger.info("Attempting to execute action {}", action);
-                                    // Fetch the Workflow, if any, that controls this Action
-                                    Optional<WorkflowDTO.Workflow> workflowOpt =
-                                            action.getWorkflow(workflowStore, action.getState());
-                                    // Execute the Action on the given target, or the Workflow target
-                                    // if a Workflow is specified.
-                                    actionExecutor.executeSynchronously(targetId,
-                                        actionTranslator.translateToSpec(action), workflowOpt);
-                                } catch (ExecutionStartException e) {
-                                    final String errorMsg = String.format(EXECUTION_START_MSG, actionId);
-                                    logger.error(errorMsg, e);
-                                    action.receive(new FailureEvent(errorMsg));
-                                } catch (SynchronousExecutionException e) {
-                                    logger.error(e.getFailure().getErrorDescription(), e);
-                                    // We don't need fail the action here because ActionStateUpdater will
-                                    // do it for us.
-                                } catch (InterruptedException e) {
-                                    Thread.currentThread().interrupt();
-                                    logger.error("Automated action execution interrupted", e);
-                                    // We don't need fail the action here because we don't know if it
-                                    // actually failed or not. ActionStateUpdater will still change the
-                                    // action state if and when the action completes.
-                                }
-                            } else {
-                                final String errorMsg = String.format(FAILED_TRANSFORM_MSG, actionId);
-                                logger.error(errorMsg);
-                                action.receive(new FailureEvent(errorMsg));
-                            }
-                        } else {
-                            // rollback action from QUEUED to ACCEPTED state because of a missing
-                            // execution window
-                            logger.info("Action {} wasn't send for execution because "
-                                    + "associated execution window is not active", action.getId());
-                            action.receive(new RollBackToAcceptedEvent());
-                        }
-                        return action;
-                    });
-                    actionsToBeExecuted.add(new ActionExecutionTask(action, actionFuture));
+                    ConditionalFuture future = new ConditionalFuture(
+                            new AutomatedActionTask(targetId, action));
+                    submitter.execute(future);
+                    futures.add(future);
                 } catch (RejectedExecutionException ex) {
                     logger.error("Failed to submit action {} to executor.", actionId, ex);
                 }
@@ -290,15 +254,171 @@ public class AutomatedActionExecutor {
         }
 
         logger.info("TotalExecutableActions={}, SubmittedActionsCount={}",
-                    autoActions.size(), actionsToBeExecuted.size());
-        return actionsToBeExecuted;
+                autoActions.size(), futures.size());
+        return futures;
     }
 
-    private boolean isActionValidForExecution(@Nonnull final Action action) {
-        if (action.getSchedule().isPresent()) {
-            return action.getSchedule().get().isActiveScheduleNow();
-        } else {
-            return true;
+    private void printSubmitterState() {
+        if (!(submitter instanceof ConditionalSubmitter)) {
+            return;
+        }
+
+        ConditionalSubmitter conditionalSubmitter = (ConditionalSubmitter)submitter;
+
+        int queuedFuturesCount = conditionalSubmitter.getQueuedFuturesCount();
+        if (queuedFuturesCount != 0) {
+            logger.warn("Submitter queue is not empty: {}", queuedFuturesCount);
+        }
+
+        int runningFuturesCount = conditionalSubmitter.getRunningFuturesCount();
+        if (runningFuturesCount != 0) {
+            logger.warn("Submitter has running futures: {}", runningFuturesCount);
+        }
+    }
+
+    /**
+     * Execution task with the condition defined in
+     * {@link #compareTo(ConditionalTask)}. No two tasks with the same condition
+     * can be executed at the same time.
+     */
+    public class AutomatedActionTask implements ConditionalTask {
+
+        private final Long targetId;
+        private final Action action;
+
+        /**
+         * Action task.
+         *
+         * @param targetId target ID
+         * @param action action
+         */
+        public AutomatedActionTask(@Nonnull Long targetId, @Nonnull Action action) {
+            this.targetId = targetId;
+            this.action = action;
+        }
+
+        /**
+         * Compare tasks. No two tasks with the same condition can be executed
+         * at the same time.
+         *
+         * @param o the task to be compared.
+         * @return zero if the condition is the same
+         */
+        @Override
+        public int compareTo(ConditionalTask o) {
+            Long targetId1 = getMoveActionTargetId();
+            if (targetId1 == null) {
+                return 1;
+            }
+
+            AutomatedActionTask otherTask = (AutomatedActionTask)o;
+            Long targetId2 = otherTask.getMoveActionTargetId();
+            if (targetId2 == null) {
+                return 1;
+            }
+
+            int result = (int)(targetId1 - targetId2);
+
+            if (result == 0) {
+                logger.info("Matched condition for tasks: {} {}", this, otherTask);
+            }
+
+            return result;
+        }
+
+        /**
+         * Business logic executed by the task.
+         */
+        @Override
+        @Nonnull
+        public AutomatedActionTask call() throws Exception {
+            if (!isExecutionWindowActive(action)) {
+                // rollback action from QUEUED to ACCEPTED state because of
+                // a missing execution window
+                logger.info("Action {} wasn't send for execution because "
+                        + "associated execution window is not active", action.getId());
+                action.receive(new RollBackToAcceptedEvent());
+                return this;
+            }
+
+            // A prepare event prepares the action for execution, and initiates
+            // a PRE workflow if one is associated with this action.
+            action.receive(new BeginExecutionEvent());
+            Optional<ActionDTO.Action> translated = action.getActionTranslation()
+                    .getTranslatedRecommendation();
+            if (!translated.isPresent()) {
+                final String errorMsg = String.format(FAILED_TRANSFORM_MSG, action.getId());
+                logger.error(errorMsg);
+                action.receive(new FailureEvent(errorMsg));
+                return this;
+            }
+
+            try {
+                logger.info("Attempting to execute action {}", action.getId());
+                // Fetch the Workflow, if any, that controls this Action
+                Optional<WorkflowDTO.Workflow> workflowOpt = action.getWorkflow(workflowStore,
+                        action.getState());
+                ActionSpec actionSpec = actionTranslator.translateToSpec(action);
+                // Execute the Action on the given target, or the Workflow
+                // target if a Workflow is specified.
+                actionExecutor.executeSynchronously(targetId, actionSpec, workflowOpt);
+            } catch (ExecutionStartException e) {
+                final String errorMsg = String.format(EXECUTION_START_MSG, action.getId());
+                logger.error(errorMsg, e);
+                action.receive(new FailureEvent(errorMsg));
+            } catch (SynchronousExecutionException e) {
+                logger.error(e.getFailure().getErrorDescription(), e);
+                // We don't need fail the action here because ActionStateUpdater
+                // will do it for us.
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                logger.error("Automated action execution interrupted", e);
+                // We don't need fail the action here because we don't know if
+                // it actually failed or not. ActionStateUpdater will still
+                // change the action state if and when the action completes.
+            }
+
+            return this;
+        }
+
+        private boolean isExecutionWindowActive(@Nonnull Action action) {
+            Optional<ActionSchedule> actionSchedule = action.getSchedule();
+            return actionSchedule.map(ActionSchedule::isActiveScheduleNow).orElse(true);
+        }
+
+        @Nullable
+        private Long getMoveActionTargetId() {
+            ActionDTO.Action actionDto = getAction().getTranslationResultOrOriginal();
+
+            if (actionDto == null) {
+                logger.warn("Action translation is missing: {}", this);
+                return null;
+            }
+
+            ActionInfo info = actionDto.getInfo();
+
+            if (info == null) {
+                logger.warn("Action info is missing: {}", actionDto);
+                return null;
+            }
+
+            if (!info.hasMove()) {
+                return null;
+            }
+
+            return info.getMove().getTarget().getId();
+        }
+
+        @Override
+        @Nonnull
+        public Action getAction() {
+            return action;
+        }
+
+        @Override
+        public String toString() {
+            return this.getClass().getSimpleName() + " [actionId=" + action.getId() + ", targetId="
+                    + targetId + ", description='" + action.getDescription() + "']";
         }
     }
 
@@ -332,39 +452,11 @@ public class AutomatedActionExecutor {
     }
 
     /**
-     * Holds the action and the future that completes when the action completes.
-     */
-    public static class ActionExecutionTask {
-
-        private final Action action;
-        private final Future<Action> future;
-
-        /**
-         * Creates a ActionExecutionTask holding the provided action and future that completes
-         * when the action executes.
-         *
-         * @param action action that's executing.
-         * @param future the future that completes when the action executes.
-         */
-        public ActionExecutionTask(Action action, Future<Action> future) {
-            this.action = action;
-            this.future = future;
-        }
-
-        public Action getAction() {
-            return action;
-        }
-
-        public Future<Action> getFuture() {
-            return future;
-        }
-    }
-
-    /**
      * Helper class contains information about action, execution readiness status and acceptor
      * mode (automatically accepted by system or manually by user).
      */
     public static class ActionExecutionReadinessDetails {
+
         private Action action;
         private boolean isReadyForExecution;
         private boolean isAutomaticallyAccepted;
@@ -409,6 +501,13 @@ public class AutomatedActionExecutor {
          */
         public boolean isAutomaticallyAccepted() {
             return isAutomaticallyAccepted;
+        }
+
+        @Override
+        public String toString() {
+            return this.getClass().getSimpleName() + " [action=" + action + ", isReadyForExecution="
+                    + isReadyForExecution + ", isAutomaticallyAccepted=" + isAutomaticallyAccepted
+                    + "]";
         }
     }
 }

@@ -127,6 +127,11 @@ public class RESTConfig extends WebMvcConfigurerAdapter {
     }
 
     @Bean
+    public IdentityController identityController() {
+        return new IdentityController(entityConfig.entityStore());
+    }
+
+    @Bean
     public TargetController targetController() {
         return new TargetController(
                 schedulerConfig.scheduler(),
@@ -209,6 +214,6 @@ public class RESTConfig extends WebMvcConfigurerAdapter {
      */
     @Bean
     public FailedDiscoveryTracker failedDiscoveryTracker() {
-        return new FailedDiscoveryTracker();
+        return new FailedDiscoveryTracker(probeConfig.probeStore());
     }
 }

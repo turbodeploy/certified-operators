@@ -1,5 +1,6 @@
 package com.vmturbo.history.stats;
 
+import static com.vmturbo.common.protobuf.utils.StringConstants.STAT_PREFIX_CURRENT;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertThat;
 
@@ -7,6 +8,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.Lists;
@@ -26,8 +28,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ContainerPlatformClusterInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.PhysicalMachineInfo;
-import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.schema.abstraction.tables.records.MktSnapshotsStatsRecord;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -43,12 +45,19 @@ public class PlanStatsAggregatorTest {
     private static List<MktSnapshotsStatsRecord> records;
 
     private static long CONTEXT_ID = 6666666;
-    private static String PREFIX = StringConstants.STAT_PREFIX_CURRENT;
+    private static String PREFIX = STAT_PREFIX_CURRENT;
     private static double CPU_CAPACITY = 111.111;
     private static double CPU_MIN = 10;
     private static double CPU_MID = 20;
     private static double CPU_MAX = 30;
+    private static double VCPU_OVERCOMMITMENT_VAL = 0.5;
+    private static double VMEM_OVERCOMMITMENT_VAL = 1.2;
     private static final long DEFAULT_PROVIDER_ID = 999;
+    private static final double DELTA = 0.01;
+
+    private static final String OVERCOMMITMENT = "Overcommitment";
+    private static final String CUR_VCPU_OVERCOMMITMENT = "currentVCPUOvercommitment";
+    private static final String CUR_VMEM_OVERCOMMITMENT = "currentVMemOvercommitment";
 
     /**
      * Set up a topology of a few VMs and a few PMs.
@@ -72,6 +81,8 @@ public class PlanStatsAggregatorTest {
         final TopologyEntityDTO storage1 = storage(80, 200, 1000);
         final TopologyEntityDTO storage2 = storage(81, 300, 1000);
 
+        final TopologyEntityDTO containerCluster = containerPlatformCluster(90);
+
         final TopologyInfo topologyOrganizer = TopologyInfo.newBuilder()
             .setTopologyContextId(CONTEXT_ID)
             .setTopologyId(200)
@@ -82,6 +93,7 @@ public class PlanStatsAggregatorTest {
         aggregator.handleChunk(Lists.newArrayList(vm2, pm2, suspendedVm));
         aggregator.handleChunk(Lists.newArrayList(pm3, containerPod1, suspendedPm));
         aggregator.handleChunk(Lists.newArrayList(diskArray, storage1, storage2));
+        aggregator.handleChunk(Lists.newArrayList(containerCluster));
         records = aggregator.statsRecords();
     }
 
@@ -116,7 +128,8 @@ public class PlanStatsAggregatorTest {
             PREFIX + "NumContainerPods", PREFIX + "NumCPUs", PREFIX + "CPU",
             // "currentStorageAmount" should appear twice: once with relatedEntityType storage
             // and once with relatedEntityType disk array.
-            PREFIX + "StorageAmount", PREFIX + "StorageAmount"));
+            PREFIX + "StorageAmount", PREFIX + "StorageAmount",
+            PREFIX + "VCPUOvercommitment", PREFIX + "VMemOvercommitment"));
     }
 
     /**
@@ -126,7 +139,8 @@ public class PlanStatsAggregatorTest {
     public void testCPURecord() {
         MktSnapshotsStatsRecord cpuStats = records.stream().filter(rec -> rec.getPropertyType()
             .contains("CPU") && !rec.getPropertyType()
-                .contains("NumCPUs")).findFirst().get();
+                .contains("NumCPUs")
+            && !rec.getPropertyType().contains(OVERCOMMITMENT)).findFirst().get();
         Assert.assertEquals(CONTEXT_ID, (long)cpuStats.getMktSnapshotId());
         Assert.assertEquals(CPU_CAPACITY * 3, cpuStats.getCapacity(), 0);
         Assert.assertEquals((CPU_MIN + CPU_MID + CPU_MAX) / 3, cpuStats.getAvgValue(), 0);
@@ -189,6 +203,33 @@ public class PlanStatsAggregatorTest {
         Assert.assertEquals(3, pmsStats.getMaxValue(), 0);
         Assert.assertNull(pmsStats.getPropertySubtype());
         Assert.assertEquals(PREFIX + "NumHosts", pmsStats.getPropertyType());
+    }
+
+    /**
+     * Test ContainerPlatformCluster vCPUOvercommitment and vMemOvercommitment records.
+     */
+    @Test
+    public void testContainerClusterOvercommitmentsSourceRecord() {
+        Map<String, MktSnapshotsStatsRecord> cntClusterOvercommitmentsRecord =
+            records.stream().filter(rec -> rec.getPropertyType()
+                .contains(OVERCOMMITMENT)).collect(Collectors.toMap(MktSnapshotsStatsRecord::getPropertyType, Function.identity()));
+        Assert.assertEquals(2, cntClusterOvercommitmentsRecord.size());
+        final MktSnapshotsStatsRecord vCPUOvercommitmentRecord = cntClusterOvercommitmentsRecord.get(CUR_VCPU_OVERCOMMITMENT);
+        // VCPUOvercommitment record.
+        Assert.assertEquals(CUR_VCPU_OVERCOMMITMENT, vCPUOvercommitmentRecord.getPropertyType());
+        Assert.assertNull(vCPUOvercommitmentRecord.getPropertySubtype());
+        Assert.assertNull(vCPUOvercommitmentRecord.getCapacity());
+        Assert.assertEquals(VCPU_OVERCOMMITMENT_VAL, vCPUOvercommitmentRecord.getAvgValue(), DELTA);
+        Assert.assertEquals(VCPU_OVERCOMMITMENT_VAL, vCPUOvercommitmentRecord.getMinValue(), DELTA);
+        Assert.assertEquals(VCPU_OVERCOMMITMENT_VAL, vCPUOvercommitmentRecord.getMaxValue(), DELTA);
+        // VMemOvercommitment record.
+        final MktSnapshotsStatsRecord vMemOvercommitmentRecord = cntClusterOvercommitmentsRecord.get(CUR_VMEM_OVERCOMMITMENT);
+        Assert.assertEquals(CUR_VMEM_OVERCOMMITMENT, vMemOvercommitmentRecord.getPropertyType());
+        Assert.assertNull(vMemOvercommitmentRecord.getPropertySubtype());
+        Assert.assertNull(vMemOvercommitmentRecord.getCapacity());
+        Assert.assertEquals(VMEM_OVERCOMMITMENT_VAL, vMemOvercommitmentRecord.getAvgValue(), DELTA);
+        Assert.assertEquals(VMEM_OVERCOMMITMENT_VAL, vMemOvercommitmentRecord.getMinValue(), DELTA);
+        Assert.assertEquals(VMEM_OVERCOMMITMENT_VAL, vMemOvercommitmentRecord.getMaxValue(), DELTA);
     }
 
     private static final CommodityType CPU_TYPE
@@ -260,6 +301,24 @@ public class PlanStatsAggregatorTest {
                 .setDisplayName("ContainerPod-" + oid)
                 .setEntityType(EntityType.CONTAINER_POD_VALUE)
                 .build();
+    }
+
+    /**
+     * Creates a containerPlatformCluster TopologyEntityDTO.
+     *
+     * @param oid oid to use for the TopologyEntityDTO.
+     * @return TopologyEntityDTO created.
+     */
+    private static TopologyEntityDTO containerPlatformCluster(long oid) {
+        return TopologyEntityDTO.newBuilder()
+            .setOid(oid)
+            .setDisplayName("ContainerPlatformCluster-" + oid)
+            .setEntityType(EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE)
+            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                .setContainerPlatformCluster(ContainerPlatformClusterInfo.newBuilder()
+                    .setVcpuOvercommitment(VCPU_OVERCOMMITMENT_VAL)
+                    .setVmemOvercommitment(VMEM_OVERCOMMITMENT_VAL)))
+            .build();
     }
 
     /**

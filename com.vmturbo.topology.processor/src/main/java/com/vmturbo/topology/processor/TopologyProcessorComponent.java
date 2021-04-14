@@ -162,7 +162,7 @@ public class TopologyProcessorComponent extends BaseVmtComponent {
             topologyProcessorRpcConfig.discoveredGroupRpcService(),
             probeConfig.probeActionPoliciesService(),
             topologyProcessorRpcConfig.probeService(),
-            topologyProcessorRpcConfig.targetSearchRpcService());
+            topologyProcessorRpcConfig.targetRpcService());
     }
 
     /**

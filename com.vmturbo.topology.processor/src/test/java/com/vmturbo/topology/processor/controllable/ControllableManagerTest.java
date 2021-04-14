@@ -14,6 +14,8 @@ import org.mockito.Mockito;
 
 import com.google.common.collect.Sets;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
@@ -52,8 +54,9 @@ public class ControllableManagerTest {
             .setControllable(true)
             .setIsEligibleForScale(true)
             .setIsEligibleForResizeDown(true))
-            .addCommoditiesBoughtFromProviders(
-                TopologyEntityDTO.CommoditiesBoughtFromProvider.newBuilder().setProviderId(5));
+        .addCommoditiesBoughtFromProviders(
+            TopologyEntityDTO.CommoditiesBoughtFromProvider.newBuilder().setProviderId(5))
+        .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(CommodityType.newBuilder().setType(53)));
     private final TopologyEntityDTO.Builder pmInMaintenance = TopologyEntityDTO.newBuilder()
         .setOid(4)
         .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
@@ -116,6 +119,33 @@ public class ControllableManagerTest {
             .setControllable(true))
         .setEntityState(EntityState.FAILOVER);
 
+    private final TopologyEntityDTO.Builder pmInMaintenance1 = TopologyEntityDTO.newBuilder()
+        .setOid(21)
+        .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+        .setAnalysisSettings(AnalysisSettings.newBuilder()
+            .setControllable(true))
+        .setEntityState(EntityState.MAINTENANCE);
+    private final TopologyEntityDTO.Builder vmMaintenance1 = TopologyEntityDTO.newBuilder()
+        .setOid(22)
+        .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+        .setAnalysisSettings(AnalysisSettings.newBuilder()
+            .setControllable(true)
+            .setIsEligibleForScale(true)
+            .setIsEligibleForResizeDown(true))
+        .addCommoditiesBoughtFromProviders(
+            TopologyEntityDTO.CommoditiesBoughtFromProvider.newBuilder().setProviderId(pmInMaintenance1.getOid()))
+        .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(CommodityType.newBuilder().setType(53)));
+    private final TopologyEntityDTO.Builder vmMaintenance2 = TopologyEntityDTO.newBuilder()
+        .setOid(23)
+        .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+        .setAnalysisSettings(AnalysisSettings.newBuilder()
+            .setControllable(true)
+            .setIsEligibleForScale(true)
+            .setIsEligibleForResizeDown(true))
+        .addCommoditiesBoughtFromProviders(
+            TopologyEntityDTO.CommoditiesBoughtFromProvider.newBuilder().setProviderId(pmInMaintenance1.getOid()))
+        .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(CommodityType.newBuilder().setType(53)));
+
     private final Map<Long, Builder> topology = new HashMap<>();
 
     private TopologyGraph<TopologyEntity> topologyGraph;
@@ -126,8 +156,17 @@ public class ControllableManagerTest {
         topology.put(vmFooEntityBuilder.getOid(), TopologyEntity.newBuilder(vmFooEntityBuilder));
         topology.put(vmBarEntityBuilder.getOid(), TopologyEntity.newBuilder(vmBarEntityBuilder));
         topology.put(vmBazEntityBuilder.getOid(), TopologyEntity.newBuilder(vmBazEntityBuilder));
-        topology.put(pmInMaintenance.getOid(), TopologyEntity.newBuilder(pmInMaintenance));
-        topology.put(pmPoweredOn.getOid(), TopologyEntity.newBuilder(pmPoweredOn));
+        topology.put(pmInMaintenance.getOid(), TopologyEntity.newBuilder(pmInMaintenance)
+            .addConsumer(topology.get(vmFooEntityBuilder.getOid()))
+            .addConsumer(topology.get(vmBarEntityBuilder.getOid())));
+        topology.put(pmPoweredOn.getOid(), TopologyEntity.newBuilder(pmPoweredOn)
+            .addConsumer(topology.get(vmBazEntityBuilder.getOid())));
+
+        topology.put(vmMaintenance1.getOid(), TopologyEntity.newBuilder(vmMaintenance1));
+        topology.put(vmMaintenance2.getOid(), TopologyEntity.newBuilder(vmMaintenance2));
+        topology.put(pmInMaintenance1.getOid(), TopologyEntity.newBuilder(pmInMaintenance1)
+            .addConsumer(topology.get(vmMaintenance1.getOid()))
+            .addConsumer(topology.get(vmMaintenance2.getOid())));
 
         topology.put(container1.getOid(), TopologyEntity.newBuilder(container1));
         topology.put(pod1.getOid(), TopologyEntity.newBuilder(pod1)
@@ -188,7 +227,7 @@ public class ControllableManagerTest {
      * Test application of scale.
      */
     @Test
-    public void testApplyResize() {
+    public void testApplyScale() {
         Mockito.when(entityActionDao.ineligibleForScaleEntityIds())
                 .thenReturn(Sets.newHashSet(1L, 2L, 3L));
         controllableManager.applyScaleEligibility(topologyGraph);
@@ -202,13 +241,31 @@ public class ControllableManagerTest {
      * Test application of resized down.
      */
     @Test
-    public void testApplyResizeDown() {
+    public void testApplyResizeDownEligibility() {
         Mockito.when(entityActionDao.ineligibleForResizeDownEntityIds())
                 .thenReturn(Sets.newHashSet(1L, 2L, 3L));
-        controllableManager.applyResizeDownEligibility(topologyGraph);
+        controllableManager.applyResizable(topologyGraph);
         assertTrue(vmFooEntityBuilder.getAnalysisSettings().getIsEligibleForResizeDown());
         assertTrue(vmBarEntityBuilder.getAnalysisSettings().getIsEligibleForResizeDown());
         // This is true because on this entity has VM entity type.
         assertFalse(vmBazEntityBuilder.getAnalysisSettings().getIsEligibleForResizeDown());
+    }
+
+    /**
+     * Test VMs on maintenance host.
+     */
+    @Test
+    public void testMarkVMsOnMaintenanceHostAsNotResizable() {
+        controllableManager.applyResizable(topologyGraph);
+        for (CommoditySoldDTO.Builder commSold : vmMaintenance1.getCommoditySoldListBuilderList()) {
+            assertFalse(commSold.getIsResizeable());
+        }
+        for (CommoditySoldDTO.Builder commSold : vmMaintenance2.getCommoditySoldListBuilderList()) {
+            assertFalse(commSold.getIsResizeable());
+        }
+        // vmBazEntityBuilder is not on maintenance host
+        for (CommoditySoldDTO.Builder commSold : vmBazEntityBuilder.getCommoditySoldListBuilderList()) {
+            assertTrue(commSold.getIsResizeable());
+        }
     }
 }

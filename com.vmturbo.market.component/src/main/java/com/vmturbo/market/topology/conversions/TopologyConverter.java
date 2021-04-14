@@ -2335,7 +2335,10 @@ public class TopologyConverter {
                             .filter(c -> c.getCommodityType().getType() == drivingCommSoldType)
                             .collect(Collectors.toList());
             if (!drivingCommmoditySoldList.isEmpty()) {
-                return drivingSoldCommodityBasedCapacity(drivingCommmoditySoldList, topologyDTO, providerOid);
+                if (providerOid != null) {
+                    return drivingSoldCommodityBasedCapacity(drivingCommmoditySoldList, topologyDTO,
+                            providerOid);
+                }
             }
         }
         if (providerOid != null

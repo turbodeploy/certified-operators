@@ -1,7 +1,7 @@
 package com.vmturbo.action.orchestrator.store;
 
 import java.time.Clock;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
@@ -31,6 +31,7 @@ import com.vmturbo.action.orchestrator.audit.AuditCommunicationConfig;
 import com.vmturbo.action.orchestrator.execution.ActionAutomationManager;
 import com.vmturbo.action.orchestrator.execution.ActionExecutionConfig;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
+import com.vmturbo.action.orchestrator.execution.ConditionalSubmitter;
 import com.vmturbo.action.orchestrator.stats.ActionStatsConfig;
 import com.vmturbo.action.orchestrator.store.identity.ActionInfoModel;
 import com.vmturbo.action.orchestrator.store.identity.ActionInfoModelCreator;
@@ -129,6 +130,9 @@ public class ActionStoreConfig {
     @Value("${actionExecution.concurrentAutomatedActions:1000}")
     private int concurrentAutomatedActions;
 
+    @Value("${actionExecution.isConditionalSubmitter:true}")
+    private boolean isConditionalSubmitter;
+
     @Value("${minsActionAcceptanceTTL:1440}")
     private long minsActionAcceptanceTTL;
 
@@ -217,16 +221,19 @@ public class ActionStoreConfig {
     }
 
     @Bean
-    public ExecutorService automatedActionThreadpool() {
-        final ThreadFactory threadFactory = new ThreadFactoryBuilder().setNameFormat(
-                "auto-act-exec-%d").build();
-        return Executors.newFixedThreadPool(concurrentAutomatedActions, threadFactory);
+    public Executor automatedActionSubmitter() {
+        final ThreadFactory threadFactory = new ThreadFactoryBuilder()
+                .setNameFormat("auto-act-exec-%d").build();
+
+        return isConditionalSubmitter
+                ? new ConditionalSubmitter(concurrentAutomatedActions, threadFactory)
+                : Executors.newFixedThreadPool(concurrentAutomatedActions, threadFactory);
     }
 
     @Bean
     public AutomatedActionExecutor automatedActionExecutor() {
         return new AutomatedActionExecutor(actionExecutionConfig.actionExecutor(),
-                automatedActionThreadpool(), workflowConfig.workflowStore(),
+                automatedActionSubmitter(), workflowConfig.workflowStore(),
                 actionExecutionConfig.actionTargetSelector(), entitySettingsCache(),
                 actionTranslationConfig.actionTranslator());
     }

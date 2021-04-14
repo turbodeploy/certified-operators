@@ -46,6 +46,7 @@ import com.vmturbo.topology.processor.identity.EntityDescriptorMock;
 import com.vmturbo.topology.processor.identity.EntityMetadataDescriptor;
 import com.vmturbo.topology.processor.identity.EntryData;
 import com.vmturbo.topology.processor.identity.IdentityServiceStoreOperationException;
+import com.vmturbo.topology.processor.identity.IdentityUninitializedException;
 import com.vmturbo.topology.processor.identity.PropertyDescriptor;
 import com.vmturbo.topology.processor.identity.extractor.EntityDescriptorImpl;
 import com.vmturbo.topology.processor.identity.extractor.PropertyDescriptorImpl;
@@ -236,6 +237,32 @@ public class IdentityServiceInMemoryUnderlyingStoreTest {
         store.removeEntry(secondOID);
         Assert.assertEquals(1, identityCache.size() - iSizeoid2Dto);
         Mockito.verify(databaseStore, times(0)).removeDescriptor(secondOID);
+    }
+
+    /**
+     * Test that shallowRemove works both when the OID is in the store and when it isn't. Also
+     * test that it does not remove anything from the database.
+     *
+     * @throws IdentityServiceStoreOperationException when store throws it.
+     * @throws IdentityUninitializedException when store throws it.
+     * @throws IdentityDatabaseException when db throws it.
+     */
+    @Test
+    public void testShallowRemove()
+            throws IdentityServiceStoreOperationException, IdentityUninitializedException,
+            IdentityDatabaseException {
+        EntityDescriptor entityDescriptor = new EntityDescriptorMock(Arrays.asList("VM"),
+                new ArrayList<String>());
+        store.addEntry(firstOID, entityDescriptor,
+                mock(EntityMetadataDescriptor.class),
+                EntityType.VIRTUAL_MACHINE,
+                probeId);
+
+        assertTrue(store.containsOID(firstOID));
+        assertTrue(store.shallowRemove(firstOID));
+        assertFalse(store.containsOID(firstOID));
+        Mockito.verify(databaseStore, times(0)).removeDescriptor(firstOID);
+        assertFalse(((IdentityServiceInMemoryUnderlyingStore)store).shallowRemove(secondOID));
     }
 
     @Test

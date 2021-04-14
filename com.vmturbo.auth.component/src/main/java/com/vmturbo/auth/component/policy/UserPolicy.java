@@ -2,6 +2,7 @@ package com.vmturbo.auth.component.policy;
 
 import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.REPORT_EDITOR;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -74,6 +75,40 @@ public class UserPolicy {
                     userToCheck.getUser(), getAllowedMaximumEditor()));
             }
         }
+    }
+
+    /**
+     * Apply report policy to user.
+     *
+     * @param userDTO user DTO
+     * @param userSupplier the external user supplier
+     * @return user allowed roles
+     */
+    public List<String> applyReportPolicy(@Nonnull final AuthUserDTO userDTO,
+            @Nonnull final Supplier<Optional<AuthUserDTO>> userSupplier) {
+        if (reportPolicy.isReportingEnabled() && userSupplier.get().isPresent()
+                && shouldAddReportEditorRole(userDTO, userSupplier.get())) {
+            final List newRoles = new ArrayList(userDTO.getRoles());
+            newRoles.add(REPORT_EDITOR);
+            return newRoles;
+        }
+        return userDTO.getRoles();
+    }
+
+    /**
+     * should we allow adding `Report Editor` role to the user?
+     *
+     * @param userToCheck user to be add report editor role
+     * @param externalUser all existing users
+     * @return true if should add report editor role
+     * @throws IllegalArgumentException If not allow
+     */
+    private boolean shouldAddReportEditorRole(@Nonnull final AuthUserDTO userToCheck,
+            @Nonnull final Optional<AuthUserDTO> externalUser) {
+        return externalUser.map(
+                user -> userToCheck.getUser().equalsIgnoreCase(user.getUser()) && user.getRoles()
+                        .stream()
+                        .anyMatch(role -> role.equalsIgnoreCase(REPORT_EDITOR))).isPresent();
     }
 
     // new user doesn't have uuid, so we need to compare provider and username.
@@ -149,6 +184,17 @@ public class UserPolicy {
             return AuditAction.SET_SAML_AUTH;
         }
         throw new SecurityException("Found not supported login policy: " + loginPolicy.name());
+    }
+
+    /**
+     * If an external user only has Report Editor role, it can only be used along with external group.
+     *
+     * @param userDTO user object
+     * @return ture if it's an external user only has Report Editor role.
+     */
+    public boolean isStandAloneExternalUser(AuthUserDTO userDTO) {
+        return userDTO.getProvider() == AuthUserDTO.PROVIDER.LDAP
+                && (userDTO.getRoles().size() > 1 || !roleMatched(userDTO, REPORT_EDITOR));
     }
 
     /**

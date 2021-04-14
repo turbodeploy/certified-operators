@@ -10,4 +10,10 @@ public interface EntityCloudTierDatapoint extends ScopedCloudTierInfo {
      * @return The entity OID.
      */
     long entityOid();
+
+    /**
+     * The entity type.
+     * @return The entity type.
+     */
+    int entityType();
 }

@@ -6,26 +6,26 @@
 
     <groupId>com.vmturbo</groupId>
     <artifactId>Turbonomic-XL</artifactId>
-    <version>8.1.5-SNAPSHOT</version>
+    <version>8.1.6-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <properties>
-        <market.version>4.1.5-SNAPSHOT</market.version>
+        <market.version>4.1.6-SNAPSHOT</market.version>
         <java.version>1.8</java.version>
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
 
         <!-- MT Version from which to resolve cross-branch dependencies on common code -->
-        <vmturbo.mt.branch.version>8.1.5-SNAPSHOT</vmturbo.mt.branch.version>
+        <vmturbo.mt.branch.version>8.1.6-SNAPSHOT</vmturbo.mt.branch.version>
 
         <!-- Version from the APM PRobes Repository (Newrelic, AppInsights) -->
-        <apm.probes.branch.version>8.1.5-SNAPSHOT</apm.probes.branch.version>
+        <apm.probes.branch.version>8.1.6-SNAPSHOT</apm.probes.branch.version>
 
         <!-- MT Version com.vmturbo.ux -->
-        <ux.mt.branch.version>8.1.5-SNAPSHOT</ux.mt.branch.version>
+        <ux.mt.branch.version>8.1.6-SNAPSHOT</ux.mt.branch.version>
 
         <!-- API Repository version, determines what version of the API definition to pull in -->
-        <com.vmturbo.api.version>3.1.116-SNAPSHOT</com.vmturbo.api.version>
+        <com.vmturbo.api.version>3.1.121-SNAPSHOT</com.vmturbo.api.version>
 
         <!--CPU Capacity Library Version-->
         <cpu.capacity.version>1.4.0</cpu.capacity.version>
@@ -43,7 +43,7 @@
         <grpc.prometheus.version>0.3.0</grpc.prometheus.version>
 
         <protobuf.version>3.11.0</protobuf.version>
-        <protobuf.maven.plugin.version>0.5.1</protobuf.maven.plugin.version>
+        <protobuf.maven.plugin.version>0.6.1</protobuf.maven.plugin.version>
         <os.maven.plugin.version>1.4.1.Final</os.maven.plugin.version>
         <owasp.version>5.3.2</owasp.version>
         <prometheus.java.client.version>0.4.0</prometheus.java.client.version>
@@ -177,6 +177,11 @@
 
         <!-- timescaledb image tag pulled by builds of extractor and extractor-schema -->
         <timescaledb-image-tag>2.0.1-pg12</timescaledb-image-tag>
+
+        <!-- For modules with python code, this is the most likely relative location of the
+             turbo-pipenv script (since we almost never use nested modules).
+             Any nested modules should override this appropriately. -->
+        <pipenvScript>../build/turbo-pipenv</pipenvScript>
     </properties>
 
     <prerequisites>
@@ -1149,6 +1154,14 @@
             </modules>
         </profile>
 
+        <profile>
+            <id>scripts</id>
+            <modules>
+                <!-- Here there be some scripts -->
+                <module>kubernetes</module>
+            </modules>
+        </profile>
+
         <!-- Release profile. Builds all the active components. -->
         <profile>
             <id>release</id>
@@ -1186,6 +1199,9 @@
                 <!-- Generate XL python bindings. -->
                 <module>../xl-python</module>
                 <module>../grafana</module>
+
+                <!-- Include tests of kubernetes-related scripts. -->
+                <module>kubernetes</module>
 
                 <!-- The meat of the XL code, and the platform components. -->
                 <module>../com.vmturbo.api.conversion</module>
@@ -1436,6 +1452,84 @@
                 </plugins>
             </build>
         </profile>
+
+        <!-- This profile is intended to "build" python code - mainly to run any existing tests.
+             We are using pipenv for our python dependency management, and any module with a
+             "Pipfile" has this profile activated on it.
+
+             The module needs to set the pipenvScript property to the location of the
+             turbo-pipenv script under build/. -->
+        <profile>
+            <id>python-build</id>
+            <activation>
+                <!-- The presence of a Pipfile in a module indicates that it's a python module -->
+                <file>
+                    <exists>${basedir}/Pipfile</exists>
+                </file>
+                <!-- The turbo-pipenv script does not work on Windows. -->
+                <os>
+                    <family>unix</family>
+                </os>
+            </activation>
+
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <configuration>
+                            <executable>bash</executable>
+                            <workingDirectory>${project.basedir}</workingDirectory>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <id>pythonbuild clean</id>
+                                <phase>clean</phase>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
+                                <configuration>
+                                    <arguments>
+                                        <argument>${pipenvScript}</argument>
+                                        <argument>clean</argument>
+                                    </arguments>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>pythonbuild install</id>
+                                <phase>compile</phase>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
+                                <configuration>
+                                    <arguments>
+                                        <argument>${pipenvScript}</argument>
+                                        <!-- The "dev" is important because that's where
+                                             test-only dependencies are specified -->
+                                        <argument>install --dev</argument>
+                                    </arguments>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>pythonbuild test</id>
+                                <phase>test</phase>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
+                                <configuration>
+                                    <skip>${maven.test.skip}</skip>
+                                    <arguments>
+                                        <argument>${pipenvScript}</argument>
+                                        <argument>run pytest</argument>
+                                    </arguments>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
     </profiles>
     <build>
         <extensions>
@@ -1491,6 +1585,7 @@
                     <artifactId>protobuf-maven-plugin</artifactId>
                     <version>${protobuf.maven.plugin.version}</version>
                     <configuration>
+                        <useArgumentFile>true</useArgumentFile>
                         <protoSourceRoot>src/main/protobuf</protoSourceRoot>
                         <protoTestSourceRoot>src/test/protobuf</protoTestSourceRoot>
                         <!-- os.detected.classifier provided by os-maven-plugin -->

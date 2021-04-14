@@ -176,13 +176,26 @@ public class ControllableManager {
     }
 
     /**
+     * Update the resizable flag.
+     *
+     * @param topology a topology graph.
+     * @return Number of modified entities.
+     */
+    public int applyResizable(@Nonnull final TopologyGraph<TopologyEntity> topology) {
+        int numModified = 0;
+        numModified += applyResizeDownEligibility(topology);
+        numModified += markVMsOnMaintenanceHostAsNotResizable(topology);
+        return numModified;
+    }
+
+    /**
      * If entity has an RIGHT_SIZE (resize actions on prem) action in the table, it means the entity is about or
      * has been resized. It should not be to resize down in analysis.
      *
      * @param topology a topology graph.
      * @return Number of modified entities.
      */
-    public int applyResizeDownEligibility(@Nonnull final TopologyGraph<TopologyEntity> topology) {
+    private int applyResizeDownEligibility(@Nonnull final TopologyGraph<TopologyEntity> topology) {
         final AtomicInteger numModified = new AtomicInteger(0);
         entityActionDao.ineligibleForResizeDownEntityIds().stream()
                 .map(topology::getEntity)
@@ -202,5 +215,24 @@ public class ControllableManager {
                             entityBuilder.getDisplayName());
                 });
         return numModified.get();
+    }
+
+    /**
+     * Mark VMs on a maintenance host as not resizable.
+     *
+     * @param topology a topology graph.
+     * @return Number of modified entities.
+     */
+    private int markVMsOnMaintenanceHostAsNotResizable(@Nonnull final TopologyGraph<TopologyEntity> topology) {
+        return topology.entitiesOfType(EntityDTO.EntityType.PHYSICAL_MACHINE)
+            .filter(entity -> entity.getTopologyEntityDtoBuilder().getEntityState() == EntityState.MAINTENANCE)
+            .flatMap(entity -> entity.getConsumers().stream())
+            .filter(entity -> entity.getEntityType() == EntityDTO.EntityType.VIRTUAL_MACHINE_VALUE)
+            .mapToInt(entity -> {
+                entity.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList()
+                    .forEach(commSold -> commSold.setIsResizeable(false));
+                return 1;
+            })
+            .sum();
     }
 }

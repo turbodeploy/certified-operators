@@ -2,7 +2,6 @@ package com.vmturbo.cost.component.savings;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -35,6 +34,7 @@ class InMemoryEntityEventsJournal implements EntityEventsJournal {
         // Keys are sorted by timestamp. In the event that events have the same timestamp,
         // the values (SavingsEvents) are sorted according to a sorting priority. The sorting
         // priority is:
+        //   - ActionEvent ACTION_EXPIRED
         //   - ActionEvent RECOMMENDATION_ADDED
         //   - ActionEvent EXECUTION_SUCCESS
         //   - ActionEvent RECOMMENDATION_REMOVED
@@ -76,7 +76,7 @@ class InMemoryEntityEventsJournal implements EntityEventsJournal {
         } finally {
             journalLock.writeLock().unlock();
         }
-        return Collections.unmodifiableList(returnEvents);
+        return returnEvents;
     }
 
     @Nonnull
@@ -91,7 +91,7 @@ class InMemoryEntityEventsJournal implements EntityEventsJournal {
         } finally {
             journalLock.writeLock().unlock();
         }
-        return Collections.unmodifiableList(returnEvents);
+        return returnEvents;
     }
 
     @Override

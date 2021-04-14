@@ -125,9 +125,7 @@ public class BuyRIAnalysisConfig {
      */
     @Bean
     public TopologyEntityCloudTopologyFactory cloudTopologyFactory() {
-        return new DefaultTopologyEntityCloudTopologyFactory(
-                new GroupMemberRetriever(
-                        GroupServiceGrpc.newBlockingStub(groupClientConfig.groupChannel())));
+        return new DefaultTopologyEntityCloudTopologyFactory(groupClientConfig.groupMemberRetriever());
     }
 
     /**

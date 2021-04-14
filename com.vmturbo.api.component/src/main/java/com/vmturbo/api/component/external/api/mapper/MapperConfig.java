@@ -21,6 +21,7 @@ import com.vmturbo.api.component.external.api.mapper.aspect.CloudCommitmentAspec
 import com.vmturbo.api.component.external.api.mapper.aspect.ContainerPlatformContextAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.ComputeTierAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.DatabaseAspectMapper;
+import com.vmturbo.api.component.external.api.mapper.aspect.DatabaseServerAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.DatabaseServerTierAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.DatabaseTierAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.DesktopPoolAspectMapper;
@@ -436,6 +437,11 @@ public class MapperConfig {
     }
 
     @Bean
+    public DatabaseServerAspectMapper databaseServerAspectMapper() {
+        return new DatabaseServerAspectMapper();
+    }
+
+    @Bean
     public WorkloadControllerAspectMapper workloadControllerAspectMapper() {
         return new WorkloadControllerAspectMapper();
     }
@@ -484,8 +490,8 @@ public class MapperConfig {
                 masterImageEntityAspectMapper(), physicalMachineAspectMapper(),
                 storageAspectMapper(), diskArrayAspectMapper(), logicalPoolAspectMapper(),
                 storageControllerAspectMapper(), portsAspectMapper(), databaseAspectMapper(),
-                regionAspectMapper(), workloadControllerAspectMapper(), computeTierAspectMapper(),
-                databaseServerTierAspectMapper(), databaseTierAspectMapper(),
+                databaseServerAspectMapper(), regionAspectMapper(), workloadControllerAspectMapper(),
+                computeTierAspectMapper(), databaseServerTierAspectMapper(), databaseTierAspectMapper(),
                 businessUserAspectMapper(), virtualVolumeEntityAspectMapper(),
                 cloudCommitmentAspectMapper(), cloudNativeAspectMapper());
     }

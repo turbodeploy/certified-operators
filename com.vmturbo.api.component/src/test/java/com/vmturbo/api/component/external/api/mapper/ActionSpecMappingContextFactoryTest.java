@@ -27,6 +27,7 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.protobuf.util.JsonFormat;
 
@@ -35,6 +36,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
@@ -305,6 +307,9 @@ public class ActionSpecMappingContextFactoryTest {
             buyRIServiceClient, riSpecService,
             serviceEntityMapper,
             supplyChainService, policiesService, reservedInstancesService, groupService);
+        final MultiEntityRequest dbReq = ApiTestUtils.mockMultiFullEntityReq(Lists.newArrayList());
+        when(repositoryApiMock.entitiesRequest(Sets.newHashSet(73367284550436L)))
+                .thenReturn(dbReq);
 
         long topologyContextId = 777777L;
         ActionSpecMappingContext result = null;

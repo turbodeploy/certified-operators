@@ -2,6 +2,10 @@ package com.vmturbo.topology.processor.identity;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeoutException;
+import java.util.function.Supplier;
 
 import javax.annotation.Nonnull;
 
@@ -45,6 +49,16 @@ public interface IdentityProvider extends DiagsRestorable<Void>, RequiresDataIni
      * @throws IdentityProviderException If there was an error assigning the ID.
      */
     long getProbeId(@Nonnull ProbeInfo probeInfo) throws IdentityProviderException;
+
+    /**
+     * Expire the stale oids.
+     * @return the number of expired oids
+     * @throws ExecutionException if the computation threw an
+     * exception
+     * @throws InterruptedException if the expiration oid thread was interrupted
+     * @throws TimeoutException if the wait timed out
+     */
+    int expireOids() throws InterruptedException, ExecutionException, TimeoutException;
 
     /**
      * Get the entity ID for the entities discovered by a specific probe
@@ -104,5 +118,12 @@ public interface IdentityProvider extends DiagsRestorable<Void>, RequiresDataIni
      * @return the underlying store
      */
     IdentityServiceUnderlyingStore getStore();
+
+    /**
+     * Initialize a {@link StaleOidManagerImpl}.
+     *
+     * @param getCurrentOids supplier of oids contained in the entity store
+     */
+    void initializeStaleOidManager(@Nonnull Supplier<Set<Long>> getCurrentOids);
 
 }

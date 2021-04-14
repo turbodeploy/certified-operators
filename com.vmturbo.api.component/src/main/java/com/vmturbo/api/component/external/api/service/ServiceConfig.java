@@ -5,10 +5,6 @@ import java.time.Duration;
 
 import javax.servlet.ServletContext;
 
-import com.vmturbo.auth.api.authorization.keyprovider.*;
-import com.vmturbo.components.common.BaseVmtComponentConfig;
-import com.vmturbo.components.crypto.CryptoFacility;
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -16,6 +12,8 @@ import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.PropertySource;
+
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import com.vmturbo.api.component.communication.CommunicationConfig;
 import com.vmturbo.api.component.communication.HeaderAuthenticationProvider;
@@ -25,7 +23,7 @@ import com.vmturbo.api.component.external.api.listener.HttpSessionListener;
 import com.vmturbo.api.component.external.api.mapper.CloudTypeMapper;
 import com.vmturbo.api.component.external.api.mapper.CpuInfoMapper;
 import com.vmturbo.api.component.external.api.mapper.MapperConfig;
-import com.vmturbo.api.component.external.api.serviceinterfaces.IProbesService;
+import com.vmturbo.api.serviceinterfaces.IProbesService;
 import com.vmturbo.api.component.external.api.util.BusinessAccountRetriever;
 import com.vmturbo.api.component.external.api.util.ReportingUserCalculator;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
@@ -61,15 +59,22 @@ import com.vmturbo.auth.api.AuthClientConfig;
 import com.vmturbo.auth.api.SpringSecurityConfig;
 import com.vmturbo.auth.api.authorization.UserSessionConfig;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
+import com.vmturbo.auth.api.authorization.keyprovider.EncryptionKeyProvider;
+import com.vmturbo.auth.api.authorization.keyprovider.KVKeyProvider;
+import com.vmturbo.auth.api.authorization.keyprovider.KeyProvider;
+import com.vmturbo.auth.api.authorization.keyprovider.MasterKeyReader;
+import com.vmturbo.auth.api.authorization.keyprovider.PersistentVolumeKeyProvider;
 import com.vmturbo.auth.api.authorization.kvstore.ComponentJwtStore;
 import com.vmturbo.auth.api.licensing.LicenseCheckClientConfig;
 import com.vmturbo.common.protobuf.search.SearchFilterResolver;
+import com.vmturbo.components.common.BaseVmtComponentConfig;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory.DefaultEntityStatsPaginationParamsFactory;
 import com.vmturbo.components.common.pagination.EntityStatsPaginator;
 import com.vmturbo.components.common.pagination.EntityStatsPaginator.SortCommodityValueGetter;
 import com.vmturbo.components.common.utils.BuildProperties;
 import com.vmturbo.components.common.utils.EnvironmentUtils;
+import com.vmturbo.components.crypto.CryptoFacility;
 import com.vmturbo.kvstore.KeyValueStoreConfig;
 import com.vmturbo.kvstore.PublicKeyStoreConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
@@ -521,7 +526,7 @@ public class ServiceConfig {
 
     @Bean
     public SearchFilterResolver searchFilterResolver() {
-        return new SearchServiceFilterResolver(communicationConfig.targetSearchService(),
+        return new SearchServiceFilterResolver(communicationConfig.targetsService(),
                 communicationConfig.groupExpander());
     }
 
@@ -675,6 +680,8 @@ public class ServiceConfig {
                 mapperConfig.actionSpecMapper(),
                 actionSearchUtil(),
                 websocketConfig.websocketHandler(),
+                communicationConfig.targetsService(),
+                mapperConfig.paginationMapper(),
                 allowTargetManagement(),
                 apiPaginationDefaultLimit);
     }

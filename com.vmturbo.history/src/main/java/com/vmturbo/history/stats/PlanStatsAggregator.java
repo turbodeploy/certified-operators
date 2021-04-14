@@ -10,6 +10,8 @@ import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_STORAGES;
 import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_VMS;
 import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_VMS_PER_HOST;
 import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_VMS_PER_STORAGE;
+import static com.vmturbo.common.protobuf.utils.StringConstants.VCPU_OVERCOMMITMENT;
+import static com.vmturbo.common.protobuf.utils.StringConstants.VMEM_OVERCOMMITMENT;
 
 import java.sql.Timestamp;
 import java.util.Arrays;
@@ -20,7 +22,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -28,6 +29,8 @@ import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.HashBasedTable;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -40,6 +43,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ContainerPlatformClusterInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.PhysicalMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.common.utils.MemReporter;
@@ -67,7 +72,7 @@ public class PlanStatsAggregator implements MemReporter {
     private final Table<Integer, Integer, CommodityAggregation> commodityAggregationTable = HashBasedTable.create();
 
     private final Map<Integer, Integer> entityTypeCounts = Maps.newHashMap();
-    private final Map<String, Integer> entityMetrics = Maps.newHashMap();
+    private final Map<String, Double> entityMetrics = Maps.newHashMap();
     private final Timestamp snapshotTimestamp;
     private final boolean isProcessingSourceTopologyStats;
     private final String dbCommodityPrefix;
@@ -79,6 +84,15 @@ public class PlanStatsAggregator implements MemReporter {
      */
     private static final Set<Integer> ENTITY_TYPES_SUPPORTING_UNPLACED =
         ImmutableSet.of(EntityType.VIRTUAL_MACHINE_VALUE, EntityType.CONTAINER_POD_VALUE);
+
+    /**
+     * Map of entity type to {@link AttributeExtractor}. This map is used to extract plan entity
+     * attribute values to be stored as stats records.
+     */
+    private static final Map<Integer, AttributeExtractor> ENTITY_TYPE_TO_ATTRIBUTE_EXTRACTOR_MAP =
+        ImmutableMap.of(
+            EntityType.CONTAINER_PLATFORM_CLUSTER_VALUE, new ContainerClusterAttributeExtractor(),
+            EntityType.PHYSICAL_MACHINE_VALUE, new PMAttributeExtractor());
 
     /**
      * Create a new instance.
@@ -110,15 +124,6 @@ public class PlanStatsAggregator implements MemReporter {
     }
 
     /**
-     * An immutable view of the entity metrics counts map - for testing.
-     * @return an immutable view of the entity metrics map
-     */
-    @VisibleForTesting
-    protected Map<String, Integer> getEntityMetrics() {
-        return Collections.unmodifiableMap(entityMetrics);
-    }
-
-    /**
      * Handle one chunk of topology DTOs.
      * @param chunk a collection of topology DTOs
      */
@@ -127,7 +132,7 @@ public class PlanStatsAggregator implements MemReporter {
                 .filter(this::shouldCountEntity)
                 .collect(Collectors.toSet());
         countTypes(entitiesToCount);
-        countMetrics(entitiesToCount);
+        aggregateMetrics(entitiesToCount);
         aggregateCommodities(entitiesToCount);
     }
 
@@ -149,26 +154,87 @@ public class PlanStatsAggregator implements MemReporter {
      *
      * @param chunk one chunk of topology DTOs.
      */
-    private void countMetrics(Collection<TopologyEntityDTO> chunk) {
-        chunk.forEach(countPhysicalMachineMetrics);
+    private void aggregateMetrics(@Nonnull final Collection<TopologyEntityDTO> chunk) {
+        for (TopologyEntityDTO entityDTO : chunk) {
+            AttributeExtractor attributeExtractor =
+                ENTITY_TYPE_TO_ATTRIBUTE_EXTRACTOR_MAP.get(entityDTO.getEntityType());
+            if (attributeExtractor != null) {
+                Map<String, Double> attributeValues = attributeExtractor.extractAttributeValues(entityDTO);
+                attributeValues.forEach((attrName, attrValue) ->
+                    this.entityMetrics.merge(attrName, attrValue, Double::sum));
+            }
+        }
     }
 
     /**
-     * Update metrics related to physicalMachine entities.
-     *
-     * <p>Currently only handles numCPUs</p>
+     * Interface to extract attribute values from given TopologyEntityDTO to be stored
+     * as stats records.
      */
-    private final Consumer<TopologyEntityDTO> countPhysicalMachineMetrics = (topologyEntityDTO) ->  {
-        if (!(topologyEntityDTO.hasTypeSpecificInfo() && topologyEntityDTO.getTypeSpecificInfo().hasPhysicalMachine())) {
-            return;
+    private interface AttributeExtractor {
+        /**
+         * Get list of attribute names.
+         *
+         * @return List of attribute names.
+         */
+        List<String> getAttributeNames();
+
+        /**
+         * Extract attribute values from given TopologyEntityDTO.
+         *
+         * @param entityDTO Given TopologyEntityDTO.
+         * @return Map of attribute name to attribute value extracted from TopologyEntityDTO.
+         */
+        Map<String, Double> extractAttributeValues(@Nonnull TopologyEntityDTO entityDTO);
+    }
+
+    /**
+     * {@link AttributeExtractor} to extract attributes for PM.
+     */
+    private static class PMAttributeExtractor implements AttributeExtractor {
+        @Override
+        public List<String> getAttributeNames() {
+            return ImmutableList.of(NUM_CPUS);
         }
 
-        if (topologyEntityDTO.getTypeSpecificInfo().getPhysicalMachine().hasNumCpus()) {
-            int numCpus = topologyEntityDTO.getTypeSpecificInfo().getPhysicalMachine().getNumCpus();
-            int currentValue = this.entityMetrics.computeIfAbsent(StringConstants.NUM_CPUS, j -> 0);
-            this.entityMetrics.put(StringConstants.NUM_CPUS, currentValue + numCpus);
+        @Override
+        public Map<String, Double> extractAttributeValues(@Nonnull TopologyEntityDTO entityDTO) {
+            final Map<String, Double> attributeValues = new HashMap<>();
+            if (!entityDTO.hasTypeSpecificInfo() || !entityDTO.getTypeSpecificInfo().hasPhysicalMachine()) {
+                return attributeValues;
+            }
+            PhysicalMachineInfo entityInfo = entityDTO.getTypeSpecificInfo().getPhysicalMachine();
+            if (entityInfo.hasNumCpus()) {
+                attributeValues.put(NUM_CPUS, (double)entityInfo.getNumCpus());
+            }
+            return attributeValues;
         }
-    };
+    }
+
+    /**
+     * {@link AttributeExtractor} to extract attributes for ContainerPlatformCluster.
+     */
+    private static class ContainerClusterAttributeExtractor implements AttributeExtractor {
+        @Override
+        public List<String> getAttributeNames() {
+            return ImmutableList.of(VCPU_OVERCOMMITMENT, VMEM_OVERCOMMITMENT);
+        }
+
+        @Override
+        public Map<String, Double> extractAttributeValues(@Nonnull TopologyEntityDTO entityDTO) {
+            final Map<String, Double> attributeValues = new HashMap<>();
+            if (!entityDTO.hasTypeSpecificInfo() || !entityDTO.getTypeSpecificInfo().hasContainerPlatformCluster()) {
+                return attributeValues;
+            }
+            ContainerPlatformClusterInfo entityInfo = entityDTO.getTypeSpecificInfo().getContainerPlatformCluster();
+            if (entityInfo.hasVcpuOvercommitment()) {
+                attributeValues.put(VCPU_OVERCOMMITMENT, entityInfo.getVcpuOvercommitment());
+            }
+            if (entityInfo.hasVmemOvercommitment()) {
+                attributeValues.put(VMEM_OVERCOMMITMENT, entityInfo.getVmemOvercommitment());
+            }
+            return attributeValues;
+        }
+    }
 
     // this function is only for debugging. It's an ugly function, but very useful for seeing
     // breakdowns of the contents of a topology having stats aggregated.
@@ -241,18 +307,26 @@ public class PlanStatsAggregator implements MemReporter {
     /**
      * Create DB stats records for entity Metrics.
      *
-     * <p>Currently only numCPUs metric is recorded</p>
+     * <p>Currently the supported metrics to record include: VM numCPUs, ContainerPlatformCluster
+     * vCPUOvercommitment and vMemOvercommitment.
      *
      * @return a collection of stats records to be written to the DB
      */
     private Collection<MktSnapshotsStatsRecord> entityMetricsRecords() {
         Collection<MktSnapshotsStatsRecord> entityTypeCountRecords = Lists.newArrayList();
-        int numCPUs = entityMetrics.getOrDefault(StringConstants.NUM_CPUS, 0);
-
-        entityTypeCountRecords.add(buildMktSnapshotsStatsRecord(
-                snapshotTimestamp, numCPUs, null /*capacity*/,
-                HistoryStatsUtils.addPrefix(NUM_CPUS, dbCommodityPrefix),
-                null /* propertySubtype*/, topologyContextId, EntityType.VIRTUAL_MACHINE_VALUE));
+        for (Map.Entry<Integer, AttributeExtractor> entry : ENTITY_TYPE_TO_ATTRIBUTE_EXTRACTOR_MAP.entrySet()) {
+            int entityType = entry.getKey();
+            AttributeExtractor attributeExtractor = entry.getValue();
+            for (String attributeName : attributeExtractor.getAttributeNames()) {
+                Double attributeVal = entityMetrics.get(attributeName);
+                if (attributeVal != null) {
+                    entityTypeCountRecords.add(
+                        buildMktSnapshotsStatsRecord(snapshotTimestamp, attributeVal, null /*capacity*/,
+                            HistoryStatsUtils.addPrefix(attributeName, dbCommodityPrefix), null /* propertySubtype*/,
+                            topologyContextId, entityType));
+                }
+            }
+        }
 
         return entityTypeCountRecords;
     }

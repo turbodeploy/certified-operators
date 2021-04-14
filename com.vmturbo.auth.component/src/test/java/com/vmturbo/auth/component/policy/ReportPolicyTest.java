@@ -17,7 +17,7 @@ public class ReportPolicyTest {
 
     private LicenseCheckService licenseCheckService = mock(LicenseCheckService.class);
 
-    private ReportPolicy reportPolicy = new ReportPolicy(licenseCheckService);
+    private ReportPolicy reportPolicy = new ReportPolicy(licenseCheckService, false);
 
     /**
      * Test that count of report editors equals the default value if there is no applied grafana

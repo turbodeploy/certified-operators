@@ -106,7 +106,7 @@ public class KVBackedILocalAuthStoreTest {
     /**
      * The KV prefix.
      */
-    private static final String PREFIX = AuthProviderBase.PREFIX;
+    private static final String PREFIX = AuthProviderBase.PREFIX_EXTERNAL_USERS;
 
     /**
      * The JSON builder.
@@ -157,7 +157,7 @@ public class KVBackedILocalAuthStoreTest {
     @NotNull
     private AuthProvider getStore(KeyValueStore keyValueStore) {
         return new AuthProvider(keyValueStore, null, kvSupplier, null, new UserPolicy(LoginPolicy.ALL,
-                new ReportPolicy(licenseCheckService)),
+                new ReportPolicy(licenseCheckService, false)),
                 new SsoUtil(), false, false, () -> false);
     }
 
@@ -436,7 +436,7 @@ public class KVBackedILocalAuthStoreTest {
     public void testModifyRoles() throws Exception {
         KeyValueStore keyValueStore = new MapKeyValueStore();
         AuthProvider store = new AuthProvider(keyValueStore, groupServiceClient, kvSupplier, widgetsetDbStore, new UserPolicy(LoginPolicy.ALL,
-                new ReportPolicy(licenseCheckService)),
+                new ReportPolicy(licenseCheckService, false)),
                 new SsoUtil(), false, false, () -> false);
 
         String result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0", ROLE_NAMES, ImmutableList.of(1L));
@@ -708,7 +708,8 @@ public class KVBackedILocalAuthStoreTest {
     @Test
     public void testDeleteSecurityGroupAndTransferWidgetsets() throws AuthorizationException {
         KeyValueStore keyValueStore = new MapKeyValueStore();
-        AuthProvider store = new AuthProvider(keyValueStore, null, kvSupplier, widgetsetDbStore, null,
+        AuthProvider store = new AuthProvider(keyValueStore, null, kvSupplier, widgetsetDbStore,
+                new UserPolicy(LoginPolicy.ALL, new ReportPolicy(mock(LicenseCheckService.class), false)),
                 new SsoUtil(), false, false, () -> false);
         SecurityGroupDTO securityGroupDTO = new SecurityGroupDTO("group1",
                 "DedicatedCustomer",
@@ -750,7 +751,7 @@ public class KVBackedILocalAuthStoreTest {
     public void testAuthenticateWithADOnlyUserPolicyNegative() throws Exception {
         KeyValueStore keyValueStore = new MapKeyValueStore();
         AuthProvider store = new AuthProvider(keyValueStore, null, kvSupplier, null, new UserPolicy(LoginPolicy.AD_ONLY,
-                new ReportPolicy(licenseCheckService)),
+                new ReportPolicy(licenseCheckService, false)),
                 new SsoUtil(), false, false, () -> false);
         verifyAuthentication(keyValueStore, store, PROVIDER.LOCAL);
     }
@@ -763,7 +764,7 @@ public class KVBackedILocalAuthStoreTest {
     public void testAuthenticateWithADOnlyUserPolicyPositive() throws Exception {
         KeyValueStore keyValueStore = new MapKeyValueStore();
         AuthProvider store = new AuthProvider(keyValueStore, null, kvSupplier, null, new UserPolicy(LoginPolicy.AD_ONLY,
-                new ReportPolicy(licenseCheckService)),
+                new ReportPolicy(licenseCheckService, false)),
                 new SsoUtil(), false, false, () -> false);
         try {
             verifyAuthentication(keyValueStore, store, PROVIDER.LDAP);

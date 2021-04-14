@@ -1,6 +1,7 @@
 package com.vmturbo.history.stats;
 
 import static com.vmturbo.common.protobuf.utils.StringConstants.CAPACITY;
+import static com.vmturbo.common.protobuf.utils.StringConstants.CLUSTER;
 import static com.vmturbo.common.protobuf.utils.StringConstants.CPU;
 import static com.vmturbo.common.protobuf.utils.StringConstants.CPU_EXHAUSTION;
 import static com.vmturbo.common.protobuf.utils.StringConstants.CPU_HEADROOM;
@@ -79,6 +80,7 @@ import com.vmturbo.components.common.pagination.EntityStatsPaginator;
 import com.vmturbo.components.common.pagination.EntityStatsPaginator.PaginatedStats;
 import com.vmturbo.components.common.stats.StatsUtils;
 import com.vmturbo.history.db.BasedbIO.Style;
+import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.db.queries.ClusterStatsQuery;
@@ -88,6 +90,7 @@ import com.vmturbo.history.stats.live.ComputedPropertiesProcessor.ClusterRecords
 import com.vmturbo.history.stats.live.ComputedPropertiesProcessor.ComputedPropertiesProcessorFactory;
 import com.vmturbo.history.stats.live.TimeRange;
 import com.vmturbo.history.stats.live.TimeRange.TimeRangeFactory.ClusterTimeRangeFactory;
+import com.vmturbo.history.stats.live.TimeRange.TimeRangeFactory.DefaultTimeRangeFactory;
 
 /**
  * This class retrieves records from cluster_stats_* tables to satisfy API requests.
@@ -99,7 +102,8 @@ public class ClusterStatsReader {
     private static final Logger logger = LogManager.getLogger();
 
     private final HistorydbIO historydbIO;
-    private final ClusterTimeRangeFactory timeRangeFactory;
+    private final ClusterTimeRangeFactory clusterTimeRangeFactory;
+    private final DefaultTimeRangeFactory defaultTimeRangeFactory;
     private final ComputedPropertiesProcessorFactory computedPropertiesProcessorFactory;
 
     /**
@@ -172,16 +176,20 @@ public class ClusterStatsReader {
     /**
      * Create a new instance.
      * @param historydbIO                        Access to some DB utilities
-     * @param timeRangeFactory                   an instance of ClusterTimeRangeFactory used to
+     * @param clusterTimeRangeFactory            an instance of ClusterTimeRangeFactory used to
+     *                                           determine time frame for query results
+     * @param defaultTimeRangeFactory            an instance of DefaultTimeRangeFactory used to
      *                                           determine time frame for query results
      * @param computedPropertiesProcessorFactory factory for processors tohandle computed properties
      * @param maxAmountOfEntitiesPerGrpcMessage max amount of entities in a grpc chunk
      */
-    ClusterStatsReader(HistorydbIO historydbIO, ClusterTimeRangeFactory timeRangeFactory,
+    ClusterStatsReader(HistorydbIO historydbIO, ClusterTimeRangeFactory clusterTimeRangeFactory,
+                       DefaultTimeRangeFactory defaultTimeRangeFactory,
                        ComputedPropertiesProcessorFactory computedPropertiesProcessorFactory,
                        final int maxAmountOfEntitiesPerGrpcMessage) {
         this.historydbIO = historydbIO;
-        this.timeRangeFactory = timeRangeFactory;
+        this.clusterTimeRangeFactory = clusterTimeRangeFactory;
+        this.defaultTimeRangeFactory = defaultTimeRangeFactory;
         this.computedPropertiesProcessorFactory = computedPropertiesProcessorFactory;
         this.maxAmountOfEntitiesPerGrpcMessage = maxAmountOfEntitiesPerGrpcMessage;
     }
@@ -215,7 +223,7 @@ public class ClusterStatsReader {
         final ComputedPropertiesProcessor computedPropertiesProcessor =
                 computedPropertiesProcessorFactory.getProcessor(statsFilter, new ClusterRecordsProcessor());
         final StatsFilter augmentedFilter = computedPropertiesProcessor.getAugmentedFilter();
-        Optional<TimeRange> timeRange = timeRangeFactory.resolveTimeRange(augmentedFilter,
+        Optional<TimeRange> timeRange = clusterTimeRangeFactory.resolveTimeRange(augmentedFilter,
                 Optional.of(Collections.singletonList(Long.toString(clusterUuid))),
                 Optional.empty(), Optional.empty(), timeFrame);
         if (timeRange.isPresent()) {
@@ -406,53 +414,32 @@ public class ClusterStatsReader {
             @Nonnull final Optional<Long> startDate,
             @Nonnull final Optional<Long> endDate)
             throws VmtDbException {
-        // find tables to query
-        // assumptions on the input:
-        // if start date exists, it is in the past and the end date exists
-        // and the end date is later than the start date
-        long now = System.currentTimeMillis();
-        final Set<Table<?>> dbTablesToQuery;
-        if (!startDate.isPresent() && !endDate.isPresent()) {
-            // only latest point is requested
-            dbTablesToQuery = Collections.singleton(Tables.CLUSTER_STATS_LATEST);
-        } else {
-            dbTablesToQuery = new HashSet<>();
-            final long endDateUsed = endDate.orElse(now);
-            final long startDateUsed = startDate.get(); // guaranteed to exist
-            final long oneHourAgo = now - ONE_HOUR_IN_MILLIS;
-            final long yesterday = now - ONE_DAY_IN_MILLIS;
+        final StatsFilter.Builder statsFilter = StatsFilter.newBuilder();
+        startDate.ifPresent(statsFilter::setStartDate);
+        endDate.ifPresent(statsFilter::setEndDate);
+        fields.forEach(field ->
+            statsFilter.addCommodityRequests(CommodityRequest.newBuilder().setCommodityName(field)));
 
-            // should the latest stats be included?
-            if (endDateUsed >= oneHourAgo) {
-                dbTablesToQuery.add(CLUSTER_STATS_LATEST);
-            }
-
-            // should the hourly stats be included?
-            if (endDateUsed >= yesterday && startDateUsed < oneHourAgo) {
-                dbTablesToQuery.add(CLUSTER_STATS_BY_HOUR);
-            }
-
-            // should the daily stats be included?
-            if (startDateUsed < yesterday) {
-                dbTablesToQuery.add(CLUSTER_STATS_BY_DAY);
-            }
-
-            // should the monthly stats be included?
-            if (startDateUsed < now - ONE_MONTH_IN_MILLIS) {
-                dbTablesToQuery.add(CLUSTER_STATS_BY_MONTH);
-            }
+        final Optional<TimeRange> timeRangeOpt = defaultTimeRangeFactory.resolveTimeRange(statsFilter.build(),
+            Optional.of(clusterIds.stream().map(String::valueOf).collect(Collectors.toList())),
+            EntityType.named(CLUSTER), Optional.empty(), Optional.empty());
+        if (!timeRangeOpt.isPresent()) {
+            // no data persisted yet; just return an empty answer
+            logger.warn("Stats filter with start {} and end {} does not resolve to any timestamps."
+                + " There may not be any data.", statsFilter.getStartDate(), statsFilter.getEndDate());
+            return;
         }
+
+        final Table<?> dbTableToQuery = getStatsTable(timeRangeOpt.get().getTimeFrame());
 
         // timestamps for the query
-        final Optional<Timestamp> startTimestamp = startDate.map(Timestamp::new);
-        final Optional<Timestamp> endTimestamp = endDate.map(Timestamp::new);
+        final Optional<Timestamp> startTimestamp = Optional.of(new Timestamp(timeRangeOpt.get().getStartTime()));
+        final Optional<Timestamp> endTimestamp = Optional.of(new Timestamp(timeRangeOpt.get().getEndTime()));
 
-        // execute query on all applicable tables and
+        // execute query and
         // insert the results into the statsPerCluster map
-        for (Table<?> t : dbTablesToQuery) {
-            fetchAndIngestDBRecords(computedPropertiesProcessor, statsPerCluster, clusterIds, fields,
-                                    startTimestamp, endTimestamp, false, t);
-        }
+        fetchAndIngestDBRecords(computedPropertiesProcessor, statsPerCluster, clusterIds, fields,
+            startTimestamp, endTimestamp, false, dbTableToQuery);
     }
 
     private void fetchAndIngestDailyStats(@Nonnull ComputedPropertiesProcessor computedPropertiesProcessor,

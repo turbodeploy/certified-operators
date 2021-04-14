@@ -251,7 +251,7 @@ public class StatsConfig {
     }
 
     @Bean
-    public TimeRangeFactory timeRangeFactory() {
+    public DefaultTimeRangeFactory defaultTimeRangeFactory() {
         return new DefaultTimeRangeFactory(historyDbConfig.historyDbIO(),
                 timeFrameCalculator(),
                 latestTableTimeWindowMin, TimeUnit.MINUTES);
@@ -278,7 +278,7 @@ public class StatsConfig {
     @Bean
     public LiveStatsReader liveStatsReader() {
         return new LiveStatsReader(historyDbConfig.historyDbIO(),
-                timeRangeFactory(),
+                defaultTimeRangeFactory(),
                 statsQueryFactory(),
                 computedPropertiesProcessorFactory(),
                 histUtilizationReader(),
@@ -328,7 +328,7 @@ public class StatsConfig {
      */
     @Bean
     public ClusterStatsReader clusterStatsReader() {
-        return new ClusterStatsReader(historyDbConfig.historyDbIO(), clusterTimeRangeFactory(),
+        return new ClusterStatsReader(historyDbConfig.historyDbIO(), clusterTimeRangeFactory(), defaultTimeRangeFactory(),
                 computedPropertiesProcessorFactory(), maxAmountOfEntitiesPerGrpcMessage);
     }
 

@@ -113,12 +113,12 @@ import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
-import com.vmturbo.common.protobuf.search.SearchMoles.TargetSearchServiceMole;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
-import com.vmturbo.common.protobuf.search.TargetSearchServiceGrpc;
-import com.vmturbo.common.protobuf.search.TargetSearchServiceGrpc.TargetSearchServiceBlockingStub;
+import com.vmturbo.common.protobuf.target.TargetDTOMoles.TargetsServiceMole;
+import com.vmturbo.common.protobuf.target.TargetsServiceGrpc;
+import com.vmturbo.common.protobuf.target.TargetsServiceGrpc.TargetsServiceBlockingStub;
 import com.vmturbo.components.api.test.GrpcExceptionMatcher;
 import com.vmturbo.components.api.test.GrpcRuntimeExceptionMatcher;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -155,7 +155,7 @@ public class GroupRpcServiceTest {
 
     private AtomicReference<List<Long>> mockDataReference = new AtomicReference<>(Collections.emptyList());
     private SearchServiceMole searchServiceMole;
-    private TargetSearchServiceMole targetSearchServiceMole;
+    private TargetsServiceMole targetsServiceMole;
     private TemporaryGroupCache temporaryGroupCache = mock(TemporaryGroupCache.class);
     private final GroupEnvironmentTypeResolver groupEnvironmentTypeResolver =
             mock(GroupEnvironmentTypeResolver.class);
@@ -215,15 +215,15 @@ public class GroupRpcServiceTest {
     @Before
     public void setUp() throws Exception {
         searchServiceMole = Mockito.spy(new SearchServiceMole());
-        targetSearchServiceMole = Mockito.spy(new TargetSearchServiceMole());
+        targetsServiceMole = Mockito.spy(new TargetsServiceMole());
         testServer = GrpcTestServer.newServer(searchServiceMole);
         testServer.start();
         identityProvider = Mockito.spy(new IdentityProvider(0));
         groupStitchingManager = new GroupStitchingManager(identityProvider);
         final SearchServiceBlockingStub searchServiceRpc =
                 SearchServiceGrpc.newBlockingStub(testServer.getChannel());
-        final TargetSearchServiceBlockingStub targetSearchServiceRpc =
-                TargetSearchServiceGrpc.newBlockingStub(testServer.getChannel());
+        final TargetsServiceBlockingStub targetSearchServiceRpc =
+                TargetsServiceGrpc.newBlockingStub(testServer.getChannel());
         transactionProvider = new MockTransactionProvider();
         groupStoreDAO = transactionProvider.getGroupStore();
         settingPolicyUpdater = Mockito.mock(DiscoveredSettingPoliciesUpdater.class);

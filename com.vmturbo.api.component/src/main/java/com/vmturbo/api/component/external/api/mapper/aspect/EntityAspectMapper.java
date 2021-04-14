@@ -49,6 +49,7 @@ public class EntityAspectMapper {
                               @Nonnull final StorageControllerAspectMapper storageControllerAspectMapper,
                               @Nonnull final PortsAspectMapper portsAspectMapper,
                               @Nonnull final DatabaseAspectMapper databaseAspectMapper,
+                              @Nonnull final DatabaseServerAspectMapper databaseServerAspectMapper,
                               @Nonnull final RegionAspectMapper regionAspectMapper,
                               @Nonnull final WorkloadControllerAspectMapper workloadControllerAspectMapper,
                               @Nonnull final ComputeTierAspectMapper computeTierAspectMapper,
@@ -64,7 +65,7 @@ public class EntityAspectMapper {
                 databaseAspectMapper,
                 cloudAspectMapper))
             .put(EntityType.DATABASE_SERVER_VALUE, ImmutableList.of(
-                databaseAspectMapper,
+                databaseServerAspectMapper,
                 cloudAspectMapper))
             .put(EntityType.DISK_ARRAY_VALUE, ImmutableList.of(
                 diskArrayAspectMapper))

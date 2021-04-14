@@ -13,7 +13,8 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.SearchFilterResolver;
-import com.vmturbo.common.protobuf.search.TargetSearchServiceGrpc.TargetSearchServiceBlockingStub;
+import com.vmturbo.common.protobuf.target.TargetDTO.SearchTargetsRequest;
+import com.vmturbo.common.protobuf.target.TargetsServiceGrpc.TargetsServiceBlockingStub;
 import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
@@ -23,7 +24,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 public class GroupComponentSearchFilterResolver extends SearchFilterResolver {
 
     private final IGroupStore groupStore;
-    private final TargetSearchServiceBlockingStub targetSearchService;
+    private final TargetsServiceBlockingStub targetSearchService;
 
     /**
      * Constructs the resolver using the specified group store.
@@ -32,7 +33,7 @@ public class GroupComponentSearchFilterResolver extends SearchFilterResolver {
      * @param targetSearchService gRPC to resolve target searches
      */
     public GroupComponentSearchFilterResolver(
-            @Nonnull TargetSearchServiceBlockingStub targetSearchService,
+            @Nonnull TargetsServiceBlockingStub targetSearchService,
             @Nonnull IGroupStore groupStore) {
         this.targetSearchService = Objects.requireNonNull(targetSearchService);
         this.groupStore = Objects.requireNonNull(groupStore);
@@ -58,6 +59,8 @@ public class GroupComponentSearchFilterResolver extends SearchFilterResolver {
     @Nonnull
     @Override
     protected Collection<Long> getTargetIdsFromFilter(@Nonnull PropertyFilter filter) {
-        return targetSearchService.searchTargets(filter).getTargetsList();
+        SearchTargetsRequest request = SearchTargetsRequest.newBuilder()
+            .addPropertyFilter(filter).build();
+        return targetSearchService.searchTargets(request).getTargetsList();
     }
 }

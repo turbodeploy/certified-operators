@@ -11,6 +11,8 @@ import com.vmturbo.api.pagination.ActionPaginationRequest;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.api.pagination.SearchOrderBy;
 import com.vmturbo.api.pagination.SearchPaginationRequest;
+import com.vmturbo.api.pagination.TargetOrderBy;
+import com.vmturbo.api.pagination.TargetPaginationRequest;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 
@@ -115,10 +117,26 @@ public class PaginationMapperTest {
     }
 
     @Test
-    public void testEntityStatOrderByStatName() throws InvalidOperationException {
+    public void testEntityStatOrderByStatName() {
         final EntityStatsPaginationRequest paginationRequest =
                 new EntityStatsPaginationRequest(null, null, true, "someStat");
         final PaginationParameters params = paginationMapper.toProtoParams(paginationRequest);
         assertThat(params.getOrderBy().getEntityStats().getStatName(), is("someStat"));
+    }
+
+    @Test
+    public void testTargetOrderByDisplayName() {
+        final TargetPaginationRequest paginationRequest =
+                new TargetPaginationRequest(null, null, true, TargetOrderBy.DISPLAY_NAME);
+        final PaginationParameters params = paginationMapper.toProtoParams(paginationRequest);
+        assertThat(params.getOrderBy().getTarget(), is(OrderBy.TargetOrderBy.TARGET_DISPLAY_NAME));
+    }
+
+    @Test
+    public void testTargetOrderByValidationStatus() {
+        final TargetPaginationRequest paginationRequest =
+                new TargetPaginationRequest(null, null, true, TargetOrderBy.VALIDATION_STATUS);
+        final PaginationParameters params = paginationMapper.toProtoParams(paginationRequest);
+        assertThat(params.getOrderBy().getTarget(), is(OrderBy.TargetOrderBy.TARGET_VALIDATION_STATUS));
     }
 }

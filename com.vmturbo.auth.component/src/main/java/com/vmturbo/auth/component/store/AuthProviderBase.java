@@ -3,6 +3,7 @@ package com.vmturbo.auth.component.store;
 import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.ADMINISTRATOR;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -34,7 +35,7 @@ public class AuthProviderBase {
      * The KV prefix.
      */
     @VisibleForTesting
-    static final String PREFIX = "users/";
+    static final String PREFIX_EXTERNAL_USERS = "users/";
     /**
      * The key/value store.
      */
@@ -100,6 +101,21 @@ public class AuthProviderBase {
         synchronized (storeLock_) {
             keyValueStore_.removeKeysWithPrefix(prefix);
         }
+    }
+
+    /**
+     * Get Key value by prefix.
+     *
+     * @param prefix the prefix to retrieve
+     * @return key/value map under the prefix.
+     */
+    @Nonnull
+    protected Map<String, String> getKVByPrefix(String prefix) {
+        Map<String, String> allUsers;
+        synchronized (storeLock_) {
+            allUsers = keyValueStore_.getByPrefix(prefix);
+        }
+        return allUsers;
     }
 
     /**

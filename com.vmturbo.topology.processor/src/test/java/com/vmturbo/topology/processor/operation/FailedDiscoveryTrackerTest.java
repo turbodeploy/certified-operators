@@ -16,6 +16,7 @@ import com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorType;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.operation.FailedDiscoveryTracker.DiscoveryFailure;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
+import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.targets.Target;
 
 /**
@@ -35,7 +36,10 @@ public class FailedDiscoveryTrackerTest {
      */
     @Before
     public void setup() throws Exception {
-        failedDiscoveryTracker = new FailedDiscoveryTracker();
+        ProbeStore probeStore = Mockito.mock(ProbeStore.class);
+        Mockito.when(probeStore.isProbeConnected(PROBE_ID)).thenReturn(true);
+        failedDiscoveryTracker = new FailedDiscoveryTracker(probeStore);
+
         IdentityGenerator.initPrefix(0);
         Mockito.when(identityProvider.generateOperationId()).thenAnswer((invocation) -> IdentityGenerator.next());
     }

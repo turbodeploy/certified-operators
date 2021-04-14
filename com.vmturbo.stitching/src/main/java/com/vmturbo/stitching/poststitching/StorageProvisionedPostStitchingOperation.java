@@ -78,7 +78,7 @@ public abstract class StorageProvisionedPostStitchingOperation extends Overprovi
             // set bought StorageProvisioned used value to be the same of its sold StorageAmount capacity
             list.forEach(entity -> {
                 TopologyEntityDTO.Builder entityBuilder = entity.getTopologyEntityDtoBuilder();
-                if (HCIUtils.isVSAN(entityBuilder))    {
+                if (HCIUtils.isVSAN(entityBuilder)) {
                     //For now we consider here only vSAN, but this may be a scheme correct for all HCI.
                     setUsedBasedOnBoughtAmount(entityBuilder, entity,
                                     settingsCollection, resultBuilder);

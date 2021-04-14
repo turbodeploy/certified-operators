@@ -306,8 +306,8 @@ public class ActionSpecMappingContextFactory {
 
         // fetch all db aspects
         final Map<Long, EntityAspect> dbAspects = getEntityToAspectMapping(entitiesById.values(),
-            Sets.newHashSet(ApiEntityType.DATABASE, ApiEntityType.DATABASE_SERVER),
-            Sets.newHashSet(EnvironmentType.CLOUD), AspectName.DATABASE);
+                Sets.newHashSet(ApiEntityType.DATABASE, ApiEntityType.DATABASE_SERVER),
+                Sets.newHashSet(EnvironmentType.CLOUD), AspectName.DATABASE);
 
         final ActionSpecMappingContext context = new ActionSpecMappingContext(entitiesById,
                 policies.get(), entityIdToRegion,

@@ -17,6 +17,7 @@ import com.vmturbo.api.serviceinterfaces.IUsersService.LoggedInUserInfo;
 import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.common.protobuf.LicenseProtoUtil;
+import com.vmturbo.components.api.FormattedString;
 
 /**
  * Determines and sets the relevant embedded reporting headers for the "current logged in user".
@@ -66,13 +67,14 @@ public class ReportingUserCalculator {
     /**
      * Called whenever a user is deleted via the API.
      *
-     * @param uuid The uuid of the modified user.
+     * @param userApiDTO The {@link UserApiDTO} of the modified user.
      */
-    public synchronized void onUserDeleted(@Nonnull final String uuid) {
-        final ReportEditorName name = editorNameMap.remove(uuid);
+    public synchronized void onUserDeleted(@Nonnull final UserApiDTO userApiDTO) {
+        final String key = getUserKey(userApiDTO);
+        final ReportEditorName name = editorNameMap.remove(key);
         if (name != null) {
             logger.info("User {} deleted - releasing associated report editor name {}.",
-                uuid, name.getName());
+                key, name.getName());
             reportEditorNamePool.releaseName(name);
         }
     }
@@ -87,10 +89,11 @@ public class ReportingUserCalculator {
         // If the user DOES have the editor role, we don't need to actually assign a report editor
         // username to it until the user tries to access reports.
         if (!ApiUtils.hasUserRole(user, SecurityConstant.REPORT_EDITOR)) {
-            final ReportEditorName name = editorNameMap.remove(user.getUuid());
+            final String key = getUserKey(user);
+            final ReportEditorName name = editorNameMap.remove(key);
             if (name != null) {
                 logger.info("User {} lost editor role - releasing associated report editor name {}.",
-                        user.getUuid(), name.getName());
+                        key, name.getName());
                 reportEditorNamePool.releaseName(name);
             }
         }
@@ -106,17 +109,18 @@ public class ReportingUserCalculator {
     @Nonnull
     public synchronized LoggedInUserInfo getMe(@Nonnull final UserApiDTO me) {
         if (enableReporting) {
+            final String key = getUserKey(me);
             String reportingUsername = me.getUsername();
             final boolean hasReportEditorRole = ApiUtils.hasUserRole(me, SecurityConstant.REPORT_EDITOR);
 
             if (hasReportEditorRole) {
-                if (editorNameMap.containsKey(me.getUuid())) {
-                    reportingUsername = editorNameMap.get(me.getUuid()).getName();
+                if (editorNameMap.containsKey(key)) {
+                    reportingUsername = editorNameMap.get(key).getName();
                 } else {
                     Optional<ReportEditorName> n = reportEditorNamePool.getAvailableName();
                     if (n.isPresent()) {
                         reportingUsername = n.get().getName();
-                        editorNameMap.put(me.getUuid(), n.get());
+                        editorNameMap.put(key, n.get());
                     } else {
                         logger.error("No more Report Editor roles available. {} will be logged in as viewer", reportingUsername);
                     }
@@ -126,6 +130,10 @@ public class ReportingUserCalculator {
         } else {
             return new LoggedInUserInfo(me, null);
         }
+    }
+
+    private String getUserKey(@Nonnull final UserApiDTO userApiDTO) {
+        return FormattedString.format("{}:{}", userApiDTO.getLoginProvider(), userApiDTO.getUsername());
     }
 
     /**

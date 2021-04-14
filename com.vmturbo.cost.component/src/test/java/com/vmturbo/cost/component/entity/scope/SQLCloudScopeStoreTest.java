@@ -14,6 +14,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -39,8 +40,14 @@ import com.vmturbo.cloud.commitment.analysis.demand.ImmutableComputeTierAllocati
 import com.vmturbo.cloud.commitment.analysis.demand.TimeFilter.TimeComparator;
 import com.vmturbo.cloud.common.entity.scope.EntityCloudScope;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.cost.component.cca.SQLComputeTierAllocationStore;
 import com.vmturbo.cost.component.db.Cost;
+import com.vmturbo.cost.component.savings.EntitySavingsException;
+import com.vmturbo.cost.component.savings.EntityState;
+import com.vmturbo.cost.component.savings.EntityStateStore;
+import com.vmturbo.cost.component.savings.SqlEntityStateStore;
+import com.vmturbo.cost.component.savings.SqlEntityStateStoreTest;
 import com.vmturbo.cost.component.topology.TopologyInfoTracker;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
@@ -70,6 +77,11 @@ public class SQLCloudScopeStoreTest {
     private final SQLCloudScopeStore cloudScopeStore = new SQLCloudScopeStore(
             dsl, mock(TaskScheduler.class), Duration.ZERO, 100, 100);
 
+    /**
+     * Entity State Store.
+     */
+    private final EntityStateStore entityStateStore = new SqlEntityStateStore(dsl, 100);;
+
     private final TopologyInfoTracker mockTopologyTracker = mock(TopologyInfoTracker.class);
 
     private final SQLComputeTierAllocationStore computeTierAllocationStore =
@@ -79,10 +91,13 @@ public class SQLCloudScopeStoreTest {
 
 
     @Test
-    public void testCleanup() {
+    public void testCleanup() throws EntitySavingsException {
 
+        final Long entityOid1 = 1L;
+        final Long entityOid2 = 7L;
         final ComputeTierAllocationDatapoint datapointA = ImmutableComputeTierAllocationDatapoint.builder()
-                .entityOid(1)
+                .entityOid(entityOid1)
+                .entityType(10)
                 .accountOid(2)
                 .regionOid(3)
                 .availabilityZoneOid(4)
@@ -93,7 +108,8 @@ public class SQLCloudScopeStoreTest {
                         .cloudTierOid(6).build())
                 .build();
         final ComputeTierAllocationDatapoint datapointB = ImmutableComputeTierAllocationDatapoint.builder()
-                .entityOid(7)
+                .entityOid(entityOid2)
+                .entityType(10)
                 .accountOid(8)
                 .regionOid(9)
                 .serviceProviderOid(10)
@@ -125,10 +141,10 @@ public class SQLCloudScopeStoreTest {
                 .collect(Collectors.toSet());
 
         // delete datapoint A
-        final EntityComputeTierAllocationFilter filter = EntityComputeTierAllocationFilter.builder()
+        final EntityComputeTierAllocationFilter deleteFilter = EntityComputeTierAllocationFilter.builder()
                 .addEntityOids(1)
                 .build();
-        computeTierAllocationStore.deleteAllocations(filter);
+        computeTierAllocationStore.deleteAllocations(deleteFilter);
 
         // Cleanup cloud scope records
         long numCloudScopeRecordsRemoved = cloudScopeStore.cleanupCloudScopeRecords();
@@ -162,6 +178,37 @@ public class SQLCloudScopeStoreTest {
         assertThat(numCloudScopeRecordsRemoved, equalTo(1L));
         assertThat(cloudScopeSetAfterDeletion, hasSize(1));
         assertThat(cloudScopeSetAfterDeletion, containsInAnyOrder(entityCloudScopeB));
+
+
+        //
+        // Verify that the records entity_cloud_scope table won't be delete if it referenced by a
+        // table other than entity_compute_tier_allocation.
+        //
+        // Add datapointA back
+        computeTierAllocationStore.persistAllocations(topologyInfo, ImmutableSet.of(datapointA));
+
+        // Add an entity state for the same entity for datapointA.
+        // The record that correspond to entityOid1 in the cloud scope table will be referenced by
+        // two tables.
+        Set<EntityState> stateSet = ImmutableSet.of(new EntityState(entityOid1));
+        TopologyEntityCloudTopology cloudTopology = SqlEntityStateStoreTest.getCloudTopology();
+        entityStateStore.updateEntityStates(stateSet.stream().collect(
+                Collectors.toMap(EntityState::getEntityId, Function.identity())), cloudTopology);
+
+        // Delete datapoint A from entity_compute_tier_allocation table.
+        computeTierAllocationStore.deleteAllocations(deleteFilter);
+
+        // Cleanup cloud scope records
+        numCloudScopeRecordsRemoved = cloudScopeStore.cleanupCloudScopeRecords();
+
+        final Set<EntityCloudScope> cloudScopeSetAfterDeletion2ndTime = cloudScopeStore.streamAll()
+                .collect(Collectors.toSet());
+
+        assertThat(numCloudScopeRecordsRemoved, equalTo(0L));
+        assertThat(cloudScopeSetAfterDeletion2ndTime, hasSize(2));
+        List<Long> entityOidsInScopeTable = cloudScopeSetAfterDeletion2ndTime.stream()
+                .map(EntityCloudScope::entityOid).collect(Collectors.toList());
+        assertThat(entityOidsInScopeTable, containsInAnyOrder(entityOid1, entityOid2));
     }
 
     @Ignore

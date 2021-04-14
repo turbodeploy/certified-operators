@@ -63,6 +63,9 @@ import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CommonCost.CurrencyAmount;
 
+/**
+ * Tests for the action listener.
+ */
 public class ActionListenerTest {
     private static final Long succeededActionId1 = 1234L;
     private static final Long succeededActionId2 = 4321L;
@@ -85,6 +88,11 @@ public class ActionListenerTest {
     @Rule
     public GrpcTestServer grpcTestServer = GrpcTestServer.newServer(actionsServiceRpc);
 
+    /**
+     * Setup before each test.
+     *
+     * @throws IOException on error
+     */
     @Before
     public void setup() throws IOException {
         MockitoAnnotations.initMocks(this);
@@ -94,10 +102,11 @@ public class ActionListenerTest {
         GrpcTestServer costGrpcServer = GrpcTestServer.newServer(costServiceRpc);
         costGrpcServer.start();
         costService = CostServiceGrpc.newBlockingStub(costGrpcServer.getChannel());
+        // Initialize ActionListener with a one hour action lifetime.
         actionListener = new ActionListener(store, actionsService, costService,
                                             realTimeTopologyContextId,
                 EntitySavingsConfig.getSupportedEntityTypes(),
-                EntitySavingsConfig.getSupportedActionTypes());
+                EntitySavingsConfig.getSupportedActionTypes(), 3600000L, 0L);
 
         Map<Long, CurrencyAmount> beforeOnDemandComputeCostByEntityOidMap = new HashMap<>();
         beforeOnDemandComputeCostByEntityOidMap.put(1L, CurrencyAmount.newBuilder()
@@ -138,7 +147,7 @@ public class ActionListenerTest {
                         .build();
         ActionSpec actionSpec1 = ActionDTO.ActionSpec.newBuilder()
                         .setRecommendationId(1234L)
-                        .setRecommendation(ActionDTO.Action.newBuilder().setId(1L)
+                        .setRecommendation(ActionDTO.Action.newBuilder().setId(succeededActionId1)
                                         .setDeprecatedImportance(1.0)
                                         .setExplanation(ActionDTO.Explanation.getDefaultInstance())
                                         .setInfo(ActionInfo.newBuilder()
@@ -149,7 +158,7 @@ public class ActionListenerTest {
                         .build();
         ActionSpec actionSpec2 = ActionDTO.ActionSpec.newBuilder()
                         .setRecommendationId(5658L)
-                        .setRecommendation(ActionDTO.Action.newBuilder().setId(3L)
+                        .setRecommendation(ActionDTO.Action.newBuilder().setId(succeededActionId2)
                             .setExplanation(ActionDTO.Explanation.getDefaultInstance())
                             .setDeprecatedImportance(1.0)
                             .setInfo(ActionInfo.newBuilder()
@@ -324,6 +333,87 @@ public class ActionListenerTest {
         long dbId1 = 201;
         long volumeId1 = 301;
 
+        final ActionEntity actionEntityVm1 = ActionDTO.ActionEntity.newBuilder()
+                        .setId(101L)
+                        .setType(CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE_VALUE)
+                        .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.CLOUD)
+                        .build();
+        final Scale scaleVm1 = Scale.newBuilder()
+                        .setTarget(actionEntityVm1)
+                        .build();
+        final ActionEntity actionEntityVm2 = ActionDTO.ActionEntity.newBuilder()
+                        .setId(102L)
+                        .setType(CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE_VALUE)
+                        .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.CLOUD)
+                        .build();
+        final Scale scaleVm2 = Scale.newBuilder()
+                        .setTarget(actionEntityVm2)
+                        .build();
+        final ActionEntity actionEntityDb1 = ActionDTO.ActionEntity.newBuilder()
+                        .setId(201L)
+                        .setType(CommonDTO.EntityDTO.EntityType.DATABASE_VALUE)
+                        .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.CLOUD)
+                        .build();
+        final Scale scaleDb1 = Scale.newBuilder()
+                        .setTarget(actionEntityDb1)
+                        .build();
+        final ActionEntity actionEntityVv1 = ActionDTO.ActionEntity.newBuilder()
+                        .setId(301L)
+                        .setType(CommonDTO.EntityDTO.EntityType.VIRTUAL_VOLUME_VALUE)
+                        .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.CLOUD)
+                        .build();
+        final Scale scaleVv1 = Scale.newBuilder()
+                        .setTarget(actionEntityVv1)
+                        .build();
+        ActionSpec actionSpecVm1 = ActionDTO.ActionSpec.newBuilder()
+                        .setRecommendationId(1234L)
+                        .setRecommendation(ActionDTO.Action.newBuilder().setId(1L)
+                                        .setExplanation(ActionDTO.Explanation.getDefaultInstance())
+                                        .setDeprecatedImportance(0.0)
+                                        .setInfo(ActionInfo.newBuilder()
+                                                        .setScale(scaleVm1)
+                                                        .build())
+                                        .build())
+                        .setRecommendationTime(System.currentTimeMillis())
+                        .setActionState(com.vmturbo.common.protobuf.action.ActionDTO.ActionState.READY)
+                        .build();
+        ActionSpec actionSpecVm2 = ActionDTO.ActionSpec.newBuilder()
+                        .setRecommendationId(5658L)
+                        .setRecommendation(ActionDTO.Action.newBuilder().setId(2L)
+                                        .setDeprecatedImportance(0.0)
+                                        .setExplanation(ActionDTO.Explanation.getDefaultInstance())
+                                        .setInfo(ActionInfo.newBuilder()
+                                                        .setScale(scaleVm2)
+                                                        .build())
+                                        .build())
+                        .setRecommendationTime(System.currentTimeMillis())
+                        .setActionState(com.vmturbo.common.protobuf.action.ActionDTO.ActionState.READY)
+                        .build();
+        ActionSpec actionSpecDb1 = ActionDTO.ActionSpec.newBuilder()
+                        .setRecommendationId(5654L)
+                        .setRecommendation(ActionDTO.Action.newBuilder().setId(3L)
+                                        .setDeprecatedImportance(3.0)
+                                        .setExplanation(ActionDTO.Explanation.getDefaultInstance())
+                                        .setInfo(ActionInfo.newBuilder()
+                                                        .setScale(scaleDb1)
+                                                        .build())
+                                        .build())
+                        .setRecommendationTime(System.currentTimeMillis())
+                        .setActionState(com.vmturbo.common.protobuf.action.ActionDTO.ActionState.READY)
+                        .build();
+        ActionSpec actionSpecVv1 = ActionDTO.ActionSpec.newBuilder()
+                        .setRecommendationId(5654L)
+                        .setRecommendation(ActionDTO.Action.newBuilder().setId(4L)
+                                        .setDeprecatedImportance(4.0)
+                                        .setExplanation(ActionDTO.Explanation.getDefaultInstance())
+                                        .setInfo(ActionInfo.newBuilder()
+                                                        .setScale(scaleVv1)
+                                                        .build())
+                                        .build())
+                        .setRecommendationTime(System.currentTimeMillis())
+                        .setActionState(com.vmturbo.common.protobuf.action.ActionDTO.ActionState.READY)
+                        .build();
+
         // Setup cost category -> entities mapping.
         final Map<CostCategory, Set<Long>> categoryToEntities = new HashMap<>();
         // TreeSet needed because of argument match ordering.
@@ -335,10 +425,10 @@ public class ActionListenerTest {
                 volumeId1)));
 
         final Map<Long, EntityActionInfo> entityIdToActionInfoMap = ImmutableMap.of(
-                vmId1, new EntityActionInfo(1001L),
-                vmId2, new EntityActionInfo(1002L),
-                dbId1, new EntityActionInfo(1003L),
-                volumeId1, new EntityActionInfo(1004L)
+                vmId1, new EntityActionInfo(actionSpecVm1, actionEntityVm1),
+                vmId2, new EntityActionInfo(actionSpecVm2, actionEntityVm2),
+                dbId1, new EntityActionInfo(actionSpecDb1, actionEntityDb1),
+                volumeId1, new EntityActionInfo(actionSpecVv1, actionEntityVv1)
         );
 
         // Setup fake costs.
@@ -428,14 +518,13 @@ public class ActionListenerTest {
                 .setActionState(ActionState.READY)
                 .build();
 
-        long actionId = 50001L;
-        final EntityActionInfo entityActionInfo = actionListener.getEntityActionInfo(actionId,
-                actionSpec, actionEntity);
+        long actionId = 101L;
+        final EntityActionInfo entityActionInfo = new EntityActionInfo(actionSpec, actionEntity);
         assertNotNull(entityActionInfo);
-        assertEquals(actionId, entityActionInfo.actionId);
-        assertEquals(actionEntity.getType(), entityActionInfo.entityType);
-        assertEquals(sourceTierId, entityActionInfo.sourceOid);
-        assertEquals(destinationTierId, entityActionInfo.destinationOid);
+        assertEquals(actionId, entityActionInfo.getActionId());
+        assertEquals(actionEntity.getType(), entityActionInfo.getEntityType());
+        assertEquals(sourceTierId, entityActionInfo.getSourceOid());
+        assertEquals(destinationTierId, entityActionInfo.getDestinationOid());
     }
 
     /**

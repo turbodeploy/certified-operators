@@ -16,6 +16,10 @@ import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+
+import javax.annotation.Nonnull;
 
 import com.google.gson.Gson;
 import com.google.gson.stream.JsonReader;
@@ -63,10 +67,17 @@ public class EventInjector implements Runnable {
     private final EntityEventsJournal entityEventsJournal;
 
     /**
+     * Action lifetimes.
+     */
+    private final Long actionLifetimeMs;
+    private final Long deleteVolumeActionLifetimeMs;
+
+    /**
      * Event format passed between the data generator and the event injector.
      */
     public static class ScriptEvent {
         long timestamp;
+        long expirationTimestamp;
         String eventType;
         long uuid;
         boolean state;
@@ -87,18 +98,26 @@ public class EventInjector implements Runnable {
      *
      * @param entitySavingsTracker entity savings tracker to inject actions into.
      * @param entityEventsJournal events journal to populate.
+     * @param actionLifetimeMs lifetime in ms for all actions other than delete volume
+     * @param deleteVolumeActionLifetimeMs lifetime in ms for delete volume actions
      */
     EventInjector(EntitySavingsTracker entitySavingsTracker,
-                  EntityEventsJournal entityEventsJournal) {
+                  EntityEventsJournal entityEventsJournal,
+            @Nonnull final Long actionLifetimeMs,
+            @Nonnull final Long deleteVolumeActionLifetimeMs) {
         this.entitySavingsTracker = entitySavingsTracker;
         this.entityEventsJournal = entityEventsJournal;
+        this.actionLifetimeMs = Objects.requireNonNull(actionLifetimeMs);
+        this.deleteVolumeActionLifetimeMs = Objects.requireNonNull(deleteVolumeActionLifetimeMs);
     }
+
 
     /**
      * Start the event injector.
      */
     public void start() {
-        (new Thread(new EventInjector(this.entitySavingsTracker, this.entityEventsJournal))).start();
+        (new Thread(new EventInjector(entitySavingsTracker, entityEventsJournal,
+                actionLifetimeMs, deleteVolumeActionLifetimeMs))).start();
     }
 
     /**
@@ -196,6 +215,7 @@ public class EventInjector implements Runnable {
             EntityPriceChange entityPriceChange =  new EntityPriceChange.Builder()
                     .sourceCost(event.sourceTier)
                     .destinationCost(event.destTier)
+                    .expirationTime(event.expirationTimestamp)
                     .build();
             ActionEvent actionEvent = new ActionEvent.Builder()
                     .actionId(event.uuid)
@@ -204,7 +224,8 @@ public class EventInjector implements Runnable {
             result.actionEvent(actionEvent).entityPriceChange(entityPriceChange);
         } else if ("CANCEL_RECOMMENDATION".equals(event.eventType)) {
             EntityPriceChange dummyPriceChange =  new EntityPriceChange.Builder()
-                    .sourceCost(0d).destinationCost(0d).build();
+                    .sourceCost(0d).destinationCost(0d).expirationTime(event.expirationTimestamp)
+                    .build();
             ActionEvent actionEvent = new ActionEvent.Builder()
                     .actionId(event.uuid)
                     .eventType(ActionEventType.RECOMMENDATION_REMOVED)
@@ -225,6 +246,7 @@ public class EventInjector implements Runnable {
             EntityPriceChange entityPriceChange =  new EntityPriceChange.Builder()
                     .sourceCost(event.sourceTier)
                     .destinationCost(event.destTier)
+                    .expirationTime(Optional.of(event.expirationTimestamp))
                     .build();
             ActionEvent actionEvent = new ActionEvent.Builder()
                     .actionId(event.uuid)

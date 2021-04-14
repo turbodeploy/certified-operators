@@ -83,6 +83,7 @@ import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityProviderImpl;
+import com.vmturbo.topology.processor.identity.StaleOidManagerImpl;
 import com.vmturbo.topology.processor.identity.storage.IdentityDatabaseStore;
 import com.vmturbo.topology.processor.notification.SystemNotificationProducer;
 import com.vmturbo.topology.processor.operation.Operation;
@@ -128,7 +129,7 @@ public class OperationControllerTest {
         @Bean
         IdentityProvider identityProvider() {
             return new IdentityProviderImpl(new MapKeyValueStore(), new ProbeInfoCompatibilityChecker(), 0L,
-                mock(IdentityDatabaseStore.class), 10, 0, false);
+                mock(IdentityDatabaseStore.class), 10, 0, false, mock(StaleOidManagerImpl.class));
         }
 
         @Bean

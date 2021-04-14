@@ -102,6 +102,7 @@ import com.vmturbo.topology.processor.api.impl.TargetRESTApi.TargetInfo;
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi.TargetSpec;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityProviderImpl;
+import com.vmturbo.topology.processor.identity.StaleOidManagerImpl;
 import com.vmturbo.topology.processor.identity.storage.IdentityDatabaseStore;
 import com.vmturbo.topology.processor.operation.FailedDiscoveryTracker;
 import com.vmturbo.topology.processor.operation.IOperationManager;
@@ -156,7 +157,7 @@ public class TargetControllerTest {
         public IdentityProvider identityService() {
             return new IdentityProviderImpl(new MapKeyValueStore(),
                 new ProbeInfoCompatibilityChecker(), 0L, mock(IdentityDatabaseStore.class), 10, 0
-                , false);
+                , false, mock(StaleOidManagerImpl.class));
         }
 
         @Bean
@@ -1204,12 +1205,14 @@ public class TargetControllerTest {
         final Target target = createTarget(probeId, "43");
         final long targetId = target.getId();
 
-        final Discovery discovery = new Discovery(probeId, targetId, identityProvider);
         final Validation validation = new Validation(probeId,  targetId, identityProvider);
-        when(operationManager.getLastDiscoveryForTarget(targetId, DiscoveryType.FULL))
-            .thenReturn(Optional.of(discovery));
+        final Discovery discovery = new Discovery(probeId, targetId, identityProvider);
+        validation.success();
+        discovery.success();
         when(operationManager.getLastValidationForTarget(targetId))
             .thenReturn(Optional.of(validation));
+        when(operationManager.getLastDiscoveryForTarget(targetId, DiscoveryType.FULL))
+            .thenReturn(Optional.of(discovery));
 
         ITargetHealthInfo healthInfo = getTargetHealth(targetId);
         Assert.assertEquals(Long.valueOf(targetId), healthInfo.getTargetId());
@@ -1277,9 +1280,11 @@ public class TargetControllerTest {
         final long targetId = target.getId();
 
         final Validation validation = new Validation(probeId,  targetId, identityProvider);
+        validation.success();
         when(operationManager.getLastValidationForTarget(targetId))
             .thenReturn(Optional.of(validation));
         final Discovery discovery = new Discovery(probeId, targetId, identityProvider);
+        discovery.fail();
         when(operationManager.getLastDiscoveryForTarget(targetId, DiscoveryType.FULL))
             .thenReturn(Optional.of(discovery));
 
@@ -1316,6 +1321,7 @@ public class TargetControllerTest {
         final long targetId = target.getId();
 
         final Discovery discovery = new Discovery(probeId, targetId, identityProvider);
+        discovery.success();
         when(operationManager.getLastDiscoveryForTarget(targetId, DiscoveryType.FULL))
             .thenReturn(Optional.of(discovery));
 

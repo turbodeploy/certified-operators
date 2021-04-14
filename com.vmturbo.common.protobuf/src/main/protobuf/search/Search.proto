@@ -450,12 +450,3 @@ message GraphResponse {
     repeated .topology.PartialEntity entities = 1;
     map<string, ResponseNode> nodes = 2;
 }
-
-message SearchTargetsResponse {
-    repeated int64 targets = 1;
-}
-
-service TargetSearchService {
-    // Search targets for a specific filter
-    rpc SearchTargets(PropertyFilter) returns (SearchTargetsResponse);
-}

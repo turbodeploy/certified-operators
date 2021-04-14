@@ -1,6 +1,7 @@
 package com.vmturbo.cost.component.savings;
 
 import static org.mockito.Matchers.anyLong;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -12,16 +13,20 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableSet;
 
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
@@ -30,10 +35,16 @@ import org.mockito.MockitoAnnotations;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.components.api.TimeUtil;
+import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.ActionEvent.ActionEventType;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.SavingsEvent;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.repository.api.RepositoryClient;
 
 /**
  * Verify operation of the entity savings tracker.
@@ -64,13 +75,33 @@ public class EntitySavingsTrackerTest {
     private static final long action2Id = 1002L;
     private static final long action3Id = 1003L;
 
+    private static final long region1Id = 2000L;
+    private static final long region2Id = 2001L;
+
+    private static final long availabilityZone1Id = 3001;
+
+    private static final long account1Id = 4000L;
+    private static final long account2Id = 4001L;
+
+    private static final long serviceProvider1Id = 5000L;
+    private static final long serviceProvider2Id = 5001L;
+
+    private static final RepositoryClient repositoryClient = mock(RepositoryClient.class);
+
     // Maps the period start time to a list of events in the period that start at the start time and ends 1 hour later.
     private static final Map<LocalDateTime, List<SavingsEvent>> eventsByPeriod = new HashMap<>();
 
     private static Clock clock = Clock.systemUTC();
 
+    private long realtimeTopologyContextId = 777777;
+
+    private static final long ACTION_EXPIRATION_TIME = TimeUnit.HOURS.toMillis(1L);
+
     @Captor
     private ArgumentCaptor<Set<EntitySavingsStats>> statsCaptor;
+
+    @Captor
+    private ArgumentCaptor<List<Long>> entityOidListCaptor;
 
     /**
      * Set up before each test case.
@@ -91,8 +122,11 @@ public class EntitySavingsTrackerTest {
         when(entityEventsJournal.removeEventsBetween(time1100amMillis, time1200pmMillis)).thenReturn(eventsByPeriod.get(time1100am));
         entitySavingsStore = mock(EntitySavingsStore.class);
         EntityStateStore entityStateStore = mock(SqlEntityStateStore.class);
+
+        setupRepositoryClient();
         tracker = spy(new EntitySavingsTracker(entitySavingsStore, entityEventsJournal,
-                entityStateStore, Clock.systemUTC(), mock(AuditLogWriter.class), 2));
+                entityStateStore, Clock.systemUTC(), mock(AuditLogWriter.class),
+                mock(TopologyEntityCloudTopologyFactory.class), repositoryClient, realtimeTopologyContextId, 2));
 
         Set<EntityState> stateSet = ImmutableSet.of(
                 createEntityState(vm1Id, 2d, null, null, null),
@@ -105,6 +139,71 @@ public class EntitySavingsTrackerTest {
             }
         };
         when(entityStateStore.getAllEntityStates()).thenAnswer(stateStream);
+    }
+
+    private void setupRepositoryClient() {
+        // Create topology entities for vm1 and vm2. These two VMs have events (see eventsByPeriod)
+        List<Long> vmIds = Arrays.asList(vm1Id, vm2Id);
+        TopologyEntityDTO vm1EntityDto = TopologyEntityDTO.newBuilder()
+                .setOid(vm1Id)
+                .setEntityType(10)
+                .addConnectedEntityList(ConnectedEntity.newBuilder()
+                        .setConnectedEntityId(region1Id)
+                        .setConnectedEntityType(EntityType.REGION_VALUE)
+                        .build())
+                .build();
+        TopologyEntityDTO vm2EntityDto = TopologyEntityDTO.newBuilder()
+                .setOid(vm2Id)
+                .setEntityType(10)
+                .addConnectedEntityList(ConnectedEntity.newBuilder()
+                        .setConnectedEntityId(availabilityZone1Id)
+                        .setConnectedEntityType(EntityType.AVAILABILITY_ZONE_VALUE)
+                        .build())
+                .build();
+
+        TopologyEntityDTO region1 = TopologyEntityDTO.newBuilder()
+                .setOid(region1Id)
+                .setEntityType(EntityType.REGION_VALUE)
+                .build();
+
+        TopologyEntityDTO region2 = TopologyEntityDTO.newBuilder()
+                .setOid(region2Id)
+                .setEntityType(EntityType.REGION_VALUE)
+                .addConnectedEntityList(ConnectedEntity.newBuilder()
+                        .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION)
+                        .setConnectedEntityId(availabilityZone1Id)
+                        .setConnectedEntityType(EntityType.AVAILABILITY_ZONE_VALUE)
+                        .build())
+                .build();
+
+        TopologyEntityDTO serviceProvider1 = TopologyEntityDTO.newBuilder()
+                .setOid(serviceProvider1Id)
+                .setEntityType(EntityType.SERVICE_PROVIDER_VALUE)
+                .build();
+        TopologyEntityDTO serviceProvider2 = TopologyEntityDTO.newBuilder()
+                .setOid(serviceProvider2Id)
+                .setEntityType(EntityType.SERVICE_PROVIDER_VALUE)
+                .build();
+
+        when(repositoryClient.retrieveTopologyEntities(vmIds, realtimeTopologyContextId))
+                .thenReturn(Stream.of(vm1EntityDto, vm2EntityDto));
+
+        when(repositoryClient.retrieveTopologyEntities(Collections.EMPTY_LIST, realtimeTopologyContextId))
+                .thenReturn(Stream.empty());
+
+        when(repositoryClient.retrieveTopologyEntities(Collections.singletonList(vm1Id), realtimeTopologyContextId))
+                .thenReturn(Stream.of(vm1EntityDto, vm2EntityDto));
+
+        when(repositoryClient.getAllBusinessAccountOidsInScope(ImmutableSet.of(vm1Id, vm2Id)))
+                .thenReturn(ImmutableSet.of(account1Id, account2Id));
+
+        Answer<Stream> regionServiceProviderStream = new Answer<Stream>() {
+            public Stream answer(InvocationOnMock invocation) throws Throwable {
+                return Stream.of(region1, region2, serviceProvider1, serviceProvider2);
+            }
+        };
+        when(repositoryClient.getEntitiesByType(realtimeTopologyContextId, Arrays.asList(EntityType.REGION, EntityType.SERVICE_PROVIDER)))
+                .thenAnswer(regionServiceProviderStream);
     }
 
     private static void createEvents() {
@@ -151,6 +250,19 @@ public class EntitySavingsTrackerTest {
         final long endTimeMillis = TimeUtil.localDateTimeToMilli(time1000am, clock);
         verify(entityEventsJournal).removeEventsBetween(startTimeMillis, endTimeMillis);
         verify(tracker).generateStats(startTimeMillis);
+        List<Long> vmIds = Arrays.asList(vm1Id, vm2Id);
+        verify(repositoryClient).getAllBusinessAccountOidsInScope(new HashSet<>(vmIds));
+        verify(repositoryClient).getEntitiesByType(realtimeTopologyContextId,
+                Arrays.asList(EntityType.REGION, EntityType.SERVICE_PROVIDER));
+
+        verify(repositoryClient, times(2)).retrieveTopologyEntities(entityOidListCaptor.capture(), eq(realtimeTopologyContextId));
+        List<List<Long>> capturedEntityLists = entityOidListCaptor.getAllValues();
+        Assert.assertEquals(2, capturedEntityLists.get(0).size());
+        Assert.assertTrue(capturedEntityLists.get(0).containsAll(vmIds));
+        Assert.assertEquals(9, capturedEntityLists.get(1).size());
+        Assert.assertTrue(capturedEntityLists.get(1).containsAll(Arrays.asList(vm1Id, vm2Id,
+                region1Id, region2Id, availabilityZone1Id, account1Id, account2Id, serviceProvider1Id,
+                serviceProvider2Id)));
     }
 
     /**

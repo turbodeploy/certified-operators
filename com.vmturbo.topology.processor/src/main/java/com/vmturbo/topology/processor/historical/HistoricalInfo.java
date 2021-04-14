@@ -47,6 +47,7 @@ public class HistoricalInfo {
     }
 
     public HistoricalServiceEntityInfo remove(Long key) {
+        oidToMissingConsecutiveCycleCounts.remove(key);
         return oidToHistoricalSEInfo.remove(key);
     }
 

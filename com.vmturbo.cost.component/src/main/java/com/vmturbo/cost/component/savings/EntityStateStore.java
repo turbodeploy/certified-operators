@@ -1,10 +1,13 @@
 package com.vmturbo.cost.component.savings;
 
+import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+
+import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 
 /**
  * Interface for read/write of entity states.
@@ -22,12 +25,16 @@ public interface EntityStateStore {
     Map<Long, EntityState> getEntityStates(@Nonnull Set<Long> entityIds) throws EntitySavingsException;
 
     /**
-     * Get a map of entities that had state changes in the last period as a result of events.
+     * Get a map of entity states that need to be processed even without driving events.  This
+     * includes all entity states that were updated in the previous calculation pass and entity
+     * states that contain an expired action.
      *
-     * @return a map of entity Id to entity states
-     * @throws EntitySavingsException error during operation
+     * @param timestamp timestamp of the end of the period being processed
+     * @return a map of entity_oid -> EntityState that must be processed.
+     * @throws EntitySavingsException when an error occurs
      */
-    Map<Long, EntityState> getUpdatedEntityStates() throws EntitySavingsException;
+    Map<Long, EntityState> getForcedUpdateEntityStates(LocalDateTime timestamp)
+            throws EntitySavingsException;
 
     /**
      * Set the updated_by_event values to zeroes.
@@ -48,9 +55,12 @@ public interface EntityStateStore {
      * Update entity states. If the state of the entity is not already in the store, create it.
      *
      * @param entityStateMap entity ID mapped to entity state
+     * @param cloudTopology cloud topology
      * @throws EntitySavingsException error during operation
      */
-    void updateEntityStates(@Nonnull Map<Long, EntityState> entityStateMap) throws EntitySavingsException;
+    void updateEntityStates(@Nonnull Map<Long, EntityState> entityStateMap,
+                            @Nonnull TopologyEntityCloudTopology cloudTopology)
+            throws EntitySavingsException;
 
     /**
      * Get all entity states.

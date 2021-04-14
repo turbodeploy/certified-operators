@@ -43,6 +43,7 @@ import com.google.protobuf.AbstractMessage;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 
+import com.vmturbo.commons.analysis.ByProductMap;
 import com.vmturbo.cost.calculation.pricing.DatabasePriceBundle;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
@@ -436,7 +437,7 @@ public class TopologyEntitiesHandlerTest {
         final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(
                     MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                     SuspensionsThrottlingConfig.DEFAULT, Collections.emptyMap(), false,
-                    MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false)
+                    MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false, false)
                 .setRightsizeLowerWatermark(rightsizeLowerWatermark)
                 .setRightsizeUpperWatermark(rightsizeUpperWatermark)
                 .setMaxPlacementsOverride(maxPlacementIterations)
@@ -688,7 +689,7 @@ public class TopologyEntitiesHandlerTest {
                 .newBuilder(MarketAnalysisUtils.QUOTE_FACTOR,
                         MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                         SuspensionsThrottlingConfig.DEFAULT, Collections.emptyMap(), false,
-                        MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false)
+                        MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false, false)
                 .build();
         final Topology topology = TopologyEntitiesHandler.createTopology(Collections.EMPTY_LIST, REALTIME_TOPOLOGY_INFO,
                 Collections.emptyList(), analysisConfig);
@@ -831,7 +832,7 @@ public class TopologyEntitiesHandlerTest {
                         .newBuilder(MarketAnalysisUtils.QUOTE_FACTOR,
                                         MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                                         SuspensionsThrottlingConfig.DEFAULT, Collections.emptyMap(), false,
-                                        MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false)
+                                        MarketAnalysisUtils.PRICE_WEIGHT_SCALE, false, false)
                         .setRightsizeLowerWatermark(rightsizeLowerWatermark)
                         .setRightsizeUpperWatermark(rightsizeUpperWatermark)
                         .setMaxPlacementsOverride(maxPlacementIterations)
@@ -949,7 +950,7 @@ public class TopologyEntitiesHandlerTest {
                                             MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                                             SuspensionsThrottlingConfig.DEFAULT,
                                             Collections.emptyMap(), false, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-                                            false)
+                                            false, false)
                             .setRightsizeLowerWatermark(rightsizeLowerWatermark)
                             .setRightsizeUpperWatermark(rightsizeUpperWatermark)
                             .setMaxPlacementsOverride(maxPlacementIterations)
@@ -1092,7 +1093,7 @@ public class TopologyEntitiesHandlerTest {
                         MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                         SuspensionsThrottlingConfig.DEFAULT,
                         Collections.emptyMap(), false, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
-                        false)
+                        false, false)
                 .setRightsizeLowerWatermark(rightsizeLowerWatermark)
                 .setRightsizeUpperWatermark(rightsizeUpperWatermark)
                 .setMaxPlacementsOverride(maxPlacementIterations)
@@ -1314,6 +1315,9 @@ public class TopologyEntitiesHandlerTest {
         assertEquals(Sets.newHashSet(0), otherCliqueCounts);
     }
 
+    /**
+     * Testing that the rawMaterial map gets populated.
+     */
     @Test
     public void testPopulateRawMaterialsMap() {
         Topology topology = new Topology();
@@ -1324,6 +1328,50 @@ public class TopologyEntitiesHandlerTest {
         assertEquals(e.getRawMaterials(CommonDTO.CommodityDTO.CommodityType.VMEM_VALUE).get().getMaterials().length,
                  RawMaterialsMap.rawMaterialsMap.get(CommonDTO.CommodityDTO.CommodityType.VMEM_VALUE).getRawMaterials().size());
 
+    }
+
+    /**
+     * Testing that the byProduct map gets populated.
+     */
+    @Test
+    public void testPopulateByProductMap() {
+        Topology topology = new Topology();
+        TopologyEntitiesHandler.populateByProductsMap(topology);
+        Economy e = (Economy)topology.getEconomy();
+        assertEquals(e.getModifiableByProductMap().size(), ByProductMap.byProductMap.size());
+        // check if the VCPU's rawMaterials are correctly stored
+        assertEquals(e.getByProducts(CommodityType.VCPU_VALUE).get().getByProductMap().size(), 1);
+        assertEquals(e.getByProducts(CommodityType.VCPU_VALUE).get().getByProductMap()
+                .keySet().stream().findFirst().get().intValue(), CommodityType.VCPU_THROTTLING_VALUE);
+    }
+
+    /**
+     * Testing that the byProduct map only gets populated when appropriate.
+     */
+    @Test
+    public void testPopulateByProductMapWhenConfigured() {
+        final AnalysisConfig analysisConfigNoByProducts = AnalysisConfig
+            .newBuilder(MarketAnalysisUtils.QUOTE_FACTOR,
+                MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+                SuspensionsThrottlingConfig.DEFAULT,
+                Collections.emptyMap(), false, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
+                false, false).build();
+        final TopologyInfo topologyInfo = TopologyInfo.newBuilder().setTopologyContextId(7L)
+            .setTopologyType(TopologyType.PLAN).setTopologyId(1L).build();
+
+        final Topology topologyNoByProducts = TopologyEntitiesHandler.createTopology(Collections.emptyList(), topologyInfo,
+            Collections.emptyList(), analysisConfigNoByProducts);
+        assertEquals(0, topologyNoByProducts.getModifiableByProductsMap().size());
+
+        final AnalysisConfig analysisConfigWithByProducts = AnalysisConfig
+            .newBuilder(MarketAnalysisUtils.QUOTE_FACTOR,
+                MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+                SuspensionsThrottlingConfig.DEFAULT,
+                Collections.emptyMap(), false, MarketAnalysisUtils.PRICE_WEIGHT_SCALE,
+                false, true).build();
+        final Topology topologyWithByProducts = TopologyEntitiesHandler.createTopology(Collections.emptyList(), topologyInfo,
+            Collections.emptyList(), analysisConfigWithByProducts);
+        assertTrue(topologyWithByProducts.getModifiableByProductsMap().size() > 0);
     }
 
     /**

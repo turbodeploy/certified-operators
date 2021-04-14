@@ -1,0 +1,105 @@
+syntax = "proto2";
+package cloud_commitment;
+
+option java_package = "com.vmturbo.common.protobuf.cloud";
+option java_outer_classname = "CloudCommitmentServices";
+
+import "cost/Cost.proto";
+import "CommonCost.proto";
+
+service CloudCommitmentUploadService {
+    rpc UploadCloudCommitmentData(UploadCloudCommitmentRequest) returns (UploadCloudCommitmentResponse);
+}
+
+message UploadCloudCommitmentRequest {
+    optional int64 created_time = 1;
+    optional int64 topology_context_id = 2;
+    optional CloudCommitmentData cloud_commitment_billing_data = 3;
+
+    // container for info related to cloud commitments.
+    message CloudCommitmentData {
+        repeated CloudCommitmentDataBucket utilization_data = 1;
+        repeated CloudCommitmentDataBucket coverage_data = 2;
+
+        // container for coverage ***OR*** utilization data points from a particular time
+        message CloudCommitmentDataBucket {
+            optional int64 timestamp_millis = 1;
+            repeated CloudCommitmentDataPoint samples = 2;
+            optional Granularity granularity = 6;
+
+            enum Granularity {
+                HOURLY = 0;
+                DAILY = 1;
+                MONTHLY = 2;
+            }
+
+            // one sample of cloud commitment coverage ***OR*** utilization data
+            message CloudCommitmentDataPoint {
+                optional int64 commitment_oid = 1;
+                // entity to which the commitment applies
+                optional string entity_id = 2;
+                // service to which the commitment applies
+                optional string service = 3;
+                // region to which the commitment applies
+                optional string region = 4;
+
+
+                // must be populated or else this object has no meaning at all. both fields must
+                // use the same unit(coupons or CurrencyAmount).
+                optional CloudCommitmentAmount used = 5;
+                optional CloudCommitmentAmount capacity = 6;
+
+                // a quantity of coupons or money
+                message CloudCommitmentAmount {
+                    oneof value {
+                        common_dto.CurrencyAmount amount = 1;
+                        float coupons = 2;
+                    }
+                }
+            }
+        }
+    }
+}
+
+message UploadCloudCommitmentResponse {}
+
+service CloudCommitmentUtilizationCoverageService {
+    rpc GetCommitmentUtilization(GetCommitmentStatRecordRequest) returns (stream GetCommitmentStatRecordResponse);
+    rpc GetCommitmentCoverage(GetCommitmentStatRecordRequest) returns (stream GetCommitmentStatRecordResponse);
+}
+
+message GetCommitmentStatRecordRequest {
+    optional uint64 start_date = 1;
+    optional uint64 end_date = 2;
+    optional uint64 topology_context_id = 3;
+
+    // filters become necessary when scopes other than global are supported
+    optional cost.RegionFilter region_filter = 4;
+    optional cost.AccountFilter account_filter = 5;
+    // for utilization requests, entity filter is ignored
+    optional cost.EntityFilter entity_filter = 6;
+
+    optional CommitmentStatType stat_type = 7;
+
+    enum CommitmentStatType {
+        COVERAGE = 0;
+        UTILIZATION = 1;
+    }
+}
+
+message GetCommitmentStatRecordResponse {
+    repeated CloudCommitmentStatRecord commitment_stat_record_chunk = 1;
+}
+
+message CloudCommitmentStatRecord {
+    optional int64 snapshot_date = 1;
+    optional StatValue capacity = 2;
+    optional StatValue values = 3;
+
+    message StatValue {
+        optional float max = 1;
+        optional float min = 2;
+        optional float avg = 3;
+        optional float total = 4;
+    }
+}

@@ -4,6 +4,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
@@ -12,9 +13,13 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.BiMap;
+import com.google.common.collect.HashBiMap;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.MapDifference;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang.StringUtils;
@@ -76,11 +81,11 @@ public class ActionListener implements ActionsListener {
     private final EntityEventsJournal entityEventsJournal;
 
     /**
-     * The Map of current (active action) actionSpec to entityId.
+     * The Map of current (active/existing) action EntityActionSpec to entityId.
      *
      * <p>This mapping is preserved in order to process stale action events.
      */
-    private final Map<ActionSpec, Long> currentPendingActionSpecsToEntityId = new ConcurrentHashMap<>();
+    private final Map<EntityActionInfo, Long> existingPendingActionsInfoToEntityId = new ConcurrentHashMap<>();
 
     /**
      * For making Grpc calls to Action Orchestrator.
@@ -146,6 +151,12 @@ public class ActionListener implements ActionsListener {
             .build();
 
     /**
+     * Action lifetimes.
+     */
+    private final Long actionLifetimeMs;
+    private final Long deleteVolumeActionLifetimeMs;
+
+    /**
      * Constructor.
      *
      * @param entityEventsInMemoryJournal Entity Events Journal to maintain Savings events including those related to actions.
@@ -154,13 +165,17 @@ public class ActionListener implements ActionsListener {
      * @param realTimeContextId The real-time topology context id.
      * @param supportedEntityTypes Set of entity types supported.
      * @param supportedActionTypes Set of action types supported.
+     * @param actionLifetimeMs lifetime in ms for all actions other than delete volume
+     * @param deleteVolumeActionLifetimeMs lifetime in ms for delete volume actions
      */
     ActionListener(@Nonnull final EntityEventsJournal entityEventsInMemoryJournal,
                     @Nonnull final ActionsServiceBlockingStub actionsServiceBlockingStub,
                     @Nonnull CostServiceBlockingStub costServiceBlockingStub,
                     @Nonnull final Long realTimeContextId,
                     @Nonnull Set<EntityType> supportedEntityTypes,
-                    @Nonnull Set<ActionType> supportedActionTypes) {
+                    @Nonnull Set<ActionType> supportedActionTypes,
+                    @Nonnull final Long actionLifetimeMs,
+                    @Nonnull final Long deleteVolumeActionLifetimeMs) {
         entityEventsJournal = Objects.requireNonNull(entityEventsInMemoryJournal);
         actionsService = Objects.requireNonNull(actionsServiceBlockingStub);
         costService = Objects.requireNonNull(costServiceBlockingStub);
@@ -169,6 +184,8 @@ public class ActionListener implements ActionsListener {
                 .map(EntityType::getNumber)
                 .collect(Collectors.toSet());
         pendingActionTypes = supportedActionTypes;
+        this.actionLifetimeMs = Objects.requireNonNull(actionLifetimeMs);
+        this.deleteVolumeActionLifetimeMs = Objects.requireNonNull(deleteVolumeActionLifetimeMs);
     }
 
     /**
@@ -185,15 +202,11 @@ public class ActionListener implements ActionsListener {
     public void onActionSuccess(@Nonnull ActionSuccess actionSuccess) {
         // Locate the target entity in the internal entity state.  If not present, create an
         //  - entry for it.
-        //  - Log a provider change event into the event log.
-        // TODO: The way we're processing update and success, we may not need synchronization.
-        // However this may need to be re-evaluated in the future, because of potential race conditions,
-        // in the presence of multiple threads.
         final Long actionId = actionSuccess.getActionId();
         ActionState prevActionState = entityActionStateMap.get(actionId);
-        // Check if a SUCCEEDED for the action id hasn't already been added, in order to
-        // to avoid processing more than once if multiple SUCCEEDED notifications were to be received.
-        // There could be a previous READY/PENDING_ACCEPT entry or not entry, and that's fine.
+        // Check if a SUCCEEDED action id hasn't already been added, in order to to avoid processing
+        // an action more than once if multiple SUCCEEDED notifications were to be received.
+        // There could be a previous READY/PENDING_ACCEPT entry, and that's fine.
         if (prevActionState != ActionState.SUCCEEDED) {
             logger.info("Action {} changed from {} to SUCCEEDED", actionId, prevActionState);
             // Add a Succeeded Action event to the Events Journal with time-stamp as the completion time.
@@ -205,24 +218,28 @@ public class ActionListener implements ActionsListener {
                     final Long completionTime = actionSpec.getExecutionStep().getCompletionTime();
                     final Long entityId = entity.getId();
                     Map<Long, EntityActionInfo> entityIdToActionInfoMap = new HashMap<>();
-                    entityIdToActionInfoMap.put(entityId, getEntityActionInfo(actionId, actionSpec,
-                            entity));
+                    entityIdToActionInfoMap.put(entityId, new EntityActionInfo(actionSpec, entity));
                     final Map<Long, EntityPriceChange> entityPriceChangeMap = getEntityCosts(
-                            entityIdToActionInfoMap);
+                                     ImmutableMap.of(entityId, new EntityActionInfo(actionSpec, entity)));
                     final EntityPriceChange actionPriceChange = entityPriceChangeMap.get(actionId);
                     if (actionPriceChange != null) {
-                        final SavingsEvent successEvent =
-                                                    createActionEvent(entity.getId(),
-                                                      completionTime,
-                                                      ActionEventType.EXECUTION_SUCCESS,
-                                                      actionId,
-                                                      actionPriceChange);
+                        EntityPriceChange actionPriceChangeWithExpiration =
+                                new EntityPriceChange.Builder()
+                                        .from(actionPriceChange)
+                                        .expirationTime(Optional.of(completionTime + actionLifetimeMs))
+                                        .build();
+                        final SavingsEvent successEvent = createActionEvent(entity.getId(),
+                                completionTime,
+                                ActionEventType.EXECUTION_SUCCESS,
+                                actionId,
+                                actionPriceChangeWithExpiration);
                         entityEventsJournal.addEvent(successEvent);
                         entityActionStateMap.put(actionId, ActionState.SUCCEEDED);
-                        logger.debug("Added action {} for entity {}, completion time {}, recommendation time {}, journal size {}",
-                                    actionId, entityId, completionTime,
-                                    actionSpec.getRecommendationTime(),
-                                    entityEventsJournal.size());
+                        logger.debug("Added action {} for entity {}, completion time {}, recommendation"
+                                        + " time {}, journal size {}",
+                                     actionId, entityId, completionTime,
+                                     actionSpec.getRecommendationTime(),
+                                     entityEventsJournal.size());
                     }
                 }
             } catch (UnsupportedActionException e) {
@@ -236,9 +253,7 @@ public class ActionListener implements ActionsListener {
      * Callback when the actions stored in the ActionOrchestrator have been updated. Replaces the
      * "onActionsReceived" event.
      *
-     * <p>Process new Pending VM Scale actions and add to RECOMMENDATION_ADDED events to Events Journal.
-     * Process stale Pending VM Scale actions and add to RECOMMENDATION_REMOVED events to Events Journal.
-     * Retrieve on-demand cost before and after for each action and populate the Savings Events with this information.
+     * <p>Go through all the Market actions in the Market cycle and create the Action Info to Entity Id Mapping.
      *
      * @param actionsUpdated Context containing topology and action plan information.
      */
@@ -263,13 +278,15 @@ public class ActionListener implements ActionsListener {
 
         logger.debug("Handling realtime action updates");
         /*
-         *  - Iterate over actions list and identify resize recommendations.
+         *  - Iterate over actions list and identify resize(scale) recommendations.
          *  - Add any target entities that are not currently in the internal state database.
          *  - Insert recommendation events into the event log.
          */
         final Long topologyContextId = info.getTopologyContextId();
-        Map<ActionSpec, Long> newPendingActionSpecsToEntityId = new HashMap<>();
-        Map<Long, EntityActionInfo> newPendingActionsEntityIdToActionInfo = new HashMap<>();
+        // This Map allows comparing the old (saved in currentPendingActionsInfoToEntityId) and new
+        // actions and generate appropriate Savings events.  Also it is also used to reverse lookup
+        // the fetched on-demand costs of entities by actionId corresponding to an entityId.
+        BiMap<EntityActionInfo, Long> newPendingActionsInfoToEntityId = HashBiMap.create();
         AtomicReference<String> cursor = new AtomicReference<>("0");
         do {
             final FilteredActionRequest filteredActionRequest =
@@ -296,15 +313,9 @@ public class ActionListener implements ActionsListener {
                                     continue;
                                 }
                                 final Long entityId = entity.getId();
-                                logger.debug("Processing savings for action {}, entity {}", actionId, entityId);
-                                // Since we're looping through actions here, it's more  efficient to maintain this local
-                                // mapping and reverse mapping for O(1) lookup, rather than searching through
-                                // one data structure during events creation or retrieval of costs.
-                                newPendingActionSpecsToEntityId.put(actionSpec, entityId);
-                                newPendingActionsEntityIdToActionInfo.put(entityId,
-                                        getEntityActionInfo(actionId, actionSpec, entity));
-                                logger.debug("Adding Pending Action {}, at {} for entity {}", actionId,
-                                        actionSpec.getRecommendationTime(), entityId);
+                                logger.debug("Saving Info for Pending Action {}, at {} for entity {}", actionId,
+                                             actionSpec.getRecommendationTime(), entityId);
+                                newPendingActionsInfoToEntityId.put(new EntityActionInfo(actionSpec, entity), entityId);
                             }
                         } else if (filteredActionResponse.hasPaginationResponse()) {
                             cursor.set(filteredActionResponse.getPaginationResponse().getNextCursor());
@@ -312,72 +323,114 @@ public class ActionListener implements ActionsListener {
                     });
         } while (!StringUtils.isEmpty(cursor.get()));
 
-        // TODO: The way we're processing update and success, we may not need synchronization.
-        // However this may need to be re-evaluated in the future, because of potential race conditions,
-        // in the presence of multiple threads.
+        generateRecommendationEvents(newPendingActionsInfoToEntityId);
+    }
 
+    /**
+     * Generate savings related events for missed savings/investments.
+     *
+     * <p><p>Process new Pending VM Scale actions and add to RECOMMENDATION_ADDED events to Events Journal.
+     * Process stale Pending VM Scale actions and add to RECOMMENDATION_REMOVED events to Events Journal.
+     * Retrieve on-demand cost before and after for each action and populate the Savings Events with this information.
+     * @param newPendingActionsInfoToEntityId Action Info to Entity Id map of the new set of actions in the Market cycle
+     * being processed.
+     */
+    private void generateRecommendationEvents(@Nonnull final BiMap<EntityActionInfo, Long> newPendingActionsInfoToEntityId) {
         // Add new pending action events.
         // Compare the old and new actions and create SavingsEvents for new ActionId's.
         // entriesOnlyOnLeft() returns newly added actions, and entriesOnlyOnRight()
-        // returns actions no longer being generated by market.
-        MapDifference<ActionSpec, Long> actionChanges = Maps.difference(newPendingActionSpecsToEntityId,
-                currentPendingActionSpecsToEntityId);
-        Map<Long, EntityPriceChange> entityPriceChangeMap = getEntityCosts(
-                newPendingActionsEntityIdToActionInfo);
+        // returns actions no longer being generated by or replaced by Market.
+        MapDifference<EntityActionInfo, Long> actionChanges = Maps
+                        .difference(newPendingActionsInfoToEntityId,
+                                    existingPendingActionsInfoToEntityId);
+        Map<Long, EntityActionInfo> newPendingEntityIdToActionsInfo =
+                                                                    newPendingActionsInfoToEntityId
+                                                                                    .inverse();
+        Map<Long, EntityPriceChange> entityPriceChangeMap =
+                                                  getEntityCosts(newPendingEntityIdToActionsInfo);
         Set<SavingsEvent> newPendingActionEvents = new HashSet<>();
-        actionChanges.entriesOnlyOnLeft().keySet().forEach(newActionSpec -> {
-            final Long newActionId = newActionSpec.getRecommendation().getId();
-            final ActionState actionState = newActionSpec.getActionState();
+        actionChanges.entriesOnlyOnLeft().keySet().forEach(newActionInfo -> {
+            final Long newActionId = newActionInfo.getActionId();
+            final ActionState actionState = newActionInfo.getActionState();
             final EntityPriceChange actionPriceChange = entityPriceChangeMap.get(newActionId);
             if (actionPriceChange != null) {
                 logger.trace("New action price change for {}, {}, {}, {}:",
-                        newActionSpec,
+                        newActionInfo,
                         actionState, actionPriceChange.getSourceCost(),
                         actionPriceChange.getDestinationCost());
                 ActionState prevActionState = entityActionStateMap.get(newActionId);
                 if (prevActionState != ActionState.SUCCEEDED) {
                     entityActionStateMap.put(newActionId, actionState);
-                    final Long entityId = newPendingActionSpecsToEntityId
-                            .get(newActionSpec);
+                    final Long entityId = newPendingActionsInfoToEntityId
+                            .get(newActionInfo);
                     SavingsEvent pendingActionEvent =
                             createActionEvent(entityId,
-                                    newActionSpec.getRecommendationTime(),
+                                    newActionInfo.getRecommendationTime(),
                                     ActionEventType.RECOMMENDATION_ADDED,
                                     newActionId,
                                     actionPriceChange);
                     newPendingActionEvents.add(pendingActionEvent);
                     logger.debug("Added new pending event for action {}, entity {},"
-                                    + " action state {}",
-                            newActionId, entityId, actionState);
+                                    + " action state {}, source oid {}, destination oid {}, entity type {}",
+                                    newActionId, entityId, actionState, newActionInfo.getSourceOid(),
+                                    newActionInfo.getDestinationOid(),
+                                    newActionInfo.getEntityType());
                 }
             }
         });
         entityEventsJournal.addEvents(newPendingActionEvents);
-
-
-        // Add events related to stale pending actions.
-        if (!currentPendingActionSpecsToEntityId.isEmpty()) {
+        // Add events related to stale actions.
+        // entityIdsOnLeft represents entities with new actions, or those with a different new action
+        // than Market has recommended in previous cycle(s).
+        // entityIdsOnRight represents entities with old actions.
+        Set<Long> entityIdsOfExistingActions = actionChanges.entriesOnlyOnLeft().values().stream()
+                        .collect(Collectors.toSet());
+        Set<Long> entityIdsOfNewActions = actionChanges.entriesOnlyOnRight().values().stream()
+                        .collect(Collectors.toSet());
+        // This intersection of the maps values represent entities that had an action in a previous cycle
+        // and have a different (replaced) action in the current cycle.  From this point on missed
+        // savings / investment for the entities will accrue based on price change associated with the new action.
+        // No stale event is generated for these entities -- as this could cause an issue if the stale event
+        // time-stamp were to match the new action time-stamp, and if the stale event were to be processed
+        // after the new action, and inadvertently cancel out savings for the new action.
+        Set<Long> entitiesWithReplacedActions = Sets.intersection(entityIdsOfExistingActions,
+                                                                  entityIdsOfNewActions);
+        if (!existingPendingActionsInfoToEntityId.isEmpty()) {
             Set<SavingsEvent> staleActionEvents = new HashSet<>();
-            actionChanges.entriesOnlyOnRight().keySet().forEach(staleActionSpec -> {
-                final Long staleActionId = staleActionSpec.getRecommendation().getId();
-                final Long entityId = currentPendingActionSpecsToEntityId
-                        .get(staleActionSpec);
-                SavingsEvent pendingActionEvent =
-                        createActionEvent(entityId,
-                                staleActionSpec.getRecommendationTime(),
-                                ActionEventType.RECOMMENDATION_REMOVED,
-                                staleActionId,
-                                emptyPriceChange);
-                staleActionEvents.add(pendingActionEvent);
-                logger.debug("Added stale event for {}, entity {}", staleActionId, entityId);
-                entityActionStateMap.remove(staleActionId);
+            // For actions that are getting removed by Market, make the stale event time-stamp
+            // current time, as this will make it higher than the recommendation time of
+            // all the actions being removed, as they would have been recommended in a prior cycle.
+            final long currentTimeInMillis = System.currentTimeMillis();
+            actionChanges.entriesOnlyOnRight().keySet().forEach(staleActionInfo -> {
+                final Long staleActionId = staleActionInfo.getActionId();
+                final Long entityId = existingPendingActionsInfoToEntityId
+                        .get(staleActionInfo);
+                if (!entitiesWithReplacedActions.contains(entityId)) {
+                    SavingsEvent staleActionEvent =
+                                                    createActionEvent(entityId,
+                                                                      currentTimeInMillis,
+                                                      ActionEventType.RECOMMENDATION_REMOVED,
+                                                      staleActionId,
+                                                      emptyPriceChange);
+                    staleActionEvents.add(staleActionEvent);
+                    logger.debug("Added stale event for action {}, entity {},"
+                                 + "  source oid {}, destination oid {}, entity type {}",
+                                 staleActionId, entityId, staleActionInfo.getSourceOid(),
+                                 staleActionInfo.getDestinationOid(),
+                                 staleActionInfo.getEntityType());
+                    entityActionStateMap.remove(staleActionId);
+                } else {
+                    logger.debug("Entity {} with old action {} has a different action {} this cycle."
+                                    + " No stale event generated",
+                                 entityId, staleActionId);
+                }
             });
             entityEventsJournal.addEvents(staleActionEvents);
 
             // Clear the old and save the latest set of new pending actions.
-            currentPendingActionSpecsToEntityId.clear();
+            existingPendingActionsInfoToEntityId.clear();
         }
-        currentPendingActionSpecsToEntityId.putAll(newPendingActionSpecsToEntityId);
+        existingPendingActionsInfoToEntityId.putAll(newPendingActionsInfoToEntityId);
     }
 
     /**
@@ -409,7 +462,8 @@ public class ActionListener implements ActionsListener {
      * Create a Savings Event on receiving an Action Event.
      *
      * @param entityId The target entity ID.
-     * @param timestamp The time-stamp of the action event (execution completion time, reccommendation tie etc).
+     * @param timestamp The time-stamp of the action event (execution completion time,
+     *                  recommendation tie etc).
      * @param actionType The action type.
      * @param actionId the action ID.
      * @param priceChange the price change associated with the action.
@@ -443,8 +497,8 @@ public class ActionListener implements ActionsListener {
      * @return currentPendingActionsActionSpecToEntityIdMap.
      */
     @VisibleForTesting
-    protected Map<ActionSpec, Long> getCurrentPendingActionsActionSpecToEntityIdMap() {
-        return currentPendingActionSpecsToEntityId;
+    protected Map<EntityActionInfo, Long> getCurrentPendingActionsActionSpecToEntityIdMap() {
+        return existingPendingActionsInfoToEntityId;
     }
 
 
@@ -457,7 +511,6 @@ public class ActionListener implements ActionsListener {
     private Map<Long, EntityPriceChange> getEntityCosts(
             @Nonnull final Map<Long, EntityActionInfo> entityIdToActionInfoMap) {
         Map<Long, EntityPriceChange> actionIdToEntityPriceChange = new HashMap<>();
-
         // Get subset of entity ids by cost category, we can only make 1 request for each category.
         Map<CostCategory, Set<Long>> categoryToEntities = new HashMap<>();
         entityIdToActionInfoMap.forEach((entityId, entityActionInfo) -> {
@@ -481,7 +534,7 @@ public class ActionListener implements ActionsListener {
                     .destinationOid(entityActionInfo.destinationOid)
                     .destinationCost(totalCosts.afterCosts)
                     .build();
-            actionIdToEntityPriceChange.put(entityActionInfo.actionId, actionPriceChange);
+            actionIdToEntityPriceChange.put(entityActionInfo.getActionId(), actionPriceChange);
         });
         return actionIdToEntityPriceChange;
     }
@@ -520,80 +573,77 @@ public class ActionListener implements ActionsListener {
     }
 
     /**
-     * Creates a new instance of EntityActionInfo with given input info.
-     *
-     * @param actionId Id of action.
-     * @param actionSpec ActionSpec containing some info like source/destination oid.
-     * @param entity ActionEntity instance containing entity type.
-     * @return Newly created EntityActionInfo instance.
-     */
-    @Nonnull
-    @VisibleForTesting
-    EntityActionInfo getEntityActionInfo(long actionId,
-            @Nonnull final ActionSpec actionSpec, @Nonnull final ActionEntity entity) {
-        EntityActionInfo entityActionInfo = new EntityActionInfo(actionId);
-        final Action action = actionSpec.getRecommendation();
-        entityActionInfo.entityType = entity.getType();
-
-        if (action.hasInfo() && action.getInfo().hasScale()) {
-            final Scale scale = action.getInfo().getScale();
-            if (scale.getChangesCount() > 0) {
-                final ChangeProvider changeProvider = action.getInfo().getScale().getChanges(0);
-                if (changeProvider.hasSource()) {
-                    entityActionInfo.sourceOid = changeProvider.getSource().getId();
-                }
-                if (changeProvider.hasDestination()) {
-                    entityActionInfo.destinationOid = changeProvider.getDestination().getId();
-                }
-            } else if (scale.hasPrimaryProvider()) {
-                // Scaling within same tier, like some UltraSSDs.
-                entityActionInfo.sourceOid = scale.getPrimaryProvider().getId();
-                entityActionInfo.destinationOid = scale.getPrimaryProvider().getId();
-            }
-        }
-        return entityActionInfo;
-    }
-
-    /**
      * Internal use only: Keeps info related to action and cost of an entity. Info here is used
      * to make up the priceChange instance later.
      */
-    static class EntityActionInfo {
+    static final class EntityActionInfo {
         /**
          * Type of entity, e.g VM/DB/Volume.
          */
-        int entityType;
+        private final int entityType;
 
         /**
          * OID of source (pre-action) tier. 0 if not applicable.
          */
-        long sourceOid;
+        private long sourceOid = 0;
 
         /**
          * OID of destination (post-action) tier. 0 if not applicable.
          */
-        long destinationOid;
+        private long destinationOid = 0;
+
+        /**
+         * Current ActionState of the Action.
+         *
+         * <p>This field should not be used for comparison in the equals and
+         * hashCode() methods as it can change.
+         */
+        private ActionState actionState;
+
+        /**
+         * RecommendationTime of the original action.
+         */
+        private long recommendationTime;
 
         /**
          * Stores before and after costs per category.
          */
-        Map<CostCategory, EntityActionCosts> costsByCategory;
+        private final Map<CostCategory, EntityActionCosts> costsByCategory;
 
         /**
          * Id of action.
          */
-        long actionId;
+        private final long actionId;
 
         /**
-         * Creates a new instance with the given action id.
+         * Constructor.
          *
-         * @param actionId Id of action.
+         * @param actionSpec ActionSpec of an action.
+         * @param entity The target entity of the action.
          */
-        EntityActionInfo(long actionId) {
-            this.actionId = actionId;
-            this.sourceOid = 0;
-            this.destinationOid = 0;
+        EntityActionInfo(@Nonnull final ActionSpec actionSpec, @Nonnull final ActionEntity entity) {
+            final Action action = actionSpec.getRecommendation();
+            this.actionId = action.getId();
+            this.recommendationTime = actionSpec.getRecommendationTime();
+            this.entityType = entity.getType();
+            this.actionState = actionSpec.getActionState();
             this.costsByCategory = new HashMap<>();
+            if (action.hasInfo() && action.getInfo().hasScale()) {
+                final Scale scale = action.getInfo().getScale();
+                if (scale.getChangesCount() > 0) {
+                    final ChangeProvider changeProvider = action.getInfo().getScale().getChanges(0);
+                    if (changeProvider.hasSource()) {
+                        this.sourceOid = changeProvider.getSource().getId();
+                    }
+                    if (changeProvider.hasDestination()) {
+                        this.destinationOid = changeProvider.getDestination().getId();
+                    }
+                } else if (scale.hasPrimaryProvider()) {
+                    // Scaling within same tier, like some UltraSSDs.
+                    this.sourceOid = scale.getPrimaryProvider().getId();
+                    this.destinationOid = scale.getPrimaryProvider().getId();
+                }
+            }
         }
 
         /**
@@ -606,6 +656,119 @@ public class ActionListener implements ActionsListener {
             final EntityActionCosts totalCosts = new EntityActionCosts();
             costsByCategory.values().forEach(totalCosts::add);
             return totalCosts;
+        }
+
+        /**
+         * Getter for entityType.
+         *
+         * @return entityType.
+         */
+        protected int getEntityType() {
+            return entityType;
+        }
+
+        /**
+         * Getter for sourceOid.
+         *
+         * @return sourceOid.
+         */
+        protected long getSourceOid() {
+            return sourceOid;
+        }
+
+        /**
+         * Getter for destinationOid.
+         *
+         * @return destinationOid.
+         */
+        protected long getDestinationOid() {
+            return destinationOid;
+        }
+
+        /**
+         * Getter for costsByCategory.
+         *
+         * @return costsByCategory.
+         */
+        protected Map<CostCategory, EntityActionCosts> getCostsByCategory() {
+            return costsByCategory;
+        }
+
+        /**
+         * Getter for actionId.
+         *
+         * @return actionId.
+         */
+        protected long getActionId() {
+            return actionId;
+        }
+
+        /**
+         * Getter for actionState.
+         *
+         * @return actionState.
+         */
+        protected ActionState getActionState() {
+            return actionState;
+        }
+
+        /**
+         * Getter for recommendationTime.
+         *
+         * @return recommendationTime.
+         */
+        protected long getRecommendationTime() {
+            return recommendationTime;
+        }
+
+        /**
+         * hashCode() method.
+         *
+         * <p>This method is used as a map key.  Please don't add ActionSpec fields
+         * like _deprecated_importance, savings_per_hour, recommendation_time, actionState, costs etc
+         * to check for equality as these may change. As of now using only actionId, sourceOid,
+         * destinationOid and entityType as the parameters for equality as we expect them to be constant
+         * for a certain action.  If any of these fields were to change, it will be treated as a new action.
+         */
+        @Override
+        public int hashCode() {
+            return Objects.hash(actionId, sourceOid, destinationOid, entityType);
+        }
+
+        /**
+         * equals() method.
+         *
+         * <p>This method is used as a map key.  Please don't add ActionSpec fields
+         * like _deprecated_importance, savings_per_hour, recommendation_time, actionState, costs etc
+         * to check for equality as these may change. As of now using only actionId, sourceOid,
+         * destinationOid and entityType as the parameters for equality as we expect them to be constant
+         * for a certain action.  If any of these fields were to change, it will be treated as a new action.
+         */
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            EntityActionInfo other = (EntityActionInfo)obj;
+            if (actionId != other.actionId) {
+                return false;
+            }
+            if (destinationOid != other.destinationOid) {
+                return false;
+            }
+            if (entityType != other.entityType) {
+                return false;
+            }
+            if (sourceOid != other.sourceOid) {
+                return false;
+            }
+            return true;
         }
     }
 

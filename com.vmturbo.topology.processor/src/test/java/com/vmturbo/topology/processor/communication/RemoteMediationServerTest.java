@@ -37,6 +37,7 @@ import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
 import com.vmturbo.topology.processor.communication.ExpiringMessageHandler.HandlerStatus;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityProviderImpl;
+import com.vmturbo.topology.processor.identity.StaleOidManagerImpl;
 import com.vmturbo.topology.processor.identity.storage.IdentityDatabaseStore;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.discovery.DiscoveryMessageHandler;
@@ -55,7 +56,7 @@ public class RemoteMediationServerTest {
     private final IdentityProvider identityProvider = new IdentityProviderImpl(
         new MapKeyValueStore(),
         new ProbeInfoCompatibilityChecker(),
-        0L, mock(IdentityDatabaseStore.class), 10, 0, false);
+        0L, mock(IdentityDatabaseStore.class), 10, 0, false, mock(StaleOidManagerImpl.class));
 
     private final ProbeStore probeStore = new TestProbeStore(identityProvider);
 

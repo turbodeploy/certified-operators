@@ -5,10 +5,11 @@ import static junit.framework.TestCase.assertTrue;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.fail;
 import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -27,6 +28,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
@@ -79,6 +81,7 @@ import com.vmturbo.api.component.communication.ApiComponentTargetListener;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
+import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.ServiceProviderExpander;
@@ -91,7 +94,6 @@ import com.vmturbo.api.dto.ErrorApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.target.InputFieldApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
-import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.InputValueType;
 import com.vmturbo.api.handler.GlobalExceptionHandler;
 import com.vmturbo.api.pagination.SearchOrderBy;
@@ -106,17 +108,22 @@ import com.vmturbo.api.serviceinterfaces.IUsersService;
 import com.vmturbo.api.utils.ParamStrings;
 import com.vmturbo.api.validators.InputDTOValidator;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
-import com.vmturbo.auth.api.licensing.LicenseFeaturesRequiredException;
-import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.common.Pagination;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.plan.PlanDTOMoles.PlanServiceMole;
-import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
-import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
+import com.vmturbo.common.protobuf.search.Search;
+import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
+import com.vmturbo.common.protobuf.target.TargetDTO;
+import com.vmturbo.common.protobuf.target.TargetDTO.SearchTargetsRequest;
+import com.vmturbo.common.protobuf.target.TargetDTO.SearchTargetsResponse;
+import com.vmturbo.common.protobuf.target.TargetDTOMoles.TargetsServiceMole;
+import com.vmturbo.common.protobuf.target.TargetsServiceGrpc;
+import com.vmturbo.common.protobuf.target.TargetsServiceGrpc.TargetsServiceBlockingStub;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.CommunicationException;
@@ -125,7 +132,6 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo.CreationMode;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
-import com.vmturbo.platform.sdk.common.util.ProbeLicense;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.AccountDefEntry;
 import com.vmturbo.topology.processor.api.AccountFieldValueType;
@@ -162,26 +168,8 @@ public class TargetsServiceTest {
     @Autowired
     private TopologyProcessor topologyProcessor;
 
-    private final ActionsServiceMole actionsServiceBackend =
-        spy(new ActionsServiceMole());
-
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
-
-    @Rule
-    public GrpcTestServer grpcServer = GrpcTestServer.newServer(actionsServiceBackend);
-
-    private ActionsServiceGrpc.ActionsServiceBlockingStub actionsRpcService;
-
-    private ActionSpecMapper actionSpecMapper;
-
-    private SearchServiceBlockingStub searchServiceRpc;
-
-    private ActionSearchUtil actionSearchUtil;
-
-    private RepositoryApi repositoryApi = mock(RepositoryApi.class);
-
-    private final ServiceProviderExpander serviceProviderExpander = mock(ServiceProviderExpander.class);
 
     private MockMvc mockMvc;
 
@@ -192,30 +180,41 @@ public class TargetsServiceTest {
     @Autowired
     private ApiComponentTargetListener apiComponentTargetListener;
 
+    @Autowired
+    private RepositoryApi repositoryApi;
+
+    @Autowired
+    private ActionSpecMapper actionSpecMapper;
+
+    @Autowired
+    private ActionSearchUtil actionSearchUtil;
+
+    @Autowired
+    private TargetsServiceBlockingStub targetsServiceBlockingStub;
+
+    @Autowired
+    private TargetsServiceMole targetsServiceMole;
+
     private Map<Long, ProbeInfo> registeredProbes;
     private Map<Long, TargetInfo> registeredTargets;
     private long idCounter;
 
     private static final long REALTIME_CONTEXT_ID = 7777777;
-    private ApiWebsocketHandler apiWebsocketHandler;
 
+    @Autowired
     private TargetsService targetsService;
+
+    @Autowired
+    private ApiWebsocketHandler apiWebsocketHandler;
 
     @Before
     public void init() throws TopologyProcessorException, CommunicationException {
         idCounter = 0;
         mockMvc = MockMvcBuilders.webAppContextSetup(wac).build();
-        actionsRpcService = ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel());
-        searchServiceRpc = SearchServiceGrpc.newBlockingStub(grpcServer.getChannel());
-        actionSpecMapper = Mockito.mock(ActionSpecMapper.class);
+
         registeredTargets = new HashMap<>();
         registeredProbes = new HashMap<>();
-        actionSearchUtil = new ActionSearchUtil(actionsRpcService, actionSpecMapper,
-                                                Mockito.mock(PaginationMapper.class),
-                                                Mockito.mock(SupplyChainFetcherFactory.class),
-                                                Mockito.mock(GroupExpander.class),
-                                                serviceProviderExpander,
-                                                REALTIME_CONTEXT_ID);
+
         when(topologyProcessor.getProbe(Mockito.anyLong()))
                         .thenAnswer(new Answer<ProbeInfo>() {
 
@@ -244,6 +243,18 @@ public class TargetsServiceTest {
                                 }
                             }
                         });
+
+        when(topologyProcessor.getTargets(Mockito.any()))
+            .thenAnswer((Answer<List<TargetInfo>>)invocation -> {
+                final List<Long> ids = (List<Long>)invocation.getArgumentAt(0, List.class);
+                final List<TargetInfo> targetInfos =
+                    ids.stream()
+                    .map(registeredTargets::get)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
+                return targetInfos;
+            });
+
         when(topologyProcessor.addTarget(Mockito.anyLong(), Mockito.any(TargetData.class)))
                 .thenAnswer(new Answer<Long>() {
                     @Override
@@ -269,15 +280,6 @@ public class TargetsServiceTest {
                 return new HashSet<>(registeredTargets.values());
             }
         });
-        apiWebsocketHandler = new ApiWebsocketHandler();
-
-        LicenseCheckClient licenseCheckClient = Mockito.mock(LicenseCheckClient.class);
-
-        this.targetsService = new TargetsService(topologyProcessor, MILLIS_50, MILLIS_100,
-                                                 MILLIS_50, MILLIS_100, licenseCheckClient,
-                                                 apiComponentTargetListener, repositoryApi,
-                                                 actionSpecMapper, actionSearchUtil,
-                                                 apiWebsocketHandler, true, 100);
     }
 
     private ProbeInfo createMockProbeInfo(long probeId, String type, String category, String uiCategory,
@@ -472,6 +474,7 @@ public class TargetsServiceTest {
     }
 
     private void fetchAllTargets(boolean hybridFilterExists) throws Exception {
+        // ARRANGE
         final ProbeInfo probe = createMockProbeInfo(1, "type", "category", "uiCategory");
         final Collection<TargetInfo> targets = new ArrayList<>();
         targets.add(createMockTargetInfo(probe.getId(), 2));
@@ -479,12 +482,26 @@ public class TargetsServiceTest {
         targets.add(createMockTargetInfo(probe.getId(), 4));
         when(targets.iterator().next().getStatus()).thenReturn("Connection refused");
 
+        final ArgumentCaptor<SearchTargetsRequest> captor =
+            ArgumentCaptor.forClass(SearchTargetsRequest.class);
+        when(targetsServiceMole.searchTargets(captor.capture())).thenReturn(
+            SearchTargetsResponse.newBuilder()
+                .addTargets(2L)
+                .addTargets(3L)
+                .addTargets(4L)
+                .setPaginationResponse(Pagination.PaginationResponse.newBuilder()
+                    .setTotalRecordCount(3).build())
+                .build());
+
+        // ACT
         final String url = "/targets" + (hybridFilterExists ? "?environmentType=HYBRID" : "");
         final MvcResult result = mockMvc
                         .perform(get(url).accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
                         .andExpect(MockMvcResultMatchers.status().isOk()).andReturn();
         final TargetApiDTO[] resp = GSON.fromJson(result.getResponse().getContentAsString(),
                         TargetApiDTO[].class);
+
+        // ASSERT
         Assert.assertEquals(targets.size(), resp.length);
         final Map<Long, TargetApiDTO> map = Arrays.asList(resp).stream()
                         .collect(Collectors.toMap(tad -> Long.valueOf(tad.getUuid()), tad -> tad));
@@ -492,6 +509,8 @@ public class TargetsServiceTest {
             final TargetApiDTO dto = map.get(target.getId());
             assertEquals(target, probe, dto);
         }
+
+        checkHasTargetVisibilityFilter(captor.getValue());
     }
 
     /**
@@ -515,6 +534,7 @@ public class TargetsServiceTest {
     }
 
     private void testFilterTargetsByEnvironment(boolean cloud) throws Exception {
+        // ARRANGE
         final long cloudProbeId = 1L;
         final long onPremProbeId = 2L;
         final long cloudTargetId = 3L;
@@ -524,13 +544,55 @@ public class TargetsServiceTest {
         createMockTargetInfo(cloudProbeId, cloudTargetId);
         createMockTargetInfo(onPremProbeId, onPremTargetId);
 
+        final ArgumentCaptor<SearchTargetsRequest> captor =
+            ArgumentCaptor.forClass(SearchTargetsRequest.class);
+        when(targetsServiceMole.searchTargets(captor.capture())).thenReturn(
+            SearchTargetsResponse.newBuilder()
+            .addTargets(cloud ? 3L : 4L)
+            .setPaginationResponse(Pagination.PaginationResponse.newBuilder()
+                .setTotalRecordCount(1).build())
+            .build());
+
+        // ACT
         final String url = "/targets?environment_type=" + (cloud ? "CLOUD" : "ONPREM");
         final MvcResult result = mockMvc.perform(get(url).accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
                                     .andExpect(MockMvcResultMatchers.status().isOk()).andReturn();
         final TargetApiDTO[] resp = GSON.fromJson(result.getResponse().getContentAsString(),
                 TargetApiDTO[].class);
+
+        // ASSERT
         Assert.assertEquals(1, resp.length);
         Assert.assertEquals(Long.toString(cloud ? cloudTargetId : onPremTargetId), resp[0].getUuid());
+
+        // verify the search request
+        SearchTargetsRequest request = captor.getValue();
+        checkHasTargetVisibilityFilter(request);
+
+        Optional<Search.PropertyFilter> probeTypeFilter = getPropertyByName(request,
+            SearchableProperties.PROBE_TYPE);
+        Assert.assertTrue(probeTypeFilter.isPresent());
+        Assert.assertTrue(probeTypeFilter.get().hasStringFilter());
+        Assert.assertEquals(probeTypeFilter.get().getStringFilter().getPositiveMatch(), cloud);
+        Assert.assertThat(new HashSet<>(probeTypeFilter.get().getStringFilter().getOptionsList()),
+            is(GroupMapper.CLOUD_ENVIRONMENT_PROBE_TYPES));
+    }
+
+    private void checkHasTargetVisibilityFilter(SearchTargetsRequest request) {
+        Optional<Search.PropertyFilter> propertyFilter = getPropertyByName(request,
+            SearchableProperties.IS_TARGET_HIDDEN);
+        Assert.assertTrue(propertyFilter.isPresent());
+        Assert.assertTrue(propertyFilter.get().hasStringFilter());
+        Assert.assertThat(propertyFilter.get().getStringFilter().getOptionsList(),
+            containsInAnyOrder("false"));
+        Assert.assertTrue(propertyFilter.get().getStringFilter().getPositiveMatch());
+    }
+
+    private Optional<Search.PropertyFilter> getPropertyByName(SearchTargetsRequest request,
+                                                              String propertyName) {
+        return request.getPropertyFilterList()
+            .stream()
+            .filter(r -> propertyName.equals(r.getPropertyName()))
+            .findAny();
     }
 
     /**
@@ -545,6 +607,16 @@ public class TargetsServiceTest {
         final TargetInfo parentTargetInfo = createMockTargetInfo(probe.getId(), 2);
         final TargetInfo childTargetInfo1 = createMockTargetInfo(probe.getId(), 3);
         final TargetInfo childTargetInfo2 = createMockTargetInfo(probe.getId(), 4);
+
+        final ArgumentCaptor<SearchTargetsRequest> captor =
+            ArgumentCaptor.forClass(SearchTargetsRequest.class);
+        when(targetsServiceMole.searchTargets(captor.capture())).thenReturn(
+            SearchTargetsResponse.newBuilder()
+                .addTargets(2)
+                .setPaginationResponse(Pagination.PaginationResponse.newBuilder()
+                    .setTotalRecordCount(1).build())
+                .build());
+
         when(parentTargetInfo.getDerivedTargetIds()).thenReturn(Lists.newArrayList(3L, 4L));
 
         final MvcResult result = mockMvc
@@ -577,6 +649,16 @@ public class TargetsServiceTest {
         targets.add(createMockHiddenTargetInfo(probe.getId(), 4));
         when(targets.iterator().next().getStatus()).thenReturn("Connection refused");
 
+        final ArgumentCaptor<SearchTargetsRequest> captor =
+            ArgumentCaptor.forClass(SearchTargetsRequest.class);
+        when(targetsServiceMole.searchTargets(captor.capture())).thenReturn(
+            SearchTargetsResponse.newBuilder()
+                .addTargets(2L)
+                .addTargets(3L)
+                .setPaginationResponse(Pagination.PaginationResponse.newBuilder()
+                    .setTotalRecordCount(2).build())
+                .build());
+
         final MvcResult result = mockMvc
                         .perform(get("/targets").accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
                         .andExpect(MockMvcResultMatchers.status().isOk()).andReturn();
@@ -590,6 +672,8 @@ public class TargetsServiceTest {
             final TargetApiDTO dto = map.get(target.getId());
             assertEquals(target, dto);
         }
+
+        checkHasTargetVisibilityFilter(captor.getValue());
     }
 
     /**
@@ -606,6 +690,17 @@ public class TargetsServiceTest {
         targets.add(createMockTargetInfo(probeId, 4, createAccountValue("field3", "value3"),
                         createAccountValue("field4", "value4")));
 
+        final ArgumentCaptor<SearchTargetsRequest> captor =
+            ArgumentCaptor.forClass(SearchTargetsRequest.class);
+        when(targetsServiceMole.searchTargets(captor.capture())).thenReturn(
+            SearchTargetsResponse.newBuilder()
+                .addTargets(2L)
+                .addTargets(3L)
+                .addTargets(4L)
+                .setPaginationResponse(Pagination.PaginationResponse.newBuilder()
+                    .setTotalRecordCount(2).build())
+                .build());
+
         final MvcResult result = mockMvc
                         .perform(get("/targets").accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
                         .andExpect(MockMvcResultMatchers.status().isOk()).andReturn();
@@ -618,6 +713,8 @@ public class TargetsServiceTest {
             final TargetApiDTO dto = map.get(target.getId());
             assertEquals(target, dto);
         }
+
+        checkHasTargetVisibilityFilter(captor.getValue());
     }
 
     /**
@@ -1045,7 +1142,8 @@ public class TargetsServiceTest {
         final TargetsService targetsService = new TargetsService(topologyProcessor, MILLIS_50,
                         MILLIS_100, MILLIS_50, MILLIS_100, Mockito.mock(LicenseCheckClient.class),
                         apiComponentTargetListener, repositoryApi, actionSpecMapper,
-                        actionSearchUtil, apiWebsocketHandler, true, 100);
+                        actionSearchUtil, apiWebsocketHandler,
+                targetsServiceBlockingStub, new PaginationMapper(), true, 100);
 
         final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
         when(targetInfo.getId()).thenReturn(targetId);
@@ -1073,7 +1171,8 @@ public class TargetsServiceTest {
                         topologyProcessor, MILLIS_50, MILLIS_100, MILLIS_50, MILLIS_100,
                         Mockito.mock(LicenseCheckClient.class), apiComponentTargetListener,
                         repositoryApi, actionSpecMapper, actionSearchUtil,
-                        apiWebsocketHandler, true, 100);
+                        apiWebsocketHandler, targetsServiceBlockingStub,
+                new PaginationMapper(), true, 100);
 
         final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
         when(targetInfo.getId()).thenReturn(targetId);
@@ -1100,7 +1199,8 @@ public class TargetsServiceTest {
                         topologyProcessor, MILLIS_50, MILLIS_100, MILLIS_50, MILLIS_100,
                         Mockito.mock(LicenseCheckClient.class), apiComponentTargetListener,
                         repositoryApi, actionSpecMapper, actionSearchUtil,
-                        apiWebsocketHandler, true, 100);
+                        apiWebsocketHandler, targetsServiceBlockingStub,
+                        new PaginationMapper(), true, 100);
 
         final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
         when(targetInfo.getId()).thenReturn(targetId);
@@ -1459,11 +1559,11 @@ public class TargetsServiceTest {
      */
     @Test(expected = IllegalStateException.class)
     public void testDisableTargetChangesInIntegrationMode() throws Exception {
-        final TopologyProcessor topologyProcessor = Mockito.mock(TopologyProcessor.class);
+        final TopologyProcessor topologyProcessor = mock(TopologyProcessor.class);
         final long probeId = 2;
         final long targetId = 3;
         final long uuid = 111;
-        final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
+        final TargetInfo targetInfo = mock(TargetInfo.class);
         when(targetInfo.getId()).thenReturn(targetId);
         when(targetInfo.getProbeId()).thenReturn(probeId);
         when(targetInfo.getCommunicationBindingChannel()).thenReturn(Optional.empty());
@@ -1472,13 +1572,22 @@ public class TargetsServiceTest {
         when(topologyProcessor.getTarget(targetId)).thenReturn(targetInfo);
         when(topologyProcessor.getTarget(uuid)).thenReturn(targetInfo);
 
+        final ArgumentCaptor<SearchTargetsRequest> captor =
+            ArgumentCaptor.forClass(SearchTargetsRequest.class);
+        when(targetsServiceMole.searchTargets(captor.capture())).thenReturn(
+            SearchTargetsResponse.newBuilder()
+                .setPaginationResponse(PaginationResponse.newBuilder()
+                    .setTotalRecordCount(0).build())
+                .build());
+
         final TargetsService targetsService =
                 new TargetsService(topologyProcessor, MILLIS_50, MILLIS_100, MILLIS_50,
-                                   MILLIS_100, Mockito.mock(LicenseCheckClient.class),
+                                   MILLIS_100, mock(LicenseCheckClient.class),
                                    apiComponentTargetListener, repositoryApi, actionSpecMapper,
-                                   actionSearchUtil, apiWebsocketHandler, false, 100);
+                                   actionSearchUtil, apiWebsocketHandler, targetsServiceBlockingStub,
+                                   new PaginationMapper(), false, 100);
         // Get is allowed
-        targetsService.getTargets(EnvironmentType.HYBRID);
+        targetsService.getTargets();
         try {
             // create is NOT allowed
             targetsService.createTarget("", Collections.emptyList());
@@ -1495,6 +1604,30 @@ public class TargetsServiceTest {
         }
         // Delete is NOT allowed
         targetsService.deleteTarget(String.valueOf(uuid));
+    }
+
+    /**
+     * Test the case where target stats endpoint has been called with no parameter.
+     *
+     * @throws Exception if something goes wrong.
+     */
+    @Test
+    public void testTargetStatsNoParameters() throws Exception {
+        // ARRANGE
+
+        final ArgumentCaptor<TargetDTO.GetTargetsStatsRequest> captor =
+            ArgumentCaptor.forClass(TargetDTO.GetTargetsStatsRequest.class);
+        when(targetsServiceMole.getTargetsStats(captor.capture())).thenReturn(
+            TargetDTO.GetTargetsStatsResponse.newBuilder()
+                .build());
+
+        // ACT
+        mockMvc
+            .perform(get("/targets/stats").accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
+            .andExpect(MockMvcResultMatchers.status().isOk()).andReturn();
+
+        // ASSERT
+        assertThat(captor.getValue().getGroupByCount(), is(0));
     }
 
     private TargetApiDTO postAndReturn(String query) throws Exception {
@@ -1635,18 +1768,29 @@ public class TargetsServiceTest {
         }
 
         @Bean
+        public ApiWebsocketHandler apiWebsocketHandler() {
+            return new ApiWebsocketHandler();
+        }
+
+        @Bean
+        public ActionSearchUtil actionSearchUtil() {
+            return new ActionSearchUtil(actionRpcService(), actionSpecMapper(),
+                Mockito.mock(PaginationMapper.class),
+                Mockito.mock(SupplyChainFetcherFactory.class),
+                Mockito.mock(GroupExpander.class),
+                Mockito.mock(ServiceProviderExpander.class),
+                REALTIME_CONTEXT_ID);
+        }
+
+        @Bean
         public TargetsService targetsService() {
             return new TargetsService(topologyProcessor(), Duration.ofSeconds(60),
                             Duration.ofSeconds(1), Duration.ofSeconds(60),
                             Duration.ofSeconds(1), Mockito.mock(LicenseCheckClient.class),
                             apiComponentTargetListener(), repositoryApi(), actionSpecMapper(),
-                            new ActionSearchUtil(actionRpcService(), actionSpecMapper(),
-                                        Mockito.mock(PaginationMapper.class),
-                                        Mockito.mock(SupplyChainFetcherFactory.class),
-                                        Mockito.mock(GroupExpander.class),
-                                        Mockito.mock(ServiceProviderExpander.class),
-                                        REALTIME_CONTEXT_ID),
-                            new ApiWebsocketHandler(), true, 100);
+                actionSearchUtil(),
+                apiWebsocketHandler(), targetsRpcService(), new PaginationMapper(),
+                true, 100);
         }
 
         @Bean
@@ -1675,6 +1819,11 @@ public class TargetsServiceTest {
         }
 
         @Bean
+        public TargetsServiceMole targetServiceMole() {
+            return spy(new TargetsServiceMole());
+        }
+
+        @Bean
         public GroupServiceMole groupService() {
             return spy(new GroupServiceMole());
         }
@@ -1683,7 +1832,7 @@ public class TargetsServiceTest {
         public GrpcTestServer grpcTestServer() {
             try {
                 final GrpcTestServer testServer = GrpcTestServer.newServer(planService(),
-                    groupService(), settingServiceMole());
+                    groupService(), settingServiceMole(), targetServiceMole());
                 testServer.start();
                 return testServer;
             } catch (IOException e) {
@@ -1694,6 +1843,11 @@ public class TargetsServiceTest {
         @Bean
         public ActionsServiceBlockingStub actionRpcService() {
             return ActionsServiceGrpc.newBlockingStub(grpcTestServer().getChannel());
+        }
+
+        @Bean
+        public TargetsServiceBlockingStub targetsRpcService() {
+            return TargetsServiceGrpc.newBlockingStub(grpcTestServer().getChannel());
         }
 
         @Bean

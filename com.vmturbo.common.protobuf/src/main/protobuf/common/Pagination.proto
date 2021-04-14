@@ -44,6 +44,12 @@ message OrderBy {
       KEY = 1;
     }
 
+    // Possible ordering values when retrieving targets.
+    enum TargetOrderBy {
+        TARGET_DISPLAY_NAME = 1;
+        TARGET_VALIDATION_STATUS = 2;
+    }
+
     enum GroupOrderBy {
         GROUP_NAME = 1;
         GROUP_SEVERITY = 2;
@@ -63,6 +69,7 @@ message OrderBy {
         EntityStatsOrderBy entity_stats = 3;
         GroupOrderBy group_search = 4;
         TagOrderBy tag = 5;
+        TargetOrderBy target = 6;
     }
 }
 

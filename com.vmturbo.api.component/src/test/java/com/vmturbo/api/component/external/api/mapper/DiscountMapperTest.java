@@ -28,7 +28,6 @@ import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.enums.BusinessUnitType;
 import com.vmturbo.api.enums.CloudType;
-import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.ServicePricingModel;
 import com.vmturbo.common.protobuf.cost.Cost.Discount;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo;
@@ -126,7 +125,7 @@ public class DiscountMapperTest {
         target1.setUuid(String.valueOf(target_id1));
         target2.setUuid(String.valueOf(target_id2));
         target3.setUuid(String.valueOf(target_id3));
-        when(targetsService.getTargets(EnvironmentType.CLOUD))
+        when(targetsService.getTargets())
             .thenReturn(ImmutableList.of(target1, target2, target3));
     }
 

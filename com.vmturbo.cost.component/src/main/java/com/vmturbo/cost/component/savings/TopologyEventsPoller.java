@@ -52,7 +52,7 @@ public class TopologyEventsPoller {
     /**
      * Action lifetimes.
      */
-    private final Long defaultActionLifetimeMs;
+    private final Long actionLifetimeMs;
     private final Long deleteVolumeActionLifetimeMs;
 
     /**
@@ -60,22 +60,22 @@ public class TopologyEventsPoller {
      * @param tep The Topology Event Provider.
      * @param topoInfoTracker The topology Info Tracker.
      * @param entityEventsInMemoryJournal The Entity Events Journal.
-     * @param defaultActionLifetimeMs lifetime in ms for all actions other than delete volume
+     * @param actionLifetimeMs lifetime in ms for all actions other than delete volume
      * @param deleteVolumeActionLifetimeMs lifetime in ms for delete volume actions
      */
     TopologyEventsPoller(@Nonnull final TopologyEventProvider tep,
             @Nonnull final TopologyInfoTracker topoInfoTracker,
             @Nonnull final EntityEventsJournal entityEventsInMemoryJournal,
-            @Nonnull final Long defaultActionLifetimeMs,
+            @Nonnull final Long actionLifetimeMs,
             @Nonnull final Long deleteVolumeActionLifetimeMs) {
         topologyEventProvider = Objects.requireNonNull(tep);
         topologyInfoTracker = Objects.requireNonNull(topoInfoTracker);
         entityEventsJournal = Objects.requireNonNull(entityEventsInMemoryJournal);
-        this.defaultActionLifetimeMs = Objects.requireNonNull(defaultActionLifetimeMs);
+        this.actionLifetimeMs = Objects.requireNonNull(actionLifetimeMs);
         this.deleteVolumeActionLifetimeMs = Objects.requireNonNull(deleteVolumeActionLifetimeMs);
-        logger.info("Starting topology events poller, defaultActionLifetimeMs = {},"
+        logger.info("Starting topology events poller, actionLifetimeMs = {},"
                 + " deleteVolumeActionLifetimeMs = {}",
-                defaultActionLifetimeMs, deleteVolumeActionLifetimeMs);
+                actionLifetimeMs, deleteVolumeActionLifetimeMs);
     }
 
     /**
@@ -106,18 +106,20 @@ public class TopologyEventsPoller {
         final Instant endTime = end.toInstant(ZoneOffset.UTC);
         final Optional<TopologyInfo> latestTopologyInfo = topologyInfoTracker
                                                         .getLatestTopologyInfo();
-        final long topologyCreationTime = latestTopologyInfo.get().getCreationTime();
-        LocalDateTime localCreationDateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(topologyCreationTime),
-                                                                      ZoneId.of("UTC"));
-        LocalDateTime localEndDateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(endTime.toEpochMilli()),
-                                                                      ZoneId.of("UTC"));
-
-        if (latestTopologyInfo.isPresent()
-            && latestTopologyInfo.get().getCreationTime() > endTime.toEpochMilli()) {
-            logger.info("Topology created at {} is ready for processing of topology related savings"
-                            + " events in event window with end time {}.",
-                    localCreationDateTime, localEndDateTime);
-            return true;
+        final LocalDateTime localEndDateTime =
+                LocalDateTime.ofInstant(Instant.ofEpochMilli(endTime.toEpochMilli()),
+                        ZoneId.of("UTC"));
+        if (latestTopologyInfo.isPresent()) {
+            final long topologyCreationTime = latestTopologyInfo.get().getCreationTime();
+            if (topologyCreationTime > endTime.toEpochMilli()) {
+                final LocalDateTime localCreationDateTime =
+                        LocalDateTime.ofInstant(Instant.ofEpochMilli(topologyCreationTime),
+                                ZoneId.of("UTC"));
+                logger.info("Topology created at {} is ready for processing of topology related"
+                                + " savings events in event window with end time {}.",
+                        localCreationDateTime, localEndDateTime);
+                return true;
+            }
         }
         logger.info("Topology not yet ready for processing of topology related savings events in"
                         + " event window with end time {}.", localEndDateTime);
@@ -163,8 +165,8 @@ public class TopologyEventsPoller {
      * @param topologyEvent The TopologyEvent from which to create the SavingsEvent.
      * @return The SavingsEvent.
      */
-    protected static SavingsEvent
-            createSavingsEvent(final Long entityId, @Nonnull TopologyEvent topologyEvent) {
+    protected static SavingsEvent createSavingsEvent(final Long entityId,
+            @Nonnull TopologyEvent topologyEvent) {
         final long eventTimestamp = topologyEvent.getEventTimestamp();
         return new SavingsEvent.Builder()
                         .topologyEvent(topologyEvent)

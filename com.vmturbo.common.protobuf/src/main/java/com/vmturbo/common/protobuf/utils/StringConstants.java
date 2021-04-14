@@ -59,8 +59,8 @@ public class StringConstants {
     public static final String INSTANCE_TYPE = "instance_type";
     public static final String INTERNAL_NAME = "internal_name";
     public static final String IO_THROUGHPUT = "IOThroughput";
-    public static final String VCPU_OVERCOMMITMENT = "VCPUOvercommitment";
-    public static final String VMEM_OVERCOMMITMENT = "VMemOvercommitment";
+    public static final String VCPU_OVERCOMMITMENT = "vCPUOvercommitment";
+    public static final String VMEM_OVERCOMMITMENT = "vMemOvercommitment";
     /**
      * Communication channel assigned to targets. If a target has a channel it can only be
      * discovered by probes with the same channel.

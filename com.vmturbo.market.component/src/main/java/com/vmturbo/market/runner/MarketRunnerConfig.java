@@ -132,6 +132,13 @@ public class MarketRunnerConfig {
     @Value("${enableOP:false}")
     private boolean enableOP;
 
+    /**
+     * Whether we should populate the by-product map in analysis. Setting to false disables by-product
+     * analysis (ie disables analysis of CPU throttling commodities during vCPU resize action generation).
+     */
+    @Value("${shouldPopulateByProducts:false}")
+    private boolean shouldPopulateByProducts;
+
     @Bean(destroyMethod = "shutdownNow")
     public ExecutorService marketRunnerThreadPool() {
         final ThreadFactory threadFactory =
@@ -203,7 +210,8 @@ public class MarketRunnerConfig {
                 fullPriceForQuote,
                 commodityIdUpdater(),
                 licensePriceWeightScale,
-                enableOP);
+                enableOP,
+                shouldPopulateByProducts);
     }
 
     /**
@@ -278,8 +286,7 @@ public class MarketRunnerConfig {
     @Bean
     public TopologyEntityCloudTopologyFactory cloudTopologyFactory() {
         return new DefaultTopologyEntityCloudTopologyFactory(
-                new GroupMemberRetriever(GroupServiceGrpc
-                        .newBlockingStub(groupClientConfig.groupChannel())));
+                groupClientConfig.groupMemberRetriever());
     }
 
     @Bean

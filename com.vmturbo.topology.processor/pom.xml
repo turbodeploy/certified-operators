@@ -5,7 +5,7 @@
     <parent>
         <groupId>com.vmturbo</groupId>
         <artifactId>com.vmturbo.components</artifactId>
-        <version>8.1.5-SNAPSHOT</version>
+        <version>8.1.6-SNAPSHOT</version>
         <relativePath>../com.vmturbo.components/pom.xml</relativePath>
     </parent>
 
@@ -136,6 +136,10 @@
                                     <name>java.time.LocalDateTime</name>
                                     <expression>.*\..*_time</expression>
                                 </forcedType>>
+                                <forcedType>
+                                    <name>BOOLEAN</name>
+                                    <includeTypes>(?i:TINYINT\(1\))</includeTypes>
+                                </forcedType>
                             </forcedTypes>
                         </database>
                         <generate>

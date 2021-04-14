@@ -39,6 +39,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Connec
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
@@ -86,6 +87,7 @@ public class CloudTopologyConverter {
     private final CloudCostData<TopologyEntityDTO> cloudCostData;
     private Multimap<AccountPricingData<TopologyEntityDTO>, Long> businessAccountOidByAccountPricingData = HashMultimap.create();
     private final CloudTopology<TopologyEntityDTO> cloudTopology;
+    private final TopologyInfo topologyInfo;
 
     /**
      * @param topology the topologyEntityDTOs which came into market-component
@@ -115,6 +117,7 @@ public class CloudTopologyConverter {
              @Nonnull TierExcluder tierExcluder,
              @Nullable CloudTopology<TopologyEntityDTO> cloudTopology) {
          this.topology = topology;
+         this.topologyInfo = topologyInfo;
          this.pmBasedBicliquer = pmBasedBicliquer;
          this.dsBasedBicliquer = dsBasedBicliquer;
          this.azToRegionMap = azToRegionMap;
@@ -145,21 +148,36 @@ public class CloudTopologyConverter {
         List<TraderTO.Builder> computeMarketTierBuilders = new ArrayList<>();
         logger.info("Beginning creation of market tier trader TOs");
 
-        Map<TopologyEntityDTO, Set<AccountPricingData<TopologyEntityDTO>>> accountPricingDataByTier = new HashMap<>();
+        final Map<Long, Set<AccountPricingData<TopologyEntityDTO>>> accountPricingDataByTier = new HashMap<>();
+        // Use HashSet to deduplicate market tier entityDTOs to create traderTOs because there could
+        // be same market tiers discovered from different BusinessAccounts.
+        Collection<TopologyEntityDTO> entityDTOs = new HashSet<>();
         for (Entry<AccountPricingData<TopologyEntityDTO>, Collection<Long>> entry: businessAccountOidByAccountPricingData
                 .asMap().entrySet()) {
             Collection<Long> businessAccountOids = entry.getValue();
             AccountPricingData accountPricingData = entry.getKey();
             Set<TopologyEntityDTO> tiersAttachedToBusinessAccount = getTiersScopedToAccounts(
                     businessAccountOids);
-            tiersAttachedToBusinessAccount.forEach(
-                    s -> accountPricingDataByTier.computeIfAbsent(s, t -> new HashSet<>()).add(accountPricingData));
+            for (TopologyEntityDTO entityDTO : tiersAttachedToBusinessAccount) {
+                entityDTOs.add(entityDTO);
+                accountPricingDataByTier.computeIfAbsent(entityDTO.getOid(), t -> new HashSet<>()).add(accountPricingData);
+            }
         }
-        for (Map.Entry<TopologyEntityDTO, Set<AccountPricingData<TopologyEntityDTO>>> entry : accountPricingDataByTier.entrySet()) {
-            TopologyEntityDTO entity = entry.getKey();
-            Set<AccountPricingData<TopologyEntityDTO>> scopedAccountPricingData = entry.getValue();
+        // If it's OptimizeContainerCluster plan, create traderTOs for market tiers by iterating
+        // through all topology entities because currently BusinessAccount entities are not included
+        // in the plan scope for cloud container cluster.
+        // TODO Remove the logic of this if block after we update the scoping logic to include
+        //  BusinessAccount and other related cloud entities in the scope for OptimizeContainerCluster
+        //  plan for cost analysis.
+        if (isOptimizeContainerClusterPlan(topologyInfo) || businessAccountOidByAccountPricingData.isEmpty()) {
+            entityDTOs = topology.values();
+        }
+        for (TopologyEntityDTO entity : entityDTOs) {
             TierConverter converter = converterMap.get(entity.getEntityType());
             if (converter != null) {
+                Set<AccountPricingData<TopologyEntityDTO>> accountPricingData = accountPricingDataByTier.get(entity.getOid());
+                Set<AccountPricingData<TopologyEntityDTO>> scopedAccountPricingData =
+                    accountPricingData != null ? accountPricingData : new HashSet<>();
                 Map<TraderTO.Builder, MarketTier> traderTOBuildersForEntity = converter.createMarketTierTraderTOs(entity, topology, businessAccounts,
                         scopedAccountPricingData);
                 traderTOBuilders.addAll(traderTOBuildersForEntity.keySet());
@@ -203,6 +221,12 @@ public class CloudTopologyConverter {
         }
         logger.info("Completed creation of market tier trader TOs");
         return traderTOBuilders;
+    }
+
+    private boolean isOptimizeContainerClusterPlan(@Nonnull final TopologyInfo topologyInfo) {
+        return topologyInfo.hasPlanInfo()
+            && topologyInfo.getPlanInfo().hasPlanType()
+            && StringConstants.OPTIMIZE_CONTAINER_CLUSTER_PLAN.equals(topologyInfo.getPlanInfo().getPlanType());
     }
 
     /**

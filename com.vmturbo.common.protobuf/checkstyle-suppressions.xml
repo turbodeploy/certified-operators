@@ -30,7 +30,6 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]common[/\\]protobuf[/\\]topology[/\\]UIEnvironmentType.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]common[/\\]protobuf[/\\]utils[/\\]HCIUtils.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]common[/\\]protobuf[/\\]utils[/\\]StringConstants.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]protobuf[/\\]ncm[/\\]Matrix.proto" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]common[/\\]protobuf[/\\]ActionDTOUtilTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]common[/\\]protobuf[/\\]CostProtoUtilTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]common[/\\]protobuf[/\\]GroupProtoUtilTest.java" />

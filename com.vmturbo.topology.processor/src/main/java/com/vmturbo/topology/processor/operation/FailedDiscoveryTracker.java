@@ -15,6 +15,7 @@ import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorType;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus.Status;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
+import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStoreListener;
 
@@ -25,7 +26,17 @@ public class FailedDiscoveryTracker implements OperationListener, TargetStoreLis
 
     private Map<Long, DiscoveryFailure> targetToFailedDiscoveries = new HashMap<>();
 
+    private ProbeStore probeStore;
+
     private static final Logger logger = LogManager.getLogger();
+
+    /**
+     * Failed discovery tracker constructor.
+     * @param probeStore a probe store
+     */
+    public FailedDiscoveryTracker(@Nonnull ProbeStore probeStore) {
+        this.probeStore = probeStore;
+    }
 
     /**
      * Store first failed discovery and fails count.
@@ -66,11 +77,12 @@ public class FailedDiscoveryTracker implements OperationListener, TargetStoreLis
     @Override
     public void notifyOperationState(Operation operation) {
         if (operation.getClass() == Discovery.class
-            && operation.getStatus() != Status.IN_PROGRESS) {
+                        && operation.getStatus() != Status.IN_PROGRESS) {
             final Discovery discovery = (Discovery)operation;
             if (discovery.getDiscoveryType() == DiscoveryType.FULL) {
                 final long targetId = discovery.getTargetId();
-                if (discovery.getStatus() == Status.FAILED) {
+                if (discovery.getStatus() == Status.FAILED
+                            && probeStore.isProbeConnected(discovery.getProbeId())) {
                     storeFailedDiscovery(targetId, discovery);
                 } else if (discovery.getStatus() == Status.SUCCESS) {
                     removeFailedDiscovery(targetId);

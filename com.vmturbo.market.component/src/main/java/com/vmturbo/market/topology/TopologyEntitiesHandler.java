@@ -2,6 +2,7 @@ package com.vmturbo.market.topology;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -25,6 +26,7 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
+import com.vmturbo.commons.analysis.ByProductMap;
 import com.vmturbo.commons.analysis.CommodityResizeDependencyMap;
 import com.vmturbo.commons.analysis.RawMaterialsMap;
 import com.vmturbo.commons.analysis.RawMaterialsMap.RawMaterialInfo;
@@ -44,6 +46,7 @@ import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
 import com.vmturbo.platform.analysis.actions.ReconfigureProviderAddition;
 import com.vmturbo.platform.analysis.actions.ReconfigureProviderRemoval;
 import com.vmturbo.platform.analysis.actions.Resize;
+import com.vmturbo.platform.analysis.economy.ByProducts;
 import com.vmturbo.platform.analysis.economy.CommodityResizeSpecification;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
@@ -64,8 +67,9 @@ import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunct
 import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.translators.AnalysisToProtobuf;
 import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
+import com.vmturbo.platform.analysis.updatingfunction.ProjectionFunction;
+import com.vmturbo.platform.analysis.updatingfunction.ProjectionFunctionFactory;
 import com.vmturbo.platform.analysis.utilities.DoubleTernaryOperator;
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 
@@ -196,6 +200,9 @@ public class TopologyEntitiesHandler {
                 }
                 populateProducesDependencyMap(topology);
                 populateRawMaterialsMap(topology);
+                if (analysisConfig.shouldPopulateByProducts()) {
+                    populateByProductsMap(topology);
+                }
                 commsToAdjustOverheadInClone.forEach(topology::addCommsToAdjustOverhead);
                 logger.info("Created economy with " + topology.getEconomy().getMarkets().size() + " markets");
             } catch (Exception e) {
@@ -504,6 +511,23 @@ public class TopologyEntitiesHandler {
     public static void populateRawMaterialsMap(Topology topology) {
         for (Map.Entry<Integer, RawMaterialInfo> entry : RawMaterialsMap.rawMaterialsMap.entrySet()) {
             topology.getModifiableRawCommodityMap().put(entry.getKey(), new RawMaterials(entry.getValue()));
+        }
+    }
+
+    /**
+     * Obtain the by-products map and put it in the topology.
+     * No conversion required.
+     *
+     * @param topology where to place the map
+     */
+    public static void populateByProductsMap(Topology topology) {
+        for (Map.Entry<Integer, List<ByProductMap.ByProductInfo>> entry : ByProductMap.byProductMap.entrySet()) {
+            Map<Integer, ProjectionFunction> byProductsMap = new HashMap<>();
+            for (ByProductMap.ByProductInfo info : entry.getValue()) {
+                byProductsMap.put(info.getByProduct(),
+                        ProjectionFunctionFactory.createProjectionFunction(info.getProjectionFunction()));
+            }
+            topology.getModifiableByProductsMap().put(entry.getKey(), new ByProducts(byProductsMap));
         }
     }
 

@@ -1,9 +1,10 @@
 package com.vmturbo.extractor.schema.json.export;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
+import com.google.common.base.MoreObjects;
+import com.google.common.base.MoreObjects.ToStringHelper;
 
 /**
  * The object to be exported to external system. Only one of the fields is set. Currently it either
@@ -17,9 +18,7 @@ public class ExportedObject {
     private String timestamp;
     private Entity entity;
     private Action action;
-
-    @JsonIgnore
-    private int serializedSize;
+    private Group group;
 
     public String getTimestamp() {
         return timestamp;
@@ -45,21 +44,26 @@ public class ExportedObject {
         this.action = action;
     }
 
-    public int getSerializedSize() {
-        return serializedSize;
+    public Group getGroup() {
+        return group;
     }
 
-    public void setSerializedSize(int serializedSize) {
-        this.serializedSize = serializedSize;
+    public void setGroup(Group group) {
+        this.group = group;
     }
 
     @Override
     public String toString() {
+        final ToStringHelper stringHelper = MoreObjects.toStringHelper("ExportedObject")
+                .omitNullValues()
+                .add("timestamp", timestamp);
         if (entity != null) {
-            return entity.toString();
+            stringHelper.add("entity", entity.toString());
         } else if (action != null) {
-            return action.toString();
+            stringHelper.add("entity", action.toString());
+        } else if (group != null) {
+            stringHelper.add("entity", group.toString());
         }
-        return "";
+        return stringHelper.toString();
     }
 }

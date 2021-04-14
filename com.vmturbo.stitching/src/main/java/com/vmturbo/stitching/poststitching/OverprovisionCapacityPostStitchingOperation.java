@@ -78,7 +78,7 @@ public abstract class OverprovisionCapacityPostStitchingOperation implements
                        commodityPair -> commodityPair.source.get().getCapacity()));
 
            if (!overprovisionedToSourceCapacity.isEmpty()) {
-               Optional<Setting> opSetting = settingsCollection.getEntitySetting(entity, overprovisionSettingType);
+               Optional<Setting> opSetting = getEntitySetting(settingsCollection, entity);
                Optional<Setting> overprovisionSetting =
                    opSetting.isPresent() ? opSetting : Optional.of(STORAGE_OVERPROVISIONED_SETTING_DEFAULT);
                resultBuilder.queueUpdateEntityAlone(entity, entityForUpdate ->
@@ -99,6 +99,20 @@ public abstract class OverprovisionCapacityPostStitchingOperation implements
        });
 
         return resultBuilder.build();
+    }
+
+    private Optional<Setting> getEntitySetting(@Nonnull EntitySettingsCollection settingsCollection,
+                    TopologyEntity entity) {
+        if (entity.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE) {
+            final Optional<TopologyEntity> storageProvider = entity.getProviders().stream()
+                            .filter(p -> p.getEntityType() == EntityType.STORAGE_VALUE).findAny();
+            logger.debug("'{}' has no special '{}' setting, so setting value will taken from '{}'",
+                            entity, overprovisionSettingType, storageProvider.orElse(null));
+            return storageProvider.map(sp -> settingsCollection
+                            .getEntitySetting(sp, overprovisionSettingType))
+                            .filter(Optional::isPresent).map(Optional::get);
+        }
+        return settingsCollection.getEntitySetting(entity, overprovisionSettingType);
     }
 
     /**

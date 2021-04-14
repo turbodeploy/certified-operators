@@ -48,9 +48,7 @@ public class CostAmount {
         if (amount.hasAmount()) {
             costAmount.setAmount(amount.getAmount());
         }
-        if (amount.hasCurrency()) {
-            costAmount.setUnit(CostProtoUtil.getCurrencyUnit(amount));
-        }
+        costAmount.setUnit(CostProtoUtil.getCurrencyUnit(amount));
         return costAmount;
     }
 

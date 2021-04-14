@@ -108,7 +108,9 @@ public class ConvertJsonToYamlTest {
                 is("---\n- true\n- x: 1\n  y:\n    a: null\n- 1234567890\n"));
         // an actual dashboard
         String json = Resources.toString(getResource(getClass(), "/sample-docs/sample.json"), Charsets.UTF_8);
-        String yaml = Resources.toString(getResource(getClass(), "/sample-docs/sample.yaml"), Charsets.UTF_8);
+        String yaml = Resources.toString(getResource(getClass(), "/sample-docs/sample.yaml"), Charsets.UTF_8)
+                // To make this test pass on Windows, ensure we are using the "simple" line separators.
+                .replace(System.lineSeparator(), "\n");
         assertThat(jsonToYaml(json), is(yaml));
     }
 

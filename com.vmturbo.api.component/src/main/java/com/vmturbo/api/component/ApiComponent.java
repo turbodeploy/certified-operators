@@ -29,7 +29,6 @@ import com.vmturbo.api.component.external.api.dispatcher.DispatcherValidatorConf
 import com.vmturbo.api.component.external.api.service.ServiceConfig;
 import com.vmturbo.api.component.external.api.swagger.SwaggerConfig;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
-import com.vmturbo.api.external.controller.ProbesController;
 import com.vmturbo.api.internal.controller.ApiDiagnosticsConfig;
 import com.vmturbo.api.internal.controller.DBAdminController;
 import com.vmturbo.components.common.BaseVmtComponent;
@@ -47,7 +46,6 @@ import com.vmturbo.components.common.config.PropertiesLoader;
     ApiWebsocketConfig.class,
     ExternalApiConfig.class,
     DBAdminController.class,
-    ProbesController.class,
     SwaggerConfig.class,
     ServiceConfig.class,
     ApiDiagnosticsConfig.class

@@ -1,20 +1,16 @@
 package com.vmturbo.extractor.export;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.google.common.collect.ImmutableTable;
-import com.google.common.collect.Table;
-
-import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -22,8 +18,6 @@ import com.vmturbo.extractor.schema.json.export.RelatedEntity;
 import com.vmturbo.extractor.topology.SupplyChainEntity;
 import com.vmturbo.extractor.topology.fetcher.GroupFetcher.GroupData;
 import com.vmturbo.extractor.topology.fetcher.SupplyChainFetcher.SupplyChain;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.topology.graph.TopologyGraph;
 
 /**
@@ -32,20 +26,6 @@ import com.vmturbo.topology.graph.TopologyGraph;
 public class RelatedEntitiesExtractor {
 
     private static final Logger logger = LogManager.getLogger();
-
-    /**
-     * Table of info about related groups we want to extract for an entity. It contains the group
-     * type, member type in the group, and the json key used in final json object.
-     */
-    private static final Table<GroupType, Integer, String> GROUP_TYPE_TO_MEMBER_TYPE_AND_JSON_KEY =
-            new ImmutableTable.Builder<GroupType, Integer, String>()
-                    .put(GroupType.COMPUTE_HOST_CLUSTER, EntityType.PHYSICAL_MACHINE.getNumber(),
-                            ExportUtils.getGroupTypeJsonKey(GroupType.COMPUTE_HOST_CLUSTER))
-                    .put(GroupType.STORAGE_CLUSTER, EntityType.STORAGE.getNumber(),
-                            ExportUtils.getGroupTypeJsonKey(GroupType.STORAGE_CLUSTER))
-                    .put(GroupType.COMPUTE_VIRTUAL_MACHINE_CLUSTER, EntityType.VIRTUAL_MACHINE.getNumber(),
-                            ExportUtils.getGroupTypeJsonKey(GroupType.COMPUTE_VIRTUAL_MACHINE_CLUSTER))
-                    .build();
 
     private final TopologyGraph<SupplyChainEntity> graph;
     private final SupplyChain supplyChain;
@@ -67,10 +47,10 @@ public class RelatedEntitiesExtractor {
     }
 
     /**
-     * Extract related entities for given entity.
+     * Extract related entities and groups for given entity.
      *
      * @param entityOid oid of the entity to get related entities for
-     * @return mapping from related entity type to list of related entities
+     * @return mapping from related entity/group type to list of related entities/groups
      */
     @Nullable
     public Map<String, List<RelatedEntity>> extractRelatedEntities(long entityOid) {
@@ -100,22 +80,20 @@ public class RelatedEntitiesExtractor {
 
         // related group
         if (groupData != null) {
-            GROUP_TYPE_TO_MEMBER_TYPE_AND_JSON_KEY.cellSet().forEach(cell -> {
-                Set<Long> relatedEntitiesInGroup = relatedEntitiesByType.get(cell.getColumnKey());
-                // also include the entity itself, since the group may contain the entity
-                // directly rather than through a related entity
-                List<RelatedEntity> relatedGroups = Stream.concat(Stream.of(entityOid),
-                        CollectionUtils.emptyIfNull(relatedEntitiesInGroup).stream())
-                        .map(groupData::getGroupsForEntity)
-                        .flatMap(List::stream)
-                        .filter(g -> g.getDefinition().getType() == cell.getRowKey())
-                        .distinct()
-                        .map(relatedEntityMapper::createRelatedEntity)
-                        .collect(Collectors.toList());
-                if (!relatedGroups.isEmpty()) {
-                    relatedEntities.put(cell.getValue(), relatedGroups);
-                }
-            });
+            relatedEntitiesByType.values().stream()
+                    .flatMap(Collection::stream)
+                    .map(groupData::getGroupsForEntity)
+                    .flatMap(List::stream)
+                    .distinct()
+                    .collect(Collectors.groupingBy(grouping -> grouping.getDefinition().getType()))
+                    .forEach((groupType, groupings) -> {
+                        List<RelatedEntity> relatedGroups = groupings.stream()
+                                .map(relatedEntityMapper::createRelatedEntity)
+                                .collect(Collectors.toList());
+                        if (!relatedGroups.isEmpty()) {
+                            relatedEntities.put(ExportUtils.getGroupTypeJsonKey(groupType), relatedGroups);
+                        }
+                    });
         }
 
         return relatedEntities.isEmpty() ? null : relatedEntities;

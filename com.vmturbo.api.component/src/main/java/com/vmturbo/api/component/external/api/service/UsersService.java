@@ -499,6 +499,9 @@ public class UsersService implements IUsersService {
         return true;
     }
 
+    private static final AuthUserDTO EMPTY_USER = new AuthUserDTO(PROVIDER.LOCAL, "", null,
+            null, null, null, Collections.emptyList(), null);
+
     /**
      * Deletes the user.
      *
@@ -510,23 +513,24 @@ public class UsersService implements IUsersService {
         try {
             String request = baseRequest().path("/users/remove/" + uuid).build().toUriString();
             HttpEntity<AuthUserDTO> entity = new HttpEntity<>(composeHttpHeaders());
-            String userName;
+            UserApiDTO userDto;
             try {
                 final ResponseEntity<AuthUserDTO> result = restTemplate_.exchange(request,
                     HttpMethod.DELETE, entity, AuthUserDTO.class);
-                userName = result.getBody() != null ? result.getBody().getUser() : "";
-                final String details = String.format("Deleted user %s", userName);
+                final AuthUserDTO dto = result.getBody() == null ? EMPTY_USER : result.getBody();
+                userDto = UserMapper.toUserApiDTO(dto);
+                final String details = String.format("Deleted user %s", userDto.getUsername());
                 AuditLog.newEntry(AuditAction.DELETE_USER,
                     details, true)
-                    .targetName(userName)
+                    .targetName(userDto.getUsername())
                     .audit();
             } catch (Exception e) {
                 logger_.error("Unable to remove user {}", uuid, e.getCause());
                 throw new IllegalArgumentException("Unable to remove user " + uuid, e.getCause());
             }
-            widgetsetsService.transferWidgetsets(uuid, userName);
+            widgetsetsService.transferWidgetsets(uuid, userDto.getUsername());
             expireActiveSessions(uuid);
-            reportingUserCalculator.onUserDeleted(uuid);
+            reportingUserCalculator.onUserDeleted(userDto);
 
             return Boolean.TRUE;
         } catch (RuntimeException e) {

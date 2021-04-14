@@ -1,23 +1,25 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import java.util.Objects;
+
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
 
 public class LoginProviderMapper {
+
+    private static final String LOCAL_STR = "Local";
+
     private LoginProviderMapper() {
     }
 
     @Nonnull
-    public static String toApi(@Nonnull final PROVIDER provider) {
-        switch (provider) {
-            case LOCAL:
-                return "Local";
-            case LDAP:
-                return "LDAP";
-            default:
-                throw new IllegalStateException("Provider " + provider.name() +
-                                                " has no mapping to an API-compatible string.");
+    public static String toApi(@Nullable final PROVIDER provider) {
+        if (Objects.equals(provider, PROVIDER.LDAP)) {
+            return "LDAP";
+        } else {
+            return LOCAL_STR;
         }
     }
 

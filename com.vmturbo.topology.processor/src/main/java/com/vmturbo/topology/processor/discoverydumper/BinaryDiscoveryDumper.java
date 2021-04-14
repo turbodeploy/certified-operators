@@ -132,7 +132,7 @@ public class BinaryDiscoveryDumper implements DiscoveryDumper, CustomDiagHandler
      * @param zipStream stream to append zip entries to
      */
     @Override
-    public void dumpToStream(@Nonnull ZipOutputStream zipStream) {
+    public synchronized void dumpToStream(@Nonnull ZipOutputStream zipStream) {
         if (!succesfulInitialization) {
             return;
         }

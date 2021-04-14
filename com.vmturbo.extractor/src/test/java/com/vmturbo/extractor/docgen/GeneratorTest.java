@@ -11,8 +11,6 @@ import static org.hamcrest.Matchers.isA;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.AccessDeniedException;
-import java.nio.file.Files;
-import java.nio.file.attribute.PosixFilePermissions;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -31,8 +29,10 @@ import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 
+import org.apache.commons.lang3.SystemUtils;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 import org.junit.rules.TemporaryFolder;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -65,19 +65,31 @@ public class GeneratorTest {
     public TemporaryFolder tmp = new TemporaryFolder();
 
     /**
+     * To capture exceptions.
+     */
+    @Rule
+    public ExpectedException expectedException = ExpectedException.none();
+
+    /**
      * Test that generation fails fast if the provided output directory is not writable.
      *
      * @throws IOException if there's a problem other than unwritable output dir)
      */
-    @Test(expected = AccessDeniedException.class)
+    @Test
     public void testGeneratorRejectsNonWritableOutputDir() throws IOException {
         final File unwritableDir = new File(tmp.getRoot(), "unwritable");
         final File docTree = createDocTree();
-        Files.createDirectory(unwritableDir.toPath(),
-                PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("r-xr-xr-x")));
+        unwritableDir.mkdir();
+        unwritableDir.setReadOnly();
         final CmdLine cmdLine = CmdLine.of("--write-to", unwritableDir.getPath(),
                 "--doc-tree", docTree.getPath());
+
         // exception is thrown during construction, no need to invoke generation
+        // On windows we can write to non-readable folders
+        if (!SystemUtils.IS_OS_WINDOWS)  {
+            expectedException.expect(AccessDeniedException.class);
+        }
+
         new Generator(cmdLine);
     }
 

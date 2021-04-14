@@ -1,9 +1,12 @@
 package com.vmturbo.cost.component.savings;
 
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
-
-import com.google.common.annotations.VisibleForTesting;
+import java.util.Queue;
 
 /**
  * Implementation of algorithm-2.
@@ -15,12 +18,17 @@ public class Algorithm2 implements Algorithm {
     private final Long entityOid;
     private long segmentStart;
     private long powerFactor;
-    private boolean compress;
     private EntityPriceChange currentRecommendation;
 
 
     // Internal state maintained by the algorithm
-    private List<Double> actionList;
+    private double savings;
+    private double investment;
+    // Matching lists that hold the price change (delta) of a tracked action and that action's
+    // expiration time.  These are queues so that we can easily pop the expired deltas/timestamps
+    // off of the lists.
+    private final Queue<Double> actionList;
+    private final Queue<Long> expirationList;
     private final SavingsInvestments periodicRealized;
     private final SavingsInvestments periodicMissed;
     private boolean deletePending;
@@ -33,11 +41,13 @@ public class Algorithm2 implements Algorithm {
      */
     public Algorithm2(Long entityOid, long segmentStart) {
         this.entityOid = entityOid;
-        this.compress = false;
         this.deletePending = false;
         this.segmentStart = segmentStart;
         this.powerFactor = 1;
-        this.actionList = new ArrayList<>();
+        this.actionList = new LinkedList<>();
+        this.expirationList = new LinkedList<>();
+        this.savings = 0d;
+        this.investment = 0d;
 
         // The current realized and missed values accumulated this period.  Not scaled by
         // period length.
@@ -57,87 +67,63 @@ public class Algorithm2 implements Algorithm {
     }
 
     /**
-     * Add an action delta (price change) to the active action list.
+     * Subtract delta from current.  If the result of the subtraction has a different sign than
+     * that of current, then return zero instead.
      *
-     * @param delta amount of the price change.
+     * @param current current value
+     * @param delta amount to subtract
+     * @return result of current - delta.  If the result of the subtraction has a different sign
+     *          than that of current, then return zero instead.
      */
-    public void addAction(double delta) {
-        if (actionList.isEmpty()) {
-            actionList.add(delta);
-            return;
-        }
-        int index = actionList.size() - 1;
-        double current = actionList.get(index);
-        if (signOf(current) == signOf(delta)) {
-            // New delta is in the same direction as the lasts, so merge them.
-            current += delta;
-            actionList.set(index, current);
-            // Back up to the last reverse-direction action and continue
-            // on to this action out of previous reverse-direction actions.
-            index -= 1;
-        } else {
-            // Direction change. Add this action to the list and continue on to back it out of
-            // previous reverse - direction actions.
-            actionList.add(delta);
-        }
-
-        // Back this delta out of the previous reverse-direction actions
-        while (index >= 0) {
-            current = actionList.get(index);
-            double newCurrent = current + delta;
-            if (signOf(newCurrent) != signOf(delta)) {
-                // We didn't completely back out the current action, so we're done.
-                actionList.set(index, newCurrent);
-                break;
-            } else {
-                // We completely backed out the current action, so remove it
-                actionList.set(index, 0d);
-                compress = true;  // Remove the inactive actions before updating the entity state
-                delta += current;  // add back in the excess back out amount
-                index -= 2;  // Go to the next reverse-direction action
-            }
-        }
+    private double subtractUpToZero(double current, double delta) {
+        double result = current - delta;
+        return signOf(result) == signOf(current) ? result : 0d;
     }
 
     /**
-     * Compress a list of deltas by removing all zero values, which represent inactive actions.
-     * If removing a zero from the list results in consecutive values with the same sign, collapse
-     * those values by replacing them with the sum of the consecutive values.
+     * Add an action delta (price change) to the active action list.
      *
-     * @param deltaList list of deltas to collapse
-     * @return new list containing the collapsed values in deltaList
+     * @param delta amount of the price change.
+     * @param expirationTimestamp time when the action will expire.
      */
-    @VisibleForTesting
-     static List<Double> compressList(List<Double> deltaList) {
-        List<Double> result = new ArrayList<>();
-        Double acc = null;
-        int currentSign = 0;
-        for (Double delta : deltaList) {
-            if (delta == 0d) {
-                // Filter out inactive action
-                continue;
-            }
-            if (acc == null) {
-                // First active entry
-                acc = delta;
-                currentSign = signOf(acc);
-                continue;
-            }
-            if (currentSign != signOf(delta)) {
-                // Changing sign, so emit previous value
-                result.add(acc);
-                acc = delta;
-                currentSign = signOf(acc);
-            } else {
-                // Same sign, so merge with previous
-                acc += delta;
-            }
+    public void addAction(double delta, long expirationTimestamp) {
+        actionList.add(delta);
+        expirationList.add(expirationTimestamp);
+        applyDelta(delta);
+    }
+
+    /**
+     * Remove an action delta (price change) from the active action list. This must be the first
+     * action in the action list.  If the timestamp does match, the removal will be ignored.
+     *
+     * @param expirationTimestamp time when the action will expire.
+     * @return true if the action was removed.
+     */
+    public boolean removeAction(long expirationTimestamp) {
+        if (expirationList.peek() == expirationTimestamp) {
+            actionList.poll();
+            expirationList.poll();
+            recalculateSavings();
+            return true;
         }
-        // Emit the last value if present
-        if (acc != null) {
-            result.add(acc);
+        return false;
+    }
+
+    /**
+     * Apply a price change to the current savings and investment values.  The result cannot pass
+     * through zero.  If that happens, the result is clipped to zero.  A positive delta represents
+     * an investment and a negative delta represents savings.
+     *
+     * @param delta amount to apply.
+     */
+    private void applyDelta(double delta) {
+        if (delta < 0) {
+            this.savings += -delta;
+            this.investment = subtractUpToZero(this.investment, -delta);
+        } else {
+            this.investment += delta;
+            this.savings = subtractUpToZero(this.savings, delta);
         }
-        return result;
     }
 
     /**
@@ -171,7 +157,7 @@ public class Algorithm2 implements Algorithm {
         long segmentLength = (timestamp - segmentStart) * powerFactor;
         segmentStart = timestamp;
 
-        SavingsInvestments result = getCurrentValues();
+        SavingsInvestments result = new SavingsInvestments(savings, investment);
         periodicRealized.savings += result.getSavings() * segmentLength;
         periodicRealized.investments += result.getInvestments() * segmentLength;
         // If there's an active recommendation, accumulate missed savings/investments.
@@ -180,16 +166,6 @@ public class Algorithm2 implements Algorithm {
             periodicMissed.savings += deltaToSavings(delta);
             periodicMissed.investments += deltaToInvestment(delta);
         }
-    }
-
-    private SavingsInvestments getCurrentValues() {
-        double savings = 0d;
-        double investment = 0d;
-        for (Double delta : actionList) {
-            savings += deltaToSavings(delta);
-            investment += deltaToInvestment(delta);
-        }
-        return new SavingsInvestments(savings, investment);
     }
 
     /**
@@ -201,10 +177,6 @@ public class Algorithm2 implements Algorithm {
     public void endPeriod(long periodStartTime, long periodEndTime) {
         // Close out the final segment of the period.
         endSegment(periodEndTime);
-        // Collapse the action list if there are any inactive actions in it.
-        if (compress) {
-            actionList = compressList(actionList);
-        }
     }
 
     /**
@@ -303,12 +275,42 @@ public class Algorithm2 implements Algorithm {
     /**
      * Read entity state that is needed to run the algorithm into local state.
      *
+     * @param timestamp the time that the algorithm is invoked
      * @param entityState entity state being tracked
      */
-    public void initState(EntityState entityState) {
-        this.actionList = entityState.getActionList();
-        this.currentRecommendation = entityState.getCurrentRecommendation();
-        this.powerFactor = entityState.getPowerFactor();
+    public void initState(long timestamp, EntityState entityState) {
+        // Backward compatibility.  Older entity states do not contain an expiration list.  In this
+        // case, all existing entities will immediately expire.
+        List<Long> currentExpirationList = entityState.getExpirationList();
+        List<Double> currentActionList = entityState.getActionList();
+        if (currentExpirationList == null) {
+            // Old entity state.  Create a new expiration list that expires all existing actions.
+            currentExpirationList = new ArrayList<>();
+            currentActionList.clear();
+        }
+        currentRecommendation = entityState.getCurrentRecommendation();
+        powerFactor = entityState.getPowerFactor();
+
+        // Populate the action and expiration lists.  We use two iterators in order to
+        // handle any difference in the list sizes (should never happen).
+        Iterator<Long> expirations = currentExpirationList.iterator();
+        Iterator<Double> deltas = currentActionList.iterator();
+        while (expirations.hasNext() && deltas.hasNext()) {
+            actionList.offer(deltas.next());
+            expirationList.offer(expirations.next());
+        }
+
+        // Recalculate savings based on the current action and expiration lists.
+        recalculateSavings();
+    }
+
+    /**
+     * Recalculate the current savings and investment based on the action list.
+     */
+    private void recalculateSavings() {
+        savings = 0d;
+        investment = 0d;
+        actionList.stream().forEach(this::applyDelta);
     }
 
     /**
@@ -317,6 +319,31 @@ public class Algorithm2 implements Algorithm {
      * @return the action list
      */
     public List<Double> getActionList() {
-        return this.actionList;
+        return new ArrayList<>(this.actionList);
+    }
+
+    /**
+     * Return the expiration times list.
+     *
+     * @return the expiration times list
+     */
+    public List<Long> getExpirationList() {
+        return new ArrayList<>(this.expirationList);
+    }
+
+    /**
+     * Get the next action expiration time.
+     *
+     * @return the expiration time of the next action, if present.  If there are no active actions,
+     *          the expiration time of 1,000 years from now will be returned instead, which should
+     *          be long enough to consider the action permanent.
+     */
+    public long getNextExpirationTime() {
+        // Since the events are sorted in chronological order and all actions have the same action
+        // duration, the timestamps in the expiration list are also sorted chronologically, and the
+        // first timestamp in the list is the next one to expire.
+        return expirationList.isEmpty()
+                ? LocalDateTime.now().plusYears(1000L).toInstant(ZoneOffset.UTC).toEpochMilli()
+                : expirationList.peek();
     }
 }

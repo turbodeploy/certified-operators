@@ -16,8 +16,8 @@ public class DatabaseAspectMapper extends AbstractAspectMapper {
     private static final String MAX_CONCURRENT_SESSION = "max_concurrent_session";
     private static final String MAX_CONCURRENT_WORKER = "max_concurrent_worker";
     private static final String PRICING_MODEL = "pricing_model";
-    private static final String STORAGE_AMOUNT = "storage_amount";
     private static final String STORAGE_TIER = "storage_tier";
+    private static final String DB_SERVER_NAME_PROPERTY = "DB_SERVER_NAME";
 
 
     @Nullable
@@ -61,6 +61,10 @@ public class DatabaseAspectMapper extends AbstractAspectMapper {
         String storageTier = entity.getEntityPropertyMapOrDefault(STORAGE_TIER, null);
         if (storageTier != null) {
             aspect.setStorageTier(storageTier);
+        }
+        String dbServerName = entity.getEntityPropertyMapOrDefault(DB_SERVER_NAME_PROPERTY, null);
+        if (dbServerName != null) {
+            aspect.setDbServerName(dbServerName);
         }
 
         return aspect;

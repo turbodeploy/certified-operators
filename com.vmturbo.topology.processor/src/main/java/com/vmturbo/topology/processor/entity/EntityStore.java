@@ -19,6 +19,8 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -225,8 +227,12 @@ public class EntityStore {
                 EntityStore.this.purgeTarget(targetId, null);
             }
         });
+        this.identityProvider.initializeStaleOidManager(entityMap::keySet);
     }
 
+    public int expireOids() throws InterruptedException, ExecutionException, TimeoutException {
+        return this.identityProvider.expireOids();
+    }
     /**
      * Get the entity associated with a given id.
      *

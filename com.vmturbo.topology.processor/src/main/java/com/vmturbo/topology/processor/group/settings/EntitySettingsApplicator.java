@@ -30,7 +30,9 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingToPolicyId;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.Thresholds;
@@ -45,6 +47,7 @@ import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.ScalingPolicyEnum;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.stitching.EntitySettingsCollection;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.settings.applicators.ComputeTierInstanceStoreCommoditiesCreator;
@@ -293,6 +296,8 @@ public class EntitySettingsApplicator {
                         CommodityType.ACTIVE_SESSIONS),
                 new OverrideCapacityApplicator(EntitySettingSpecs.ViewPodActiveSessionsCapacity,
                         CommodityType.TOTAL_SESSIONS),
+                new OverrideCapacityByUserApplicator(EntitySettingSpecs.LatencyCapacity,
+                                               CommodityType.STORAGE_LATENCY, graphWithSettings),
                 new VsanStorageApplicator(graphWithSettings),
                 new ResizeVStorageApplicator(),
                 new ResizeIncrementApplicator(EntitySettingSpecs.ApplicationHeapScalingIncrement,
@@ -1449,15 +1454,14 @@ public class EntitySettingsApplicator {
     }
 
     /**
-     * Applicator for the setting of capacity.
-     * This sets capacity in {@link CommoditySoldDTO}.
+     * Base Applicator for the capacity setting.
+     * Sets capacity for {@link CommoditySoldDTO}.
      */
-    @ThreadSafe
-    private static class OverrideCapacityApplicator extends SingleSettingApplicator {
+    private abstract static class BaseOverrideCapacityApplicator extends SingleSettingApplicator {
 
         private final CommodityType commodityType;
 
-        private OverrideCapacityApplicator(@Nonnull EntitySettingSpecs setting,
+        private BaseOverrideCapacityApplicator(@Nonnull EntitySettingSpecs setting,
                                                @Nonnull final CommodityType commodityType) {
             super(setting);
             this.commodityType = Objects.requireNonNull(commodityType);
@@ -1465,15 +1469,70 @@ public class EntitySettingsApplicator {
 
         @Override
         public void apply(@Nonnull TopologyEntityDTO.Builder entity, @Nonnull Setting setting) {
-            final Float settingValue = getEntitySettingSpecs().getValue(setting, Float.class);
-            if (settingValue == null) {
+            final Optional<Float> settingValueOpt = getSettingValue(entity, setting);
+            if (!settingValueOpt.isPresent()) {
                 return;
             }
+            float settingValue = settingValueOpt.get().floatValue();
             for (CommoditySoldDTO.Builder commodity : getCommoditySoldBuilders(entity,
                     commodityType)) {
                 commodity.setCapacity(settingValue);
             }
         }
+
+        protected abstract Optional<Float> getSettingValue(@Nonnull TopologyEntityDTO.Builder entity, @Nonnull Setting setting);
+    }
+
+    /**
+     * Applicator for the capacity setting.
+     * Sets capacity for {@link CommoditySoldDTO}.
+     */
+    @ThreadSafe
+    private static class OverrideCapacityApplicator extends BaseOverrideCapacityApplicator {
+
+        private OverrideCapacityApplicator(@Nonnull EntitySettingSpecs setting,
+                        @Nonnull final CommodityType commodityType) {
+            super(setting, commodityType);
+        }
+
+        @Override
+        protected Optional<Float> getSettingValue(@Nonnull TopologyEntityDTO.Builder entity, @Nonnull Setting setting) {
+            return Optional.ofNullable(getEntitySettingSpecs().getValue(setting, Float.class));
+        }
+    }
+
+    /**
+     * Applicator for the user capacity setting.
+     * Sets capacity for {@link CommoditySoldDTO} if there is user setting with new value.
+     */
+    @ThreadSafe
+    private static class OverrideCapacityByUserApplicator extends BaseOverrideCapacityApplicator {
+        private final Map<Long, EntitySettings> settingsByEntity;
+
+        private OverrideCapacityByUserApplicator(@Nonnull EntitySettingSpecs setting,
+                        @Nonnull final CommodityType commodityType,
+                        @Nonnull final GraphWithSettings graphWithSettings) {
+            super(setting, commodityType);
+            this.settingsByEntity = Collections.unmodifiableMap(new HashMap<>(graphWithSettings
+                            .getSettingsByEntity()));
+        }
+
+        @Override
+        protected Optional<Float> getSettingValue(@Nonnull TopologyEntityDTO.Builder entity,
+                                                 @Nonnull Setting setting) {
+            final EntitySettings settingsForEntity = settingsByEntity.get(entity.getOid());
+            if (settingsForEntity == null) {
+                return Optional.empty();
+            }
+            final String settingName = setting.getSettingSpecName();
+            final Optional<Setting> userSettingOpt = settingsForEntity.getUserSettingsList()
+                            .stream()
+                            .map(SettingToPolicyId::getSetting)
+                            .filter(s -> s.getSettingSpecName().equals(settingName))
+                            .findFirst();
+            return userSettingOpt.map(seting -> setting.getNumericSettingValue().getValue());
+        }
+
     }
 
     /**

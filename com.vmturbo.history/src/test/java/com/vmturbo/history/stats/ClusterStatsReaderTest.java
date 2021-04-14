@@ -16,20 +16,21 @@ import static com.vmturbo.common.protobuf.utils.StringConstants.TOTAL_HEADROOM;
 import static com.vmturbo.common.protobuf.utils.StringConstants.USED;
 import static com.vmturbo.common.protobuf.utils.StringConstants.VALUE;
 import static com.vmturbo.common.protobuf.utils.StringConstants.VM_GROWTH;
+import static com.vmturbo.history.schema.abstraction.Tables.AVAILABLE_TIMESTAMPS;
 import static com.vmturbo.history.schema.abstraction.Tables.CLUSTER_STATS_BY_HOUR;
 import static com.vmturbo.history.schema.abstraction.Tables.CLUSTER_STATS_LATEST;
 import static com.vmturbo.history.schema.abstraction.tables.ClusterStatsByDay.CLUSTER_STATS_BY_DAY;
 import static com.vmturbo.history.schema.abstraction.tables.ClusterStatsByMonth.CLUSTER_STATS_BY_MONTH;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.anyLong;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
 import java.sql.Connection;
 import java.sql.Date;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -56,6 +57,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
@@ -73,6 +75,8 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.commons.TimeFrame;
+import com.vmturbo.components.common.utils.RetentionPeriodFetcher;
+import com.vmturbo.components.common.utils.RetentionPeriodFetcher.RetentionPeriods;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import com.vmturbo.history.db.DBConnectionPool;
 import com.vmturbo.history.db.HistorydbIO;
@@ -80,10 +84,13 @@ import com.vmturbo.history.db.SchemaUtil;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.db.bulk.ImmutableBulkInserterConfig;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
+import com.vmturbo.history.schema.HistoryVariety;
+import com.vmturbo.history.schema.abstraction.tables.records.AvailableTimestampsRecord;
 import com.vmturbo.history.stats.ClusterStatsReader.ClusterStatsRecordReader;
 import com.vmturbo.history.stats.live.ComputedPropertiesProcessor;
 import com.vmturbo.history.stats.live.ComputedPropertiesProcessor.ComputedPropertiesProcessorFactory;
 import com.vmturbo.history.stats.live.TimeRange.TimeRangeFactory.ClusterTimeRangeFactory;
+import com.vmturbo.history.stats.live.TimeRange.TimeRangeFactory.DefaultTimeRangeFactory;
 
 /**
  * Unit test for {@link ClusterStatsReader}.
@@ -106,24 +113,33 @@ public class ClusterStatsReaderTest {
 
     private ClusterStatsReader clusterStatsReader;
 
+    private TimeFrameCalculator timeFrameCalculator;
+
     private static final String CLUSTER_ID_1 = "1234567890";
     private static final String CLUSTER_ID_2 = "3333333333";
     private static final String CLUSTER_ID_3 = "1024";
     private static final String CLUSTER_ID_4 = "2048";
-    private static final String CLUSTER_ID_5 = "4096";
-    private static final String CLUSTER_ID_6 = "8192";
 
     /**
      * These timestamps are used in the "big" database population.
      */
-    private static final Timestamp LATEST_DATE_TIMESTAMP =
-                                        new Timestamp(1_577_923_200_000L); // Jan 2nd, 2020
-    private static final Timestamp PREVIOUS_DATE_TIMESTAMP =
-                                        new Timestamp(1_577_836_800_000L); // Jan 1st, 2020
-    private static final Timestamp NEXT_DATE_TIMESTAMP =
-                                        new Timestamp(1_578_009_600_000L); // Jan 3rd, 2020
-    private static final Timestamp PREVIOUS_COMMODITY_STATS_TIMESTAMP =
-                                        new Timestamp(1_577_923_080_000L);  // two minutes before latest
+    private static final Timestamp NOW =
+        Timestamp.valueOf("2020-01-03 18:41:00");
+
+    private static final Timestamp LATEST_TIMESTAMP1 =
+        Timestamp.valueOf("2020-01-03 18:31:00");
+    private static final Timestamp LATEST_TIMESTAMP2 =
+        Timestamp.valueOf("2020-01-03 17:51:00");
+
+    private static final Timestamp HOUR_TIMESTAMP1 =
+        Timestamp.valueOf("2020-01-03 18:00:00");
+    private static final Timestamp HOUR_TIMESTAMP2 =
+        Timestamp.valueOf("2020-01-03 17:00:00");
+
+    private static final Timestamp DAY_TIMESTAMP1 =
+        Timestamp.valueOf("2020-01-02 00:00:00");
+    private static final Timestamp DAY_TIMESTAMP2 =
+        Timestamp.valueOf("2020-01-01 00:00:00");
 
     /**
      * Set up and populate live database for tests, and create required mocks.
@@ -134,17 +150,24 @@ public class ClusterStatsReaderTest {
     public void setup() throws Exception {
         testDbName = dbTestConfig.testDbName();
         historydbIO = dbTestConfig.historydbIO();
-        // we mock the time frame calculator, which normally computes time frame based on a given
-        // time relative to current time. Instead we'll supply a timeframe to be used in each test,
-        // and arrange for the calculator to return that timeframe.
-        final TimeFrameCalculator timeFrameCalculator = mock(TimeFrameCalculator.class);
-        doAnswer(invocation -> TimeFrame.DAY).when(timeFrameCalculator).millis2TimeFrame(anyLong());
-        final ClusterTimeRangeFactory timeRangeFactory = new ClusterTimeRangeFactory(
+
+        final Clock clock = mock(Clock.class);
+        final RetentionPeriodFetcher retentionPeriodFetcher =
+            mock(RetentionPeriodFetcher.class);
+        Mockito.when(clock.instant()).thenReturn(Instant.ofEpochMilli(NOW.getTime()));
+        Mockito.when(retentionPeriodFetcher.getRetentionPeriods())
+            .thenReturn(RetentionPeriods.BOUNDARY_RETENTION_PERIODS);
+        timeFrameCalculator = new TimeFrameCalculator(clock, retentionPeriodFetcher);
+
+        final ClusterTimeRangeFactory clusterTimeRangeFactory = new ClusterTimeRangeFactory(
                 historydbIO, timeFrameCalculator);
+        final DefaultTimeRangeFactory defaultTimeRangeFactory = new DefaultTimeRangeFactory(
+            historydbIO, timeFrameCalculator, 15, TimeUnit.MINUTES);
+
         final ComputedPropertiesProcessorFactory computedPropertiesFactory =
                 ComputedPropertiesProcessor::new;
-        clusterStatsReader = new ClusterStatsReader(historydbIO, timeRangeFactory,
-                computedPropertiesFactory, 500);
+        clusterStatsReader = new ClusterStatsReader(historydbIO, clusterTimeRangeFactory,
+                defaultTimeRangeFactory, computedPropertiesFactory, 500);
         System.out.println("Initializing DB - " + testDbName);
         HistorydbIO.setSharedInstance(historydbIO);
         historydbIO.setSchemaForTests(testDbName);
@@ -220,134 +243,178 @@ public class ClusterStatsReaderTest {
     /**
      * Populate data for test cases: database with 4 clusters.
      *
-     * @throws VmtDbException       if there's a problem
      * @throws InterruptedException if interrupted
      */
-    private void populateTestDataBig() throws VmtDbException, InterruptedException {
+    private void populateTestDataBig() throws InterruptedException {
+        populateTestDataBig(true);
+    }
+
+    /**
+     * Populate data for test cases: database with 4 clusters.
+     *
+     * @param insertLatest insert latest records or not
+     * @throws InterruptedException if interrupted
+     */
+    private void populateTestDataBig(final boolean insertLatest) throws InterruptedException {
         final ImmutableBulkInserterConfig config = ImmutableBulkInserterConfig.builder()
                 .batchSize(10).maxPendingBatches(1).maxBatchRetries(1).maxRetryBackoffMsec(100)
                 .build();
         try (SimpleBulkLoaderFactory loaders = new SimpleBulkLoaderFactory(historydbIO, config,
                 Executors.newSingleThreadExecutor())) {
 
-            // a stat record from another cluster
-            insertStatsRecord(loaders, CLUSTER_STATS_BY_MONTH, Timestamp.valueOf("2017-12-1 00:00:00"),
-                              CLUSTER_ID_2, HEADROOM_VMS, NUM_VMS, 20.0);
+            if (insertLatest) {
+                insertTimeStampRecord(loaders, TimeFrame.LATEST, LATEST_TIMESTAMP1, Timestamp.valueOf("2020-01-03 21:00:00"));
+                insertTimeStampRecord(loaders, TimeFrame.LATEST, LATEST_TIMESTAMP2, Timestamp.valueOf("2020-01-03 21:00:00"));
 
-            // memory utilization records in "latest stats"
-            final Timestamp minuteAgo = new Timestamp(System.currentTimeMillis() - 60_000);
-            insertStatsRecord(loaders, CLUSTER_STATS_LATEST, minuteAgo, CLUSTER_ID_3, MEM, USED, 10.0);
-            insertStatsRecord(loaders, CLUSTER_STATS_LATEST, minuteAgo, CLUSTER_ID_3, MEM, CAPACITY, 20.0);
-            insertStatsRecord(loaders, CLUSTER_STATS_LATEST, minuteAgo, CLUSTER_ID_4, MEM, USED, 100.0);
-            insertStatsRecord(loaders, CLUSTER_STATS_LATEST, minuteAgo, CLUSTER_ID_4, MEM, CAPACITY, 300.0);
-            insertStatsRecord(loaders, CLUSTER_STATS_LATEST, minuteAgo, CLUSTER_ID_5, MEM, USED, 9.0);
-            insertStatsRecord(loaders, CLUSTER_STATS_LATEST, minuteAgo, CLUSTER_ID_5, MEM, CAPACITY, 9.0);
-            insertStatsRecord(loaders, CLUSTER_STATS_LATEST, minuteAgo, CLUSTER_ID_6, MEM, USED, 0.0);
-            insertStatsRecord(loaders, CLUSTER_STATS_LATEST, minuteAgo, CLUSTER_ID_6, MEM, CAPACITY, 9.0);
+                // cluster_stats_latest
+                // Mem used and Mem capacity records in "cluster_stats_latest"
+                insertStatsRecord(loaders, CLUSTER_STATS_LATEST, LATEST_TIMESTAMP1, CLUSTER_ID_3, MEM, USED, 10.0);
+                insertStatsRecord(loaders, CLUSTER_STATS_LATEST, LATEST_TIMESTAMP1, CLUSTER_ID_3, MEM, CAPACITY, 20.0);
+                insertStatsRecord(loaders, CLUSTER_STATS_LATEST, LATEST_TIMESTAMP1, CLUSTER_ID_4, MEM, USED, 100.0);
+                insertStatsRecord(loaders, CLUSTER_STATS_LATEST, LATEST_TIMESTAMP1, CLUSTER_ID_4, MEM, CAPACITY, 300.0);
 
-            // count records in "latest"
-            insertStatsRecord(loaders, CLUSTER_STATS_LATEST, minuteAgo, CLUSTER_ID_3, NUM_VMS, NUM_VMS, 8.0);
-            insertStatsRecord(loaders, CLUSTER_STATS_LATEST, minuteAgo, CLUSTER_ID_3, NUM_HOSTS, NUM_HOSTS, 1.0);
-            insertStatsRecord(loaders, CLUSTER_STATS_LATEST, minuteAgo, CLUSTER_ID_4, NUM_VMS, NUM_VMS, 6.0);
-            insertStatsRecord(loaders, CLUSTER_STATS_LATEST, minuteAgo, CLUSTER_ID_4, NUM_HOSTS, NUM_HOSTS, 1.0);
-            insertStatsRecord(loaders, CLUSTER_STATS_LATEST, minuteAgo, CLUSTER_ID_5, NUM_VMS, NUM_VMS, 10.0);
-            insertStatsRecord(loaders, CLUSTER_STATS_LATEST, minuteAgo, CLUSTER_ID_5, NUM_HOSTS, NUM_HOSTS, 1.0);
-            insertStatsRecord(loaders, CLUSTER_STATS_LATEST, minuteAgo, CLUSTER_ID_6, NUM_VMS, NUM_VMS, 4.0);
-            insertStatsRecord(loaders, CLUSTER_STATS_LATEST, minuteAgo, CLUSTER_ID_6, NUM_HOSTS, NUM_HOSTS, 1.0);
+                insertStatsRecord(loaders, CLUSTER_STATS_LATEST, LATEST_TIMESTAMP2, CLUSTER_ID_3, MEM, USED, 100.0);
+                insertStatsRecord(loaders, CLUSTER_STATS_LATEST, LATEST_TIMESTAMP2, CLUSTER_ID_3, MEM, CAPACITY, 200.0);
 
-            // memory utilization records in "stats by day"
-            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, PREVIOUS_COMMODITY_STATS_TIMESTAMP, CLUSTER_ID_3,
-                              MEM, USED, 10.0);
-            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, PREVIOUS_COMMODITY_STATS_TIMESTAMP, CLUSTER_ID_3,
-                              MEM, CAPACITY, 20.0);
-            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, PREVIOUS_COMMODITY_STATS_TIMESTAMP, CLUSTER_ID_4,
-                              MEM, USED, 100.0);
-            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, PREVIOUS_COMMODITY_STATS_TIMESTAMP, CLUSTER_ID_4,
-                              MEM, CAPACITY, 300.0);
-            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, PREVIOUS_COMMODITY_STATS_TIMESTAMP, CLUSTER_ID_5,
-                              MEM, USED, 9.0);
-            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, PREVIOUS_COMMODITY_STATS_TIMESTAMP, CLUSTER_ID_5,
-                              MEM, CAPACITY, 9.0);
-            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, PREVIOUS_COMMODITY_STATS_TIMESTAMP, CLUSTER_ID_6,
-                              MEM, USED, 0.0);
-            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, PREVIOUS_COMMODITY_STATS_TIMESTAMP, CLUSTER_ID_6,
-                              MEM, CAPACITY, 9.0);
+                // numVMs and numHosts records in "cluster_stats_latest"
+                insertStatsRecord(loaders, CLUSTER_STATS_LATEST, LATEST_TIMESTAMP1, CLUSTER_ID_3, NUM_VMS, NUM_VMS, 8.0);
+                insertStatsRecord(loaders, CLUSTER_STATS_LATEST, LATEST_TIMESTAMP1, CLUSTER_ID_3, NUM_HOSTS, NUM_HOSTS, 1.0);
+                insertStatsRecord(loaders, CLUSTER_STATS_LATEST, LATEST_TIMESTAMP1, CLUSTER_ID_4, NUM_VMS, NUM_VMS, 6.0);
+                insertStatsRecord(loaders, CLUSTER_STATS_LATEST, LATEST_TIMESTAMP1, CLUSTER_ID_4, NUM_HOSTS, NUM_HOSTS, 1.0);
 
-            // some past mem records
-            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, PREVIOUS_COMMODITY_STATS_TIMESTAMP,
-                              CLUSTER_ID_3, MEM, USED, 10.0);
-            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, PREVIOUS_COMMODITY_STATS_TIMESTAMP,
-                              CLUSTER_ID_3, MEM, CAPACITY, 20.0);
+                insertStatsRecord(loaders, CLUSTER_STATS_LATEST, LATEST_TIMESTAMP2, CLUSTER_ID_3, NUM_VMS, NUM_VMS, 80.0);
+                insertStatsRecord(loaders, CLUSTER_STATS_LATEST, LATEST_TIMESTAMP2, CLUSTER_ID_3, NUM_HOSTS, NUM_HOSTS, 10.0);
 
-            // CPU headroom records
-            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, LATEST_DATE_TIMESTAMP, CLUSTER_ID_3,
+                // numCPUs records in "cluster_stats_latest"
+                insertStatsRecord(loaders, CLUSTER_STATS_LATEST, LATEST_TIMESTAMP1, CLUSTER_ID_2, NUM_CPUS, NUM_CPUS, 15.0);
+                insertStatsRecord(loaders, CLUSTER_STATS_LATEST, LATEST_TIMESTAMP1, CLUSTER_ID_3, NUM_CPUS, NUM_CPUS, 10.0);
+                insertStatsRecord(loaders, CLUSTER_STATS_LATEST, LATEST_TIMESTAMP1, CLUSTER_ID_4, NUM_CPUS, NUM_CPUS, 6.0);
+
+                insertStatsRecord(loaders, CLUSTER_STATS_LATEST, LATEST_TIMESTAMP2, CLUSTER_ID_3, NUM_CPUS, NUM_CPUS, 100.0);
+            }
+
+            insertTimeStampRecord(loaders, TimeFrame.HOUR, HOUR_TIMESTAMP1, Timestamp.valueOf("2020-01-06 18:00:00"));
+            insertTimeStampRecord(loaders, TimeFrame.HOUR, HOUR_TIMESTAMP2, Timestamp.valueOf("2020-01-06 17:00:00"));
+            insertTimeStampRecord(loaders, TimeFrame.DAY, DAY_TIMESTAMP1, Timestamp.valueOf("2020-03-01 00:00:00"));
+            insertTimeStampRecord(loaders, TimeFrame.DAY, DAY_TIMESTAMP2, Timestamp.valueOf("2020-02-28 00:00:00"));
+
+            // cluster_stats_by_hour
+            // Mem used and Mem capacity records in "cluster_stats_by_hour"
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_HOUR, HOUR_TIMESTAMP1, CLUSTER_ID_3, MEM, USED, 1.0);
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_HOUR, HOUR_TIMESTAMP1, CLUSTER_ID_3, MEM, CAPACITY, 2.0);
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_HOUR, HOUR_TIMESTAMP1, CLUSTER_ID_4, MEM, USED, 10.0);
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_HOUR, HOUR_TIMESTAMP1, CLUSTER_ID_4, MEM, CAPACITY, 30.0);
+
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_HOUR, HOUR_TIMESTAMP2, CLUSTER_ID_3, MEM, USED, 10.0);
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_HOUR, HOUR_TIMESTAMP2, CLUSTER_ID_3, MEM, CAPACITY, 20.0);
+
+            // numVMs and numHosts records in "cluster_stats_by_hour"
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_HOUR, HOUR_TIMESTAMP1, CLUSTER_ID_3, NUM_VMS, NUM_VMS, 80.0);
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_HOUR, HOUR_TIMESTAMP1, CLUSTER_ID_3, NUM_HOSTS, NUM_HOSTS, 10.0);
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_HOUR, HOUR_TIMESTAMP1, CLUSTER_ID_4, NUM_VMS, NUM_VMS, 60.0);
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_HOUR, HOUR_TIMESTAMP1, CLUSTER_ID_4, NUM_HOSTS, NUM_HOSTS, 10.0);
+
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_HOUR, HOUR_TIMESTAMP2, CLUSTER_ID_3, NUM_VMS, NUM_VMS, 8.0);
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_HOUR, HOUR_TIMESTAMP2, CLUSTER_ID_3, NUM_HOSTS, NUM_HOSTS, 1.0);
+
+            // numCPUs records in "cluster_stats_by_hour"
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_HOUR, HOUR_TIMESTAMP1, CLUSTER_ID_3, NUM_CPUS, NUM_CPUS, 1.0);
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_HOUR, HOUR_TIMESTAMP1, CLUSTER_ID_4, NUM_CPUS, NUM_CPUS, 60.0);
+
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_HOUR, HOUR_TIMESTAMP2, CLUSTER_ID_3, NUM_CPUS, NUM_CPUS, 10.0);
+
+
+            // cluster_stats_by_day
+            // Mem used and Mem capacity records in "cluster_stats_by_day"
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, DAY_TIMESTAMP1, CLUSTER_ID_3, MEM, USED, 15.0);
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, DAY_TIMESTAMP1, CLUSTER_ID_3, MEM, CAPACITY, 25.0);
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, DAY_TIMESTAMP1, CLUSTER_ID_4, MEM, USED, 150.0);
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, DAY_TIMESTAMP1, CLUSTER_ID_4, MEM, CAPACITY, 350.0);
+
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, DAY_TIMESTAMP2, CLUSTER_ID_3, MEM, USED, 100.0);
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, DAY_TIMESTAMP2, CLUSTER_ID_3, MEM, CAPACITY, 200.0);
+
+            // numVMs and numHosts records in "cluster_stats_by_day"
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, DAY_TIMESTAMP1, CLUSTER_ID_3, NUM_VMS, NUM_VMS, 5.0);
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, DAY_TIMESTAMP1, CLUSTER_ID_3, NUM_HOSTS, NUM_HOSTS, 10.0);
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, DAY_TIMESTAMP1, CLUSTER_ID_4, NUM_VMS, NUM_VMS, 60.0);
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, DAY_TIMESTAMP1, CLUSTER_ID_4, NUM_HOSTS, NUM_HOSTS, 10.0);
+
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, DAY_TIMESTAMP2, CLUSTER_ID_3, NUM_VMS, NUM_VMS, 18.0);
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, DAY_TIMESTAMP2, CLUSTER_ID_3, NUM_HOSTS, NUM_HOSTS, 11.0);
+
+            // CPUHeadroom records in "cluster_stats_by_day"
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, DAY_TIMESTAMP1, CLUSTER_ID_3,
                               CPU_HEADROOM, USED, 10.0);
-            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, LATEST_DATE_TIMESTAMP, CLUSTER_ID_3,
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, DAY_TIMESTAMP1, CLUSTER_ID_3,
                               CPU_HEADROOM, CAPACITY, 20.0);
-            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, LATEST_DATE_TIMESTAMP, CLUSTER_ID_4,
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, DAY_TIMESTAMP1, CLUSTER_ID_4,
                               CPU_HEADROOM, USED, 100.0);
-            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, LATEST_DATE_TIMESTAMP, CLUSTER_ID_4,
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, DAY_TIMESTAMP1, CLUSTER_ID_4,
                               CPU_HEADROOM, CAPACITY, 300.0);
-            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, LATEST_DATE_TIMESTAMP, CLUSTER_ID_5,
-                              CPU_HEADROOM, USED, 9.0);
-            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, LATEST_DATE_TIMESTAMP, CLUSTER_ID_5,
-                              CPU_HEADROOM, CAPACITY, 9.0);
-            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, LATEST_DATE_TIMESTAMP, CLUSTER_ID_6,
-                              CPU_HEADROOM, USED, 0.0);
-            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, LATEST_DATE_TIMESTAMP, CLUSTER_ID_6,
-                              CPU_HEADROOM, CAPACITY, 9.0);
 
-            // some past CPU headroom records
-            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, PREVIOUS_DATE_TIMESTAMP, CLUSTER_ID_3,
-                              CPU_HEADROOM, USED, 20.0);
-            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, PREVIOUS_DATE_TIMESTAMP, CLUSTER_ID_3,
-                              CPU_HEADROOM, CAPACITY, 20.0);
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, DAY_TIMESTAMP2, CLUSTER_ID_3,
+                              CPU_HEADROOM, USED, 1.0);
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, DAY_TIMESTAMP2, CLUSTER_ID_3,
+                              CPU_HEADROOM, CAPACITY, 2.0);
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, DAY_TIMESTAMP2, CLUSTER_ID_4,
+                              CPU_HEADROOM, USED, 10.0);
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, DAY_TIMESTAMP2, CLUSTER_ID_4,
+                              CPU_HEADROOM, CAPACITY, 30.0);
 
-            // mem headroom records
-            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, LATEST_DATE_TIMESTAMP, CLUSTER_ID_3,
+            // MemHeadroom records in "cluster_stats_by_day"
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, DAY_TIMESTAMP1, CLUSTER_ID_3,
                               MEM_HEADROOM, USED, 9.0);
-            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, LATEST_DATE_TIMESTAMP, CLUSTER_ID_3,
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, DAY_TIMESTAMP1, CLUSTER_ID_3,
                               MEM_HEADROOM, CAPACITY, 10.0);
-            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, LATEST_DATE_TIMESTAMP, CLUSTER_ID_4,
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, DAY_TIMESTAMP1, CLUSTER_ID_4,
                               MEM_HEADROOM, USED, 20.0);
-            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, LATEST_DATE_TIMESTAMP, CLUSTER_ID_4,
-                              MEM_HEADROOM, CAPACITY, 30.0);
-            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, LATEST_DATE_TIMESTAMP, CLUSTER_ID_5,
-                              MEM_HEADROOM, USED, 8.0);
-            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, LATEST_DATE_TIMESTAMP, CLUSTER_ID_5,
-                              MEM_HEADROOM, CAPACITY, 10.0);
-            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, LATEST_DATE_TIMESTAMP, CLUSTER_ID_6,
-                              MEM_HEADROOM, USED, 0.0);
-            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, LATEST_DATE_TIMESTAMP, CLUSTER_ID_6,
-                              MEM_HEADROOM, CAPACITY, 10.0);
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, DAY_TIMESTAMP1, CLUSTER_ID_4,
+                              MEM_HEADROOM, CAPACITY, 50.0);
 
-            // storage headroom records
-            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, LATEST_DATE_TIMESTAMP, CLUSTER_ID_3,
-                              STORAGE_HEADROOM, USED, 1.0);
-            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, LATEST_DATE_TIMESTAMP, CLUSTER_ID_3,
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, DAY_TIMESTAMP2, CLUSTER_ID_3,
+                              MEM_HEADROOM, USED, 1.0);
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, DAY_TIMESTAMP2, CLUSTER_ID_3,
+                              MEM_HEADROOM, CAPACITY, 20.0);
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, DAY_TIMESTAMP2, CLUSTER_ID_4,
+                              MEM_HEADROOM, USED, 4.0);
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, DAY_TIMESTAMP2, CLUSTER_ID_4,
+                              MEM_HEADROOM, CAPACITY, 5.0);
+
+            // StorageHeadroom records in "cluster_stats_by_day"
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, DAY_TIMESTAMP1, CLUSTER_ID_3,
+                              STORAGE_HEADROOM, USED, 10.0);
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, DAY_TIMESTAMP1, CLUSTER_ID_3,
                               STORAGE_HEADROOM, CAPACITY, 20.0);
-            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, LATEST_DATE_TIMESTAMP, CLUSTER_ID_4,
-                              STORAGE_HEADROOM, USED, 4.0);
-            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, LATEST_DATE_TIMESTAMP, CLUSTER_ID_4,
-                              STORAGE_HEADROOM, CAPACITY, 5.0);
-            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, LATEST_DATE_TIMESTAMP, CLUSTER_ID_5,
-                              STORAGE_HEADROOM, USED, 3.0);
-            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, LATEST_DATE_TIMESTAMP, CLUSTER_ID_5,
-                              STORAGE_HEADROOM, CAPACITY, 10.0);
-            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, LATEST_DATE_TIMESTAMP, CLUSTER_ID_6,
-                              STORAGE_HEADROOM, USED, 6.0);
-            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, LATEST_DATE_TIMESTAMP, CLUSTER_ID_6,
-                              STORAGE_HEADROOM, CAPACITY, 100.0);
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, DAY_TIMESTAMP1, CLUSTER_ID_4,
+                              STORAGE_HEADROOM, USED, 30.0);
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, DAY_TIMESTAMP1, CLUSTER_ID_4,
+                              STORAGE_HEADROOM, CAPACITY, 300.0);
 
-            // numCPUs records
-            insertStatsRecord(loaders, CLUSTER_STATS_LATEST, LATEST_DATE_TIMESTAMP, CLUSTER_ID_3,
-                              NUM_CPUS, NUM_CPUS, 10.0);
-            insertStatsRecord(loaders, CLUSTER_STATS_LATEST, LATEST_DATE_TIMESTAMP, CLUSTER_ID_4,
-                              NUM_CPUS, NUM_CPUS, 6.0);
-            insertStatsRecord(loaders, CLUSTER_STATS_LATEST, LATEST_DATE_TIMESTAMP, CLUSTER_ID_5,
-                              NUM_CPUS, NUM_CPUS, 12.0);
-            insertStatsRecord(loaders, CLUSTER_STATS_LATEST, LATEST_DATE_TIMESTAMP, CLUSTER_ID_6,
-                              NUM_CPUS, NUM_CPUS, 2.0);
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, DAY_TIMESTAMP2, CLUSTER_ID_3,
+                              STORAGE_HEADROOM, USED, 1.0);
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, DAY_TIMESTAMP2, CLUSTER_ID_3,
+                              STORAGE_HEADROOM, CAPACITY, 2.0);
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, DAY_TIMESTAMP2, CLUSTER_ID_4,
+                              STORAGE_HEADROOM, USED, 10.0);
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, DAY_TIMESTAMP2, CLUSTER_ID_4,
+                              STORAGE_HEADROOM, CAPACITY, 30.0);
+
+            // VMGrowth records in "cluster_stats_by_day"
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, DAY_TIMESTAMP1,
+                              CLUSTER_ID_3, VM_GROWTH, VM_GROWTH, 25.0);
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, DAY_TIMESTAMP1,
+                              CLUSTER_ID_4, VM_GROWTH, VM_GROWTH, 35.0);
+
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, DAY_TIMESTAMP2,
+                              CLUSTER_ID_3, VM_GROWTH, VM_GROWTH, 20.0);
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, DAY_TIMESTAMP2,
+                              CLUSTER_ID_4, VM_GROWTH, VM_GROWTH, 30.0);
+
+
+            // a stat record from another cluster
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, DAY_TIMESTAMP2,
+                CLUSTER_ID_2, VM_GROWTH, VM_GROWTH, 10.0);
         }
     }
 
@@ -405,6 +472,16 @@ public class ClusterStatsReaderTest {
         record.setValue(table.field(PROPERTY_SUBTYPE, String.class), propertySubtype);
         record.setValue(table.field(VALUE, Double.class), value);
         loaders.getLoader(table).insert(record);
+    }
+
+    private void insertTimeStampRecord(SimpleBulkLoaderFactory loaders, TimeFrame timeFrame,
+                                       Timestamp timestamp, Timestamp expiresAt) throws InterruptedException {
+        AvailableTimestampsRecord record = AVAILABLE_TIMESTAMPS.newRecord();
+        record.setValue(AVAILABLE_TIMESTAMPS.field("history_variety", String.class), HistoryVariety.ENTITY_STATS.name());
+        record.setValue(AVAILABLE_TIMESTAMPS.field("time_frame", String.class), timeFrame.name());
+        record.setValue(AVAILABLE_TIMESTAMPS.field("time_stamp", Timestamp.class), timestamp);
+        record.setValue(AVAILABLE_TIMESTAMPS.field("expires_at", Timestamp.class), expiresAt);
+        loaders.getLoader(AVAILABLE_TIMESTAMPS).insert(record);
     }
 
     /**
@@ -658,8 +735,8 @@ public class ClusterStatsReaderTest {
     @Test
     public void testGetClustersEmptyScope() throws Exception {
         populateTestDataBig();
-        final ClusterStatsRequest request = constructTestInput(Collections.emptySet(), MEM,
-                                                               false, 0, 100);
+        final ClusterStatsRequest request = constructTestInputWithDates(Collections.emptySet(), Collections.singleton(MEM),
+            Optional.of(LATEST_TIMESTAMP1), Optional.of(NOW), false);
         final List<ClusterStatsResponse> response = clusterStatsReader.getStatsRecords(request);
         PaginationResponse paginationResponse = null;
         List<EntityStats> entityStats = new ArrayList<>();
@@ -672,12 +749,10 @@ public class ClusterStatsReaderTest {
         }
 
         Assert.assertFalse(paginationResponse.hasNextCursor());
-        Assert.assertEquals(4, entityStats.size());
-        Assert.assertEquals(CLUSTER_ID_5, Long.toString(entityStats.get(0).getOid()));
+        Assert.assertEquals(2, entityStats.size());
+        Assert.assertEquals(CLUSTER_ID_4, Long.toString(entityStats.get(0).getOid()));
         Assert.assertEquals(CLUSTER_ID_3, Long.toString(entityStats.get(1).getOid()));
-        Assert.assertEquals(CLUSTER_ID_4, Long.toString(entityStats.get(2).getOid()));
-        Assert.assertEquals(CLUSTER_ID_6, Long.toString(entityStats.get(3).getOid()));
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < 2; i++) {
             Assert.assertEquals(MEM,
                 entityStats.get(i).getStatSnapshots(0)
                                         .getStatRecords(0).getName());
@@ -701,8 +776,8 @@ public class ClusterStatsReaderTest {
     @Test
     public void testGetClustersRatioStat() throws Exception {
         populateTestDataBig();
-        final ClusterStatsRequest request = constructTestInput(Collections.emptySet(), NUM_VMS_PER_HOST,
-                false, 0, 100);
+        final ClusterStatsRequest request = constructTestInputWithDates(Collections.emptySet(), Collections.singleton(NUM_VMS_PER_HOST),
+            Optional.of(LATEST_TIMESTAMP1), Optional.of(NOW), false);
         final List<ClusterStatsResponse> response = clusterStatsReader.getStatsRecords(request);
         PaginationResponse paginationResponse = null;
         List<EntityStats> entityStats = new ArrayList<>();
@@ -715,23 +790,17 @@ public class ClusterStatsReaderTest {
         }
 
         Assert.assertFalse(paginationResponse.hasNextCursor());
-        Assert.assertEquals(4, entityStats.size());
-        Assert.assertEquals(CLUSTER_ID_5, Long.toString(entityStats.get(0).getOid()));
+        Assert.assertEquals(2, entityStats.size());
+        Assert.assertEquals(CLUSTER_ID_4, Long.toString(entityStats.get(0).getOid()));
         Assert.assertEquals(CLUSTER_ID_3, Long.toString(entityStats.get(1).getOid()));
-        Assert.assertEquals(CLUSTER_ID_4, Long.toString(entityStats.get(2).getOid()));
-        Assert.assertEquals(CLUSTER_ID_6, Long.toString(entityStats.get(3).getOid()));
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < 2; i++) {
             Assert.assertEquals(NUM_VMS_PER_HOST,
                     entityStats.get(i).getStatSnapshots(0)
                             .getStatRecords(0).getName());
         }
-        Assert.assertEquals(10.0, entityStats.get(0).getStatSnapshots(0)
+        Assert.assertEquals(6.0, entityStats.get(0).getStatSnapshots(0)
                 .getStatRecords(0).getUsed().getAvg(), 0.0);
         Assert.assertEquals(8.0, entityStats.get(1).getStatSnapshots(0)
-                .getStatRecords(0).getUsed().getAvg(), 0.0);
-        Assert.assertEquals(6.0, entityStats.get(2).getStatSnapshots(0)
-                .getStatRecords(0).getUsed().getAvg(), 0.0);
-        Assert.assertEquals(4.0, entityStats.get(3).getStatSnapshots(0)
                 .getStatRecords(0).getUsed().getAvg(), 0.0);
     }
 
@@ -748,9 +817,9 @@ public class ClusterStatsReaderTest {
     @Test
     public void testGetClustersHeadroom() throws Exception {
         populateTestDataBig();
-        final ClusterStatsRequest request = constructTestInput(
-                ImmutableSet.of(Long.valueOf(CLUSTER_ID_3), Long.valueOf(CLUSTER_ID_5)),
-                CPU_HEADROOM, true, 0, 2);
+        final ClusterStatsRequest request = constructTestInputWithDates(
+                ImmutableSet.of(Long.valueOf(CLUSTER_ID_3), Long.valueOf(CLUSTER_ID_4)),
+                Collections.singleton(CPU_HEADROOM), Optional.of(DAY_TIMESTAMP2), Optional.of(NOW), false);
         final List<ClusterStatsResponse> response = clusterStatsReader.getStatsRecords(request);
         PaginationResponse paginationResponse = null;
         List<EntityStats> entityStats = new ArrayList<>();
@@ -763,15 +832,18 @@ public class ClusterStatsReaderTest {
         }
         Assert.assertFalse(paginationResponse.hasNextCursor());
         Assert.assertEquals(2, entityStats.size());
-        Assert.assertEquals(CLUSTER_ID_3, Long.toString(entityStats.get(0).getOid()));
-        Assert.assertEquals(CLUSTER_ID_5, Long.toString(entityStats.get(1).getOid()));
+        Assert.assertEquals(CLUSTER_ID_4, Long.toString(entityStats.get(0).getOid()));
+        Assert.assertEquals(CLUSTER_ID_3, Long.toString(entityStats.get(1).getOid()));
         for (int i = 0; i < 2; i++) {
-            Assert.assertEquals(1, entityStats.get(i).getStatSnapshotsCount());
+            Assert.assertEquals(2,
+                entityStats.get(i).getStatSnapshotsCount());
             Assert.assertEquals(CPU_HEADROOM,
-                                entityStats.get(i).getStatSnapshots(0)
-                                                .getStatRecords(0).getName());
-            assertTrue(entityStats.get(i).getStatSnapshots(0)
-                    .getStatRecords(0).hasUsed());
+                entityStats.get(i).getStatSnapshots(0).getStatRecords(0).getName());
+            Assert.assertTrue(entityStats.get(i).getStatSnapshots(0).getStatRecords(0).hasUsed());
+            Assert.assertEquals(DAY_TIMESTAMP1.getTime(),
+                entityStats.get(i).getStatSnapshots(0).getSnapshotDate());
+            Assert.assertEquals(DAY_TIMESTAMP2.getTime(),
+                entityStats.get(i).getStatSnapshots(1).getSnapshotDate());
         }
     }
 
@@ -786,9 +858,9 @@ public class ClusterStatsReaderTest {
     @Test
     public void testGetClustersHeadroomAndMem() throws Exception {
         populateTestDataBig();
-        final ClusterStatsRequest request = constructTestInput(
-                Collections.singletonList(Long.valueOf(CLUSTER_ID_3)),
-                CPU_HEADROOM, true, 0, 2, MEM);
+        final ClusterStatsRequest request = constructTestInputWithDates(
+            Collections.singletonList(Long.valueOf(CLUSTER_ID_3)), Arrays.asList(CPU_HEADROOM, MEM),
+            Optional.of(DAY_TIMESTAMP1), Optional.of(NOW), false);
         final List<ClusterStatsResponse> response = clusterStatsReader.getStatsRecords(request);
         List<EntityStats> entityStats = new ArrayList<>();
         for (ClusterStatsResponse responseChunk : response) {
@@ -798,8 +870,8 @@ public class ClusterStatsReaderTest {
         }
         Assert.assertEquals(1, entityStats.size());
         Assert.assertEquals(CLUSTER_ID_3, Long.toString(entityStats.get(0).getOid()));
-
-        Assert.assertEquals(2, entityStats.get(0).getStatSnapshotsCount());
+        Assert.assertEquals(1, entityStats.get(0).getStatSnapshotsCount());
+        Assert.assertEquals(2, entityStats.get(0).getStatSnapshots(0).getStatRecordsCount());
         final List<String> fetchedStats =
                 entityStats.get(0).getStatSnapshotsList().stream()
                     .flatMap(s -> s.getStatRecordsList().stream())
@@ -818,9 +890,8 @@ public class ClusterStatsReaderTest {
     @Test
     public void testGetClustersWithOffsetAndLimit() throws Exception {
         populateTestDataBig();
-        final ClusterStatsRequest request = constructTestInput(Collections.emptySet(),
-                                                               NUM_CPUS, false,
-                                                               1, 2);
+        final ClusterStatsRequest request = constructTestInputWithDates(Collections.emptySet(), NUM_CPUS, false,
+            1, 1, Optional.of(LATEST_TIMESTAMP1), Optional.of(NOW));
         final List<ClusterStatsResponse> response = clusterStatsReader.getStatsRecords(request);
         PaginationResponse paginationResponse = null;
         List<EntityStats> entityStats = new ArrayList<>();
@@ -831,18 +902,112 @@ public class ClusterStatsReaderTest {
                 entityStats.addAll(responseChunk.getSnapshotsChunk().getSnapshotsList());
             }
         }
-        Assert.assertEquals("3", paginationResponse.getNextCursor());
-        Assert.assertEquals(2, entityStats.size());
+        Assert.assertEquals("2", paginationResponse.getNextCursor());
+        Assert.assertEquals(1, entityStats.size());
         Assert.assertEquals(CLUSTER_ID_3, Long.toString(entityStats.get(0).getOid()));
-        Assert.assertEquals(CLUSTER_ID_4, Long.toString(entityStats.get(1).getOid()));
-        for (int i = 0; i < 2; i++) {
-            Assert.assertEquals(1, entityStats.get(i).getStatSnapshotsCount());
-            Assert.assertEquals(NUM_CPUS,
-                                entityStats.get(i).getStatSnapshots(0)
-                                            .getStatRecords(0).getName());
-            assertTrue(entityStats.get(i).getStatSnapshots(0)
-                    .getStatRecords(0).hasUsed());
+        Assert.assertEquals(1, entityStats.get(0).getStatSnapshotsCount());
+        Assert.assertEquals(NUM_CPUS,
+            entityStats.get(0).getStatSnapshots(0).getStatRecords(0).getName());
+        Assert.assertEquals(10.0f,
+            entityStats.get(0).getStatSnapshots(0).getStatRecords(0).getUsed().getAvg(), 1e-7);
+    }
+
+    /**
+     * Get last 2 hours Mem records.
+     *
+     * @throws Exception should not happen.
+     */
+    @Test
+    public void testGetMemLatest() throws Exception {
+        populateTestDataBig();
+        final List<ClusterStatsResponse> response =
+            clusterStatsReader.getStatsRecords(constructTestInputWithDates(
+                Collections.singletonList(Long.parseLong(CLUSTER_ID_3)), Collections.singletonList(MEM),
+                Optional.of(LATEST_TIMESTAMP2), Optional.of(NOW), false));
+        final List<EntityStats> entityStats = new ArrayList<>();
+        for (ClusterStatsResponse responseChunk : response) {
+            entityStats.addAll(responseChunk.getSnapshotsChunk().getSnapshotsList());
         }
+        Assert.assertEquals(1, entityStats.size());
+        Assert.assertEquals(CLUSTER_ID_3, Long.toString(entityStats.get(0).getOid()));
+        Assert.assertEquals(2, entityStats.get(0).getStatSnapshotsCount());
+        Assert.assertEquals(LATEST_TIMESTAMP1.getTime(),
+            entityStats.get(0).getStatSnapshots(0).getSnapshotDate());
+        Assert.assertEquals(LATEST_TIMESTAMP2.getTime(),
+            entityStats.get(0).getStatSnapshots(1).getSnapshotDate());
+    }
+
+    /**
+     * Get last 24 hours Mem records.
+     *
+     * @throws Exception should not happen.
+     */
+    @Test
+    public void testGetMemHour() throws Exception {
+        populateTestDataBig();
+        final List<ClusterStatsResponse> response =
+            clusterStatsReader.getStatsRecords(constructTestInputWithDates(
+                Collections.singletonList(Long.parseLong(CLUSTER_ID_3)), Collections.singletonList(MEM),
+                Optional.of(HOUR_TIMESTAMP2), Optional.of(NOW), false));
+        final List<EntityStats> entityStats = new ArrayList<>();
+        for (ClusterStatsResponse responseChunk : response) {
+            entityStats.addAll(responseChunk.getSnapshotsChunk().getSnapshotsList());
+        }
+        Assert.assertEquals(1, entityStats.size());
+        Assert.assertEquals(CLUSTER_ID_3, Long.toString(entityStats.get(0).getOid()));
+        Assert.assertEquals(2, entityStats.get(0).getStatSnapshotsCount());
+        Assert.assertEquals(HOUR_TIMESTAMP1.getTime(),
+            entityStats.get(0).getStatSnapshots(0).getSnapshotDate());
+        Assert.assertEquals(HOUR_TIMESTAMP2.getTime(),
+            entityStats.get(0).getStatSnapshots(1).getSnapshotDate());
+    }
+
+    /**
+     * Get last 7 days Mem records.
+     *
+     * @throws Exception should not happen.
+     */
+    @Test
+    public void testGetMemDay() throws Exception {
+        populateTestDataBig();
+        final List<ClusterStatsResponse> response =
+            clusterStatsReader.getStatsRecords(constructTestInputWithDates(
+                Collections.singletonList(Long.parseLong(CLUSTER_ID_3)), Collections.singletonList(MEM),
+                Optional.of(DAY_TIMESTAMP2), Optional.of(NOW), false));
+        final List<EntityStats> entityStats = new ArrayList<>();
+        for (ClusterStatsResponse responseChunk : response) {
+            entityStats.addAll(responseChunk.getSnapshotsChunk().getSnapshotsList());
+        }
+        Assert.assertEquals(1, entityStats.size());
+        Assert.assertEquals(CLUSTER_ID_3, Long.toString(entityStats.get(0).getOid()));
+        Assert.assertEquals(2, entityStats.get(0).getStatSnapshotsCount());
+        Assert.assertEquals(DAY_TIMESTAMP1.getTime(),
+            entityStats.get(0).getStatSnapshots(0).getSnapshotDate());
+        Assert.assertEquals(DAY_TIMESTAMP2.getTime(),
+            entityStats.get(0).getStatSnapshots(1).getSnapshotDate());
+    }
+
+    /**
+     * If user asks for latest stats but there's no latest stats, return hourly stats.
+     *
+     * @throws Exception should not happen.
+     */
+    @Test
+    public void testGetMemNoLatest() throws Exception {
+        populateTestDataBig(false);
+        final List<ClusterStatsResponse> response =
+            clusterStatsReader.getStatsRecords(constructTestInputWithDates(
+                Collections.singletonList(Long.parseLong(CLUSTER_ID_3)), Collections.singletonList(MEM),
+                Optional.of(LATEST_TIMESTAMP2), Optional.of(NOW), false));
+        final List<EntityStats> entityStats = new ArrayList<>();
+        for (ClusterStatsResponse responseChunk : response) {
+            entityStats.addAll(responseChunk.getSnapshotsChunk().getSnapshotsList());
+        }
+        Assert.assertEquals(1, entityStats.size());
+        Assert.assertEquals(CLUSTER_ID_3, Long.toString(entityStats.get(0).getOid()));
+        Assert.assertEquals(1, entityStats.get(0).getStatSnapshotsCount());
+        Assert.assertEquals(HOUR_TIMESTAMP1.getTime(),
+            entityStats.get(0).getStatSnapshots(0).getSnapshotDate());
     }
 
     /**
@@ -873,12 +1038,10 @@ public class ClusterStatsReaderTest {
             }
         }
         Assert.assertFalse(paginationResponse.hasNextCursor());
-        Assert.assertEquals(4, entityStats.size());
-        Assert.assertEquals(CLUSTER_ID_6, Long.toString(entityStats.get(0).getOid()));
-        Assert.assertEquals(CLUSTER_ID_5, Long.toString(entityStats.get(1).getOid()));
-        Assert.assertEquals(CLUSTER_ID_4, Long.toString(entityStats.get(2).getOid()));
-        Assert.assertEquals(CLUSTER_ID_3, Long.toString(entityStats.get(3).getOid()));
-        for (int i = 0; i < 4; i++) {
+        Assert.assertEquals(2, entityStats.size());
+        Assert.assertEquals(CLUSTER_ID_4, Long.toString(entityStats.get(0).getOid()));
+        Assert.assertEquals(CLUSTER_ID_3, Long.toString(entityStats.get(1).getOid()));
+        for (int i = 0; i < 2; i++) {
             Assert.assertEquals(1, entityStats.get(i).getStatSnapshotsCount());
             Assert.assertEquals(CPU_HEADROOM,
                                 entityStats.get(i).getStatSnapshots(0)
@@ -897,7 +1060,7 @@ public class ClusterStatsReaderTest {
     @Test
     public void testCreateClusterStatsResponseList() throws Exception {
         populateTestDataBig();
-        final ClusterStatsRequest request = constructTestInput(Collections.emptySet(), MEM,
+        final ClusterStatsRequest request = constructTestInput(Collections.emptySet(), CPU_HEADROOM,
             false, 0, 100);
         final List<ClusterStatsResponse> response = clusterStatsReader.getStatsRecords(request);
         Assert.assertEquals(1,
@@ -915,7 +1078,7 @@ public class ClusterStatsReaderTest {
     public void testEndDateWithNoStartDate() throws Exception {
         populateTestDataBig();
         clusterStatsReader.getStatsRecords(constructTestInputWithDates(
-                Optional.empty(), Optional.of(LATEST_DATE_TIMESTAMP), false));
+                Optional.empty(), Optional.of(LATEST_TIMESTAMP1), false));
     }
 
     /**
@@ -927,7 +1090,7 @@ public class ClusterStatsReaderTest {
     public void testStartAfterEnd() throws Exception {
         populateTestDataBig();
         clusterStatsReader.getStatsRecords(constructTestInputWithDates(
-                Optional.of(NEXT_DATE_TIMESTAMP), Optional.of(LATEST_DATE_TIMESTAMP), false));
+                Optional.of(NOW), Optional.of(LATEST_TIMESTAMP1), false));
     }
 
     /**
@@ -949,80 +1112,6 @@ public class ClusterStatsReaderTest {
                 stat.getSnapshotsChunk().getSnapshotsList().forEach(entityStats ->
                         entityStats.getStatSnapshotsList().forEach(statSnapshot ->
                                 assertEquals(StatEpoch.PROJECTED, statSnapshot.getStatEpoch()))));
-    }
-
-    /**
-     * If only a start date is provided in a cluster stats request, behave as if
-     * the end time is now.  This test is valid when executed after 2017 in a computer
-     * with accurate watch.
-     *
-     * @throws Exception should not happen.
-     */
-    @Test
-    public void testNoEndDateMeansNow() throws Exception {
-        populateTestDataBig();
-        final List<ClusterStatsResponse> response =
-            clusterStatsReader.getStatsRecords(constructTestInputWithDates(
-                    Optional.of(PREVIOUS_DATE_TIMESTAMP), Optional.empty(), false));
-        final List<EntityStats> entityStats = new ArrayList<>();
-        for (ClusterStatsResponse responseChunk : response) {
-            entityStats.addAll(responseChunk.getSnapshotsChunk().getSnapshotsList());
-        }
-        Assert.assertEquals(1, entityStats.size());
-        Assert.assertEquals(CLUSTER_ID_3, Long.toString(entityStats.get(0).getOid()));
-        Assert.assertEquals(2, entityStats.get(0).getStatSnapshotsCount());
-        Assert.assertEquals(LATEST_DATE_TIMESTAMP.getTime(),
-                            entityStats.get(0).getStatSnapshots(0).getSnapshotDate());
-        Assert.assertEquals(PREVIOUS_DATE_TIMESTAMP.getTime(),
-                            entityStats.get(0).getStatSnapshots(1).getSnapshotDate());
-    }
-
-    /**
-     * In a cluster stats request bring only relevant historical data.
-     * Headroom stats version.
-     *
-     * @throws Exception should not happen.
-     */
-    @Test
-    public void testStartAndEndDate() throws Exception {
-        populateTestDataBig();
-        final List<ClusterStatsResponse> response =
-                clusterStatsReader.getStatsRecords(constructTestInputWithDates(
-                        Optional.of(PREVIOUS_DATE_TIMESTAMP), Optional.of(PREVIOUS_DATE_TIMESTAMP),
-                        false));
-        final List<EntityStats> entityStats = new ArrayList<>();
-        for (ClusterStatsResponse responseChunk : response) {
-            entityStats.addAll(responseChunk.getSnapshotsChunk().getSnapshotsList());
-        }
-        Assert.assertEquals(1, entityStats.size());
-        Assert.assertEquals(CLUSTER_ID_3, Long.toString(entityStats.get(0).getOid()));
-        Assert.assertEquals(1, entityStats.get(0).getStatSnapshotsCount());
-        Assert.assertEquals(PREVIOUS_DATE_TIMESTAMP.getTime(),
-                            entityStats.get(0).getStatSnapshots(0).getSnapshotDate());
-    }
-
-    /**
-     * In a cluster stats request bring only relevant historical data.
-     * Non-headroom stats version.
-     *
-     * @throws Exception should not happen.
-     */
-    @Test
-    public void testStartAndEndDateNonHeadroom() throws Exception {
-        populateTestDataBig();
-        final Timestamp fiveMinutesAgo = new Timestamp(System.currentTimeMillis() - 300_000);
-        final Timestamp now = new Timestamp(System.currentTimeMillis() - 1);
-        final List<ClusterStatsResponse> response =
-                clusterStatsReader.getStatsRecords(
-                        constructTestInputWithDates(Optional.of(fiveMinutesAgo), Optional.of(now), MEM,
-                                false));
-        final List<EntityStats> entityStats = new ArrayList<>();
-        for (ClusterStatsResponse responseChunk : response) {
-            entityStats.addAll(responseChunk.getSnapshotsChunk().getSnapshotsList());
-        }
-        Assert.assertEquals(1, entityStats.size());
-        Assert.assertEquals(CLUSTER_ID_3, Long.toString(entityStats.get(0).getOid()));
-        Assert.assertEquals(1, entityStats.get(0).getStatSnapshotsCount());
     }
 
     /**
@@ -1062,8 +1151,8 @@ public class ClusterStatsReaderTest {
         }
 
         Assert.assertFalse(paginationResponse.hasNextCursor());
-        Assert.assertEquals(4, entityStats.size());
-        for (int i = 0; i < 4; i++) {
+        Assert.assertEquals(2, entityStats.size());
+        for (int i = 0; i < 2; i++) {
             Assert.assertEquals(CPU_HEADROOM,
                                 entityStats.get(i).getStatSnapshots(0)
                                     .getStatRecords(0).getName());
@@ -1099,46 +1188,39 @@ public class ClusterStatsReaderTest {
             }
         }
         Assert.assertFalse(paginationResponse.hasNextCursor());
-        Assert.assertEquals(4, entityStats.size());
+        Assert.assertEquals(2, entityStats.size());
 
         final double epsilon = 0.1;
 
-        // First should be cluster 6 with 0/9 total headroom
-        Assert.assertEquals(CLUSTER_ID_6, Long.toString(entityStats.get(0).getOid()));
+        // First should be cluster 4 with 20/50 total headroom
+        Assert.assertEquals(CLUSTER_ID_4, Long.toString(entityStats.get(0).getOid()));
         Assert.assertEquals(1, entityStats.get(0).getStatSnapshots(0).getStatRecordsCount());
         final StatRecord statSnapshot1 = entityStats.get(0).getStatSnapshots(0).getStatRecords(0);
         Assert.assertEquals(TOTAL_HEADROOM, statSnapshot1.getName());
-        Assert.assertEquals(0.0, statSnapshot1.getUsed().getAvg(), epsilon);
-        Assert.assertEquals(9.0, statSnapshot1.getCapacity().getAvg(), epsilon);
+        Assert.assertEquals(20.0, statSnapshot1.getUsed().getAvg(), epsilon);
+        Assert.assertEquals(50.0, statSnapshot1.getCapacity().getAvg(), epsilon);
 
-        // Second should be cluster 3 with 1/10 total headroom
+        // Second should be cluster 3 with 9/10 total headroom
         Assert.assertEquals(CLUSTER_ID_3, Long.toString(entityStats.get(1).getOid()));
         Assert.assertEquals(1, entityStats.get(1).getStatSnapshots(0).getStatRecordsCount());
         final StatRecord statSnapshot2 = entityStats.get(1).getStatSnapshots(0).getStatRecords(0);
         Assert.assertEquals(TOTAL_HEADROOM, statSnapshot2.getName());
-        Assert.assertEquals(1.0, statSnapshot2.getUsed().getAvg(), epsilon);
+        Assert.assertEquals(9.0, statSnapshot2.getUsed().getAvg(), epsilon);
         Assert.assertEquals(10.0, statSnapshot2.getCapacity().getAvg(), epsilon);
-
-        // Third should be cluster 5 with 3/9 total headroom
-        Assert.assertEquals(CLUSTER_ID_5, Long.toString(entityStats.get(2).getOid()));
-        Assert.assertEquals(1, entityStats.get(2).getStatSnapshots(0).getStatRecordsCount());
-        final StatRecord statSnapshot3 = entityStats.get(2).getStatSnapshots(0).getStatRecords(0);
-        Assert.assertEquals(TOTAL_HEADROOM, statSnapshot3.getName());
-        Assert.assertEquals(3.0, statSnapshot3.getUsed().getAvg(), epsilon);
-        Assert.assertEquals(9.0, statSnapshot3.getCapacity().getAvg(), epsilon);
-
-        // Last should be cluster 4 with 4/5 total headroom
-        Assert.assertEquals(CLUSTER_ID_4, Long.toString(entityStats.get(3).getOid()));
-        Assert.assertEquals(1, entityStats.get(3).getStatSnapshots(0).getStatRecordsCount());
-        final StatRecord statSnapshot4 = entityStats.get(3).getStatSnapshots(0).getStatRecords(0);
-        Assert.assertEquals(TOTAL_HEADROOM, statSnapshot4.getName());
-        Assert.assertEquals(4.0, statSnapshot4.getUsed().getAvg(), epsilon);
-        Assert.assertEquals(5.0, statSnapshot4.getCapacity().getAvg(), epsilon);
     }
 
     private ClusterStatsRequest constructTestInput(
             @Nonnull Collection<Long> scope, @Nonnull String orderByStat,
             boolean ascending, int offset, int limit,
+            @Nonnull String... additionalStats) {
+        return constructTestInputWithDates(scope, orderByStat, ascending, offset, limit,
+            Optional.empty(), Optional.empty(), additionalStats);
+    }
+
+    private ClusterStatsRequest constructTestInputWithDates(
+            @Nonnull Collection<Long> scope, @Nonnull String orderByStat,
+            boolean ascending, int offset, int limit,
+            @Nonnull Optional<Timestamp> startDate, @Nonnull Optional<Timestamp> endDate,
             @Nonnull String... additionalStats) {
         final OrderBy orderBy = OrderBy.newBuilder()
                                     .setEntityStats(EntityStatsOrderBy.newBuilder()
@@ -1149,6 +1231,8 @@ public class ClusterStatsReaderTest {
                                                                 .build();
         final StatsFilter.Builder statsFilterBuilder = StatsFilter.newBuilder()
                                                             .addCommodityRequests(orderByCommodityRequest);
+        startDate.ifPresent(t -> statsFilterBuilder.setStartDate(t.getTime()));
+        endDate.ifPresent(t -> statsFilterBuilder.setEndDate(t.getTime()));
         Arrays.stream(additionalStats)
                 .map(s -> CommodityRequest.newBuilder().setCommodityName(s))
                 .forEach(statsFilterBuilder::addCommodityRequests);
@@ -1163,23 +1247,24 @@ public class ClusterStatsReaderTest {
                     .build();
     }
 
-    private ClusterStatsRequest constructTestInputWithDates(@Nonnull Optional<Timestamp> startDate,
-            @Nonnull Optional<Timestamp> endDate, @Nonnull String stat, boolean requestProjected) {
-        final CommodityRequest.Builder commodityRequest = CommodityRequest.newBuilder()
-                                                                .setCommodityName(stat);
-        final StatsFilter.Builder statsFilterBuilder = StatsFilter.newBuilder()
-                                                            .addCommodityRequests(commodityRequest);
-        startDate.ifPresent(t -> statsFilterBuilder.setStartDate(t.getTime()));
-        endDate.ifPresent(t -> statsFilterBuilder.setEndDate(t.getTime()));
-        statsFilterBuilder.setRequestProjectedHeadroom(requestProjected);
+    private ClusterStatsRequest constructTestInputWithDates(
+            @Nonnull Collection<Long> scope, @Nonnull Collection<String> stats,
+            @Nonnull Optional<Timestamp> startDate, @Nonnull Optional<Timestamp> endDate, boolean requestProjected) {
+        final StatsFilter.Builder statsFilter = StatsFilter.newBuilder();
+        stats.forEach(stat -> statsFilter
+            .addCommodityRequests(CommodityRequest.newBuilder().setCommodityName(stat)));
+        startDate.ifPresent(t -> statsFilter.setStartDate(t.getTime()));
+        endDate.ifPresent(t -> statsFilter.setEndDate(t.getTime()));
+        statsFilter.setRequestProjectedHeadroom(requestProjected);
         return ClusterStatsRequest.newBuilder()
-                    .addClusterIds(Long.parseLong(CLUSTER_ID_3))
-                    .setStats(statsFilterBuilder)
+                    .addAllClusterIds(scope)
+                    .setStats(statsFilter)
                     .build();
     }
 
     private ClusterStatsRequest constructTestInputWithDates(@Nonnull Optional<Timestamp> startDate,
             @Nonnull Optional<Timestamp> endDate, boolean requestProjected) {
-        return constructTestInputWithDates(startDate, endDate, CPU_HEADROOM, requestProjected);
+        return constructTestInputWithDates(Collections.singletonList(Long.parseLong(CLUSTER_ID_3)),
+            Collections.singletonList(CPU_HEADROOM), startDate, endDate, requestProjected);
     }
 }

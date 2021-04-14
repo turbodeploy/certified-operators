@@ -4,6 +4,8 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
+import java.util.concurrent.TimeUnit;
+
 import com.google.gson.Gson;
 import com.google.protobuf.InvalidProtocolBufferException;
 
@@ -23,6 +25,8 @@ import com.vmturbo.cost.component.savings.SqlAuditLogWriter.AuditLogEntry;
  * Tests for audit log writer.
  */
 public class SqlAuditLogWriterTest {
+
+    private static final long ACTION_EXPIRATION_TIME = TimeUnit.HOURS.toMillis(1L);
 
     /**
      * Check if the topology audit event is being translated correctly.
@@ -91,6 +95,7 @@ public class SqlAuditLogWriterTest {
         final SavingsEvent savingsEvent = new SavingsEvent.Builder()
                 .entityId(vmId)
                 .timestamp(timestamp)
+                // .expirationTime(timestamp + ACTION_EXPIRATION_TIME)
                 .entityPriceChange(new EntityPriceChange.Builder()
                         .sourceOid(501L)
                         .sourceCost(preActionCost)

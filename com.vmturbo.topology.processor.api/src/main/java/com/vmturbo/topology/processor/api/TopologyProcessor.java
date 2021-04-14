@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.api;
 
+import java.util.List;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
@@ -55,6 +56,15 @@ public interface TopologyProcessor {
      */
     @Nonnull
     TargetInfo getTarget(long id) throws CommunicationException, TopologyProcessorException;
+
+    /**
+     * Returns target info by the list of input target ids.
+     *
+     * @param ids the list of target ids.
+     * @return the list of target info.
+     * @throws CommunicationException if persistent communication exception occurred.
+     */
+    List<TargetInfo> getTargets(List<Long> ids) throws CommunicationException;
 
     /**
      * Removes the target specified by id.

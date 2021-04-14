@@ -3,6 +3,7 @@ package com.vmturbo.cost.component.savings;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -19,8 +20,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.components.api.TimeUtil;
+import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
+import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.component.savings.EntityEventsJournal.SavingsEvent;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.repository.api.RepositoryClient;
 
 /**
  * Module to track entity realized/missed savings/investments stats.
@@ -41,6 +48,12 @@ public class EntitySavingsTracker {
 
     private final AuditLogWriter auditLogWriter;
 
+    private final TopologyEntityCloudTopologyFactory cloudTopologyFactory;
+
+    private final RepositoryClient repositoryClient;
+
+    private long realtimeTopologyContextId;
+
     private final int chunkSize;
 
     private final Clock clock;
@@ -52,14 +65,20 @@ public class EntitySavingsTracker {
      * @param entityEventsJournal entityEventsJournal
      * @param entityStateStore Persistent state store.
      * @param clock clock
-     * @param chunkSize chunkSize for database batch operations
      * @param auditLogWriter Audit log writer helper.
+     * @param cloudTopologyFactory cloud topology factory
+     * @param repositoryClient repository client
+     * @param realtimeTopologyContextId realtime topology context ID
+     * @param chunkSize chunkSize for database batch operations
      */
     EntitySavingsTracker(@Nonnull EntitySavingsStore entitySavingsStore,
                          @Nonnull EntityEventsJournal entityEventsJournal,
                          @Nonnull EntityStateStore entityStateStore,
                          @Nonnull final Clock clock,
                          @Nonnull AuditLogWriter auditLogWriter,
+                         @Nonnull TopologyEntityCloudTopologyFactory cloudTopologyFactory,
+                         @Nonnull RepositoryClient repositoryClient,
+                         long realtimeTopologyContextId,
                          final int chunkSize) {
         this.entitySavingsStore = Objects.requireNonNull(entitySavingsStore);
         this.entityEventsJournal = Objects.requireNonNull(entityEventsJournal);
@@ -67,6 +86,9 @@ public class EntitySavingsTracker {
         this.savingsCalculator = new SavingsCalculator();
         this.clock = clock;
         this.auditLogWriter = auditLogWriter;
+        this.cloudTopologyFactory = cloudTopologyFactory;
+        this.realtimeTopologyContextId = realtimeTopologyContextId;
+        this.repositoryClient = repositoryClient;
         this.chunkSize = chunkSize;
     }
 
@@ -109,23 +131,26 @@ public class EntitySavingsTracker {
                         .map(SavingsEvent::getEntityId)
                         .collect(Collectors.toSet());
 
-                logger.info("Process {} events for {} entities between {} ({}) & {} ({}).",
+                logger.info("Process {} events for {} entities between {} ({}) and {} ({}).",
                         events.size(), entityIds.size(), startTimeMillis, periodStartTime,
                         endTimeMillis, periodEndTime);
 
                 // Get states for entities that have events or had state changes in the last period
                 // and put the states in the state map.
                 Map<Long, EntityState> entityStates = entityStateStore.getEntityStates(entityIds);
-                entityStates.putAll(entityStateStore.getUpdatedEntityStates());
+                Map<Long, EntityState> forcedEntityStates = entityStateStore
+                        .getForcedUpdateEntityStates(periodEndTime);
+                entityStates.putAll(forcedEntityStates);
 
                 // Clear the updated_by_event flags
                 entityStateStore.clearUpdatedFlags();
 
                 // Invoke calculator
-                savingsCalculator.calculate(entityStates, events, startTimeMillis, endTimeMillis);
+                savingsCalculator.calculate(entityStates, forcedEntityStates.values(), events,
+                        startTimeMillis, endTimeMillis);
 
                 // Update entity states. Also insert new states to track new entities.
-                entityStateStore.updateEntityStates(entityStates);
+                entityStateStore.updateEntityStates(entityStates, createCloudTopology(entityStates.keySet()));
 
                 auditLogWriter.write(events);
                 try {
@@ -219,5 +244,41 @@ public class EntitySavingsTracker {
                     EntitySavingsStatsType.MISSED_INVESTMENTS, investments));
         }
         return stats;
+    }
+
+    private TopologyEntityCloudTopology createCloudTopology(Set<Long> entityOids) {
+        // The cloud topology requires the list of OIDs of entities (VMs, volumes, DBs, DBSs) and
+        // their associated accounts, availability zones (if applicable), regions and service providers.
+
+        // Find all availability zones and business accounts associated with the entities.
+        Stream<TopologyEntityDTO> workloadEntities =
+                repositoryClient.retrieveTopologyEntities(new ArrayList<>(entityOids), realtimeTopologyContextId);
+        List<Long> availabilityZoneOids = workloadEntities.flatMap(entity -> entity.getConnectedEntityListList().stream())
+                .filter(connEntity -> connEntity.getConnectedEntityType() == EntityType.AVAILABILITY_ZONE_VALUE)
+                .map(ConnectedEntity::getConnectedEntityId)
+                .distinct()
+                .collect(Collectors.toList());
+
+        // Find all related accounts.
+        Set<Long> accountOids = repositoryClient.getAllBusinessAccountOidsInScope(entityOids);
+
+        // Get all regions and service provider entities.
+        // Note that we get all all regions and all service providers instead of only those
+        // associated with the entities.
+        // It is because the number of regions and service providers is finite.
+        // The logic to find the connected regions of availability zones requires all regions anyways.
+        List<Long> regionAndAServiceProviderOids =
+                repositoryClient.getEntitiesByType(realtimeTopologyContextId,
+                        Arrays.asList(EntityType.REGION, EntityType.SERVICE_PROVIDER))
+                .map(TopologyEntityDTO::getOid)
+                .collect(Collectors.toList());
+
+        List<Long> entityOidList = new ArrayList<>(entityOids);
+        entityOidList.addAll(availabilityZoneOids);
+        entityOidList.addAll(accountOids);
+        entityOidList.addAll(regionAndAServiceProviderOids);
+
+        return cloudTopologyFactory.newCloudTopology(
+                repositoryClient.retrieveTopologyEntities(entityOidList, realtimeTopologyContextId));
     }
 }
