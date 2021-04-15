@@ -70,8 +70,8 @@ sudo rm -rf /etc/yum.repos.d/mariadb.repo
 sudo bash -c 'cat << EOF > /etc/yum.repos.d/mariadb.repo
 [mariadb]
 name = MariaDB-10.5.6
-baseurl=http://yum.mariadb.org/10.5.6/centos7-amd64
-# alternative: baseurl=http://archive.mariadb.org/mariadb-10.5.6/yum/centos7-amd64
+baseurl=https://yum.mariadb.org/10.5.6/centos7-amd64
+# alternative: baseurl=https://archive.mariadb.org/mariadb-10.5.6/yum/centos7-amd64
 gpgkey=https://yum.mariadb.org/RPM-GPG-KEY-MariaDB
 gpgcheck=1
 EOF'
