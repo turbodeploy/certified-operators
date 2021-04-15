@@ -342,6 +342,16 @@ else
   echo "Consul is configured to run as a container, skipping configuration for the VM service."
 fi
 
+# Format the partition and mount it in the desired data directory
+disk1=$(echo ${device} | awk -F/ '{print $3}')
+mkfs.xfs -f ${device}
+mkdir -p $localStorageDataDirectory
+chown -R turbo.turbo $localStorageDataDirectory
+echo "${device} $localStorageDataDirectory                     xfs     defaults        0 0" | tee --append /etc/fstab
+sudo mount -a
+# This check needs to be better. But no time right now
+localStatus=$?
+
 # Create the subdirectories for each PV and fix the ownership/permissions
 # These directories are needed to enable local storage class in Kubernetes.
 mkdir -p ${localStorageDataDirectory}api-certs
