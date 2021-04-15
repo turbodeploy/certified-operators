@@ -39,8 +39,13 @@ public class DTOFieldSpecImpl implements DTOFieldSpec {
     }
 
     @Override
+    public boolean getIgnoreIfPresent() {
+        return field.getIgnoreIfPresent();
+    }
+
+    @Override
     public String toString() {
-        return String.format("%s [fieldName=%s, messagePath=%s]", getClass().getSimpleName(),
-                        getFieldName(), getMessagePath());
+        return String.format("%s [fieldName=%s, messagePath=%s, ignoreIfPresent=%]", getClass().getSimpleName(),
+                        getFieldName(), getMessagePath(), getIgnoreIfPresent());
     }
 }
