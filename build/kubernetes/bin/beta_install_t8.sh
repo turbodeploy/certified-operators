@@ -342,6 +342,24 @@ else
   echo "Consul is configured to run as a container, skipping configuration for the VM service."
 fi
 
+# Create the subdirectories for each PV and fix the ownership/permissions
+# These directories are needed to enable local storage class in Kubernetes.
+mkdir -p ${localStorageDataDirectory}api-certs
+mkdir -p ${localStorageDataDirectory}api
+mkdir -p ${localStorageDataDirectory}auth
+mkdir -p ${localStorageDataDirectory}consul-data
+mkdir -p ${localStorageDataDirectory}kafka-log
+mkdir -p ${localStorageDataDirectory}zookeeper-data
+mkdir -p ${localStorageDataDirectory}rsyslog-syslogdata
+mkdir -p ${localStorageDataDirectory}rsyslog-auditlogdata
+mkdir -p ${localStorageDataDirectory}rsyslog-auditlogdata
+mkdir -p ${localStorageDataDirectory}topology-processor
+mkdir -p ${localStorageDataDirectory}prometheus-alertmanager
+mkdir -p ${localStorageDataDirectory}prometheus-server
+mkdir -p ${localStorageDataDirectory}graphstate-datacloud-graph
+chown -R turbo.turbo $localStorageDataDirectory
+chmod -R 777 $localStorageDataDirectory
+
 # Create the operator
 kubectl create -f ${serviceAccountFile} -n turbonomic
 kubectl create -f ${roleFile} -n turbonomic
