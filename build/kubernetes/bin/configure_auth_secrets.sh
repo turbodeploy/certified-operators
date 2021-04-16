@@ -15,3 +15,11 @@ set -euo pipefail
 #   If any of these keys already exist, this script will exit with an error message like the following:
 #   Error from server (AlreadyExists): secrets "auth-secret" already exists
 kubectl create secret generic master-key-secret --from-literal=primary_key_256.out="`openssl rand 32`"
+KEY_LENGTH=`kubectl get secret master-key-secret -o json | jq -r '.data[]' | base64 -d | wc -c`
+while [ $KEY_LENGTH -ne 32 ]
+do
+  echo "The generated key was not the correct length; regenerating!"
+  kubectl delete secret master-key-secret
+  kubectl create secret generic master-key-secret --from-literal=primary_key_256.out="`openssl rand 32`"
+  KEY_LENGTH=`kubectl get secret master-key-secret -o json | jq -r '.data[]' | base64 -d | wc -c`
+done
