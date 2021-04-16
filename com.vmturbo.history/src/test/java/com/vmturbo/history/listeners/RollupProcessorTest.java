@@ -356,7 +356,7 @@ public class RollupProcessorTest {
     public void testPurgeVolumeAttachmentHistoryRecordsNoRemovals() throws VmtDbException {
         final long currentTime = System.currentTimeMillis();
         final long withinRetentionPeriod = currentTime - TimeUnit.DAYS
-                .toMillis(VOL_ATTACHMENT_HISTORY_RETENTION_PERIOD);
+                .toMillis(VOL_ATTACHMENT_HISTORY_RETENTION_PERIOD - 1);
         final long outsideRetentionPeriod =
                 currentTime - TimeUnit.DAYS.toMillis(VOL_ATTACHMENT_HISTORY_RETENTION_PERIOD + 1);
         insertIntoVolumeAttachmentHistoryTable(VOLUME_OID, VM_OID, outsideRetentionPeriod,
@@ -387,7 +387,7 @@ public class RollupProcessorTest {
     public void testPurgeVolumeAttachmentHistoryRecordsOneRemoval() throws VmtDbException {
         final long currentTime = System.currentTimeMillis();
         final long withinRetentionPeriod = currentTime - TimeUnit.DAYS
-                .toMillis(VOL_ATTACHMENT_HISTORY_RETENTION_PERIOD);
+                .toMillis(VOL_ATTACHMENT_HISTORY_RETENTION_PERIOD - 1);
         final long outsideRetentionPeriod = currentTime - TimeUnit.DAYS
                 .toMillis(VOL_ATTACHMENT_HISTORY_RETENTION_PERIOD + 1);
         insertIntoVolumeAttachmentHistoryTable(VOLUME_OID, VM_OID, outsideRetentionPeriod,
