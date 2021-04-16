@@ -46,7 +46,12 @@ public class PhysicalMachineInfoMapper extends TypeSpecificInfoMapper {
         if (physicalMachineData.hasCpuCoreMhz()) {
             physicalMachineInfoBuilder.setCpuCoreMhz(physicalMachineData.getCpuCoreMhz());
         }
-
+        if (physicalMachineData.hasAutomationLevel()) {
+            physicalMachineInfoBuilder.setAutomationLevel(physicalMachineData.getAutomationLevel());
+        }
+        if (physicalMachineData.hasMigrationLevel()) {
+            physicalMachineInfoBuilder.setMigrationLevel(physicalMachineData.getMigrationLevel());
+        }
         physicalMachineInfoBuilder.addAllDiskGroup(physicalMachineData.getDiskGroupList());
 
         physicalMachineInfoBuilder.setDedicatedFailover(
