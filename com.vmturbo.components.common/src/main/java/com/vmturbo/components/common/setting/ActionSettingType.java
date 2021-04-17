@@ -128,10 +128,13 @@ public enum ActionSettingType {
                 case ResizeVcpuLimitBelowMinThreshold:
                 case ResizeVcpuRequestBelowMinThreshold:
                 case ResizeVmemLimitAboveMaxThreshold:
-                case ResizeVmemLimitBelowMinThreshold:
                 case ResizeVmemRequestBelowMinThreshold:
                     enumSettingDataType = new EnumSettingDataType<>(ActionMode.RECOMMEND,
                         ActionMode.RECOMMEND, ActionMode.DISABLED, ActionMode.class);
+                    break;
+                case ResizeVmemLimitBelowMinThreshold:
+                    enumSettingDataType = new EnumSettingDataType<>(ActionMode.DISABLED,
+                            ActionMode.RECOMMEND, ActionMode.DISABLED, ActionMode.class);
                     break;
                 case StorageMove:
                 case ResizeUpHeap:

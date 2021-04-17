@@ -98,7 +98,7 @@ public enum EntitySettingSpecs {
      */
     ResizeVcpuLimitMinThreshold("resizeVcpuLimitMinThreshold", "VCPU Limit Resize Min Threshold (in millicores)",
         Collections.emptyList(), SettingTiebreaker.BIGGER,
-        EnumSet.of(EntityType.CONTAINER_SPEC), numeric(0, 1000000, 10), true),
+        EnumSet.of(EntityType.CONTAINER_SPEC), numeric(0, 1000000, 500), true),
 
     /**
      * The maximum number of VCPU limit millicores which is the threshold to decide automation mode.
