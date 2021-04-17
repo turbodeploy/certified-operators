@@ -142,26 +142,6 @@ public class SavingsCalculatorTest {
         Map<Long, EntityState> entityStates = new HashMap<>();
         long baseTime = 1617681600000L; // 4-6-2021 00:00:00
 
-        /**
-         * Define the expected results after different runs of the savings calculator.
-         */
-        class Result {
-            public int numStates;
-            public boolean deletePending;
-            public List<Double> actions;
-            public Double rs;
-            public Double ri;
-
-            Result(int numStates, boolean deletePending, List<Double> actions,
-                    Double rs, Double ri) {
-                this.numStates = numStates;
-                this.deletePending = deletePending;
-                this.actions = actions;
-                this.rs = rs;
-                this.ri = ri;
-            }
-        }
-
         Result[] results = {
                 new Result(1, false, ImmutableList.of(1d, 1d, 1d), null, 1.5),
                 new Result(1, false, ImmutableList.of(1d, 1d, 1d, 1d, 1d, 1d), null, 4.5),
@@ -221,6 +201,56 @@ public class SavingsCalculatorTest {
                 Assert.fail("Unexpected entity ID");
             }
         });
+    }
+
+    /**
+     * Verify that we can delete a volume and that we stop tracking it after the configured
+     * expiration time.
+     *
+     * @throws FileNotFoundException if the events file is missing.
+     */
+    @Test
+    public void testVolumeDelete() throws FileNotFoundException {
+        // Add events
+        EntityEventsJournal eventsJournal = new InMemoryEntityEventsJournal();
+        addTestEvents("src/test/resources/savings/delete-volume.json", eventsJournal);
+
+        // Run the algorithm. Run for four one-hour periods
+        SavingsCalculator savingsCalculator = new SavingsCalculator();
+        Map<Long, EntityState> entityStates = new HashMap<>();
+        long baseTime = 1618545600000L; // 4-16-2021 00:00:00
+
+        Result[] results = {
+                new Result(0, false, null, null, null),
+                new Result(0, false, null, null, null),
+                new Result(0, false, null, null, null),
+                new Result(0, false, null, null, null),
+                new Result(0, false, null, null, null),
+                new Result(0, false, null, null, null),
+                new Result(0, false, null, null, null),
+                new Result(2, false, ImmutableList.of(-60d), 30d, null),
+                new Result(2, false, ImmutableList.of(-60d), 60d, null),
+                new Result(2, false, ImmutableList.of(), 30d, null),
+                new Result(2, false, ImmutableList.of(), 0d, null),
+                new Result(3, false, ImmutableList.of(), 0d, null)
+        };
+        for (int period = 0; period < results.length; period++) {
+            long start = baseTime + period * 3600000L;
+            long end = start + 3600000L;
+            savingsCalculator.calculate(entityStates, entityStates.values(),
+                    eventsJournal.removeEventsBetween(start, end), start, end);
+            // Verify the results for this period
+            Assert.assertEquals("period " + period, results[period].numStates, entityStates.size());
+            if (results[period].numStates == 0) {
+                continue;
+            }
+            Assert.assertTrue("period " + period, entityStates.containsKey(2116L));
+            EntityState entityState = entityStates.get(2116L);
+            Assert.assertEquals("period " + period, results[period].actions, entityState.getActionList());
+            Assert.assertEquals("period " + period, results[period].deletePending, entityState.isDeletePending());
+            Assert.assertEquals("period " + period, results[period].rs, entityState.getRealizedSavings());
+            Assert.assertEquals("period " + period, results[period].ri, entityState.getRealizedInvestments());
+        }
     }
 
     /**
@@ -322,12 +352,30 @@ public class SavingsCalculatorTest {
 
         @Override
         public void setLastRollupTimes(@Nonnull LastRollupTimes rollupTimes) {
-
         }
 
         @Override
         public void performRollup(@Nonnull RollupTimeInfo rollupTimeInfo) {
+        }
+    }
 
+    /**
+     * Define the expected results after different runs of the savings calculator.
+     */
+    class Result {
+        public int numStates;
+        public boolean deletePending;
+        public List<Double> actions;
+        public Double rs;
+        public Double ri;
+
+        Result(int numStates, boolean deletePending, List<Double> actions,
+                Double rs, Double ri) {
+            this.numStates = numStates;
+            this.deletePending = deletePending;
+            this.actions = actions;
+            this.rs = rs;
+            this.ri = ri;
         }
     }
 }
