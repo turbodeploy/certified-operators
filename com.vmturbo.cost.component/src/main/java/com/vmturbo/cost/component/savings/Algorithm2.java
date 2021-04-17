@@ -346,4 +346,12 @@ public class Algorithm2 implements Algorithm {
                 ? LocalDateTime.now().plusYears(1000L).toInstant(ZoneOffset.UTC).toEpochMilli()
                 : expirationList.peek();
     }
+
+    /**
+     * Clear the action list and related expiration list.
+     */
+    public void clearActionList() {
+        this.actionList.clear();
+        this.expirationList.clear();
+    }
 }

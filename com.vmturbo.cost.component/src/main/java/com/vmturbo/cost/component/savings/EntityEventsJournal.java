@@ -277,12 +277,18 @@ interface EntityEventsJournal {
             /**
              * Action executed successfully, trigger for realized savings.
              */
-            EXECUTION_SUCCESS(3, 12),
+            SCALE_EXECUTION_SUCCESS(3, 12),
 
             /**
              * One or more actions expired.
              */
-            ACTION_EXPIRED(100, 13);
+            ACTION_EXPIRED(100, 13),
+
+            /**
+             * Delete action recommendation added.  There is no corresponding delete recommendation
+             * removed action.
+             */
+            DELETE_EXECUTION_SUCCESS(3, 14);
 
             private final int sortingPriority;
 

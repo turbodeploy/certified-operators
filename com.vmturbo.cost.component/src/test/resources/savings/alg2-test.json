@@ -9,7 +9,7 @@
     },
     {
         "destTier": 12,
-        "eventType": "RESIZE_RECOMMENDATION",
+        "eventType": "RECOMMENDATION_ADDED",
         "sourceTier": 10,
         "timestamp": 240000,
         "expirationTimestamp": 3600001,
@@ -25,7 +25,7 @@
     },
     {
         "destTier": 10,
-        "eventType": "RESIZE_RECOMMENDATION",
+        "eventType": "RECOMMENDATION_ADDED",
         "sourceTier": 12,
         "timestamp": 720000,
         "expirationTimestamp": 3600001,
@@ -65,7 +65,7 @@
     },
     {
         "destTier": 10,
-        "eventType": "RESIZE_RECOMMENDATION",
+        "eventType": "RECOMMENDATION_ADDED",
         "sourceTier": 6,
         "timestamp": 1920000,
         "expirationTimestamp": 3600001,

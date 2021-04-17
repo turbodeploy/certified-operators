@@ -192,7 +192,7 @@ public class ActionListenerTest {
         List<SavingsEvent> savingsEvents = store.removeAllEvents();
         savingsEvents.stream().forEach(se -> {
             assertEquals(se.getActionEvent().get().getEventType(),
-                         ActionEventType.EXECUTION_SUCCESS);
+                         ActionEventType.SCALE_EXECUTION_SUCCESS);
         });
     }
 

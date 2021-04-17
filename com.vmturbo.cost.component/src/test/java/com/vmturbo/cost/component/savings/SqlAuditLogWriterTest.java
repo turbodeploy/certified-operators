@@ -88,7 +88,7 @@ public class SqlAuditLogWriterTest {
         long vmId = 101L;
         long actionId = 2001L;
         long timestamp = System.currentTimeMillis();
-        ActionEventType eventType = ActionEventType.EXECUTION_SUCCESS;
+        ActionEventType eventType = ActionEventType.SCALE_EXECUTION_SUCCESS;
         final double preActionCost = 10.01d;
         final double postActionCost = 20.15d;
 

@@ -211,11 +211,11 @@ public class EntitySavingsTrackerTest {
         final long time0945amMillis = TimeUtil.localDateTimeToMilli(time0945am, clock);
         final long time1130amMillis = TimeUtil.localDateTimeToMilli(time1130am, clock);
         eventsByPeriod.put(time0900am, Arrays.asList(
-                getActionEvent(vm1Id, time0915amMillis, ActionEventType.EXECUTION_SUCCESS, action1Id),
-                getActionEvent(vm2Id, time0945amMillis, ActionEventType.EXECUTION_SUCCESS, action2Id)));
+                getActionEvent(vm1Id, time0915amMillis, ActionEventType.SCALE_EXECUTION_SUCCESS, action1Id),
+                getActionEvent(vm2Id, time0945amMillis, ActionEventType.SCALE_EXECUTION_SUCCESS, action2Id)));
         eventsByPeriod.put(time1000am, new ArrayList<>());
         eventsByPeriod.put(time1100am, Arrays.asList(
-                getActionEvent(vm1Id, time1130amMillis, ActionEventType.EXECUTION_SUCCESS, action3Id)));
+                getActionEvent(vm1Id, time1130amMillis, ActionEventType.SCALE_EXECUTION_SUCCESS, action3Id)));
     }
 
     @Nonnull

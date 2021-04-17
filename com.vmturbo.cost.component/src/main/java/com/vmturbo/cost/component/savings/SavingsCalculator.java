@@ -225,7 +225,8 @@ class SavingsCalculator {
         ActionEventType eventType = event.getEventType();
         if (ActionEventType.ACTION_EXPIRED.equals(eventType)) {
             handleExpiredAction(states, timestamp, entityId);
-        } else if (ActionEventType.EXECUTION_SUCCESS.equals(eventType)) {
+        } else if (ActionEventType.SCALE_EXECUTION_SUCCESS.equals(eventType)
+                || ActionEventType.DELETE_EXECUTION_SUCCESS.equals(eventType)) {
             handleExecutionSuccess(states, timestamp, entityId, savingsEvent);
         } else if (ActionEventType.RECOMMENDATION_ADDED.equals(eventType)) {
             handleRecommendationAdded(states, timestamp, entityId, savingsEvent);
@@ -295,13 +296,15 @@ class SavingsCalculator {
                     entityId, timestamp);
             return;
         }
-         commonResizeHandler(states, timestamp, entityId,
-                 savingsEvent.getEntityPriceChange().get(), false);
+        commonResizeHandler(states, timestamp, entityId,
+                savingsEvent.getEntityPriceChange().get(), false,
+                savingsEvent.getActionEvent().get().getEventType());
     }
 
     /**
-     * Handle a resize recommendation that has not yet been executed.  This starts accumulating
-     * missed savings or investments.
+     * Handle a resize or delete volume recommendation that has not yet been executed.  This starts
+     * accumulating missed savings or investments.
+     *
      * @param states a map of algorithm states for entities whose states are being tracked
      * @param timestamp time of the event
      * @param entityId affected entity ID
@@ -310,14 +313,14 @@ class SavingsCalculator {
     private void handleRecommendationAdded(@Nonnull Map<Long, Algorithm> states,
             long timestamp, long entityId, SavingsEvent savingsEvent) {
         logger.debug("Handle RecommendationAdded for {} at {}", entityId, timestamp);
-        // We have a recommendation for an entity, so we are going to start tracking savings/investments.  Get the
-        // current savings for this entity, or create a new savings tracker for it.
-
         if (!savingsEvent.hasEntityPriceChange()) {
             logger.warn("Cannot track resize recommendation for {} at {} - missing price data",
                     entityId, timestamp);
             return;
         }
+        // We have a recommendation for an entity, so we are going to start tracking missed
+        // savings/investments.  Get the current savings for this entity, or create a new savings
+        // tracker for it.
         Algorithm algorithmState = getAlgorithmState(states, savingsEvent.getEntityId(), timestamp, true);
 
         // Close out the current segment and open a new with the new periodic missed savings/investment
@@ -367,8 +370,11 @@ class SavingsCalculator {
         Algorithm algorithmState = getAlgorithmState(states, entityId, timestamp, false);
         if (algorithmState != null) {
             algorithmState.endSegment(timestamp);
+            // In order to track savings for entities that have been removed, we must retain their
+            // state.  To prevent further accrual of stats, clear the action list and set the
+            // power state to off.
             algorithmState.setPowerFactor(0L);
-            algorithmState.setDeletePending(true);
+            algorithmState.clearActionList();
         }
     }
 
@@ -411,7 +417,8 @@ class SavingsCalculator {
             long timestamp, long entityId, SavingsEvent event) {
         logger.debug("Handle ProviderChange for {} at {}", entityId, timestamp);
         if (event.getEntityPriceChange().isPresent()) {
-            commonResizeHandler(states, timestamp, entityId, event.getEntityPriceChange().get(), true);
+            commonResizeHandler(states, timestamp, entityId, event.getEntityPriceChange().get(),
+                    true, ActionEventType.SCALE_EXECUTION_SUCCESS);
         } else {
             logger.warn("ProviderChange event for {} at {} is missing price data - skipping",
                     entityId, timestamp);
@@ -422,15 +429,16 @@ class SavingsCalculator {
      * Shared logic to track a resize.  This can be called by the action execution success logic
      * (solicited resize) or when an entity has changed providers (unsolicited resize due to
      * discovery or action script action executed).
-     *  @param states a map of algorithm states for entities whose states are being tracked
+     * @param states a map of algorithm states for entities whose states are being tracked
      * @param timestamp time of the event
      * @param entityId affected entity ID
      * @param change price change information
      * @param activeRecommendationRequired true if an active recommendation must exist.  If true
+     * @param actionEventType Triggering action type (resize success or volume delete success)
      */
-    private void commonResizeHandler(@Nonnull Map<Long, Algorithm> states,
-            long timestamp, long entityId, EntityPriceChange change,
-            boolean activeRecommendationRequired) {
+    private void commonResizeHandler(@Nonnull Map<Long, Algorithm> states, long timestamp,
+            long entityId, EntityPriceChange change,
+            boolean activeRecommendationRequired, ActionEventType actionEventType) {
         // If this is an action execution, it's okay that we haven't seen this entity yet.
         // Create state for it and continue.
         Algorithm algorithmState = getAlgorithmState(states, entityId, timestamp,
@@ -441,17 +449,25 @@ class SavingsCalculator {
             logger.debug("Not processing resize - state for entity {} is missing", entityId);
             return;
         }
-        algorithmState.endSegment(timestamp);
         EntityPriceChange currentRecommendation = algorithmState.getCurrentRecommendation();
+        boolean clearCurrentRecommendation = false;
         if (currentRecommendation != null) {
             if (activeRecommendationRequired && !currentRecommendation.equals(change)) {
                 // There's a current recommendation, but it doesn't match this resize, so ignore it
                 return;
             }
-            algorithmState.setCurrentRecommendation(null);
+            clearCurrentRecommendation = true;
         } else if (activeRecommendationRequired) {
             // No active resize action, so ignore this.
             return;
+        }
+        algorithmState.endSegment(timestamp);
+        if (clearCurrentRecommendation) {
+            algorithmState.setCurrentRecommendation(null);
+        }
+        // If this is a volume delete, remove all existing active actions.
+        if (ActionEventType.DELETE_EXECUTION_SUCCESS.equals(actionEventType)) {
+            algorithmState.clearActionList();
         }
         algorithmState.addAction(change.getDelta(), change.getExpirationTime().get());
     }
