@@ -1567,6 +1567,17 @@ message GetEntitySavingsStatsRequest {
 
     // Types of savings stats requested
     repeated EntitySavingsStatsType stats_types = 4;
+
+    // Entity type list
+    optional EntityTypeFilter entity_type_filter = 5;
+
+    // Resource group list
+    optional ResourceGroupFilter resource_group_filter = 6;
+}
+
+message ResourceGroupFilter {
+    // A list of reource group OIDs
+    repeated int64 resource_group_oid = 1;
 }
 
 // Types of entity savings stats
