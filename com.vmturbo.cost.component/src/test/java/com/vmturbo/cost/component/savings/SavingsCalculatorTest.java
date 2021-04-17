@@ -5,13 +5,9 @@ import java.io.FileReader;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-
-import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.math.DoubleMath;
@@ -22,8 +18,6 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;
-import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.cost.component.savings.EventInjector.ScriptEvent;
 
 /**
@@ -285,81 +279,6 @@ public class SavingsCalculatorTest {
     }
 
     /**
-     * Stub savings store to capture generated savings events.
-     */
-    class SavingsCapture implements EntitySavingsStore {
-        private List<EntitySavingsStats> stats;
-
-        SavingsCapture() {
-            this.stats = new ArrayList<>();
-        }
-
-        @Override
-        public void addHourlyStats(@Nonnull Set<EntitySavingsStats> hourlyStats)
-                throws EntitySavingsException {
-            stats.addAll(hourlyStats);
-        }
-
-        @Nonnull
-        @Override
-        public List<AggregatedSavingsStats> getSavingsStats(TimeFrame timeFrame,
-                @Nonnull Set<EntitySavingsStatsType> statsTypes, @Nonnull Long startTime,
-                @Nonnull Long endTime,
-                @Nonnull Collection<Long> entityOids)
-                throws EntitySavingsException {
-            return null;
-        }
-
-        List<EntitySavingsStats> getStats() {
-            return this.stats;
-        }
-
-        @Nonnull
-        @Override
-        public List<AggregatedSavingsStats> getHourlyStats(
-                @Nonnull Set<EntitySavingsStatsType> statsTypes, @Nonnull Long startTime,
-                @Nonnull Long endTime, @Nonnull Collection<Long> entityOids)
-                throws EntitySavingsException {
-            // Not used.
-            return new ArrayList<>();
-        }
-
-        @Nonnull
-        @Override
-        public List<AggregatedSavingsStats> getDailyStats(
-                @Nonnull Set<EntitySavingsStatsType> statsTypes, @Nonnull Long startTime,
-                @Nonnull Long endTime, @Nonnull Collection<Long> entityOids)
-                throws EntitySavingsException {
-            // Not used.
-            return new ArrayList<>();
-        }
-
-        @Nonnull
-        @Override
-        public List<AggregatedSavingsStats> getMonthlyStats(
-                @Nonnull Set<EntitySavingsStatsType> statsTypes, @Nonnull Long startTime,
-                @Nonnull Long endTime, @Nonnull Collection<Long> entityOids)
-                throws EntitySavingsException {
-            // Not used.
-            return new ArrayList<>();
-        }
-
-        @Nonnull
-        @Override
-        public LastRollupTimes getLastRollupTimes() {
-            return null;
-        }
-
-        @Override
-        public void setLastRollupTimes(@Nonnull LastRollupTimes rollupTimes) {
-        }
-
-        @Override
-        public void performRollup(@Nonnull RollupTimeInfo rollupTimeInfo) {
-        }
-    }
-
-    /**
      * Define the expected results after different runs of the savings calculator.
      */
     class Result {
@@ -370,7 +289,7 @@ public class SavingsCalculatorTest {
         public Double ri;
 
         Result(int numStates, boolean deletePending, List<Double> actions,
-                Double rs, Double ri) {
+               Double rs, Double ri) {
             this.numStates = numStates;
             this.deletePending = deletePending;
             this.actions = actions;
