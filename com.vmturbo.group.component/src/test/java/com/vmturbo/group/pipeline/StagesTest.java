@@ -9,18 +9,21 @@ import static org.mockito.Mockito.when;
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import com.google.common.collect.ArrayListMultimap;
 
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import it.unimi.dsi.fastutil.longs.LongSet;
 
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -70,6 +73,7 @@ public class StagesTest {
     private GrpcTestServer testServer;
     private MockTransactionProvider transactionProvider;
     private MockGroupStore groupStoreMock;
+    private ExecutorService executorService;
 
     /**
      * Sets up environment for tests.
@@ -83,6 +87,15 @@ public class StagesTest {
         testServer.start();
         transactionProvider = new MockTransactionProvider();
         groupStoreMock = transactionProvider.getGroupStore();
+        executorService = Executors.newFixedThreadPool(2);
+    }
+
+    /**
+     * Clean up after the tests.
+     */
+    @After
+    public void cleanUp() {
+        testServer.close();
     }
 
     /**
@@ -117,14 +130,17 @@ public class StagesTest {
      * Tests that {@link StoreSupplementaryGroupInfoStage} refreshes the data in the database.
      *
      * @throws StoreOperationException on cache error
+     * @throws InterruptedException to satisfy compiler
      */
     @Test
-    public void testStoreSupplementaryGroupInfoStage() throws StoreOperationException {
+    public void testStoreSupplementaryGroupInfoStage()
+            throws StoreOperationException, InterruptedException {
         final SearchServiceBlockingStub searchServiceRpc =
                 SearchServiceGrpc.newBlockingStub(testServer.getChannel());
         final StoreSupplementaryGroupInfoStage stage =
                 new StoreSupplementaryGroupInfoStage(memberCache, searchServiceRpc,
-                        groupEnvironmentTypeResolver, groupSeverityCalculator, groupStoreMock);
+                        groupEnvironmentTypeResolver, groupSeverityCalculator, groupStoreMock,
+                        transactionProvider, executorService, 10);
         // GIVEN
         final long groupUuid1 = 1;
         final long groupUuid2 = 2;
@@ -189,14 +205,14 @@ public class StagesTest {
         Status status = stage.passthrough(input);
 
         // THEN
-        ArgumentCaptor<Collection> captor = ArgumentCaptor.forClass(Collection.class);
+        ArgumentCaptor<Map> captor = ArgumentCaptor.forClass(Map.class);
         // verify that even though we have multiple groups, there is only one (bulk) update
         verify(groupStoreMock, times(1))
                 .updateBulkGroupSupplementaryInfo(captor.capture());
         Assert.assertEquals(Status.success().getType(), status.getType());
         // validate the arguments passed to updateBulkGroupSupplementaryInfo
         Assert.assertEquals(2, captor.getValue().size());
-        Iterator<GroupSupplementaryInfo> it = captor.getValue().iterator();
+        Iterator<GroupSupplementaryInfo> it = captor.getValue().values().iterator();
         // group1
         validateGroupSupplementaryInfo(it.next(), groupUuid1, false,
                 EnvironmentType.ON_PREM.getNumber(), CloudType.UNKNOWN_CLOUD.getNumber(),
@@ -261,15 +277,17 @@ public class StagesTest {
      * during evaluation of a group's members.
      *
      * @throws StoreOperationException to satisfy compiler
+     * @throws InterruptedException to satisfy compiler
      */
     @Test
     public void testStoreSupplementaryGroupInfoStageExecutionContinuesAfterSingleGroupFailure()
-            throws StoreOperationException {
+            throws StoreOperationException, InterruptedException {
         final SearchServiceBlockingStub searchServiceRpc =
                 SearchServiceGrpc.newBlockingStub(testServer.getChannel());
         final StoreSupplementaryGroupInfoStage stage =
                 new StoreSupplementaryGroupInfoStage(memberCache, searchServiceRpc,
-                        groupEnvironmentTypeResolver, groupSeverityCalculator, groupStoreMock);
+                        groupEnvironmentTypeResolver, groupSeverityCalculator, groupStoreMock,
+                        transactionProvider, executorService, 10);
         // GIVEN
         final long groupUuid1 = 1;
         final long groupUuid2 = 2;
@@ -312,7 +330,7 @@ public class StagesTest {
         Status status = stage.passthrough(input);
 
         // THEN
-        ArgumentCaptor<Collection> captor = ArgumentCaptor.forClass(Collection.class);
+        ArgumentCaptor<Map> captor = ArgumentCaptor.forClass(Map.class);
         // verify that even though we have multiple groups, there is only one (bulk) update
         verify(groupStoreMock, times(1))
                 .updateBulkGroupSupplementaryInfo(captor.capture());
@@ -320,7 +338,6 @@ public class StagesTest {
         // Validate the arguments passed to updateBulkGroupSupplementaryInfo: since we failed to
         // resolve members for group 1, only group 2 should be queued for update.
         Assert.assertEquals(1, captor.getValue().size());
-        Iterator<GroupSupplementaryInfo> it = captor.getValue().iterator();
-        Assert.assertEquals(groupUuid2, it.next().getGroupId().longValue());
+        Assert.assertEquals(groupUuid2, captor.getValue().keySet().iterator().next());
     }
 }

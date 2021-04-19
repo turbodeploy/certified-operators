@@ -6,11 +6,13 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -23,6 +25,7 @@ import io.grpc.Status;
 import org.apache.commons.lang3.StringUtils;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
+import org.hamcrest.Matchers;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -62,6 +65,7 @@ import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.group.DiscoveredObjectVersionIdentity;
 import com.vmturbo.group.db.GroupComponent;
+import com.vmturbo.group.db.tables.pojos.GroupSupplementaryInfo;
 import com.vmturbo.group.group.IGroupStore.DiscoveredGroup;
 import com.vmturbo.group.group.IGroupStore.DiscoveredGroupId;
 import com.vmturbo.group.group.pagination.GroupPaginationParams;
@@ -2132,6 +2136,86 @@ public class GroupDaoTest {
                 .select(GROUP_SUPPLEMENTARY_INFO.SEVERITY)
                 .from(GROUP_SUPPLEMENTARY_INFO)
                 .fetch().get(0).value1()));
+    }
+
+    /**
+     * Tests updating group supplementary info in a bulk.
+     * Any groups that are not currently in the database (in main `grouping` table) are expected to
+     * be skipped.
+     *
+     * @throws StoreOperationException to satisfy compiler.
+     */
+    @Test
+    public void testUpdateBulkGroupSupplementaryInfo() throws StoreOperationException {
+        // GIVEN
+        prepareGroups("group1", "group2", "group3", "group4");
+        Map<Long, GroupSupplementaryInfo> groupsToUpdate = new HashMap<>();
+        // change emptiness and severity
+        groupsToUpdate.put(OID1, new GroupSupplementaryInfo(OID1, true,
+                EnvironmentType.ON_PREM.getNumber(),
+                CloudType.UNKNOWN_CLOUD.getNumber(),
+                Severity.MINOR.getNumber()));
+        // change env & cloud type and severity
+        groupsToUpdate.put(OID2, new GroupSupplementaryInfo(OID2, false,
+                EnvironmentType.CLOUD.getNumber(),
+                CloudType.GCP.getNumber(),
+                Severity.MAJOR.getNumber()));
+        // leave same
+        groupsToUpdate.put(OID3, new GroupSupplementaryInfo(OID3, true,
+                EnvironmentType.CLOUD.getNumber(),
+                CloudType.AWS.getNumber(),
+                Severity.MAJOR.getNumber()));
+        // leave same
+        groupsToUpdate.put(OID4, new GroupSupplementaryInfo(OID4, true,
+                EnvironmentType.ON_PREM.getNumber(),
+                CloudType.UNKNOWN_CLOUD.getNumber(),
+                Severity.CRITICAL.getNumber()));
+        // group that doesn't exist in the database (in grouping table)
+        groupsToUpdate.put(OID5, new GroupSupplementaryInfo(OID5, true,
+                EnvironmentType.ON_PREM.getNumber(),
+                CloudType.UNKNOWN_CLOUD.getNumber(),
+                Severity.MINOR.getNumber()));
+
+        // WHEN
+        groupStore.updateBulkGroupSupplementaryInfo(groupsToUpdate);
+
+        // THEN
+        Map<Long, GroupSupplementaryInfo> retrievedGroups = dbConfig.getDslContext()
+                .select()
+                .from(GROUP_SUPPLEMENTARY_INFO)
+                .fetchInto(GroupSupplementaryInfo.class)
+                .stream()
+                .collect(Collectors.toMap(GroupSupplementaryInfo::getGroupId, Function.identity()));
+        Assert.assertEquals(4, retrievedGroups.size());
+        Assert.assertThat(retrievedGroups.keySet(),
+                Matchers.containsInAnyOrder(OID1, OID2, OID3, OID4));
+        // (group with oid 5 should not be present)
+        // Verify the contents of the retrieved groups
+        assertSupplementaryInfoValues(retrievedGroups.get(OID1), OID1, true,
+                EnvironmentType.ON_PREM.getNumber(),
+                CloudType.UNKNOWN_CLOUD.getNumber(),
+                Severity.MINOR.getNumber());
+        assertSupplementaryInfoValues(retrievedGroups.get(OID2), OID2, false,
+                EnvironmentType.CLOUD.getNumber(),
+                CloudType.GCP.getNumber(),
+                Severity.MAJOR.getNumber());
+        assertSupplementaryInfoValues(retrievedGroups.get(OID3), OID3, true,
+                EnvironmentType.CLOUD.getNumber(),
+                CloudType.AWS.getNumber(),
+                Severity.MAJOR.getNumber());
+        assertSupplementaryInfoValues(retrievedGroups.get(OID4), OID4, true,
+                EnvironmentType.ON_PREM.getNumber(),
+                CloudType.UNKNOWN_CLOUD.getNumber(),
+                Severity.CRITICAL.getNumber());
+    }
+
+    private void assertSupplementaryInfoValues(GroupSupplementaryInfo gsi, long groupId,
+            boolean empty, int envType, int cloudType, int severity) {
+        Assert.assertEquals(groupId, gsi.getGroupId().longValue());
+        Assert.assertEquals(empty, gsi.getEmpty());
+        Assert.assertEquals(envType, gsi.getEnvironmentType().intValue());
+        Assert.assertEquals(cloudType, gsi.getCloudType().intValue());
+        Assert.assertEquals(severity, gsi.getSeverity().intValue());
     }
 
     @Nonnull
