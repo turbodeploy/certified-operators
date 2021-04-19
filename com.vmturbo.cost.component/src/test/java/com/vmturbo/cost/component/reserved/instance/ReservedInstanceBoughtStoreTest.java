@@ -31,10 +31,10 @@ import org.junit.Test;
 import org.mockito.Mockito;
 
 import com.vmturbo.cloud.common.identity.IdentityProvider.DefaultIdentityProvider;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.AccountReferenceFilter;
+import com.vmturbo.common.protobuf.cloud.CloudCommon.RegionFilter;
 import com.vmturbo.common.protobuf.cost.Cost;
-import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
 import com.vmturbo.common.protobuf.cost.Cost.AvailabilityZoneFilter;
-import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons;
@@ -378,7 +378,7 @@ public class ReservedInstanceBoughtStoreTest {
         List<Long> scopeIds = new ArrayList<>();
         scopeIds.add(0L);
         final ReservedInstanceBoughtFilter zeroAccountIdFilter = ReservedInstanceBoughtFilter.newBuilder()
-                .accountFilter(AccountFilter.newBuilder()
+                .accountFilter(AccountReferenceFilter.newBuilder()
                         .addAllAccountId(scopeIds)
                         .build())
                 .build();
@@ -389,7 +389,7 @@ public class ReservedInstanceBoughtStoreTest {
         scopeIds.add(123L);
         scopeIds.add(456L);
         final ReservedInstanceBoughtFilter accountIdFilter = ReservedInstanceBoughtFilter.newBuilder()
-                .accountFilter(AccountFilter.newBuilder()
+                .accountFilter(AccountReferenceFilter.newBuilder()
                         .addAllAccountId(scopeIds)
                         .build())
                 .build();
@@ -517,7 +517,7 @@ public class ReservedInstanceBoughtStoreTest {
         List<Long> scopeIds = new ArrayList<>();
         scopeIds.add(789L);
         final ReservedInstanceCostFilter filter = ReservedInstanceCostFilter.newBuilder()
-                .accountFilter(AccountFilter.newBuilder()
+                .accountFilter(AccountReferenceFilter.newBuilder()
                         .addAllAccountId(scopeIds)
                         .build())
                 .build();

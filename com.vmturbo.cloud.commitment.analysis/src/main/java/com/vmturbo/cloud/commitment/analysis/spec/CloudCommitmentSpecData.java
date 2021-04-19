@@ -7,7 +7,7 @@ import javax.annotation.Nonnull;
 import org.immutables.value.Value;
 import org.immutables.value.Value.Immutable;
 
-import com.vmturbo.common.protobuf.cloud.CloudCommitment.CloudCommitmentType;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.CloudCommitmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 
 /**

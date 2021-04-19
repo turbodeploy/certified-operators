@@ -5,7 +5,7 @@ option java_package = "com.vmturbo.common.protobuf.cca";
 option java_outer_classname = "CloudCommitmentAnalysis";
 
 import "CloudCostDTO.proto";
-import "cloud/CloudCommitment.proto";
+import "cloud/CloudCommitmentDTO.proto";
 
 // Demand classification based on the allocated compute tier of the entity
 enum AllocatedDemandClassification {
@@ -303,7 +303,7 @@ message CloudCommitmentInventory {
 
     message CloudCommitment {
 
-        optional cloud_commitment.CloudCommitmentType type = 1;
+        optional cloud_commitment_dto.CloudCommitmentType type = 1;
         optional int64 oid = 2;
 
         // Capacity indicates how much of the RI should be included in calculating uncovered demand.

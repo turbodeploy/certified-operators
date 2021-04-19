@@ -16,7 +16,7 @@ import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Table;
 
-import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
+import com.vmturbo.common.protobuf.cloud.CloudCommon.EntityFilter;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceUtil;

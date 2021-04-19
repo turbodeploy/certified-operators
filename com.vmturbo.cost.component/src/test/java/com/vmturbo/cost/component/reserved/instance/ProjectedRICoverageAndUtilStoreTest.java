@@ -33,9 +33,9 @@ import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
-import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.AccountReferenceFilter;
+import com.vmturbo.common.protobuf.cloud.CloudCommon.RegionFilter;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
-import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons;
@@ -265,7 +265,7 @@ public class ProjectedRICoverageAndUtilStoreTest {
                 .regionFilter(RegionFilter.newBuilder()
                         .addRegionId(REGION_1_ID)
                         .build())
-                .accountFilter(AccountFilter.newBuilder()
+                .accountFilter(AccountReferenceFilter.newBuilder()
                         .addAccountId(ACCOUNT_ID)
                         .build())
                 .build();
@@ -299,7 +299,7 @@ public class ProjectedRICoverageAndUtilStoreTest {
                 .regionFilter(RegionFilter.newBuilder()
                         .addRegionId(REGION_1_ID)
                         .build())
-                .accountFilter(AccountFilter.newBuilder()
+                .accountFilter(AccountReferenceFilter.newBuilder()
                         .addAccountId(ACCOUNT_ID)
                         .build())
                 .build();

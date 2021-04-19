@@ -42,8 +42,9 @@ import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest.EntityStatsPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IReservedInstancesService;
 import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
-import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
-import com.vmturbo.common.protobuf.cost.Cost.AccountFilter.AccountFilterType;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.AccountReferenceFilter;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.AccountReferenceType;
+import com.vmturbo.common.protobuf.cloud.CloudCommon.RegionFilter;
 import com.vmturbo.common.protobuf.cost.Cost.AvailabilityZoneFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetPlanReservedInstanceBoughtRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByFilterRequest;
@@ -51,7 +52,6 @@ import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtForScopeRe
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCoveredEntitiesRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCoveredEntitiesResponse.EntitiesCoveredByReservedInstance;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceSpecByIdsRequest;
-import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
@@ -128,7 +128,8 @@ public class ReservedInstancesService implements IReservedInstancesService {
             .orElse(UuidMapper.UI_REAL_TIME_MARKET_STR);
 
         final ApiId scope = uuidMapper.fromUuid(scopeUuid);
-        final AccountFilterType accountFilterType = filterType == null ? AccountFilterType.PURCHASED_BY
+        final AccountReferenceType accountFilterType = filterType == null
+                ? AccountReferenceType.PURCHASED_BY
                 : ReservedInstanceMapper.mapApiAccountFilterTypeToXl(filterType.name());
         final Collection<ReservedInstanceBought> reservedInstancesBought = getReservedInstancesBought(
                 scope, Objects.isNull(includeAllUsable) ? false : includeAllUsable, accountFilterType);
@@ -167,7 +168,7 @@ public class ReservedInstancesService implements IReservedInstancesService {
      */
     private Collection<ReservedInstanceBought> getReservedInstancesBought(
             @Nonnull ApiId scope, @Nonnull Boolean includeAllUsable,
-            final AccountFilterType accountFilterType)
+            final AccountReferenceType accountFilterType)
             throws UnknownObjectException {
         String scopeUuid = String.valueOf(scope.oid());
         final Optional<Grouping> groupOptional = groupExpander.getGroup(scopeUuid);
@@ -205,7 +206,7 @@ public class ReservedInstancesService implements IReservedInstancesService {
                  This should be cleaned by by a follow up story where
                  the account filter type sent in by the UI should be moved outside
                  as a generic RI filter type. */
-                if (accountFilterType == AccountFilterType.USED_AND_PURCHASED_BY) {
+                if (accountFilterType == AccountReferenceType.USED_AND_PURCHASED_BY) {
                     requestBuilder.setExcludeUndiscoveredUnused(true);
                 }
 
@@ -228,7 +229,7 @@ public class ReservedInstancesService implements IReservedInstancesService {
                             break;
                         case BUSINESS_ACCOUNT:
                             requestBuilder.setAccountFilter(
-                                    AccountFilter.newBuilder()
+                                    AccountReferenceFilter.newBuilder()
                                             .addAllAccountId(entityOids)
                                             .setAccountFilterType(accountFilterType)
                                             .build());
@@ -409,15 +410,15 @@ public class ReservedInstancesService implements IReservedInstancesService {
                     break;
 
                 case RI_BY_ACCOUNT_USED:
-                    requestBuilder.setAccountFilter(createAccountFilter(oidList, AccountFilterType.USED_BY));
+                    requestBuilder.setAccountFilter(createAccountFilter(oidList, AccountReferenceType.USED_BY));
                     break;
 
                 case RI_BY_ACCOUNT_PURCHASED:
-                    requestBuilder.setAccountFilter(createAccountFilter(oidList, AccountFilterType.PURCHASED_BY));
+                    requestBuilder.setAccountFilter(createAccountFilter(oidList, AccountReferenceType.PURCHASED_BY));
                     break;
 
                 case RI_BY_ACCOUNT_ALL:
-                    requestBuilder.setAccountFilter(createAccountFilter(oidList, AccountFilterType.USED_AND_PURCHASED_BY));
+                    requestBuilder.setAccountFilter(createAccountFilter(oidList, AccountReferenceType.USED_AND_PURCHASED_BY));
                     break;
 
                 case RI_BY_BILLING_FAMILY_USED:
@@ -426,7 +427,7 @@ public class ReservedInstancesService implements IReservedInstancesService {
                         final ApiId scope = uuidMapper.fromOid(billingFamilyOid);
                         accountOids.addAll(scope.getScopeOids());
                     }
-                    requestBuilder.setAccountFilter(createAccountFilter(accountOids, AccountFilterType.USED_BY));
+                    requestBuilder.setAccountFilter(createAccountFilter(accountOids, AccountReferenceType.USED_BY));
                     break;
 
                 case RI_BY_BILLING_FAMILY_PURCHASED:
@@ -435,7 +436,7 @@ public class ReservedInstancesService implements IReservedInstancesService {
                         final ApiId scope = uuidMapper.fromOid(billingFamilyOid);
                         accountOids.addAll(scope.getScopeOids());
                     }
-                    requestBuilder.setAccountFilter(createAccountFilter(accountOids, AccountFilterType.PURCHASED_BY));
+                    requestBuilder.setAccountFilter(createAccountFilter(accountOids, AccountReferenceType.PURCHASED_BY));
                     break;
 
                 case RI_BY_BILLING_FAMILY_ALL:
@@ -444,7 +445,7 @@ public class ReservedInstancesService implements IReservedInstancesService {
                         final ApiId scope = uuidMapper.fromOid(billingFamilyOid);
                         accountOids.addAll(scope.getScopeOids());
                     }
-                    requestBuilder.setAccountFilter(createAccountFilter(accountOids, AccountFilterType.USED_AND_PURCHASED_BY));
+                    requestBuilder.setAccountFilter(createAccountFilter(accountOids, AccountReferenceType.USED_AND_PURCHASED_BY));
                     break;
 
                 case RI_BY_CLOUD_PROVIDER:
@@ -478,7 +479,7 @@ public class ReservedInstancesService implements IReservedInstancesService {
                     }
 
                     requestBuilder.setAccountFilter(createAccountFilter(allAccountOids,
-                                    AccountFilterType.USED_AND_PURCHASED_BY));
+                            AccountReferenceType.USED_AND_PURCHASED_BY));
                     requestBuilder.setRegionFilter(RegionFilter.newBuilder().addAllRegionId(regionOidSet));
                     break;
                 default:
@@ -625,8 +626,8 @@ public class ReservedInstancesService implements IReservedInstancesService {
         return results;
     }
 
-    private AccountFilter.Builder createAccountFilter(List<Long> accountOidList, AccountFilterType accountFilterType) {
-        final AccountFilter.Builder accountFilterBuilder = AccountFilter.newBuilder();
+    private AccountReferenceFilter.Builder createAccountFilter(List<Long> accountOidList, AccountReferenceType accountFilterType) {
+        final AccountReferenceFilter.Builder accountFilterBuilder = AccountReferenceFilter.newBuilder();
         accountFilterBuilder.setAccountFilterType(accountFilterType).addAllAccountId(accountOidList);
         return accountFilterBuilder;
     }

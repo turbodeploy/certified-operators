@@ -4,9 +4,9 @@ import java.util.List;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
+import com.vmturbo.common.protobuf.cloud.CloudCommitmentDTO.AccountReferenceFilter;
+import com.vmturbo.common.protobuf.cloud.CloudCommon.RegionFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCostStatsRequest.GroupBy;
-import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
 
 /**
  * Filter used to extract RI costs from the underlying tables.
@@ -23,14 +23,14 @@ public class BuyReservedInstanceCostFilter extends BuyReservedInstanceTableFilte
      * @param topologyContextId long value indicating Topology Context ID.
      * @param regionFilter A {@link RegionFilter}, used to filter Buy RI instance by region OID, if
      *                     the filter list is set
-     * @param accountFilter A {@link AccountFilter}, used to filter Buy RI instances by account OID,
+     * @param accountFilter A {@link AccountReferenceFilter}, used to filter Buy RI instances by account OID,
      *                      if the filter list is set
      * @param buyRIIdList List of Buy RI IDs.
      * @param groupBy Enumeration of type GroupBy.
      */
     private BuyReservedInstanceCostFilter(boolean hasTopologyContextId, long topologyContextId,
                                           @Nonnull RegionFilter regionFilter,
-                                          @Nonnull AccountFilter accountFilter,
+                                          @Nonnull AccountReferenceFilter accountFilter,
                                           @Nonnull List<Long> buyRIIdList,
                                           @Nonnull GroupBy groupBy) {
         super(hasTopologyContextId, topologyContextId, regionFilter, accountFilter, buyRIIdList);

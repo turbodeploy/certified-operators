@@ -11,7 +11,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableMap;
 
-import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
+import com.vmturbo.common.protobuf.cloud.CloudCommon.RegionFilter;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
