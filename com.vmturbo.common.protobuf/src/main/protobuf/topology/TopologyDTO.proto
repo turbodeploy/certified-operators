@@ -124,6 +124,12 @@ message TypeSpecificInfo {
 
         //Whether the host is a failover or not
         optional bool dedicatedFailover = 9;
+
+        // Automation level of the physical machine
+        optional .common_dto.EntityDTO.AutomationLevel automationLevel = 10 [default = NOT_AUTOMATED];
+
+        // Migration level specified for the cluster of the PM
+        optional string migrationLevel = 11;
     }
 
     message BusinessAccountInfo {

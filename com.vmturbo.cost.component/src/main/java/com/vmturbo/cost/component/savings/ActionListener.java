@@ -29,6 +29,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.action.orchestrator.api.ActionsListener;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
@@ -37,6 +38,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
+import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest.ActionQuery;
 import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
@@ -218,19 +220,25 @@ public class ActionListener implements ActionsListener {
                     final Long completionTime = actionSpec.getExecutionStep().getCompletionTime();
                     final Long entityId = entity.getId();
                     Map<Long, EntityActionInfo> entityIdToActionInfoMap = new HashMap<>();
-                    entityIdToActionInfoMap.put(entityId, new EntityActionInfo(actionSpec, entity));
-                    final Map<Long, EntityPriceChange> entityPriceChangeMap = getEntityCosts(
-                                     ImmutableMap.of(entityId, new EntityActionInfo(actionSpec, entity)));
+                    final EntityActionInfo entityActionInfo = new EntityActionInfo(actionSpec, entity);
+                    entityIdToActionInfoMap.put(entityId, entityActionInfo);
+                    final Map<Long, EntityPriceChange> entityPriceChangeMap =
+                            getEntityCosts(ImmutableMap.of(entityId, entityActionInfo));
                     final EntityPriceChange actionPriceChange = entityPriceChangeMap.get(actionId);
                     if (actionPriceChange != null) {
+                        long expirationTime = completionTime
+                                + (ActionEventType.DELETE_EXECUTION_SUCCESS
+                                        .equals(entityActionInfo.getActionType())
+                                                ? deleteVolumeActionLifetimeMs
+                                                : actionLifetimeMs);
                         EntityPriceChange actionPriceChangeWithExpiration =
                                 new EntityPriceChange.Builder()
                                         .from(actionPriceChange)
-                                        .expirationTime(Optional.of(completionTime + actionLifetimeMs))
+                                        .expirationTime(Optional.of(expirationTime))
                                         .build();
                         final SavingsEvent successEvent = createActionEvent(entity.getId(),
                                 completionTime,
-                                ActionEventType.EXECUTION_SUCCESS,
+                                entityActionInfo.getActionType(),
                                 actionId,
                                 actionPriceChangeWithExpiration);
                         entityEventsJournal.addEvent(successEvent);
@@ -616,6 +624,12 @@ public class ActionListener implements ActionsListener {
         private final long actionId;
 
         /**
+         * The action type.
+         */
+        private ActionEventType actionType;
+
+
+        /**
          * Constructor.
          *
          * @param actionSpec ActionSpec of an action.
@@ -628,10 +642,15 @@ public class ActionListener implements ActionsListener {
             this.entityType = entity.getType();
             this.actionState = actionSpec.getActionState();
             this.costsByCategory = new HashMap<>();
-            if (action.hasInfo() && action.getInfo().hasScale()) {
-                final Scale scale = action.getInfo().getScale();
+            if (!action.hasInfo()) {
+                return;
+            }
+            ActionInfo actionInfo = action.getInfo();
+            if (actionInfo.hasScale()) {
+                this.actionType = ActionEventType.SCALE_EXECUTION_SUCCESS;
+                final Scale scale = actionInfo.getScale();
                 if (scale.getChangesCount() > 0) {
-                    final ChangeProvider changeProvider = action.getInfo().getScale().getChanges(0);
+                    final ChangeProvider changeProvider = scale.getChanges(0);
                     if (changeProvider.hasSource()) {
                         this.sourceOid = changeProvider.getSource().getId();
                     }
@@ -642,6 +661,15 @@ public class ActionListener implements ActionsListener {
                     // Scaling within same tier, like some UltraSSDs.
                     this.sourceOid = scale.getPrimaryProvider().getId();
                     this.destinationOid = scale.getPrimaryProvider().getId();
+                }
+            } else if (actionInfo.hasDelete()) {
+                this.actionType = ActionEventType.DELETE_EXECUTION_SUCCESS;
+                final Delete delete = actionInfo.getDelete();
+                if (delete.hasSource()) {
+                    // A delete is modeled as a resize to zero, so ensure that the destination
+                    // OID is zero, which will map to a zero cost.
+                    this.sourceOid = delete.getSource().getId();
+                    this.destinationOid = 0L;
                 }
             }
         }
@@ -719,6 +747,15 @@ public class ActionListener implements ActionsListener {
          */
         protected long getRecommendationTime() {
             return recommendationTime;
+        }
+
+        /**
+         * Getter for action type.
+         *
+         * @return the action type.
+         */
+        protected ActionEventType getActionType() {
+            return actionType;
         }
 
         /**

@@ -39,7 +39,7 @@
   "links": [],
   "panels": [
     {
-      "datasource": null,
+      "datasource": "$DS",
       "fieldConfig": {
         "defaults": {
           "custom": {
@@ -122,11 +122,6 @@
   "templating": {
     "list": [
       {
-        "current": {
-          "selected": true,
-          "text": "default",
-          "value": "default"
-        },
         "error": null,
         "hide": 0,
         "includeAll": false,
@@ -178,7 +173,6 @@
       },
       {
         "allValue": null,
-        "current": {},
         "datasource": "$DS",
         "definition": "SELECT  name AS __text, oid AS __value FROM entity WHERE\n  CASE '${scopeType}' \n    WHEN 'Cloud Service Provider' THEN 'SERVICE_PROVIDER'\n    WHEN 'Account' THEN 'BUSINESS_ACCOUNT'\n    WHEN 'Resource Group' THEN 'RESOURCE_GROUP'\n  END = type::text\nORDER BY __text",
         "error": null,
@@ -206,7 +200,7 @@
     "to": "now"
   },
   "timepicker": {
-    "hidden": true,
+    "hidden": false,
     "refresh_intervals": [
       "10s",
       "30s",

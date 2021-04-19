@@ -71,7 +71,7 @@ public abstract class AbstractCachingHistoricalEditor<HistoryData extends IHisto
      * Entity types with controllable as false but applicable for HistoricalEditor.
      */
     private static final Set<Integer> NON_CONTROLLABLE_APPLICABLE_ENTITY_TYPES =
-        ImmutableSet.of(EntityType.CONTAINER_SPEC_VALUE);
+        ImmutableSet.of(EntityType.CONTAINER_SPEC_VALUE, EntityType.VIRTUAL_VOLUME_VALUE);
 
     /**
      * Per-commodity field cached historical data.

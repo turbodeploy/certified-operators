@@ -8,15 +8,20 @@ serverIp=$(ifconfig eth0 | grep 'inet' |egrep -v 'inet6' | cut -d: -f2 | awk '{ 
 databaseIp=$(grep externalDbIP /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml | egrep -v '#' | awk '{print $2}')
 databaseName=$(grep externalDBName /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml | egrep -v '#' | awk '{print $2}')
 
-if [ X${serverIp} != X${databaseIp} ]
+# Check to see if the database is remote from the server
+if [ -z "${databaseIp+x}" ]
 then
-  echo "Exiting, the database server does not appear to be hosted on this kubernetes node"
-  exit 1
-fi
-if [ ! -z ${databaseName+x} ]
-then
-  echo "Exiting, the database server does not appear to be hosted on this kubernetes node"
-  exit 1
+  if [ -z "${databaseName}" ]
+  then
+    echo "Exiting, the database server does not appear to be hosted on this kubernetes node"
+    exit 1
+  fi
+else
+  if [ X${serverIp} != X${databaseIp} ]
+  then
+    echo "Exiting, the database server does not appear to be hosted on this kubernetes node"
+    exit 1
+  fi
 fi
 
 # Check the version installed
@@ -70,8 +75,8 @@ sudo rm -rf /etc/yum.repos.d/mariadb.repo
 sudo bash -c 'cat << EOF > /etc/yum.repos.d/mariadb.repo
 [mariadb]
 name = MariaDB-10.5.6
-baseurl=http://yum.mariadb.org/10.5.6/centos7-amd64
-# alternative: baseurl=http://archive.mariadb.org/mariadb-10.5.6/yum/centos7-amd64
+baseurl=https://yum.mariadb.org/10.5.6/centos7-amd64
+# alternative: baseurl=https://archive.mariadb.org/mariadb-10.5.6/yum/centos7-amd64
 gpgkey=https://yum.mariadb.org/RPM-GPG-KEY-MariaDB
 gpgcheck=1
 EOF'

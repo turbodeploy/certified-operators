@@ -5,13 +5,17 @@ import static java.util.stream.Collectors.toList;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext.TimeWindow;
 import com.vmturbo.api.component.external.api.util.stats.query.StatsSubQuery;
@@ -28,8 +32,13 @@ import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsRecord;
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsRecord.SavingsRecord;
 import com.vmturbo.common.protobuf.cost.Cost.EntitySavingsStatsType;
+import com.vmturbo.common.protobuf.cost.Cost.EntityTypeFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetEntitySavingsStatsRequest;
+import com.vmturbo.common.protobuf.cost.Cost.ResourceGroupFilter;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.group.api.GroupAndMembers;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
 /**
  * Sub-query for handling requests for entity savings/investments.
@@ -37,6 +46,8 @@ import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 public class EntitySavingsSubQuery implements StatsSubQuery {
 
     private final CostServiceBlockingStub costServiceRpc;
+
+    private final GroupExpander groupExpander;
 
     private static final Set<String> SUPPORTED_STATS = Arrays.stream(EntitySavingsStatsType.values())
             .map(EntitySavingsStatsType::name)
@@ -46,9 +57,12 @@ public class EntitySavingsSubQuery implements StatsSubQuery {
      * Constructor for EntitySavingsSubQuery.
      *
      * @param costServiceRpc cost RPC service
+     * @param groupExpander group expander
      */
-    public EntitySavingsSubQuery(@Nonnull final CostServiceBlockingStub costServiceRpc) {
+    public EntitySavingsSubQuery(@Nonnull final CostServiceBlockingStub costServiceRpc,
+                                 @Nonnull final GroupExpander groupExpander) {
         this.costServiceRpc = costServiceRpc;
+        this.groupExpander = groupExpander;
     }
 
     @Override
@@ -86,7 +100,6 @@ public class EntitySavingsSubQuery implements StatsSubQuery {
             return Collections.emptyList();
         }
 
-
         // Set requested stat names.
         Set<EntitySavingsStatsType> requestedStatsTypes = stats.stream()
                 .map(StatApiInputDTO::getName)
@@ -99,9 +112,36 @@ public class EntitySavingsSubQuery implements StatsSubQuery {
         request.addAllStatsTypes(requestedStatsTypes);
 
         // Set scope entity IDs.
-        EntityFilter entityFilter = EntityFilter.newBuilder()
-                .addAllEntityId(context.getInputScope().getScopeOids()).build();
-        request.setEntityFilter(entityFilter);
+        if (context.getInputScope().isResourceGroupOrGroupOfResourceGroups()) {
+            // Resource groups are handled differently because they are a kind of group and members
+            // are already determined. However, we want to send the resource OID(s) in the
+            // request for entity savings and use the entity_cloud_scope table to look up its members.
+            // Doing the scope expansion by using the entity_cloud_scope table will include entities
+            // that have been deleted, and allow savings to be calculated more correctly.
+            ResourceGroupFilter.Builder resourceGroupFilterBuilder = ResourceGroupFilter.newBuilder();
+            long scopeOid = context.getInputScope().oid();
+            Optional<GroupType> groupType = context.getInputScope().getGroupType();
+            if (groupType.isPresent() && groupType.get() == GroupType.REGULAR) {
+                // Scope is a group of resource groups.
+                Optional<GroupAndMembers> groupAndMembers =
+                        groupExpander.getGroupWithImmediateMembersOnly(Long.toString(scopeOid));
+                groupAndMembers.ifPresent(g -> resourceGroupFilterBuilder.addAllResourceGroupOid(g.members()));
+            } else {
+                // Scope is a single resource group.
+                resourceGroupFilterBuilder.addResourceGroupOid(scopeOid);
+            }
+            request.setResourceGroupFilter(resourceGroupFilterBuilder);
+        } else {
+            // Set entity OIDs.
+            EntityFilter entityFilter = EntityFilter.newBuilder()
+                    .addAllEntityId(context.getInputScope().getScopeOids()).build();
+            request.setEntityFilter(entityFilter);
+
+            // Set entity types.
+            Set<Integer> scopeTypes = getScopeTypes(context);
+            EntityTypeFilter entityTypeFilter = EntityTypeFilter.newBuilder().addAllEntityTypeId(scopeTypes).build();
+            request.setEntityTypeFilter(entityTypeFilter);
+        }
 
         // Call cost component api to get the list of stats
         Iterator<EntitySavingsStatsRecord> savingsStatsRecords = costServiceRpc.getEntitySavingsStats(request.build());
@@ -114,6 +154,22 @@ public class EntitySavingsSubQuery implements StatsSubQuery {
         }
 
         return statsResponse;
+    }
+
+    private Set<Integer> getScopeTypes(StatsQueryContext context) {
+        Set<Integer> scopeTypes = new HashSet<>();
+        ApiId inputScope = context.getInputScope();
+        if (inputScope.isGroup()) {
+            if (inputScope.getCachedGroupInfo().isPresent()) {
+                inputScope.getCachedGroupInfo().get().getEntityTypes().stream()
+                        .map(ApiEntityType::typeNumber).forEach(scopeTypes::add);
+            }
+        } else {
+            inputScope.getScopeTypes().ifPresent(entityTypes -> entityTypes.stream()
+                    .map(ApiEntityType::typeNumber)
+                    .forEach(scopeTypes::add));
+        }
+        return scopeTypes;
     }
 
     /**

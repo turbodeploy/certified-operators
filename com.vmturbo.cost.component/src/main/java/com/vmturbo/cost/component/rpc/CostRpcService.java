@@ -84,7 +84,6 @@ import com.vmturbo.cost.component.expenses.AccountExpensesStore;
 import com.vmturbo.cost.component.savings.AggregatedSavingsStats;
 import com.vmturbo.cost.component.savings.EntitySavingsException;
 import com.vmturbo.cost.component.savings.EntitySavingsStore;
-import com.vmturbo.cost.component.savings.EntitySavingsTracker;
 import com.vmturbo.cost.component.util.AccountExpensesFilter.AccountExpenseFilterBuilder;
 import com.vmturbo.cost.component.util.BusinessAccountHelper;
 import com.vmturbo.cost.component.util.CostFilter;
@@ -883,7 +882,9 @@ public class CostRpcService extends CostServiceImplBase {
             final TimeFrame timeFrame = timeFrameCalculator.millis2TimeFrame(request.getStartDate());
             final List<AggregatedSavingsStats> stats = entitySavingsStore.getSavingsStats(
                     timeFrame, statsTypes, request.getStartDate(), request.getEndDate(),
-                    request.getEntityFilter().getEntityIdList());
+                    request.getEntityFilter().getEntityIdList(),
+                    request.getEntityTypeFilter().getEntityTypeIdList(),
+                    request.getResourceGroupFilter().getResourceGroupOidList());
 
             final Set<EntitySavingsStatsRecord> records = createSavingsStatsRecords(stats);
             records.forEach(responseObserver::onNext);

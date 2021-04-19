@@ -853,7 +853,8 @@ public class ServiceConfig {
     @Bean
     public EntitySavingsSubQuery entitySavingsSubQuery() {
         final EntitySavingsSubQuery entitySavingsSubQuery =
-                new EntitySavingsSubQuery(communicationConfig.costServiceBlockingStub());
+                new EntitySavingsSubQuery(communicationConfig.costServiceBlockingStub(),
+                        communicationConfig.groupExpander());
         if (enableEntitySavings) {
             statsQueryExecutor().addSubquery(entitySavingsSubQuery);
         }

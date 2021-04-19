@@ -149,7 +149,7 @@ public class EventInjector implements Runnable {
                     }
                     wk.reset();
                 }
-            } catch (IOException e) {
+            } catch (Exception e) {
                 e.printStackTrace();
                 if (watchService != null) {
                     try {
@@ -211,7 +211,7 @@ public class EventInjector implements Runnable {
         Builder result = new SavingsEvent.Builder()
                 .entityId(event.uuid)
                 .timestamp(event.timestamp);
-        if ("RESIZE_RECOMMENDATION".equals(event.eventType)) {
+        if ("RECOMMENDATION_ADDED".equals(event.eventType)) {
             EntityPriceChange entityPriceChange =  new EntityPriceChange.Builder()
                     .sourceCost(event.sourceTier)
                     .destinationCost(event.destTier)
@@ -222,7 +222,7 @@ public class EventInjector implements Runnable {
                     .eventType(ActionEventType.RECOMMENDATION_ADDED)
                     .build();
             result.actionEvent(actionEvent).entityPriceChange(entityPriceChange);
-        } else if ("CANCEL_RECOMMENDATION".equals(event.eventType)) {
+        } else if ("RECOMMENDATION_REMOVED".equals(event.eventType)) {
             EntityPriceChange dummyPriceChange =  new EntityPriceChange.Builder()
                     .sourceCost(0d).destinationCost(0d).expirationTime(event.expirationTimestamp)
                     .build();
@@ -250,7 +250,18 @@ public class EventInjector implements Runnable {
                     .build();
             ActionEvent actionEvent = new ActionEvent.Builder()
                     .actionId(event.uuid)
-                    .eventType(ActionEventType.EXECUTION_SUCCESS)
+                    .eventType(ActionEventType.SCALE_EXECUTION_SUCCESS)
+                    .build();
+            result.actionEvent(actionEvent).entityPriceChange(entityPriceChange);
+        } else if ("DELETE_EXECUTED".equals(event.eventType)) {
+            EntityPriceChange entityPriceChange =  new EntityPriceChange.Builder()
+                    .sourceCost(event.sourceTier)
+                    .destinationCost(0d)
+                    .expirationTime(Optional.of(event.expirationTimestamp))
+                    .build();
+            ActionEvent actionEvent = new ActionEvent.Builder()
+                    .actionId(event.uuid)
+                    .eventType(ActionEventType.DELETE_EXECUTION_SUCCESS)
                     .build();
             result.actionEvent(actionEvent).entityPriceChange(entityPriceChange);
         } else if ("ENTITY_REMOVED".equals(event.eventType)) {

@@ -55,6 +55,6 @@ else
   sudo rm -rf /mnt/iso/*
 fi
 pushd /mnt/iso/
-sudo curl -o /mnt/iso/online-packages.tar http://download.vmturbo.com/appliance/download/updates/${turboVersion}/online-packages.tar
+sudo curl -o /mnt/iso/online-packages.tar https://download.vmturbo.com/appliance/download/updates/${turboVersion}/online-packages.tar
 sudo tar -xvf online-packages.tar
 /mnt/iso/turboupgrade.sh

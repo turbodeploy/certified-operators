@@ -135,6 +135,11 @@ public interface Algorithm {
     long getNextExpirationTime();
 
     /**
+     * Clear the action list and related expiration list.
+     */
+    void clearActionList();
+
+    /**
      * Group of savings and investments together.
      */
     class SavingsInvestments {

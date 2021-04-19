@@ -337,13 +337,16 @@ public class RollupProcessor {
 
     private List<Future<Void>> scheduleRollupTasks(@Nonnull Table table,
             @Nonnull RollupType rollupType, @Nonnull Timestamp snapshotTime) {
-        if (EntityType.fromTable(table).isPresent()) {
+        // Since CLUSTER is also part of EntityType, we need to first check CLUSTER_STATS_LATEST table.
+        // Otherwise, entity stats roll up logic will be applied to cluster stats roll up.
+        // TODO: improve the logic for cluster stats roll up
+        if (table == CLUSTER_STATS_LATEST) {
+            return scheduleClusterStatsRollupTasks(table, rollupType, snapshotTime);
+        } else if (EntityType.fromTable(table).isPresent()) {
             return scheduleEntityStatsRollupTasks(
                     table, rollupType, snapshotTime, TASKS_PER_ENTITY_STATS_ROLLUP);
         } else if (table == MARKET_STATS_LATEST) {
             return scheduleMarketStatsRollupTask();
-        } else if (table == CLUSTER_STATS_LATEST) {
-            return scheduleClusterStatsRollupTasks(table, rollupType, snapshotTime);
         }
         throw new IllegalArgumentException(
                 String.format("Cannot schedule rollup tasks for table: %s", table));

@@ -70,6 +70,7 @@ import com.vmturbo.history.listeners.RollupProcessor.RollupType;
 import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.schema.abstraction.Tables;
 import com.vmturbo.history.schema.abstraction.tables.VolumeAttachmentHistory;
+import com.vmturbo.history.schema.abstraction.tables.records.ClusterStatsLatestRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.PmStatsLatestRecord;
 import com.vmturbo.history.stats.DbTestConfig;
 import com.vmturbo.history.stats.PropertySubType;
@@ -96,6 +97,10 @@ public class RollupProcessorTest {
     private static final String MIN_VALUE_FIELD = "min_value";
     private static final String SNAPSHOT_TIME_FIELD = "snapshot_time";
     private static final String SAMPLES_FIELD = "samples";
+
+    private static final String INTERNAL_NAME_FIELD = "internal_name";
+    private static final String RECORDED_ON_FIELD = "recorded_on";
+    private static final String VALUE_FIELD = "value";
 
     /**
      * Seed for random number generator.
@@ -215,7 +220,7 @@ public class RollupProcessorTest {
                         PropertySubType.Used.getApiParameterName(), null);
         StatsTimeSeries<PmStatsLatestRecord> ts1 = new StatsTimeSeries<>(
                 Tables.PM_STATS_LATEST, template1, 100_000.0,
-                Instant.parse("2019-01-31T22:01:35Z"), TimeUnit.MINUTES.toMillis(10));
+                Instant.parse("2019-01-31T22:01:35Z"), TimeUnit.MINUTES.toMillis(10), false);
         BulkLoader<PmStatsLatestRecord> loader = loaders.getLoader(Tables.PM_STATS_LATEST);
         // run through the 22:00 hour
         ts1.cycle(6, loader);
@@ -252,6 +257,61 @@ public class RollupProcessorTest {
         checkRollups(DAY, template1, dailyFeb1, Tables.PM_STATS_LATEST, null, null, null);
         checkRollups(MONTH, template1, monthlyJan, Tables.PM_STATS_LATEST, null, null, null);
         checkRollups(MONTH, template1, monthlyFeb, Tables.PM_STATS_LATEST, null, null, null);
+    }
+
+    /**
+     * Perform a test of rollups by inserting records into a time series over a span of 26 hours
+     * crossing a month (and therefore day) boundary in the process, and checking that all rollup
+     * tables have correct values in all fields.
+     *
+     * @throws InterruptedException if interrupted
+     * @throws VmtDbException       on db error
+     * @throws SQLException         on db error
+     */
+    @Test
+    public void testClusterRollup() throws InterruptedException, VmtDbException, SQLException {
+        ClusterStatsLatestRecord template1 =
+            createTemplateForClusterStatsTimeSeries(Tables.CLUSTER_STATS_LATEST, "CPU",
+                PropertySubType.Used.getApiParameterName());
+        StatsTimeSeries<ClusterStatsLatestRecord> ts1 = new StatsTimeSeries<>(
+            Tables.CLUSTER_STATS_LATEST, template1, 100_000.0,
+            Instant.parse("2019-01-31T22:01:35Z"), TimeUnit.MINUTES.toMillis(10), true);
+        BulkLoader<ClusterStatsLatestRecord> loader = loaders.getLoader(Tables.CLUSTER_STATS_LATEST);
+        // run through the 22:00 hour
+        ts1.cycle(6, loader);
+        final Aggregator hourly10PM = ts1.reset(HOUR);
+        // run through the 23:00 hour, which also closes out Jan 31 and the month of January
+        ts1.cycle(6, loader);
+        final Aggregator hourly11PM = ts1.reset(HOUR);
+        final Aggregator dailyJan31 = ts1.reset(DAY);
+        final Aggregator monthlyJan = ts1.reset(MONTH);
+        // run through first two hours of Feb 1, skipping a few cycles and grabbing
+        // hourly aggregators
+        ts1.cycle(3, loader, false);
+        ts1.skipCycle();
+        ts1.cycle(2, loader);
+        final Aggregator hourly12AM = ts1.reset(HOUR);
+        ts1.cycle(1, loader, false);
+        ts1.skipCycle();
+        ts1.skipCycle();
+        ts1.cycle(3, loader);
+        final Aggregator hourly1AM = ts1.reset(HOUR);
+        // now run through the next 22 hours
+        for (int i = 0; i < 22; i++) {
+            ts1.cycle(6, loader);
+        }
+        // and finally do daily and monthly rollups for Feb 1
+        final Aggregator dailyFeb1 = ts1.reset(DAY);
+        final Aggregator monthlyFeb = ts1.reset(MONTH);
+        // now check the rollup data for the aggregators we grabbed
+        checkClusterRollup(HOUR, template1, hourly10PM, Tables.CLUSTER_STATS_LATEST, null, null, null);
+        checkClusterRollup(HOUR, template1, hourly11PM, Tables.CLUSTER_STATS_LATEST, null, null, null);
+        checkClusterRollup(HOUR, template1, hourly12AM, Tables.CLUSTER_STATS_LATEST, null, null, null);
+        checkClusterRollup(HOUR, template1, hourly1AM, Tables.CLUSTER_STATS_LATEST, null, null, null);
+        checkClusterRollup(DAY, template1, dailyJan31, Tables.CLUSTER_STATS_LATEST, null, null, null);
+        checkClusterRollup(DAY, template1, dailyFeb1, Tables.CLUSTER_STATS_LATEST, null, null, null);
+        checkClusterRollup(MONTH, template1, monthlyJan, Tables.CLUSTER_STATS_LATEST, null, null, null);
+        checkClusterRollup(MONTH, template1, monthlyFeb, Tables.CLUSTER_STATS_LATEST, null, null, null);
     }
 
     private static final long VOLUME_OID = 11111L;
@@ -296,7 +356,7 @@ public class RollupProcessorTest {
     public void testPurgeVolumeAttachmentHistoryRecordsNoRemovals() throws VmtDbException {
         final long currentTime = System.currentTimeMillis();
         final long withinRetentionPeriod = currentTime - TimeUnit.DAYS
-                .toMillis(VOL_ATTACHMENT_HISTORY_RETENTION_PERIOD);
+                .toMillis(VOL_ATTACHMENT_HISTORY_RETENTION_PERIOD - 1);
         final long outsideRetentionPeriod =
                 currentTime - TimeUnit.DAYS.toMillis(VOL_ATTACHMENT_HISTORY_RETENTION_PERIOD + 1);
         insertIntoVolumeAttachmentHistoryTable(VOLUME_OID, VM_OID, outsideRetentionPeriod,
@@ -327,7 +387,7 @@ public class RollupProcessorTest {
     public void testPurgeVolumeAttachmentHistoryRecordsOneRemoval() throws VmtDbException {
         final long currentTime = System.currentTimeMillis();
         final long withinRetentionPeriod = currentTime - TimeUnit.DAYS
-                .toMillis(VOL_ATTACHMENT_HISTORY_RETENTION_PERIOD);
+                .toMillis(VOL_ATTACHMENT_HISTORY_RETENTION_PERIOD - 1);
         final long outsideRetentionPeriod = currentTime - TimeUnit.DAYS
                 .toMillis(VOL_ATTACHMENT_HISTORY_RETENTION_PERIOD + 1);
         insertIntoVolumeAttachmentHistoryTable(VOLUME_OID, VM_OID, outsideRetentionPeriod,
@@ -392,7 +452,7 @@ public class RollupProcessorTest {
             throws VmtDbException, SQLException {
         Timestamp snapshot = getRollupSnapshot(timeFrame, aggregator.getLatestSnapshot());
         Table<?> rollupTable = getRollupTable(EntityType.fromTable(table).get(), timeFrame);
-        Record rollup = retrieveRecord(rollupTable, snapshot, uuid, propertyType, propertySubtype);
+        Record rollup = retrieveRecord(rollupTable, snapshot, uuid, propertyType, propertySubtype, false);
         checkField(template, rollup, UUID_FIELD, String.class);
         checkField(template, rollup, PRODUCER_UUID_FIELD, String.class);
         checkField(template, rollup, PROPERTY_TYPE_FIELD, String.class);
@@ -405,6 +465,19 @@ public class RollupProcessorTest {
         checkField(aggregator.getMaxObservedCapacity(), rollup, CAPACITY_FIELD, Double.class);
         checkField(aggregator.getMaxObservedEffectiveCapacity(), rollup, EFFECTIVE_CAPACITY_FIELD, Double.class);
         checkField(aggregator.getSamples(), rollup, SAMPLES_FIELD, Integer.class);
+    }
+
+    private <R extends Record> void checkClusterRollup(
+            TimeFrame timeFrame, R template, Aggregator aggregator, Table<R> table,
+            @Nullable String uuid, @Nullable String propertyType, @Nullable String propertySubtype)
+            throws VmtDbException, SQLException {
+        Timestamp snapshot = getRollupSnapshot(timeFrame, aggregator.getLatestSnapshot());
+        Table<?> rollupTable = getRollupTable(EntityType.fromTable(table).get(), timeFrame);
+        Record rollup = retrieveRecord(rollupTable, snapshot, uuid, propertyType, propertySubtype, true);
+        checkField(template, rollup, INTERNAL_NAME_FIELD, String.class);
+        checkField(template, rollup, PROPERTY_TYPE_FIELD, String.class);
+        checkField(template, rollup, PROPERTY_SUBTYPE_FIELD, String.class);
+        checkField(aggregator.getAvg(), rollup, VALUE_FIELD, Double.class);
     }
 
     /**
@@ -456,18 +529,22 @@ public class RollupProcessorTest {
      * @param uuid            uuid, or null to not include a uuid condition
      * @param propertyType    property type, or null to not include a property type condition
      * @param propertySubtype property subtype, or null to not include a property subtype condition
+     * @param isClusterStats  whether it is cluster stats or not
      * @return the rollup record
      * @throws VmtDbException on db error
      * @throws SQLException   on db error
      */
     private Record retrieveRecord(
             Table<?> rollupTable, Timestamp snapshot,
-            @Nullable String uuid, @Nullable String propertyType, @Nullable String propertySubtype)
+            @Nullable String uuid, @Nullable String propertyType, @Nullable String propertySubtype,
+            boolean isClusterStats)
             throws VmtDbException, SQLException {
         List<Condition> conditions = new ArrayList<>();
-        conditions.add(getTimestampField(rollupTable, SNAPSHOT_TIME_FIELD).eq(snapshot));
+        conditions.add(getTimestampField(rollupTable,
+            isClusterStats ? RECORDED_ON_FIELD : SNAPSHOT_TIME_FIELD).eq(snapshot));
         if (uuid != null) {
-            conditions.add(getStringField(rollupTable, UUID_FIELD).eq(uuid));
+            conditions.add(getStringField(rollupTable,
+                isClusterStats ? INTERNAL_NAME_FIELD : UUID_FIELD).eq(uuid));
         }
         if (propertyType != null) {
             conditions.add(getStringField(rollupTable, PROPERTY_TYPE_FIELD).eq(propertyType));
@@ -557,6 +634,29 @@ public class RollupProcessorTest {
     }
 
     /**
+     * Create a template record for a new time series.
+     *
+     * <p>The record includes values for all the fields that constitute the "identity" of the
+     * time series.</p>
+     *
+     * @param t               "latest" entity stats table
+     * @param propertyType    property type for the time series
+     * @param propertySubtype property subtype for the time series
+     * @param <R>             record type
+     * @return the template record
+     */
+    private <R extends Record> R createTemplateForClusterStatsTimeSeries(
+        Table<R> t, String propertyType, String propertySubtype) {
+        R record = t.newRecord();
+        // generate a unique uuid for this time series and, either a random producer id or null
+        record.setValue(getStringField(t, INTERNAL_NAME_FIELD), getRandUuid());
+        // set identity field values
+        record.setValue(getStringField(t, PROPERTY_TYPE_FIELD), propertyType);
+        record.setValue(getStringField(t, PROPERTY_SUBTYPE_FIELD), propertySubtype);
+        return record;
+    }
+
+    /**
      * Create a uuid value, based on a newly generated long.
      *
      * @return the uuid value
@@ -575,12 +675,13 @@ public class RollupProcessorTest {
      */
     private class StatsTimeSeries<R extends Record> implements Supplier<R> {
 
-        private final Table<R> table;
-        private final Double baseValue;
-        private Instant snapshot;
-        private final long cycleTimeMsec;
-        private final R templateRecord;
+        final Table<R> table;
+        final Double baseValue;
+        Instant snapshot;
+        final long cycleTimeMsec;
+        final R templateRecord;
         Map<TimeFrame, Aggregator> aggregators = new HashMap<>();
+        boolean isClusterStats;
 
         /**
          * Create a new instance.
@@ -591,15 +692,18 @@ public class RollupProcessorTest {
          *                       this
          * @param baseSnapshot   snapshot_time of first generated record
          * @param cycleTimeMsec  duration in millis between snapshot_times in consecutive records
+         * @param isClusterStats whether it is cluster stats or not
          */
         StatsTimeSeries(
                 Table<R> table, R templateRecord,
-                Double baseValue, Instant baseSnapshot, long cycleTimeMsec) {
+                Double baseValue, Instant baseSnapshot, long cycleTimeMsec,
+                boolean isClusterStats) {
             this.table = table;
             this.templateRecord = templateRecord;
             this.baseValue = baseValue;
             this.snapshot = baseSnapshot;
             this.cycleTimeMsec = cycleTimeMsec;
+            this.isClusterStats = isClusterStats;
             initAggregators();
         }
 
@@ -652,16 +756,24 @@ public class RollupProcessorTest {
         public R get() {
             // clone the template
             R r = templateRecord.into(table);
-            r.set(getTimestampField(table, SNAPSHOT_TIME_FIELD), Timestamp.from(snapshot));
-            // compute a value that is randomly +-5% from base and set it in all value fields
-            Double value = baseValue * (0.95 + rand.nextFloat() / 10);
-            r.set(getDoubleField(table, AVG_VALUE_FIELD), value);
-            r.set(getDoubleField(table, MAX_VALUE_FIELD), value);
-            r.set(getDoubleField(table, MIN_VALUE_FIELD), value);
-            // set capacity and effective capacity as fixed muliples of the provided value
-            // (we don't really care what they are, just that we're correctly aggregating them
-            r.set(getDoubleField(table, CAPACITY_FIELD), value * 2);
-            r.set(getDoubleField(table, EFFECTIVE_CAPACITY_FIELD), value * 4);
+            Double value;
+            if (isClusterStats) {
+                value = baseValue;
+                r.set(getTimestampField(table, RECORDED_ON_FIELD), Timestamp.from(snapshot));
+                r.set(getDoubleField(table, VALUE_FIELD), value);
+            } else {
+                r.set(getTimestampField(table, SNAPSHOT_TIME_FIELD), Timestamp.from(snapshot));
+                // compute a value that is randomly +-5% from base and set it in all value fields
+                value = baseValue * (0.95 + rand.nextFloat() / 10);
+                r.set(getDoubleField(table, AVG_VALUE_FIELD), value);
+                r.set(getDoubleField(table, MAX_VALUE_FIELD), value);
+                r.set(getDoubleField(table, MIN_VALUE_FIELD), value);
+                // set capacity and effective capacity as fixed muliples of the provided value
+                // (we don't really care what they are, just that we're correctly aggregating them
+                r.set(getDoubleField(table, CAPACITY_FIELD), value * 2);
+                r.set(getDoubleField(table, EFFECTIVE_CAPACITY_FIELD), value * 4);
+            }
+
             // update all active aggregators
             aggregators.values().forEach(agg -> agg.observe(value, snapshot));
             // set up for next cycle
@@ -705,11 +817,11 @@ public class RollupProcessorTest {
             for (int i = 0; i < n; i++) {
                 loader.insert(get());
                 loaders.flushAll();
-                rollupProcessor.performHourRollups(singletonList(Tables.PM_STATS_LATEST),
+                rollupProcessor.performHourRollups(singletonList(table),
                         aggregators.get(HOUR).getLatestSnapshot());
             }
             if (lastInHour) {
-                rollupProcessor.performDayMonthRollups(singletonList(Tables.PM_STATS_LATEST),
+                rollupProcessor.performDayMonthRollups(singletonList(table),
                         aggregators.get(HOUR).getLatestSnapshot(), false);
             }
         }
@@ -723,12 +835,13 @@ public class RollupProcessorTest {
     }
 
     /**
-     * Class that keeps track of avg, min, and max values, as well as number of samples.
+     * Class that keeps track of avg, min, and max values, number of samples and value (only for cluster stats).
      *
      * <p>Aggregators independently compute these values so they can be compared to what ends up
      * in rollup records produced by the stored proc.</p>
      */
     private static class Aggregator {
+        private Double value = 0.0;
         private int samples = 0;
         private Double avg = 0.0;
         private Double min = Double.MAX_VALUE;
@@ -744,12 +857,22 @@ public class RollupProcessorTest {
          * @param snapshot snapshot time where this value appeared
          */
         void observe(Double value, Instant snapshot) {
+            this.value = value;
             this.avg = round((avg * samples + value) / (++samples), 1000);
             this.max = Math.max(max, value);
             this.min = Math.min(min, value);
             this.maxObservedCapacity = Math.max(maxObservedCapacity, value * 2);
             this.maxObservedEffectiveCapacity = Math.max(maxObservedEffectiveCapacity, value * 4);
             this.latestSnapshot = snapshot;
+        }
+
+        /**
+         * Get the value for cluster stats.
+         *
+         * @return value
+         */
+        Double getValue() {
+            return value;
         }
 
         /**

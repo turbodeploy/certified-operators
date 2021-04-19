@@ -16,6 +16,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -129,17 +130,8 @@ public class SqlEntityStateStore extends SQLCloudScopedStore implements EntitySt
     public void updateEntityStates(@Nonnull final Map<Long, EntityState> entityStateMap,
                                    @Nonnull final TopologyEntityCloudTopology cloudTopology)
             throws EntitySavingsException {
-        List<EntitySavingsStateRecord> records = new ArrayList<>();
-        entityStateMap.values().forEach(entityState -> {
-            EntitySavingsStateRecord record = ENTITY_SAVINGS_STATE.newRecord();
-            record.setEntityOid(entityState.getEntityId());
-            record.setUpdated(entityState.isUpdated() ? (byte)1 : (byte)0);
-            record.setNextExpirationTime(Timestamp.from(Instant.ofEpochMilli(entityState
-                    .getNextExpirationTime())).toLocalDateTime());
-            record.setEntityState(entityState.toJson());
-            records.add(record);
-        });
-
+        // State records requires the corresponding scope record is already present in the scope table.
+        // Only create state records that have a scope record.
         List<EntityCloudScopeRecord> scopeRecords = entityStateMap.keySet().stream()
                 .map(entityOid -> createCloudScopeRecord(entityOid, cloudTopology))
                 .filter(Objects::nonNull)
@@ -149,6 +141,27 @@ public class SqlEntityStateStore extends SQLCloudScopedStore implements EntitySt
         } catch (IOException e) {
             throw new EntitySavingsException("Error occurred when writing to entity_cloud_scope table.", e);
         }
+
+        Set<Long> scopeRecordEntityIds = scopeRecords.stream()
+                .map(EntityCloudScopeRecord::getEntityOid)
+                .collect(Collectors.toSet());
+
+        List<EntitySavingsStateRecord> records = new ArrayList<>();
+        entityStateMap.values().forEach(entityState -> {
+            if (scopeRecordEntityIds.contains(entityState.getEntityId())) {
+                EntitySavingsStateRecord record = ENTITY_SAVINGS_STATE.newRecord();
+                record.setEntityOid(entityState.getEntityId());
+                record.setUpdated(entityState.isUpdated() ? (byte)1 : (byte)0);
+                record.setNextExpirationTime(Timestamp.from(Instant.ofEpochMilli(entityState
+                        .getNextExpirationTime())).toLocalDateTime());
+                record.setEntityState(entityState.toJson());
+                records.add(record);
+            } else {
+                logger.warn("Entity state cannot be created for entity {} because its corresponding "
+                        + "record does not exist in the entity_cloud_scope table. ",
+                        entityState.getEntityId());
+            }
+        });
 
         try {
             dsl.loadInto(ENTITY_SAVINGS_STATE)
@@ -176,6 +189,7 @@ public class SqlEntityStateStore extends SQLCloudScopedStore implements EntitySt
                 .map(record -> EntityState.fromJson(record.getEntityState()));
     }
 
+    @Nullable
     private EntityCloudScopeRecord createCloudScopeRecord(Long entityOid, TopologyEntityCloudTopology cloudTopology) {
 
         final Integer entityType = cloudTopology.getEntity(entityOid).map(TopologyEntityDTO::getEntityType).orElse(null);
